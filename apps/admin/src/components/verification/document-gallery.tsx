@@ -23,8 +23,12 @@ export function docTitle(d: { docType: string; side?: string | null }): string {
  * monitor), the picture is shown whole (object-contain), a PDF is an icon
  * tile. A click opens the full-screen lightbox over the page. Each signed
  * link is asked once and reused (cache until the signature ends).
+ *
+ * Owner 2026-11-04 (R-400): [actions] — the registry button and the copy
+ * chips, drawn as a compact bar under the thumbnails and, as [lastSlide],
+ * under the last document inside the lightbox.
  */
-export function DocumentGallery({ requestId, documents }: { requestId: string; documents: readonly GalleryDoc[] }) {
+export function DocumentGallery({ requestId, documents, actions, lastSlide }: { requestId: string; documents: readonly GalleryDoc[]; actions?: React.ReactNode; lastSlide?: React.ReactNode }) {
   const rows = useMemo(() => galleryRows(documents), [documents]);
   const viewable = useMemo(() => rows.flat().filter(isViewableDoc), [rows]);
   const links = useDocLinks(cardJustification(requestId), viewable);
@@ -33,7 +37,7 @@ export function DocumentGallery({ requestId, documents }: { requestId: string; d
   const shown = viewable.filter((d) => links.urls[d.id]);
   const items: LightboxImage[] = shown.map((d) => ({ src: links.urls[d.id]!, alt: docTitle(d), kind: isPdf(d) ? 'pdf' : 'image' }));
 
-  if (rows.length === 0) return null;
+  if (rows.length === 0) return actions ? <div className="mt-4" data-testid="document-gallery-actions">{actions}</div> : null;
   return (
     <div className="mt-4 space-y-3" data-testid="document-gallery">
       {links.capped ? <p className="rounded-xl bg-warning-soft px-3 py-2 text-sm text-warning">Лимит просмотров документов на этот час исчерпан — откройте позже.</p> : null}
@@ -44,7 +48,8 @@ export function DocumentGallery({ requestId, documents }: { requestId: string; d
           ))}
         </div>
       ))}
-      {open !== null && open >= 0 ? <Lightbox images={items} index={open} onIndex={setOpen} onClose={() => setOpen(null)} /> : null}
+      {actions ? <div data-testid="document-gallery-actions">{actions}</div> : null}
+      {open !== null && open >= 0 ? <Lightbox images={items} index={open} onIndex={setOpen} onClose={() => setOpen(null)} lastSlide={lastSlide} /> : null}
     </div>
   );
 }

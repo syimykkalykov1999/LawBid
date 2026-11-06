@@ -19,12 +19,12 @@ const DOCS: GalleryDoc[] = [doc('selfie', 'selfie'), doc('bar', 'bar_license', n
 
 const urlCalls = (id?: string) => POST.mock.calls.filter(([p, init]) => p === '/admin/verification/documents/{documentId}/url' && (!id || JSON.stringify(init).includes(`"${id}"`))).length;
 
-function show() {
+function show(extra: { actions?: React.ReactNode; lastSlide?: React.ReactNode } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <button type="button">before</button>
-      <DocumentGallery requestId="req-12345678" documents={DOCS} />
+      <DocumentGallery requestId="req-12345678" documents={DOCS} {...extra} />
     </QueryClientProvider>,
   );
 }
@@ -111,6 +111,20 @@ describe('document gallery (R-393)', () => {
     const frame = screen.getByTitle('лицензия адвоката');
     expect(frame.tagName).toBe('IFRAME');
     expect(frame.getAttribute('src')).toBe('https://files.example/bar');
+  });
+
+  it('R-400: the conveyor controls sit under the thumbnails and appear in the lightbox only on the last document', async () => {
+    show({ actions: <span data-testid="bar-page">registry</span>, lastSlide: <span data-testid="bar-overlay">registry</span> });
+    await screen.findAllByRole('img');
+    expect(screen.getByTestId('document-gallery-actions').contains(screen.getByTestId('bar-page'))).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть на весь экран: водительские права (лицевая)' }));
+    expect(counter()).toBe('1 из 4');
+    expect(screen.queryByTestId('lightbox-last-slide')).toBeNull();
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(counter()).toBe('4 из 4');
+    expect(screen.getByTestId('lightbox-last-slide').contains(screen.getByTestId('bar-overlay'))).toBe(true);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(screen.queryByTestId('lightbox-last-slide')).toBeNull();
   });
 
   it('asks each signed link once, across opening and closing the lightbox', async () => {

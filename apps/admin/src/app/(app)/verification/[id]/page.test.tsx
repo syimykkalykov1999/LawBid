@@ -12,11 +12,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let me: { id: string; role: string } = { id: 'me', role: 'super_admin' };
 const GET = vi.fn();
 const POST = vi.fn();
+const push = vi.fn();
+let search = '';
+/** R-400: the head of the queue the conveyor reads (one light list call). */
+let queueRows: { id: string; status: string; reviewerId: string | null }[] = [];
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'req-1' }),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(''),
+  useRouter: () => ({ push, replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(search),
   usePathname: () => '/verification/req-1',
 }));
 vi.mock('next/link', () => ({
@@ -40,7 +44,7 @@ vi.mock('@/components/workspace/queue-next', () => ({
   useNextVerification: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-import VerificationCardPage from './page';
+import VerificationCardPage, { resetConveyorForTests } from './page';
 import { TrustPanel } from '@/components/trust/trust-panel';
 
 const license = (over: Record<string, unknown> = {}) => ({
@@ -91,6 +95,7 @@ const card = (over: Record<string, unknown> = {}) => ({
 function api(data: ReturnType<typeof card>) {
   GET.mockImplementation(async (path: string) => {
     if (path === '/admin/verification/requests/{id}') return { data: { data } };
+    if (path === '/admin/verification/requests') return { data: { data: queueRows } };
     // The trust card stays loading in these tests.
     if (path === '/admin/trust/attorneys/{attorneyId}') return new Promise(() => undefined);
     throw new Error(`unexpected GET ${path}`);
@@ -105,8 +110,12 @@ function show(ui: ReactNode) {
 
 beforeEach(() => {
   me = { id: 'me', role: 'super_admin' };
+  search = '';
+  queueRows = [];
+  push.mockReset();
   GET.mockReset();
   POST.mockReset();
+  resetConveyorForTests();
 });
 afterEach(cleanup);
 
@@ -179,5 +188,73 @@ describe('trust block above «Лицензии» (R-394)', () => {
     expect(await screen.findByTestId('trust-panel-placeholder')).toBeTruthy();
     expect(screen.getByText('Борьба с мошенниками')).toBeTruthy();
     expect(container.querySelector('.h-56')).toBeNull();
+  });
+});
+
+/** Owner 2026-11-04 (R-400): the conveyor — after a decision the next request of the same filter opens here. */
+describe('verification conveyor (R-400)', () => {
+  const listCalls = () => GET.mock.calls.filter((c) => c[0] === '/admin/verification/requests');
+  const cardCalls = (id: string) => GET.mock.calls.filter((c) => c[0] === '/admin/verification/requests/{id}' && JSON.stringify(c[1]).includes(`"${id}"`));
+
+  it('after «Одобрить» the card of the next request in the filter opens, the filter kept in the address', async () => {
+    search = 'status=submitted&stateCode=NY';
+    queueRows = [
+      { id: 'req-1', status: 'submitted', reviewerId: 'me' },
+      { id: 'req-9', status: 'submitted', reviewerId: 'someone-else' },
+      { id: 'req-2', status: 'submitted', reviewerId: null },
+    ];
+    api(card());
+    show(<VerificationCardPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Одобрить' }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/verification/req-2?status=submitted&stateCode=NY'));
+    // the list was asked once with the filter, the next card warmed up once — never the whole queue
+    expect(listCalls()).toHaveLength(1);
+    expect(listCalls()[0]![1]).toEqual({ params: { query: { status: 'submitted', stateCode: 'NY', limit: 10 } } });
+    await waitFor(() => expect(cardCalls('req-2')).toHaveLength(1));
+    expect(cardCalls('req-9')).toHaveLength(0);
+  });
+
+  it('«Пропустить» (the «следующая» strip) and the N key move on without a decision', async () => {
+    queueRows = [{ id: 'req-1', status: 'in_review', reviewerId: 'me' }, { id: 'req-2', status: 'submitted', reviewerId: null }];
+    api(card());
+    show(<VerificationCardPage />);
+    await screen.findByRole('button', { name: 'Одобрить' });
+    fireEvent.keyDown(window, { key: 'n', code: 'KeyN' });
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/verification/req-2'));
+    expect(POST).not.toHaveBeenCalled();
+  });
+
+  it('A and R run the approve / reject flows only for a request in my hands, not while typing', async () => {
+    api(card());
+    show(<VerificationCardPage />);
+    await screen.findByRole('button', { name: 'Одобрить' });
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    fireEvent.keyDown(input, { key: 'a', code: 'KeyA' });
+    expect(POST).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: 'a', code: 'KeyA' });
+    await waitFor(() => expect(POST.mock.calls.map((c) => c[0])).toContain('/admin/verification/requests/{id}/approve'));
+    input.remove();
+  });
+
+  it('with the queue empty the card gives way to the empty state instead of going back to the list', async () => {
+    queueRows = [{ id: 'req-1', status: 'in_review', reviewerId: 'me' }];
+    api(card());
+    show(<VerificationCardPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Одобрить' }));
+    expect(await screen.findByText('Очередь пуста — новых заявок нет.')).toBeTruthy();
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: 'К списку' }).getAttribute('href')).toBe('/verification');
+  });
+
+  it('the registry button and the copy chips stand under the documents', async () => {
+    api(card({ licenses: [license({ lookupUrl: 'https://www.iardc.org/Lawyer/Search' })] }));
+    show(<VerificationCardPage />);
+    const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() } as unknown as Window);
+    fireEvent.click(await screen.findByRole('button', { name: /Открыть реестр штата/ }));
+    expect(open).toHaveBeenCalledWith('https://www.iardc.org/Lawyer/Search', 'lawbid-registry');
+    expect(screen.getByTestId('copy-name').title).toBe('Скопировать: Anna Lawyer');
+    expect(screen.getByTestId('copy-bar').title).toBe('Скопировать: 6248201047');
+    open.mockRestore();
   });
 });

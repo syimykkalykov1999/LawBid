@@ -3,25 +3,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { FileText } from '@phosphor-icons/react';
+import { FileText, Tray } from '@phosphor-icons/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn, MotionRow } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { hasRegistryResult, RegistryResult } from '@/components/verification/registry-result';
 import { TrustPanel } from '@/components/trust/trust-panel';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/empty';
+import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { SelfieCaptureNote } from '@/components/verification/selfie-capture-note';
 import { DocumentGallery } from '@/components/verification/document-gallery';
+import { RegistryActions } from '@/components/verification/registry-actions';
 import { FocusBar, useNextVerification } from '@/components/workspace/queue-next';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { can, canOpen } from '@/lib/rbac';
 import { livePoll } from '@/lib/live';
+import { cardHref, nextInQueue, queueFilterFrom, type QueueFilter, type QueueRow } from '@/lib/registry-conveyor';
+import { dialogOnScreen, reviewKeyOf } from '@/lib/review-flow';
 import { formatDateTime } from '@/lib/utils';
 import {
   CHECK_RESULT,
@@ -41,6 +45,28 @@ import {
 const REJECTION = Object.entries(REJECTION_CODE).map(([value, l]) => ({ value, label: l }));
 /** R-394: how often the card re-reads itself while a registry lookup runs. */
 const CHECK_POLL_MS = 3000;
+/**
+ * R-400: the conveyor remembers what was decided or skipped on this page
+ * while the admin stays in the admin (one module, not the address), so the
+ * next request is never one they just left. Reset only for tests.
+ */
+const SEEN = new Set<string>();
+const PREFETCHED = new Set<string>();
+export function resetConveyorForTests(): void {
+  SEEN.clear();
+  PREFETCHED.clear();
+}
+/** The same card call as the page's own query (one cache key for both). */
+async function fetchCard(id: string) {
+  return (await api.GET('/admin/verification/requests/{id}', { params: { path: { id } } })).data!.data;
+}
+/** The head of the queue in the card's filter: a light list call, up to ten rows. */
+async function fetchQueueHead(filter: QueueFilter): Promise<QueueRow[]> {
+  const r = await api.GET('/admin/verification/requests', {
+    params: { query: { status: (filter.status || undefined) as never, stateCode: filter.stateCode || undefined, limit: 10 } },
+  });
+  return (r.data?.data ?? []).map((x) => ({ id: x.id, status: x.status, reviewerId: x.reviewerId }));
+}
 const SCAN_STATUS: Record<string, string> = {
   pending: 'проверяется',
   clean: 'чисто',
@@ -59,18 +85,41 @@ export default function VerificationCardPage() {
   const { confirm, dialog: confirmDialog } = useConfirm();
   const toast = useToast();
   const router = useRouter();
-  // Focus mode (from «Рабочее место»): a decision opens the next request.
-  const focus = useSearchParams().get('focus') === '1';
+  // Focus mode (from «Рабочее место»): a decision opens the next request on the review screen.
+  const search = useSearchParams();
+  const focus = search.get('focus') === '1';
   const next = useNextVerification(id);
+  // R-400 conveyor: the queue filter the card was opened from (the list's tabs
+  // and state box travel in the address); a decision opens the next request of
+  // that filter here, in the card, without the trip back to the list.
+  const filter = useMemo(() => queueFilterFrom(search), [search]);
+  const queueKey = ['verification-next', filter] as const;
+  const queue = useQuery({ queryKey: queueKey, staleTime: 30_000, queryFn: () => fetchQueueHead(filter) });
+  const [queueEmpty, setQueueEmpty] = useState(false);
+  const nextId = queue.data ? nextInQueue(queue.data, id, filter, me?.id, SEEN) : null;
+  // One item ahead: the next card is warmed up once, never the whole list.
+  useEffect(() => {
+    if (!nextId || PREFETCHED.has(nextId)) return;
+    PREFETCHED.add(nextId);
+    void qc.prefetchQuery({ queryKey: ['verification', nextId], queryFn: () => fetchCard(nextId), staleTime: 30_000 });
+  }, [nextId, qc]);
+  /** Leave this request (decided or skipped) and open the next one of the filter; none left → the empty state. */
+  const advance = async () => {
+    SEEN.add(id);
+    const rows = await qc.fetchQuery({ queryKey: queueKey, queryFn: () => fetchQueueHead(filter), staleTime: 30_000 }).catch(() => null);
+    const n = rows ? nextInQueue(rows, id, filter, me?.id, SEEN) : null;
+    if (n) router.push(cardHref(n, filter));
+    else setQueueEmpty(true);
+  };
   const decided = (text: string) => {
     done(text);
     if (focus) next.mutate();
+    else void advance();
   };
 
   const q = useQuery({
     queryKey: ['verification', id],
-    queryFn: async () =>
-      (await api.GET('/admin/verification/requests/{id}', { params: { path: { id } } })).data!.data,
+    queryFn: () => fetchCard(id),
     // R-394: while a registry lookup runs in the background the card asks
     // again every few seconds (one light GET), then stops by itself.
     refetchInterval: livePoll((data) =>
@@ -276,6 +325,65 @@ export default function VerificationCardPage() {
     onError,
   });
 
+  const name = r ? [r.attorney.firstName, r.attorney.lastName].filter(Boolean).join(' ') || `@${r.attorney.username}` : '';
+  const active = !!r && (r.status === 'in_review' || r.status === 'submitted' || r.status === 'needs_more_info');
+  const busy = take.isPending || approve.isPending || requestInfo.isPending || reject.isPending;
+  // R-400: the review screen's one-key shortcuts on the card too (A — одобрить,
+  // R — отклонить, N — следующая); never while typing or while a dialog or the
+  // lightbox owns the keyboard (reviewKeyOf), only for a request in my hands.
+  const keys = useRef({ approve, reject, advance, canDecide: false, canSkip: false });
+  keys.current = { approve, reject, advance, canDecide: active && mine && !busy, canSkip: !queueEmpty && !focus };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const k = reviewKeyOf(e, dialogOnScreen());
+      if (!k) return;
+      const c = keys.current;
+      if (k === 'next') {
+        if (!c.canSkip) return;
+        e.preventDefault();
+        void c.advance();
+        return;
+      }
+      if (!c.canDecide) return;
+      e.preventDefault();
+      if (k === 'approve') c.approve.mutate();
+      else c.reject.mutate();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  if (queueEmpty) {
+    return (
+      <>
+        <PageHeader eyebrow="Галочки · Адвокаты" title="Очередь пуста" />
+        <EmptyState
+          icon={Tray}
+          title="Очередь пуста — новых заявок нет."
+          text={filter.status || filter.stateCode ? 'В этом фильтре заявок больше нет. Снимите фильтр в списке или проверьте ещё раз.' : 'Все ожидающие заявки проверены.'}
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                loading={queue.isFetching}
+                onClick={() => {
+                  setQueueEmpty(false);
+                  void qc.invalidateQueries({ queryKey: queueKey }).then(() => advance());
+                }}
+              >
+                Проверить ещё раз
+              </Button>
+              <Link href="/verification" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+                К списку
+              </Link>
+            </div>
+          }
+        />
+      </>
+    );
+  }
+
   if (!r) {
     return (
       <>
@@ -290,9 +398,6 @@ export default function VerificationCardPage() {
       </>
     );
   }
-  const name = [r.attorney.firstName, r.attorney.lastName].filter(Boolean).join(' ') || `@${r.attorney.username}`;
-  const active = r.status === 'in_review' || r.status === 'submitted' || r.status === 'needs_more_info';
-  const busy = take.isPending || approve.isPending || requestInfo.isPending || reject.isPending;
   const canSeeUser = canOpen(me, '/users');
   // R-394: who may decide a license here, and why not when they may not.
   const canManage = can(me, 'verification', 'manage');
@@ -314,7 +419,15 @@ export default function VerificationCardPage() {
           onSkip={() => next.mutate()}
           onExit={() => router.push(`/verification/${id}`)}
         />
-      ) : null}
+      ) : (
+        /* R-400: the conveyor strip — the same «Пропустить» (= следующая) as the focus mode, the queue filter in the address. */
+        <FocusBar
+          text={`После решения откроется следующая заявка${filter.status ? ` («${label(REQUEST_STATUS, filter.status)}»)` : ''}${filter.stateCode ? `, штат ${filter.stateCode}` : ''} — без возврата в список. Клавиши: A — одобрить, R — отклонить, N — следующая.`}
+          busy={queue.isFetching}
+          onSkip={() => void advance()}
+          onExit={() => router.push('/verification')}
+        />
+      )}
       <PageHeader
         eyebrow="Галочки · Адвокаты"
         title={name}
@@ -421,7 +534,12 @@ export default function VerificationCardPage() {
               {r.documents.length === 0 ? <li className="py-2 text-muted">Нет документов</li> : null}
             </ul>
             {/* Owner 2026-11-04 (R-393): thumbnails two per row, a click opens them full-screen. */}
-            <DocumentGallery requestId={r.id} documents={r.documents} />
+            <DocumentGallery
+              requestId={r.id}
+              documents={r.documents}
+              actions={<RegistryActions card={r} />}
+              lastSlide={<RegistryActions card={r} tone="overlay" />}
+            />
           </CardContent>
         </Card>
         </FadeIn>
