@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Ọnọdụ ịdebanye aha gị agbanweela",
   "notif.list.subscription_status.contract": "LawBid hazịrị ịdebanye aha nkwekọrịta maka gị",
   "notif.list.subscription_status.contract_revoked": "Ịdebanye aha nkwekọrịta gị agwụla",
+  "notif.list.subscription_status.dispute_refund": "Eweghachila gị ụgwọ ị kwụrụ ma kagbuo ndebanye aha.",
   "notif.list.subscription_status.seat_limit_approved": "Ebulila oke ndị enyemaka: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Ajụla arịrịọ gị maka ndị enyemaka karịa",
   "notif.list.subscription_trial_ending": "Oge nnwale n'efu gị na-agwụ n'oge na-adịghị anya",

@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowCounterClockwise, Copy as CopyIcon, Receipt } from '@phosphor-icons/react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { RefundDialog } from '@/components/billing/refund-dialog';
 import {
@@ -17,16 +17,18 @@ import { CsvButton } from '@/components/csv-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { DateField } from '@/components/date-field';
 import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
-import { Label, Select } from '@/components/ui/input';
+import { Field, Label, Select, Textarea } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
+import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { PAYMENT_STATUS, StatusPill, usd } from '@/lib/labels';
 import { Reason } from '@/lib/reasons';
 import { formatDateTime } from '@/lib/utils';
 
-type Tab = 'payments' | 'refunds' | 'duplicates';
+type Tab = 'payments' | 'refunds' | 'duplicates' | 'disputes';
 type PayStatus = '' | 'pending' | 'succeeded' | 'failed' | 'refunded';
 
 /** Payments and refunds. */
@@ -48,10 +50,11 @@ export default function PaymentsPage() {
             { value: 'payments', label: 'Платежи' },
             { value: 'refunds', label: 'Возвраты' },
             { value: 'duplicates', label: 'Двойные подписки' },
+            { value: 'disputes', label: 'Возвраты по спорам' },
           ]}
         />
       </div>
-      {tab === 'payments' ? <Payments /> : tab === 'refunds' ? <Refunds /> : <Duplicates />}
+      {tab === 'payments' ? <Payments /> : tab === 'refunds' ? <Refunds /> : tab === 'duplicates' ? <Duplicates /> : <DisputeRefunds />}
     </>
   );
 }
@@ -330,6 +333,153 @@ function Duplicates() {
         </Table>
       )}
       <LoadMore q={list} />
+    </>
+  );
+}
+
+/** R-237 (owner 2026-11-05): what the automatic refund of a bank inquiry did. */
+const DISPUTE_REFUND_STATUS: Record<string, string> = {
+  refunding: 'возврат отправляется',
+  refunded: 'подписка отменена, деньги возвращены',
+  review: 'ждёт решения',
+  rejected: 'решили не возвращать',
+  no_refund: 'возврат не нужен',
+};
+
+const DISPUTE_REFUND_REASON: Record<string, string> = {
+  over_amount: 'сумма больше лимита',
+  user_limit: 'лимит возвратов на пользователя',
+  daily_cap: 'дневной лимит возвратов',
+  prior_dispute: 'у пользователя уже были споры',
+  fraud_review: 'аккаунт на проверке',
+  escalated: 'банк сам забрал деньги (chargeback)',
+  closed: 'банк закрыл запрос',
+  refund_failed: 'Stripe отказал в возврате',
+  refund_unknown: 'результат возврата неизвестен',
+  refund_unavailable: 'возвраты недоступны',
+};
+
+function DisputeRefunds() {
+  const { canOpenUsers, canWrite } = useBillingRole();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const list = useInfiniteQuery({
+    queryKey: ['billing-dispute-refunds'],
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) =>
+      (await api.GET('/admin/billing/dispute-refunds', { params: { query: { cursor: pageParam } } })).data!,
+    getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
+  });
+  const done = () => queryClient.invalidateQueries({ queryKey: ['billing-dispute-refunds'] });
+  const approve = useMutation({
+    mutationFn: async (id: string) =>
+      (await api.POST('/admin/billing/dispute-refunds/{id}/approve', { params: { path: { id } } })).data!,
+    onSuccess: done,
+    onError: (e) => toast.error(errorText(e)),
+  });
+  const reject = useMutation({
+    mutationFn: async (id: string) =>
+      (
+        await api.POST('/admin/billing/dispute-refunds/{id}/reject', {
+          params: { path: { id } },
+          body: { note: note.trim() },
+        })
+      ).data!,
+    onSuccess: () => {
+      setRejecting(null);
+      setNote('');
+      return done();
+    },
+    onError: (e) => toast.error(errorText(e)),
+  });
+  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  return (
+    <>
+      <p className="mb-3 text-sm text-muted">
+        Если банк прислал запрос по платежу за подписку и деньги ещё у нас, система отменяет подписку и возвращает
+        платёж целиком. Сверх лимитов случай ждёт решения здесь. Настоящий спор (chargeback) не возвращаем: банк уже
+        забрал деньги.
+      </p>
+      <ErrorNote text={list.error ? errorText(list.error) : null} />
+      {!list.isPending && !list.error && rows.length === 0 ? (
+        <EmptyState icon={CopyIcon} title="Возвратов по спорам не было" />
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Пользователь</Th>
+              <Th>Статус</Th>
+              <Th className="text-right">Сумма</Th>
+              <Th>Почему</Th>
+              <Th>Когда</Th>
+              <Th />
+            </tr>
+          </thead>
+          <tbody>
+            {list.isPending ? (
+              <TableEmpty colSpan={6} loading />
+            ) : (
+              rows.map((r) => (
+                <tr key={r.id}>
+                  <Td>
+                    <UserCell user={r.user} userId={r.userId} link={canOpenUsers} />
+                  </Td>
+                  <Td>
+                    <StatusPill map={DISPUTE_REFUND_STATUS} value={r.status} />
+                  </Td>
+                  <Td className="text-right whitespace-nowrap tabular-nums">{usd(r.amountCents, 2)}</Td>
+                  <Td className="max-w-72 text-muted">
+                    {r.note ?? (r.reason ? (DISPUTE_REFUND_REASON[r.reason] ?? r.reason) : '')}
+                  </Td>
+                  <Td className="whitespace-nowrap text-muted">{formatDateTime(r.createdAt)}</Td>
+                  <Td className="whitespace-nowrap text-right">
+                    {r.status === 'review' && canWrite ? (
+                      <span className="flex justify-end gap-2">
+                        <Button size="sm" loading={approve.isPending} onClick={() => approve.mutate(r.id)}>
+                          Вернуть деньги
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setRejecting(r.id)}>
+                          Не возвращать
+                        </Button>
+                      </span>
+                    ) : null}
+                  </Td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </Table>
+      )}
+      <LoadMore q={list} />
+      <Dialog
+        open={!!rejecting}
+        onClose={() => setRejecting(null)}
+        eyebrow="Возвраты по спорам"
+        title="Не возвращать деньги"
+        description="Запрос банка всё равно нужно ответить в «Проверках Stripe»."
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (rejecting && note.trim().length >= 3) reject.mutate(rejecting);
+          }}
+        >
+          <Field label="Почему" htmlFor="dr-note" hint="Попадёт в журнал аудита.">
+            <Textarea id="dr-note" rows={3} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setRejecting(null)}>
+              Отмена
+            </Button>
+            <Button type="submit" loading={reject.isPending} disabled={note.trim().length < 3 || reject.isPending}>
+              Подтвердить
+            </Button>
+          </div>
+        </form>
+      </Dialog>
     </>
   );
 }

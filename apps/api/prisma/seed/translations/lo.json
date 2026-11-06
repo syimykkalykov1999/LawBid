@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "ສະຖານະການສະໝັກສະມາຊິກຂອງທ່ານປ່ຽນແປງ",
   "notif.list.subscription_status.contract": "LawBid ຕັ້ງການສະໝັກສະມາຊິກຕາມສັນຍາໃຫ້ທ່ານ",
   "notif.list.subscription_status.contract_revoked": "ການສະໝັກສະມາຊິກຕາມສັນຍາຂອງທ່ານສິ້ນສຸດແລ້ວ",
+  "notif.list.subscription_status.dispute_refund": "ການຊຳລະເງິນຂອງທ່ານຖືກຄືນແລ້ວ ແລະ ການສະໝັກໃຊ້ຖືກຍົກເລີກ.",
   "notif.list.subscription_status.seat_limit_approved": "ເພີ່ມຂີດຈຳກັດຜູ້ຊ່ວຍແລ້ວ: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "ຄຳຮ້ອງຂໍຜູ້ຊ່ວຍເພີ່ມຂອງທ່ານຖືກປະຕິເສດ",
   "notif.list.subscription_trial_ending": "ການທົດລອງໃຊ້ຟຣີຂອງທ່ານໃກ້ຈະສິ້ນສຸດ",

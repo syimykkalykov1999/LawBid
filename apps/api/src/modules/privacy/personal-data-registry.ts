@@ -274,6 +274,8 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'StripeReviewItem',
       // Algo audit M-4: auto-resolved duplicate subscriptions (refund record).
       'BillingDuplicateFix',
+      // R-237: automatic refunds of bank inquiries (refund record).
+      'BillingDisputeRefund',
       // Staff package T1: piecework days feed payroll_accruals (pay records).
       'StaffPieceworkDay',
     ),

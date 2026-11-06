@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "סטטוס המנוי שלכם השתנה",
   "notif.list.subscription_status.contract": "LawBid הגדיר עבורכם מנוי במסגרת חוזה",
   "notif.list.subscription_status.contract_revoked": "המנוי שלכם במסגרת חוזה הסתיים",
+  "notif.list.subscription_status.dispute_refund": "התשלום שלך הוחזר והמנוי בוטל.",
   "notif.list.subscription_status.seat_limit_approved": "מגבלת העוזרים הועלתה: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "הבקשה שלכם לעוזרים נוספים נדחתה",
   "notif.list.subscription_trial_ending": "תקופת הניסיון החינמית שלכם מסתיימת בקרוב",

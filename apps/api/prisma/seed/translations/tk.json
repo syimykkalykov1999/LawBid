@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Abuna ýagdaýyňyz üýtgedi",
   "notif.list.subscription_status.contract": "LawBid siziň üçin şertnama abunasyny döretdi",
   "notif.list.subscription_status.contract_revoked": "Şertnama abunaňyz gutardy",
+  "notif.list.subscription_status.dispute_refund": "Tölegiňiz yzyna gaýtaryldy we abunalyk ýatyryldy.",
   "notif.list.subscription_status.seat_limit_approved": "Kömekçi çägi ýokarlandyryldy: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Köpräk kömekçi ýüztutmaňyz ret edildi",
   "notif.list.subscription_trial_ending": "Mugt synag döwrüňiz basym gutarýar",

@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "உங்கள் சந்தா நிலை மாறியுள்ளது",
   "notif.list.subscription_status.contract": "LawBid உங்களுக்கு ஒப்பந்தச் சந்தாவை அமைத்துள்ளது",
   "notif.list.subscription_status.contract_revoked": "உங்கள் ஒப்பந்தச் சந்தா முடிவடைந்தது",
+  "notif.list.subscription_status.dispute_refund": "உங்கள் கட்டணம் திருப்பி அளிக்கப்பட்டது, சந்தா ரத்து செய்யப்பட்டது.",
   "notif.list.subscription_status.seat_limit_approved": "உதவியாளர் வரம்பு உயர்த்தப்பட்டது: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "மேலும் உதவியாளர்களுக்கான உங்கள் கோரிக்கை நிராகரிக்கப்பட்டது",
   "notif.list.subscription_trial_ending": "உங்கள் இலவசச் சோதனை விரைவில் முடிகிறது",

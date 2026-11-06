@@ -12,6 +12,7 @@ import { AuditLogService } from '../admin-access/audit-log.service';
 import { StripeReviewService } from '../stripe-ops/stripe-review.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { PAYMENT_PROVIDER } from './billing.constants';
+import { DisputeRefundService } from './dispute-refund.service';
 import { refreshProvider } from './dynamic-payment.provider';
 import type { PaymentProvider, ProviderEvent } from './payment-provider';
 import { SubscriptionSyncService } from './subscription-sync.service';
@@ -38,9 +39,11 @@ const CHARGEBACK_STATUSES = new Set(['needs_response', 'under_review', 'lost']);
  *    subscription stays cancelled (a person may re-enable access in the
  *    admin); both are recorded in the audit log.
  *
- * Money rule: NO refund is issued here. The dispute already reverses the
+ * Money rule: NO refund of a chargeback. The dispute already reverses the
  * disputed charge, so a refund of the same charge would pay the customer
- * twice (Stripe: never refund a disputed charge). The unused remainder of a
+ * twice (Stripe: never refund a disputed charge). An INQUIRY has not moved the
+ * money yet: DisputeRefundService refunds it in full when its switch is on.
+ * The unused remainder of a
  * DIFFERENT (later) paid period is not refunded automatically either: the
  * repo's refund guard (duplicate-subscriptions.logic `refundGuard`) holds
  * all automatic refunds for a user with a dispute; an admin refunds it by
@@ -65,6 +68,7 @@ export class SubscriptionDisputeService implements OnModuleInit {
     private readonly access: SubscriptionAccessService,
     @Optional() private readonly review?: StripeReviewService,
     @Optional() private readonly audit?: AuditLogService,
+    @Optional() private readonly disputeRefunds?: DisputeRefundService,
   ) {}
 
   onModuleInit(): void {
@@ -110,6 +114,7 @@ export class SubscriptionDisputeService implements OnModuleInit {
         invoiceId: pay.stripe_invoice_id,
         refunded: false,
       });
+      await this.disputeRefunds?.onDisputeEnded(dispute.id, 'closed');
       // A chargeback lost at the bank ends the subscription too (when an
       // earlier inquiry did not); the code below is idempotent.
       if (outcome !== 'lost') return;
@@ -142,6 +147,15 @@ export class SubscriptionDisputeService implements OnModuleInit {
     // (`needs_response`, `under_review`) or `lost` cancels the subscription;
     // an inquiry is only recorded and the staff told (it may be answered).
     if (!CHARGEBACK_STATUSES.has(dispute.status)) {
+      const evidence = o.evidence_details as { due_by?: unknown } | undefined;
+      const handled = await this.disputeRefunds?.onInquiry({
+        disputeId: dispute.id,
+        status: dispute.status,
+        chargeRefundable: o.is_charge_refundable === true,
+        dueBy: typeof evidence?.due_by === 'number' ? evidence.due_by : null,
+        paymentId: pay.id,
+      });
+      if (handled) return;
       if (event.type === 'charge.dispute.created') {
         await this.record(row.id, pay.user_id, 'inquiry_noted', base);
         await this.alert(
@@ -152,6 +166,10 @@ export class SubscriptionDisputeService implements OnModuleInit {
       }
       return;
     }
+
+    // The inquiry grew into a chargeback: the bank took the money itself, so a
+    // refund still waiting for a person must not go out as well.
+    await this.disputeRefunds?.onDisputeEnded(dispute.id, 'escalated');
 
     await refreshProvider(this.provider);
     // Cancel the subscription the disputed invoice belongs to, never blindly

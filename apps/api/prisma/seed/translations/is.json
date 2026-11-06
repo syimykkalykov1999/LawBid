@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Staða áskriftarinnar þinnar breyttist",
   "notif.list.subscription_status.contract": "LawBid stofnaði samningsáskrift fyrir þig",
   "notif.list.subscription_status.contract_revoked": "Samningsáskrift þinni lauk",
+  "notif.list.subscription_status.dispute_refund": "Greiðslan þín var endurgreidd og áskriftinni sagt upp.",
   "notif.list.subscription_status.seat_limit_approved": "Hámark aðstoðarmanna hækkað: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Beiðni þinni um fleiri aðstoðarmenn var hafnað",
   "notif.list.subscription_trial_ending": "Ókeypis prufutímabilinu þínu lýkur bráðum",

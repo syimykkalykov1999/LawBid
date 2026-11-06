@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "आपल्या सबस्क्रिप्शनची स्थिती बदलली",
   "notif.list.subscription_status.contract": "LawBid ने आपल्यासाठी करार सबस्क्रिप्शन सेट केले",
   "notif.list.subscription_status.contract_revoked": "आपले करार सबस्क्रिप्शन संपले",
+  "notif.list.subscription_status.dispute_refund": "तुमचे पेमेंट परत केले आहे आणि सदस्यता रद्द केली आहे.",
   "notif.list.subscription_status.seat_limit_approved": "सहाय्यक मर्यादा वाढवली: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "आणखी सहाय्यकांची तुमची विनंती नाकारली",
   "notif.list.subscription_trial_ending": "आपला मोफत ट्रायल लवकरच संपत आहे",
