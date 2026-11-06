@@ -123,6 +123,7 @@ function fakeStore(initial: Record<string, string> = {}) {
 interface Opts {
   mode?: string;
   env?: Record<string, string>;
+  stored?: Record<string, unknown>;
   attorneys?: string[];
   store?: ReturnType<typeof fakeStore>;
   maxAttorneys?: number;
@@ -202,6 +203,7 @@ function make(o: Opts = {}) {
   Object.assign(directory, withNew);
   const settings = {
     string: jest.fn(() => Promise.resolve(o.mode ?? 'nightly')),
+    raw: jest.fn((k: string) => Promise.resolve(o.stored?.[k])),
     number: jest.fn((k: string) =>
       Promise.resolve(
         {
@@ -593,6 +595,37 @@ describe('SeoGenerateJob', () => {
       expect(t.directory.seoPosts).not.toHaveBeenCalled();
       expect(t.directory.seoQuestions).not.toHaveBeenCalled();
       expect(t.lib.renderSite).not.toHaveBeenCalled();
+    });
+
+    it('the admin switch wins over the variable, both ways; never decided = the variable', async () => {
+      const on = make({
+        posts: 2,
+        questions: 2,
+        stored: {
+          'seo.pages_posts_enabled': true,
+          'seo.pages_cities_enabled': true,
+        },
+      });
+      await on.job.run();
+      const onOpts = on.lib.renderSite.mock.calls[0][1] as SeoRenderOptions;
+      expect(onOpts).toMatchObject({
+        pagesPosts: true,
+        pagesCities: true,
+        pagesQa: false,
+      });
+      expect(on.directory.seoQuestions).not.toHaveBeenCalled();
+
+      const off = make({
+        posts: 2,
+        questions: 2,
+        env: { SEO_PAGES_POSTS: '1', SEO_PAGES_QA: '1' },
+        stored: { 'seo.pages_posts_enabled': false },
+      });
+      await off.job.run();
+      const offOpts = off.lib.renderSite.mock.calls[0][1] as SeoRenderOptions;
+      expect(offOpts.pagesPosts).toBe(false);
+      expect(offOpts.pagesQa).toBe(true);
+      expect(off.directory.seoPosts).not.toHaveBeenCalled();
     });
 
     it('only the switched-on type is read; its rows reach renderSite and its pages are published', async () => {

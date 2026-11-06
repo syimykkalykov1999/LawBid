@@ -37,6 +37,8 @@ export interface Me {
   countries?: string[];
   /** Country tabs to pick from in the top bar. */
   countryTabs?: { code: string; name: string }[];
+  /** R-382: the account's photo (the app avatar); null = initials. */
+  avatarUrl?: string | null;
 }
 
 export function useMe() {
@@ -47,5 +49,9 @@ export function useMe() {
       return data!.data as Me;
     },
     staleTime: 5 * 60_000,
+    // R-382: the photo is saved in the app, on another screen. Coming back to
+    // the panel re-reads «me» once it is stale, so the chip picks the new photo
+    // up without a page reload (fresh data is not asked again).
+    refetchOnWindowFocus: true,
   });
 }

@@ -134,6 +134,8 @@
                 <data android:path="/auth/email-code" />
                 <!-- Owner 2026-10-28: «continue on the phone» (ID selfie). -->
                 <data android:path="/verification/wizard" />
+                <!-- R-146: the computer's one-time «continue on your phone» code. -->
+                <data android:pathPrefix="/selfie/" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

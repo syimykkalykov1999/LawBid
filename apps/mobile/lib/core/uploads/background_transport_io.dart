@@ -118,7 +118,11 @@ class BackgroundStorageTransport implements StorageTransport {
         httpRequestMethod: target.isPut ? 'PUT' : 'POST',
         // R2 (PUT): the file is the raw body, with the signed headers.
         post: target.isPut ? 'binary' : null,
-        headers: target.isPut ? target.headers : null,
+        // An empty Content-Disposition keeps the plugin from adding its own
+        // `attachment` (R2 would store it and serve photos as downloads).
+        headers: target.isPut
+            ? {...target.headers, 'Content-Disposition': ''}
+            : null,
         mimeType: mime,
         fields: target.isPut ? null : target.fields,
         updates: Updates.statusAndProgress,

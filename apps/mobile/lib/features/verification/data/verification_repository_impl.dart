@@ -108,6 +108,7 @@ class VerificationRepositoryImpl implements VerificationRepository {
             note: note,
             captureToken: selfie?.token,
             captureMeta: VerificationMapper.captureMeta(selfie?.report),
+            handoffToken: selfie?.handoffToken,
           ),
           extras: _creates,
         ),
@@ -124,6 +125,30 @@ class VerificationRepositoryImpl implements VerificationRepository {
       expiresAt: t.expiresAt,
       required: t.requiredValue,
     );
+  }
+
+  @override
+  Future<SelfieHandoff> createHandoff(String requestId) async {
+    final h = (await guardApiCall(
+      () => _client.createVerificationHandoff(
+        body: api.CreateHandoffDto(requestId: requestId),
+      ),
+    ))
+        .data;
+    return SelfieHandoff(token: h.token, url: h.url, expiresAt: h.expiresAt);
+  }
+
+  @override
+  Future<SelfieHandoffStatus> handoffStatus(String token) async {
+    final s = (await guardApiCall(
+      () => _client.getVerificationHandoffStatus(token: token),
+    ))
+        .data;
+    return switch (s.status) {
+      api.VerificationHandoffStatus.done => SelfieHandoffStatus.done,
+      api.VerificationHandoffStatus.pending => SelfieHandoffStatus.pending,
+      _ => SelfieHandoffStatus.expired,
+    };
   }
 
   @override

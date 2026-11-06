@@ -29,22 +29,22 @@ R2 хранит публичные фото (аватары, обложки) и 
 1. Откройте [dash.cloudflare.com](https://dash.cloudflare.com).
 2. Слева выберите **Storage & databases** → **R2** → **Overview**.
 3. Если R2 ещё не включён, пройдите оформление (**checkout**) и добавьте карту.
-4. Создайте бакет: нажмите **Create bucket**, имя `lawbid-public-media` (только маленькие латинские буквы, цифры и дефисы, 3-63 символа). Имя не должно совпадать с бакетами AWS. Нажмите **Create bucket**.
+4. Создайте бакет: нажмите **Create bucket**, имя `lawbid-media` (только маленькие латинские буквы, цифры и дефисы, 3-63 символа). Имя не должно совпадать с бакетами AWS. Нажмите **Create bucket**.
 5. Откройте бакет → **Settings** → блок **Custom Domains** → **Add**.
 6. Впишите `media.lawbid.dev` и нажмите **Continue**, затем **Connect Domain**.
 7. Подождите, пока статус сменится с **Initializing** на **Active** (несколько минут; обновите страницу). Если не меняется, нажмите **...** у бакета → **Retry connection**.
 8. Не включайте адрес `r2.dev`: он медленный и только для разработки.
 9. Вернитесь на **R2** → **Overview**. В блоке **Account Details** нажмите **Manage** рядом с **API Tokens**.
-10. Нажмите **Create Account API token**. В **Permissions** выберите **Object Read & Write**. В области действия укажите только бакет `lawbid-public-media`. Нажмите **Create Account API token**.
+10. Нажмите **Create Account API token**. В **Permissions** выберите **Object Read & Write**. В области действия укажите только бакет `lawbid-media`. Нажмите **Create Account API token**.
 11. Скопируйте **Access Key ID** и **Secret Access Key**. Секрет показывается один раз.
-12. Две обязательные настройки (CORS и правило кэша) подробно описаны в `docs/runbooks/DNS_TO_CLOUDFLARE.md`, раздел «После переноса». Без CORS загрузка фото из браузера не заработает.
+12. Две обязательные настройки (CORS и правило кэша) подробно описаны в `docs/runbooks/DNS_TO_CLOUDFLARE.md`, раздел «Чек-лист владельца». Без CORS загрузка фото из браузера не заработает.
 
 ## Куда вставить в нашей админке
 
 1. «Ключи и сервисы» → карточка **Public media storage (Cloudflare R2)**.
 2. «Cloudflare account ID» → ваш Account ID (32 символа).
 3. «R2 access key ID» и «R2 secret access key» → значения из шага 11.
-4. «Bucket» → `lawbid-public-media`.
+4. «Bucket» → `lawbid-media`.
 5. «Public base URL» → `https://media.lawbid.dev` (с https, без пути).
 6. Поля Zone ID и токен очистки кэша необязательны: с ними удалённые фото пропадают сразу, а не через сутки.
 7. «Добавить ключи» → «Сохранить» (код 2FA) → «Проверить».

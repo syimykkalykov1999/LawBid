@@ -472,7 +472,7 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
     if (attorneys.length === 0 || !this.storage?.configured) return;
     let bucket: string;
     try {
-      bucket = this.storage.bucket('media');
+      bucket = await this.storage.resolveBucket('media');
     } catch {
       return;
     }
