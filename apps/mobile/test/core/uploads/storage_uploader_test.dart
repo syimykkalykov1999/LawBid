@@ -272,7 +272,8 @@ void main() {
           },
         };
 
-    StorageUploader resumable() => StorageUploader(
+    StorageUploader resumable({bool browser = false}) => StorageUploader(
+          browser: browser,
           apiDio: apiDio,
           transport:
               DioStorageTransport(storageDio, backoff: (_) => Duration.zero),
@@ -281,6 +282,85 @@ void main() {
           storageDio: storageDio,
           partBackoff: (_) => Duration.zero,
         );
+
+    group('in a browser', () {
+      void servePlan() {
+        final inner = apiAdapter.handler;
+        apiAdapter.handler = (o) async {
+          if (o.path == '/files/file-1/multipart') {
+            return jsonBody(plan([], [1, 2, 3]));
+          }
+          return inner(o);
+        };
+      }
+
+      test(
+          'no CORS: no retries, the caller takes the old single path, '
+          'and the next file does not ask for part links', () async {
+        servePlan();
+        final refused = <int>[];
+        storage.handler = (o) async {
+          refused.add(1);
+          throw DioException.connectionError(
+            requestOptions: o,
+            reason: 'XMLHttpRequest onError',
+          );
+        };
+        final up = resumable(browser: true);
+
+        expect(await up.putResumable('file-1', big), isFalse);
+        expect(refused.length, lessThanOrEqualTo(StorageUploader.partsAtOnce));
+        expect(
+          apiAdapter.requests.map((r) => r.path),
+          isNot(contains('/files/file-1/multipart/complete')),
+        );
+
+        final plansBefore = apiAdapter.requests.length;
+        expect(await up.putResumable('file-1', big), isFalse);
+        expect(apiAdapter.requests.length, plansBefore);
+      });
+
+      test(
+          'a part got through: a later lost connection is a retry, as on a '
+          'phone', () async {
+        var plans = 0;
+        final inner = apiAdapter.handler;
+        apiAdapter.handler = (o) async {
+          if (o.path == '/files/file-1/multipart') {
+            plans++;
+            return jsonBody(
+              plans == 1 ? plan([], [1, 2, 3]) : plan([1, 2, 3], []),
+            );
+          }
+          if (o.path == '/files/file-1/multipart/complete') {
+            return jsonBody({
+              'data': {'sizeBytes': 20 * mib},
+            });
+          }
+          return inner(o);
+        };
+        final seen = <String>{};
+        var dropped = false;
+        storage.handler = (o) async {
+          seen.add(o.path);
+          // The first part answers, then one connection drops once.
+          if (o.path.endsWith('/p2') && !dropped) {
+            dropped = true;
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            throw DioException.connectionError(
+              requestOptions: o,
+              reason: 'lost',
+            );
+          }
+          return ResponseBody.fromString('', 200);
+        };
+        expect(
+          await resumable(browser: true).putResumable('file-1', big),
+          isTrue,
+        );
+        expect(seen, hasLength(3));
+      });
+    });
 
     test('sends the parts with exact ranges, then completes', () async {
       var plans = 0;
@@ -489,6 +569,63 @@ void main() {
         isFalse,
       );
       expect(storage.requests, isEmpty);
+    });
+  });
+
+  group('a file this user already stored (R-254)', () {
+    Map<String, Object?> presignBody() => jsonDecode(
+          jsonEncode(
+            apiAdapter.requests
+                .firstWhere((r) => r.path == '/files/presign')
+                .data,
+          ),
+        ) as Map<String, Object?>;
+
+    test('nothing goes to storage, no confirm, the id comes back', () async {
+      apiAdapter.handler = (o) async => jsonBody(
+            {
+              'data': {
+                'fileId': 'ready',
+                'upload': {'url': '', 'fields': <String, String>{}},
+                'expiresAt': '2026-11-05T10:05:00.000Z',
+                'existing': true,
+              },
+            },
+            201,
+          );
+      final progress = <double>[];
+      final id = await uploader().upload(
+        purpose: api.FilePurpose.chatAttachment,
+        body: UploadBody.bytes(Uint8List.fromList([1, 2, 3])),
+        mime: 'application/pdf',
+        onProgress: progress.add,
+      );
+      expect(id, 'ready');
+      expect(storage.requests, isEmpty);
+      expect(apiAdapter.requests, hasLength(1));
+      expect(progress.last, 1);
+      expect(presignBody()['acceptsExisting'], isTrue);
+    });
+
+    test('a server without it: the usual upload', () async {
+      final id = await uploader().upload(
+        purpose: api.FilePurpose.chatAttachment,
+        body: UploadBody.bytes(Uint8List.fromList([1, 2, 3])),
+        mime: 'image/png',
+      );
+      expect(id, 'file-1');
+      expect(storage.requests, hasLength(1));
+    });
+
+    test('a direct presign (avatars, verification) does not ask for it',
+        () async {
+      await uploader().presign(
+        purpose: api.FilePurpose.avatar,
+        mime: 'image/png',
+        sizeBytes: 3,
+        sha256: 'abc',
+      );
+      expect(presignBody().containsKey('acceptsExisting'), isFalse);
     });
   });
 

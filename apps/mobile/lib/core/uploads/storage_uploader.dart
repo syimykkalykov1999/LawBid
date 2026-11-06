@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
@@ -9,6 +10,12 @@ import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/core/transfers/transfer_limits.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+
+/// A part got no answer in a browser before any part ever got through: most
+/// likely no CORS for PUT on the storage. See [StorageUploader._browser].
+class _PartsRefusedByBrowser implements Exception {
+  const _PartsRefusedByBrowser();
+}
 
 /// Where one file goes: the presigned upload of `POST /files/presign`.
 ///
@@ -23,6 +30,7 @@ class StorageTarget {
     required this.fields,
     this.method = 'POST',
     this.headers = const {},
+    this.alreadyStored = false,
   });
 
   /// A target kept in a queue job; null when the shape is not one.
@@ -42,12 +50,12 @@ class StorageTarget {
   }
 
   Map<String, Object?> toJson() => {
-    'fileId': fileId,
-    'url': url,
-    'fields': fields,
-    'method': method,
-    'headers': headers,
-  };
+        'fileId': fileId,
+        'url': url,
+        'fields': fields,
+        'method': method,
+        'headers': headers,
+      };
 
   final String fileId;
   final String url;
@@ -61,6 +69,10 @@ class StorageTarget {
 
   /// Headers a PUT must send as given (Content-Type, Cache-Control).
   final Map<String, String> headers;
+
+  /// R-254: this user already stored these bytes: [fileId] is ready and
+  /// clean, nothing goes to storage.
+  final bool alreadyStored;
 
   bool get isPut => method.toUpperCase() == 'PUT';
 }
@@ -86,12 +98,12 @@ abstract interface class StorageTransport {
 /// A storage refusal / a lost connection, in the app's error type (storage
 /// answers in XML, never in our error envelope).
 ApiException storageError(DioException e) => ApiException(
-  code: e.response == null
-      ? ApiException.networkErrorCode
-      : ApiErrorCodes.fileNotUploaded,
-  message: 'Upload to storage failed.',
-  statusCode: e.response?.statusCode,
-);
+      code: e.response == null
+          ? ApiException.networkErrorCode
+          : ApiErrorCodes.fileNotUploaded,
+      message: 'Upload to storage failed.',
+      statusCode: e.response?.statusCode,
+    );
 
 /// The S3 POST over Dio, with retries: a lost connection, a timeout or a
 /// busy storage (408 / 429 / 5xx) is tried again after 1 s, 2 s, 4 s …; a
@@ -127,7 +139,7 @@ class DioStorageTransport implements StorageTransport {
     CancelToken? cancel,
     String? taskId,
   }) async {
-    for (var failures = 0; ; failures++) {
+    for (var failures = 0;; failures++) {
       try {
         if (target.isPut) {
           // R2: the raw bytes with the signed headers; a fresh stream per
@@ -196,13 +208,15 @@ class StorageUploader {
     Duration Function(int failures)? partBackoff,
     PartsGate? partsGate,
     AdaptiveLimiter? limiter,
-  }) : _files = api.FilesClient(apiDio),
-       _transport = transport,
-       _forgetTransfer = forgetTransfer,
-       _storageDio = storageDio,
-       _partBackoff = partBackoff ?? DioStorageTransport.defaultBackoff,
-       _partsGate = partsGate,
-       _limiter = limiter ?? TransferLimits.uploads;
+    bool browser = kIsWeb,
+  })  : _files = api.FilesClient(apiDio),
+        _browser = browser,
+        _transport = transport,
+        _forgetTransfer = forgetTransfer,
+        _storageDio = storageDio,
+        _partBackoff = partBackoff ?? DioStorageTransport.defaultBackoff,
+        _partsGate = partsGate,
+        _limiter = limiter ?? TransferLimits.uploads;
 
   /// The usual pair: the API's Dio and the plain storage Dio.
   factory StorageUploader.dio(
@@ -210,13 +224,14 @@ class StorageUploader {
     Dio storageDio, {
     Duration scanPoll = const Duration(milliseconds: 700),
     int scanMaxPolls = 40,
-  }) => StorageUploader(
-    apiDio: apiDio,
-    transport: DioStorageTransport(storageDio),
-    scanPoll: scanPoll,
-    scanMaxPolls: scanMaxPolls,
-    storageDio: storageDio,
-  );
+  }) =>
+      StorageUploader(
+        apiDio: apiDio,
+        transport: DioStorageTransport(storageDio),
+        scanPoll: scanPoll,
+        scanMaxPolls: scanMaxPolls,
+        storageDio: storageDio,
+      );
 
   final api.FilesClient _files;
   final StorageTransport _transport;
@@ -225,6 +240,15 @@ class StorageUploader {
   final Duration Function(int failures) _partBackoff;
   final PartsGate? _partsGate;
   final AdaptiveLimiter _limiter;
+
+  /// In a browser a part PUT needs CORS on the storage. Without it the browser
+  /// hides the answer: no status, the same as a lost connection. So the first
+  /// part that fails that way, before any part ever got through, sends the
+  /// file down the old single-request path, and this session stops asking for
+  /// part links. The abandoned multipart upload is aborted by storage-cleanup.
+  final bool _browser;
+  bool _partsWorked = false;
+  bool _partsRefused = false;
 
   /// Files at least this big go in parts that can be continued after an
   /// interruption (server flag `files_multipart`; mirrors the server's
@@ -247,6 +271,7 @@ class StorageUploader {
     required String mime,
     required int sizeBytes,
     required String sha256,
+    bool acceptsExisting = false,
   }) async {
     final d = (await guardApiCall(
       () => _files.presign(
@@ -257,16 +282,19 @@ class StorageUploader {
           sha256: sha256,
           // Owner 2026-10-24: this app can do a presigned PUT (R2).
           supportsPut: true,
+          acceptsExisting: acceptsExisting ? true : null,
         ),
         extras: const {RequestFlags.createsResource: true},
       ),
-    )).data;
+    ))
+        .data;
     return StorageTarget(
       fileId: d.fileId,
       url: d.upload.url,
       fields: d.upload.fields,
       method: d.upload.method?.name.toUpperCase() ?? 'POST',
       headers: d.upload.headers ?? const {},
+      alreadyStored: d.existing ?? false,
     );
   }
 
@@ -280,15 +308,16 @@ class StorageUploader {
     CancelToken? cancel,
     String? taskId,
     StorageTransport? transport,
-  }) => (transport ?? _transport).post(
-    target,
-    body,
-    filename: filename,
-    mime: mime,
-    onProgress: onProgress,
-    cancel: cancel,
-    taskId: taskId,
-  );
+  }) =>
+      (transport ?? _transport).post(
+        target,
+        body,
+        filename: filename,
+        mime: mime,
+        onProgress: onProgress,
+        cancel: cancel,
+        taskId: taskId,
+      );
 
   /// Resumable step 2 for a big file (checklist reconciliation 2026-11-01):
   /// the file goes to storage in parts, each to its own link. After a lost
@@ -308,6 +337,7 @@ class StorageUploader {
     if (storage == null) return false;
     final total = await body.length();
     if (total < resumableThresholdBytes) return false;
+    if (_partsRefused) return false;
     await TransferLimits.checkDevice();
     _limiter.restoreIfIdle();
 
@@ -328,14 +358,19 @@ class StorageUploader {
 
     // Three rounds: an expired part link is fixed by asking for a new plan.
     for (var round = 0; round < 3 && current.parts.isNotEmpty; round++) {
-      await _putParts(
-        storage,
-        current,
-        body,
-        total,
-        onProgress: onProgress,
-        cancel: cancel,
-      );
+      try {
+        await _putParts(
+          storage,
+          current,
+          body,
+          total,
+          onProgress: onProgress,
+          cancel: cancel,
+        );
+      } on _PartsRefusedByBrowser {
+        _partsRefused = true;
+        return false;
+      }
       current = await plan();
     }
     await guardApiCall(() => _files.multipartComplete(id: fileId));
@@ -425,7 +460,7 @@ class StorageUploader {
     void Function(int sent)? onBytes,
     int attempts = 4,
   }) async {
-    for (var failures = 0; ; failures++) {
+    for (var failures = 0;; failures++) {
       try {
         await _limiter.run(
           () => storage.put<void>(
@@ -438,10 +473,14 @@ class StorageUploader {
             onSendProgress: (sent, _) => onBytes?.call(sent),
           ),
         );
+        _partsWorked = true;
         return;
       } on DioException catch (e) {
         if (CancelToken.isCancel(e)) rethrow;
         final c = e.response?.statusCode;
+        if (_browser && c == null && !_partsWorked) {
+          throw const _PartsRefusedByBrowser();
+        }
         final temporary = c == null || c == 408 || c == 429 || c >= 500;
         if (!temporary || failures + 1 >= attempts) throw storageError(e);
         // A bad network: fewer parts at once, for this file and the others.
@@ -472,11 +511,9 @@ class StorageUploader {
     int? maxPolls,
   }) async {
     var s = status;
-    for (
-      var i = 0;
-      s == api.ScanStatus.pending && i < (maxPolls ?? scanMaxPolls);
-      i++
-    ) {
+    for (var i = 0;
+        s == api.ScanStatus.pending && i < (maxPolls ?? scanMaxPolls);
+        i++) {
       await Future<void>.delayed(scanPoll);
       s = await scanStatus(fileId);
     }
@@ -504,6 +541,24 @@ class StorageUploader {
     String? resumeFileId,
     void Function(String fileId)? onPartsFileId,
   }) async {
+    // R-254: first, ask whether this same user already stored these bytes
+    // (the server answers only for own files, and only with the flag on). A
+    // job that already has a target or parts in storage skips it.
+    StorageTarget? first;
+    if (savedTarget == null && resumeFileId == null) {
+      first = await presign(
+        purpose: purpose,
+        mime: mime,
+        sizeBytes: await body.length(),
+        sha256: await body.sha256Hex(),
+        acceptsExisting: true,
+      );
+      if (first.alreadyStored) {
+        onProgress?.call(1);
+        return first.fileId;
+      }
+    }
+    var firstUsed = false;
     if (transport == null &&
         taskId != null &&
         savedTarget == null &&
@@ -515,7 +570,11 @@ class StorageUploader {
         mime: mime,
         taskId: taskId,
         resumeFileId: resumeFileId,
-        onFileId: onPartsFileId,
+        firstTarget: first,
+        onFileId: (id) {
+          if (id == first?.fileId) firstUsed = true;
+          onPartsFileId?.call(id);
+        },
         onProgress: onProgress,
         cancel: cancel,
         scanMaxPolls: scanMaxPolls,
@@ -529,17 +588,17 @@ class StorageUploader {
     // good. If storage still has nothing for that target (it expired, or the
     // record is of an older try), one fresh start, with the old record gone
     // (a finished record makes the transport send nothing).
-    var saved = savedTarget;
-    for (var attempt = 0; ; attempt++) {
-      final target =
-          saved ??
+    var fromJob = savedTarget != null;
+    var saved = savedTarget ?? (firstUsed ? null : first);
+    for (var attempt = 0;; attempt++) {
+      final target = saved ??
           await presign(
             purpose: purpose,
             mime: mime,
             sizeBytes: await body.length(),
             sha256: await body.sha256Hex(),
           );
-      if (saved == null) await onTarget?.call(target);
+      if (!fromJob) await onTarget?.call(target);
       try {
         return await _sendAndConfirm(
           target,
@@ -554,14 +613,17 @@ class StorageUploader {
         );
       } on ApiException catch (e) {
         final forget = _forgetTransfer;
-        final nothingThere =
-            e.code == ApiErrorCodes.fileNotUploaded ||
+        final nothingThere = e.code == ApiErrorCodes.fileNotUploaded ||
             e.code == ApiErrorCodes.notFound;
-        if (!nothingThere || attempt > 0 || taskId == null || forget == null) {
+        if (!nothingThere ||
+            attempt > 0 ||
+            taskId == null ||
+            forget == null) {
           rethrow;
         }
         await forget(taskId);
         saved = null;
+        fromJob = false;
       }
     }
   }
@@ -579,8 +641,7 @@ class StorageUploader {
   }) async {
     // A big file goes in resumable parts when the server offers it (and the
     // caller did not pick its own transport, e.g. the background queue).
-    final resumed =
-        transport == null &&
+    final resumed = transport == null &&
         _partsGate == null &&
         await putResumable(
           target.fileId,
@@ -623,6 +684,7 @@ class StorageUploader {
     required String mime,
     required String taskId,
     String? resumeFileId,
+    StorageTarget? firstTarget,
     void Function(String fileId)? onFileId,
     void Function(double progress)? onProgress,
     CancelToken? cancel,
@@ -664,12 +726,13 @@ class StorageUploader {
         }
       }
       if (fileId == null) {
-        final target = await presign(
-          purpose: purpose,
-          mime: mime,
-          sizeBytes: await body.length(),
-          sha256: await body.sha256Hex(),
-        );
+        final target = firstTarget ??
+            await presign(
+              purpose: purpose,
+              mime: mime,
+              sizeBytes: await body.length(),
+              sha256: await body.sha256Hex(),
+            );
         fileId = target.fileId;
         onFileId?.call(target.fileId);
         offered = await putResumable(
