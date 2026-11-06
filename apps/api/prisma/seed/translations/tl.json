@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Nagbago ang status ng iyong subscription",
   "notif.list.subscription_status.contract": "Nag-set up ang LawBid ng subscription sa ilalim ng kontrata para sa iyo",
   "notif.list.subscription_status.contract_revoked": "Natapos ang iyong subscription sa ilalim ng kontrata",
+  "notif.list.subscription_status.dispute_refund": "Naibalik na ang bayad mo at nakansela ang subscription.",
   "notif.list.subscription_status.seat_limit_approved": "Tumaas ang limitasyon ng assistant: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Tinanggihan ang iyong request para sa higit pang assistant",
   "notif.list.subscription_trial_ending": "Malapit nang matapos ang iyong libreng trial",

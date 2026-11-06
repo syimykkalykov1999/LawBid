@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "De status van uw abonnement is gewijzigd",
   "notif.list.subscription_status.contract": "LawBid heeft een contractabonnement voor u ingesteld",
   "notif.list.subscription_status.contract_revoked": "Uw contractabonnement is beëindigd",
+  "notif.list.subscription_status.dispute_refund": "Je betaling is terugbetaald en het abonnement is opgezegd.",
   "notif.list.subscription_status.seat_limit_approved": "Assistentlimiet verhoogd: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Je verzoek voor meer assistenten is afgewezen",
   "notif.list.subscription_trial_ending": "Uw gratis proefperiode loopt binnenkort af",

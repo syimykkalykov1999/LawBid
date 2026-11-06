@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Lo stato del suo abbonamento è cambiato",
   "notif.list.subscription_status.contract": "LawBid ha attivato per lei un abbonamento contrattuale",
   "notif.list.subscription_status.contract_revoked": "Il suo abbonamento contrattuale è terminato",
+  "notif.list.subscription_status.dispute_refund": "Il pagamento è stato rimborsato e l'abbonamento annullato.",
   "notif.list.subscription_status.seat_limit_approved": "Limite assistenti aumentato: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "La tua richiesta di altri assistenti è stata rifiutata",
   "notif.list.subscription_trial_ending": "La sua prova gratuita sta per terminare",

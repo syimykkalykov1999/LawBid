@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "ඔබේ දායකත්ව තත්ත්වය වෙනස් විය",
   "notif.list.subscription_status.contract": "LawBid ඔබ සඳහා ගිවිසුම් දායකත්වයක් සකසා ඇත",
   "notif.list.subscription_status.contract_revoked": "ඔබේ ගිවිසුම් දායකත්වය අවසන් විය",
+  "notif.list.subscription_status.dispute_refund": "ඔබගේ ගෙවීම ආපසු ලබා දී දායකත්වය අවලංගු කර ඇත.",
   "notif.list.subscription_status.seat_limit_approved": "සහායක සීමාව වැඩි කළා: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "තවත් සහායකයින් සඳහා ඔබේ ඉල්ලීම ප්‍රතික්ෂේප විය",
   "notif.list.subscription_trial_ending": "ඔබේ නොමිලේ අත්හදා බැලීම ඉක්මනින් අවසන් වේ",

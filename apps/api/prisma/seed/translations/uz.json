@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Obuna holatingiz o‘zgardi",
   "notif.list.subscription_status.contract": "LawBid siz uchun shartnoma asosidagi obunani sozladi",
   "notif.list.subscription_status.contract_revoked": "Shartnoma asosidagi obunangiz tugadi",
+  "notif.list.subscription_status.dispute_refund": "To'lovingiz qaytarildi va obuna bekor qilindi.",
   "notif.list.subscription_status.seat_limit_approved": "Yordamchi chegarasi oshirildi: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Ko'proq yordamchi so'rovingiz rad etildi",
   "notif.list.subscription_trial_ending": "Bepul sinov muddatingiz tez orada tugaydi",

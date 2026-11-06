@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Isimo sokubhalisa kwakho sishintshile",
   "notif.list.subscription_status.contract": "I-LawBid ikuhlelele okubhalisiwe kwenkontileka",
   "notif.list.subscription_status.contract_revoked": "Okubhalisiwe kwakho kwenkontileka kuphelile",
+  "notif.list.subscription_status.dispute_refund": "Inkokhelo yakho ibuyisiwe futhi ukubhalisa kukhanseliwe.",
   "notif.list.subscription_status.seat_limit_approved": "Umkhawulo wabasizi ukhushuliwe: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Isicelo sakho sabasizi abengeziwe senqatshiwe",
   "notif.list.subscription_trial_ending": "Isivivinyo sakho mahhala siphela maduze",

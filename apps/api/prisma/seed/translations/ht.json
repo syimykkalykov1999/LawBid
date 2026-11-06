@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Estati abònman ou chanje",
   "notif.list.subscription_status.contract": "LawBid mete yon abònman kontra pou ou",
   "notif.list.subscription_status.contract_revoked": "Abònman kontra ou an fini",
+  "notif.list.subscription_status.dispute_refund": "Yo ranbouse peman ou an epi yo anile abònman an.",
   "notif.list.subscription_status.seat_limit_approved": "Limit asistan ogmante: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Demann ou pou plis asistan refize",
   "notif.list.subscription_trial_ending": "Peryòd esè gratis ou an pral fini byento",

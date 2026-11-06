@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Ձեր բաժանորդագրության կարգավիճակը փոխվեց",
   "notif.list.subscription_status.contract": "LawBid-ը Ձեզ համար պայմանագրային բաժանորդագրություն է կարգավորել",
   "notif.list.subscription_status.contract_revoked": "Ձեր պայմանագրային բաժանորդագրությունն ավարտվեց",
+  "notif.list.subscription_status.dispute_refund": "Ձեր վճարումը վերադարձվել է, իսկ բաժանորդագրությունը չեղարկվել է։",
   "notif.list.subscription_status.seat_limit_approved": "Օգնականների սահմանը բարձրացվել է՝ {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Ձեր հայտն ավելի շատ օգնականների համար մերժված է",
   "notif.list.subscription_trial_ending": "Ձեր անվճար փորձաշրջանը շուտով ավարտվում է",

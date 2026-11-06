@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Status Twojej subskrypcji uległ zmianie",
   "notif.list.subscription_status.contract": "LawBid skonfigurował(a) dla Ciebie subskrypcję umowną",
   "notif.list.subscription_status.contract_revoked": "Twoja subskrypcja umowna zakończyła się",
+  "notif.list.subscription_status.dispute_refund": "Płatność została zwrócona, a subskrypcja anulowana.",
   "notif.list.subscription_status.seat_limit_approved": "Limit asystentów podniesiony: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Twoja prośba o więcej asystentów została odrzucona",
   "notif.list.subscription_trial_ending": "Twój bezpłatny okres próbny wkrótce się kończy",

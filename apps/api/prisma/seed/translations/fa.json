@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "وضعیت اشتراک شما تغییر کرد",
   "notif.list.subscription_status.contract": "LawBid برای شما اشتراک قراردادی تنظیم کرد",
   "notif.list.subscription_status.contract_revoked": "اشتراک قراردادی شما پایان یافت",
+  "notif.list.subscription_status.dispute_refund": "پرداخت شما بازگردانده شد و اشتراک لغو شد.",
   "notif.list.subscription_status.seat_limit_approved": "سقف دستیاران افزایش یافت: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "درخواست شما برای دستیاران بیشتر رد شد",
   "notif.list.subscription_trial_ending": "دوره آزمایشی رایگان شما به‌زودی تمام می‌شود",

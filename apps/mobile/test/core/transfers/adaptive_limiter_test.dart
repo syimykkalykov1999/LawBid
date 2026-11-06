@@ -232,6 +232,10 @@ void main() {
       ClientTuning.metered = false;
       ClientTuning.weakDevice = true;
       expect(ClientTuning.downloadsAtOnce, 2);
+      ClientTuning.weakDevice = false;
+      ClientTuning.lowPower = true;
+      expect(ClientTuning.uploadsAtOnce, 2);
+      expect(ClientTuning.downloadsAtOnce, 2);
     });
 
     test('with the flags off, one stream and one block as before', () {

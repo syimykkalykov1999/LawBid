@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Az előfizetés állapota megváltozott",
   "notif.list.subscription_status.contract": "A LawBid szerződéses előfizetést állított be Önnek",
   "notif.list.subscription_status.contract_revoked": "A szerződéses előfizetése megszűnt",
+  "notif.list.subscription_status.dispute_refund": "A befizetését visszatérítettük, az előfizetést pedig lemondtuk.",
   "notif.list.subscription_status.seat_limit_approved": "Asszisztenskorlát megemelve: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "A további asszisztensekre vonatkozó kérelmét elutasítottuk",
   "notif.list.subscription_trial_ending": "Az ingyenes próbaidőszak hamarosan véget ér",

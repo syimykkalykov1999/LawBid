@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "สถานะการสมัครสมาชิกของคุณเปลี่ยนแปลง",
   "notif.list.subscription_status.contract": "LawBid ตั้งค่าการสมัครสมาชิกตามสัญญาให้คุณ",
   "notif.list.subscription_status.contract_revoked": "การสมัครสมาชิกตามสัญญาของคุณสิ้นสุดแล้ว",
+  "notif.list.subscription_status.dispute_refund": "คืนเงินการชำระเงินของคุณแล้ว และยกเลิกการสมัครสมาชิกแล้ว",
   "notif.list.subscription_status.seat_limit_approved": "เพิ่มขีดจำกัดผู้ช่วยแล้ว: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "คำขอผู้ช่วยเพิ่มของคุณถูกปฏิเสธ",
   "notif.list.subscription_trial_ending": "ช่วงทดลองใช้ฟรีของคุณใกล้หมดแล้ว",

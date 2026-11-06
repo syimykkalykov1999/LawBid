@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "ស្ថានភាពការជាវរបស់អ្នកបានផ្លាស់ប្តូរ",
   "notif.list.subscription_status.contract": "LawBid បានរៀបចំការជាវតាមកិច្ចសន្យាសម្រាប់អ្នក",
   "notif.list.subscription_status.contract_revoked": "ការជាវតាមកិច្ចសន្យារបស់អ្នកបានបញ្ចប់",
+  "notif.list.subscription_status.dispute_refund": "ការទូទាត់របស់អ្នកត្រូវបានសងវិញ ហើយការជាវត្រូវបានលុបចោល។",
   "notif.list.subscription_status.seat_limit_approved": "ដែនកំណត់ជំនួយការបានកើនឡើង៖ {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "សំណើរបស់អ្នកសម្រាប់ជំនួយការបន្ថែមត្រូវបានបដិសេធ",
   "notif.list.subscription_trial_ending": "ការសាកល្បងឥតគិតថ្លៃរបស់អ្នកនឹងបញ្ចប់ឆាប់ៗនេះ",

@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "L-istatus tal-abbonament tiegħek inbidel",
   "notif.list.subscription_status.contract": "LawBid waqqaf abbonament bil-kuntratt għalik",
   "notif.list.subscription_status.contract_revoked": "L-abbonament bil-kuntratt tiegħek intemm",
+  "notif.list.subscription_status.dispute_refund": "Il-ħlas tiegħek ġie rimborżat u l-abbonament ġie kkanċellat.",
   "notif.list.subscription_status.seat_limit_approved": "Limitu ta' assistenti mgħolli: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "It-talba tiegħek għal aktar assistenti ġiet miċħuda",
   "notif.list.subscription_trial_ending": "Il-prova b’xejn tiegħek se tintemm dalwaqt",

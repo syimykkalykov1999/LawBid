@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Hali ya usajili wako imebadilika",
   "notif.list.subscription_status.contract": "LawBid imekuwekea usajili wa mkataba",
   "notif.list.subscription_status.contract_revoked": "Usajili wako wa mkataba umeisha",
+  "notif.list.subscription_status.dispute_refund": "Malipo yako yamerejeshwa na usajili umeghairiwa.",
   "notif.list.subscription_status.seat_limit_approved": "Kikomo cha wasaidizi kimeongezwa: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Ombi lako la wasaidizi zaidi limekataliwa",
   "notif.list.subscription_trial_ending": "Kipindi chako cha majaribio bure kinakaribia kuisha",

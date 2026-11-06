@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Статус подписки изменился",
   "notif.list.subscription_status.contract": "LawBid подключил вам подписку по договору",
   "notif.list.subscription_status.contract_revoked": "Подписка по договору завершена",
+  "notif.list.subscription_status.dispute_refund": "Платёж возвращён на карту, подписка отменена.",
   "notif.list.subscription_status.seat_limit_approved": "Лимит помощников увеличен: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Заявка на увеличение лимита помощников отклонена",
   "notif.list.subscription_trial_ending": "Пробный период скоро закончится",

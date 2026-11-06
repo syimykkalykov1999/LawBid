@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Rewşa abonetiya we guherî",
   "notif.list.subscription_status.contract": "LawBid abonetiyeke peymanê ji bo we saz kir",
   "notif.list.subscription_status.contract_revoked": "Abonetiya we ya peymanê qediya",
+  "notif.list.subscription_status.dispute_refund": "Dravdana te hat vegerandin û abonetî hat betalkirin.",
   "notif.list.subscription_status.seat_limit_approved": "Sînorê alîkaran hat bilindkirin: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Daxwaza te ya alîkarên zêdetir hat redkirin",
   "notif.list.subscription_trial_ending": "Ceribandina we ya belaş zû diqede",

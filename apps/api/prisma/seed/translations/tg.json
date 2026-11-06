@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Ҳолати обунаи шумо тағйир ёфт",
   "notif.list.subscription_status.contract": "LawBid барои шумо обунаи шартномавӣ танзим кард",
   "notif.list.subscription_status.contract_revoked": "Обунаи шартномавии шумо ба охир расид",
+  "notif.list.subscription_status.dispute_refund": "Пардохти шумо баргардонида шуд ва обуна бекор карда шуд.",
   "notif.list.subscription_status.seat_limit_approved": "Маҳдудияти ёварон зиёд шуд: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Дархости шумо барои ёварони бештар рад шуд",
   "notif.list.subscription_trial_ending": "Давраи озмоишии ройгони шумо ба қарибӣ ба охир мерасад",

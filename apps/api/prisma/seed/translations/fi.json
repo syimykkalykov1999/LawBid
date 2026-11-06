@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Tilauksesi tila muuttui",
   "notif.list.subscription_status.contract": "LawBid otti sinulle käyttöön sopimustilauksen",
   "notif.list.subscription_status.contract_revoked": "Sopimustilauksesi päättyi",
+  "notif.list.subscription_status.dispute_refund": "Maksusi on palautettu ja tilaus peruttu.",
   "notif.list.subscription_status.seat_limit_approved": "Avustajarajaa nostettu: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Pyyntösi lisäavustajista hylättiin",
   "notif.list.subscription_trial_ending": "Ilmainen kokeilujaksosi päättyy pian",

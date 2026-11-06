@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "آپ کی سبسکرپشن کی حیثیت تبدیل ہو گئی",
   "notif.list.subscription_status.contract": "LawBid نے آپ کے لیے معاہدے کی سبسکرپشن ترتیب دی",
   "notif.list.subscription_status.contract_revoked": "آپ کی معاہدے کی سبسکرپشن ختم ہو گئی",
+  "notif.list.subscription_status.dispute_refund": "آپ کی ادائیگی واپس کر دی گئی ہے اور سبسکرپشن منسوخ کر دی گئی ہے۔",
   "notif.list.subscription_status.seat_limit_approved": "اسسٹنٹ کی حد بڑھ گئی: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "مزید اسسٹنٹس کی آپ کی درخواست مسترد ہو گئی",
   "notif.list.subscription_trial_ending": "آپ کا مفت ٹرائل جلد ختم ہو رہا ہے",
