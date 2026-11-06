@@ -373,6 +373,8 @@
   "call.add": "Toevoegen",
   "call.addParticipant": "Deelnemer toevoegen",
   "call.addParticipantSoon": "Groepsgesprekken komen binnenkort.",
+  "call.audio.headphones": "Koptelefoon",
+  "call.audio.phone": "Telefoon",
   "call.audioOnly": "Audiogesprek via LawBid",
   "call.button": "Bellen",
   "call.camera": "Camera",

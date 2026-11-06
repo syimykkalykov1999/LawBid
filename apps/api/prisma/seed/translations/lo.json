@@ -373,6 +373,8 @@
   "call.add": "ເພີ່ມ",
   "call.addParticipant": "ເພີ່ມຜູ້ເຂົ້າຮ່ວມ",
   "call.addParticipantSoon": "ການໂທເປັນກຸ່ມຈະມາໄວໆນີ້.",
+  "call.audio.headphones": "ຫູຟັງ",
+  "call.audio.phone": "ໂທລະສັບ",
   "call.audioOnly": "ການໂທສຽງ LawBid",
   "call.button": "ໂທ",
   "call.camera": "ກ້ອງ",

@@ -373,6 +373,8 @@
   "call.add": "添加",
   "call.addParticipant": "添加参与者",
   "call.addParticipantSoon": "群组通话即将推出。",
+  "call.audio.headphones": "耳机",
+  "call.audio.phone": "手机",
   "call.audioOnly": "LawBid 语音通话",
   "call.button": "通话",
   "call.camera": "摄像头",

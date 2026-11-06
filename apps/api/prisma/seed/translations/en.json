@@ -373,6 +373,8 @@
   "call.add": "Add",
   "call.addParticipant": "Add participant",
   "call.addParticipantSoon": "Group calls are coming soon.",
+  "call.audio.headphones": "Headphones",
+  "call.audio.phone": "Phone",
   "call.audioOnly": "LawBid audio call",
   "call.button": "Call",
   "call.camera": "Camera",

@@ -373,6 +373,8 @@
   "call.add": "Aggiungi",
   "call.addParticipant": "Aggiungi partecipante",
   "call.addParticipantSoon": "Le chiamate di gruppo arriveranno presto.",
+  "call.audio.headphones": "Cuffie",
+  "call.audio.phone": "Telefono",
   "call.audioOnly": "Chiamata audio LawBid",
   "call.button": "Chiama",
   "call.camera": "Fotocamera",
