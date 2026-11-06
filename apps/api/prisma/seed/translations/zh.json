@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "打开照片",
   "chat.awaitsMe": "等待回复",
   "chat.blockedBanner": "无法发送消息：存在拉黑",
+  "chat.casesWith": "与此人的案件 ({count})",
   "chat.closed": "此聊天已关闭，无法发送新消息。",
   "chat.copied": "已复制",
   "chat.deleted": "此消息已被删除",

@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Fungua picha",
   "chat.awaitsMe": "Inasubiri jibu",
   "chat.blockedBanner": "Ujumbe haupatikani: kuna kizuizi",
+  "chat.casesWith": "Kesi na mtu huyu ({count})",
   "chat.closed": "Mazungumzo haya yamefungwa. Ujumbe mpya hauwezi kutumwa.",
   "chat.copied": "Imenakiliwa",
   "chat.deleted": "Ujumbe huu umefutwa",

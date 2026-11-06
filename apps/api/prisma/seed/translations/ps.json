@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "انځور خلاص کړئ",
   "chat.awaitsMe": "ځواب ته منتظر",
   "chat.blockedBanner": "پیغام لېږل شتون نه لري: بندیز شته",
+  "chat.casesWith": "د دې کس سره قضیې ({count})",
   "chat.closed": "دا چت تړل شوی دی. نوي پیغامونه نه شي لیږل کیدلی.",
   "chat.copied": "کاپي شو",
   "chat.deleted": "دا پیغام ړنګ شو",

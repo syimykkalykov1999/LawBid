@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Hap foton",
   "chat.awaitsMe": "Pret përgjigje",
   "chat.blockedBanner": "Mesazhet nuk janë të disponueshme: ka një bllokim",
+  "chat.casesWith": "Rastet me këtë person ({count})",
   "chat.closed": "Kjo bisedë është e mbyllur. Nuk mund të dërgohen mesazhe të rinj.",
   "chat.copied": "U kopjua",
   "chat.deleted": "Ky mesazh u fshi",

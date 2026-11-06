@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Odpri fotografijo",
   "chat.awaitsMe": "Čaka na odgovor",
   "chat.blockedBanner": "Sporočanje ni na voljo: velja blokada",
+  "chat.casesWith": "Primeri s to osebo ({count})",
   "chat.closed": "Ta klepet je zaprt. Novih sporočil ni mogoče pošiljati.",
   "chat.copied": "Kopirano",
   "chat.deleted": "To sporočilo je bilo izbrisano",

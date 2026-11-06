@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "เปิดรูปภาพ",
   "chat.awaitsMe": "รอตอบกลับ",
   "chat.blockedBanner": "ไม่สามารถส่งข้อความ: มีการบล็อก",
+  "chat.casesWith": "คดีกับบุคคลนี้ ({count})",
   "chat.closed": "แชทนี้ปิดแล้ว ไม่สามารถส่งข้อความใหม่ได้",
   "chat.copied": "คัดลอกแล้ว",
   "chat.deleted": "ข้อความนี้ถูกลบแล้ว",

@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Otevřít fotku",
   "chat.awaitsMe": "Čeká na odpověď",
   "chat.blockedBanner": "Zprávy nejsou dostupné: platí blokace",
+  "chat.casesWith": "Případy s touto osobou ({count})",
   "chat.closed": "Tento chat je uzavřen. Nové zprávy nelze odesílat.",
   "chat.copied": "Zkopírováno",
   "chat.deleted": "Tato zpráva byla smazána",

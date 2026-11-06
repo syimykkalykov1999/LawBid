@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Åbn foto",
   "chat.awaitsMe": "Venter på svar",
   "chat.blockedBanner": "Beskeder er ikke tilgængelige: der er en blokering",
+  "chat.casesWith": "Sager med denne person ({count})",
   "chat.closed": "Denne chat er lukket. Der kan ikke sendes nye beskeder.",
   "chat.copied": "Kopieret",
   "chat.deleted": "Denne besked blev slettet",

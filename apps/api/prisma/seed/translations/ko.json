@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "사진 열기",
   "chat.awaitsMe": "답장 대기",
   "chat.blockedBanner": "메시지를 보낼 수 없습니다: 차단 상태입니다",
+  "chat.casesWith": "이 사람과의 사건 ({count})",
   "chat.closed": "이 채팅은 종료되었습니다. 새 메시지를 보낼 수 없습니다.",
   "chat.copied": "복사됨",
   "chat.deleted": "삭제된 메시지입니다",

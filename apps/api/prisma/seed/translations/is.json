@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Opna mynd",
   "chat.awaitsMe": "Bíður svars",
   "chat.blockedBanner": "Skilaboð eru ekki í boði: lokun er í gildi",
+  "chat.casesWith": "Mál með þessum aðila ({count})",
   "chat.closed": "Þessu spjalli er lokað. Ekki er hægt að senda ný skilaboð.",
   "chat.copied": "Afritað",
   "chat.deleted": "Þessum skilaboðum var eytt",

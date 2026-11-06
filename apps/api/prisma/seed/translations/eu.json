@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Ireki argazkia",
   "chat.awaitsMe": "Erantzunaren zain",
   "chat.blockedBanner": "Mezularitza ez dago erabilgarri: blokeo bat dago",
+  "chat.casesWith": "Kasuak pertsona honekin ({count})",
   "chat.closed": "Txat hau itxita dago. Ezin dira mezu berriak bidali.",
   "chat.copied": "Kopiatuta",
   "chat.deleted": "Mezu hau ezabatu da",

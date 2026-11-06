@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Oscail an grianghraf",
   "chat.awaitsMe": "Ag fanacht le freagra",
   "chat.blockedBanner": "Níl teachtaireachtaí ar fáil: tá bac i bhfeidhm",
+  "chat.casesWith": "Cásanna leis an duine seo ({count})",
   "chat.closed": "Tá an comhrá seo dúnta. Ní féidir teachtaireachtaí nua a sheoladh.",
   "chat.copied": "Cóipeáilte",
   "chat.deleted": "Scriosadh an teachtaireacht seo",

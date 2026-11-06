@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "ፎቶ ክፈት",
   "chat.awaitsMe": "መልስ ይጠብቃል",
   "chat.blockedBanner": "መልእክት መላክ አይገኝም፦ እገዳ አለ",
+  "chat.casesWith": "ከዚህ ሰው ጋር ያሉ ጉዳዮች ({count})",
   "chat.closed": "ይህ ውይይት ተዘግቷል። አዳዲስ መልዕክቶችን መላክ አይቻልም።",
   "chat.copied": "ተቀድቷል",
   "chat.deleted": "ይህ መልዕክት ተሰርዟል",

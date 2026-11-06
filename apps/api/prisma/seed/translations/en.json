@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Open photo",
   "chat.awaitsMe": "Awaiting reply",
   "chat.blockedBanner": "Messaging is unavailable: a block is in place",
+  "chat.casesWith": "Cases with this person ({count})",
   "chat.closed": "This chat is closed. New messages can’t be sent.",
   "chat.copied": "Copied",
   "chat.deleted": "This message was deleted",

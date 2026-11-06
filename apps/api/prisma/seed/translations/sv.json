@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Öppna foto",
   "chat.awaitsMe": "Väntar på svar",
   "chat.blockedBanner": "Meddelanden är inte tillgängliga: en blockering gäller",
+  "chat.casesWith": "Ärenden med den här personen ({count})",
   "chat.closed": "Den här chatten är stängd. Nya meddelanden kan inte skickas.",
   "chat.copied": "Kopierat",
   "chat.deleted": "Det här meddelandet raderades",

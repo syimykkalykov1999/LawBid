@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Rasmni ochish",
   "chat.awaitsMe": "Javob kutmoqda",
   "chat.blockedBanner": "Xabar yozish mavjud emas: bloklash mavjud",
+  "chat.casesWith": "Bu shaxs bilan ishlar ({count})",
   "chat.closed": "Bu chat yopilgan. Yangi xabar yuborib bo‘lmaydi.",
   "chat.copied": "Nusxalandi",
   "chat.deleted": "Bu xabar o‘chirildi",

@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Fotonu aç",
   "chat.awaitsMe": "Cavab gözləyir",
   "chat.blockedBanner": "Mesajlaşma mövcud deyil: bloklama var",
+  "chat.casesWith": "Bu şəxslə işlər ({count})",
   "chat.closed": "Bu çat bağlanıb. Yeni mesaj göndərmək olmaz.",
   "chat.copied": "Kopyalandı",
   "chat.deleted": "Bu mesaj silindi",

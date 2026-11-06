@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "تصویر کھولیں",
   "chat.awaitsMe": "جواب کا منتظر",
   "chat.blockedBanner": "پیغام رسانی دستیاب نہیں: بلاک لاگو ہے",
+  "chat.casesWith": "اس شخص کے ساتھ مقدمات ({count})",
   "chat.closed": "یہ چیٹ بند ہے۔ نئے پیغامات نہیں بھیجے جا سکتے۔",
   "chat.copied": "کاپی ہو گیا",
   "chat.deleted": "یہ پیغام حذف کر دیا گیا",

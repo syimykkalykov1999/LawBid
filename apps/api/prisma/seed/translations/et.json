@@ -1225,6 +1225,7 @@
   "chat.avatar.open": "Ava foto",
   "chat.awaitsMe": "Ootab vastust",
   "chat.blockedBanner": "Sõnumid pole saadaval: kehtib blokeering",
+  "chat.casesWith": "Juhtumid selle inimesega ({count})",
   "chat.closed": "See vestlus on suletud. Uusi sõnumeid ei saa saata.",
   "chat.copied": "Kopeeritud",
   "chat.deleted": "See sõnum kustutati",
