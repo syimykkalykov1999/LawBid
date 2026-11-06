@@ -34,6 +34,9 @@ From 8 MiB `POST /files/:id/confirm` reads the first 256 KiB (type, allow-list) 
 ## Queue job and the OS transfer
 The OS transfer outlives the app and sends the file of ITS presign, so the target is saved in the job before the transfer starts and used again after a restart. If storage still has nothing, one fresh start with the OS record forgotten.
 
+## Not uploading a file twice (R-254, flag `files_reuse_own`, off)
+`POST /files/presign` with `acceptsExisting`: if this same user already stored these bytes, the answer is a new clean row with `existing: true` and no upload. Own files only, by `owner_user_id`: a hash is not proof of holding a file. Proven hash, same bucket, same processing, not blocked by moderation. Moderated purposes (post photos, avatars, reviews) and purposes without a dedup profile (identity documents, video) always upload.
+
 ## Verification
 - Auto: API `files.multipart.spec`, `multipart.spec` (182 files tests); app `storage_uploader_test` (ranges, resume, part retry, fallback), `post_video_url_test`.
 - Phone only: real network cut mid-upload, battery/background upload, MP4-vs-HLS start time on a slow link, S3 CORS for PUT after Terraform apply (owner step).
