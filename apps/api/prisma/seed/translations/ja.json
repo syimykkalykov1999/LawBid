@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "サブスクリプションの状況が変更されました",
   "notif.list.subscription_status.contract": "LawBidが契約によるサブスクリプションを設定しました",
   "notif.list.subscription_status.contract_revoked": "契約によるサブスクリプションが終了しました",
+  "notif.list.subscription_status.dispute_refund": "お支払いは返金され、サブスクリプションはキャンセルされました。",
   "notif.list.subscription_status.seat_limit_approved": "アシスタント上限が引き上げられました: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "アシスタント追加の申請が却下されました",
   "notif.list.subscription_trial_ending": "無料トライアルがまもなく終了します",

@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "ನಿಮ್ಮ ಚಂದಾದಾರಿಕೆಯ ಸ್ಥಿತಿ ಬದಲಾಗಿದೆ",
   "notif.list.subscription_status.contract": "LawBid ನಿಮಗಾಗಿ ಒಪ್ಪಂದದ ಚಂದಾದಾರಿಕೆಯನ್ನು ಹೊಂದಿಸಿದೆ",
   "notif.list.subscription_status.contract_revoked": "ನಿಮ್ಮ ಒಪ್ಪಂದದ ಚಂದಾದಾರಿಕೆ ಕೊನೆಗೊಂಡಿದೆ",
+  "notif.list.subscription_status.dispute_refund": "ನಿಮ್ಮ ಪಾವತಿಯನ್ನು ಮರುಪಾವತಿಸಲಾಗಿದೆ ಮತ್ತು ಚಂದಾದಾರಿಕೆಯನ್ನು ರದ್ದುಗೊಳಿಸಲಾಗಿದೆ.",
   "notif.list.subscription_status.seat_limit_approved": "ಸಹಾಯಕ ಮಿತಿ ಹೆಚ್ಚಿಸಲಾಗಿದೆ: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "ಹೆಚ್ಚು ಸಹಾಯಕರಿಗಾಗಿ ನಿಮ್ಮ ವಿನಂತಿ ತಿರಸ್ಕರಿಸಲಾಗಿದೆ",
   "notif.list.subscription_trial_ending": "ನಿಮ್ಮ ಉಚಿತ ಟ್ರಯಲ್ ಶೀಘ್ರದಲ್ಲೇ ಮುಗಿಯುತ್ತದೆ",

@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Статусът на абонамента Ви се промени",
   "notif.list.subscription_status.contract": "LawBid настрои договорен абонамент за Вас",
   "notif.list.subscription_status.contract_revoked": "Договорният Ви абонамент приключи",
+  "notif.list.subscription_status.dispute_refund": "Плащането ви е възстановено, а абонаментът е отменен.",
   "notif.list.subscription_status.seat_limit_approved": "Лимитът на асистенти е увеличен: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Заявката ви за повече асистенти беше отхвърлена",
   "notif.list.subscription_trial_ending": "Безплатният Ви пробен период скоро изтича",

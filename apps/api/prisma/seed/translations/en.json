@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Your subscription status changed",
   "notif.list.subscription_status.contract": "LawBid set up a contract subscription for you",
   "notif.list.subscription_status.contract_revoked": "Your contract subscription ended",
+  "notif.list.subscription_status.dispute_refund": "Your payment was refunded and the subscription cancelled.",
   "notif.list.subscription_status.seat_limit_approved": "Assistant limit raised: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Your request for more assistants was declined",
   "notif.list.subscription_trial_ending": "Your free trial ends soon",

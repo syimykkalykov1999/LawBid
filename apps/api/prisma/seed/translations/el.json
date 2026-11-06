@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Η κατάσταση της συνδρομής σας άλλαξε",
   "notif.list.subscription_status.contract": "Το LawBid ρύθμισε για εσάς συνδρομή βάσει συμβολαίου",
   "notif.list.subscription_status.contract_revoked": "Η συνδρομή σας βάσει συμβολαίου έληξε",
+  "notif.list.subscription_status.dispute_refund": "Η πληρωμή σας επιστράφηκε και η συνδρομή ακυρώθηκε.",
   "notif.list.subscription_status.seat_limit_approved": "Το όριο βοηθών αυξήθηκε: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Το αίτημά σας για περισσότερους βοηθούς απορρίφθηκε",
   "notif.list.subscription_trial_ending": "Η δωρεάν δοκιμή σας λήγει σύντομα",

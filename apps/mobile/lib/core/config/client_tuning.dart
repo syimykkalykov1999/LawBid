@@ -37,6 +37,10 @@ abstract final class ClientTuning {
   /// mobile data (S20-9). Reset by [reset].
   static bool metered = false;
 
+  /// R-256 (flag `low_power_mode`): little charge left or the phone's battery
+  /// saver is on (core/config/low_power.dart). Reset by [reset].
+  static bool lowPower = false;
+
   /// Set when a big transfer starts: a phone with little memory
   /// (core/transfers/transfer_limits.dart). Reset by [reset].
   static bool weakDevice = false;
@@ -81,21 +85,26 @@ abstract final class ClientTuning {
   /// Reels warmed ahead of the one on screen: `client.video_prefetch_ahead`
   /// on Wi-Fi, `client.video_prefetch_cellular` on mobile data (S20-9; the
   /// server already folded its Выкл/Вкл/Авто switch into the two numbers).
-  static int get videoPrefetchAhead =>
-      metered && _videoPrefetchCellular < _videoPrefetchAhead
-      ? _videoPrefetchCellular
-      : _videoPrefetchAhead;
+  /// R-256: none at all while the phone is low on power.
+  static int get videoPrefetchAhead {
+    if (lowPower) return 0;
+    return metered && _videoPrefetchCellular < _videoPrefetchAhead
+        ? _videoPrefetchCellular
+        : _videoPrefetchAhead;
+  }
 
   /// Disk ceiling of the video chunk cache, MB; 0 = off
   /// (`client.video_cache_mb`).
   static int get videoCacheMb => _videoCacheMb;
 
   /// R-251: pieces of files going up at once in the whole app
-  /// (`client.uploads_at_once`); two on mobile data or a weak phone.
+  /// (`client.uploads_at_once`); two on mobile data, a weak phone or
+  /// low power.
   static int get uploadsAtOnce => _gentle(_uploadsAtOnce);
 
   /// R-251: pieces of files coming down at once in the whole app
-  /// (`client.downloads_at_once`); two on mobile data or a weak phone.
+  /// (`client.downloads_at_once`); two on mobile data, a weak phone or
+  /// low power.
   static int get downloadsAtOnce => _gentle(_downloadsAtOnce);
 
   /// Pieces one document download is cut into; 1 = the old single stream.
@@ -104,7 +113,8 @@ abstract final class ClientTuning {
   /// Blocks of a video's start fetched at once; 1 = one after another.
   static int get videoBlocksAtOnce => videoCacheParallel ? downloadsAtOnce : 1;
 
-  static int _gentle(int n) => (metered || weakDevice) && n > 2 ? 2 : n;
+  static int _gentle(int n) =>
+      (metered || weakDevice || lowPower) && n > 2 ? 2 : n;
 
   /// Seconds from the start of a video kept on the phone
   /// (`client.video_cache_chunk_s`).
@@ -236,6 +246,7 @@ abstract final class ClientTuning {
   /// Back to the starter values (tests).
   static void reset() {
     metered = false;
+    lowPower = false;
     weakDevice = false;
     downloadsParallel = false;
     videoCacheParallel = false;

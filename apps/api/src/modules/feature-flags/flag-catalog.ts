@@ -210,6 +210,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Videos warmed ahead land in the cache the player reads',
   },
   {
+    // R-256: on, a phone with little charge or its battery saver on warms no
+    // videos ahead and does not re-encode clips up to 30 MB. Off until
+    // checked on real phones.
+    key: 'low_power_mode',
+    enabled: false,
+    app: true,
+    description: 'The app goes gently on a phone low on power',
+  },
+  {
     // R-255: on, a video or document picked in a chat stays on disk and is
     // copied to the queue folder and streamed from there, instead of being
     // read whole into the phone's memory. Off until checked on a phone.
@@ -218,6 +227,16 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     app: true,
     description:
       'Chat videos and documents are sent from disk, not from memory',
+  },
+  {
+    // R-255: on, a file of a group chat is a job of the upload queue (it
+    // survives closing the app) and a video or document is streamed from
+    // disk. Off until checked on a phone: as before, read into memory.
+    key: 'group_files_from_disk',
+    enabled: false,
+    app: true,
+    description:
+      'Group chat files go through the upload queue and are sent from disk',
   },
   {
     // R-254: on, a file this same user already stored is not uploaded again.
@@ -405,5 +424,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: true,
     app: true,
     description: 'Sign in with a passkey (WebAuthn)',
+  },
+  {
+    // R-237 (owner 2026-11-05): REAL MONEY. On: a bank inquiry on a
+    // subscription charge is refunded in full within the limits; above them
+    // it waits for a person. Off (default): nothing is refunded.
+    key: 'dispute_auto_refund',
+    enabled: false,
+    description:
+      'Automatic refund of a bank inquiry on a subscription charge (real money; off by default)',
   },
 ];

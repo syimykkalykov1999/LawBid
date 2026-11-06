@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "የደንበኝነት ሁኔታዎ ተቀይሯል",
   "notif.list.subscription_status.contract": "LawBid የውል ደንበኝነት አዘጋጅቶልዎታል",
   "notif.list.subscription_status.contract_revoked": "የውል ደንበኝነትዎ አብቅቷል",
+  "notif.list.subscription_status.dispute_refund": "ክፍያዎ ተመላሽ ተደርጓል፣ ምዝገባውም ተሰርዟል።",
   "notif.list.subscription_status.seat_limit_approved": "የረዳት ገደብ ጨምሯል፦ {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "ለተጨማሪ ረዳቶች ያቀረቡት ጥያቄ ውድቅ ተደርጓል",
   "notif.list.subscription_trial_ending": "ነጻ የሙከራ ጊዜዎ በቅርቡ ያበቃል",

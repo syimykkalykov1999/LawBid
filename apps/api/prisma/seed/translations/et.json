@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Teie tellimuse olek muutus",
   "notif.list.subscription_status.contract": "LawBid seadistas Teile lepingupõhise tellimuse",
   "notif.list.subscription_status.contract_revoked": "Teie lepingupõhine tellimus lõppes",
+  "notif.list.subscription_status.dispute_refund": "Teie makse tagastati ja tellimus tühistati.",
   "notif.list.subscription_status.seat_limit_approved": "Assistentide limiiti tõsteti: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Sinu taotlus rohkemate assistentide jaoks lükati tagasi",
   "notif.list.subscription_trial_ending": "Teie tasuta prooviperiood lõpeb peagi",

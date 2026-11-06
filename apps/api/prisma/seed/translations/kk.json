@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Жазылым күйіңіз өзгерді",
   "notif.list.subscription_status.contract": "LawBid сіз үшін келісімшарттық жазылым рәсімдеді",
   "notif.list.subscription_status.contract_revoked": "Келісімшарттық жазылымыңыз аяқталды",
+  "notif.list.subscription_status.dispute_refund": "Төлеміңіз қайтарылды, жазылым тоқтатылды.",
   "notif.list.subscription_status.seat_limit_approved": "Көмекші шегі көтерілді: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Көбірек көмекшіге өтінішіңіз қабылданбады",
   "notif.list.subscription_trial_ending": "Тегін сынақ мерзіміңіз жақында аяқталады",
