@@ -14,6 +14,7 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
+import 'package:lawbid/features/calls/application/call_sound_prefs.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
@@ -2042,6 +2043,23 @@ void main() {
       expect(h.media.videoEnables, 1);
       expect(h.s.cameraOn, isTrue);
       expect(h.s.videoPrompt, isNull);
+      await h.c.hangUp();
+    });
+
+    test('R-007: with the video sound off they switch video on, no sound',
+        () async {
+      final h = await talking();
+      await h.container.read(callVideoSoundProvider.notifier).set(on: false);
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'video', 'on': true},
+      });
+      await _settle();
+      // Their picture and the question stay; only the beep is gone.
+      expect(h.s.video, isTrue);
+      expect(h.s.videoPrompt, 'p1');
+      expect(h.sounds.played.where((x) => x == 'video'), isEmpty);
       await h.c.hangUp();
     });
 
