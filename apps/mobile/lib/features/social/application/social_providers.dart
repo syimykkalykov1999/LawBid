@@ -1045,7 +1045,7 @@ class SocialActions {
           rethrow;
         }
         // A newly saved post joins the kept «Сохранённое» grid.
-        if (saved && _ref.exists(savedPostsProvider)) {
+        if (saved && _ref.read(savedPostsProvider.exists)) {
           unawaited(_ref.read(savedPostsProvider.notifier).refresh());
         }
         // Owner 2026-10-27 (app indexing): iPhone Spotlight finds saved posts.

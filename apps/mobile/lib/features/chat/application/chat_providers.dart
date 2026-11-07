@@ -940,17 +940,17 @@ class ChatThread extends Notifier<ChatThreadState> {
       return null;
     }
 
-    if (ref.exists(conversationsProvider)) {
+    if (ref.read(conversationsProvider.exists)) {
       final c = find(ref.read(conversationsProvider).value);
       if (c != null) return c;
     }
     for (final folder in ChatListFolder.values) {
       final p = folderConversationsProvider(folder);
-      if (!ref.exists(p)) continue;
+      if (!ref.read(p.exists)) continue;
       final c = find(ref.read(p).value);
       if (c != null) return c;
     }
-    if (ref.exists(messageRequestsProvider)) {
+    if (ref.read(messageRequestsProvider.exists)) {
       final c = find(ref.read(messageRequestsProvider).value);
       if (c != null) return c;
     }
