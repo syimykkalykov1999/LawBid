@@ -120,9 +120,12 @@ describe('FcmPushSender.sendMany', () => {
     let peak = 0;
     Object.assign(s, {
       tokens: {
-        activeTokens: (u: string) =>
+        activeDevices: (u: string) =>
           Promise.resolve(
-            Array.from({ length: devicesPerUser }, (_, i) => `${u}-d${i}`),
+            Array.from({ length: devicesPerUser }, (_, i) => ({
+              token: `${u}-d${i}`,
+              fid: false,
+            })),
           ),
       } as unknown as PushTokensService,
     });

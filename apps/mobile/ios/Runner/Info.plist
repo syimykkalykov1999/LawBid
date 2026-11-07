@@ -35,6 +35,11 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- 2026-11-07: FCM registration by Firebase Installation ID
+	     (firebase_messaging 17 register()/onRegistered), the opt-in from
+	     https://firebase.google.com/docs/cloud-messaging/flutter/client -->
+	<key>FirebaseMessagingInstallationIdEnabled</key>
+	<true/>
 	<key>FlutterDeepLinkingEnabled</key>
 	<false/>
 	<key>ITSAppUsesNonExemptEncryption</key>
