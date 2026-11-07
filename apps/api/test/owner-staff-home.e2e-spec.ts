@@ -304,16 +304,14 @@ describe('Staff owner home (e2e)', () => {
     expect((forged.body as { data: { rating: number } }).data.rating).toBe(96);
     // personal progress has its own switch
     jest.restoreAllMocks();
-    jest
-      .spyOn(settings, 'get')
-      .mockImplementation(() =>
-        Promise.resolve(
-          resolveStaffSettings({
-            ...STAFF_ALL_OFF,
-            'staff.rating_enabled': true,
-          }),
-        ),
-      );
+    jest.spyOn(settings, 'get').mockImplementation(() =>
+      Promise.resolve(
+        resolveStaffSettings({
+          ...STAFF_ALL_OFF,
+          'staff.rating_enabled': true,
+        }),
+      ),
+    );
     await api()
       .get('/api/v1/admin/staff/me/progress')
       .set(good.auth)
