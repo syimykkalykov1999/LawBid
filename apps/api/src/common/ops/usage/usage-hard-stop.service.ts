@@ -80,7 +80,7 @@ export class UsageHardStopService {
   ): Promise<boolean> {
     const hit = this.cache.get(kind);
     if (hit && nowMs - hit.at < 60_000) return hit.stopped;
-    let stopped = false;
+    let stopped: boolean;
     try {
       const mode = await this.mode(kind);
       let snap: UsageSnapshotLike | null = null;

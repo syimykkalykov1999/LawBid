@@ -110,7 +110,7 @@ async function probe(
     if (!res.ok) throw new Error(`Provider answered HTTP ${res.status}`);
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
-      throw new Error('The provider did not answer in 8 s');
+      throw new Error('The provider did not answer in 8 s', { cause: e });
     }
     throw e;
   } finally {
@@ -824,7 +824,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         }
       } catch (e) {
         if (e instanceof Error && e.name === 'AbortError') {
-          throw new Error('Cloudflare не ответил за 8 с');
+          throw new Error('Cloudflare не ответил за 8 с', { cause: e });
         }
         throw e;
       } finally {

@@ -91,6 +91,7 @@ export class StripeWebhookIntakeService
           if (!this.queue)
             throw new Error(
               'stripe webhook queue is not available (REDIS_URL)',
+              { cause: e },
             );
           const added = await requeueStripeEvent(this.queue, event.id);
           this.logger.warn(

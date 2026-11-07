@@ -150,6 +150,7 @@ export class RegistrySession {
       if (e instanceof Error && e.name === 'AbortError') {
         throw new Error(
           `The registry did not answer in ${REGISTRY_TIMEOUT_MS / 1000} s`,
+          { cause: e },
         );
       }
       throw e;

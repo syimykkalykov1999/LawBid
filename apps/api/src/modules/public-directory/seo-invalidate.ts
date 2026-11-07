@@ -98,7 +98,6 @@ export async function invalidateWithBackoff(
         return { status: 'created', attempts: attempt };
       } catch (e) {
         if (!isLimitError(e instanceof Error ? e.message : undefined)) throw e;
-        busy = true;
       }
     }
     if (attempt < tries) {

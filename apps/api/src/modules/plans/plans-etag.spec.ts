@@ -117,7 +117,6 @@ describe('GET /stickers/featured cheap ETag', () => {
 
 describe('GET /plans ETag across processes (review R-17)', () => {
   const tagOf = async (now: number, version: string): Promise<string> => {
-    let tag = '';
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
     process.env.APP_VERSION = version;
     let Fresh: typeof PlansController | undefined;
@@ -144,7 +143,7 @@ describe('GET /plans ETag across processes (review R-17)', () => {
     );
     const h = http();
     await c.listPlans({ audience: 'attorney' }, h.req, h.res);
-    tag = h.headers.ETag;
+    const tag = h.headers.ETag;
     nowSpy.mockRestore();
     return tag;
   };

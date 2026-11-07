@@ -294,7 +294,7 @@ export class VideosService {
     const redis = this.redis;
     if (!redis) return () => Promise.resolve();
     const key = `video:init:${userId}`;
-    let got: string | null = null;
+    let got: string | null;
     try {
       got = await redis.set(key, '1', 'EX', 20, 'NX');
     } catch {

@@ -710,7 +710,7 @@ export class AssistantsService {
   ): Promise<AssistantRequestDto> {
     const r = await this.pendingRequest(user, id);
     const p = r.payload as Record<string, unknown>;
-    let resultId: string | null = null;
+    let resultId: string | null;
     if (r.kind === 'post') {
       // Owner 2026-10-18: the title and the text may be left out.
       const dto: CreatePostDto = {

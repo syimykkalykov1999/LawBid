@@ -149,7 +149,7 @@ export class AdminSummaryService {
 
   /** What is stored now, or null. Never computes. */
   async peek<T>(key: string): Promise<Summary<T> | null> {
-    let raw: string | null = null;
+    let raw: string | null;
     try {
       raw = await this.redis.get(PREFIX + key);
     } catch {
@@ -189,7 +189,7 @@ export class AdminSummaryService {
     waitForOther: boolean,
   ): Promise<Summary<T>> {
     const lockKey = `${PREFIX}lock:${key}`;
-    let locked = false;
+    let locked: boolean;
     try {
       locked =
         (await this.redis.set(lockKey, '1', 'EX', LOCK_SECONDS, 'NX')) === 'OK';

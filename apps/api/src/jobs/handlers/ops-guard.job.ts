@@ -146,7 +146,7 @@ export class OpsGuardJob {
   async backupCheck(now: Date = new Date()): Promise<unknown> {
     if (!this.capacity.dbInstance) return { skipped: 'database not on AWS' };
     const maxAgeH = await this.settings.number('ops.backup_max_age_hours');
-    let newest: Date | null = null;
+    let newest: Date | null;
     try {
       newest = await this.capacity.latestRestorableTime();
     } catch (e) {

@@ -163,7 +163,7 @@ export class ChatSearchBackfillJob {
 
   /** `chat.search.backfill_batch`, clamped to 50..5000 (default 500). */
   private async batchSize(): Promise<number> {
-    let v = CHAT_SEARCH_BACKFILL_BATCH;
+    let v: number;
     try {
       v = await this.settings.number('chat.search.backfill_batch');
     } catch {
