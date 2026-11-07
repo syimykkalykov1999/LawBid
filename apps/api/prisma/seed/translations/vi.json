@@ -3811,6 +3811,8 @@
   "post.video.remove": "Xóa video",
   "post.video.trim": "Cắt {start}–{end}",
   "post.viewComments": "Xem tất cả bình luận ({count})",
+  "post.window.next": "Bài đăng tiếp theo",
+  "post.window.prev": "Bài đăng trước",
   "postInner.docs.empty": "Không có tài liệu",
   "postInner.documentsCount": "tài liệu: {count}",
   "postInner.info.author": "Tác giả",

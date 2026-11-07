@@ -3811,6 +3811,8 @@
   "post.video.remove": "Бичлэгийг устгах",
   "post.video.trim": "Тайрах {start}–{end}",
   "post.viewComments": "Бүх сэтгэгдлийг харах ({count})",
+  "post.window.next": "Дараагийн нийтлэл",
+  "post.window.prev": "Өмнөх нийтлэл",
   "postInner.docs.empty": "Баримт алга",
   "postInner.documentsCount": "баримт: {count}",
   "postInner.info.author": "Зохиогч",

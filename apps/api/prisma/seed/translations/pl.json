@@ -3811,6 +3811,8 @@
   "post.video.remove": "Usuń wideo",
   "post.video.trim": "Przytnij {start}–{end}",
   "post.viewComments": "Zobacz wszystkie komentarze ({count})",
+  "post.window.next": "Następny post",
+  "post.window.prev": "Poprzedni post",
   "postInner.docs.empty": "Brak dokumentów",
   "postInner.documentsCount": "dokumenty: {count}",
   "postInner.info.author": "Autor",

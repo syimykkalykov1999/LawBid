@@ -3811,6 +3811,8 @@
   "post.video.remove": "إزالة الفيديو",
   "post.video.trim": "قص {start}–{end}",
   "post.viewComments": "عرض كل التعليقات ({count})",
+  "post.window.next": "المنشور التالي",
+  "post.window.prev": "المنشور السابق",
   "postInner.docs.empty": "لا توجد مستندات",
   "postInner.documentsCount": "المستندات: {count}",
   "postInner.info.author": "الكاتب",

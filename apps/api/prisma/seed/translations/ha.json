@@ -3811,6 +3811,8 @@
   "post.video.remove": "Cire bidiyo",
   "post.video.trim": "Yanke {start}–{end}",
   "post.viewComments": "Duba duk sharhuna ({count})",
+  "post.window.next": "Rubutu na gaba",
+  "post.window.prev": "Rubutu na baya",
   "postInner.docs.empty": "Babu takardu",
   "postInner.documentsCount": "takardu: {count}",
   "postInner.info.author": "Marubuci",
