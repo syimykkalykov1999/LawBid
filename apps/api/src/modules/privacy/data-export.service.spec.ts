@@ -17,7 +17,7 @@ const MESSAGES = 50_000;
 // alone passed 256 MB while the export itself held ~one page). With it,
 // the sample is what the export really keeps alive.
 //
-// KNOWN_ERRORS №64 (2026-11-07): a full GC costs time in proportion to the
+// KNOWN_ERRORS №65 (2026-11-07): a full GC costs time in proportion to the
 // WHOLE live heap of the jest worker, not to this test. In the full CI run
 // the worker has already run hundreds of files (up to workerIdleMemoryLimit
 // 1 GB, plus coverage counters), and one gc() took ~2.2 s on an 820 MB heap
