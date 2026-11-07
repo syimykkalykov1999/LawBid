@@ -151,12 +151,18 @@ class PushService {
           unawaited(_explainThenAsk(m));
         }
       }
+      // firebase_messaging 17 deprecates the token calls for FID-based
+      // sending (register()/onRegistered). Our server still sends HTTP v1
+      // `token` messages and stores FCM tokens, and FID mode hands out no
+      // FCM token, so the token calls stay until the server sends by FID.
+      // ignore: deprecated_member_use
       final token = await m.getToken(
         vapidKey: kIsWeb ? WebPushConfig.vapidKey : null,
       );
       // Not awaited: a failed registration keeps retrying in the background.
       if (token != null) unawaited(_register(token));
       _subs
+        // ignore: deprecated_member_use
         ..add(m.onTokenRefresh.listen(_register))
         ..add(FirebaseMessaging.onMessageOpenedApp.listen(_open))
         // A push in the foreground: realtime already updated the screen;
@@ -286,6 +292,7 @@ class PushService {
         },
         currentToken: () async => Firebase.apps.isEmpty
             ? null
+            // ignore: deprecated_member_use
             : FirebaseMessaging.instance.getToken(
                 vapidKey: kIsWeb ? WebPushConfig.vapidKey : null,
               ),
@@ -470,6 +477,7 @@ class PushService {
         deleteFirebaseToken: signedOut
             ? () async {
                 if (Firebase.apps.isEmpty) return;
+                // ignore: deprecated_member_use
                 await FirebaseMessaging.instance.deleteToken();
               }
             : null,
