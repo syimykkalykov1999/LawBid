@@ -15,17 +15,18 @@ class CaseOption<T> {
 /// a tap on the field opens the list again.
 class CaseOptionPicker<T> extends StatefulWidget {
   const CaseOptionPicker({
-    required this.label,
     required this.value,
     required this.options,
     required this.onChanged,
+    this.label,
     this.clearLabel,
     this.enabled = true,
     this.startOpen = false,
     super.key,
   });
 
-  final String label;
+  /// The small line above the choice; none when a heading already says it.
+  final String? label;
   final T? value;
   final List<CaseOption<T>> options;
   final ValueChanged<T?> onChanged;
@@ -139,12 +140,13 @@ class _CaseOptionPickerState<T> extends State<CaseOptionPicker<T>> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                widget.label,
-                                style: type.caption.copyWith(
-                                  color: colors.textSecondary,
+                              if (widget.label != null)
+                                Text(
+                                  widget.label!,
+                                  style: type.caption.copyWith(
+                                    color: colors.textSecondary,
+                                  ),
                                 ),
-                              ),
                               if (chosen.isNotEmpty)
                                 Text(
                                   chosen.first.title,
