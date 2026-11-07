@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -170,11 +171,12 @@ Stream<CallEvent?> callkitEvents() {
 final _ignoredEnded = <String, DateTime>{};
 
 void _ignoreEnded(String id) {
-  _ignoredEnded[id] = DateTime.now().add(const Duration(seconds: 4));
+  _ignoredEnded[id.toLowerCase()] =
+      DateTime.now().add(const Duration(seconds: 4));
 }
 
 bool _endedByUs(String id) {
-  final until = _ignoredEnded[id];
+  final until = _ignoredEnded[id.toLowerCase()];
   return until != null && DateTime.now().isBefore(until);
 }
 
@@ -398,6 +400,22 @@ Future<void> endAndroidSystemCall(String callId) async {
   }
 }
 
+/// R-373 (owner 2026-11-04): no call of ours runs, yet Android may still
+/// hold a Telecom call of ours (Samsung's «call in progress»), and while it
+/// does no reel or post video gets the audio focus. Ends those orphans
+/// (MainActivity → CallRinging.endOrphans); a ringing call or one answered
+/// on the system screen is never touched. Nothing on other platforms.
+Future<void> endAndroidOrphanCalls() async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  try {
+    final n = await const MethodChannel('lawbid/call_service')
+        .invokeMethod<int>('endOrphans');
+    if (n != null && n > 0) callTrace('ended $n orphan system call(s)');
+  } on Object {
+    // No host (the push isolate, tests).
+  }
+}
+
 /// Push 2026-10-19 (`call_ended` push): the caller hung up, the call was
 /// missed or answered elsewhere — the system ringing screen goes away,
 /// unless this phone is the one that answered it.
@@ -490,6 +508,69 @@ Future<void> whenSignedIn(
   }
 }
 
+/// Owner 2026-11-03 (iPhone «Отклонить» on the CallKit banner; the Samsung
+/// caller stayed in the call): which call a CallKit decline declined, or
+/// null when it was not the user's choice.
+///
+/// flutter_callkit_incoming 3.1.6 (iOS, `CXEndCallAction`) reports a
+/// decline with the data of the LAST call reported from a VoIP push, not
+/// of the call that was declined. When the socket rang first, the VoIP push
+/// for the same call is reported and ended as a throw-away call
+/// (AppDelegate.reportThrowaway) — after that every decline came with the
+/// throw-away's random id, the server answered 404, and the call kept
+/// ringing for the caller. On iOS the call ringing in this app that is no
+/// longer on the system screen ([shownIds]: the plugin's active calls; null
+/// = cannot tell) is the one the user declined.
+@visibleForTesting
+String? systemDeclineTarget(
+  CallSession s,
+  String eventId, {
+  required List<String>? shownIds,
+  TargetPlatform? platform,
+}) {
+  final ringing = s.phase == CallPhase.incoming ? s.call?.id : null;
+  if (ringing != null && ringing == eventId) {
+    return _endedByUs(eventId) ? null : eventId;
+  }
+  final ios = (platform ?? defaultTargetPlatform) == TargetPlatform.iOS;
+  if (ios &&
+      ringing != null &&
+      !_endedByUs(ringing) &&
+      shownIds != null &&
+      !shownIds.any((id) => id.toLowerCase() == ringing.toLowerCase())) {
+    return ringing;
+  }
+  return _endedByUs(eventId) ? null : eventId;
+}
+
+/// The plugin's active call ids — asked only when the decline's id is not
+/// the call ringing here (the case [systemDeclineTarget] needs them for),
+/// and only when that call rings on the system screen ([systemRinging]; a
+/// muted call rings in the app only).
+Future<List<String>?> _shownCallIds(
+  CallSession s,
+  String eventId, {
+  required String? systemRinging,
+}) async {
+  final ringing = s.phase == CallPhase.incoming ? s.call?.id : null;
+  if (ringing == null || ringing == eventId || systemRinging != ringing) {
+    return null;
+  }
+  try {
+    final calls = await FlutterCallkitIncoming.activeCalls();
+    return [for (final c in calls) systemCallId(c.id)];
+  } on Object {
+    return null;
+  }
+}
+
+/// R-377: the id a system call UI event carries, as the server knows it.
+/// iOS CallKit reports its calls by `UUID.uuidString` — UPPERCASE — while
+/// the server stores and compares call ids lowercase: a decline sent with
+/// the uppercase id answered 404 and the caller kept ringing.
+@visibleForTesting
+String systemCallId(String id) => id.toLowerCase();
+
 /// Answers / declines made on the system UI reach the call controller.
 /// Kept alive by `CallHost`.
 final callkitEventsProvider = Provider<void>((ref) {
@@ -506,20 +587,22 @@ final callkitEventsProvider = Provider<void>((ref) {
         final controller = ref.read(callControllerProvider.notifier);
         switch (event) {
           case CallEventActionCallAccept(:final callKitParams):
-            callTrace('callkit accept ${callKitParams.id}');
+            final id = systemCallId(callKitParams.id);
+            callTrace('callkit accept $id');
             // Answered on the lock screen of a closed app: the session is
             // still being restored — asking the call now went out with no
             // token (401) and took the answered call down.
             await whenSignedIn(ref);
-            await controller.ringFromPush(callKitParams.id, accept: true);
+            await controller.ringFromPush(id, accept: true);
           case CallEventActionCallEnded(:final callKitParams):
             // iOS: "End" on the system call UI (the green pill / lock
             // screen) hangs up. Our own endCall() also reports it — the
             // call is already over then.
             final s = ref.read(callControllerProvider);
-            callTrace('callkit ended ${callKitParams.id} '
-                'byUs=${_endedByUs(callKitParams.id)} phase=${s.phase}');
-            if (systemEndHangsUp(s, callKitParams.id)) {
+            final id = systemCallId(callKitParams.id);
+            callTrace('callkit ended $id '
+                'byUs=${_endedByUs(id)} phase=${s.phase}');
+            if (systemEndHangsUp(s, id)) {
               await controller.hangUp();
             }
           case CallEventActionCallTimeout(:final id):
@@ -527,19 +610,30 @@ final callkitEventsProvider = Provider<void>((ref) {
           case CallEventActionCallToggleAudioSession(:final isActive):
             callTrace('callkit audio session active=$isActive');
           case CallEventActionCallDecline(:final callKitParams):
-            callTrace('callkit decline ${callKitParams.id} '
-                'byUs=${_endedByUs(callKitParams.id)}');
+            final id = systemCallId(callKitParams.id);
+            callTrace('callkit decline $id byUs=${_endedByUs(id)}');
+            final s = ref.read(callControllerProvider);
+            final target = systemDeclineTarget(
+              s,
+              id,
+              shownIds: await _shownCallIds(
+                s,
+                id,
+                systemRinging: ref.read(systemRingingCallProvider),
+              ),
+            );
+            callTrace('callkit decline target $target');
             // Our own dismiss (answered elsewhere, replaced by the ongoing
             // call) is reported as a decline too: not the user's choice.
-            if (_endedByUs(callKitParams.id)) break;
-            final s = ref.read(callControllerProvider);
-            if (s.call?.id == callKitParams.id) {
+            if (target == null) break;
+            if (s.call?.id == target) {
               await controller.decline();
             } else {
+              // A call this app is not holding (woken by the VoIP push):
+              // not before the session is back (accept does the same).
+              await whenSignedIn(ref);
               try {
-                await ref
-                    .read(callsRepositoryProvider)
-                    .decline(callKitParams.id);
+                await ref.read(callsRepositoryProvider).decline(target);
               } on Object {
                 // Already over.
               }
@@ -566,7 +660,7 @@ final callkitEventsProvider = Provider<void>((ref) {
         // (ringFromPush takes a finished one off the screen).
         await ref
             .read(callControllerProvider.notifier)
-            .ringFromPush(c.id, accept: c.isAccepted);
+            .ringFromPush(systemCallId(c.id), accept: c.isAccepted);
       }
     } on Object {
       // No plugin.
@@ -581,4 +675,23 @@ final callkitEventsProvider = Provider<void>((ref) {
     sub?.cancel();
     stopEnded();
   });
+});
+
+/// R-373: whenever no call of ours runs — at start, at the end of every
+/// call, each time the app comes back to the front — Android's leftovers
+/// of earlier calls are ended ([endAndroidOrphanCalls]). Kept alive by
+/// `CallHost`.
+final orphanCallSweepProvider = Provider<void>((ref) {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  void sweep() {
+    if (ref.read(callControllerProvider).busy) return;
+    unawaited(endAndroidOrphanCalls());
+  }
+
+  ref.listen(callControllerProvider.select((s) => s.busy), (was, busy) {
+    if ((was ?? false) && !busy) sweep();
+  });
+  final lifecycle = AppLifecycleListener(onResume: sweep);
+  ref.onDispose(lifecycle.dispose);
+  sweep();
 });

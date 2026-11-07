@@ -8,7 +8,13 @@ part 'tag_dto.g.dart';
 
 @JsonSerializable()
 class TagDto {
-  const TagDto({required this.tag, this.postsCount, this.categoryCode});
+  const TagDto({
+    required this.tag,
+    this.postsCount,
+    this.categoryCode,
+    this.coverUrl,
+    this.coverPostId,
+  });
 
   factory TagDto.fromJson(Map<String, Object?> json) => _$TagDtoFromJson(json);
 
@@ -20,6 +26,12 @@ class TagDto {
 
   /// Practice category its posts mostly belong to (for the topic cover).
   final String? categoryCode;
+
+  /// Owner 2026-11-04 (R-406): cover of a hashtag topic — the photo or video frame of its most popular post (90 days, nightly snapshot); null when the topic has no media posts.
+  final String? coverUrl;
+
+  /// The post the cover comes from.
+  final String? coverPostId;
 
   Map<String, Object?> toJson() => _$TagDtoToJson(this);
 }

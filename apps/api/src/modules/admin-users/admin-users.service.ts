@@ -1,3 +1,4 @@
+import { AUTH_EVENT_TYPES } from '../auth/auth.public';
 import {
   countryInScope,
   type CountryScope,
@@ -308,7 +309,7 @@ export class AdminUsersService {
       },
     });
     if (!u) throw notFound();
-    const [sessions, cases, bids, warnings] = await Promise.all([
+    const [sessions, cases, bids, warnings, roleSwitches] = await Promise.all([
       this.prisma.session.findMany({
         where: { user_id: id, revoked_at: null },
         orderBy: { last_used_at: 'desc' },
@@ -357,6 +358,20 @@ export class AdminUsersService {
         : [],
       this.prisma.moderationAction.count({
         where: { target_type: 'user', target_id: id, action: 'warn' },
+      }),
+      this.prisma.authEvent.findMany({
+        where: {
+          user_id: id,
+          event_type: {
+            in: [
+              AUTH_EVENT_TYPES.ROLE_SWITCHED,
+              AUTH_EVENT_TYPES.ROLE_SWITCH_REVERTED,
+            ],
+          },
+        },
+        orderBy: { created_at: 'desc' },
+        take: CARD_LIST,
+        select: { event_type: true, meta: true, ip: true, created_at: true },
       }),
     ]);
     const avatars = await this.files.avatarUrlsMany([u.avatar_file_id]);
@@ -426,6 +441,16 @@ export class AdminUsersService {
         createdAt: s.created_at.toISOString(),
         pushTokens: s._count.push_tokens,
       })),
+      roleSwitches: roleSwitches.map((e) => {
+        const meta = (e.meta ?? {}) as { from?: string; to?: string };
+        return {
+          from: meta.from ?? '',
+          to: meta.to ?? '',
+          reverted: e.event_type === AUTH_EVENT_TYPES.ROLE_SWITCH_REVERTED,
+          ip: e.ip,
+          at: e.created_at.toISOString(),
+        };
+      }),
       cases: cases.map((c) => ({
         id: c.id,
         title: c.title,

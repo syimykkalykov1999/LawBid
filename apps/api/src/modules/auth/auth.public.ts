@@ -6,6 +6,14 @@
  * endpoint through TokenService.
  */
 export { SessionRevocationService } from './services/session-revocation.service';
+// Owner 2026-11-05: the profile switch writes and the admin card reads it.
+// R-146: «continue on your phone» codes of the verification selfie are
+// journaled in auth_events.
+export {
+  AUTH_EVENT_TYPES,
+  AuthEventService,
+} from './services/auth-event.service';
+export type { RequestMeta } from './services/session.service';
 export { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
 export { TokenService } from './services/token.service';
 // Owner 2026-10-22: passkeys for the admin panel (second factor / step-up)

@@ -22,6 +22,10 @@ enum PasswordAuthStatus {
   /// me" code first (no password yet and the sign-in is not recent).
   reauthRequired,
   networkError,
+
+  /// The server answered, but with something this screen has no text for
+  /// (or the answer could not be stored): a generic error, not «offline».
+  failed,
 }
 
 class PasswordAuthResult {

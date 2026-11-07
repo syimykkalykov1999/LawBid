@@ -5,6 +5,7 @@ import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { bumpConfigVersion } from '../../feature-flags/feature-flags.public';
 import { BOOTSTRAP_CACHE_KEY } from '../../feature-flags/services/bootstrap.service';
 import { isRtlLanguage, nativeNameForLanguage } from '../language-names';
 import {
@@ -43,6 +44,8 @@ export interface I18nImportReport {
 /** Up to this many changed cells the simple per-row upserts are used; a full
  * multi-language file goes through the batched path below. */
 const SMALL_IMPORT_CELLS = 2000;
+/** Keys compared with the database per query (memory of the diff). */
+const DIFF_SLICE = 400;
 
 @Injectable()
 export class I18nImportService {
@@ -91,43 +94,74 @@ export class I18nImportService {
       (code) => !existingCodes.has(code),
     );
 
-    const rowKeys = workbook.rows.map((row) => row.key);
-    const existingKeyRows =
-      rowKeys.length > 0
-        ? await this.prisma.i18nKey.findMany({
-            where: { key: { in: rowKeys } },
-            include: { translations: true },
-          })
-        : [];
-    const existingByKey = new Map(existingKeyRows.map((row) => [row.key, row]));
-
     const newKeys: string[] = [];
     const changedKeys: I18nChangedEntry[] = [];
     const affectedLangs = new Set<string>();
     let unchangedCount = 0;
 
-    for (const row of workbook.rows) {
-      const existing = existingByKey.get(row.key);
-      if (!existing) {
-        newKeys.push(row.key);
-        for (const lang of Object.keys(row.values)) {
-          changedKeys.push({ key: row.key, lang });
-          affectedLangs.add(lang);
-        }
-        continue;
-      }
-      const existingValues = new Map(
-        existing.translations.map((t) => [t.lang, t.value]),
+    // KNOWN_ERRORS #48: the existing rows are read a slice at a time and only
+    // (lang, value) — loading every key with all its translations at once
+    // (~540k rows) got the one-off prod task OOM-killed (2 GiB) and no key
+    // after the first release ever reached the database.
+    for (let at = 0; at < workbook.rows.length; at += DIFF_SLICE) {
+      const slice = workbook.rows.slice(at, at + DIFF_SLICE);
+      const existingKeyRows = await this.prisma.i18nKey.findMany({
+        where: { key: { in: slice.map((row) => row.key) } },
+        select: {
+          key: true,
+          translations: {
+            select: { lang: true, value: true, admin_edited: true },
+          },
+        },
+      });
+      const existingByKey = new Map(
+        existingKeyRows.map((row) => [row.key, row]),
       );
-      for (const [lang, value] of Object.entries(row.values)) {
-        const current = existingValues.get(lang);
-        if (options.missingOnly && current !== undefined && current !== '') {
-          unchangedCount += 1;
-        } else if (current !== value) {
-          changedKeys.push({ key: row.key, lang });
-          affectedLangs.add(lang);
-        } else {
-          unchangedCount += 1;
+      for (const row of slice) {
+        const existing = existingByKey.get(row.key);
+        if (!existing) {
+          newKeys.push(row.key);
+          for (const lang of Object.keys(row.values)) {
+            changedKeys.push({ key: row.key, lang });
+            affectedLangs.add(lang);
+          }
+          continue;
+        }
+        const existingValues = new Map(
+          existing.translations.map((t) => [t.lang, t.value]),
+        );
+        const edited = new Set(
+          existing.translations
+            .filter((t) => t.admin_edited)
+            .map((t) => t.lang),
+        );
+        const norm = (v: string | undefined) => (v ?? '').trim().toLowerCase();
+        for (const [lang, value] of Object.entries(row.values)) {
+          const current = existingValues.get(lang);
+          // 2026-11-03: a cell that still holds the English text (an old
+          // English copy, never edited in the admin) is not a translation:
+          // the seed's real text replaces it (owner saw English on a Kyrgyz UI).
+          const staleEnglishCopy =
+            lang !== 'en' &&
+            !edited.has(lang) &&
+            current !== undefined &&
+            current !== '' &&
+            norm(current) === norm(existingValues.get('en')) &&
+            norm(value) !== '' &&
+            norm(value) !== norm(current);
+          if (
+            options.missingOnly &&
+            !staleEnglishCopy &&
+            current !== undefined &&
+            current !== ''
+          ) {
+            unchangedCount += 1;
+          } else if (current !== value) {
+            changedKeys.push({ key: row.key, lang });
+            affectedLangs.add(lang);
+          } else {
+            unchangedCount += 1;
+          }
         }
       }
     }
@@ -333,6 +367,11 @@ export class I18nImportService {
     }
     // docs/06 §2.3 item 9: a new language column adds a language — the
     // bootstrap payload (languages) must reflect it without a release.
-    if (newLanguages.length > 0) await this.redis.del(BOOTSTRAP_CACHE_KEY);
+    // R-385: and the config version moves, so the cheap ETags of
+    // GET /i18n/languages and /config/bootstrap stop matching.
+    if (newLanguages.length > 0) {
+      await this.redis.del(BOOTSTRAP_CACHE_KEY);
+      await bumpConfigVersion(this.redis);
+    }
   }
 }

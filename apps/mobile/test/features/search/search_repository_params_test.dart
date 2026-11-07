@@ -95,6 +95,23 @@ void main() {
     await repo.people('an', const SearchFilters());
     expect(last().containsKey('role'), isFalse);
     expect(last().containsKey('verifiedOnly'), isFalse);
+    expect(last().containsKey('follow'), isFalse);
+  });
+
+  test('people: «по подписке» sends follow only when it is not all',
+      () async {
+    await repo.people(
+      'an',
+      const SearchFilters(follow: FollowFilter.following),
+    );
+    expect(last()['follow'], 'following');
+    await repo.people(
+      'an',
+      const SearchFilters(follow: FollowFilter.notFollowing),
+    );
+    expect(last()['follow'], 'not_following');
+    expect(const SearchFilters(follow: FollowFilter.following).activeCount, 1);
+    expect(const SearchFilters().activeCount, 0);
   });
 
   test('cases: category, budget, clarify later, no bids, urgency, period',

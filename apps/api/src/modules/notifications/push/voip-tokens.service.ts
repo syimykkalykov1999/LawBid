@@ -129,11 +129,29 @@ export class VoipTokensService {
   }
 
   /** FCM tokens of iPhones that ring by VoIP — their FCM call push is
-   * skipped so the phone doesn't ring twice. */
+   * skipped so the phone doesn't ring twice.
+   *
+   * Owner 2026-11-03 (an unlocked iPhone showed «НЕОТЛОЖНЫЕ · Входящий
+   * звонок» next to CallKit's call banner): the FCM and the VoIP token are
+   * each bound to the NEWEST session row of the sign-in chain at their own
+   * registration, and every token refresh adds a row to the chain. Matched
+   * by session row they rarely met, so the iPhone that rang by VoIP got the
+   * time-sensitive alert too. Matched by the chain (one per signed-in
+   * device), as the VoIP stop push already does. */
   async fcmTokensCoveredBy(sessionIds: string[]): Promise<string[]> {
     if (sessionIds.length === 0) return [];
+    const chains = await this.prisma.session.findMany({
+      where: { id: { in: sessionIds } },
+      select: { session_chain_id: true },
+    });
+    if (chains.length === 0) return [];
     const rows = await this.prisma.pushToken.findMany({
-      where: { session_id: { in: sessionIds }, platform: 'ios' },
+      where: {
+        platform: 'ios',
+        session: {
+          session_chain_id: { in: chains.map((c) => c.session_chain_id) },
+        },
+      },
       select: { fcm_token: true },
     });
     return rows.map((r) => r.fcm_token);

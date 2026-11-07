@@ -7,6 +7,7 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:lawbid/app.dart';
 import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
@@ -17,6 +18,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/prefetch_policy.dart';
 import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/high_refresh_rate.dart';
 import 'package:lawbid/core/platform/spotlight_index.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_gate.dart';
@@ -33,6 +35,7 @@ import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
+import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/notifications/presentation/qa_notify_switch.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -66,6 +69,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
     return;
   }
   AppEnvironment.current = AppEnvironment.forFlavor(flavor);
+  // Owner 2026-11-03: 120 Hz phones draw at 60 Hz unless asked. Android
+  // only, fire-and-forget, never throws (core/platform/high_refresh_rate).
+  unawaited(HighRefreshRate.enable());
 
   // Real installed version for X-App-Version (docs/01_FOUNDATION_AUTH.md
   // §7) — before any request, including the splash's /config/bootstrap.
@@ -107,32 +113,39 @@ Future<void> runLawBid(AppFlavor flavor) async {
       // in-app screen only).
       if (!kIsWeb)
         systemCallUiProvider.overrideWithValue(const CallkitSystemUi()),
+      deviceTracesCleanerProvider.overrideWith(
+        (ref) => ref.read(pushServiceProvider).clearDeviceTraces,
+      ),
       // OQ-044: ringback / busy / end tones and message sounds.
       appSoundsProvider.overrideWithValue(JustAudioAppSounds()),
       // "Add participant" offers the LawBid people of the phone book.
       groupVideoCallsProvider.overrideWith(
         (ref) => ref.watch(videoCallsEnabledProvider),
       ),
+      // Owner 2026-11-04 (R-376): group calls only while `calls_group` is on.
+      groupCallsProvider.overrideWith(
+        (ref) => ref.watch(groupCallsEnabledProvider),
+      ),
       // Owner 2026-10-23: the Q&A's notification switch.
       qaNotifySwitchProvider.overrideWithValue(() => const QaNotifySwitch()),
       // Owner 2026-10-21 (Telegram «Переслать»): a channel post into chats.
       channelForwardPortProvider.overrideWithValue(
-        (context, ref, {required postId}) => forwardWithSheet(
-          context,
-          ref,
-          [ForwardSource(ForwardSourceKind.channelPost, postId)],
-        ),
+        (context, ref, {required postId}) => forwardWithSheet(context, ref, [
+          ForwardSource(ForwardSourceKind.channelPost, postId),
+        ]),
       ),
       groupCallPortProvider.overrideWith(
         (ref) => GroupCallPort(
-          start: (
-            groupId, {
-            required title,
-            avatarUrl,
-            video = false,
-            userIds = const [],
-          }) =>
-              ref.read(callControllerProvider.notifier).startGroupCall(
+          start:
+              (
+                groupId, {
+                required title,
+                avatarUrl,
+                video = false,
+                userIds = const [],
+              }) => ref
+                  .read(callControllerProvider.notifier)
+                  .startGroupCall(
                     groupId,
                     peer: CallPeer(
                       id: groupId,
@@ -149,13 +162,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
             ownerId: groupId,
           ),
           // Owner 2026-10-21 (inbox 20e): the call of a channel.
-          startChannel: (
-            channelId, {
-            required title,
-            avatarUrl,
-            video = false,
-          }) =>
-              ref.read(callControllerProvider.notifier).startChannelCall(
+          startChannel:
+              (channelId, {required title, avatarUrl, video = false}) => ref
+                  .read(callControllerProvider.notifier)
+                  .startChannelCall(
                     channelId,
                     peer: CallPeer(
                       id: channelId,
@@ -212,14 +222,11 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // code (first launch only). Fire-and-forget, never delays first paint.
   unawaited(captureInstallReferrer(container));
 
-  // Owner 2026-10-22 (load audit finding 8): case files not opened for a
-  // week leave the phone — in the background, after the first screens.
+  // Broken case-file downloads leave the phone — in the background, after
+  // the first screens (finished files stay until someone deletes them).
   if (!kIsWeb) {
     unawaited(
-      Future<void>.delayed(
-        const Duration(seconds: 20),
-        CaseFileCache.cleanUp,
-      ),
+      Future<void>.delayed(const Duration(seconds: 20), CaseFileCache.cleanUp),
     );
   }
 
@@ -230,16 +237,12 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // AppStartupController). AppRouterGuard holds every route at `/splash`
   // until it finishes, so there is no first-redirect race.
   runApp(
-    UncontrolledProviderScope(
-      container: container,
-      child: const LawBidApp(),
-    ),
+    UncontrolledProviderScope(container: container, child: const LawBidApp()),
   );
   // Perf suite markers (no-ops in release): the first frame on the glass.
   PerfMarks.mark('lb.run_app');
   unawaited(
-    WidgetsBinding.instance.waitUntilFirstFrameRasterized
-        .then((_) {
+    WidgetsBinding.instance.waitUntilFirstFrameRasterized.then((_) {
       PerfMarks.mark('lb.first_frame');
       SentryNative.markFirstFrame();
     }),
@@ -258,13 +261,15 @@ GroupRunningCall? _runningCall(
   final mine = call.participants.where((m) => m.userId == me).firstOrNull;
   // Taken out by the host / a vote: no way back into this call.
   if (mine?.status == CallMemberStatus.removed) return null;
-  final joined = [
-    for (final m in call.participants)
-      if (m.joined) m,
-  ]..sort(
-      (a, b) => (b.userId == call.hostId ? 1 : 0)
-          .compareTo(a.userId == call.hostId ? 1 : 0),
-    );
+  final joined =
+      [
+        for (final m in call.participants)
+          if (m.joined) m,
+      ]..sort(
+        (a, b) => (b.userId == call.hostId ? 1 : 0).compareTo(
+          a.userId == call.hostId ? 1 : 0,
+        ),
+      );
   return GroupRunningCall(
     video: call.video,
     members: joined.length,
@@ -280,15 +285,16 @@ GroupRunningCall? _runningCall(
     ],
     returning:
         mine != null && (mine.joined || mine.status == CallMemberStatus.left),
-    join: (title, avatarUrl) =>
-        ref.read(callControllerProvider.notifier).joinGroupCall(
-              call,
-              peer: CallPeer(
-                id: ownerId,
-                isAttorney: false,
-                displayName: title,
-                avatarUrl: avatarUrl,
-              ),
-            ),
+    join: (title, avatarUrl) => ref
+        .read(callControllerProvider.notifier)
+        .joinGroupCall(
+          call,
+          peer: CallPeer(
+            id: ownerId,
+            isAttorney: false,
+            displayName: title,
+            avatarUrl: avatarUrl,
+          ),
+        ),
   );
 }

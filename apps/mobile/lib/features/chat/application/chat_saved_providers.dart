@@ -1,9 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
-import 'package:lawbid/shared/domain/cursor_page.dart';
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -27,7 +25,6 @@ class SavedChatIdsNotifier extends AsyncNotifier<Set<String>> {
       if (ref.mounted) state = AsyncData(before);
       rethrow;
     }
-    ref.invalidate(savedChatListProvider);
   }
 
   /// Saves or removes [messageId]; the mark flips at once and flips back if
@@ -50,8 +47,6 @@ class SavedChatIdsNotifier extends AsyncNotifier<Set<String>> {
       if (ref.mounted) state = AsyncData(before);
       rethrow;
     }
-    // The «Saved» list follows.
-    ref.invalidate(savedChatListProvider);
     return saving;
   }
 }
@@ -59,31 +54,5 @@ class SavedChatIdsNotifier extends AsyncNotifier<Set<String>> {
 final savedChatIdsProvider =
     AsyncNotifierProvider<SavedChatIdsNotifier, Set<String>>(
   SavedChatIdsNotifier.new,
-  retry: _noRetry,
-);
-
-/// What a «Saved» list shows: a tab and a search text.
-typedef SavedChatKey = ({SavedChatTab tab, String query});
-
-class SavedChatListNotifier extends PagedNotifier<SavedChatEntry> {
-  SavedChatListNotifier(this.key);
-
-  final SavedChatKey key;
-
-  @override
-  Future<CursorPage<SavedChatEntry>> fetch(String? cursor) =>
-      ref.read(chatExtrasRepositoryProvider).saved(
-            tab: key.tab,
-            query: key.query,
-            cursor: cursor,
-          );
-
-  @override
-  Object idOf(SavedChatEntry item) => item.message.id;
-}
-
-final savedChatListProvider = AsyncNotifierProvider.autoDispose
-    .family<SavedChatListNotifier, PaginatedList<SavedChatEntry>, SavedChatKey>(
-  SavedChatListNotifier.new,
   retry: _noRetry,
 );

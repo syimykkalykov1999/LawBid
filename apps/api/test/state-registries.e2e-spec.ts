@@ -94,6 +94,8 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
     // These suites test registries/self-attestation, not ID + selfie (owner
     // 2026-10-28 made those required by default; covered in verification.e2e).
     await setConfig('verification.require_identity', false);
+    // Not the attorney photo either (owner 2026-11-05; verification.e2e).
+    await setConfig('verification.require_photo', false);
     await prisma.state.upsert({
       where: { code: STATE },
       create: { code: STATE, name: 'Wyoming' },
@@ -106,6 +108,7 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
   afterAll(async () => {
     await prisma.stateBarRegistry.deleteMany({ where: { state_code: STATE } });
     await setConfig('verification.self_attestation_auto_approve', true);
+    await setConfig('verification.require_photo', true);
     await app.close();
     await new Promise((r) => fake.close(r));
   });
@@ -115,6 +118,20 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
     const keys = await redis.keys('throttle*');
     if (keys.length > 0) await redis.del(...keys);
   });
+
+  /** R-394: registry lookups run in the background worker. */
+  async function waitFor<T>(
+    probe: () => Promise<T | null>,
+    timeoutMs = 15_000,
+  ): Promise<T> {
+    const until = Date.now() + timeoutMs;
+    for (;;) {
+      const value = await probe();
+      if (value) return value;
+      if (Date.now() > until) throw new Error('waitFor: timed out');
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
 
   async function setConfig(key: string, value: boolean): Promise<void> {
     await prisma.appConfig.upsert({
@@ -362,16 +379,25 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
       where: { id: r.userId },
       data: { first_name: 'Jimmy', last_name: 'McGill' },
     });
+    // R-394: 202 at once, the worker looks the number up.
     const rerun = await api()
       .post(
         `/api/v1/admin/verification/licenses/${r.license.id}/registry-check`,
       )
       .set(verifier.auth)
-      .expect(200);
+      .expect(202);
     expect((rerun.body as Body).data).toMatchObject({
-      result: 'pass',
-      license: { registryFlag: null, status: 'verified' },
+      licenseId: r.license.id,
+      kind: 'registry',
+      status: 'queued',
     });
+    const after = await waitFor(() =>
+      prisma.attorneyLicense.findFirst({
+        where: { id: r.license.id, registry_flag: null },
+      }),
+    );
+    expect(after.license_status).toBe('verified');
+    expect(after.auto_check_result).toMatchObject({ result: 'pass' });
 
     const r2 = await submit('NO');
     const cleared = await api()

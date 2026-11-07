@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/navigation/shell/content_column_frame.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show commentThreadSlivers;
@@ -19,28 +18,37 @@ Future<void> showCommentsSheet(
 }) {
   // Owner 2026-10-22 (guest browsing): comments need an account.
   if (!requireSignInFromContext(context)) return Future.value();
-  final colors = Theme.of(context).extension<AppColorTokens>()!;
-  return showModalBottomSheet<void>(
+  // In the website's post window the comments are already beside the post.
+  final inline = context.getInheritedWidgetOfExactType<PostCommentsInline>();
+  if (inline != null) {
+    inline.focus();
+    return Future.value();
+  }
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    constraints: contentColumnSheetConstraints(context),
-    // Over the nav bar too, like Instagram.
-    useRootNavigator: true,
     useSafeArea: true,
-    backgroundColor: sheetRouteColor(context, colors.sheet),
-    elevation: sheetDrawnByColumn(context) ? 0 : null,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
-    ),
-    builder: (_) => ContentColumnFrame(
-      surface: colors.sheet,
-      radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
-      child: CommentsSheet(
-        postId: postId,
-        commentsEnabled: commentsEnabled,
-      ),
+    closeByHandleOnly: true,
+    builder: (_) => CommentsSheet(
+      postId: postId,
+      commentsEnabled: commentsEnabled,
     ),
   );
+}
+
+/// Marks a post whose comments are shown next to it: the comment button
+/// goes to the field instead of opening the sheet.
+class PostCommentsInline extends InheritedWidget {
+  const PostCommentsInline({
+    required this.focus,
+    required super.child,
+    super.key,
+  });
+
+  final VoidCallback focus;
+
+  @override
+  bool updateShouldNotify(PostCommentsInline oldWidget) => false;
 }
 
 class CommentsSheet extends ConsumerStatefulWidget {

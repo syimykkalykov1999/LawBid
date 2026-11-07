@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/strings/audit_chat_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_social_strings.dart';
 import 'package:lawbid/core/l10n/strings/boost_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_billing_strings.dart';
+import 'package:lawbid/core/l10n/strings/case_close_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_cover_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_dossier_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_payments_strings.dart';
@@ -58,6 +59,7 @@ import 'package:lawbid/core/l10n/strings/qr_strings.dart';
 import 'package:lawbid/core/l10n/strings/quick_replies_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
+import 'package:lawbid/core/l10n/strings/role_switch_strings.dart';
 import 'package:lawbid/core/l10n/strings/saved_cards_strings.dart';
 import 'package:lawbid/core/l10n/strings/seat_roles_strings.dart';
 import 'package:lawbid/core/l10n/strings/share_to_strings.dart';
@@ -1230,6 +1232,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...clientFraudRu,
         ...legalDocsRu,
         ...boostRu,
+        ...roleSwitchRu,
         ...starsRu,
         ...feedContentRu,
         ...newsOffRu,
@@ -1248,6 +1251,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...caseSigningRu,
         ...caseToolsRu,
         ...dealRecordRu,
+        ...caseCloseRu,
         ...themeRu,
         ...postInnerRu,
         ...emailFlowsRu,
@@ -2688,6 +2692,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...clientFraudEn,
         ...legalDocsEn,
         ...boostEn,
+        ...roleSwitchEn,
         ...starsEn,
         ...feedContentEn,
         ...newsOffEn,
@@ -2706,6 +2711,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...caseSigningEn,
         ...caseToolsEn,
         ...dealRecordEn,
+        ...caseCloseEn,
         ...themeEn,
         ...postInnerEn,
         ...storiesEn,

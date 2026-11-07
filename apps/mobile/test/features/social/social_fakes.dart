@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:lawbid/core/cache/http_cache_interceptor.dart'
+    show kNoPhoneCopy, readingFromPhoneOnly;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
@@ -76,6 +78,9 @@ class FakeSocialRepository implements SocialRepository {
   final followCalls = <(String, bool)>[];
   int attorneyPostsCalls = 0;
 
+  /// What a profile tab finds in the phone's HTTP copy (null = no copy).
+  List<Post>? profilePhoneCopy;
+
   @override
   Future<bool> attachmentsAllowed() async => true;
 
@@ -131,6 +136,13 @@ class FakeSocialRepository implements SocialRepository {
     bool newsOnly = false,
     ProfileMedia? media,
   }) async {
+    // A phone-only read (a profile tab's saved first page): only a copy the
+    // test put there answers, like the HTTP copy; a miss throws.
+    if (readingFromPhoneOnly) {
+      final copy = profilePhoneCopy;
+      if (copy == null) throw StateError(kNoPhoneCopy);
+      return CursorPage(items: copy);
+    }
     attorneyPostsCalls++;
     attorneyPostsMedia.add(media);
     // Like the server's `media` filter (owner 2026-10-18).
@@ -184,6 +196,45 @@ class FakeSocialRepository implements SocialRepository {
   }) async {
     userRepostsCursors.add(cursor);
     return _page(reposts, cursor);
+  }
+
+  /// R-406: a topic page's posts (a hashtag topic) — [posts].
+  final tagPostsCalls = <(String, TagSort)>[];
+
+  @override
+  Future<CursorPage<Post>> tagPosts(
+    String tag,
+    TagSort sort, {
+    String? cursor,
+    String? state,
+  }) async {
+    tagPostsCalls.add((tag, sort));
+    if (offline) throw _offline;
+    return _page(posts, cursor);
+  }
+
+  /// R-406: a practice topic's posts (the filtered list) — [posts].
+  final latestPostsPractices = <String?>[];
+
+  @override
+  Future<CursorPage<Post>> latestPosts(
+    String? state, {
+    String? cursor,
+    String? practice,
+    String? tag,
+    bool newsOnly = false,
+    String? period,
+    bool withPhotos = false,
+    bool briefsOnly = false,
+    bool popular = false,
+    bool forYou = false,
+    bool generalOnly = false,
+    List<String> states = const [],
+    List<String> practices = const [],
+  }) async {
+    latestPostsPractices.add(practice);
+    if (offline) throw _offline;
+    return _page(posts, cursor);
   }
 
   @override

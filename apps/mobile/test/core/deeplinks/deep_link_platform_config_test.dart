@@ -33,6 +33,8 @@ void main() {
       manifest,
       contains('<data android:path="/verification/wizard" />'),
     );
+    // R-146: the computer's «continue on your phone» code.
+    expect(manifest, contains('<data android:pathPrefix="/selfie/" />'));
     // The /lawyers/ catalog tree stays in the browser.
     expect(manifest, isNot(contains('android:pathPrefix="/lawyers/"')));
     // app_links handles links, not Flutter's router deep linking.
@@ -98,6 +100,8 @@ void main() {
         '/auth/email-code',
         // Owner 2026-10-28: «continue on the phone» (ID selfie).
         '/verification/wizard',
+        // R-146: one-time «continue on your phone» code (ID selfie).
+        '/selfie/*',
       },
     );
     // Owner 2026-10-22 (passkeys): iOS lets the app use lawbid.dev passkeys.
@@ -137,6 +141,7 @@ void main() {
       '/q/*': 'q/Xk3_aB-9Qz1LmN4pR7sT0w',
       '/g/*': 'g/Xk3_aB-9Qz1LmN4pR7sT0w',
       '/c/*': 'c/tax_news',
+      '/selfie/*': 'selfie/Xk3_aB-9Qz1LmN4pR7sT0w',
     };
     final aasa =
         jsonDecode(read('../../docs/deeplinks/apple-app-site-association'))

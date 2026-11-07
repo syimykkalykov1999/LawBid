@@ -8,6 +8,8 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
+import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/login_identifier.dart';
 import 'package:lawbid/features/auth/domain/password_auth_result.dart';
@@ -17,6 +19,7 @@ import 'package:lawbid/features/auth/presentation/screens/login_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/set_password_screen.dart';
 
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 import '../../helpers/fixtures.dart';
@@ -145,6 +148,24 @@ const _ar = _SampleTranslator({
   'auth.setPassword.rule': '8 أحرف على الأقل',
   'auth.setPassword.submit': 'متابعة',
 });
+
+/// R-384: `GET /users/me` says "no password" until the password is saved;
+/// the reload after the save returns the account with it.
+class _PasswordThenUserController extends CurrentUserController {
+  _PasswordThenUserController(this._before, this._after);
+
+  final CurrentUser _before;
+  final CurrentUser _after;
+
+  @override
+  CurrentUserState build() => CurrentUserState.ready(_before);
+
+  @override
+  Future<CurrentUser?> load() async {
+    state = CurrentUserState.ready(_after);
+    return _after;
+  }
+}
 
 void main() {
   group('LoginIdentifier', () {
@@ -347,6 +368,85 @@ void main() {
         expect(repo.passwordsSet, ['12345678']);
         expect(find.byType(SetPasswordScreen), findsNothing);
         expect(find.text('open'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'R-384: right after the SMS code a new account sets a password before '
+      'the next onboarding step; a short one is refused',
+      (tester) async {
+        final c = ProviderContainer(
+          overrides: [
+            ...await authOverrides(repo: repo, fixedSignedOutUser: false),
+            currentUserControllerProvider.overrideWith(
+              () => _PasswordThenUserController(
+                meFixture(passwordRequired: true),
+                meFixture(),
+              ),
+            ),
+          ],
+        );
+        addTearDown(c.dispose);
+        final refresh = ValueNotifier(0);
+        addTearDown(refresh.dispose);
+        c.listen(currentUserControllerProvider, (_, __) => refresh.value++);
+        final router = GoRouter(
+          // Where the code screen leaves the person once the code is right.
+          initialLocation: AuthRoutes.otp,
+          refreshListenable: refresh,
+          redirect: (_, state) => AppRouterGuard.redirect(
+            state.matchedLocation,
+            GuardSnapshot(
+              startup: StartupStatus.ready,
+              hasSession: true,
+              user: c.read(currentUserControllerProvider),
+            ),
+          ),
+          routes: [
+            ...authRoutes(),
+            GoRoute(
+              path: '/onboarding/consents',
+              builder: (_, __) => const Scaffold(body: Text('next step')),
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: c,
+            child: MaterialApp.router(
+              theme: AppTheme.light(),
+              routerConfig: router,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(SetPasswordScreen), findsOneWidget);
+        expect(find.text('next step'), findsNothing);
+        expect(
+          find.bySemanticsLabel('Back'),
+          findsNothing,
+          reason: 'mandatory: no way around it',
+        );
+
+        // The next step stays closed while there is no password.
+        router.go('/onboarding/consents');
+        await tester.pumpAndSettle();
+        expect(find.byType(SetPasswordScreen), findsOneWidget);
+
+        await tester.enterText(find.byType(TextField), '1234567');
+        await tester.pump();
+        await tester.tap(button('Continue'), warnIfMissed: false);
+        await tester.pump();
+        expect(repo.passwordsSet, isEmpty);
+
+        await tester.enterText(find.byType(TextField), '12345678');
+        await tester.pump();
+        await tester.tap(button('Continue'));
+        await tester.pumpAndSettle();
+        expect(repo.passwordsSet, ['12345678']);
+        expect(find.byType(SetPasswordScreen), findsNothing);
+        expect(find.text('next step'), findsOneWidget);
       },
     );
 

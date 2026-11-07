@@ -221,10 +221,15 @@ class PostCard extends ConsumerWidget {
     this.fromProfile = false,
     this.onReply,
     this.showPin = false,
+    this.mediaApart = false,
     super.key,
   });
 
   final Post post;
+
+  /// The website's post window: the picture lies on its own beside this
+  /// card and the comments are under it, so the card shows neither.
+  final bool mediaApart;
 
   /// The open thread of a text post: the reply icon focuses the field.
   final VoidCallback? onReply;
@@ -381,6 +386,7 @@ class PostCard extends ConsumerWidget {
                     run: run,
                     promotionId: post.promotionId,
                     fromProfile: fromProfile,
+                    mediaApart: mediaApart,
                   )
                 : inDetail
                     ? _detail(context, ref, p, t, colors, actions, run)
@@ -767,7 +773,7 @@ class PostCard extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        if (p.video != null)
+        if (p.video != null && !mediaApart)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: ClipRRect(
@@ -781,7 +787,7 @@ class PostCard extends ConsumerWidget {
               ),
             ),
           ),
-        if (p.media.isNotEmpty)
+        if (p.media.isNotEmpty && !mediaApart)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: ClipRRect(
@@ -856,7 +862,7 @@ class PostCard extends ConsumerWidget {
                   .copyWith(color: colors.textSecondary),
             ),
           ),
-        if (p.commentCount > 0)
+        if (p.commentCount > 0 && !mediaApart)
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton(
@@ -900,11 +906,13 @@ class _InstagramPost extends ConsumerWidget {
     required this.run,
     this.promotionId,
     this.fromProfile = false,
+    this.mediaApart = false,
   });
 
   final Post post;
   final bool inDetail;
   final bool fromProfile;
+  final bool mediaApart;
 
   /// A paid promoted post: «Реклама» under the name, opens are reported.
   final String? promotionId;
@@ -957,7 +965,9 @@ class _InstagramPost extends ConsumerWidget {
           _AuthorRow(post: p, sponsored: promotionId != null)
         else
           _OwnMenuRow(post: p),
-        if (p.video != null)
+        if (mediaApart && hasMedia)
+          const SizedBox.shrink()
+        else if (p.video != null)
           AspectRatio(
             aspectRatio: p.video!.aspectRatio.clamp(_kVideoRatio, 1.91),
             child: InlineReel(
@@ -1038,7 +1048,7 @@ class _InstagramPost extends ConsumerWidget {
               documents: p.attachments,
             ),
           ),
-        if (p.commentCount > 0)
+        if (p.commentCount > 0 && !mediaApart)
           AppPressable(
             onTap: () => showCommentsSheet(
               context,
@@ -1391,15 +1401,22 @@ class _ThreadsPost extends ConsumerWidget {
         children: [
           // Owner 2026-10-28: the same header widget as every other post; the
           // text below starts on the name's left edge.
-          _AuthorRow(
-            post: p,
-            sponsored: promotionId != null,
-            compact: true,
-          ),
+          // Owner 2026-11-03 (R-136): in a profile's list a brief's header is
+          // the very row of the posts there (avatar, name centred on it, «…»),
+          // not the feed header.
+          if (fromProfile)
+            _OwnMenuRow(post: p, boost: true)
+          else
+            _AuthorRow(
+              post: p,
+              sponsored: promotionId != null,
+              compact: true,
+            ),
           Padding(
-            padding: const EdgeInsetsDirectional.only(
-              // Header: md inset + 32 avatar + 10 gap (the feed post's).
-              start: AppSpacing.md + 32 + 10,
+            padding: EdgeInsetsDirectional.only(
+              // Header: the inset + 32 avatar + the gap (the post's own).
+              start:
+                  fromProfile ? _OwnMenuRow.textInset : AppSpacing.md + 32 + 10,
               end: AppSpacing.md,
             ),
             child: Column(
@@ -1718,9 +1735,17 @@ class _AuthorRow extends ConsumerWidget {
 /// feed — their avatar and @username on the left and the «…» menu; no
 /// «Pinned» label (the pin lives only on the profile grid).
 class _OwnMenuRow extends ConsumerWidget {
-  const _OwnMenuRow({required this.post});
+  const _OwnMenuRow({required this.post, this.boost = false});
 
   final Post post;
+
+  /// Owner 2026-11-03 (R-133): a brief keeps its «Продвигать» pill in the
+  /// header (a post has it under the media); it sits on the «…» level.
+  final bool boost;
+
+  /// Where the name (and a brief's text under it) starts: the row's inset +
+  /// the 32 avatar + the gap.
+  static const double textInset = AppSpacing.lg + 32 + AppSpacing.sm;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1758,6 +1783,10 @@ class _OwnMenuRow extends ConsumerWidget {
               ),
             ),
           ),
+          if (boost && post.isMine && !ref.watch(isAssistantProvider)) ...[
+            BoostButton(postId: post.id),
+            const SizedBox(width: AppSpacing.sm),
+          ],
           AppIconButton(
             icon: const AppIcon(AppIcons.moreHorizRounded),
             semanticLabel: t.t('post.menu'),
@@ -2736,10 +2765,14 @@ class PostActionsBar extends ConsumerWidget {
                 children: [
                   if (!reactions) ...[
                     if (post.likeCount > 0 && showLikeCount(ref, post))
+                      // Owner 2026-11-04 (R-368): red only when liked.
                       _Stat(
-                        icon: AppIcons.favoriteRounded,
+                        icon: post.likedByMe
+                            ? AppIcons.favoriteRounded
+                            : AppIcons.favoriteBorderRounded,
                         value: post.likeCount,
-                        color: colors.danger,
+                        color:
+                            post.likedByMe ? colors.danger : colors.actionIcon,
                         onTap: () => showLikersList(context, post.id),
                         hiddenMark:
                             hiddenForOthersMark(ref, post, views: false),
@@ -2748,7 +2781,7 @@ class PostActionsBar extends ConsumerWidget {
                       _Stat(
                         icon: AppIcons.modeCommentOutlined,
                         value: post.commentCount,
-                        color: colors.textSecondary,
+                        color: colors.actionIcon,
                         onTap: () => showCommentsSheet(
                           context,
                           postId: post.id,
@@ -2759,14 +2792,14 @@ class PostActionsBar extends ConsumerWidget {
                       _Stat(
                         icon: AppIcons.autoModeRounded,
                         value: post.repostCount,
-                        color: colors.textSecondary,
+                        color: colors.actionIcon,
                         onTap: () => showRepostersList(context, post.id),
                       ),
                     if (post.shareCount > 0)
                       _Stat(
                         icon: AppIcons.sendOutlined,
                         value: post.shareCount,
-                        color: colors.textSecondary,
+                        color: colors.actionIcon,
                         onTap: () => sharePost(context, ref, post),
                       ),
                   ],
@@ -3026,9 +3059,11 @@ class _BounceIconState extends State<BounceIcon>
                     widget.active ? widget.activeIcon : widget.icon,
                     key: ValueKey(widget.active),
                     size: widget.size,
+                    // Owner 2026-11-04 (R-368): idle icons in the theme's
+                    // softer action ink; the active colour only when on.
                     color: widget.active
-                        ? (widget.activeColor ?? colors.text)
-                        : colors.text,
+                        ? (widget.activeColor ?? colors.actionIcon)
+                        : colors.actionIcon,
                   ),
                 ),
               ),

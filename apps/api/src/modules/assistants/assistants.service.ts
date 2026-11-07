@@ -28,6 +28,7 @@ import { SubscriptionAccessService } from '../subscriptions/subscription-access.
 import { EntitlementsService } from '../plans/entitlements.service';
 import {
   clampMaxDuties,
+  isUnlimitedDuties,
   DEFAULT_DUTIES,
   DEFAULT_MAX_DUTIES,
   LIABILITY_DUTIES,
@@ -100,11 +101,18 @@ export class AssistantsService {
   /** Owner 2026-10-22: how many duties one assistant may hold (admin
    * setting `assistants.max_duties`, 3 by default). */
   async maxDuties(): Promise<number> {
-    return clampMaxDuties(
-      this.settings
-        ? await this.settings.number('assistants.max_duties')
-        : DEFAULT_MAX_DUTIES,
-    );
+    return clampMaxDuties(await this.maxDutiesRaw());
+  }
+
+  /** R-401: the admin chose «все» (0) — the app hides the counter. */
+  async maxDutiesUnlimited(): Promise<boolean> {
+    return isUnlimitedDuties(await this.maxDutiesRaw());
+  }
+
+  private async maxDutiesRaw(): Promise<number> {
+    return this.settings
+      ? await this.settings.number('assistants.max_duties')
+      : DEFAULT_MAX_DUTIES;
   }
 
   /** Owner 2026-10-22: more assistants, nobody with the whole account —
@@ -328,6 +336,7 @@ export class AssistantsService {
       used: s.used,
       plan: s.plan ?? 'none',
       maxDuties: await this.maxDuties(),
+      maxDutiesUnlimited: await this.maxDutiesUnlimited(),
     };
   }
 

@@ -48,17 +48,19 @@ abstract final class VideoCache {
   /// The «Данные и память» limit for «Видео» (null = none handed over yet).
   static int? _storeLimitBytes;
 
-  /// The proxy's byte limit: the administrator's tuning, lowered (never
-  /// raised) by the store limit (itself the admin ceiling or the user's
-  /// lower choice). Before the first bootstrap answer the tuning is not
-  /// known: the proxy then starts with the ceiling, so its start-up
-  /// eviction cannot drop chunks that the server's number would keep.
+  /// The proxy's byte limit. Owner 2026-11-03: once the phone's cache
+  /// settings are known it is the «Данные и память» limit for video — the
+  /// administrator's own `cache.limit_mb.video` when one is set, else the
+  /// person's cap (default 10 GB) — not the server tuning, which now only
+  /// switches the cache on or off. Before the first limits are handed over
+  /// the tuning (or the ceiling) is what the proxy starts with, so its
+  /// start-up eviction cannot drop chunks the real limit would keep.
   static int get maxBytes {
+    final store = _storeLimitBytes;
+    if (store != null) return store;
     final tunedMb =
         ClientTuning.applied ? ClientTuning.videoCacheMb : _ceilingMb;
-    final tuned = tunedMb * 1024 * 1024;
-    final store = _storeLimitBytes;
-    return store == null || store >= tuned ? tuned : store;
+    return tunedMb * 1024 * 1024;
   }
 
   /// Hands the store limit to the proxy, which evicts to it itself: at
@@ -70,6 +72,26 @@ abstract final class VideoCache {
     _syncMax();
   }
 
+  /// Owner 2026-11-03: drops the oldest chunks until [bytes] remain (the
+  /// global cache cap). False when no proxy runs (its folder is then
+  /// untouched by this call).
+  static bool trimTo(int bytes) {
+    final c = _commands;
+    if (c == null) return false;
+    c.send(('trim', bytes < 0 ? 0 : bytes));
+    return true;
+  }
+
+  /// Owner 2026-11-03: drops the feed videos' chunks not played for [age]
+  /// («Автоудаление» of the feed; chat videos stay). False when no proxy
+  /// runs.
+  static bool dropOlderThan(Duration age) {
+    final c = _commands;
+    if (c == null) return false;
+    c.send(('age', age.inSeconds));
+    return true;
+  }
+
   static void _syncMax() {
     final commands = _commands;
     final max = maxBytes;
@@ -77,6 +99,18 @@ abstract final class VideoCache {
     _sentMaxBytes = max;
     commands.send(('max', max));
   }
+
+  /// R-251: the server's number of blocks at once (it may arrive after the
+  /// proxy started).
+  static void _syncBlocks() {
+    final commands = _commands;
+    final n = ClientTuning.videoBlocksAtOnce;
+    if (commands == null || n == _sentBlocks) return;
+    _sentBlocks = n;
+    commands.send(('blocks', n));
+  }
+
+  static int _sentBlocks = 1;
 
   /// Completes once a proxy that is starting is up (or failed to start).
   static Future<void> settled() async => await _starting;
@@ -90,6 +124,7 @@ abstract final class VideoCache {
     _starting = null;
     _failedAt = null;
     _sentMaxBytes = -1;
+    _sentBlocks = 1;
     _storeLimitBytes = null;
   }
 
@@ -118,7 +153,10 @@ abstract final class VideoCache {
       !kIsWeb && ClientTuning.videoCacheMb > 0 && !_backedOff;
 
   /// The URL for the player. Sync on purpose (called from `initState`).
-  static String resolve(String url) {
+  ///
+  /// [feed]: a feed / reel / channel video (aged out after a week by the
+  /// «Автоудаление» of the feed; chat videos are not).
+  static String resolve(String url, {bool feed = false}) {
     if (!enabled || !url.startsWith('https://')) return url;
     final port = _port;
     final secret = _secret;
@@ -127,12 +165,14 @@ abstract final class VideoCache {
       return url;
     }
     _syncMax();
+    _syncBlocks();
     final u = Uri.parse(url);
     return VideoCacheProxy.wrapUrl(
       port: port,
       secret: secret,
       upstream: u,
       isPlaylist: u.path.endsWith('.m3u8'),
+      feed: feed,
     );
   }
 
@@ -221,6 +261,15 @@ Future<void> _proxyMain(_ProxyStart s) async {
     ..listen((Object? m) async {
       if (m is (String, int) && m.$1 == 'max') {
         await cache.setMaxBytes(m.$2);
+      } else if (m is (String, int) && m.$1 == 'blocks') {
+        proxy.blocksAtOnce = m.$2;
+      } else if (m is (String, int) && m.$1 == 'trim') {
+        await cache.trimTo(m.$2);
+      } else if (m is (String, int) && m.$1 == 'age') {
+        await cache.dropOlderThan(
+          Duration(seconds: m.$2),
+          onlyKeys: VideoCacheProxy.isFeedKey,
+        );
       } else if (m is (String, SendPort) && m.$1 == 'clear') {
         await cache.clear();
         m.$2.send(true);

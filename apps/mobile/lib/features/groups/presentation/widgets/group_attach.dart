@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
@@ -71,7 +72,12 @@ Future<List<PickedChatFile>> pickGroupFiles(
   Translator t,
   GroupAttachChoice choice, {
   PlaceUploadLimits? limits,
+
+  /// R-255: documents and videos stay on disk (ignored in the browser, which
+  /// has no paths). A caller passes it only if it can send from a path.
+  bool fromDisk = false,
 }) async {
+  final onDisk = fromDisk && !kIsWeb;
   final out = <PickedChatFile>[];
   var skipped = 0;
   final maxBytes = limits?.fileBytes ?? kChatAttachmentMaxBytes;
@@ -90,7 +96,15 @@ Future<List<PickedChatFile>> pickGroupFiles(
       skipped++;
       return;
     }
-    out.add((bytes: bytes, name: name, mime: mime));
+    out.add(
+      (
+        bytes: bytes,
+        name: name,
+        mime: mime,
+        path: null,
+        diskBytes: null,
+      ),
+    );
   }
 
   switch (choice) {
@@ -123,9 +137,32 @@ Future<List<PickedChatFile>> pickGroupFiles(
         type: FileType.custom,
         allowedExtensions: limits?.allExtensions ?? kChatFileExtensions,
         allowMultiple: true,
-        withData: true,
+        withData: !onDisk,
       );
       for (final f in result?.files ?? const <PlatformFile>[]) {
+        final path = onDisk ? f.path : null;
+        if (path != null) {
+          // Checked by name and size only: a picture is read as before.
+          if (mimeFor(f.name)?.startsWith('image/') ?? false) {
+            add(await XFile(path).readAsBytes(), f.name);
+            continue;
+          }
+          final mime = mimeFor(f.name);
+          if (mime == null || f.size > maxBytes) {
+            skipped++;
+            continue;
+          }
+          out.add(
+            (
+              bytes: Uint8List(0),
+              name: f.name,
+              mime: mime,
+              path: path,
+              diskBytes: f.size,
+            ),
+          );
+          continue;
+        }
         final bytes = f.bytes;
         if (bytes == null) {
           skipped++;

@@ -9,7 +9,15 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 /// Completes when every file is queued.
 Future<void> sendPickedFiles(
   ChatThread thread,
-  List<({Uint8List bytes, String name, String mime})> files,
+  List<
+          ({
+            Uint8List bytes,
+            String name,
+            String mime,
+            String? path,
+            int? diskBytes,
+          })>
+      files,
   String caption,
 ) async {
   Future<void>? previous;
@@ -18,6 +26,8 @@ Future<void> sendPickedFiles(
     final last = i == files.length - 1;
     previous = thread.sendAttachment(
       bytes: f.bytes,
+      path: f.path,
+      diskBytes: f.diskBytes,
       name: f.name,
       mime: f.mime,
       caption: last && caption.isNotEmpty ? caption : null,

@@ -127,6 +127,19 @@ class FakeCasesRepository implements CasesRepository {
   }) async =>
       _empty();
 
+  // R-392: closing with both sides.
+  @override
+  Future<void> completeCase(String caseId) async =>
+      calls.add('complete:$caseId');
+
+  @override
+  Future<void> confirmCompletion(String caseId) async =>
+      calls.add('confirmCompletion:$caseId');
+
+  @override
+  Future<void> declineCompletion(String caseId) async =>
+      calls.add('declineCompletion:$caseId');
+
   @override
   dynamic noSuchMethod(Invocation invocation) {
     calls.add(invocation.memberName.toString());

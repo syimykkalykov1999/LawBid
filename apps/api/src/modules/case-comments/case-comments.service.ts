@@ -2,6 +2,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { assertNoBlockBetween } from '../blocks/block-check';
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -345,14 +346,18 @@ export class CaseCommentsService {
     }
   }
 
-  /** OQ-037: a completed share of the case link (anyone who can see it). */
-  async shareCase(user: RequestUser, caseId: string): Promise<void> {
-    await this.caseOwner(user, caseId);
-    await this.limits.consume('like', user.sub);
-    await this.prisma.caseShare.create({
-      data: { case_id: caseId, user_id: user.sub },
-    });
-    await this.counters.bump('case', caseId, 'share_count', 1);
+  /**
+   * Owner 2026-11-03 (R-366): a case is private and is never shared. The route
+   * stays only so old app builds get a clean 403 instead of a 404; nothing is
+   * counted or stored.
+   */
+  shareCase(caseId: string): Promise<never> {
+    return Promise.reject(
+      new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: `Case ${caseId} is private and cannot be shared`,
+      }),
+    );
   }
 
   async unlike(user: RequestUser, commentId: string): Promise<void> {

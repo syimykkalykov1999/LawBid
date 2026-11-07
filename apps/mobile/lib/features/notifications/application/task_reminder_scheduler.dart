@@ -382,6 +382,9 @@ class TaskReminderScheduler {
   }
 
   /// A task was removed or finished: its alarm and notification go.
+  /// Owner 2026-11-05: signed out: no alarm of this account rings any more.
+  Future<void> cancelAll() => sync(const [], (_) => '', (_) => '');
+
   Future<void> cancelTask(String taskId) =>
       _gateway.cancel(reminderNotificationId(taskId));
 }

@@ -1,4 +1,10 @@
-import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  OnModuleDestroy,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import type Redis from 'ioredis';
@@ -37,11 +43,17 @@ const PROBE_TIMEOUT_MS = 3_000;
  * sets the pace). The finished report is a shared admin summary
  * (AdminSummaryService: Redis, one refresher across all tasks): younger than
  * FRESH it is served as is; up to MAX_STALE it is served at once while one
- * refresh runs; older than that, an outage board must not show old lights,
- * so the request waits for a new one. */
+ * refresh runs (the page shows «обновлено N с назад» from `generatedAt` and
+ * polls again within 15-60 s, so old lights never stay); only a cold cache
+ * waits.
+ * R-370 (owner 2026-11-04): MAX_STALE was 120 s and nothing refreshed the
+ * copy between opens, so almost every first open rebuilt the board (prod
+ * 24 h: p50 3.4 s, max 4.7 s). Now 15 min (as «Масштаб», R-369), and the
+ * copy is kept warm every minute while an admin is active (keepWarm). */
 const REPORT_KEY = 'ops:system-health';
 const REPORT_FRESH_MS = 15_000;
-const REPORT_MAX_STALE_MS = 120_000;
+const REPORT_MAX_STALE_MS = 15 * 60_000;
+const KEEP_WARM_MS = 60_000;
 
 const DLQ = 'stripe-webhooks-dlq';
 
@@ -69,8 +81,9 @@ function ageSec(iso: string | undefined | null, now: Date): number | null {
  * others (a dead Redis shows red Redis, not an error page).
  */
 @Injectable()
-export class SystemHealthService implements OnModuleDestroy {
+export class SystemHealthService implements OnModuleInit, OnModuleDestroy {
   private queues?: Queue[];
+  private stopWarm?: () => void;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -96,6 +109,15 @@ export class SystemHealthService implements OnModuleDestroy {
     @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
+  onModuleInit(): void {
+    this.stopWarm = this.summary?.keepWarm(
+      REPORT_KEY,
+      () => this.build(new Date()),
+      KEEP_WARM_MS,
+      KEEP_WARM_MS,
+    );
+  }
+
   /** GET path: the shared summary (see REPORT_* above). */
   async cachedReport(): Promise<SystemHealthDto> {
     if (!this.summary) return this.build(new Date());
@@ -120,7 +142,28 @@ export class SystemHealthService implements OnModuleDestroy {
   }
 
   private async build(now: Date): Promise<SystemHealthDto> {
-    const items = await Promise.all([
+    // R-370: the extra probes, the incidents and the switches no longer
+    // wait for the core lights; everything independent runs at once.
+    const extraP = this.probes
+      ? withTimeout(this.probes.extra(), PROBE_TIMEOUT_MS + 1_000).catch(
+          () => [],
+        )
+      : Promise.resolve([]);
+    const incidentsP = this.incidents
+      ? this.incidents.recent(24, now).catch(() => [])
+      : Promise.resolve([]);
+    const rotationP = this.rotation?.enabled
+      ? this.safe('secret_rotation', () => this.secretRotation(now))
+      : Promise.resolve(null);
+    const switchesP = Promise.all([
+      this.state.heavyPause().catch(() => null),
+      this.state.scaleMode().catch(() => null),
+      this.settings.boolean('ops.auto_pause_heavy_jobs'),
+      this.settings.boolean('ops.auto_scale_down_on_budget'),
+      this.settings.number('ops.db_slow_ms'),
+      this.settings.number('ops.backup_max_age_hours'),
+    ]);
+    const itemsP = Promise.all([
       Promise.resolve(this.api()),
       this.safe('worker', () => this.worker(now)),
       this.safe('database', () => this.database()),
@@ -135,22 +178,24 @@ export class SystemHealthService implements OnModuleDestroy {
       this.safe('table_growth', () => this.tableGrowth()),
       this.safe('shard_growth', () => this.shardGrowth()),
     ]);
-    if (this.rotation?.enabled) {
-      items.push(
-        await this.safe('secret_rotation', () => this.secretRotation(now)),
-      );
-    }
-    const extra = this.probes ? await this.probes.extra() : [];
+    // One Promise.all: a failing settings read rejects the build as before,
+    // never as an unhandled rejection while the probes are still running.
+    const [items, rotation, extra, recent, switches] = await Promise.all([
+      itemsP,
+      rotationP,
+      extraP,
+      incidentsP,
+      switchesP,
+    ]);
+    if (rotation) items.push(rotation);
     items.push(...extra.filter((e) => !items.some((i) => i.key === e.key)));
-    const incidents = this.incidents
-      ? (await this.incidents.recent(24, now).catch(() => [])).map((i) => ({
-          id: i.id,
-          component: i.component,
-          openedAt: i.openedAt.toISOString(),
-          closedAt: i.closedAt?.toISOString() ?? null,
-          detail: i.detail,
-        }))
-      : [];
+    const incidents = recent.map((i) => ({
+      id: i.id,
+      component: i.component,
+      openedAt: i.openedAt.toISOString(),
+      closedAt: i.closedAt?.toISOString() ?? null,
+      detail: i.detail,
+    }));
     const [
       heavyPause,
       scaleMode,
@@ -158,14 +203,7 @@ export class SystemHealthService implements OnModuleDestroy {
       autoScale,
       dbSlowMs,
       backupMaxAgeHours,
-    ] = await Promise.all([
-      this.state.heavyPause().catch(() => null),
-      this.state.scaleMode().catch(() => null),
-      this.settings.boolean('ops.auto_pause_heavy_jobs'),
-      this.settings.boolean('ops.auto_scale_down_on_budget'),
-      this.settings.number('ops.db_slow_ms'),
-      this.settings.number('ops.backup_max_age_hours'),
-    ]);
+    ] = switches;
     const overall = items.some((i) => i.status === 'red')
       ? 'red'
       : items.some((i) => i.status === 'yellow') ||
@@ -437,6 +475,13 @@ export class SystemHealthService implements OnModuleDestroy {
         detail.r2Error = (e as Error).message;
       }
     }
+    // Owner 2026-11-04: the R2 switch is on but new files stay on AWS. Uploads
+    // work; the owner has to see that the switch does nothing yet.
+    const r2 = await this.storage.r2Status();
+    if (r2.fallback) {
+      ok = false;
+      detail.r2Fallback = `R2 включён, но новые фото идут в AWS. ${r2.fallback}`;
+    }
     return { status: ok ? 'green' : 'red', detail };
   }
 
@@ -569,6 +614,7 @@ export class SystemHealthService implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
+    this.stopWarm?.();
     await Promise.all((this.queues ?? []).map((q) => q.close()));
   }
 }

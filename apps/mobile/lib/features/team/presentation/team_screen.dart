@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -321,6 +323,14 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
   int get _maxDuties =>
       ref.read(teamProvider).value?.maxDuties ?? TeamInfo.defaultMaxDuties;
 
+  /// R-401: the admin chose «все» — no limit, no counter.
+  bool get _unlimited =>
+      ref.read(teamProvider).value?.maxDutiesUnlimited ?? false;
+
+  /// R-401: «можно ещё N» — how many more duties this assistant may get.
+  int get _dutiesLeft =>
+      _unlimited ? AssistantDuty.values.length : _maxDuties - _duties.length;
+
   void _tooMany() => showAppSnackBar(
         context,
         ref
@@ -329,7 +339,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
       );
 
   Future<void> _toggle(AssistantDuty d, bool on) async {
-    if (on && _duties.length >= _maxDuties) {
+    if (on && !_unlimited && _duties.length >= _maxDuties) {
       _tooMany();
       return;
     }
@@ -349,7 +359,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
   /// Owner 2026-10-05: a ready role sets several accesses in one tap
   /// (the attorney accepts responsibility once for all of them).
   Future<void> _applyRole(AssistantRole role) async {
-    if (role.duties.length > _maxDuties) {
+    if (!_unlimited && role.duties.length > _maxDuties) {
       _tooMany();
       return;
     }
@@ -510,11 +520,21 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
           Text(
             // Owner 2026-10-22: with no ready role under the limit, the
             // limit itself is what the attorney needs to read.
-            AssistantRole.values.any((r) => r.duties.length <= _maxDuties)
+            _unlimited ||
+                    AssistantRole.values
+                        .any((r) => r.duties.length <= _maxDuties)
                 ? t.t('team.role.hint')
                 : t.t('team.roles.intro', {'max': '$_maxDuties'}),
             style: typography.caption.copyWith(color: colors.textSecondary),
           ),
+          // R-401 (owner 2026-11-04): «можно ещё N»; nothing when the admin
+          // set the limit to «все».
+          if (!_unlimited)
+            Text(
+              t.t('team.roles.left', {'count': '${max(0, _dutiesLeft)}'}),
+              key: const ValueKey('duties-left'),
+              style: typography.caption.copyWith(color: colors.textSecondary),
+            ),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: AppSpacing.sm,
@@ -523,7 +543,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
               // Owner 2026-10-22: only the ready roles that fit the
               // per-assistant limit.
               for (final r in AssistantRole.values)
-                if (r.duties.length <= _maxDuties)
+                if (_unlimited || r.duties.length <= _maxDuties)
                   ChoiceChip(
                     key: ValueKey('role-${r.name}'),
                     label: Text(

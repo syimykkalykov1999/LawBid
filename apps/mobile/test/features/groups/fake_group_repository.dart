@@ -52,6 +52,12 @@ class FakeGroupRepository implements GroupRepository {
   /// Makes every send fail, so a message stays «not delivered».
   bool failSend = false;
 
+  /// Every send is refused with this (null: accepted).
+  ApiException? refuseSend;
+
+  /// What was accepted, in order.
+  final sentBodies = <api.SendGroupMessageDto>[];
+
   @override
   Future<CursorPage<api.GroupDto>> groups({
     String? cursor,
@@ -185,10 +191,21 @@ class FakeGroupRepository implements GroupRepository {
     String id,
     api.SendGroupMessageDto body,
   ) async {
+    final refused = refuseSend;
+    if (refused != null) throw refused;
     if (failSend) {
       throw const ApiException(code: 'NETWORK_ERROR', message: 'offline');
     }
-    return thread.first;
+    sentBodies.add(body);
+    return thread.isEmpty
+        ? message(
+            'srv-${sentBodies.length}',
+            body: body.body ?? '',
+            mine: true,
+            topicId: body.topicId,
+            clientMessageId: body.clientMessageId,
+          )
+        : thread.first;
   }
 
   @override
@@ -274,6 +291,7 @@ api.GroupMessageDto message(
   String? topicId,
   DateTime? expiresAt,
   String? forwardedFrom,
+  String? clientMessageId,
 }) =>
     api.GroupMessageDto(
       id: id,
@@ -283,7 +301,7 @@ api.GroupMessageDto message(
       sender: mine ? people[0] : (sender ?? people[1]),
       body: body,
       mine: mine,
-      clientMessageId: 'c-$id',
+      clientMessageId: clientMessageId ?? 'c-$id',
       systemKind: systemKind,
       systemPeople: systemPeople,
       systemText: systemText,

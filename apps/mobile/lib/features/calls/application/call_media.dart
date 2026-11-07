@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:lawbid/core/permissions/permission_primer.dart';
+import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart'
     show callStatsReport, callTrace;
 import 'package:lawbid/features/calls/application/call_quality.dart';
@@ -295,12 +296,9 @@ class WebRtcCallMedia implements CallMedia {
     _video = video;
     _servers = iceServers;
     _first = peer;
+    await prepareCallAudioSession();
     final stream = await _getUserMedia({
-      'audio': {
-        'echoCancellation': true,
-        'noiseSuppression': true,
-        'autoGainControl': true,
-      },
+      'audio': _micConstraints,
       'video': video ? _cameraConstraints() : false,
     });
     // close() ran while the permission/camera was pending: it found no
@@ -317,7 +315,81 @@ class WebRtcCallMedia implements CallMedia {
     if (video) _local.value = _mic;
     await _newLink(peer, onSignal: onSignal, onState: onState);
     await setSpeaker(video);
+    if (kIsWeb) unawaited(_watchWebMic());
     onState(CallMediaState.connecting);
+  }
+
+  static const _micConstraints = {
+    'echoCancellation': true,
+    'noiseSuppression': true,
+    'autoGainControl': true,
+  };
+
+  /// Owner 2026-11-04 (headphones on a computer): a browser keeps the
+  /// microphone it opened even when the system's default one changes (a
+  /// headset plugged in or connected). LiveKit's web client
+  /// (Apache-2.0, `Room.handleDeviceChange`): when the default input is
+  /// another device now, the microphone is opened again on it and its
+  /// track replaces the old one on every link (no new offer). The sound
+  /// out follows the default by itself (or the chosen output,
+  /// CallWebAudioSinks).
+  StreamSubscription<void>? _deviceSub;
+  String? _micGroup;
+  bool _micSwitching = false;
+
+  Future<void> _watchWebMic() async {
+    _micGroup = await _defaultMicGroup();
+    if (_closed) return;
+    _deviceSub ??= CallDeviceChanges.stream.listen((_) {
+      unawaited(_followDefaultMic());
+    });
+  }
+
+  static Future<String?> _defaultMicGroup() async {
+    try {
+      final devices = await navigator.mediaDevices.enumerateDevices();
+      final inputs = devices.where((d) => d.kind == 'audioinput').toList();
+      final def = inputs.where((d) => d.deviceId == 'default').firstOrNull ??
+          inputs.firstOrNull;
+      return def?.groupId ?? def?.deviceId;
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _followDefaultMic() async {
+    final mic = _mic;
+    if (_closed || mic == null || _micSwitching) return;
+    final group = await _defaultMicGroup();
+    if (group == null || group == _micGroup) return;
+    _micSwitching = true;
+    try {
+      final fresh = await _getUserMedia({'audio': _micConstraints});
+      final track = fresh.getAudioTracks().firstOrNull;
+      if (_closed || track == null || !identical(mic, _mic)) {
+        for (final t in fresh.getTracks()) {
+          await _guard('track.stop (mic switch)', t.stop);
+        }
+        return;
+      }
+      track.enabled = !_mutedNow;
+      for (final link in _links.values.toList()) {
+        for (final sender in await link.pc.getSenders()) {
+          if (sender.track?.kind == 'audio') await sender.replaceTrack(track);
+        }
+      }
+      for (final old in mic.getAudioTracks()) {
+        await mic.removeTrack(old);
+        await _guard('track.stop (old mic)', old.stop);
+      }
+      await mic.addTrack(track);
+      _micGroup = group;
+      callTrace('web mic: switched to the default input');
+    } on Object catch (e) {
+      callTrace('web mic: switch failed: $e');
+    } finally {
+      _micSwitching = false;
+    }
   }
 
   Future<_Link> _newLink(
@@ -372,6 +444,7 @@ class WebRtcCallMedia implements CallMedia {
         switch (s) {
           case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
             onState(CallMediaState.connected);
+            unawaited(_traceRoute(link));
           case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
             onState(CallMediaState.disconnected);
           case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
@@ -384,6 +457,28 @@ class WebRtcCallMedia implements CallMedia {
     _watchLevels();
     _watchQuality();
     return link;
+  }
+
+  /// R-402 (owner 2026-11-04): one trace line per connected link saying
+  /// which candidate pair won — host (same network), srflx (direct through
+  /// STUN) or relay (TURN) — so a weak or slow call can be told apart from
+  /// «no relay at all». Dev/test builds only ([callTrace] is silent in the
+  /// store build); the end-of-call stats line keeps reporting the route.
+  Future<void> _traceRoute(_Link link) async {
+    try {
+      final stats = linkStatsFrom(await link.pc.getStats());
+      if (stats == null) return;
+      final local = stats.localCandidate.isEmpty ? '?' : stats.localCandidate;
+      final remote =
+          stats.remoteCandidate.isEmpty ? '?' : stats.remoteCandidate;
+      final via = local == 'relay' || remote == 'relay' ? 'TURN' : 'direct';
+      callTrace(
+        'link to ${link.peer}: connected via local=$local remote=$remote '
+        '($via)',
+      );
+    } on Object {
+      // The link is closing.
+    }
   }
 
   // --- Link quality: thin the picture, keep the voice ----------------------
@@ -465,6 +560,10 @@ class WebRtcCallMedia implements CallMedia {
 
   Map<String, dynamic> _config() => {
         'iceServers': [for (final s in _servers) s.toJson()],
+        // Owner 2026-11-04: set on every config, so a fresh list that says
+        // `all` (the relay failed) really opens the other routes again.
+        'iceTransportPolicy':
+            _servers.any((s) => s.relayOnly) ? 'relay' : 'all',
         'sdpSemantics': 'unified-plan',
         'iceCandidatePoolSize': 2,
         'bundlePolicy': 'max-bundle',
@@ -477,6 +576,7 @@ class WebRtcCallMedia implements CallMedia {
     final r = _webAudio[peer] ??= RTCVideoRenderer();
     await r.initialize();
     r.srcObject = stream;
+    CallWebAudioSinks.attach(r);
   }
 
   /// Group calls: who is talking — the audio levels of the incoming
@@ -668,6 +768,7 @@ class WebRtcCallMedia implements CallMedia {
     await _guard('pc.dispose', () => disposePeerConnection(link.pc));
     final r = _webAudio.remove(peer);
     if (r != null) {
+      CallWebAudioSinks.detach(r);
       r.srcObject = null;
       await r.dispose();
     }
@@ -690,9 +791,11 @@ class WebRtcCallMedia implements CallMedia {
 
   @override
   Future<void> setSpeaker(bool on) async {
-    // Browsers pick the output device themselves.
+    // Browsers pick the output device themselves (a chosen one: the
+    // call's audio route, CallWebAudioSinks). Owner 2026-11-04: a
+    // connected headset keeps the sound.
     if (kIsWeb) return;
-    await Helper.setSpeakerphoneOn(on);
+    await setCallSpeakerPreferHeadset(on);
   }
 
   @override
@@ -841,7 +944,10 @@ class WebRtcCallMedia implements CallMedia {
     _remote.value = null;
     _remotes.value = const {};
     _speaking.value = const {};
+    unawaited(_deviceSub?.cancel());
+    _deviceSub = null;
     for (final r in _webAudio.values) {
+      CallWebAudioSinks.detach(r);
       r.srcObject = null;
       await _guard('audio.dispose', r.dispose);
     }

@@ -7,6 +7,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_window.dart';
 
 /// Owner 2026-10-07 (Instagram): a tap on a tile of someone's grid opens
 /// their posts as a feed, starting at the tapped one; scrolling up shows
@@ -38,18 +39,20 @@ class PostsFeedScreen extends ConsumerStatefulWidget {
     String? subtitle,
     bool oneAuthor = true,
   }) =>
-      Navigator.of(context, rootNavigator: true).push(
-        MaterialPageRoute<void>(
-          builder: (_) => webPageRoute(
-            PostsFeedScreen(
-              posts: posts,
-              initialIndex: index,
-              subtitle: subtitle,
-              oneAuthor: oneAuthor,
-            ),
-          ),
-        ),
-      );
+      postWindowOn(context)
+          ? showPostWindow(context, posts: posts, index: index)
+          : Navigator.of(context, rootNavigator: true).push(
+              MaterialPageRoute<void>(
+                builder: (_) => webPageRoute(
+                  PostsFeedScreen(
+                    posts: posts,
+                    initialIndex: index,
+                    subtitle: subtitle,
+                    oneAuthor: oneAuthor,
+                  ),
+                ),
+              ),
+            );
 
   @override
   ConsumerState<PostsFeedScreen> createState() => _PostsFeedScreenState();

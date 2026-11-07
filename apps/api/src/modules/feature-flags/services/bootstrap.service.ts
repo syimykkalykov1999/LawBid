@@ -17,7 +17,11 @@ import {
 } from '../../../common/app-settings/realtime-settings';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
-import { bumpConfigVersion, readConfigVersion } from './config-version';
+import {
+  bumpConfigVersion,
+  configTag,
+  readConfigVersion,
+} from './config-version';
 import { FeatureFlagsService } from './feature-flags.service';
 import { AppConfigService } from './app-config.service';
 import {
@@ -135,7 +139,7 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // Owner 2026-10-17: the percent cap and where the percent is hidden.
   'fees.contingency_',
   // Owner 2026-10-22 (client economy plan §5): the on-device cache limits
-  // (`cache.limit_mb.*`, `cache.keep_media_days.default`) — the app may
+  // (`cache.limit_mb.*`) — the app may
   // lower them, never raise above these.
   'cache.',
   // Scale audit 2026-10-23: where "Update" opens the store (the iOS App
@@ -437,6 +441,12 @@ export class BootstrapService {
       version,
       Math.floor(now / BOOTSTRAP_ETAG_BUCKET_MS),
     );
+  }
+
+  /** R-385: a cheap ETag for another answer that changes only with the
+   * config version (legal documents): see [configTag]. */
+  configTag(...parts: (string | number | null | undefined)[]): Promise<string> {
+    return configTag(this.redis, ...parts);
   }
 
   private async getContent(): Promise<CachedBootstrapContent> {

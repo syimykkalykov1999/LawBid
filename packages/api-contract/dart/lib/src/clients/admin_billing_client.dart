@@ -7,6 +7,9 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/admin_billing_reason_dto.dart';
 import '../models/admin_billing_subscription_row_list_envelope.dart';
+import '../models/admin_dispute_refund_envelope.dart';
+import '../models/admin_dispute_refund_list_envelope.dart';
+import '../models/admin_dispute_refund_reject_dto.dart';
 import '../models/admin_duplicate_fix_list_envelope.dart';
 import '../models/admin_payment_list_envelope.dart';
 import '../models/admin_plan_prices_envelope.dart';
@@ -27,6 +30,7 @@ import '../models/create_contract_grant_dto.dart';
 import '../models/create_plan_dto.dart';
 import '../models/create_promo_code_dto.dart';
 import '../models/create_refund_dto.dart';
+import '../models/dispute_refund_status.dart';
 import '../models/duplicate_subscription_fix_status.dart';
 import '../models/extend_contract_grant_dto.dart';
 import '../models/move_plan_subscribers_dto.dart';
@@ -236,6 +240,31 @@ abstract class AdminBillingClient {
     @Query('cursor') String? cursor,
     @Query('status') DuplicateSubscriptionFixStatus? status,
     @Query('userId') String? userId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Bank inquiries refunded automatically or held for a person.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/billing/dispute-refunds')
+  Future<AdminDisputeRefundListEnvelope> listDisputeRefunds({
+    @Query('cursor') String? cursor,
+    @Query('status') DisputeRefundStatus? status,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Refund a held bank inquiry in full (one 2FA code)
+  @POST('/admin/billing/dispute-refunds/{id}/approve')
+  Future<AdminDisputeRefundEnvelope> approveDisputeRefund({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Do not refund a held inquiry (one 2FA code)
+  @POST('/admin/billing/dispute-refunds/{id}/reject')
+  Future<AdminDisputeRefundEnvelope> rejectDisputeRefund({
+    @Path('id') required String id,
+    @Body() required AdminDisputeRefundRejectDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

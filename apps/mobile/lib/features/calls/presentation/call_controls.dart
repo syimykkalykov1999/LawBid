@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 
 /// Owner 2026-10-26 (exactly like WhatsApp): the round buttons on the dark
@@ -22,10 +23,15 @@ class CallControlBar extends ConsumerWidget {
     required this.onMute,
     required this.onEnd,
     this.onFlip,
+    this.audioRoute,
     super.key,
   });
 
   final bool speaker;
+
+  /// Owner 2026-11-04 (WhatsApp): the speaker button shows where the sound
+  /// is when it is in a headset (Bluetooth / headphones icon).
+  final CallAudioKind? audioRoute;
 
   /// Our camera is sending.
   final bool videoOn;
@@ -61,7 +67,7 @@ class CallControlBar extends ConsumerWidget {
         else
           CallRoundButton(
             key: const Key('call-btn-speaker'),
-            icon: AppIcons.volumeUpRounded,
+            icon: callAudioIcon(audioRoute ?? CallAudioKind.speaker),
             label: t.t('call.speaker'),
             selected: speaker,
             onTap: onSpeaker,
@@ -97,6 +103,14 @@ class CallControlBar extends ConsumerWidget {
     );
   }
 }
+
+/// The icon of an audio output (the speaker button, the list of outputs).
+IconData callAudioIcon(CallAudioKind kind) => switch (kind) {
+      CallAudioKind.bluetooth => AppIcons.bluetoothAudio,
+      CallAudioKind.wired => AppIcons.headphonesRounded,
+      CallAudioKind.phone => AppIcons.phoneIphoneRounded,
+      CallAudioKind.speaker => AppIcons.volumeUpRounded,
+    };
 
 /// One round call button (60 px; 72 px with a label under it on the
 /// ringing screen).

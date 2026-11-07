@@ -187,6 +187,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       rateLimited: (retryAfterSeconds) =>
           fail(t.t('error.api.retryAfter', {'seconds': '$retryAfterSeconds'})),
       networkError: () => fail(t.t('error.api.NETWORK_ERROR')),
+      failed: () => fail(t.t('error.default.message')),
     );
   }
 
@@ -227,6 +228,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       rateLimited: (retryAfterSeconds) =>
           _fail(t.t('error.api.retryAfter', {'seconds': '$retryAfterSeconds'})),
       networkError: () => _fail(t.t('error.api.NETWORK_ERROR')),
+      failed: () => _fail(t.t('error.default.message')),
     );
   }
 
@@ -244,6 +246,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       locked: () => _fail(t.t('assistant.code.tooMany')),
       rateLimited: (_) => _fail(t.t('assistant.code.tooMany')),
       networkError: () => _fail(t.t('error.api.NETWORK_ERROR')),
+      failed: () => _fail(t.t('error.default.message')),
     );
   }
 

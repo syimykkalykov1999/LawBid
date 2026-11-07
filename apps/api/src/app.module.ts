@@ -225,6 +225,8 @@ export const pinoHttpOptions: PinoHttpOptions = {
       'req.body.currentPassword',
       'req.body.newPassword',
       'req.body.totp',
+      // Owner 2026-11-03: the ring ticket of POST /calls/:id/status/decline.
+      'req.body.t',
       'req.body.token',
       'req.body.secret',
       'req.body.apiKey',

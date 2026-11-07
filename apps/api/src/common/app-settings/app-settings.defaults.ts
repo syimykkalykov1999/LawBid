@@ -363,6 +363,17 @@ export const OWNER_MEDIA_SETTINGS = {
   'reco.post.authorQuality': 0.06,
   'reco.post.state': 0.06,
   'reco.post.affinity': 0.06,
+  // R-401 (owner 2026-11-04): Q&A answers lift an attorney in the
+  // recommendations (docs/architecture/QA_RECOMMENDATIONS_2026-11-04.md).
+  // Nightly snapshot score = answers·likes·best with HN gravity decay;
+  // on top of the people / case score with the two boosts below.
+  'reco.qa.answers': 0.5,
+  'reco.qa.likes': 0.3,
+  'reco.qa.best': 0.2,
+  'reco.qa.gravity': 1.8,
+  'reco.people.qa': 0.1,
+  'reco.people.qaTopic': 0.08,
+  'reco.case.qaTopic': 0.08,
   // Owner 2026-10-25: ranking of the bids a client sees on a case.
   // bids.default_sort is what the list uses when the app sends no sort
   // (newest = today; best_match = the weighted score below).
@@ -454,6 +465,11 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   // Owner 2026-10-16: where no registry checks the number, the bar card is
   // required (a person decides from it). Off = only when switched on above.
   'verification.bar_document_for_manual_states': true,
+  // Owner 2026-11-05: an attorney's profile photo is mandatory — a NEW
+  // verification request is not accepted without the attorney's own clean
+  // photo (the sign-up profile step already asks for it). Requests already
+  // sent are never touched. Off = no photo check on submit.
+  'verification.require_photo': true,
 } as const;
 
 // Owner 2026-10-05: the planner's archive — finished tasks are kept this
@@ -500,9 +516,22 @@ export const OWNER_BILLING_GATE_SETTINGS = {
    * guards. Off: the old behaviour (the newcomer is cancelled, no refund)
    * and an alert for a manual decision. */
   'billing.duplicate_subscription_autofix': true,
+  /** R-237 (owner 2026-11-03): a bank dispute on a subscription charge
+   * cancels that subscription at Stripe at once (no further charges, no
+   * extra refund: the dispute reverses the charge) and is recorded in the
+   * audit log and to the admins. Off: the dispute only lands in «Проверки
+   * Stripe» as before. */
+  'billing.dispute_auto_cancel': true,
   /** Algo audit M-4: the most the duplicate auto-fix refunds in one UTC day
    * (cents, all attorneys together); above it a refund waits for a person. */
   'billing.duplicate_autorefund_daily_cap_cents': 50_000,
+  /** R-237 (owner 2026-11-05): limits of the automatic refund of a bank
+   * inquiry (the switch is the `dispute_auto_refund` flag, off). Above any of
+   * them the refund waits for a person in «Платежи → Возвраты по спорам». */
+  'billing.dispute_refund_max_cents': 50_000,
+  'billing.dispute_refund_user_limit': 1,
+  'billing.dispute_refund_window_days': 365,
+  'billing.dispute_refund_daily_cap_cents': 100_000,
   // Owner 2026-10-22 (systems checklist §12): Stripe Tax (automatic_tax)
   // on subscriptions, seat purchases, hosted checkouts and our card page.
   // Off until the owner enables Stripe Tax in the Stripe Dashboard
@@ -560,18 +589,20 @@ export const OWNER_SMS_SETTINGS = {
 // Owner 2026-10-22 (client economy plan §5, Telegram «Данные и память»):
 // the ceilings of the on-device caches, sent in GET /config/bootstrap
 // (`app_config.cache.*`). A person may lower a limit on the phone, never
-// raise it above these. keep_media_days: 3 / 7 / 30 / 0 (= always).
-// Owner 2026-10-23: images, chat media and video 1 GB each, files
-// 500 MB (~3.6 GB in all): fewer re-downloads, less traffic to pay for.
+// raise it above these.
+// Owner 2026-11-03: the media stores (images, chat media, files, video) have
+// no ceiling of their own (0 = none): the person's «Максимальный размер
+// кэша» (default 10 GB, least recently opened go first) governs them. An
+// admin may still store a positive number to cap one store. Video also
+// stays under `client.video_cache_mb`.
 export const OWNER_CACHE_SETTINGS = {
   'cache.limit_mb.http': 32,
   'cache.limit_mb.messages': 50,
   'cache.limit_mb.feed': 8,
-  'cache.limit_mb.images': 1000,
-  'cache.limit_mb.chat_media': 1000,
-  'cache.limit_mb.files': 500,
-  'cache.limit_mb.video': 1000,
-  'cache.keep_media_days.default': 30,
+  'cache.limit_mb.images': 0,
+  'cache.limit_mb.chat_media': 0,
+  'cache.limit_mb.files': 0,
+  'cache.limit_mb.video': 0,
 } as const;
 
 export const OWNER_WEB_SETTINGS = {
@@ -686,6 +717,10 @@ export const OWNER_STALE_SETTINGS = {
   'cases.stale_pause_days_flexible': 14,
   'cases.stale_pause_days_by_date': 3,
   'cases.stale_archive_after_pause_days': 30,
+  // R-392 (owner 2026-11-04): one side asked to close a case in work; the
+  // other side confirms or keeps it open within this many days, else the
+  // case closes by itself (both are told).
+  'cases.close_confirm_days': 7,
 } as const;
 
 // Owner 2026-10-05: attorney trust levels (docs/ATTORNEY_TRUST.md). The
@@ -908,6 +943,11 @@ export const OWNER_COUNTRY_SETTINGS = {
  * panel keeps several queues live on one screen). Users keep 100/min.
  * ADMIN_THROTTLE_LIMIT in the env wins (src/throttler/throttle-limits.ts). */
 export const OWNER_RATE_LIMIT_SETTINGS = {
+  /** Owner 2026-11-05 (role switch, Settings → Account): how many times one
+   * account may switch between the attorney and the client profile within
+   * 24 hours (going back from an unfinished onboarding does not count).
+   * Below 1 counts as 1. */
+  'account.role_switch_per_day': 2,
   'security.admin_rate_limit_per_minute': 600,
   /** Scale audit 2026-10-23: requests per minute for callers who are not
    * signed in, per address (CGNAT / office addresses carry many people).
@@ -916,8 +956,10 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   /** Scale audit 2026-10-23: live connections of one person per server. */
   'realtime.max_sockets_per_user': 10,
   /** Owner 2026-10-25: new socket connections per minute from one address
-   * (CGNAT / offices carry many people: generous). 0 = no limit. */
-  'realtime.max_connects_per_ip_per_minute': 120,
+   * (CGNAT / offices carry many people: generous). 0 = no limit. 120 -> 600
+   * on 2026-11-02: the laptop load test (10 000 sockets from one address) was cut
+   * at 482; a university / mobile-operator address carries hundreds of people. */
+  'realtime.max_connects_per_ip_per_minute': 600,
   /** New socket connections per minute from one signed-in person (the
    * identity that is counted; the address only guards sockets with no
    * account). 0 = no limit. */
@@ -1050,6 +1092,10 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'calls.transport': 'auto',
   /** The breaker: this many Cloudflare failures within the window move NEW
    * calls to our own path; Cloudflare is then probed once a minute. */
+  /** Owner 2026-11-04: a phone told `relay` sends only relay candidates to
+   * the other phone (`call:signal` drops the rest; older apps ignore the
+   * policy). Off = pass every signal unchanged (the kill switch). */
+  'calls.relay_signal_filter': true,
   'calls.transport_fail_limit': 5,
   'calls.transport_fail_window_sec': 120,
   /** Phones reporting a dead Cloudflare relay open the breaker when at
@@ -1825,6 +1871,12 @@ export const OWNER_SEO_PROMOTION_SETTINGS = {
   'seo.incremental_enabled': false,
   /** /llms.txt and /llms-full.txt (SEO_LLMS). */
   'seo.llms_enabled': false,
+  /** City and city x practice pages (SEO_PAGES_CITIES). */
+  'seo.pages_cities_enabled': false,
+  /** Pages of attorneys' text posts (SEO_PAGES_POSTS). */
+  'seo.pages_posts_enabled': false,
+  /** Reviewed legal question pages (SEO_PAGES_QA). */
+  'seo.pages_qa_enabled': false,
   /** Thin pages: noindex and out of the sitemap (SEO_QUALITY_GATE). */
   'seo.quality_gate_enabled': false,
   /** At most N new pages a day enter the index; 0 = no limit (SEO_RAMP_PER_DAY). */

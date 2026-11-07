@@ -509,6 +509,8 @@ export interface ProviderDispute {
   hasEvidence: boolean;
   pastDue: boolean;
   submissionCount: number;
+  /** Stripe's `is_charge_refundable`: the payment can still be refunded. */
+  chargeRefundable?: boolean;
 }
 
 export interface ProviderEarlyFraudWarning {

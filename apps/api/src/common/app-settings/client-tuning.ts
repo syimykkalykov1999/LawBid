@@ -116,7 +116,7 @@ export const CLIENT_TUNING_DEFS = {
     min: 0,
     max: 1000,
     description:
-      'Disk ceiling of the phone’s video chunk cache, megabytes (the first seconds of each video are kept so replays and scroll-back start at once and cost no CDN traffic). 0 = cache off.',
+      'Switch and start-up size of the phone’s video chunk cache, megabytes (the first seconds of each video are kept so replays and scroll-back start at once and cost no CDN traffic). 0 = cache off. Once the phone knows its cache settings the video ceiling is the person’s «Максимальный размер кэша» (or cache.limit_mb.video when set above 0).',
   },
   'client.video_cache_chunk_s': {
     default: 4,
@@ -124,6 +124,20 @@ export const CLIENT_TUNING_DEFS = {
     max: 15,
     description:
       'How many seconds from the start of each video the phone keeps in the video cache. More = more disk and a little more traffic per video.',
+  },
+  'client.uploads_at_once': {
+    default: 4,
+    min: 1,
+    max: 4,
+    description:
+      'How many pieces of files the app sends at once, across all files. Fewer on mobile data or a weak phone, and after a network failure.',
+  },
+  'client.downloads_at_once': {
+    default: 4,
+    min: 1,
+    max: 4,
+    description:
+      'How many pieces of files the app fetches at once, across all files. Fewer on mobile data or a weak phone, and after a network failure.',
   },
   'client.resume_refresh_min_away_s': {
     default: 30,

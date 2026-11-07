@@ -14,6 +14,7 @@ class PresignedFileDto {
     required this.fileId,
     required this.upload,
     required this.expiresAt,
+    this.existing,
   });
 
   factory PresignedFileDto.fromJson(Map<String, Object?> json) =>
@@ -25,6 +26,9 @@ class PresignedFileDto {
 
   /// The upload link expires at (5 minutes).
   final DateTime expiresAt;
+
+  /// True: this user already stored these bytes. `fileId` is ready and clean; skip the upload and the confirm.
+  final bool? existing;
 
   Map<String, Object?> toJson() => _$PresignedFileDtoToJson(this);
 }

@@ -18,16 +18,24 @@ abstract final class ConsultationsRoutes {
       '/consultations/${Uri.encodeComponent(id)}';
 }
 
-List<RouteBase> consultationsRoutes(GlobalKey<NavigatorState> root) => [
+List<RouteBase> consultationsRoutes(
+  GlobalKey<NavigatorState> root, {
+  // Desktop web plan §6.7: wraps the page as a Settings section.
+  Widget Function(String location, Widget page)? sectionPage,
+}) =>
+    [
       GoRoute(
         path: ConsultationsRoutes.list,
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'consultations_screen',
-            load: d_consultations_screen.loadLibrary,
-            builder: (_) => d_consultations_screen.ConsultationsScreen(),
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
+              id: 'consultations_screen',
+              load: d_consultations_screen.loadLibrary,
+              builder: (_) => d_consultations_screen.ConsultationsScreen(),
+            ),
           ),
         ),
       ),
@@ -36,11 +44,14 @@ List<RouteBase> consultationsRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'consultation_settings_screen',
-            load: d_consultation_settings_screen.loadLibrary,
-            builder: (_) =>
-                d_consultation_settings_screen.ConsultationSettingsScreen(),
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
+              id: 'consultation_settings_screen',
+              load: d_consultation_settings_screen.loadLibrary,
+              builder: (_) =>
+                  d_consultation_settings_screen.ConsultationSettingsScreen(),
+            ),
           ),
         ),
       ),
@@ -60,3 +71,5 @@ List<RouteBase> consultationsRoutes(GlobalKey<NavigatorState> root) => [
         ),
       ),
     ];
+
+Widget _plain(String location, Widget page) => page;

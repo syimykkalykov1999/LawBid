@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
@@ -21,6 +22,7 @@ import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/chat_counts_refresh.dart';
 import 'package:lawbid/features/chat/application/chat_list_delta.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
+import 'package:lawbid/features/chat/application/chat_thread_memory.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
 import 'package:lawbid/features/chat/data/chat_list_cache.dart';
@@ -106,6 +108,10 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
   /// (a search does not: it re-reads after a reconnect, as before).
   bool get catchesUp => true;
 
+  /// R-404 (a): whether this list's rows are the chats screen's first-frame
+  /// copy (the «All» list only; folders, requests and searches are not).
+  bool get remembersRows => true;
+
   /// The rows of this list changed since [since] (server time).
   Future<CursorPage<Conversation>> fetchChangedSince(DateTime since) =>
       ref.read(chatRepositoryProvider).conversations(updatedSince: since);
@@ -121,6 +127,12 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
         ref
             .read(callMutedChatsProvider.notifier)
             .mark(c.id, muted: c.callsMuted);
+      }
+      // R-404 (a): the rows on screen are what the next open draws in its
+      // first frame (ChatListCache.memory) — only the «All» list does this.
+      final rows = next.value?.items;
+      if (rows != null && remembersRows) {
+        ref.read(chatListCacheProvider).remember(rows);
       }
     });
     // Owner 2026-10-22 (load audit finding 2, Telegram): every event is
@@ -173,7 +185,12 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
         );
       case 'conversation:read':
         final cid = data is Map ? data['conversationId'] : null;
-        if (cid is String) _edit((items) => applyReadByMe(items, cid));
+        if (cid is String) {
+          _edit((items) => applyReadByMe(items, cid));
+          // R-379: read here or on another device — its alert leaves the
+          // shade too (WhatsApp / Telegram), so the icon number drops.
+          unawaited(chatNotificationsChannel.clearChat(cid));
+        }
       case 'conversation:update':
         // Closed, unlocked, a request answered (it may change folders):
         // rare — the first page is read again, debounced.
@@ -283,6 +300,9 @@ final conversationsProvider = AsyncNotifierProvider.autoDispose<
 
 /// Requests sent to me (the "Requests" folder).
 class MessageRequestsNotifier extends ConversationsNotifier {
+  @override
+  bool get remembersRows => false;
+
   // A different list: the saved copy is the plain inbox only.
   @override
   Future<CursorPage<Conversation>?> cachedFirstPage() async => null;
@@ -307,6 +327,9 @@ final messageRequestsProvider = AsyncNotifierProvider.autoDispose<
 /// Owner 2026-10-01: one chat folder (All · Primary · General · Waiting).
 class FolderConversationsNotifier extends ConversationsNotifier {
   FolderConversationsNotifier(this.folder);
+
+  @override
+  bool get remembersRows => false;
 
   final ChatListFolder folder;
 
@@ -338,6 +361,9 @@ typedef ChatSearchKey = ({ChatListFolder folder, String q});
 
 class SearchConversationsNotifier extends ConversationsNotifier {
   SearchConversationsNotifier(this.key);
+
+  @override
+  bool get remembersRows => false;
 
   final ChatSearchKey key;
 
@@ -872,14 +898,65 @@ class ChatThread extends Notifier<ChatThreadState> {
       }
       _typingOff?.cancel();
       _expiryTimer?.cancel();
+      _readTimer?.cancel();
+      _readDone?.complete();
       realtime?.leave(id);
     });
     // Owner 2026-10-21: wake up at the next message that runs out.
+    final memory = ref.read(chatThreadMemoryProvider);
     listenSelf((prev, next) {
-      if (!identical(prev?.messages, next.messages)) _armExpiry();
+      if (!identical(prev?.messages, next.messages)) {
+        _armExpiry();
+        // R-404 (c): the newest page stays in memory for the next open.
+        memory.put(id, next.messages);
+      }
     });
     unawaited(Future.microtask(load));
-    return const ChatThreadState();
+    // R-380 (owner 2026-11-04, Telegram's ChatActivity opens on the dialog
+    // already in memory): the chats list's own row is the conversation at
+    // once, so the header and the composer are built in the same frame as
+    // the screen; the server copy replaces it a moment later.
+    // R-404 (c): the messages too — the page this chat left in memory (or
+    // the pre-warm read from the phone while the list was on screen) is
+    // drawn in the same first frame; load() then brings the phone's copy
+    // and the server's delta on top, nothing goes blank in between.
+    final warm = memory.take(id);
+    return ChatThreadState(
+      conversation: _knownConversation(),
+      messages: warm ?? const [],
+      nextCursor: warm == null ? null : localCursor,
+      loading: warm == null,
+    );
+  }
+
+  /// The row a chats list in memory already holds for this chat (null when
+  /// no list is open, e.g. a chat opened from a push).
+  Conversation? _knownConversation() {
+    Conversation? find(PaginatedList<Conversation>? list) {
+      if (list == null) return null;
+      for (final c in list.items) {
+        if (c.id == id) return c;
+      }
+      return null;
+    }
+
+    if (ref.exists(conversationsProvider)) {
+      final c = find(ref.read(conversationsProvider).value);
+      if (c != null) return c;
+    }
+    for (final folder in ChatListFolder.values) {
+      final p = folderConversationsProvider(folder);
+      if (!ref.exists(p)) continue;
+      final c = find(ref.read(p).value);
+      if (c != null) return c;
+    }
+    if (ref.exists(messageRequestsProvider)) {
+      final c = find(ref.read(messageRequestsProvider).value);
+      if (c != null) return c;
+    }
+    // R-404: no list open (a push) — the chats list's memory copy.
+    final memory = ref.read(chatListCacheProvider).memory;
+    return memory == null ? null : find(PaginatedList.firstPage(memory));
   }
 
   /// Owner 2026-10-21: one timer for the soonest expiring message; when it
@@ -931,11 +1008,27 @@ class ChatThread extends Notifier<ChatThreadState> {
   Future<void> load() async {
     final store = _store;
     if (store != null) {
+      // R-380: no list in memory — the saved chats list (read alongside the
+      // phone's messages) gives the conversation, so the messages and the
+      // composer still arrive in one frame.
+      final saved = state.conversation == null
+          ? ref
+              .read(chatListCacheProvider)
+              .read()
+              .then((page) => page, onError: (Object _) => null)
+          : null;
       final local = await store.page(id);
       if (!ref.mounted) return;
       if (local.isNotEmpty) {
         unawaited(store.touch(id));
+        Conversation? known;
+        if (saved != null) {
+          known = (await saved)?.items.where((c) => c.id == id).firstOrNull;
+          if (!ref.mounted) return;
+        }
+        final conv = state.conversation ?? known;
         state = state.copyWith(
+          conversation: conv == null ? null : _withLiveReceipts(conv),
           messages: local.map(ChatMappers.message).toList(),
           nextCursor: localCursor,
           loading: false,
@@ -987,7 +1080,7 @@ class ChatThread extends Notifier<ChatThreadState> {
       state = state.copyWith(messages: page.items);
       _merge(arrived);
       state = state.copyWith(
-        conversation: conv,
+        conversation: _withLiveReceipts(conv),
         unreadFromId: firstUnread,
         unreadCount: firstUnread == null ? null : conv.unreadCount,
         nextCursor: page.nextCursor,
@@ -1161,6 +1254,11 @@ class ChatThread extends Notifier<ChatThreadState> {
     required Uint8List bytes,
     required String name,
     required String mime,
+
+    /// R-255: the file on disk (then `bytes` is empty): it is copied to the
+    /// queue folder and sent from there, never held in memory.
+    String? path,
+    int? diskBytes,
     String? caption,
 
     /// Owner 2026-10-19 (albums): files picked together keep the picked
@@ -1175,14 +1273,19 @@ class ChatThread extends Notifier<ChatThreadState> {
     if (queue.ownerId == null) return;
     final cmid = newClientMessageId();
     final isImage = mime.startsWith('image/');
-    final px = isImage
-        ? await imageSizeOf(bytes)
-        : (mime.startsWith('video/') ? videoSizeOf(bytes) : null);
-    _previewBytes[cmid] = bytes;
-    final file = await files.keep(
-      '$cmid.bin',
-      bytes: bytes,
-    );
+    final isVideo = mime.startsWith('video/');
+    final Size? px;
+    if (path != null) {
+      px = isVideo ? await videoSizeOfFile(XFile(path)) : null;
+    } else {
+      px = isImage
+          ? await imageSizeOf(bytes)
+          : (isVideo ? videoSizeOf(bytes) : null);
+      _previewBytes[cmid] = bytes;
+    }
+    final file = path != null
+        ? await files.keep('$cmid.bin', fromPath: path)
+        : await files.keep('$cmid.bin', bytes: bytes);
     if (after != null) {
       try {
         await after;
@@ -1197,7 +1300,7 @@ class ChatThread extends Notifier<ChatThreadState> {
       payload: {
         'name': name,
         'caption': caption?.trim() ?? '',
-        'size': bytes.length,
+        'size': diskBytes ?? bytes.length,
         if (px != null) 'width': px.width.round(),
         if (px != null) 'height': px.height.round(),
       },
@@ -1546,8 +1649,36 @@ class ChatThread extends Notifier<ChatThreadState> {
     if (cmid != null) await ref.read(socialLocalDatabaseProvider).sent(cmid);
   }
 
-  /// Marks the newest message from the other side as read (§8.4).
-  Future<void> markRead() async {
+  /// R-404 (d): a burst of messages while the chat is on screen is ONE
+  /// `read` (the newest), sent after this pause (WhatsApp coalesces the
+  /// same way; light on the server).
+  static const readCoalesce = Duration(milliseconds: 300);
+
+  /// A failed ack (a timeout, a replica a step behind) is tried again a
+  /// little later instead of waiting for the next message or the next open.
+  static const _readRetryAfter = Duration(seconds: 2);
+  static const _readRetries = 3;
+
+  Timer? _readTimer;
+  int _readFailures = 0;
+
+  /// Marks the newest message from the other side as read (§8.4), coalesced
+  /// ([readCoalesce]). Completes when the pending ack went out.
+  Future<void> markRead() {
+    final done = _readDone ??= Completer<void>();
+    _readTimer?.cancel();
+    _readTimer = Timer(readCoalesce, () {
+      _readTimer = null;
+      _readDone = null;
+      _sendRead().whenComplete(done.complete);
+    });
+    return done.future;
+  }
+
+  Completer<void>? _readDone;
+
+  Future<void> _sendRead() async {
+    if (!ref.mounted) return;
     final me = ref.read(currentUserIdProvider);
     final newest =
         state.messages.where((m) => m.senderId != me && !m.isLocal).firstOrNull;
@@ -1555,6 +1686,7 @@ class ChatThread extends Notifier<ChatThreadState> {
     _lastReadSent = newest.id;
     try {
       await _repo.read(id, newest.id);
+      _readFailures = 0;
       // Audit 2026-10-02: the chat list and its folders drop this pill now.
       // Owner 2026-10-22 (load audit finding 2): on the rows they hold,
       // without reloading them.
@@ -1566,7 +1698,58 @@ class ChatThread extends Notifier<ChatThreadState> {
           );
     } on Object {
       _lastReadSent = null;
+      if (++_readFailures <= _readRetries && ref.mounted) {
+        _readTimer?.cancel();
+        _readTimer = Timer(_readRetryAfter, () {
+          _readTimer = null;
+          unawaited(_sendRead());
+        });
+      }
     }
+  }
+
+  // --- R-404 (d): the other side's receipts, kept live -----------------
+
+  /// The newest receipts the socket told us about. A server copy of the
+  /// conversation read later (a reconnect, a request answered, the open
+  /// itself) can be a step behind them: it never moves a tick back.
+  String? _liveReadId;
+  DateTime? _liveReadAt;
+  String? _liveDeliveredId;
+
+  /// Of two message ids, the newer one in this thread (newest first); an
+  /// id this thread does not hold yet is the newer one only when the other
+  /// is missing too.
+  String? _newerOf(String? a, String? b) {
+    if (a == null) return b;
+    if (b == null || a == b) return a;
+    var ia = -1;
+    var ib = -1;
+    final list = state.messages;
+    for (var i = 0; i < list.length && (ia < 0 || ib < 0); i++) {
+      final mid = list[i].id;
+      if (ia < 0 && mid == a) ia = i;
+      if (ib < 0 && mid == b) ib = i;
+    }
+    if (ia < 0) return ib < 0 ? a : b;
+    if (ib < 0) return a;
+    return ia <= ib ? a : b;
+  }
+
+  /// [c] with the live receipts applied where they are newer.
+  Conversation _withLiveReceipts(Conversation c) {
+    final readId = _newerOf(_liveReadId, c.counterpartLastReadId);
+    final deliveredId =
+        _newerOf(_liveDeliveredId, c.counterpartLastDeliveredId);
+    if (readId == c.counterpartLastReadId &&
+        deliveredId == c.counterpartLastDeliveredId) {
+      return c;
+    }
+    return c.withReceipts(
+      readId: readId,
+      readAt: readId == _liveReadId ? _liveReadAt : null,
+      deliveredId: deliveredId,
+    );
   }
 
   /// "печатает…" for the other side, at most every 2 s.
@@ -1734,28 +1917,32 @@ class ChatThread extends Notifier<ChatThreadState> {
         }
       case 'message:read':
         if (data is Map && data['conversationId'] == id) {
-          final c = state.conversation;
           final last = data['lastReadMessageId'];
-          if (c != null && last is String) {
-            state = state.copyWith(
-              conversation: c.withReceipts(
-                readId: last,
-                readAt:
-                    DateTime.tryParse('${data['readAt']}') ?? DateTime.now(),
-                // Reading it means it got there.
-                deliveredId: last,
-              ),
-            );
+          if (last is String) {
+            _liveReadId = _newerOf(last, _liveReadId);
+            if (_liveReadId == last) {
+              _liveReadAt =
+                  DateTime.tryParse('${data['readAt']}') ?? DateTime.now();
+            }
+            // Reading it means it got there.
+            _liveDeliveredId = _newerOf(last, _liveDeliveredId);
+            // R-404 (d): applied to the row in place (the tick flips now);
+            // a conversation not known yet gets them when it arrives.
+            final c = state.conversation;
+            if (c != null) {
+              state = state.copyWith(conversation: _withLiveReceipts(c));
+            }
           }
         }
       case 'message:delivered':
         if (data is Map && data['conversationId'] == id) {
-          final c = state.conversation;
           final last = data['lastDeliveredMessageId'];
-          if (c != null && last is String) {
-            state = state.copyWith(
-              conversation: c.withReceipts(deliveredId: last),
-            );
+          if (last is String) {
+            _liveDeliveredId = _newerOf(last, _liveDeliveredId);
+            final c = state.conversation;
+            if (c != null) {
+              state = state.copyWith(conversation: _withLiveReceipts(c));
+            }
           }
         }
       case 'message:listened':
@@ -1796,7 +1983,11 @@ class ChatThread extends Notifier<ChatThreadState> {
   Future<void> _refreshConversation() async {
     try {
       final c = await _repo.conversation(id);
-      if (ref.mounted) state = state.copyWith(conversation: c);
+      // R-404 (d): a copy fetched before the other side read the message
+      // must not put the single tick back over the double one.
+      if (ref.mounted) {
+        state = state.copyWith(conversation: _withLiveReceipts(c));
+      }
     } on Object {
       // Keep what is shown.
     }

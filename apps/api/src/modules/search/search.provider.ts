@@ -7,6 +7,9 @@ import type { CreatedAtCursor } from '../../common/pagination/cursor.util';
 export const SEARCH_PROVIDER = Symbol('SEARCH_PROVIDER');
 /** §7.2 "Популярные темы", written by TrendingTagsJob. */
 export const TRENDING_TAGS_KEY = 'search:trending-tags';
+/** Owner 2026-11-04 (R-406): tag_lower → the post whose media is the
+ * topic's cover (TopicCoversJob, nightly). */
+export const TOPIC_COVERS_KEY = 'search:topic-covers';
 
 export interface AttorneySearchFilters {
   practiceAreaId?: string;

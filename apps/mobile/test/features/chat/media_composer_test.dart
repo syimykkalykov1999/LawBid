@@ -31,9 +31,21 @@ final _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
 );
 
-PickedFile _img(String name) => (bytes: _png, name: name, mime: 'image/png');
+PickedFile _img(String name) => (
+      bytes: _png,
+      name: name,
+      mime: 'image/png',
+      path: null,
+      diskBytes: null,
+    );
 
-typedef PickedFile = ({Uint8List bytes, String name, String mime});
+typedef PickedFile = ({
+  Uint8List bytes,
+  String name,
+  String mime,
+  String? path,
+  int? diskBytes,
+});
 
 class _Chat implements ChatRepository {
   final sent = <String>[];
@@ -93,6 +105,7 @@ Future<_Host> _open(
   List<PickedFile> files, {
   String caption = '',
   _Chat? chat,
+  ThemeData? theme,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -111,7 +124,7 @@ Future<_Host> _open(
     UncontrolledProviderScope(
       container: c,
       child: MaterialApp(
-        theme: AppTheme.light(),
+        theme: theme ?? AppTheme.light(),
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
@@ -209,6 +222,22 @@ void main() {
     expect(r.caption, 'Lease pages');
   });
 
+  for (final id in AppThemeId.values) {
+    testWidgets(
+        'R-378: caption field is readable on the dark viewer (${id.name})',
+        (tester) async {
+      await _open(tester, [_img('a.png')], theme: AppTheme.of(id));
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('preview-caption')),
+      );
+      // No theme fill (white in day) over the dark bar; light viewer text.
+      expect(field.decoration!.filled, isFalse);
+      expect(field.style!.color, ChatColors.onViewer);
+      expect(field.cursorColor, ChatColors.onViewer);
+      expect(field.decoration!.fillColor, isNot(Colors.white));
+    });
+  }
+
   testWidgets('the typed text is the caption; one photo has no strip / count',
       (tester) async {
     final host = await _open(tester, [_img('a.png')], caption: 'Hello');
@@ -274,7 +303,15 @@ void main() {
   testWidgets('a video or a document has no rotate / crop', (tester) async {
     await _open(
       tester,
-      [(bytes: Uint8List(10), name: 'clip.mp4', mime: 'video/mp4')],
+      [
+        (
+          bytes: Uint8List(10),
+          name: 'clip.mp4',
+          mime: 'video/mp4',
+          path: null,
+          diskBytes: null,
+        ),
+      ],
     );
     expect(find.byKey(const ValueKey('preview-rotate')), findsNothing);
     expect(find.byKey(const ValueKey('preview-crop')), findsNothing);

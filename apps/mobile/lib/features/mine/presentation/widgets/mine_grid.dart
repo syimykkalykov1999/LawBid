@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart'
+    show blurhashStandIn;
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -30,6 +32,7 @@ class MineTileData {
     required this.statusTone,
     required this.onTap,
     this.coverUrl,
+    this.coverBlurhash,
     this.practiceCode,
     this.categoryCode,
     this.badge,
@@ -47,6 +50,9 @@ class MineTileData {
   final StatusTone statusTone;
   final VoidCallback onTap;
   final String? coverUrl;
+
+  /// R-248: BlurHash of [coverUrl], drawn while it loads.
+  final String? coverBlurhash;
   final String? practiceCode;
   final String? categoryCode;
 
@@ -96,6 +102,12 @@ class MineTile extends StatelessWidget {
                 Image(
                   image: appNetworkImage(data.coverUrl!, 360),
                   fit: BoxFit.cover,
+                  frameBuilder: (_, child, frame, sync) => sync || frame != null
+                      ? child
+                      : blurhashStandIn(
+                          data.coverBlurhash,
+                          colors.skeletonBase,
+                        ),
                   errorBuilder: (_, __, ___) => art,
                 )
               else
@@ -674,10 +686,9 @@ class MineActiveFilters extends ConsumerWidget {
     Widget chip(String label, VoidCallback onRemove) => AppPressable(
           onTap: onRemove,
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.xs + 2,
-            ),
+            // Owner 2026-10-28 (R-086): as tall as every other chip (32).
+            height: AppRoundChipButton.diameter,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             decoration: BoxDecoration(
               color: colors.navy,
               borderRadius: BorderRadius.circular(AppRadii.pill),

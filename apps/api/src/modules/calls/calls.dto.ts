@@ -65,6 +65,12 @@ export class CallVoteParamDto {
 
 export class CallIdParamDto {
   @ApiProperty({ format: 'uuid' })
+  // R-377: iOS CallKit sends the call id as `UUID.uuidString` (UPPERCASE);
+  // the call is stored lowercase. Lowercased before any lookup so a decline
+  // from the system call screen (old app builds included) finds its call.
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
   @IsUUID('all')
   id!: string;
 }
@@ -182,6 +188,11 @@ export class CallParticipantDto {
 
   @ApiPropertyOptional({ type: String, nullable: true })
   avatarUrl!: string | null;
+
+  /** R-405 (owner 2026-11-04): the 1024 px photo for the big round frame
+   * of the call screen; `avatarUrl` stays the 256 px preview for lists. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarFullUrl?: string | null;
 
   @ApiProperty({
     enum: ['invited', 'joined', 'declined', 'left', 'removed'],
@@ -430,6 +441,13 @@ export class IceServersDto {
     description: 'Seconds the TURN login lives.',
   })
   ttlSec!: number;
+
+  @ApiPropertyOptional({
+    enum: ['all', 'relay'],
+    description:
+      'relay = media only through the relay in this list (owner 2026-11-04); all = any route. Older apps ignore it.',
+  })
+  iceTransportPolicy?: 'all' | 'relay';
 }
 
 /** POST /calls/:id/livekit-token — what the app hands to the LiveKit SDK. */

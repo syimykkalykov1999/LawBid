@@ -20,7 +20,11 @@ import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
+import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
+import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
+import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_search_button.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_widgets.dart';
 import 'package:lawbid/features/practice/practice_matches.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
@@ -589,7 +593,12 @@ class _TagTopicRow extends ConsumerWidget {
     final count = tag.postsCount;
     return TopicRow(
       tag: tag.tag,
-      categoryCode: cat,
+      // Owner 2026-11-04 (R-406): our topics (a practice, a hashtag that
+      // names one) keep their pictures; a topic people made with a hashtag
+      // wears the photo of its most popular post, or its letter when the
+      // topic has no media posts.
+      categoryCode: named,
+      coverUrl: tag.coverUrl,
       title: cat == null ? '#${tag.tag}' : topicName(ref, cat),
       subtitle: count == null
           ? '#${tag.tag}'
@@ -776,6 +785,28 @@ class _BeforeTyping extends ConsumerWidget {
       // Audit 2026-10-01: explore grids filtered on the server (every
       // filter, every page), with "Show more".
       SearchTab.cases => [
+          // R-401 (owner 2026-11-04): open questions of the attorney's
+          // topics from the nightly snapshot, above the cases — the same
+          // question cards as the Q&A list; nothing while empty.
+          ...() {
+            final qs = ref.watch(recommendedQuestionsProvider).value ??
+                const <Question>[];
+            if (qs.isEmpty) return const <Widget>[];
+            return <Widget>[
+              SliverToBoxAdapter(
+                child: title(t.t('search.recommendedQuestions')),
+              ),
+              rows<Question>(
+                qs.take(5).toList(),
+                (q) => QuestionCard(
+                  key: ValueKey('search-reco-question-${q.id}'),
+                  question: q,
+                  attorney: true,
+                  onTap: () => context.push(LegalQaRoutes.question(q.id)),
+                ),
+              ),
+            ];
+          }(),
           SliverToBoxAdapter(child: title(t.t('search.section.cases'))),
           if (ref.watch(exploreCasesProvider(_casesKey(filters))).value ==
                   null &&
@@ -1198,18 +1229,21 @@ class _SuggestionRow extends ConsumerWidget {
               onTap: () => onPick(s.text),
               behavior: HitTestBehavior.opaque,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.xs,
-                ),
+                // Owner 2026-10-28 (R-086): every chip is as tall as the
+                // round buttons beside the chips (32).
+                height: AppRoundChipButton.diameter,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 decoration: BoxDecoration(
                   color: colors.chip,
                   borderRadius: BorderRadius.circular(AppRadii.pill),
                 ),
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  style: type.bodySmall.copyWith(color: colors.text),
+                child: Center(
+                  widthFactor: 1,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: type.bodySmall.copyWith(color: colors.text),
+                  ),
                 ),
               ),
             ),
