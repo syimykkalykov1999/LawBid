@@ -16,8 +16,8 @@ import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 
 /// A client's own case as a compact row ("My cases", Search). With
-/// [swipe], a swipe left offers the actions the case screen menu has:
-/// close (open cases only) and delete (open or archived).
+/// [swipe], a swipe left offers delete (open or archived case). Owner
+/// 2026-11-05: an open case is no longer closed from here.
 class MyCaseRow extends ConsumerWidget {
   const MyCaseRow({
     required this.item,
@@ -98,7 +98,8 @@ class MyCaseRow extends ConsumerWidget {
     );
     final canDelete = open || c.status == CaseStatus.archived;
     // OQ-054: the question / the pause, right under the case it is about.
-    final stale = open &&
+    final stale =
+        open &&
         CaseStaleBanner.needed(paused: c.paused, pending: c.stillNeededPending);
     final shown = stale
         ? Column(
@@ -130,23 +131,8 @@ class MyCaseRow extends ConsumerWidget {
     return SwipeActions(
       key: ValueKey('my-case-swipe-${c.id}'),
       actions: [
-        if (open)
-          SwipeAction(
-            key: ValueKey('my-case-close-${c.id}'),
-            label: t.t('cases.owner.closeShort'),
-            icon: AppIcons.doNotDisturbOnOutlined,
-            color: colors.navy,
-            onColor: Colors.white,
-            onTap: () => _confirmed(
-              context,
-              ref,
-              title: 'cases.owner.closeTitle',
-              message: 'cases.owner.closeMessage',
-              confirm: 'cases.owner.close',
-              action: () => actions.closeCase(c.id),
-              doneKey: 'cases.owner.closed',
-            ),
-          ),
+        // Owner 2026-11-05: an OPEN case is not closed any more, only
+        // deleted; closing stays for a case that is in work.
         if (canDelete)
           SwipeAction(
             key: ValueKey('my-case-delete-${c.id}'),

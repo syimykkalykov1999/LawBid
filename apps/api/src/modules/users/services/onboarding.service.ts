@@ -65,7 +65,11 @@ export type MissingRequirement =
   | 'licensed_states'
   /** attorney has no clean avatar: the photo is mandatory (docs/03 §4.1,
    * OQ-012). */
-  | 'photo';
+  | 'photo'
+  /** Owner 2026-11-05: an attorney picks at least one practice before
+   * finishing onboarding (the app already requires it). Asked only while
+   * onboarding is unfinished: nobody who already finished is sent back. */
+  | 'practices';
 
 /** Owner 2026-10-13: a verified phone / e-mail account without a password
  * (the demo world and assistants, who sign in with a code, are exempt). */
@@ -242,6 +246,9 @@ export class OnboardingService {
         consentsOk,
         facts,
         avatarClean,
+        clientEmailRequired,
+        // Owner 2026-11-05: an already onboarded attorney without practices
+        // is not locked out; the rule only blocks finishing onboarding.
         clientEmailRequired,
       ),
     };
@@ -504,9 +511,11 @@ export function missingRequirements(
     | 'email'
   >,
   consentsGranted: boolean,
-  profile?: Pick<ProfileFacts, 'clientHasState' | 'attorneyHasLicensedStates'>,
+  profile?: Pick<ProfileFacts, 'clientHasState' | 'attorneyHasLicensedStates'> &
+    Partial<Pick<ProfileFacts, 'attorneyHasPractices'>>,
   avatarClean?: boolean,
   clientEmailRequired = true,
+  practicesRequired = true,
 ): MissingRequirement[] {
   const missing: MissingRequirement[] = [];
   if (!consentsGranted) missing.push('consents');
@@ -538,6 +547,14 @@ export function missingRequirements(
   }
   if (avatarClean === false && user.role === 'attorney') {
     missing.push('photo');
+  }
+  if (
+    practicesRequired &&
+    profile &&
+    user.role === 'attorney' &&
+    profile.attorneyHasPractices === false
+  ) {
+    missing.push('practices');
   }
   return missing;
 }
