@@ -54,7 +54,9 @@ describe('app icon badge switch', () => {
     function sender() {
       sent.length = 0;
       const tokens = {
-        activeTokens: jest.fn().mockResolvedValue(['ios']),
+        activeDevices: jest
+          .fn()
+          .mockResolvedValue(['ios'].map((token) => ({ token, fid: false }))),
         localReminderTokens: jest.fn().mockResolvedValue([]),
         webTokens: jest.fn().mockResolvedValue([]),
         armedReminders: jest.fn().mockResolvedValue(new Map()),

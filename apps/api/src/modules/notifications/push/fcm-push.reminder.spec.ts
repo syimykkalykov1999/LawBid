@@ -12,7 +12,11 @@ describe('FcmPushSender planner reminder', () => {
   function build() {
     sent.length = 0;
     const tokens = {
-      activeTokens: jest.fn().mockResolvedValue(['plain', 'local']),
+      activeDevices: jest
+        .fn()
+        .mockResolvedValue(
+          ['plain', 'local'].map((token) => ({ token, fid: false })),
+        ),
       localReminderTokens: jest.fn().mockResolvedValue(['local']),
       webTokens: jest.fn().mockResolvedValue([]),
       armedReminders: jest.fn().mockResolvedValue(armed),
