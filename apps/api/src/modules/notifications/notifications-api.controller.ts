@@ -224,6 +224,7 @@ export class NotificationsApiController {
       dto.localReminders === true && dto.platform === 'android',
       dto.chatStyle === true && dto.platform === 'android',
       dto.actorStyle === true && dto.platform === 'android',
+      dto.kind === 'fid' ? 'fid' : 'token',
     );
   }
 
@@ -279,6 +280,6 @@ export class NotificationsApiController {
     @CurrentUser() user: RequestUser,
     @Body() dto: DeletePushTokenDto,
   ): Promise<void> {
-    await this.tokens.unregister(user.sub, dto.token);
+    await this.tokens.unregister(user.sub, dto.token, user.sid);
   }
 }

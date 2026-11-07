@@ -117,8 +117,14 @@ export class FcmPushSender implements PushSender {
   }
 
   async send(message: PushMessage, dedupeKey: string): Promise<void> {
-    const devices = await this.tokens.activeTokens(message.userId);
-    if (devices.length === 0) return;
+    const rows = await this.tokens.activeDevices(message.userId);
+    if (rows.length === 0) return;
+    const devices = rows.map((r) => r.token);
+    // 2026-11-07: FCM HTTP v1 `message.fid` for a Firebase Installation ID,
+    // the deprecated `message.token` for a legacy registration token.
+    const fids = new Set(rows.filter((r) => r.fid).map((r) => r.token));
+    const target = (device: string) =>
+      fids.has(device) ? { fid: device } : { token: device };
     const sentKey = `push:sent:${dedupeKey}`;
     const { token: access } = await this.jwt.getAccessToken();
     let temporary = 0;
@@ -172,9 +178,9 @@ export class FcmPushSender implements PushSender {
       try {
         const body = JSON.stringify({
           message: message.callEnd
-            ? callEndMessage(device, message)
+            ? callEndMessage(target(device), message)
             : {
-                token: device,
+                ...target(device),
                 // OQ-041: Android rings from a data-only message (the app
                 // draws the full-screen call UI); iOS gets a time-sensitive
                 // alert.
@@ -372,9 +378,12 @@ export class FcmPushSender implements PushSender {
       // "...not a valid FCM registration token" — as dead as UNREGISTERED and
       // it must not retry the whole job. Any other INVALID_ARGUMENT (bad
       // payload) still counts as temporary and keeps the token.
+      // An FID FCM does not accept reads "...installation ID..." (2026-11-07).
       const badToken =
         code === 'INVALID_ARGUMENT' &&
-        /registration token/i.test(body.error?.message ?? '');
+        /registration token|installation id|\bfid\b/i.test(
+          body.error?.message ?? '',
+        );
       if (code === 'UNREGISTERED' || badToken) {
         await this.tokens.remove(device);
         return;
@@ -501,9 +510,12 @@ export class DynamicPushSender implements PushSender {
  * wakes the background handler (high priority, short ttl), iOS gets a
  * silent background push (content-available, which Apple requires to be
  * priority 5). Nothing is shown. */
-function callEndMessage(device: string, message: PushMessage) {
+function callEndMessage(
+  target: { token: string } | { fid: string },
+  message: PushMessage,
+) {
   return {
-    token: device,
+    ...target,
     data: message.data,
     android: { priority: 'high', ttl: `${CALL_TTL_SEC}s` },
     apns: {
