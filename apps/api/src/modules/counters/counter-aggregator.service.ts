@@ -76,6 +76,14 @@ export const COUNTERS = {
     fields: ['post_count'],
     recount: false,
   },
+  // Owner 2026-11-05 (flag channel_views_buffered): other writers still touch
+  // the row while the flag is off, so the nightly job leaves it alone.
+  channel_post: {
+    table: 'channel_posts',
+    key: 'id',
+    fields: ['view_count'],
+    recount: false,
+  },
   attorney: {
     table: 'attorney_profiles',
     key: 'user_id',
