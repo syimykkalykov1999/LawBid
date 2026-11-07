@@ -163,7 +163,7 @@ class _AdminI18nClient implements AdminI18nClient {
   @override
   Future<I18nImportReportEnvelope> importTranslations({
     required MultipartFile file,
-    I18nImportMode? mode,
+    I18nImportMode? mode = I18nImportMode.dryRun,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};

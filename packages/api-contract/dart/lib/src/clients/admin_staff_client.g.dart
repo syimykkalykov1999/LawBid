@@ -510,21 +510,21 @@ class _AdminStaffClient implements AdminStaffClient {
 
   @override
   Future<StaffPeopleListEnvelope> staffPeople({
+    StaffRatingSort? sort = StaffRatingSort.worst,
     num? limit = 50,
     num? offset = 0,
     StaffRatingStatus? status,
     StaffWorkspaceName? workspace,
-    StaffRatingSort? sort,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
+      r'sort': sort?.toJson(),
       r'limit': limit,
       r'offset': offset,
       r'status': status?.toJson(),
       r'workspace': workspace?.toJson(),
-      r'sort': sort?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -618,21 +618,21 @@ class _AdminStaffClient implements AdminStaffClient {
 
   @override
   Future<StaffSuggestionListEnvelope> staffSuggestions({
-    num? limit = 50,
-    num? offset = 0,
-    StaffSuggestionStatus? status,
     StaffSuggestionKind? kind,
     StaffWorkspaceName? workspace,
+    StaffSuggestionStatus? status = StaffSuggestionStatus.open,
+    num? limit = 50,
+    num? offset = 0,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'limit': limit,
-      r'offset': offset,
-      r'status': status?.toJson(),
       r'kind': kind?.toJson(),
       r'workspace': workspace?.toJson(),
+      r'status': status?.toJson(),
+      r'limit': limit,
+      r'offset': offset,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

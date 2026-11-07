@@ -15,13 +15,18 @@
                   "properties": {
                     "status": {
                       "type": "string",
+                      "enum": [
+                        "ok",
+                        "degraded"
+                      ],
                       "example": "ok"
                     },
                     "info": {
                       "type": "object",
                       "example": {
                         "database": {
-                          "status": "up"
+                          "status": "up",
+                          "responseTime": 12
                         }
                       },
                       "additionalProperties": {
@@ -31,7 +36,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -48,7 +62,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -59,7 +82,8 @@
                       "type": "object",
                       "example": {
                         "database": {
-                          "status": "up"
+                          "status": "up",
+                          "responseTime": 12
                         }
                       },
                       "additionalProperties": {
@@ -69,7 +93,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -89,13 +122,18 @@
                   "properties": {
                     "status": {
                       "type": "string",
+                      "enum": [
+                        "error",
+                        "shutting_down"
+                      ],
                       "example": "error"
                     },
                     "info": {
                       "type": "object",
                       "example": {
                         "database": {
-                          "status": "up"
+                          "status": "up",
+                          "responseTime": 12
                         }
                       },
                       "additionalProperties": {
@@ -105,7 +143,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -117,7 +164,8 @@
                       "example": {
                         "redis": {
                           "status": "down",
-                          "message": "Could not connect"
+                          "message": "Could not connect",
+                          "responseTime": 3005
                         }
                       },
                       "additionalProperties": {
@@ -127,7 +175,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -138,11 +195,13 @@
                       "type": "object",
                       "example": {
                         "database": {
-                          "status": "up"
+                          "status": "up",
+                          "responseTime": 12
                         },
                         "redis": {
                           "status": "down",
-                          "message": "Could not connect"
+                          "message": "Could not connect",
+                          "responseTime": 3005
                         }
                       },
                       "additionalProperties": {
@@ -152,7 +211,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -188,13 +256,18 @@
                   "properties": {
                     "status": {
                       "type": "string",
+                      "enum": [
+                        "ok",
+                        "degraded"
+                      ],
                       "example": "ok"
                     },
                     "info": {
                       "type": "object",
                       "example": {
                         "database": {
-                          "status": "up"
+                          "status": "up",
+                          "responseTime": 12
                         }
                       },
                       "additionalProperties": {
@@ -204,7 +277,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -221,7 +303,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -232,7 +323,8 @@
                       "type": "object",
                       "example": {
                         "database": {
-                          "status": "up"
+                          "status": "up",
+                          "responseTime": 12
                         }
                       },
                       "additionalProperties": {
@@ -242,7 +334,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -262,13 +363,18 @@
                   "properties": {
                     "status": {
                       "type": "string",
+                      "enum": [
+                        "error",
+                        "shutting_down"
+                      ],
                       "example": "error"
                     },
                     "info": {
                       "type": "object",
                       "example": {
                         "database": {
-                          "status": "up"
+                          "status": "up",
+                          "responseTime": 12
                         }
                       },
                       "additionalProperties": {
@@ -278,7 +384,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -290,7 +405,8 @@
                       "example": {
                         "redis": {
                           "status": "down",
-                          "message": "Could not connect"
+                          "message": "Could not connect",
+                          "responseTime": 3005
                         }
                       },
                       "additionalProperties": {
@@ -300,7 +416,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -311,11 +436,13 @@
                       "type": "object",
                       "example": {
                         "database": {
-                          "status": "up"
+                          "status": "up",
+                          "responseTime": 12
                         },
                         "redis": {
                           "status": "down",
-                          "message": "Could not connect"
+                          "message": "Could not connect",
+                          "responseTime": 3005
                         }
                       },
                       "additionalProperties": {
@@ -325,7 +452,16 @@
                         ],
                         "properties": {
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
                           }
                         },
                         "additionalProperties": true
@@ -24810,7 +24946,12 @@
             "in": "query",
             "description": "`done` and `archive` both list the archive.",
             "schema": {
-              "$ref": "#/components/schemas/TasksView"
+              "default": "active",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/TasksView"
+                }
+              ]
             }
           },
           {
@@ -40851,7 +40992,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/AdminCommentThread"
+              "default": "post",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/AdminCommentThread"
+                }
+              ]
             }
           }
         ],
@@ -48297,7 +48443,12 @@
             "in": "query",
             "description": "popular = likes + comments, then newest (offset cursor); for_you = ranked for the viewer (owner 2026-10-13, offset cursor).",
             "schema": {
-              "$ref": "#/components/schemas/LatestPostsSort"
+              "default": "newest",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/LatestPostsSort"
+                }
+              ]
             }
           },
           {
@@ -63314,7 +63465,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/MediaCheckListStatus"
+              "default": "all",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/MediaCheckListStatus"
+                }
+              ]
             }
           },
           {
@@ -64322,7 +64478,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/I18nImportMode"
+              "default": "dry-run",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/I18nImportMode"
+                }
+              ]
             }
           }
         ],
@@ -74289,7 +74450,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/ClientReviewsSort"
+              "default": "newest",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/ClientReviewsSort"
+                }
+              ]
             }
           },
           {
@@ -74491,7 +74657,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/ReviewAppealStatus"
+              "default": "pending",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/ReviewAppealStatus"
+                }
+              ]
             }
           },
           {
@@ -88436,7 +88607,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/OutreachImportMode"
+              "default": "dry-run",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/OutreachImportMode"
+                }
+              ]
             }
           },
           {
@@ -88444,7 +88620,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/OutreachLeadKind"
+              "default": "attorney",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/OutreachLeadKind"
+                }
+              ]
             }
           },
           {
@@ -90344,7 +90525,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/PromotionTarget"
+              "default": "case",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PromotionTarget"
+                }
+              ]
             }
           },
           {
@@ -99383,7 +99569,12 @@
             "in": "query",
             "description": "Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked \"waiting for my answer\") · requests (OQ-043, message requests sent to me) · cases (Owner 2026-10-21: only the chats tied to a case) · archive (Owner 2026-10-20: my archived chats; every other folder leaves them out).",
             "schema": {
-              "$ref": "#/components/schemas/ConversationFolder"
+              "default": "all",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/ConversationFolder"
+                }
+              ]
             }
           },
           {
@@ -101840,7 +102031,12 @@
             "in": "query",
             "description": "media = photos, videos and voice notes; files = documents; links = messages with a link.",
             "schema": {
-              "$ref": "#/components/schemas/SavedChatTab"
+              "default": "all",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SavedChatTab"
+                }
+              ]
             }
           },
           {
@@ -116714,7 +116910,12 @@
             "in": "query",
             "description": "Owner 2026-10-01 (Google-style): relevant (helpful, then newest) · newest · oldest · highest · lowest · helpful.",
             "schema": {
-              "$ref": "#/components/schemas/ReviewSort"
+              "default": "newest",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/ReviewSort"
+                }
+              ]
             }
           },
           {
@@ -127119,7 +127320,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/QuestionFilter"
+              "default": "all",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/QuestionFilter"
+                }
+              ]
             }
           },
           {
@@ -127128,7 +127334,12 @@
             "in": "query",
             "description": "Attorneys only: «mine» keeps questions of my practice areas (with parent/child areas) and of states where I hold a verified licence; a question without an area or state stays. No areas set — same as «all».",
             "schema": {
-              "$ref": "#/components/schemas/QuestionScope"
+              "default": "all",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/QuestionScope"
+                }
+              ]
             }
           },
           {
@@ -128373,7 +128584,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/AdminQaStatus"
+              "default": "all",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/AdminQaStatus"
+                }
+              ]
             }
           },
           {
@@ -130129,7 +130345,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/StaffRatingSort"
+              "default": "worst",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/StaffRatingSort"
+                }
+              ]
             }
           },
           {
@@ -130471,7 +130692,12 @@
             "required": false,
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/StaffSuggestionStatus"
+              "default": "open",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/StaffSuggestionStatus"
+                }
+              ]
             }
           },
           {
@@ -140214,10 +140440,10 @@
             "description": "registry = look up only; recheck = a non-pass also queues the license for review."
           },
           "status": {
-            "type": "string",
             "enum": [
               "queued"
-            ]
+            ],
+            "type": "string"
           },
           "queuedAt": {
             "type": "string",
@@ -141765,10 +141991,10 @@
             "type": "string"
           },
           "currency": {
-            "type": "string",
             "enum": [
               "USD"
-            ]
+            ],
+            "type": "string"
           },
           "flatCents": {
             "type": "integer",
@@ -144238,6 +144464,7 @@
           "sections": {
             "type": "array",
             "minItems": 1,
+            "maxItems": 6,
             "items": {
               "type": "string",
               "enum": [
@@ -144574,6 +144801,7 @@
           "sections": {
             "type": "array",
             "minItems": 1,
+            "maxItems": 10,
             "items": {
               "type": "string",
               "enum": [
@@ -150200,10 +150428,10 @@
             "description": "The viewer follows this attorney."
           },
           "reason": {
-            "type": "string",
             "enum": [
               "contacts"
             ],
+            "type": "string",
             "description": "Why this person is suggested, when worth a caption: \"contacts\" = in my address book."
           }
         },
@@ -150879,6 +151107,7 @@
         "properties": {
           "firms": {
             "description": "Owner 2026-09-30 (OQ-030): several firms (≤ 5, each ≤ 80 chars);\nreplaces the list. `firmName` mirrors the first one.",
+            "maxItems": 5,
             "type": "array",
             "items": {
               "type": "string",
@@ -150906,6 +151135,7 @@
           "languages": {
             "type": "array",
             "uniqueItems": true,
+            "maxItems": 20,
             "items": {
               "type": "string",
               "enum": [
@@ -151165,6 +151395,7 @@
           "practiceAreaIds": {
             "uniqueItems": true,
             "minItems": 1,
+            "maxItems": 500,
             "type": "array",
             "items": {
               "type": "string",
@@ -151575,6 +151806,7 @@
             "type": "array",
             "description": "Client preferred_languages / attorney languages — ISO 639-1.",
             "uniqueItems": true,
+            "maxItems": 20,
             "items": {
               "type": "string",
               "enum": [
@@ -152511,6 +152743,7 @@
             "type": "array",
             "description": "Client preferred_languages / attorney languages — ISO 639-1.",
             "uniqueItems": true,
+            "maxItems": 20,
             "items": {
               "type": "string",
               "enum": [
@@ -152724,6 +152957,7 @@
           "licensedStates": {
             "description": "Attorney: states where they hold a license (multi-select). Bar\nnumbers are collected on verification (docs/03), so these are not\nattorney_licenses rows yet.",
             "uniqueItems": true,
+            "maxItems": 51,
             "type": "array",
             "items": {
               "type": "string",
@@ -163132,11 +163366,11 @@
             "type": "boolean"
           },
           "action": {
-            "type": "string",
             "nullable": true,
             "enum": [
               "restore_drill"
-            ]
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -165203,6 +165437,8 @@
           },
           "amountCents": {
             "type": "integer",
+            "minimum": -100000000,
+            "maximum": 100000000,
             "description": "Cents; negative takes money back."
           },
           "period": {
@@ -165502,6 +165738,7 @@
             "description": "May be empty when files are attached."
           },
           "attachments": {
+            "maxItems": 10,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SupportAttachmentInputDto"
@@ -165621,6 +165858,7 @@
             "description": "May be empty when files are attached."
           },
           "attachments": {
+            "maxItems": 10,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SupportAttachmentInputDto"
@@ -166228,6 +166466,7 @@
             "description": "May be empty when files are attached."
           },
           "attachments": {
+            "maxItems": 10,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SupportAttachmentInputDto"
@@ -167409,6 +167648,7 @@
           "formats": {
             "type": "array",
             "uniqueItems": true,
+            "maxItems": 21,
             "items": {
               "$ref": "#/components/schemas/UploadFormat"
             }
@@ -167521,6 +167761,7 @@
         "type": "object",
         "properties": {
           "places": {
+            "maxItems": 10,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/UploadPlaceLimitsDto"
@@ -173112,6 +173353,7 @@
             ]
           },
           "overlays": {
+            "maxItems": 10,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/StoryOverlayDto"
@@ -177601,11 +177843,11 @@
             "description": "actual = read from the vendor; estimate = calls × price book."
           },
           "coveredBy": {
-            "type": "string",
             "nullable": true,
             "enum": [
               "aws"
             ],
+            "type": "string",
             "description": "The AWS bill already contains this line (not added twice)."
           }
         },
@@ -180119,6 +180361,8 @@
         "properties": {
           "amountCents": {
             "type": "integer",
+            "minimum": -1000000,
+            "maximum": 1000000,
             "description": "Cents; negative deducts (bonus, penalty, correction)."
           },
           "note": {
@@ -186581,6 +186825,8 @@
           },
           "amount": {
             "type": "integer",
+            "minimum": -1000000,
+            "maximum": 1000000,
             "description": "Positive adds, negative takes back (never below zero)."
           },
           "reason": {
@@ -190283,6 +190529,7 @@
             "maximum": 900000
           },
           "waveform": {
+            "maxItems": 100,
             "description": "Up to 100 bars, each 0–100.",
             "type": "array",
             "items": {
@@ -191078,11 +191325,11 @@
             "description": "true: Cloudflare was chosen but this call runs device to device because it was down or unconfigured at its start."
           },
           "reason": {
-            "type": "string",
             "nullable": true,
             "enum": [
               "sfu_unavailable"
-            ]
+            ],
+            "type": "string"
           },
           "videoBlocked": {
             "type": "boolean",
@@ -191591,10 +191838,10 @@
         "type": "object",
         "properties": {
           "type": {
-            "type": "string",
             "enum": [
               "answer"
-            ]
+            ],
+            "type": "string"
           },
           "sdp": {
             "type": "string",
@@ -191732,11 +191979,11 @@
             "description": "true: apply `sdp` as the remote offer, answer it with POST /calls/:id/sfu/answer."
           },
           "type": {
-            "type": "string",
             "nullable": true,
             "enum": [
               "offer"
-            ]
+            ],
+            "type": "string"
           },
           "sdp": {
             "type": "string",
@@ -191861,11 +192108,11 @@
             }
           },
           "type": {
-            "type": "string",
             "nullable": true,
             "enum": [
               "answer"
-            ]
+            ],
+            "type": "string"
           },
           "sdp": {
             "type": "string",
@@ -193117,6 +193364,7 @@
           },
           "memberIds": {
             "uniqueItems": true,
+            "maxItems": 511,
             "description": "People to add (the creator is added automatically); may be empty for public / closed groups.",
             "type": "array",
             "items": {
@@ -194011,6 +194259,7 @@
         "properties": {
           "optionIds": {
             "uniqueItems": true,
+            "maxItems": 10,
             "description": "The chosen options (one unless the poll is multiple); an empty list retracts the vote.",
             "type": "array",
             "items": {
@@ -194662,6 +194911,7 @@
         "type": "object",
         "properties": {
           "items": {
+            "maxItems": 11,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CategorySettingDto"
@@ -194779,6 +195029,7 @@
         "type": "object",
         "properties": {
           "items": {
+            "maxItems": 30,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TopicSettingDto"
@@ -199845,6 +200096,7 @@
           },
           "sources": {
             "minItems": 1,
+            "maxItems": 50,
             "description": "What to forward, oldest first (1–50); the order is kept.",
             "type": "array",
             "items": {
@@ -199853,6 +200105,7 @@
           },
           "targets": {
             "minItems": 1,
+            "maxItems": 20,
             "description": "Where to (1–20); at most 200 message × chat pairs.",
             "type": "array",
             "items": {

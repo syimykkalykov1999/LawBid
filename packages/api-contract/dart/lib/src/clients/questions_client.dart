@@ -29,12 +29,12 @@ abstract class QuestionsClient {
   /// [updatedSince] - Owner 2026-10-22 (client economy plan, package F): with filter=mine only — my questions (a client) changed since (ISO), removed ones as meta.deletedIds; meta.syncedAt = pass it back next time. Ignored for the other tabs (pull). Older than 7 days → 409 SYNC_TOO_OLD.
   @GET('/questions')
   Future<QuestionListEnvelope> listQuestions({
+    @Query('filter') QuestionFilter? filter = QuestionFilter.all,
+    @Query('scope') QuestionScope? scope = QuestionScope.all,
     @Query('limit') int? limit = 20,
     @Query('q') String? q,
     @Query('practiceAreaId') String? practiceAreaId,
     @Query('stateCode') String? stateCode,
-    @Query('filter') QuestionFilter? filter,
-    @Query('scope') QuestionScope? scope,
     @Query('cursor') String? cursor,
     @Query('updatedSince') DateTime? updatedSince,
     @Extras() Map<String, dynamic>? extras,

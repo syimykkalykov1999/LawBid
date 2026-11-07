@@ -595,3 +595,93 @@ POST /users/me/role/switch added the new `practices` enum value to the `data/mis
 PATCH /users/me/onboarding added the new `practices` enum value to the `data/missing/items/` response property for the response status `200`
 POST /users/me/onboarding/complete added the new `practices` enum value to the `data/missing/items/` response property for the response status `200`
 GET /me/session added the new `practices` enum value to the `data/me/missing/items/` response property for the response status `200`
+GET /admin/content/comments removed the enum value `case` from the `query` request parameter `thread`
+GET /admin/content/comments removed the enum value `post` from the `query` request parameter `thread`
+POST /admin/data-requests/legal/requests/{requestId}/exports the `sections` request property's maxItems was set to `10`
+POST /admin/data-requests/{id}/package the `sections` request property's maxItems was set to `6`
+POST /admin/i18n/import removed the enum value `apply` from the `query` request parameter `mode`
+POST /admin/i18n/import removed the enum value `dry-run` from the `query` request parameter `mode`
+GET /admin/legal-qa/questions removed the enum value `all` from the `query` request parameter `status`
+GET /admin/legal-qa/questions removed the enum value `hidden` from the `query` request parameter `status`
+GET /admin/legal-qa/questions removed the enum value `published` from the `query` request parameter `status`
+GET /admin/legal-qa/questions removed the enum value `removed` from the `query` request parameter `status`
+GET /admin/media-moderation removed the enum value `all` from the `query` request parameter `status`
+GET /admin/media-moderation removed the enum value `csam_match` from the `query` request parameter `status`
+GET /admin/media-moderation removed the enum value `flagged` from the `query` request parameter `status`
+GET /admin/media-moderation removed the enum value `hidden` from the `query` request parameter `status`
+GET /admin/media-moderation removed the enum value `skipped` from the `query` request parameter `status`
+POST /admin/outreach/leads/import removed the enum value `apply` from the `query` request parameter `mode`
+POST /admin/outreach/leads/import removed the enum value `attorney` from the `query` request parameter `kind`
+POST /admin/outreach/leads/import removed the enum value `client` from the `query` request parameter `kind`
+POST /admin/outreach/leads/import removed the enum value `dry-run` from the `query` request parameter `mode`
+POST /admin/partners/{id}/adjustments the `amountCents` request property's max was set to `1000000.00`
+POST /admin/partners/{id}/adjustments the `amountCents` request property's min was set to `-1000000.00`
+POST /admin/payroll/employees/{id}/accruals the `amountCents` request property's max was set to `100000000.00`
+POST /admin/payroll/employees/{id}/accruals the `amountCents` request property's min was set to `-100000000.00`
+GET /admin/review-appeals removed the enum value `accepted` from the `query` request parameter `status`
+GET /admin/review-appeals removed the enum value `auto_removed` from the `query` request parameter `status`
+GET /admin/review-appeals removed the enum value `pending` from the `query` request parameter `status`
+GET /admin/review-appeals removed the enum value `rejected` from the `query` request parameter `status`
+GET /admin/staff/people removed the enum value `best` from the `query` request parameter `sort`
+GET /admin/staff/people removed the enum value `worst` from the `query` request parameter `sort`
+GET /admin/staff/suggestions removed the enum value `applied` from the `query` request parameter `status`
+GET /admin/staff/suggestions removed the enum value `dismissed` from the `query` request parameter `status`
+GET /admin/staff/suggestions removed the enum value `expired` from the `query` request parameter `status`
+GET /admin/staff/suggestions removed the enum value `open` from the `query` request parameter `status`
+POST /admin/stars/grant the `amount` request property's max was set to `1000000.00`
+POST /admin/stars/grant the `amount` request property's min was set to `-1000000.00`
+PUT /admin/storage/uploads the `places` request property's maxItems was set to `10`
+PUT /admin/storage/uploads the `places/items/formats` request property's maxItems was set to `21`
+POST /admin/support/tickets/{id}/messages the `attachments` request property's maxItems was set to `10`
+PUT /attorneys/me/practice-areas the `practiceAreaIds` request property's maxItems was set to `500`
+PATCH /attorneys/me/profile the `firms` request property's maxItems was set to `5`
+PATCH /attorneys/me/profile the `languages` request property's maxItems was set to `20`
+GET /attorneys/{id}/reviews removed the enum value `helpful` from the `query` request parameter `sort`
+GET /attorneys/{id}/reviews removed the enum value `highest` from the `query` request parameter `sort`
+GET /attorneys/{id}/reviews removed the enum value `lowest` from the `query` request parameter `sort`
+GET /attorneys/{id}/reviews removed the enum value `newest` from the `query` request parameter `sort`
+GET /attorneys/{id}/reviews removed the enum value `oldest` from the `query` request parameter `sort`
+GET /attorneys/{id}/reviews removed the enum value `relevant` from the `query` request parameter `sort`
+GET /clients/{id}/reviews removed the enum value `helpful` from the `query` request parameter `sort`
+GET /clients/{id}/reviews removed the enum value `highest` from the `query` request parameter `sort`
+GET /clients/{id}/reviews removed the enum value `lowest` from the `query` request parameter `sort`
+GET /clients/{id}/reviews removed the enum value `newest` from the `query` request parameter `sort`
+GET /clients/{id}/reviews removed the enum value `oldest` from the `query` request parameter `sort`
+GET /clients/{id}/reviews removed the enum value `relevant` from the `query` request parameter `sort`
+GET /conversations removed the enum value `all` from the `query` request parameter `folder`
+GET /conversations removed the enum value `archive` from the `query` request parameter `folder`
+GET /conversations removed the enum value `cases` from the `query` request parameter `folder`
+GET /conversations removed the enum value `general` from the `query` request parameter `folder`
+GET /conversations removed the enum value `primary` from the `query` request parameter `folder`
+GET /conversations removed the enum value `requests` from the `query` request parameter `folder`
+GET /conversations removed the enum value `waiting` from the `query` request parameter `folder`
+POST /conversations/{id}/messages the `waveform` request property's maxItems was set to `100`
+POST /groups the `memberIds` request property's maxItems was set to `511`
+PUT /groups/{id}/polls/{pollId}/vote the `optionIds` request property's maxItems was set to `10`
+POST /messages/forward the `sources` request property's maxItems was set to `50`
+POST /messages/forward the `targets` request property's maxItems was set to `20`
+PUT /notification-settings the `items` request property's maxItems was set to `11`
+PUT /notification-settings/topics the `items` request property's maxItems was set to `30`
+GET /promotions/quote removed the enum value `case` from the `query` request parameter `target`
+GET /promotions/quote removed the enum value `post` from the `query` request parameter `target`
+GET /questions removed the enum value `all` from the `query` request parameter `filter`
+GET /questions removed the enum value `all` from the `query` request parameter `scope`
+GET /questions removed the enum value `mine` from the `query` request parameter `filter`
+GET /questions removed the enum value `mine` from the `query` request parameter `scope`
+GET /questions removed the enum value `solved` from the `query` request parameter `filter`
+GET /questions removed the enum value `unanswered` from the `query` request parameter `filter`
+GET /saved-chat removed the enum value `all` from the `query` request parameter `tab`
+GET /saved-chat removed the enum value `files` from the `query` request parameter `tab`
+GET /saved-chat removed the enum value `links` from the `query` request parameter `tab`
+GET /saved-chat removed the enum value `media` from the `query` request parameter `tab`
+GET /search/latest-posts removed the enum value `for_you` from the `query` request parameter `sort`
+GET /search/latest-posts removed the enum value `newest` from the `query` request parameter `sort`
+GET /search/latest-posts removed the enum value `popular` from the `query` request parameter `sort`
+POST /stories the `overlays` request property's maxItems was set to `10`
+POST /support/tickets the `attachments` request property's maxItems was set to `10`
+POST /support/tickets/{id}/messages the `attachments` request property's maxItems was set to `10`
+GET /tasks removed the enum value `active` from the `query` request parameter `view`
+GET /tasks removed the enum value `all` from the `query` request parameter `view`
+GET /tasks removed the enum value `archive` from the `query` request parameter `view`
+GET /tasks removed the enum value `done` from the `query` request parameter `view`
+PATCH /users/me/profile the `languages` request property's maxItems was set to `20`

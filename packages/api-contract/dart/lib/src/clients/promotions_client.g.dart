@@ -23,8 +23,8 @@ class _PromotionsClient implements PromotionsClient {
   @override
   Future<PromotionQuoteEnvelope> getPromotionQuote({
     required int days,
+    PromotionTarget? target = PromotionTarget.valueCase,
     int? dailyBudgetCents,
-    PromotionTarget? target,
     bool? video,
     BoostBilling? billing,
     Map<String, dynamic>? extras,
@@ -33,8 +33,8 @@ class _PromotionsClient implements PromotionsClient {
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
       r'days': days,
-      r'dailyBudgetCents': dailyBudgetCents,
       r'target': target?.toJson(),
+      r'dailyBudgetCents': dailyBudgetCents,
       r'video': video,
       r'billing': billing?.toJson(),
     };

@@ -24,9 +24,9 @@ abstract class ChatSavedClient {
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/saved-chat')
   Future<SavedChatItemListEnvelope> listSavedChat({
-    @Query('tab') SavedChatTab? tab,
     @Query('q') String? q,
     @Query('cursor') String? cursor,
+    @Query('tab') SavedChatTab? tab = SavedChatTab.all,
     @Extras() Map<String, dynamic>? extras,
   });
 

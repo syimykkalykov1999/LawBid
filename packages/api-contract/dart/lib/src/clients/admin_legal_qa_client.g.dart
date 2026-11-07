@@ -22,8 +22,8 @@ class _AdminLegalQaClient implements AdminLegalQaClient {
 
   @override
   Future<AdminQaQuestionListEnvelope> listAdminQuestions({
+    AdminQaStatus? status = AdminQaStatus.all,
     String? q,
-    AdminQaStatus? status,
     String? cursor,
     int? limit,
     Map<String, dynamic>? extras,
@@ -31,8 +31,8 @@ class _AdminLegalQaClient implements AdminLegalQaClient {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'q': q,
       r'status': status?.toJson(),
+      r'q': q,
       r'cursor': cursor,
       r'limit': limit,
     };

@@ -160,23 +160,23 @@ class _AdminContentClient implements AdminContentClient {
 
   @override
   Future<AdminCommentRowListEnvelope> listAdminComments({
+    AdminCommentThread? thread = AdminCommentThread.post,
     String? q,
     String? cursor,
     String? authorId,
     DateTime? from,
     DateTime? to,
-    AdminCommentThread? thread,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
+      r'thread': thread?.toJson(),
       r'q': q,
       r'cursor': cursor,
       r'authorId': authorId,
       r'from': from?.toIso8601String(),
       r'to': to?.toIso8601String(),
-      r'thread': thread?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

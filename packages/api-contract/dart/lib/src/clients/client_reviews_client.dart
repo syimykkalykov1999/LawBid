@@ -96,8 +96,8 @@ abstract class ClientReviewsClient {
   @GET('/clients/{id}/reviews')
   Future<ClientReviewListEnvelope> listClientReviews({
     @Path('id') required String id,
+    @Query('sort') ClientReviewsSort? sort = ClientReviewsSort.newest,
     @Query('rating') int? rating,
-    @Query('sort') ClientReviewsSort? sort,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });

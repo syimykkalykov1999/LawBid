@@ -157,7 +157,6 @@ abstract class AssistantsClient {
   /// [from] - From this day (YYYY-MM-DD).
   @GET('/tasks')
   Future<TaskListEnvelope> listTasks({
-    @Query('view') TasksView? view,
     @Query('caseId') String? caseId,
     @Query('assignee') String? assignee,
     @Query('dueFrom') DateTime? dueFrom,
@@ -169,6 +168,7 @@ abstract class AssistantsClient {
     @Query('mine') bool? mine,
     @Query('from') DateTime? from,
     @Query('to') DateTime? to,
+    @Query('view') TasksView? view = TasksView.active,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -206,11 +206,11 @@ abstract class AdminStaffClient {
   /// [workspace] - Owner only; a head always sees just their own workspace.
   @GET('/admin/staff/people')
   Future<StaffPeopleListEnvelope> staffPeople({
+    @Query('sort') StaffRatingSort? sort = StaffRatingSort.worst,
     @Query('limit') num? limit = 50,
     @Query('offset') num? offset = 0,
     @Query('status') StaffRatingStatus? status,
     @Query('workspace') StaffWorkspaceName? workspace,
-    @Query('sort') StaffRatingSort? sort,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -235,11 +235,11 @@ abstract class AdminStaffClient {
   /// [workspace] - Owner only; a head always sees just their own workspace.
   @GET('/admin/staff/suggestions')
   Future<StaffSuggestionListEnvelope> staffSuggestions({
-    @Query('limit') num? limit = 50,
-    @Query('offset') num? offset = 0,
-    @Query('status') StaffSuggestionStatus? status,
     @Query('kind') StaffSuggestionKind? kind,
     @Query('workspace') StaffWorkspaceName? workspace,
+    @Query('status') StaffSuggestionStatus? status = StaffSuggestionStatus.open,
+    @Query('limit') num? limit = 50,
+    @Query('offset') num? offset = 0,
     @Extras() Map<String, dynamic>? extras,
   });
 

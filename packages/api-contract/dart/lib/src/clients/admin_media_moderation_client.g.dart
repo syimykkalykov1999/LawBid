@@ -22,17 +22,17 @@ class _AdminMediaModerationClient implements AdminMediaModerationClient {
 
   @override
   Future<MediaCheckPageEnvelope> listMediaChecks({
-    num? limit = 30,
-    MediaCheckListStatus? status,
     String? cursor,
+    MediaCheckListStatus? status = MediaCheckListStatus.all,
+    num? limit = 30,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'limit': limit,
-      r'status': status?.toJson(),
       r'cursor': cursor,
+      r'status': status?.toJson(),
+      r'limit': limit,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

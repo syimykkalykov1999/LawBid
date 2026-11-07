@@ -64,7 +64,7 @@ abstract class AdminI18nClient {
   @POST('/admin/i18n/import')
   Future<I18nImportReportEnvelope> importTranslations({
     @Part(name: 'file') required MultipartFile file,
-    @Query('mode') I18nImportMode? mode,
+    @Query('mode') I18nImportMode? mode = I18nImportMode.dryRun,
     @Extras() Map<String, dynamic>? extras,
   });
 

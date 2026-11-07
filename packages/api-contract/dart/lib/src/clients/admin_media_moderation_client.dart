@@ -23,9 +23,9 @@ abstract class AdminMediaModerationClient {
   /// [cursor] - created_at of the last row seen.
   @GET('/admin/media-moderation')
   Future<MediaCheckPageEnvelope> listMediaChecks({
-    @Query('limit') num? limit = 30,
-    @Query('status') MediaCheckListStatus? status,
     @Query('cursor') String? cursor,
+    @Query('status') MediaCheckListStatus? status = MediaCheckListStatus.all,
+    @Query('limit') num? limit = 30,
     @Extras() Map<String, dynamic>? extras,
   });
 

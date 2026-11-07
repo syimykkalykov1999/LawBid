@@ -244,19 +244,19 @@ class _AdminOutreachClient implements AdminOutreachClient {
   @override
   Future<OutreachImportReportEnvelope> outreachImportCsv({
     required MultipartFile file,
-    OutreachImportMode? mode,
-    OutreachLeadKind? kind,
     String? partnerId,
     String? sourceNote,
+    OutreachImportMode? mode = OutreachImportMode.dryRun,
+    OutreachLeadKind? kind = OutreachLeadKind.attorney,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'mode': mode?.toJson(),
-      r'kind': kind?.toJson(),
       r'partnerId': partnerId,
       r'sourceNote': sourceNote,
+      r'mode': mode?.toJson(),
+      r'kind': kind?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

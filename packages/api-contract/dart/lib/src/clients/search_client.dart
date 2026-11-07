@@ -221,6 +221,7 @@ abstract class SearchClient {
   @GET('/search/latest-posts')
   Future<PostListEnvelope> latestPosts({
     @Query('period') Period? period = Period.all,
+    @Query('sort') LatestPostsSort? sort = LatestPostsSort.newest,
     @Query('cursor') String? cursor,
     @Query('state') String? state,
     @Query('states') String? states,
@@ -230,7 +231,6 @@ abstract class SearchClient {
     @Query('kind') PostKind? kind,
     @Query('withPhotos') bool? withPhotos,
     @Query('briefsOnly') bool? briefsOnly,
-    @Query('sort') LatestPostsSort? sort,
     @Query('contentClass') PostContentClass? contentClass,
     @Extras() Map<String, dynamic>? extras,
   });

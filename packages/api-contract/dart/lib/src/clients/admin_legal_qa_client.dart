@@ -20,8 +20,8 @@ abstract class AdminLegalQaClient {
   /// [q] - Title or text.
   @GET('/admin/legal-qa/questions')
   Future<AdminQaQuestionListEnvelope> listAdminQuestions({
+    @Query('status') AdminQaStatus? status = AdminQaStatus.all,
     @Query('q') String? q,
-    @Query('status') AdminQaStatus? status,
     @Query('cursor') String? cursor,
     @Query('limit') int? limit,
     @Extras() Map<String, dynamic>? extras,

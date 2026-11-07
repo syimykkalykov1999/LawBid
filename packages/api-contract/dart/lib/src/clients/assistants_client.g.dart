@@ -483,7 +483,6 @@ class _AssistantsClient implements AssistantsClient {
 
   @override
   Future<TaskListEnvelope> listTasks({
-    TasksView? view,
     String? caseId,
     String? assignee,
     DateTime? dueFrom,
@@ -495,12 +494,12 @@ class _AssistantsClient implements AssistantsClient {
     bool? mine,
     DateTime? from,
     DateTime? to,
+    TasksView? view = TasksView.active,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'view': view?.toJson(),
       r'caseId': caseId,
       r'assignee': assignee,
       r'dueFrom': dueFrom?.toIso8601String(),
@@ -512,6 +511,7 @@ class _AssistantsClient implements AssistantsClient {
       r'mine': mine,
       r'from': from?.toIso8601String(),
       r'to': to?.toIso8601String(),
+      r'view': view?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
