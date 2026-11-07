@@ -730,11 +730,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     max: 240,
   };
   // Owner 2026-10-16: fewer SMS.
-  out['sms.login_code_enabled'] = {
-    ...out['sms.login_code_enabled'],
-    description:
-      'Off (default): a registered number signs in with its password; an SMS code goes only to register a new number and to reset a password. On: the old sign-in code works again (rollback).',
-  };
   out['sms.resend_cooldown_seconds'] = {
     ...out['sms.resend_cooldown_seconds'],
     description:

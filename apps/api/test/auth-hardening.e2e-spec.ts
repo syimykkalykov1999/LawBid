@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { OAuth2Client, type LoginTicket } from 'google-auth-library';
 import { createHash } from 'node:crypto';
 import request from 'supertest';
+import { phoneSignIn } from './support/password-login';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -108,24 +109,31 @@ describe('Auth hardening (e2e)', () => {
     await flags.invalidate();
   }
 
+  async function emailCodeSignIn(
+    identifier: string,
+    deviceInfo: Record<string, unknown>,
+  ) {
+    await api()
+      .post('/api/v1/auth/otp/request')
+      .send({ channel: 'email', identifier })
+      .expect(200);
+    return api()
+      .post('/api/v1/auth/otp/verify')
+      .send({ channel: 'email', identifier, code: FIXED_CODE, deviceInfo });
+  }
+
   async function otpLogin(
     channel: 'phone' | 'email',
     identifier: string,
     deviceId: string,
     deviceName = 'Test phone',
   ) {
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel, identifier })
-      .expect(200);
-    const res = await api()
-      .post('/api/v1/auth/otp/verify')
-      .send({
-        channel,
-        identifier,
-        code: FIXED_CODE,
-        deviceInfo: { deviceId, deviceName, platform: 'ios' },
-      });
+    // Owner 2026-11-07: a registered phone signs in with its password.
+    const deviceInfo = { deviceId, deviceName, platform: 'ios' };
+    const res =
+      channel === 'phone'
+        ? await phoneSignIn(app, app.getHttpServer(), identifier, deviceInfo)
+        : await emailCodeSignIn(identifier, deviceInfo);
     // Owner 2026-10-01: another phone signed in → confirm to continue.
     if (res.status === 409) {
       expect(res.body.error.code).toBe('AUTH_OTHER_DEVICE_ACTIVE');
@@ -593,7 +601,7 @@ describe('Auth hardening (e2e)', () => {
       expect(ok.status).toBe(201);
     });
 
-    it('S14-12: a re-authentication code is its own purpose, bound to the session', async () => {
+    it('S14-12 / owner 2026-11-07: no SMS step-up or link code (password only)', async () => {
       const phone = '+12025558702';
       const tokens = await otpLogin('phone', phone, 'reauth-dev');
       const bearer = { Authorization: `Bearer ${tokens.accessToken}` };
@@ -611,36 +619,21 @@ describe('Auth hardening (e2e)', () => {
           .send({ method: 'otp', identifier: phone, code: FIXED_CODE });
         expect(plain.status).toBe(401);
         expect(plain.body.error.code).toBe('REAUTH_INVALID');
-        // The same code asked as `reauth` does.
-        const cool = await redis.keys('*sms-resend*');
-        if (cool.length > 0) await redis.del(...cool);
-        await api()
-          .post('/api/v1/auth/otp/request')
-          .set(bearer)
-          .set('X-Forwarded-For', ipOf(61))
-          .send({ channel: 'phone', identifier: phone, purpose: 'reauth' })
-          .expect(200);
-        await api()
-          .post('/api/v1/auth/reauth')
-          .set(bearer)
-          .send({ method: 'otp', identifier: phone, code: FIXED_CODE })
-          .expect(201);
-        // `reauth` / `link` need a signed-in caller...
-        const anon = await api()
-          .post('/api/v1/auth/otp/request')
-          .send({ channel: 'phone', identifier: phone, purpose: 'reauth' });
-        expect(anon.status).toBe(401);
-        // ...and a reauth code is only for the caller's OWN contact.
-        const foreign = await api()
-          .post('/api/v1/auth/otp/request')
-          .set(bearer)
-          .send({
-            channel: 'phone',
-            identifier: '+12025558799',
-            purpose: 'reauth',
-          });
-        expect(foreign.status).toBe(401);
-        expect(foreign.body.error.code).toBe('REAUTH_INVALID');
+        // Owner 2026-11-07: an SMS is only for registration and a forgotten
+        // password — a step-up / link code by SMS is refused for everyone.
+        for (const purpose of ['reauth', 'link']) {
+          const signedIn = await api()
+            .post('/api/v1/auth/otp/request')
+            .set(bearer)
+            .set('X-Forwarded-For', ipOf(61))
+            .send({ channel: 'phone', identifier: phone, purpose });
+          expect(signedIn.status).toBe(400);
+          expect(signedIn.body.error.code).toBe('VALIDATION_ERROR');
+          const anon = await api()
+            .post('/api/v1/auth/otp/request')
+            .send({ channel: 'phone', identifier: phone, purpose });
+          expect(anon.status).toBe(400);
+        }
       } finally {
         await setting('security.otp_legacy_purpose_fallback', true);
       }

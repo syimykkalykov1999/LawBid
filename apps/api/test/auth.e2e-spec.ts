@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
 import request from 'supertest';
+import { passwordLoginAs } from './support/password-login';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
@@ -125,7 +126,13 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
     it('a second login by the same phone identifier returns isNewUser: false', async () => {
       const identifier = '+12025551002';
       await otpLogin(identifier);
-      const second = await otpLogin(identifier);
+      // Owner 2026-11-07: a registered number signs in with its password.
+      const second = await passwordLoginAs(
+        app,
+        app.getHttpServer(),
+        identifier,
+      );
+      expect(second.status).toBe(201);
       expect(second.body.data.isNewUser).toBe(false);
     });
 
@@ -159,7 +166,7 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
   // -----------------------------------------------------------------
   describe('scenario 2: OTP lockout survives a fresh code request', () => {
     it('locks after 5 wrong attempts and stays locked even for the correct code after a fresh /otp/request', async () => {
-      const identifier = '+12025552001';
+      const identifier = '+12025552099';
       await api()
         .post('/api/v1/auth/otp/request')
         .send({ channel: 'phone', identifier })
@@ -343,13 +350,17 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
         data: { status: 'suspended' },
       });
 
+      // otp/request still answers 200 (and sends nothing: the number is
+      // registered); the account is refused when it signs in.
       await api()
         .post('/api/v1/auth/otp/request')
         .send({ channel: 'phone', identifier })
         .expect(200);
-      const verify = await api()
-        .post('/api/v1/auth/otp/verify')
-        .send({ channel: 'phone', identifier, code: FIXED_CODE });
+      const verify = await passwordLoginAs(
+        app,
+        app.getHttpServer(),
+        identifier,
+      );
       expect(verify.status).toBe(403);
       expect(verify.body.error.code).toBe('ACCOUNT_SUSPENDED');
     });
@@ -363,13 +374,17 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
         data: { status: 'deleted' },
       });
 
+      // otp/request still answers 200 (and sends nothing: the number is
+      // registered); the account is refused when it signs in.
       await api()
         .post('/api/v1/auth/otp/request')
         .send({ channel: 'phone', identifier })
         .expect(200);
-      const verify = await api()
-        .post('/api/v1/auth/otp/verify')
-        .send({ channel: 'phone', identifier, code: FIXED_CODE });
+      const verify = await passwordLoginAs(
+        app,
+        app.getHttpServer(),
+        identifier,
+      );
       expect(verify.status).toBe(403);
       expect(verify.body.error.code).toBe('ACCOUNT_DELETED');
     });
@@ -383,7 +398,11 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
         data: { status: 'deletion_pending', deletion_requested_at: new Date() },
       });
 
-      const relogin = await otpLogin(identifier);
+      const relogin = await passwordLoginAs(
+        app,
+        app.getHttpServer(),
+        identifier,
+      );
       expect(relogin.status).toBe(201); // not rejected, but the request stays
 
       const reloaded = await prisma.user.findUnique({ where: { id: userId } });

@@ -42,8 +42,8 @@ function make(
   };
   const otp = { requestOtp: jest.fn().mockResolvedValue(undefined) };
   const settings = {
-    // The daily cap is about the old sign-in code: switch it on (rollback).
-    boolean: jest.fn(() => Promise.resolve(true)),
+    // The number is new (registration): the cooldown / registration caps pass.
+    number: jest.fn(() => Promise.resolve(1000)),
     storedNumber: jest.fn(() =>
       opts.settingsThrow
         ? Promise.reject(new Error('redis down'))
@@ -59,7 +59,10 @@ function make(
   };
   const none = {} as never;
   const service = new AuthService(
-    none, // prisma (unused: no fraud service)
+    // prisma: only the «is this number registered?» lookup (a new number)
+    {
+      userIdentifier: { findUnique: jest.fn().mockResolvedValue(null) },
+    } as never,
     otp as never,
     rateLimit as never,
     none,

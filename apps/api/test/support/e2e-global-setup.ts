@@ -155,14 +155,19 @@ export default async function globalSetup(): Promise<void> {
     create: { key: 'verification.bar_formats', value: JSON.stringify(loose) },
     update: { value: JSON.stringify(loose) },
   });
-  // Owner 2026-10-16: production sends an SMS code only to a new number and
-  // for a password reset; the suites sign the same numbers in by code again
-  // and again, so they start with the old behaviour (the rollback switch).
-  // The suite about the new rules turns it off itself.
+  // Owner 2026-11-07: a registration code has a resend cooldown and a daily
+  // cap per number; the suites ask for the same new number's code again and
+  // again, so they start with no cooldown and a high cap. The suite about the
+  // rules (owner-sms-rules) sets its own values.
   await seed.appConfig.upsert({
-    where: { key: 'sms.login_code_enabled' },
-    create: { key: 'sms.login_code_enabled', value: true },
-    update: { value: true },
+    where: { key: 'sms.resend_cooldown_seconds' },
+    create: { key: 'sms.resend_cooldown_seconds', value: 0 },
+    update: { value: 0 },
+  });
+  await seed.appConfig.upsert({
+    where: { key: 'sms.registration_per_number_per_day' },
+    create: { key: 'sms.registration_per_number_per_day', value: 100000 },
+    update: { value: 100000 },
   });
   // Owner 2026-10-16: production keeps a new license pending until a registry
   // or a person confirms it, with the bar card where nobody checks the
