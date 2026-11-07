@@ -54,7 +54,7 @@ subset of §7.2's eventual PR-check list it covers today.
   `flutter-version`. Bump the file, not the workflows. Dart for the API
   contract stays pinned in `api-ci.yml`.
 - Container images used by CI (`postgres`, `redis`, `mailhog`, `oasdiff`) and the
-  `node:22-alpine` base of the Dockerfiles are pinned by digest (S11-7/10).
+  `node:26-alpine` base of the Dockerfiles are pinned by digest (S11-7/10).
   Dependabot's `docker` ecosystem bumps the Dockerfiles; the digests inside
   workflows are bumped by hand (`docker buildx imagetools inspect <image:tag>`).
 
