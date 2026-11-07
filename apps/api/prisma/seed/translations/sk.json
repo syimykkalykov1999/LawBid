@@ -3811,6 +3811,8 @@
   "post.video.remove": "Odstrániť video",
   "post.video.trim": "Orezať {start}–{end}",
   "post.viewComments": "Zobraziť všetky komentáre ({count})",
+  "post.window.next": "Ďalší príspevok",
+  "post.window.prev": "Predchádzajúci príspevok",
   "postInner.docs.empty": "Žiadne dokumenty",
   "postInner.documentsCount": "dokumentov: {count}",
   "postInner.info.author": "Autor",

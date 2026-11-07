@@ -3811,6 +3811,8 @@
   "post.video.remove": "Видеону өчүрүү",
   "post.video.trim": "Кесүү {start}–{end}",
   "post.viewComments": "Бардык комментарийлерди көрүү ({count})",
+  "post.window.next": "Кийинки пост",
+  "post.window.prev": "Мурунку пост",
   "postInner.docs.empty": "Документтер жок",
   "postInner.documentsCount": "документ: {count}",
   "postInner.info.author": "Автор",

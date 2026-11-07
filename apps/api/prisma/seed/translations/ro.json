@@ -3811,6 +3811,8 @@
   "post.video.remove": "Elimină videoclipul",
   "post.video.trim": "Taie {start}–{end}",
   "post.viewComments": "Vedeți toate comentariile ({count})",
+  "post.window.next": "Postarea următoare",
+  "post.window.prev": "Postarea anterioară",
   "postInner.docs.empty": "Fără documente",
   "postInner.documentsCount": "documente: {count}",
   "postInner.info.author": "Autor",

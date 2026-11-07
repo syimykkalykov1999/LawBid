@@ -3811,6 +3811,8 @@
   "post.video.remove": "Выдаліць відэа",
   "post.video.trim": "Абрэзаць {start}–{end}",
   "post.viewComments": "Паказаць усе каментарыі ({count})",
+  "post.window.next": "Наступны допіс",
+  "post.window.prev": "Папярэдні допіс",
   "postInner.docs.empty": "Дакументаў няма",
   "postInner.documentsCount": "дакументаў: {count}",
   "postInner.info.author": "Аўтар",

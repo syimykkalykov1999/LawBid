@@ -3811,6 +3811,8 @@
   "post.video.remove": "Ukloni video",
   "post.video.trim": "Iseci {start}–{end}",
   "post.viewComments": "Прикажи све коментаре ({count})",
+  "post.window.next": "Следећа објава",
+  "post.window.prev": "Претходна објава",
   "postInner.docs.empty": "Нема докумената",
   "postInner.documentsCount": "докумената: {count}",
   "postInner.info.author": "Аутор",

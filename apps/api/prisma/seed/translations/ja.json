@@ -3811,6 +3811,8 @@
   "post.video.remove": "動画を削除",
   "post.video.trim": "トリミング {start}–{end}",
   "post.viewComments": "コメントをすべて見る({count})",
+  "post.window.next": "次の投稿",
+  "post.window.prev": "前の投稿",
   "postInner.docs.empty": "書類はありません",
   "postInner.documentsCount": "書類：{count}件",
   "postInner.info.author": "投稿者",

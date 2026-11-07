@@ -3811,6 +3811,8 @@
   "post.video.remove": "ລຶບວິດີໂອ",
   "post.video.trim": "ຕັດ {start}–{end}",
   "post.viewComments": "ເບິ່ງຄວາມຄິດເຫັນທັງໝົດ ({count})",
+  "post.window.next": "ໂພສຕໍ່ໄປ",
+  "post.window.prev": "ໂພສກ່ອນໜ້າ",
   "postInner.docs.empty": "ບໍ່ມີເອກະສານ",
   "postInner.documentsCount": "ເອກະສານ: {count}",
   "postInner.info.author": "ຜູ້ຂຽນ",
