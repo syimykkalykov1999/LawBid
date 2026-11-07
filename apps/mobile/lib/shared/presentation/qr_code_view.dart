@@ -42,7 +42,10 @@ class _QrCodeViewState extends State<QrCodeView> {
   late QrImage _image = _build(widget.data);
 
   static QrImage _build(String data) => QrImage(
-        QrCode.fromData(data: data, errorCorrectLevel: QrErrorCorrectLevel.H),
+        QrCode(
+          payload: QrPayload.fromString(data),
+          errorCorrectLevel: QrErrorCorrectLevel.high,
+        ),
       );
 
   @override
