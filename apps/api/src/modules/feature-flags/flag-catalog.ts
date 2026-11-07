@@ -201,6 +201,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Resumable (multipart) uploads of large files',
   },
   {
+    // Owner 2026-11-05: channel post views go through the counter aggregator
+    // (one multi-row UPDATE every few seconds), not one UPDATE per reader.
+    key: 'channel_views_buffered',
+    enabled: false,
+    app: false,
+    description: 'Channel post views are written to the database in batches',
+  },
+  {
     // Owner 2026-11-05: videos are warmed ahead into the disk cache the player
     // reads, in the stream it will open, and fewer while the viewer flicks.
     // Off until checked on real phones.

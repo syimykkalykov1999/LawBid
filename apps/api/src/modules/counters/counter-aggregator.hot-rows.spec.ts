@@ -21,6 +21,12 @@ describe('COUNTERS hot rows', () => {
       fields: ['post_count'],
       recount: false,
     });
+    expect(COUNTERS.channel_post).toMatchObject({
+      table: 'channel_posts',
+      key: 'id',
+      fields: ['view_count'],
+      recount: false,
+    });
   });
 
   it('only entities with a source table are recounted nightly', () => {
@@ -28,6 +34,6 @@ describe('COUNTERS hot rows', () => {
       .filter(([, d]) => (d as { recount?: boolean }).recount === false)
       .map(([e]) => e)
       .sort();
-    expect(noRecount).toEqual(['case_promotion', 'channel']);
+    expect(noRecount).toEqual(['case_promotion', 'channel', 'channel_post']);
   });
 });

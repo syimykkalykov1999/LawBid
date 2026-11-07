@@ -387,6 +387,9 @@ export class CasesFeedService {
           client_completed_at: true,
           attorney_confirmed_at: true,
           auto_close_at: true,
+          // Ids only: the codes come from a second read (no include across
+          // table families, src/sharding/cross-family-include.spec.ts).
+          extra_practices: { select: { practice_area_id: true } },
         },
       }),
       this.prisma.savedItem.findFirst({
@@ -403,8 +406,16 @@ export class CasesFeedService {
     const media = this.photos
       ? await this.photos.forViewer(caseId, attorneyId)
       : { photos: [], photosCount: 0, privateDetails: null };
+    const extraIds = row.extra_practices.map((e) => e.practice_area_id);
+    const extraAreas = extraIds.length
+      ? await this.prisma.practiceArea.findMany({
+          where: { id: { in: extraIds } },
+          select: { code: true },
+        })
+      : [];
     return {
       ...item,
+      extraPracticeCodes: extraAreas.map((a) => a.code),
       description: row.description,
       isSaved: !!saved,
       ownBidId: ownBid?.id ?? null,

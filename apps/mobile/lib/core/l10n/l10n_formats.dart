@@ -119,7 +119,7 @@ extension L10nDigitsContext on BuildContext {
       final container = ProviderScope.containerOf(this);
       // The language is always live in the app; a bare widget test that
       // never created it gets plain digits (and no stray timers).
-      if (!container.exists(languageControllerProvider)) return '$value';
+      if (!container.read(languageControllerProvider.exists)) return '$value';
       final code = container.read(languageControllerProvider).value?.code;
       return code == null ? '$value' : localizeDigits('$value', code);
     } on Object {
