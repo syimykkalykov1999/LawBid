@@ -114,7 +114,7 @@ export class CaseToolsSweepService {
     );
     for await (const inv of rows) {
       if (!inv.due_at) continue;
-      let status = inv.status;
+      const status = inv.status;
       const money = {
         totalCents: inv.total_cents,
         lateFeeCents: inv.late_fee_cents,
@@ -126,7 +126,6 @@ export class CaseToolsSweepService {
           data: { status: 'overdue' },
         });
         if (count === 0) continue;
-        status = 'overdue';
         result.overdue += 1;
       }
       let lateFee = inv.late_fee_cents;

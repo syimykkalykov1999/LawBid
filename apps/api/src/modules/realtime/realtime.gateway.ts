@@ -1448,7 +1448,7 @@ export class RealtimeGateway
     if (st.relayOnly && t - st.relayOnly.at < RELAY_ONLY_CACHE_MS) {
       return st.relayOnly.on;
     }
-    let on = false;
+    let on: boolean;
     try {
       // The kill switch (`calls.relay_signal_filter`, on by default).
       const enabled =

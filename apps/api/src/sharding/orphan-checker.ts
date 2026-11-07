@@ -154,7 +154,7 @@ export class OrphanChecker {
   ): Promise<OrphanEdgeResult | null> {
     const name = `${e.childTable}.${e.column}->${e.parentTable}.${e.parentColumn}`;
     const curKey = `${CURSOR_PREFIX}${db.key}:${name}`;
-    let cursor: string | null = null;
+    let cursor: string | null;
     try {
       cursor = (await this.redis?.get(curKey)) ?? null;
     } catch {

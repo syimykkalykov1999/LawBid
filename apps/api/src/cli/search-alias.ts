@@ -69,7 +69,7 @@ async function run(): Promise<void> {
           break;
       }
     } catch (e) {
-      if (e instanceof ReindexRefused) throw new Error(e.message);
+      if (e instanceof ReindexRefused) throw new Error(e.message, { cause: e });
       throw e;
     }
   } finally {

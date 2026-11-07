@@ -360,7 +360,7 @@ export class SystemHealthService implements OnModuleInit, OnModuleDestroy {
     // Owner 2026-10-25: the nightly bloat job. Wasted space over the line on
     // a big hot table = yellow (the runbook pg-repack.md says what to do);
     // the reading is optional, never turns the light red.
-    let bloat: Awaited<ReturnType<OpsStateService['bloat']>> = null;
+    let bloat: Awaited<ReturnType<OpsStateService['bloat']>>;
     try {
       bloat = await this.state.bloat();
     } catch {

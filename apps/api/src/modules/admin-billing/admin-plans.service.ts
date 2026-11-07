@@ -275,7 +275,7 @@ export class AdminPlansService {
   private async pushTerms(plan: Plan, notify: boolean): Promise<number> {
     const id = plan.id;
     const snapshot = this.plans.entitlementsOf(plan) as Prisma.InputJsonObject;
-    let recipients: string[] = [];
+    let recipients: string[];
     if (plan.audience === 'attorney') {
       const rows = await this.prisma.subscription.findMany({
         where: { plan_id: id, ...LIVE_ATTORNEY },

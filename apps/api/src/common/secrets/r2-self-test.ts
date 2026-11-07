@@ -24,6 +24,7 @@ async function step<T>(explain: string, run: () => Promise<T>): Promise<T> {
   } catch (e) {
     throw new Error(
       `${explain} (${e instanceof Error ? e.message : String(e)})`,
+      { cause: e },
     );
   }
 }

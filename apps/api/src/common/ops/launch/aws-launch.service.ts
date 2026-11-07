@@ -501,7 +501,7 @@ export class AwsCostService {
       return { date: p.TimePeriod?.Start ?? '', gross, credits };
     });
 
-    let forecastRestGross: number | null = null;
+    let forecastRestGross: number | null;
     if (tomorrow < monthEnd) {
       try {
         const f = await this.c().send(

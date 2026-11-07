@@ -120,7 +120,7 @@ function bidPatchOf(
   p: Record<string, unknown>,
 ): BidPatch | null {
   if (typeof p.bidId !== 'string') return null;
-  let status: string | null = null;
+  let status: string | null;
   switch (kind) {
     case 'bid_new':
     case 'bid_countered':

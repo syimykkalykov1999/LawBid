@@ -1568,7 +1568,7 @@ export class AuthService {
    * value, else OTP_RATE_LIMIT_PER_IDENTIFIER_PER_DAY. A settings read
    * failure falls back to the env (the cap stays on). */
   private async otpDailyLimit(): Promise<number> {
-    let stored: number | null = null;
+    let stored: number | null;
     try {
       stored =
         (await this.settings?.storedNumber(
