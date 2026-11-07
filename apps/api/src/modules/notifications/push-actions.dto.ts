@@ -19,7 +19,8 @@ export class PushActionDto {
   token!: string;
 
   @ApiProperty({
-    description: 'FCM registration token of this device (still signed in).',
+    description:
+      'FCM address of this device (registration token or Firebase Installation ID; still signed in).',
   })
   @IsString()
   @MinLength(10)

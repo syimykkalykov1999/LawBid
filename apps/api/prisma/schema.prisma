@@ -3563,7 +3563,12 @@ model PushToken {
   user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   session_id      String   @db.Uuid
   session         Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  /// The device's FCM address: a registration token (older app versions)
+  /// or, when `token_kind` is "fid", its Firebase Installation ID.
   fcm_token       String   @unique
+  /// 2026-11-07 (FCM HTTP v1 deprecates `message.token` for `message.fid`):
+  /// "token" = legacy registration token, "fid" = Firebase Installation ID.
+  token_kind      String   @default("token")
   platform        String
   /// Owner 2026-10-20: the app on this device keeps its own copy of the
   /// planner reminders (local alarm) and shows the reminder push itself,

@@ -1124,6 +1124,7 @@ erDiagram
     String user_id FK
     String session_id FK
     String fcm_token UK
+    String token_kind
     String platform
     Boolean local_reminders
     Boolean chat_style

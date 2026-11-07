@@ -25,7 +25,7 @@ class PushActionDto {
   /// The signed ticket the chat push carried (data.actionToken).
   final String token;
 
-  /// FCM registration token of this device (still signed in).
+  /// FCM address of this device (registration token or Firebase Installation ID; still signed in).
   final String fcmToken;
   final PushActionDtoAction action;
 
