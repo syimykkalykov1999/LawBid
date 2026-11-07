@@ -98,7 +98,8 @@ export const pageKey = (path: string): string =>
  * as build.mjs reads them (all off by default).
  *
  * Page types of 2026-10-27: attorney posts (SEO_PAGES_POSTS), city hubs
- * (SEO_PAGES_CITIES) and legal Q&A (SEO_PAGES_QA). Each is OFF unless its
+ * (SEO_PAGES_CITIES) and legal Q&A (SEO_PAGES_QA). The admin's switch on
+ * «Продвижение» wins; never decided = the variable. Each is OFF unless its
  * switch is set; while it is off its rows are not even read from the
  * database, and renderSite() builds none of its pages.
  */
@@ -173,12 +174,23 @@ export class SeoGenerateJob {
     }
 
     // The page types of 2026-10-27 read their rows only when switched on.
-    const posts = truthy(this.config.get<string>('SEO_PAGES_POSTS'))
+    const pages = {
+      cities: await this.pageSwitch(
+        'seo.pages_cities_enabled',
+        'SEO_PAGES_CITIES',
+      ),
+      posts: await this.pageSwitch(
+        'seo.pages_posts_enabled',
+        'SEO_PAGES_POSTS',
+      ),
+      qa: await this.pageSwitch('seo.pages_qa_enabled', 'SEO_PAGES_QA'),
+    };
+    const posts = pages.posts
       ? await this.readPosts(
           int(this.config.get<string>('SEO_MAX_POSTS'), DEFAULT_MAX_ROWS),
         )
       : [];
-    const questions = truthy(this.config.get<string>('SEO_PAGES_QA'))
+    const questions = pages.qa
       ? await this.readQuestions(
           int(this.config.get<string>('SEO_MAX_QUESTIONS'), DEFAULT_MAX_ROWS),
         )
@@ -210,10 +222,14 @@ export class SeoGenerateJob {
 
     const { files } = lib.renderSite(
       attorneys,
-      this.renderOptions(lib, args.site, today, workflowManifest, {
-        posts,
-        questions,
-      }),
+      this.renderOptions(
+        lib,
+        args.site,
+        today,
+        workflowManifest,
+        { posts, questions },
+        pages,
+      ),
     );
     const html = new Map<string, string>();
     const hashes: Record<string, string> = {};
@@ -387,6 +403,14 @@ export class SeoGenerateJob {
     }
   }
 
+  /** The admin's choice («Продвижение») wins; never decided = the variable. */
+  private async pageSwitch(key: string, envName: string): Promise<boolean> {
+    const stored = await this.settings!.raw(key);
+    return typeof stored === 'boolean'
+      ? stored
+      : truthy(this.config.get<string>(envName));
+  }
+
   /** The same switches (names and meaning) as scripts/seo/build.mjs. */
   private renderOptions(
     lib: SeoLib,
@@ -394,6 +418,7 @@ export class SeoGenerateJob {
     today: string,
     prev: unknown,
     rows: { posts: SeoPostRow[]; questions: SeoQuestionRow[] },
+    pages: { cities: boolean; posts: boolean; qa: boolean },
   ): SeoRenderOptions {
     const env = (k: string) => this.config.get<string>(k);
     // Thresholds of the 2026-10-27 page types: only set when the variable is,
@@ -429,9 +454,9 @@ export class SeoGenerateJob {
       sitemapMax: lib.clampMax(env('SEO_SITEMAP_MAX')),
       prev,
       // Page types of 2026-10-27: all OFF unless their switch is set.
-      pagesPosts: truthy(env('SEO_PAGES_POSTS')),
-      pagesCities: truthy(env('SEO_PAGES_CITIES')),
-      pagesQa: truthy(env('SEO_PAGES_QA')),
+      pagesPosts: pages.posts,
+      pagesCities: pages.cities,
+      pagesQa: pages.qa,
       adLabel:
         (env('SEO_AD_LABEL') ?? '').toLowerCase() === 'off' ? 'off' : 'ny',
       posts: rows.posts,

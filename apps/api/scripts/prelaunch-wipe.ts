@@ -30,6 +30,7 @@ import {
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import { SecretEnvelope } from '../src/common/secrets/secret-envelope';
+import { r2WipeRefs } from '../src/ops/r2-wipe-refs';
 import {
   cascadeViolations,
   type ForeignKey,
@@ -309,6 +310,7 @@ interface BucketRef {
   name: string;
   client: S3Client;
   versionsOnly: boolean;
+  noVersions?: boolean;
 }
 
 function buckets(): BucketRef[] {
@@ -391,7 +393,8 @@ async function s3Phase(
   execute: boolean,
 ): Promise<void> {
   out('== S3');
-  const list = buckets();
+  // Owner 2026-11-04: the R2 bucket is emptied the same way.
+  const list = [...buckets(), ...(await r2WipeRefs(db))];
   if (list.length === 0) {
     out('  skipped: S3_BUCKET_DOCUMENTS / S3_BUCKET_MEDIA not set');
     return;
@@ -409,7 +412,11 @@ async function s3Phase(
       out(`  ${b.name}: replica, only with --purge-versions`);
       continue;
     }
-    const doomed = await doomedObjects(b, keptKeys, purgeVersions);
+    const doomed = await doomedObjects(
+      b,
+      keptKeys,
+      purgeVersions && !b.noVersions,
+    );
     const byPrefix = new Map<string, number>();
     for (const d of doomed) {
       const p = d.Key.split('/')[0] + '/';

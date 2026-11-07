@@ -525,6 +525,13 @@ export const OWNER_BILLING_GATE_SETTINGS = {
   /** Algo audit M-4: the most the duplicate auto-fix refunds in one UTC day
    * (cents, all attorneys together); above it a refund waits for a person. */
   'billing.duplicate_autorefund_daily_cap_cents': 50_000,
+  /** R-237 (owner 2026-11-05): limits of the automatic refund of a bank
+   * inquiry (the switch is the `dispute_auto_refund` flag, off). Above any of
+   * them the refund waits for a person in «Платежи → Возвраты по спорам». */
+  'billing.dispute_refund_max_cents': 50_000,
+  'billing.dispute_refund_user_limit': 1,
+  'billing.dispute_refund_window_days': 365,
+  'billing.dispute_refund_daily_cap_cents': 100_000,
   // Owner 2026-10-22 (systems checklist §12): Stripe Tax (automatic_tax)
   // on subscriptions, seat purchases, hosted checkouts and our card page.
   // Off until the owner enables Stripe Tax in the Stripe Dashboard
@@ -949,8 +956,10 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   /** Scale audit 2026-10-23: live connections of one person per server. */
   'realtime.max_sockets_per_user': 10,
   /** Owner 2026-10-25: new socket connections per minute from one address
-   * (CGNAT / offices carry many people: generous). 0 = no limit. */
-  'realtime.max_connects_per_ip_per_minute': 120,
+   * (CGNAT / offices carry many people: generous). 0 = no limit. 120 -> 600
+   * on 2026-11-02: the laptop load test (10 000 sockets from one address) was cut
+   * at 482; a university / mobile-operator address carries hundreds of people. */
+  'realtime.max_connects_per_ip_per_minute': 600,
   /** New socket connections per minute from one signed-in person (the
    * identity that is counted; the address only guards sockets with no
    * account). 0 = no limit. */
@@ -1866,6 +1875,12 @@ export const OWNER_SEO_PROMOTION_SETTINGS = {
   'seo.incremental_enabled': false,
   /** /llms.txt and /llms-full.txt (SEO_LLMS). */
   'seo.llms_enabled': false,
+  /** City and city x practice pages (SEO_PAGES_CITIES). */
+  'seo.pages_cities_enabled': false,
+  /** Pages of attorneys' text posts (SEO_PAGES_POSTS). */
+  'seo.pages_posts_enabled': false,
+  /** Reviewed legal question pages (SEO_PAGES_QA). */
+  'seo.pages_qa_enabled': false,
   /** Thin pages: noindex and out of the sitemap (SEO_QUALITY_GATE). */
   'seo.quality_gate_enabled': false,
   /** At most N new pages a day enter the index; 0 = no limit (SEO_RAMP_PER_DAY). */

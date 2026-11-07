@@ -7,9 +7,12 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/add_license_dto.dart';
 import '../models/attach_document_dto.dart';
+import '../models/create_handoff_dto.dart';
 import '../models/selfie_capture_token_envelope.dart';
 import '../models/submit_verification_request_dto.dart';
 import '../models/update_verification_request_dto.dart';
+import '../models/verification_handoff_envelope.dart';
+import '../models/verification_handoff_status_envelope.dart';
 import '../models/verification_overview_envelope.dart';
 import '../models/verification_request_envelope.dart';
 
@@ -74,6 +77,20 @@ abstract class VerificationClient {
   @POST('/verification/requests/{id}/selfie-capture')
   Future<SelfieCaptureTokenEnvelope> issueSelfieCaptureToken({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// R-146: one-time «continue on your phone» code for the ID selfie (10 min, bound to this attorney and request): QR + short link that opens the selfie step in the app
+  @POST('/verification/handoff')
+  Future<VerificationHandoffEnvelope> createVerificationHandoff({
+    @Body() required CreateHandoffDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// R-146: pending / done / expired of an own «continue on your phone» code (the computer polls it every 3 s; the phone checks the link)
+  @GET('/verification/handoff/{token}/status')
+  Future<VerificationHandoffStatusEnvelope> getVerificationHandoffStatus({
+    @Path('token') required String token,
     @Extras() Map<String, dynamic>? extras,
   });
 

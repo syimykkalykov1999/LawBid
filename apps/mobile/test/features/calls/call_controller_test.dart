@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
@@ -17,6 +18,8 @@ import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+
+import 'call_audio_fakes.dart';
 
 /// OQ-041: the call state machine — ring out, pick-up, signaling,
 /// hang-up; ring in, accept, decline; busy; refusals; answered on another
@@ -547,6 +550,7 @@ class _Harness {
         callsRepositoryProvider.overrideWithValue(repo),
         callClockProvider.overrideWithValue(() => now()),
         callMediaFactoryProvider.overrideWithValue(() => media),
+        callAudioDevicesProvider.overrideWithValue(audio),
         realtimeEventsProvider.overrideWithValue(events.stream),
         appSoundsProvider.overrideWithValue(sounds),
         callForegroundProvider.overrideWithValue(foreground),
@@ -579,6 +583,7 @@ class _Harness {
   final foreground = _FakeForeground();
   final systemUi = _SystemUi();
   final media = _FakeMedia();
+  final audio = FakeCallAudioDevices();
   final events = StreamController<RealtimeEvent>.broadcast();
   final signals = <Map<String, Object?>>[];
   final signalTargets = <String?>[];
@@ -1792,6 +1797,116 @@ void main() {
       await _settle();
       expect(h.s.call?.vote, isNull);
       expect(h.s.notice, '$kNoticeVotePassed:p2');
+    });
+  });
+
+  group('headphones (owner 2026-11-04, WhatsApp)', () {
+    Future<_Harness> talking() async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      await _settle();
+      h.media.onState!(CallMediaState.connected);
+      await _settle();
+      return h;
+    }
+
+    test('a headset connected before the call takes its sound', () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.audio.list = [
+        FakeCallAudioDevices.phoneOut,
+        FakeCallAudioDevices.speakerOut,
+        FakeCallAudioDevices.btOut,
+      ];
+      await h.c.call('conv', peer: _peer);
+      await _settle();
+      final route = h.container.read(callAudioRouterProvider);
+      expect(h.audio.used, [FakeCallAudioDevices.btOut]);
+      expect(route.current, FakeCallAudioDevices.btOut);
+      expect(route.choice, isTrue);
+      expect(h.c.audioChoice, isTrue);
+      expect(h.s.speaker, isFalse);
+      await h.c.hangUp();
+      // The route is let go with the call.
+      expect(h.container.read(callAudioRouterProvider).current, isNull);
+    });
+
+    test('plugged in mid-call: the sound moves there; out: back to the ear',
+        () async {
+      final h = await talking();
+      expect(h.c.audioChoice, isFalse);
+      h.audio.connect(FakeCallAudioDevices.wiredOut);
+      await _settle();
+      expect(h.audio.used, [FakeCallAudioDevices.wiredOut]);
+      expect(
+        h.container.read(callAudioRouterProvider).current,
+        FakeCallAudioDevices.wiredOut,
+      );
+      expect(h.c.audioChoice, isTrue);
+
+      h.audio.disconnect(FakeCallAudioDevices.wiredOut);
+      await _settle();
+      // A voice call: the earpiece (the system's headset-first choice).
+      expect(h.audio.autos, [false]);
+      expect(
+        h.container.read(callAudioRouterProvider).current?.kind,
+        CallAudioKind.phone,
+      );
+      await h.c.hangUp();
+    });
+
+    test('the speaker chosen in the list; the button shows it', () async {
+      final h = await talking();
+      h.audio.connect(FakeCallAudioDevices.btOut);
+      await _settle();
+      expect(h.s.speaker, isFalse);
+      await h.c.selectAudioOutput(FakeCallAudioDevices.speakerOut);
+      await _settle();
+      expect(h.audio.used.last, FakeCallAudioDevices.speakerOut);
+      expect(h.s.speaker, isTrue);
+      // Back to the headset.
+      await h.c.selectAudioOutput(FakeCallAudioDevices.btOut);
+      await _settle();
+      expect(h.s.speaker, isFalse);
+      expect(h.container.read(callAudioRouterProvider).inHeadset, isTrue);
+      await h.c.hangUp();
+    });
+
+    test('the camera switched on keeps the sound in the headset', () async {
+      final h = await talking();
+      h.audio.connect(FakeCallAudioDevices.btOut);
+      await _settle();
+      await h.c.toggleVideo();
+      expect(h.s.video, isTrue);
+      // No loudspeaker forced past the headset (it used to be).
+      expect(h.s.speaker, isFalse);
+      expect(h.media.speaker, isNot(isTrue));
+      // Taken off in a video call: the loudspeaker.
+      h.audio.disconnect(FakeCallAudioDevices.btOut);
+      await _settle();
+      expect(h.audio.autos, [true]);
+      expect(h.s.speaker, isTrue);
+      await h.c.hangUp();
+    });
+
+    test('no headset: the speaker button switches the speaker as before',
+        () async {
+      final h = await talking();
+      await h.c.toggleSpeaker();
+      expect(h.media.speaker, isTrue);
+      expect(
+        h.container.read(callAudioRouterProvider).current?.kind,
+        CallAudioKind.speaker,
+      );
+      await h.c.toggleSpeaker();
+      expect(h.media.speaker, isFalse);
+      expect(h.audio.used, isEmpty);
+      await h.c.hangUp();
     });
   });
 

@@ -165,6 +165,15 @@ jobs:
         with:
           name: android-${{ env.FLAVOR }}-aab
           path: apps/mobile/build/app/outputs/bundle/*/*.aab
+      # Owner 2026-11-02: the Dart symbols of the obfuscated build, kept for every
+      # release (a crash stack of build_id X is unreadable without them). Not
+      # shipped in the app. docs/runbooks/STORE_RELEASE.md §6 (flutter symbolize).
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-${{ env.FLAVOR }}-symbols
+          path: apps/mobile/build/symbols/android
+          retention-days: 400
+          if-no-files-found: error
       - name: Upload to Play Internal testing (owner-triggered only)
         if: ${{ inputs.upload == true && env.FLAVOR == 'prod' }}
         working-directory: apps/mobile/android
@@ -291,6 +300,13 @@ jobs:
         with:
           name: ios-${{ env.FLAVOR }}-ipa
           path: ${{ runner.temp }}/ipa/*.ipa
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: env.SKIP_IOS != '1'
+        with:
+          name: ios-${{ env.FLAVOR }}-symbols
+          path: apps/mobile/build/symbols/ios
+          retention-days: 400
+          if-no-files-found: error
       - name: Upload to TestFlight (owner-triggered only)
         if: ${{ env.SKIP_IOS != '1' && inputs.upload == true && env.FLAVOR == 'prod' }}
         working-directory: apps/mobile/ios

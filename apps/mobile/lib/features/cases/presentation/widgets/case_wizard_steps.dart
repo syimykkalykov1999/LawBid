@@ -1170,7 +1170,9 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
         ),
         CaseOptionPicker<_BudgetKind>(
           label: t.t('cases.create.budget.title'),
-          value: _chosen ? kind : null,
+          // Owner 2026-11-06: a new case stands on «Уточню позже», list open.
+          value: kind,
+          startOpen: !_chosen,
           options: [
             CaseOption(
               _BudgetKind.amount,

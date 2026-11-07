@@ -39,10 +39,10 @@ describe('Продвижение: texts match the API catalog', () => {
     }
   });
 
-  it('switches that matter carry a warning, and the order has five steps', () => {
+  it('switches that matter carry a warning, and the order has six steps', () => {
     expect(switchInfo('seo.quality_gate_enabled')?.warn).toContain('пробный запуск');
     expect(switchInfo('seo.sitemap_index_enabled')?.warn).toContain('Search Console');
-    expect(ORDER_STEPS).toHaveLength(5);
+    expect(ORDER_STEPS).toHaveLength(6);
     expect(switchInfo('seo.generator_mode')?.choices?.map((c) => c.value)).toEqual(['off', 'nightly', 'nightly+events']);
   });
 

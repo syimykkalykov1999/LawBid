@@ -52,6 +52,7 @@ import { CrashReportsService } from '../modules/crash-reports/crash-reports.serv
 import { SearchLogService } from '../modules/search/search-log.service';
 import { SearchSynonymsService } from '../modules/search/search-synonyms.service';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
+import { TopicCoversJob } from '../modules/search/topic-covers.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
@@ -215,6 +216,7 @@ export class JobsModule {
         CountersReconcileJob,
         FeedRecoJob,
         TrendingTagsJob,
+        TopicCoversJob,
         SearchLogService,
         SearchSynonymsService,
         CrashReportsService,

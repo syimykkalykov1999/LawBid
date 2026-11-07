@@ -69,11 +69,42 @@ const CASES: Case[] = [
         auth as never,
         {} as never,
         {} as never,
+        {} as never,
       ).createRefund(actor, {
         paymentId: 'p1',
         amountCents: 100,
         reason: 'Customer asked twice',
       }),
+  },
+  {
+    name: 'POST /admin/billing/dispute-refunds/:id/approve',
+    method: 'approve',
+    run: (auth, svc) =>
+      new AdminBillingController(
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        auth as never,
+        {} as never,
+        {} as never,
+        svc as never,
+      ).approveDisputeRefund(actor, { id: 'r1' }),
+  },
+  {
+    name: 'POST /admin/billing/dispute-refunds/:id/reject',
+    method: 'reject',
+    run: (auth, svc) =>
+      new AdminBillingController(
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        auth as never,
+        {} as never,
+        {} as never,
+        svc as never,
+      ).rejectDisputeRefund(actor, { id: 'r1' }, { note: 'Answer the bank' }),
   },
   {
     name: 'POST /admin/case-payments/:id/refund',

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -21,6 +22,8 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
+import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
+    show PickedChatFile, droppedChatFiles;
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
@@ -40,6 +43,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_topic_list.dar
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show GoldRingAvatar;
+import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// A group chat (or one topic of a forum group): header with the group and
@@ -290,12 +294,40 @@ class _GroupConversationScreenState
       );
       return;
     }
+    // R-255: the queue and the disk, not memory; off = as before.
+    final fromDisk = ref
+        .read(featureFlagsControllerProvider)
+        .isEnabled('group_files_from_disk');
     final files = await pickGroupFiles(
       context,
       t,
       choice,
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
+      fromDisk: fromDisk,
     );
+    await _sendFiles(files, fromDisk: fromDisk);
+  }
+
+  /// Files dragged onto the group in the browser go out like picked ones.
+  Future<void> _drop(List<XFile> dropped) async {
+    final files = await droppedChatFiles(
+      context,
+      ref.read(translatorProvider),
+      dropped,
+      limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
+    );
+    await _sendFiles(
+      files,
+      fromDisk: ref
+          .read(featureFlagsControllerProvider)
+          .isEnabled('group_files_from_disk'),
+    );
+  }
+
+  Future<void> _sendFiles(
+    List<PickedChatFile> files, {
+    required bool fromDisk,
+  }) async {
     if (files.isEmpty || !mounted) return;
     final caption = _text.text.trim();
     if (caption.isNotEmpty) _text.clear();
@@ -305,6 +337,22 @@ class _GroupConversationScreenState
     final chat = ref.read(chatRepositoryProvider);
     setState(() => _uploading++);
     try {
+      if (fromDisk) {
+        for (var i = 0; i < files.length; i++) {
+          final f = files[i];
+          await thread.queueAttachment(
+            bytes: f.bytes,
+            path: f.path,
+            name: f.name,
+            mime: f.mime,
+            caption:
+                i == files.length - 1 && caption.isNotEmpty ? caption : null,
+            replyToId: i == 0 ? reply?.id : null,
+          );
+        }
+        _toBottom();
+        return;
+      }
       // R-251: several files go up together, then the messages in order. With
       // the flag off, one after another as before.
       await uploadThenSendInOrder(
@@ -812,20 +860,24 @@ class _GroupConversationScreenState
                 : null,
           ),
         Expanded(
-          child: Stack(
-            children: [
-              Positioned.fill(child: list),
-              if (_showDown)
-                PositionedDirectional(
-                  end: AppSpacing.screenSide,
-                  bottom: AppSpacing.md,
-                  child: _DownButton(
-                    count: _unreadAway,
-                    label: t.t('group.conv.toBottom'),
-                    onTap: _toBottom,
+          child: FileDropZone(
+            enabled: canWrite && detail.canSendMedia,
+            onFiles: (f) => unawaited(_drop(f)),
+            child: Stack(
+              children: [
+                Positioned.fill(child: list),
+                if (_showDown)
+                  PositionedDirectional(
+                    end: AppSpacing.screenSide,
+                    bottom: AppSpacing.md,
+                    child: _DownButton(
+                      count: _unreadAway,
+                      label: t.t('group.conv.toBottom'),
+                      onTap: _toBottom,
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
         if (canWrite)

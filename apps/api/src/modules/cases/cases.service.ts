@@ -1434,7 +1434,8 @@ export class CasesService {
     return {
       items: page.map((k) => ({
         ...toSummaryDto(k, t, stale),
-        coverUrl: covers.get(k.id) ?? null,
+        coverUrl: covers.get(k.id)?.url ?? null,
+        coverBlurhash: covers.get(k.id)?.blurhash ?? null,
       })),
       nextCursor:
         !since && rows.length > limit && last

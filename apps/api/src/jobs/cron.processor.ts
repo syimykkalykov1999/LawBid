@@ -41,6 +41,7 @@ import { CrashReportsService } from '../modules/crash-reports/crash-reports.serv
 import { SearchLogService } from '../modules/search/search-log.service';
 import { SearchSynonymsService } from '../modules/search/search-synonyms.service';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
+import { TopicCoversJob } from '../modules/search/topic-covers.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
@@ -142,6 +143,7 @@ export class CronProcessor {
     private readonly countersReconcile: CountersReconcileJob,
     private readonly feedReco: FeedRecoJob,
     private readonly trendingTags: TrendingTagsJob,
+    private readonly topicCovers: TopicCoversJob,
     private readonly notificationsRetention: NotificationsRetentionJob,
     private readonly anonymization: AccountAnonymizationService,
     private readonly journalRetention: JournalRetentionService,
@@ -353,6 +355,8 @@ export class CronProcessor {
         return this.feedReco.run();
       case CRON_JOBS.trendingTags:
         return this.trendingTags.run();
+      case CRON_JOBS.topicCovers:
+        return this.topicCovers.run();
       case CRON_JOBS.searchLearn:
         return this.searchLog?.learn();
       case CRON_JOBS.crashesPurge:

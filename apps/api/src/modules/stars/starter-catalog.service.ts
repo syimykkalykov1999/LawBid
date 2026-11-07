@@ -94,7 +94,7 @@ export class StarterCatalogService implements OnApplicationBootstrap {
     const catalog = JSON.parse(
       readFileSync(join(dir, 'catalog.json'), 'utf8'),
     ) as Catalog;
-    const bucket = this.storage.bucket('media');
+    const bucket = await this.storage.resolveBucket('media');
 
     // The owner of the files is a system account of its own, so deleting a
     // real user (File.owner is Restrict) never meets these images.

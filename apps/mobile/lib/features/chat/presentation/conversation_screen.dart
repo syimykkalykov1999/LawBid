@@ -60,6 +60,8 @@ import 'package:lawbid/features/chat/presentation/message_actions.dart';
 import 'package:lawbid/features/chat/presentation/quick_replies_sheet.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/consultations/presentation/consultation_chat_card.dart';
+import 'package:lawbid/features/groups/application/chat_list_merge.dart'
+    show caseChatsWithProvider;
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
@@ -73,6 +75,7 @@ import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 int get kMessageMaxChars => TextLimits.of(TextLimit.chatMessage);
@@ -274,7 +277,25 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       onPlace: () => unawaited(_sendPlace()),
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
       prepareVideo: _prepareVideo,
+      fromDisk: ref
+          .read(featureFlagsControllerProvider)
+          .isEnabled('chat_files_from_disk'),
     );
+    await _previewAndSend(files);
+  }
+
+  /// Files dragged onto the chat in the browser: the same preview.
+  Future<void> _drop(List<XFile> dropped) async {
+    final files = await droppedChatFiles(
+      context,
+      ref.read(translatorProvider),
+      dropped,
+      limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
+    );
+    await _previewAndSend(files);
+  }
+
+  Future<void> _previewAndSend(List<PickedChatFile> files) async {
     if (files.isEmpty || !mounted) return;
     // Owner 2026-10-22 (WhatsApp): nothing is sent yet - the preview opens
     // (big picture, thumbnails, caption, rotate / crop); the typed text is
@@ -539,6 +560,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                         icon: AppIcons.lockOutlineRounded,
                         text: t.t('chat.closed'),
                       ),
+                    // R-404 (b): under the header of a direct chat, the case
+                    // chats with this person (only when there are some).
+                    if (c != null && c.isDirect && c.counterpart.id != null)
+                      CasesWithPersonRow(userId: c.counterpart.id!),
                     Consumer(
                       builder: (context, ref, _) => PinnedBanner(
                         state: ref.watch(thread),
@@ -546,11 +571,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                       ),
                     ),
                     Expanded(
-                      child: Consumer(
-                        builder: (context, ref, _) => _MessageList(
-                          key: _listKey,
-                          state: ref.watch(thread.select(_ListSlice.new)).s,
-                          onMore: _thread.loadMore,
+                      child: FileDropZone(
+                        enabled: c != null &&
+                            !c.closed &&
+                            c.contactsUnlocked &&
+                            ref.watch(canDoProvider(AssistantDuty.files)),
+                        onFiles: (f) => unawaited(_drop(f)),
+                        child: Consumer(
+                          builder: (context, ref, _) => _MessageList(
+                            key: _listKey,
+                            state: ref.watch(thread.select(_ListSlice.new)).s,
+                            onMore: _thread.loadMore,
+                          ),
                         ),
                       ),
                     ),
@@ -2068,6 +2100,58 @@ class _TypingDotsState extends State<_TypingDots>
           ),
         );
       },
+    );
+  }
+}
+
+/// R-404 (b) (owner 2026-11-04, Telegram: one person = one row in Chats):
+/// the direct chat's row «Cases with this person (N)», shown only while N > 0;
+/// a tap lists those case chats (the same rows as the Chats list) and opens
+/// one. The count comes from the chats list in memory — no request.
+class CasesWithPersonRow extends ConsumerWidget {
+  const CasesWithPersonRow({required this.userId, super.key});
+
+  final String userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final cases = ref.watch(caseChatsWithProvider(userId));
+    if (cases.isEmpty) return const SizedBox.shrink();
+    return AppListRow(
+      key: const ValueKey('chat-cases-with-person'),
+      icon: AppIcons.balanceRounded,
+      dense: true,
+      label: t.t('chat.casesWith', {'count': context.digits(cases.length)}),
+      onTap: () => showAppBottomSheet<void>(
+        context: context,
+        builder: (sheet) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: AppSpacing.sm),
+              const AppSheetHandle(),
+              // The same rows as the Chats list, the newest first.
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final c in ref.read(caseChatsWithProvider(userId)))
+                      KeyedSubtree(
+                        key: ValueKey('chat-case-with-${c.id}'),
+                        child: ConversationRow(
+                          conversation: c,
+                          showAwaiting: true,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

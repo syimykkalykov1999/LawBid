@@ -31,9 +31,21 @@ final _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
 );
 
-PickedFile _img(String name) => (bytes: _png, name: name, mime: 'image/png');
+PickedFile _img(String name) => (
+      bytes: _png,
+      name: name,
+      mime: 'image/png',
+      path: null,
+      diskBytes: null,
+    );
 
-typedef PickedFile = ({Uint8List bytes, String name, String mime});
+typedef PickedFile = ({
+  Uint8List bytes,
+  String name,
+  String mime,
+  String? path,
+  int? diskBytes,
+});
 
 class _Chat implements ChatRepository {
   final sent = <String>[];
@@ -291,7 +303,15 @@ void main() {
   testWidgets('a video or a document has no rotate / crop', (tester) async {
     await _open(
       tester,
-      [(bytes: Uint8List(10), name: 'clip.mp4', mime: 'video/mp4')],
+      [
+        (
+          bytes: Uint8List(10),
+          name: 'clip.mp4',
+          mime: 'video/mp4',
+          path: null,
+          diskBytes: null,
+        ),
+      ],
     );
     expect(find.byKey(const ValueKey('preview-rotate')), findsNothing);
     expect(find.byKey(const ValueKey('preview-crop')), findsNothing);

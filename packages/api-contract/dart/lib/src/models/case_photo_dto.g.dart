@@ -12,6 +12,7 @@ CasePhotoDto _$CasePhotoDtoFromJson(Map<String, dynamic> json) => CasePhotoDto(
   previewUrl: json['previewUrl'] as String,
   mime: json['mime'] as String,
   sizeBytes: (json['sizeBytes'] as num).toInt(),
+  blurhash: json['blurhash'] as String?,
 );
 
 Map<String, dynamic> _$CasePhotoDtoToJson(CasePhotoDto instance) =>
@@ -21,4 +22,5 @@ Map<String, dynamic> _$CasePhotoDtoToJson(CasePhotoDto instance) =>
       'previewUrl': instance.previewUrl,
       'mime': instance.mime,
       'sizeBytes': instance.sizeBytes,
+      'blurhash': ?instance.blurhash,
     };

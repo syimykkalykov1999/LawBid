@@ -384,7 +384,7 @@ String notificationText(Translator t, AppNotification n) {
   }
   if (n.type == 'subscription_status') {
     final k = n.payload['kind'];
-    if (k == 'contract' || k == 'contract_revoked') {
+    if (k == 'contract' || k == 'contract_revoked' || k == 'dispute_refund') {
       return t.t('notif.list.subscription_status.$k');
     }
     // Owner 2026-10-05: the admin answered a request for more assistants.

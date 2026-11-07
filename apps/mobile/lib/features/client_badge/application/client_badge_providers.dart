@@ -10,3 +10,13 @@ final clientBadgeRepositoryProvider = Provider<ClientBadgeRepository>(
 final clientBadgeProvider = FutureProvider.autoDispose<ClientBadgeState>(
   (ref) => ref.watch(clientBadgeRepositoryProvider).me(),
 );
+
+/// Owner 2026-11-04 (R-398): whether this client wears the gold badge now —
+/// what «Рилсы: публикация клиентами → Только с галочкой» looks at. Kept
+/// for the session (not autoDispose): one request, asked only while that
+/// mode is on and only by a client; the badge screen invalidates it when
+/// the state changes. Unknown (loading, offline) counts as «no badge».
+final clientBadgeActiveProvider = FutureProvider<bool>(
+  (ref) async =>
+      (await ref.watch(clientBadgeRepositoryProvider).me()).badgeActive,
+);

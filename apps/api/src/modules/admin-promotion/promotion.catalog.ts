@@ -15,6 +15,9 @@ export const SEO_SWITCH_KEYS = [
   'seo.llms_enabled',
   'seo.quality_gate_enabled',
   'seo.ramp_per_day',
+  'seo.pages_cities_enabled',
+  'seo.pages_posts_enabled',
+  'seo.pages_qa_enabled',
   'seo.generator_mode',
 ] as const;
 
@@ -47,6 +50,9 @@ export const PUBLIC_SEO_FIELDS = {
   llms: 'seo.llms_enabled',
   qualityGate: 'seo.quality_gate_enabled',
   rampPerDay: 'seo.ramp_per_day',
+  pagesCities: 'seo.pages_cities_enabled',
+  pagesPosts: 'seo.pages_posts_enabled',
+  pagesQa: 'seo.pages_qa_enabled',
 } as const;
 
 export type PublicSeoField = keyof typeof PUBLIC_SEO_FIELDS;

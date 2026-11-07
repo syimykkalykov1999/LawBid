@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:drift/native.dart';
@@ -110,6 +111,63 @@ Future<void> _settle() =>
 /// through the persistent upload queue — an album keeps its order, the
 /// message id never changes between tries, offline keeps «sending».
 void main() {
+  test('R-255: a file on disk is copied to the queue and sent from there',
+      () async {
+    final dir = Directory.systemTemp.createTempSync('picked');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final picked = File('${dir.path}/report.pdf')
+      ..writeAsBytesSync(List<int>.filled(4096, 7));
+    final chat = _Chat();
+    final uploader = FakeStorageUploader();
+    final c = _container(chat, uploader);
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+    final thread = c.read(chatThreadProvider('c1').notifier);
+    await thread.sendAttachment(
+      bytes: Uint8List(0),
+      path: picked.path,
+      diskBytes: 4096,
+      name: 'report.pdf',
+      mime: 'application/pdf',
+    );
+    await c.read(chatMediaOutboxProvider).drain();
+    await _settle();
+    expect(chat.sent, ['report.pdf']);
+    expect(uploader.uploads.single.size, 4096);
+    expect(picked.existsSync(), isTrue, reason: "the user's file stays");
+  });
+
+  test('R-255: files on disk and in memory keep the picked order', () async {
+    final dir = Directory.systemTemp.createTempSync('picked');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final picked = File('${dir.path}/2.pdf')
+      ..writeAsBytesSync(List<int>.filled(50, 1));
+    final chat = _Chat();
+    final c = _container(chat, FakeStorageUploader());
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+    final thread = c.read(chatThreadProvider('c1').notifier);
+    final first = thread.sendAttachment(
+      bytes: Uint8List.fromList([1]),
+      name: '1.pdf',
+      mime: 'application/pdf',
+    );
+    final second = thread.sendAttachment(
+      bytes: Uint8List(0),
+      path: picked.path,
+      diskBytes: 50,
+      name: '2.pdf',
+      mime: 'application/pdf',
+      after: first,
+    );
+    await second;
+    await c.read(chatMediaOutboxProvider).drain();
+    await _settle();
+    expect(chat.sent, ['1.pdf', '2.pdf']);
+  });
+
   test('an album is uploaded and sent in the picked order', () async {
     final chat = _Chat();
     final uploader = FakeStorageUploader();

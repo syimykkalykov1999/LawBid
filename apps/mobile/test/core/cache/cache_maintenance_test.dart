@@ -169,6 +169,70 @@ void main() {
     expect(r.of(CacheStore.video), 0);
   });
 
+  group('leaving the account', () {
+    final sent = DateTime(2026, 11, 5);
+
+    Future<void> seed(String owner) async {
+      await db.putMessages(owner, 'chat-1', [
+        (id: 'm-$owner', createdAt: sent, json: '{"body":"private"}'),
+      ]);
+      await db.setConversationSync(
+        owner: owner,
+        conversationId: 'chat-1',
+        now: sent,
+        newestId: 'm-$owner',
+        complete: true,
+      );
+      await db.setSyncedAt(owner, 'inbox', sent);
+    }
+
+    test('photos, voice notes, half-loaded notes and video go', () async {
+      final photo = write('chat/a', 100);
+      final note = write('voice_cache_1.m4a', 50);
+      final part = write('voice_cache_2.m4a.part', 50);
+      final clip = write('video/a', 100);
+      final picture = write('images/a', 100);
+
+      expect(await maintenance({}).clearAccountData(), isTrue);
+
+      for (final f in [photo, note, part, clip, picture]) {
+        expect(f.existsSync(), isFalse, reason: f.path);
+      }
+    });
+
+    test('the history goes together with its sync marks', () async {
+      await seed('user-a');
+
+      await maintenance({}).clearAccountData();
+
+      expect(await db.messagesOf('user-a', 'chat-1'), isEmpty);
+      // No mark left: the same person's next sign-in loads everything again.
+      expect(await db.conversationSyncOf('user-a', 'chat-1'), isNull);
+      expect(await db.syncedAt('user-a', 'inbox'), isNull);
+    });
+
+    test('the account signing in keeps its rows, the other one goes', () async {
+      await seed('user-a');
+      await seed('user-b');
+
+      await maintenance({}).clearAccountData(keepOwner: 'user-b');
+
+      expect(await db.messagesOf('user-a', 'chat-1'), isEmpty);
+      expect(await db.conversationSyncOf('user-a', 'chat-1'), isNull);
+      expect(await db.messagesOf('user-b', 'chat-1'), hasLength(1));
+      expect(await db.conversationSyncOf('user-b', 'chat-1'), isNotNull);
+    });
+
+    test('the same person back: history can be stored again', () async {
+      await seed('user-a');
+      await maintenance({}).clearAccountData();
+
+      await seed('user-a');
+
+      expect(await db.messagesOf('user-a', 'chat-1'), hasLength(1));
+    });
+  });
+
   test('clear(video) empties the folder and answers true', () async {
     write('video/a', 100);
     final m = maintenance({});

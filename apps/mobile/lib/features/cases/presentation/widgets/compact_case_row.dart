@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
+import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart'
+    show blurhashStandIn;
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
@@ -24,6 +26,7 @@ class CompactCaseRow extends StatelessWidget {
     required this.onTap,
     this.description,
     this.coverUrl,
+    this.coverBlurhash,
     this.coverKey,
     this.coverSeed,
     this.categoryCode,
@@ -46,6 +49,9 @@ class CompactCaseRow extends StatelessWidget {
 
   /// The case's first photo, when this viewer may see it.
   final String? coverUrl;
+
+  /// R-248: its BlurHash, drawn while the photo loads (Instagram-style).
+  final String? coverBlurhash;
 
   /// The client's chosen cover (`art:N` / `icon:name`); null = a neutral
   /// tile with the practice icon.
@@ -91,7 +97,8 @@ class CompactCaseRow extends StatelessWidget {
             cacheManager: AppImageCaches.feed,
             fit: BoxFit.cover,
             memCacheWidth: 200,
-            placeholder: (_, __) => ColoredBox(color: colors.skeletonBase),
+            placeholder: (_, __) =>
+                blurhashStandIn(coverBlurhash, colors.skeletonBase),
             errorWidget: (_, __, ___) => neutral,
           )
         : coverKey != null
