@@ -156,7 +156,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22.23.4"
+          node-version: "26.12.1"
           # GitHub-hosted: restore + save as before. Self-hosted: never save (the upload
           # took 17 min in "Post setup-node" on the loaded laptop, 2026-11-02); the
           # restore-only step below + the per-runner ~/.npm volume replace it.
@@ -305,9 +305,11 @@ jobs:
           # Base = the main commit this PR was built on (merge-base), NOT the tip of
           # main now: while the PR waited for runners main gained new endpoints and
           # the tip looked like "endpoints removed" (false breaking, CI audit 02.11).
+          # $RUNNER_TEMP, not /tmp: on the self-hosted runners only the workspace is
+          # visible to the Docker sidecar that runs the container below.
           BASE=$(git merge-base HEAD "origin/${{ github.base_ref }}")
-          git show "$BASE:packages/api-contract/openapi.json" > /tmp/openapi.base.json
-          docker run --rm -v /tmp/openapi.base.json:/base.json -v "$PWD/packages/api-contract/openapi.json:/head.json" \
+          git show "$BASE:packages/api-contract/openapi.json" > "$RUNNER_TEMP/openapi.base.json"
+          docker run --rm -v "$RUNNER_TEMP/openapi.base.json:/base.json" -v "$PWD/packages/api-contract/openapi.json:/head.json" \
             -v "$PWD/packages/api-contract/oasdiff-err-ignore.txt:/err-ignore.txt" \
             tufin/oasdiff@sha256:3e5346a0615610adda11ef9cbdab330d00e8b9619103be0f7ef4942ae8d78cef breaking --fail-on ERR --err-ignore /err-ignore.txt /base.json /head.json
 
@@ -430,7 +432,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22.23.4"
+          node-version: "26.12.1"
           # GitHub-hosted: restore + save as before. Self-hosted: never save (the upload
           # took 17 min in "Post setup-node" on the loaded laptop, 2026-11-02); the
           # restore-only step below + the per-runner ~/.npm volume replace it.
@@ -554,7 +556,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22.23.4"
+          node-version: "26.12.1"
           # GitHub-hosted: restore + save as before. Self-hosted: never save (the upload
           # took 17 min in "Post setup-node" on the loaded laptop, 2026-11-02); the
           # restore-only step below + the per-runner ~/.npm volume replace it.
@@ -683,7 +685,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.mig.outputs.changed == 'true'
         with:
-          node-version: "22.23.4"
+          node-version: "26.12.1"
           # GitHub-hosted: restore + save as before. Self-hosted: never save (the upload
           # took 17 min in "Post setup-node" on the loaded laptop, 2026-11-02); the
           # restore-only step below + the per-runner ~/.npm volume replace it.
