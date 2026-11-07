@@ -36,7 +36,6 @@ describe('switch contract: defaults (a)', () => {
     ['images.avif_enabled', false],
     ['case_fanout.enabled', false],
     ['billing.stripe_tax_enabled', false],
-    ['sms.login_code_enabled', false],
     ['rewards.enabled', false],
     ['security.turnstile.mode', 'off'],
     ['security.app_check.mode', 'monitor'],
@@ -256,7 +255,7 @@ describe('billing.stripe_tax_enabled', () => {
   });
 });
 
-describe('sms.login_code_enabled', () => {
+describe('SMS only for a new number (no login-code switch)', () => {
   // S14-1 (#367): a registered number is no longer refused with a 409 (that
   // told anyone who is registered). It gets the same 200 `sent` as a new
   // number and no SMS: assertSmsOnlyForNewNumber returns true = "send nothing".
@@ -275,21 +274,16 @@ describe('sms.login_code_enabled', () => {
     };
     const call = (
       AuthService.prototype as unknown as {
-        assertSmsOnlyForNewNumber(i: string, c?: string): Promise<boolean>;
+        assertSmsOnlyForNewNumber(i: string): Promise<boolean>;
       }
     ).assertSmsOnlyForNewNumber.call(self, '+10000000000');
     return { call, findUnique, rateLimit };
   };
-  it('off (default): a registered number gets no code (silently, no 409)', async () => {
+  it('a registered number gets no code (silently, no 409)', async () => {
     const { call, rateLimit } = run({});
     await expect(call).resolves.toBe(true);
     // The cooldown counts for every number, so a 429 does not tell either.
     expect(rateLimit.consumeFixedWindow).toHaveBeenCalled();
-  });
-  it('on: the old passwordless code is allowed again, no lookup', async () => {
-    const { call, findUnique } = run({ 'sms.login_code_enabled': true });
-    await expect(call).resolves.toBe(false);
-    expect(findUnique).not.toHaveBeenCalled();
   });
 });
 

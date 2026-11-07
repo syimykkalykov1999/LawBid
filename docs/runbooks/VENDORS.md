@@ -91,7 +91,7 @@ LawBid itself has **no public status page yet** (see
 - **Use:** SMS one-time codes (login, sign-up, password reset).
 - **Status:** <https://status.twilio.com>
 - **Down / ban:** no phone sign-ups; e-mail, passkey and QR sign-in still work for existing users. A breaker exists in `twilio-sms.provider.ts`.
-- **Fallback today:** `sms.login_code_enabled` lets us turn off SMS login codes; spend caps `sms.*`, `budget.*`; velocity limits per prefix and country.
+- **Fallback today:** SMS goes only to registration and a forgotten password (no login-code SMS exists); spend caps `sms.*`, `budget.*`; velocity limits per prefix and country.
 - **Exit:** the provider interface is `SmsProviderName = 'mock' | 'twilio'` in `apps/api/src/config/provider-selection.ts`; a second provider (for example Amazon SNS or Vonage) is one new class plus one more name in that file and `env.schema.ts`. Not built. Number porting is not needed (we use a sender or messaging service).
 - **Code/settings:** `SMS_PROVIDER` (`auto|mock|twilio`), `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` or `TWILIO_MESSAGING_SERVICE_SID`; Integrations `twilio`. Runbook [sms-spend.md](sms-spend.md).
 

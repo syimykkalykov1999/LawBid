@@ -2,6 +2,7 @@ import type { AddressInfo, Server } from 'node:net';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { phoneSignIn } from './support/password-login';
 import { AppModule } from '../src/app.module';
 
 /**
@@ -48,16 +49,7 @@ describe('One account, one phone + one website (e2e)', () => {
   const warned: string[] = [];
 
   async function login(deviceId: string, platform: string) {
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: phone })
-      .expect(200);
-    const r = await api().post('/api/v1/auth/otp/verify').send({
-      channel: 'phone',
-      identifier: phone,
-      code: '000000',
-      deviceInfo: { deviceId, platform },
-    });
+    const r = await phoneSignIn(app, base, phone, { deviceId, platform });
     if (r.status === 409) {
       // Another phone / browser is signed in: the app asks, then continues.
       expect(r.body.error.code).toBe('AUTH_OTHER_DEVICE_ACTIVE');

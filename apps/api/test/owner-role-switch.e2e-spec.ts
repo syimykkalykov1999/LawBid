@@ -4,6 +4,8 @@ import { Test } from '@nestjs/testing';
 import type Redis from 'ioredis';
 import { Logger, LoggerErrorInterceptor } from 'nestjs-pino';
 import request from 'supertest';
+import { phoneSignIn } from './support/password-login';
+import { reauthByPassword } from './support/password-reauth';
 import { AppModule } from '../src/app.module';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -97,26 +99,17 @@ describe('Role switch (e2e)', () => {
 
   function nextPhone(): string {
     phoneSeq += 1;
-    return `+1202555${String(8100 + phoneSeq).padStart(4, '0')}`;
+    return `+1415558${String(1000 + phoneSeq)}`;
   }
 
   async function signIn(phone: string): Promise<{
     auth: Record<string, string>;
     refreshToken: string;
   }> {
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: phone })
-      .expect(200);
-    const res = await api()
-      .post('/api/v1/auth/otp/verify')
-      .send({
-        channel: 'phone',
-        identifier: phone,
-        code: '000000',
-        deviceInfo: { deviceId: 'role-switch-e2e' },
-      })
-      .expect(201);
+    const res = await phoneSignIn(app, baseUrl, phone, {
+      deviceId: 'role-switch-e2e',
+    });
+    expect(res.status).toBe(201);
     const data = res.body.data as { accessToken: string; refreshToken: string };
     return {
       auth: { Authorization: `Bearer ${data.accessToken}` },
@@ -129,16 +122,7 @@ describe('Role switch (e2e)', () => {
     auth: Record<string, string>,
     phone: string,
   ): Promise<string> {
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: phone })
-      .expect(200);
-    const res = await api()
-      .post('/api/v1/auth/reauth')
-      .set(auth)
-      .send({ method: 'otp', identifier: phone, code: '000000' })
-      .expect(201);
-    return res.body.data.reauthToken as string;
+    return reauthByPassword(app, baseUrl, auth, { phone });
   }
 
   async function onboarded(role: 'client' | 'attorney') {

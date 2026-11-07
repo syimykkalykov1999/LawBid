@@ -4,6 +4,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { Logger } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
+import { phoneSignIn } from './support/password-login';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import {
@@ -327,19 +328,9 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
           },
         },
       });
-      const api = request(app.getHttpServer());
-      await api
-        .post('/api/v1/auth/otp/request')
-        .send({ channel: 'phone', identifier: phone })
-        .expect(200);
-      const res = await request(app.getHttpServer())
-        .post('/api/v1/auth/otp/verify')
-        .send({
-          channel: 'phone',
-          identifier: phone,
-          code: '000000',
-          deviceInfo: { deviceId: 'soft-delete-e2e' },
-        });
+      const res = await phoneSignIn(app, app.getHttpServer(), phone, {
+        deviceId: 'soft-delete-e2e',
+      });
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('ACCOUNT_DELETED');
     });
