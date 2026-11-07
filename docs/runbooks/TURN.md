@@ -335,11 +335,20 @@ so the public address is new at every start).
 - Cloudflare's own TURN cannot be the fallback of Cloudflare: it fails with it. A hosted relay from
   another vendor (Twilio Network Traversal, per GB, no idle fee, no boot gap) was offered as the
   alternative; the owner chose the own box.
-- IAM (Terraform, API task role): `ec2:DescribeInstances` (no resource-level support), and
-  `ec2:StartInstances` / `ec2:StopInstances` on this one instance ARN only.
-- Terraform still to do (Mac): `turn_on_demand` in `infra/modules/turn` (no `aws_eip`; on every boot the
-  public address is read from the instance metadata into `external-ip`), the IAM statement and
-  `TURN_ONDEMAND_INSTANCE_ID` on the API task; stop the instance after the apply.
+- IAM (Terraform): `ec2:DescribeInstances` (no resource-level support), and
+  `ec2:StartInstances` / `ec2:StopInstances` on this one instance ARN only. With `ops_role_split = true`
+  they sit on the `<name>-ops` role (the gateway assumes it through `OPS_ROLE_ARN`), otherwise on the
+  API task role.
+- Terraform is in `infra/modules/turn` (no `aws_eip`, public address read from the instance metadata) and
+  `infra/modules/stack` (IAM, `TURN_ONDEMAND_INSTANCE_ID`, plan fails if `turn_second_enabled` is on).
+  **`turn_on_demand` stays `false` in `infra/envs/prod/growth.auto.tfvars.json`.**
+
+**Turning it on for prod is a separate step by the owner from the Mac, in plain words:** with coturn
+already running, `turn_on_demand = true` REPLACES the TURN machine. The old Elastic IP and the
+`turn.<domain>` DNS record disappear, the health checks and alarms of that machine are removed, the new
+machine boots RUNNING with a new random address and keeps billing until it is stopped. Order: (1) deploy
+the API with this code, (2) `terraform plan` and read it, (3) apply, (4) right away
+`aws ec2 stop-instances --instance-ids <id>`, (5) clear a permanent TURN `urls` in the admin so Auto works.
 
 ### Переключатель в админке (Выкл / Вкл / Авто)
 

@@ -71,6 +71,7 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
     'enhanced',
   ]),
   turn_enabled: bool('turn_enabled'),
+  turn_on_demand: bool('turn_on_demand'),
   turn_second_enabled: bool('turn_second_enabled'),
   livekit_enabled: bool('livekit_enabled'),
   db_pooler_enabled: bool('db_pooler_enabled'),
