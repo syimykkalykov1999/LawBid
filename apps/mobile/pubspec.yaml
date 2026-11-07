@@ -111,7 +111,7 @@ dependencies:
   # cached_network_image's dependency.
   flutter_cache_manager: ^3.4.1
   firebase_core: ^4.15.0
-  firebase_messaging: ^16.7.0
+  firebase_messaging: ^16.7.1
   # Owner 2026-10-22: native crashes / ANRs in Sentry (prod release only,
   # core/diagnostics/sentry_native.dart).
   sentry_flutter: ^10.1.0
