@@ -59,6 +59,7 @@ import {
 import { triMode, type TriMode } from '../../common/ops/tri-mode';
 import { shardContext } from '../../sharding/shard-context';
 import { pubSubClient } from '../../redis/redis-connection';
+import { closeSubscriber } from '../../redis/subscribe-in-background';
 import { isRedisInfraError } from '../../redis/redis-errors';
 import { RealtimeEventLog } from './realtime-event-log';
 import {
@@ -518,14 +519,13 @@ export class RealtimeGateway
     if (this.timingTimer) clearInterval(this.timingTimer);
     if (this.gaugeTimer) clearInterval(this.gaugeTimer);
     await this.settleAllOffline();
+    // Pub/sub clients keep ioredis' offline queue: while Redis is away a
+    // QUIT would wait behind the pending SUBSCRIBE and hang the shutdown
+    // (load test 2026-11-02, PR #606) — closeSubscriber drops them instead.
     await Promise.all(
-      [this.pub, this.sub, this.revocations].map(async (c) => {
-        try {
-          await c?.quit();
-        } catch {
-          c?.disconnect();
-        }
-      }),
+      [this.pub, this.sub, this.revocations]
+        .filter((c): c is Redis => c !== undefined)
+        .map((c) => closeSubscriber(c)),
     );
   }
 

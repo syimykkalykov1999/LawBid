@@ -4,6 +4,11 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import { demoContext } from '../demo/demo-context';
 import { SecretEnvelope } from './secret-envelope';
 import { SecretsService } from './secrets.service';
+import {
+  brokenRedis,
+  fakeSubscriber,
+  redisWithSubscriber,
+} from '../../redis/subscribe-in-background.test-support';
 
 const KEYS = 'k1:0123456789abcdef0123456789abcdef';
 
@@ -107,5 +112,28 @@ describe('SecretsService.reencryptStores', () => {
     await service.reencryptStores();
     expect(wheres).toHaveLength(2);
     expect((wheres[1] as { id: { gt: string } }).id.gt).toBe(rows[199].id);
+  });
+});
+
+describe('SecretsService without Redis', () => {
+  const make = (redis: Redis) =>
+    new SecretsService(
+      { integrationCredential: {} } as unknown as PrismaService,
+      { get: () => undefined } as unknown as ConfigService,
+      redis,
+    );
+
+  it('onModuleInit returns while SUBSCRIBE still waits; the handler is wired; shutdown drops the client', async () => {
+    const { sub, handlers } = fakeSubscriber();
+    const service = make(redisWithSubscriber(sub));
+    service.onModuleInit(); // synchronous by type
+    expect(sub.subscribe).toHaveBeenCalledWith(expect.any(String));
+    expect(handlers).toHaveLength(1);
+    await service.onModuleDestroy();
+    expect(sub.disconnect).toHaveBeenCalled();
+  });
+
+  it('a duplicate() that throws degrades to «pub/sub unavailable», never a failed boot', () => {
+    expect(() => make(brokenRedis()).onModuleInit()).not.toThrow();
   });
 });
