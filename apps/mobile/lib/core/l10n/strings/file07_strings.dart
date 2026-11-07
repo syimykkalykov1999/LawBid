@@ -101,6 +101,12 @@ const file07Ru = <String, String>{
   'chat.folder.waiting': 'Ожидают',
   'chat.folder.cases': 'Кейсы',
   'chat.awaitsMe': 'Ждёт ответа',
+  'chat.noReply': 'Ответ не нужен',
+  'call.videoSound': 'Звук при включении видео собеседником',
+  'call.videoSound.hint':
+      'Короткий сигнал в звонке, когда собеседник включает камеру. Только на этом телефоне.',
+  'chat.closing.phrases':
+      'спасибо|спасибо большое|большое спасибо|благодарю|спс|пока|пока пока|до свидания|до встречи|до связи|всего доброго|всего хорошего|хорошего дня|ок|окей|хорошо|понял|поняла|ясно|договорились|принято|отлично',
   'chat.folder.cases.empty': 'Чатов по кейсам пока нет',
   'chat.folder.requests': 'Запросы',
   'chat.folder.waiting.explain':
@@ -735,6 +741,12 @@ const file07En = <String, String>{
   'chat.folder.waiting': 'Waiting',
   'chat.folder.cases': 'Cases',
   'chat.awaitsMe': 'Awaiting reply',
+  'chat.noReply': 'No reply needed',
+  'call.videoSound': 'Sound when the other person turns on video',
+  'call.videoSound.hint':
+      'A short beep in a call when the other person turns their camera on. This phone only.',
+  'chat.closing.phrases':
+      'thanks|thank you|thank you so much|thanks a lot|many thanks|thx|ty|bye|goodbye|good bye|see you|talk soon|take care|have a good day|have a nice day|ok|okay|got it|understood|sounds good|great|perfect',
   'chat.folder.cases.empty': 'No case chats yet',
   'chat.folder.requests': 'Requests',
   'chat.folder.waiting.explain':

@@ -19,6 +19,7 @@ import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_media_view.dart';
+import 'package:lawbid/features/calls/application/call_sound_prefs.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/application/cloudflare_sfu_call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -1685,7 +1686,10 @@ class CallController extends Notifier<CallSession> {
       }
       if (fresh && mineOff) {
         state = state.copyWith(videoPrompt: peer);
-        unawaited(ref.read(appSoundsProvider).videoRequest());
+        // Owner 2026-10-22 (R-007): the sound has its own switch.
+        if (ref.read(callVideoSoundProvider)) {
+          unawaited(ref.read(appSoundsProvider).videoRequest());
+        }
       }
       return;
     }

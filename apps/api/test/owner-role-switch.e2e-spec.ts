@@ -9,6 +9,7 @@ import { FeatureFlagsService } from '../src/modules/feature-flags/services/featu
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { attachCleanAvatar } from './support/clean-avatar';
+import { attachPractice } from './support/attach-practice';
 
 /**
  * Owner 2026-11-05: Settings → Account «Сменить профиль». The same account
@@ -176,7 +177,10 @@ describe('Role switch (e2e)', () => {
       .set(auth)
       .send({ currentStep: 'push', profile })
       .expect(200);
-    if (role === 'attorney') await attachCleanAvatar(prisma, userId);
+    if (role === 'attorney') {
+      await attachCleanAvatar(prisma, userId);
+      await attachPractice(prisma, userId);
+    }
     await api()
       .post('/api/v1/users/me/onboarding/complete')
       .set(auth)
