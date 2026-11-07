@@ -1,4 +1,4 @@
-import { buildSampler, traceSampleRatio } from './otel';
+import { buildSampler, startTelemetry, traceSampleRatio } from './otel';
 import { isClientError, sentryRates } from './sentry';
 import {
   BadRequestException,
@@ -15,6 +15,20 @@ describe('telemetry knobs (S12-2, S12-6)', () => {
 
   it('builds a parent-based ratio sampler', () => {
     expect(buildSampler(0.05).toString()).toContain('ParentBased');
+  });
+
+  it('stays off without an endpoint and never throws when the SDK starts', () => {
+    const prev = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+    try {
+      delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+      expect(startTelemetry('api')).toBeNull();
+      process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://127.0.0.1:1';
+      const sdk = startTelemetry('api');
+      if (sdk) void sdk.shutdown().catch(() => undefined);
+    } finally {
+      if (prev === undefined) delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+      else process.env.OTEL_EXPORTER_OTLP_ENDPOINT = prev;
+    }
   });
 
   it('keeps Sentry traces off and errors at 100 % unless told otherwise', () => {
