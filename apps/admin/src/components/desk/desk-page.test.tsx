@@ -130,55 +130,55 @@ describe('desk routes: off means «not found»', () => {
 });
 
 describe('each desk renders its tabs and composes the existing queue page', () => {
-  it('verifier: Очередь | Мои | Проверено | Мой рейтинг', () => {
+  it('verifier: Очередь | Мои | Проверено | Мой рейтинг', async () => {
     show('verifier');
     expect(tabLabels()).toEqual(['Очередь', 'Мои', 'Проверено', 'Мой рейтинг']);
-    expect(screen.getByText('PAGE verification queue')).toBeTruthy();
+    expect(await screen.findByText('PAGE verification queue')).toBeTruthy();
     expect(screen.getByTestId('desk-header').textContent).toContain('Стол проверки');
   });
 
-  it('moderator: Жалобы | Обжалования | Мои | Мой рейтинг, appeals switch between decisions and reviews', () => {
+  it('moderator: Жалобы | Обжалования | Мои | Мой рейтинг, appeals switch between decisions and reviews', async () => {
     me = base({ role: 'moderator' });
     show('moderator');
     expect(tabLabels()).toEqual(['Жалобы', 'Обжалования', 'Мои', 'Мой рейтинг']);
-    expect(screen.getByText('PAGE reports')).toBeTruthy();
+    expect(await screen.findByText('PAGE reports')).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: 'Обжалования' }));
     expect(replace).toHaveBeenCalledWith('/desk/moderator?tab=appeals', { scroll: false });
   });
 
-  it('moderator ?tab=appeals shows the decision appeals and then the review appeals', () => {
+  it('moderator ?tab=appeals shows the decision appeals and then the review appeals', async () => {
     me = base({ role: 'moderator' });
     search = 'tab=appeals';
     show('moderator');
-    expect(screen.getByText('PAGE decision appeals')).toBeTruthy();
+    expect(await screen.findByText('PAGE decision appeals')).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: 'Отзывы' }));
-    expect(screen.getByText('PAGE review appeals')).toBeTruthy();
+    expect(await screen.findByText('PAGE review appeals')).toBeTruthy();
   });
 
-  it('support: Обращения | Чаты | Мои | Мой рейтинг', () => {
+  it('support: Обращения | Чаты | Мои | Мой рейтинг', async () => {
     me = base({ role: 'support' });
     show('support');
     expect(tabLabels()).toEqual(['Обращения', 'Чаты', 'Мои', 'Мой рейтинг']);
-    expect(screen.getByText('PAGE support inbox')).toBeTruthy();
+    expect(await screen.findByText('PAGE support inbox')).toBeTruthy();
     cleanup();
     search = 'tab=chats';
     show('support');
-    expect(screen.getByText('PAGE chats')).toBeTruthy();
+    expect(await screen.findByText('PAGE chats')).toBeTruthy();
   });
 
-  it('finance: Выплаты | Возвраты | Отчёты | Мои задачи', () => {
+  it('finance: Выплаты | Возвраты | Отчёты | Мои задачи', async () => {
     me = base({ role: 'finance', workspace: 'finance' });
     show('finance');
     expect(tabLabels()).toEqual(['Выплаты', 'Возвраты', 'Отчёты', 'Мои задачи']);
-    expect(screen.getByText('PAGE payroll')).toBeTruthy();
+    expect(await screen.findByText('PAGE payroll')).toBeTruthy();
     cleanup();
     search = 'tab=refunds';
     show('finance');
-    expect(screen.getByText('PAGE payments')).toBeTruthy();
+    expect(await screen.findByText('PAGE payments')).toBeTruthy();
     cleanup();
     search = 'tab=reports';
     show('finance');
-    expect(screen.getByText('PAGE treasury')).toBeTruthy();
+    expect(await screen.findByText('PAGE treasury')).toBeTruthy();
   });
 });
 
