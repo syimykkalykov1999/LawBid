@@ -144,6 +144,26 @@ class FileViewsSync extends Table {
   Set<Column> get primaryKey => {owner, fileId};
 }
 
+/// Owner 2026-11-02 («Данные и память» по чатам, как у Telegram): which
+/// chat a cached chat picture came from. The picture cache is keyed by URL,
+/// so without this the phone cannot tell whose pictures take the space.
+/// Sizes are not stored: they are read from the cache's own files when the
+/// screen is measured.
+@DataClassName('ChatMediaFileRow')
+class ChatMediaFiles extends Table {
+  TextColumn get url => text()();
+  TextColumn get conversationId => text()();
+  DateTimeColumn get notedAt => dateTime()();
+
+  /// Owner 2026-11-03: the picture is from a group chat (the auto-delete
+  /// age of groups applies); false = a personal chat or not known (never
+  /// aged out by the groups' rule).
+  BoolColumn get isGroup => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {url};
+}
+
 /// The cache database (`lawbid_cache`). On the web build it lives only in
 /// the tab's memory (plan §5: a shared or private computer keeps nothing
 /// of the account on disk); on phones it is a file the OS protects.
@@ -158,6 +178,7 @@ class FileViewsSync extends Table {
     CachedTranslations,
     CachedFileViews,
     FileViewsSync,
+    ChatMediaFiles,
   ],
 )
 class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
@@ -165,10 +186,12 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
       : super(executor ?? appDriftCacheDatabase('lawbid_cache'));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   // v2 (owner 2026-10-24): the view lists of case documents - two new
   // tables; nothing existing changes.
+  // v3 (owner 2026-11-02): chat picture -> chat, one new table.
+  // v4 (owner 2026-11-03): which of them are group chats.
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
@@ -177,8 +200,59 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
             await m.createTable(cachedFileViews);
             await m.createTable(fileViewsSync);
           }
+          if (from < 3) {
+            await m.createTable(chatMediaFiles);
+          }
+          if (from == 3) {
+            await m.addColumn(chatMediaFiles, chatMediaFiles.isGroup);
+          }
         },
       );
+
+  // --- chat media index ---------------------------------------------------
+
+  /// Remembers that these cache [keys] were shown in [conversationId] (the
+  /// newest chat wins when the same picture is in two).
+  Future<void> noteChatMedia(
+    String conversationId,
+    Iterable<String> keys,
+    DateTime now, {
+    bool isGroup = false,
+  }) =>
+      batch((b) {
+        for (final key in keys) {
+          b.insert(
+            chatMediaFiles,
+            ChatMediaFilesCompanion.insert(
+              url: key,
+              conversationId: conversationId,
+              notedAt: now,
+              isGroup: Value(isGroup),
+            ),
+            onConflict: DoUpdate(
+              (_) => ChatMediaFilesCompanion(
+                conversationId: Value(conversationId),
+                notedAt: Value(now),
+                isGroup: Value(isGroup),
+              ),
+            ),
+          );
+        }
+      });
+
+  Future<List<ChatMediaFileRow>> chatMediaRows() =>
+      select(chatMediaFiles).get();
+
+  /// In chunks: SQLite caps the variables of one statement.
+  Future<void> forgetChatMedia(Iterable<String> keys) async {
+    final all = keys.toList();
+    for (var i = 0; i < all.length; i += 500) {
+      final chunk = all.sublist(i, i + 500 > all.length ? all.length : i + 500);
+      await (delete(chatMediaFiles)..where((r) => r.url.isIn(chunk))).go();
+    }
+  }
+
+  Future<void> forgetAllChatMedia() => delete(chatMediaFiles).go();
 
   // --- http cache -------------------------------------------------------
 
@@ -514,6 +588,8 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
   Future<void> clearMessages() async {
     await delete(cachedMessages).go();
     await delete(conversationSync).go();
+    // The chat → picture index goes with the history it came from.
+    await delete(chatMediaFiles).go();
   }
 
   // --- translations (package K) -----------------------------------------
@@ -724,11 +800,35 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
     }
   }
 
+  /// Owner 2026-11-05: the rows of an account that left the phone, with their
+  /// sync marks (a mark without its rows would hide the history for good);
+  /// the rows of [keepOwner] stay.
+  Future<void> clearAccountRows({String? keepOwner}) async {
+    await transaction(() async {
+      Expression<bool> others(GeneratedColumn<String> owner) =>
+          keepOwner == null
+              ? const Constant(true)
+              : owner.equals(keepOwner).not();
+      await (delete(cachedMessages)..where((r) => others(r.owner))).go();
+      await (delete(conversationSync)..where((r) => others(r.owner))).go();
+      await (delete(syncState)..where((r) => others(r.owner))).go();
+      await (delete(eventDedup)..where((r) => others(r.owner))).go();
+      await (delete(cachedTranslations)..where((r) => others(r.owner))).go();
+      await (delete(cachedFileViews)..where((r) => others(r.owner))).go();
+      await (delete(fileViewsSync)..where((r) => others(r.owner))).go();
+    });
+  }
+
   /// «Прочее»: everything small and technical.
-  Future<void> clearOther() async {
+  Future<void> clearOther({bool keepFileViews = false}) async {
     await delete(syncState).go();
     await delete(eventDedup).go();
     await delete(cachedTranslations).go();
+    if (!keepFileViews) await clearFileViews();
+  }
+
+  /// The case-file views (the «Документы» slice of «Данные и память»).
+  Future<void> clearFileViews() async {
     await delete(cachedFileViews).go();
     await delete(fileViewsSync).go();
   }

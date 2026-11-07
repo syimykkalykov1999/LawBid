@@ -17,4 +17,11 @@ class LocalKvStore {
       _prefs.setString(key, value);
 
   Future<void> remove(String key) => _prefs.remove(key);
+
+  /// Removes every stored key [matches] accepts.
+  Future<void> removeWhere(bool Function(String key) matches) async {
+    for (final key in _prefs.getKeys().where(matches).toList()) {
+      await _prefs.remove(key);
+    }
+  }
 }

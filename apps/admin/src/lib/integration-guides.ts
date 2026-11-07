@@ -6,6 +6,7 @@
  * id / field name from the API (provider-registry); a service without a
  * guide (custom ones) simply shows none.
  */
+import { pemKeyFile, type KeyFileSpec } from './key-file';
 
 export interface FieldGuide {
   /** Where to find it: site → menu → button. One or two sentences. */
@@ -30,6 +31,8 @@ export interface ProviderGuide {
   fields: Record<string, FieldGuide>;
   /** «Загрузить файл .json»: JSON key → field name (filled in the browser). */
   jsonFile?: { button: string; map: Record<string, string> };
+  /** «Загрузить файл ключа» (.p8 / .pem): the file text fills one field (key-file.ts). */
+  keyFile?: KeyFileSpec;
   /** Webhook path on the API to paste at the vendor ({field} = that value). */
   webhookPath?: string;
 }
@@ -132,6 +135,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
     enable: [
       'Загрузите .json или вставьте три значения (FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY) → «Сохранить» → «Проверить» → «Включить».',
+      'Пуши на сайте: заполните ещё четыре поля «Сайт: …» (apiKey, appId, messagingSenderId и VAPID-ключ), все четыре нужны вместе, иначе сайт пуши не включит; authDomain можно пропустить. Нужен и project_id из файла выше: без него сайт ключей не получит. Эти значения сайт берёт при старте, пересборка для них не нужна. Но App Check в браузере и фоновый обработчик пушей настраиваются сборкой: без секретов GitHub FIREBASE_WEB_* App Check на сайте выключен, а обработчик показывает пуши сам, без Firebase SDK.',
       'В приложении пуши включаются сами. Для iPhone ещё загрузите ключ APNs в Firebase: Project settings → Cloud Messaging → Apple app configuration → APNs Authentication Key.',
     ],
     fields: {
@@ -144,6 +148,17 @@ export const GUIDES: Record<string, ProviderGuide> = {
         how: 'Из файла .json: строка "private_key" целиком, от -----BEGIN до END-----. Подходят и переносы строк, и \\n.',
         example: '-----BEGIN PRIVATE KEY-----…',
         multiline: true,
+      },
+      webApiKey: {
+        how: 'Для пушей в браузере (необязательно). Project settings → General → Your apps → добавьте Web-приложение → блок firebaseConfig → apiKey. Это не секрет.',
+        example: 'AIzaSy…',
+      },
+      webAppId: { how: 'Там же, firebaseConfig → appId (содержит :web:).', example: '1:1234567890:web:abc123' },
+      webSenderId: { how: 'Там же, firebaseConfig → messagingSenderId (только цифры).', example: '1234567890' },
+      webAuthDomain: { how: 'Там же, firebaseConfig → authDomain. Можно оставить пустым.', example: 'lawbid-6e5ff.firebaseapp.com' },
+      webVapidKey: {
+        how: 'Project settings → Cloud Messaging → Web Push certificates → Generate key pair → скопируйте «Key pair» (публичный ключ).',
+        example: 'B…',
       },
     },
   },
@@ -309,6 +324,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
         url: 'https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app',
       },
     ],
+    keyFile: pemKeyFile('privateKey'),
     enable: [
       'Заполните четыре поля → «Сохранить» (код 2FA) → «Включить».',
       'Сначала включён пробный режим (Настройки → infra.dry_run): облако только планируется. Выключите его, когда посмотрели первый план.',
@@ -317,7 +333,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       repo: { how: 'Адрес репозитория на GitHub без https://github.com/', example: 'syimykkalykov1999/LawBid' },
       appId: { how: 'Число «App ID» со страницы GitHub-приложения (General).', example: '1234567' },
       installationId: { how: 'Число в конце адреса страницы установки приложения (…/installations/55555555).', example: '55555555' },
-      privateKey: { how: 'Всё содержимое скачанного файла .pem, включая строки BEGIN и END.' },
+      privateKey: { how: 'Всё содержимое скачанного файла .pem, включая строки BEGIN и END.', multiline: true },
     },
   },
 
@@ -496,6 +512,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Меняйте поля только при переезде (новые бакеты, регион, CDN). Три поля CloudFront заполняйте все сразу или ни одного.',
       'Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
     ],
+    keyFile: pemKeyFile('privateCdnPrivateKey'),
     fields: {
       region: { how: 'Регион бакетов.', example: 'us-east-1' },
       bucketDocuments: { how: 'Имя бакета документов в S3.' },
@@ -505,14 +522,14 @@ export const GUIDES: Record<string, ProviderGuide> = {
       cdnBaseUrl: { how: 'Адрес CDN для фото и видео. Можно оставить пустым.', example: 'https://media.lawbid.dev' },
       privateCdnDomain: { how: 'Домен CloudFront для приватных файлов (фото и голосовые в чатах, файлы дел, документы). Заполняйте все три поля сразу или ни одного — тогда ссылки подписывает сам S3. Домен и ID ключа показывает `terraform output` (documents_cdn_domain, documents_cdn_key_pair_id).', example: 'd1234abcd.cloudfront.net' },
       privateCdnKeyId: { how: 'ID публичного ключа CloudFront из группы ключей.', example: 'K2JCJMDEHXQW5F' },
-      privateCdnPrivateKey: { how: 'Закрытый ключ пары (PEM целиком). Его же можно положить в Secrets Manager как CLOUDFRONT_PRIVATE_KEY_PEM — см. docs/runbooks/DEPLOY_PROD.md.' },
+      privateCdnPrivateKey: { how: 'Закрытый ключ пары (PEM целиком). Его же можно положить в Secrets Manager как CLOUDFRONT_PRIVATE_KEY_PEM — см. docs/runbooks/DEPLOY_PROD.md.', multiline: true },
     },
   },
 
   cloudflare_r2: {
     steps: [
       'Нужен аккаунт Cloudflare. Домен lawbid.dev должен быть добавлен в Cloudflare (смена серверов имён в Namecheap; все текущие DNS-записи перенесите как есть, без оранжевого облака).',
-      'Cloudflare → R2 → Create bucket (имя, например, lawbid-public-media; НЕ такое же, как бакеты AWS).',
+      'Cloudflare → R2 → Create bucket (имя, например, lawbid-media; НЕ такое же, как бакеты AWS).',
       'Бакет → Settings → Custom Domains → Connect Domain → media.lawbid.dev. Не включайте r2.dev. В Settings → CORS разрешите PUT с адресов приложения и админки, заголовки Content-Type и Cache-Control.',
       'R2 → Manage API Tokens → Create API token → права «Object Read & Write», только на этот бакет. Скопируйте Access Key ID и Secret Access Key (показывается один раз).',
       'Account ID — справа на странице R2 (или в адресе дашборда).',
@@ -532,7 +549,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       accountId: { how: 'Cloudflare → R2 → Account ID (32 символа).', example: '0123456789abcdef0123456789abcdef' },
       accessKeyId: { how: 'R2 → Manage API Tokens → Create API token → Access Key ID.' },
       secretAccessKey: { how: 'Там же, Secret Access Key. Показывается один раз.' },
-      bucket: { how: 'Имя созданного бакета R2. Должно отличаться от бакетов AWS.', example: 'lawbid-public-media' },
+      bucket: { how: 'Имя созданного бакета R2. Должно отличаться от бакетов AWS.', example: 'lawbid-media' },
       publicBaseUrl: { how: 'Свой домен, подключённый к бакету (Settings → Custom Domains), с https, без пути.', example: 'https://media.lawbid.dev' },
       zoneId: { how: 'Cloudflare → ваш домен → Overview → справа Zone ID. Можно оставить пустым.' },
       purgeToken: { how: 'Токен с правом Zone → Cache Purge на этот домен. Можно оставить пустым.' },
@@ -610,9 +627,16 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Назовите ключ, отметьте «Apple Push Notifications service (APNs)» → Continue → Register.',
       'Нажмите Download: скачается файл AuthKey_XXXXXXXXXX.p8 (скачать можно только один раз — сохраните его).',
       'Key ID — 10 символов на странице ключа (и в имени файла). Team ID — Account → Membership details.',
-      'Откройте .p8 в любом текстовом редакторе и вставьте всё содержимое в последнее поле.',
+      'Здесь нажмите «Загрузить файл .p8» и выберите его: ключ и Key ID заполнятся сами (Team ID впишите вручную). Или откройте .p8 в текстовом редакторе и вставьте всё содержимое в последнее поле.',
     ],
     links: [{ label: 'Apple Developer: Keys', url: 'https://developer.apple.com/account/resources/authkeys/list' }],
+    keyFile: {
+      button: 'Загрузить файл .p8',
+      accept: '.p8',
+      field: 'privateKey',
+      marker: /-----BEGIN PRIVATE KEY-----[\s\S]+-----END PRIVATE KEY-----/,
+      idFromName: { pattern: /^AuthKey_([A-Z0-9]{10})(?: \(\d+\))?\.p8$/, field: 'keyId' },
+    },
     enable: [
       'Заполните APNS_KEY_ID, APNS_TEAM_ID и APNS_PRIVATE_KEY → «Сохранить» → «Проверить» → «Включить».',
       'В приложении ничего включать не нужно: входящий звонок начнёт звонить на закрытом iPhone сам.',

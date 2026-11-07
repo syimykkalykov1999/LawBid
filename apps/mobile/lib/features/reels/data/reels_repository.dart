@@ -1,9 +1,10 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/transfers/tus_upload.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -39,9 +40,6 @@ class ReelsRepository {
 
   final api.VideosClient _videos;
   final Dio _tus;
-
-  /// TUS chunk: big enough to be fast, small enough to resume cheaply.
-  static const _chunk = 5 * 1024 * 1024;
 
   Future<ReelUpload> createUpload({
     required int sizeBytes,
@@ -84,6 +82,8 @@ class ReelsRepository {
   /// Owner 2026-10-22 (audit #4 §3): [resumeLocation] continues an upload
   /// started before the app was closed (the queue saved it from
   /// [onLocation]); a location Bunny no longer knows starts a new one.
+  ///
+  /// R-251: [parallel] and the saved addresses of the pieces: see [TusUpload].
   Future<void> upload(
     XFile file,
     ReelUpload u, {
@@ -91,112 +91,68 @@ class ReelsRepository {
     CancelToken? cancel,
     String? resumeLocation,
     void Function(String location)? onLocation,
+    bool parallel = false,
+    List<String>? resumePartLocations,
+    void Function(List<String> locations)? onPartLocations,
   }) async {
-    final size = await file.length();
-    final auth = {
-      'AuthorizationSignature': u.signature,
-      'AuthorizationExpire': '${u.expire}',
-      'VideoId': u.videoId,
-      'LibraryId': u.libraryId,
-      'Tus-Resumable': '1.0.0',
-    };
     String b64(String v) => base64.encode(utf8.encode(v));
-    var offset = 0;
-    String? location;
-    if (resumeLocation != null) {
-      try {
-        final head = await _tus.head<void>(
-          resumeLocation,
-          cancelToken: cancel,
-          options: Options(headers: auth),
-        );
-        offset = int.tryParse(head.headers.value('upload-offset') ?? '') ?? 0;
-        location = resumeLocation;
-        onProgress?.call(size == 0 ? 1 : offset / size);
-      } on DioException catch (e) {
-        if (CancelToken.isCancel(e)) rethrow;
-        final c = e.response?.statusCode;
-        // Gone (404 / 410): start again; anything else: try later.
-        if (c != 404 && c != 410) rethrow;
-      }
-    }
-    if (location == null) {
-      final created = await _tus.post<void>(
-        u.tusEndpoint,
-        cancelToken: cancel,
-        options: Options(
-          headers: {
-            ...auth,
-            'Upload-Length': '$size',
-            'Upload-Metadata':
-                'filetype ${b64('video/mp4')},title ${b64(u.videoId)}',
-          },
-        ),
-      );
-      var fresh = created.headers.value('location');
-      if (fresh == null) {
-        throw const ApiException(code: 'VIDEO_UPLOAD_FAILED', message: 'tus');
-      }
-      if (!fresh.startsWith('http')) {
-        fresh = Uri.parse(u.tusEndpoint).resolve(fresh).toString();
-      }
-      location = fresh;
-      offset = 0;
-      onLocation?.call(location);
-    }
-
-    var failures = 0;
-    while (offset < size) {
-      final len = math.min(_chunk, size - offset);
-      final bytes = <int>[];
-      await file.openRead(offset, offset + len).forEach(bytes.addAll);
-      try {
-        final r = await _tus.patch<void>(
-          location,
-          data: Stream.fromIterable([bytes]),
-          cancelToken: cancel,
-          options: Options(
-            headers: {
-              ...auth,
-              'Upload-Offset': '$offset',
-              'Content-Type': 'application/offset+octet-stream',
-              Headers.contentLengthHeader: '$len',
-            },
-          ),
-        );
-        offset = int.tryParse(r.headers.value('upload-offset') ?? '') ??
-            offset + len;
-        failures = 0;
-        onProgress?.call(offset / size);
-      } on DioException catch (e) {
-        if (CancelToken.isCancel(e) || ++failures > 5) rethrow;
-        await Future<void>.delayed(Duration(seconds: failures * 2));
-        final head = await _tus.head<void>(
-          location,
-          cancelToken: cancel,
-          options: Options(headers: auth),
-        );
-        offset =
-            int.tryParse(head.headers.value('upload-offset') ?? '') ?? offset;
-      }
-    }
+    await TusUpload(_tus).send(
+      file,
+      TusTarget(
+        endpoint: u.tusEndpoint,
+        headers: {
+          'AuthorizationSignature': u.signature,
+          'AuthorizationExpire': '${u.expire}',
+          'VideoId': u.videoId,
+          'LibraryId': u.libraryId,
+          'Tus-Resumable': '1.0.0',
+        },
+        metadata: 'filetype ${b64('video/mp4')},title ${b64(u.videoId)}',
+      ),
+      onProgress: onProgress,
+      cancel: cancel,
+      resumeLocation: resumeLocation,
+      onLocation: onLocation,
+      parallel: parallel,
+      resumePartLocations: resumePartLocations,
+      onPartLocations: onPartLocations,
+    );
   }
 
   /// `processing` until Bunny finishes, then `ready` (or `failed`).
   Future<String> status(String videoAssetId) async {
-    final d =
-        (await guardApiCall(() => _videos.getVideoAsset(id: videoAssetId)))
-            .data;
+    final d = (await guardApiCall(
+      () => _videos.getVideoAsset(id: videoAssetId),
+    ))
+        .data;
     return d.status.json ?? d.status.name;
   }
 
   Future<void> cancel(String videoAssetId) =>
       guardApiCall(() => _videos.cancelVideoUpload(id: videoAssetId));
 
+  /// Shorter than the 3-minute fresh-reels mix of the screen, so ranking
+  /// freshness is unchanged.
+  static const firstPageWindow = Duration(minutes: 2);
+
   /// The full-screen reels feed, newest first.
-  Future<CursorPage<Post>> reels({String? cursor, String? practice}) async {
+  ///
+  /// R-385: the first page is served from the phone for [firstPageWindow]
+  /// (reopening Reels asks nothing); [fresh] (pull down, the fresh-reels
+  /// mix) always asks the server, with If-None-Match.
+  Future<CursorPage<Post>> reels({
+    String? cursor,
+    String? practice,
+    bool fresh = false,
+  }) async {
     final env = await guardApiCall(
-      () => _videos.listReels(cursor: cursor, practice: practice),
+      () => _videos.listReels(
+        cursor: cursor,
+        practice: practice,
+        extras: cursor == null
+            ? cacheFor(fresh ? Duration.zero : firstPageWindow)
+            : null,
+      ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),

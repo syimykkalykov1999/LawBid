@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -69,6 +70,14 @@ ImageProvider reelPosterProvider(String url) => ResizeImage.resizeIfNeeded(
         cacheManager: AppImageCaches.feed,
       ),
     );
+
+/// R-373: how long a reel told to play may stand still (not loading)
+/// before it counts as held by a refused audio focus.
+const Duration kReelStallAfter = Duration(seconds: 3);
+
+/// Tests: forgets that the phone refused the audio focus (R-373).
+@visibleForTesting
+void debugResetReelFocus() => _ReelVideoState._focusRefusedAt = null;
 
 /// Tests: makes the player instead of the network one.
 @visibleForTesting
@@ -139,6 +148,35 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
 
   /// The MP4 of a short clip did not start: the HLS playlist is used.
   bool _hlsOnly = false;
+
+  /// R-373 (owner 2026-11-04, «рилсы зависают и не играют»): this player
+  /// was opened without asking for the audio focus and stays silent. On
+  /// Android a call (ours, a phone call, or a call the system still holds)
+  /// keeps the focus; a player that asks for it is held on its first frame
+  /// for good — the frozen reels and posts. Silent, it plays.
+  bool _silentMix = false;
+
+  /// The player asked for the audio focus when it opened.
+  bool _asksFocus = false;
+
+  /// A call of ours runs ([callAudioActiveProvider]).
+  bool _inCall = false;
+  ProviderSubscription<bool>? _callSub;
+
+  /// Checks that a player told to play really moves (see [_watchStall]).
+  Timer? _stall;
+
+  /// When the phone last refused the audio focus to a reel: for a minute
+  /// after it every new reel opens silent at once, no second freeze.
+  static DateTime? _focusRefusedAt;
+  static const _focusRetryAfter = Duration(minutes: 1);
+
+  static bool get _focusRecentlyRefused {
+    final at = _focusRefusedAt;
+    return at != null && DateTime.now().difference(at) < _focusRetryAfter;
+  }
+
+  bool get _silent => _silentMix || _inCall;
   late final PlayedViewGate _viewGate =
       PlayedViewGate(() => widget.onViewed?.call());
   bool _ready = false;
@@ -186,10 +224,13 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     return s.at;
   }
 
-  double get _target =>
-      widget.active && !widget.paused && playbackVisible && !widget.muted
-          ? 1
-          : 0;
+  double get _target => widget.active &&
+          !widget.paused &&
+          playbackVisible &&
+          !widget.muted &&
+          !_silent
+      ? 1
+      : 0;
 
   void _fade(
     VideoPlayerController c,
@@ -236,6 +277,16 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   void initState() {
     super.initState();
     if (widget.active && !kReleaseMode) _sinceActive.start();
+    try {
+      final container = ProviderScope.containerOf(context, listen: false);
+      _inCall = container.read(callAudioActiveProvider);
+      _callSub = container.listen<bool>(
+        callAudioActiveProvider,
+        (_, active) => _onCall(active: active),
+      );
+    } on Object {
+      // No provider scope (a bare widget test): no call.
+    }
     if ((widget.active || widget.warm) && !widget.deferOpen) _open();
     // The cover is drawn only for a video that cannot play (see build);
     // then it is on screen at once (it is cached by the list).
@@ -282,6 +333,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     // never switched while another reel plays — only the volume changes.
     if (widget.video.playbackUrl != old.video.playbackUrl) {
       _hlsOnly = false;
+      _silentMix = false;
       _close();
     }
     // The player was opened mixing (it was muted) and the audio mode of a
@@ -321,10 +373,15 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     // reel takes the audio focus, like Instagram. A silent one (a feed
     // card) mixes instead — grabbing the focus paused a voice note playing
     // in the mini-player the moment the chat was left for the feed.
-    final options = VideoPlayerOptions(mixWithOthers: widget.muted);
+    // R-373: during a call, or right after the phone refused the focus, the
+    // reel opens silent and mixing (it never asks for the focus).
+    if (_focusRecentlyRefused) _silentMix = true;
+    final options =
+        VideoPlayerOptions(mixWithOthers: widget.muted || _silent);
+    _asksFocus = !options.mixWithOthers;
     final c = debugReelPlayerFactory?.call(Uri.parse(url), options) ??
         VideoPlayerController.networkUrl(
-          Uri.parse(VideoCache.resolve(url)),
+          Uri.parse(VideoCache.resolve(url, feed: true)),
           formatHint: widget.video.usesMp4(web: kIsWeb, hlsOnly: _hlsOnly)
               ? VideoFormat.other
               : VideoFormat.hls,
@@ -445,6 +502,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
           if (_c != c) return;
           c.play();
           _fade(c, _target);
+          _watchStall(c);
         }),
       );
     } else if (!play && c.value.isPlaying) {
@@ -464,9 +522,59 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     }
   }
 
+  /// R-373: the call is over (or began). Began: silent at once (the call
+  /// takes the focus). Over: the call may have taken the focus for good
+  /// (Android then keeps the player paused) — a fresh play asks again, and
+  /// the watchdog makes sure it moves.
+  void _onCall({required bool active}) {
+    if (!mounted || active == _inCall) return;
+    _inCall = active;
+    final c = _c;
+    if (c == null || !_ready) return;
+    if (active) {
+      _fade(c, 0, over: const Duration(milliseconds: 80));
+      return;
+    }
+    if (widget.active && !widget.paused && playbackVisible) {
+      unawaited(c.play());
+      _watchStall(c);
+    }
+    _fade(c, _target);
+  }
+
+  /// R-373: a player told to play that has not moved after [kReelStallAfter]
+  /// (and is not loading) is held by the audio focus (Android: ExoPlayer
+  /// turns play off when the focus is refused, and nothing turns it on
+  /// again). It is opened again at the same spot, silent and mixing.
+  void _watchStall(VideoPlayerController c) {
+    _stall?.cancel();
+    if (kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.android ||
+        !_asksFocus) {
+      return;
+    }
+    final from = c.value.position;
+    _stall = Timer(kReelStallAfter, () {
+      if (!mounted || _c != c || !_ready) return;
+      final wanted = widget.active && !widget.paused && playbackVisible;
+      final v = c.value;
+      if (!wanted || v.hasError || v.position != from) return;
+      // Still loading: look again later.
+      if (v.isBuffering) return _watchStall(c);
+      _focusRefusedAt = DateTime.now();
+      _silentMix = true;
+      _close();
+      _resumeAt = v.position;
+      setState(() {});
+      unawaited(_open());
+    });
+  }
+
   void _close() {
     final c = _c;
     _c = null;
+    _stall?.cancel();
+    _asksFocus = false;
     _ready = false;
     _rendered = false;
     _failed = false;
@@ -494,6 +602,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
 
   @override
   void dispose() {
+    _callSub?.close();
     _close();
     _viewGate.dispose();
     super.dispose();

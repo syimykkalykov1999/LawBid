@@ -76,7 +76,7 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
           : t.t('devices.revoke.confirm.body'),
       action: t.t('devices.revoke.confirm.action'),
     );
-    if (!ok) return;
+    if (!ok || !mounted) return;
     setState(() => _revoking.add(session.sessionId));
     try {
       await _controller.revoke(session.sessionId);

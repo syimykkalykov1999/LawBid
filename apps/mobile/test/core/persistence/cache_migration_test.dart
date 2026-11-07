@@ -15,18 +15,18 @@ void main() {
 
   setUpAll(() => verifier = SchemaVerifier(GeneratedHelper()));
 
-  for (final from in [1]) {
-    test('upgrade from v$from to v2 keeps the schema exact', () async {
+  for (final from in [1, 2, 3]) {
+    test('upgrade from v$from to v4 keeps the schema exact', () async {
       final schema = await verifier.schemaAt(from);
       final db = CacheDatabase(schema.newConnection());
-      await verifier.migrateAndValidate(db, 2);
+      await verifier.migrateAndValidate(db, 4);
       await db.close();
     });
   }
-  test('the current schema (v2) matches its dump', () async {
-    final schema = await verifier.schemaAt(2);
+  test('the current schema (v4) matches its dump', () async {
+    final schema = await verifier.schemaAt(4);
     final db = CacheDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(db, 2);
+    await verifier.migrateAndValidate(db, 4);
     await db.close();
   });
 }

@@ -1,0 +1,16 @@
+{
+  "sameAsEnglishKeys": [
+    "auth.email.hint",
+    "deal_record.pdf.footer",
+    "deal_record.pdf.terms",
+    "search.topicSort.az",
+    "auth.phone.waitlist.email",
+    "billing.hm",
+    "boost.cta.link",
+    "practice.education_law.title_ix",
+    "practice.immigration.green_card",
+    "trust.me.firm.form.emailHint"
+  ],
+  "sameAsEnglishPrefixes": [],
+  "perLanguage": {}
+}

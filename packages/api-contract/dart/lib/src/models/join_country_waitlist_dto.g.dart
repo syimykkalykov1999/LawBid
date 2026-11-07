@@ -10,7 +10,7 @@ JoinCountryWaitlistDto _$JoinCountryWaitlistDtoFromJson(
   Map<String, dynamic> json,
 ) => JoinCountryWaitlistDto(
   countryCode: json['countryCode'] as String,
-  email: json['email'] as String,
+  email: json['email'] as String?,
   locale: json['locale'] as String?,
 );
 
@@ -18,6 +18,6 @@ Map<String, dynamic> _$JoinCountryWaitlistDtoToJson(
   JoinCountryWaitlistDto instance,
 ) => <String, dynamic>{
   'countryCode': instance.countryCode,
-  'email': instance.email,
+  'email': ?instance.email,
   'locale': ?instance.locale,
 };

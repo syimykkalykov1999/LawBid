@@ -69,6 +69,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
     SearchPeriod? period,
     Object? role = _keep,
     bool? verifiedOnly,
+    FollowFilter? follow,
     Object? practiceCategory = _keep,
     Object? budgetMin = _keep,
     Object? budgetMax = _keep,
@@ -95,6 +96,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
       period: period ?? _f.period,
       role: pick(role, _f.role),
       verifiedOnly: verifiedOnly ?? _f.verifiedOnly,
+      follow: follow ?? _f.follow,
       practiceCategory: pick(practiceCategory, _f.practiceCategory),
       budgetMin: pick(budgetMin, _f.budgetMin),
       budgetMax: pick(budgetMax, _f.budgetMax),
@@ -348,6 +350,23 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
                       )
                     : _with(role: r),
               ),
+            ),
+          ),
+          // Owner 2026-10-28 (R-084): «по подписке» — all / following /
+          // not following, one row of chips.
+          section(
+            t.t('search.filter.follow'),
+            choices<FollowFilter>(
+              [
+                (FollowFilter.all, t.t('search.filter.follow.all')),
+                (
+                  FollowFilter.following,
+                  t.t('search.filter.follow.following'),
+                ),
+                (FollowFilter.notFollowing, t.t('search.filter.follow.not')),
+              ],
+              _f.follow,
+              (v) => _set((_) => _with(follow: v)),
             ),
           ),
           stateSection(t.t('search.filter.state')),

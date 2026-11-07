@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Length,
   Matches,
   Max,
   MaxLength,
@@ -846,6 +847,66 @@ export class AdminSeatChangeDto {
     description: 'A removal: when the seats go (the period end).',
   })
   effectiveAt!: string | null;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+}
+
+/** R-237 (owner 2026-11-05): states of an automatic dispute refund. */
+export const DISPUTE_REFUND_STATUSES = [
+  'refunding',
+  'refunded',
+  'review',
+  'rejected',
+  'no_refund',
+] as const;
+
+export class AdminDisputeRefundsQueryDto extends AdminBillingCursorQueryDto {
+  @ApiPropertyOptional({
+    enum: DISPUTE_REFUND_STATUSES,
+    enumName: 'DisputeRefundStatus',
+  })
+  @IsOptional()
+  @IsIn(DISPUTE_REFUND_STATUSES)
+  status?: (typeof DISPUTE_REFUND_STATUSES)[number];
+}
+
+export class AdminDisputeRefundIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+}
+
+export class AdminDisputeRefundRejectDto {
+  @ApiProperty({ minLength: 3, maxLength: 300 })
+  @IsString()
+  @Length(3, 300)
+  note!: string;
+}
+
+/** R-237: one bank inquiry the system refunded or held for a person. */
+export class AdminDisputeRefundDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() disputeId!: string;
+  @ApiProperty({ format: 'uuid' }) userId!: string;
+  @ApiProperty({ type: AdminBillingUserDto, nullable: true })
+  user!: AdminBillingUserDto | null;
+  @ApiProperty({ format: 'uuid' }) paymentId!: string;
+  @ApiProperty({
+    enum: DISPUTE_REFUND_STATUSES,
+    enumName: 'DisputeRefundStatus',
+  })
+  status!: (typeof DISPUTE_REFUND_STATUSES)[number];
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Why it waits or was not refunded (over_amount, user_limit, daily_cap, prior_dispute, fraud_review, escalated, closed, refund_failed, refund_unknown, refund_unavailable).',
+  })
+  reason!: string | null;
+  @ApiProperty({ type: 'integer' }) amountCents!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  refundId!: string | null;
+  @ApiProperty({ type: String, nullable: true }) note!: string | null;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 

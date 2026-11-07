@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 
 /// String constants for EVERY `ErrorCode` value
@@ -95,6 +96,8 @@ abstract final class ApiErrorCodes {
   static const clientContactsIncomplete = 'CLIENT_CONTACTS_INCOMPLETE';
   static const onboardingIncomplete = 'ONBOARDING_INCOMPLETE';
   static const roleAlreadySet = 'ROLE_ALREADY_SET';
+  static const roleSwitchBlocked = 'ROLE_SWITCH_BLOCKED';
+  static const roleSwitchNotAllowed = 'ROLE_SWITCH_NOT_ALLOWED';
   static const notImplemented = 'NOT_IMPLEMENTED';
 
   // i18n (docs/01 §9, stage 1.6)
@@ -408,6 +411,8 @@ abstract final class ApiErrorCodes {
     clientContactsIncomplete,
     onboardingIncomplete,
     roleAlreadySet,
+    roleSwitchBlocked,
+    roleSwitchNotAllowed,
     notImplemented,
     i18nLanguageNotFound,
     i18nImportInvalid,
@@ -630,6 +635,7 @@ class ApiException implements Exception {
     this.requestId,
     this.statusCode,
     this.guest = false,
+    this.retryAfter,
   });
 
   /// Always succeeds — falls back to [networkErrorCode] for anything that
@@ -637,6 +643,8 @@ class ApiException implements Exception {
   /// is the one contract every interceptor/repository relies on.
   factory ApiException.fromDioException(DioException e) {
     final guest = e.requestOptions.extra[RequestFlags.guest] == true;
+    final retryAfter =
+        ClientTuning.parseRetryAfter(e.response?.headers['retry-after']);
     final data = e.response?.data;
     if (data is Map<String, dynamic>) {
       final error = data['error'];
@@ -653,6 +661,7 @@ class ApiException implements Exception {
             requestId: error['requestId'] as String?,
             statusCode: e.response?.statusCode,
             guest: guest,
+            retryAfter: retryAfter,
           );
         }
       }
@@ -667,6 +676,7 @@ class ApiException implements Exception {
       message: e.message ?? 'Network error',
       statusCode: e.response?.statusCode,
       guest: guest,
+      retryAfter: retryAfter,
     );
   }
 
@@ -687,6 +697,9 @@ class ApiException implements Exception {
   final Map<String, dynamic>? details;
   final String? requestId;
   final int? statusCode;
+
+  /// What the server's `Retry-After` asked for (429 / 503 busy), if it did.
+  final Duration? retryAfter;
 
   /// Owner 2026-10-22 (guest browsing): the request went out with no bearer
   /// token. A 401 on it means «sign in to see this», a 429 «try later».

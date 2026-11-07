@@ -92,3 +92,67 @@
 5. Samsung заблокирован: звонящий сбросил до ответа → звонок на Samsung прекращается за ≤3 с.
 6. Неотвеченный звонок: на обоих звонок прекращается через 60 с, приходит «пропущенный».
 7. Лаги: на каждом телефоне в звонке 2 минуты снять `getStats` (RTT, потери пакетов, джиттер) и приложить числа; Wi‑Fi → мобильная сеть посреди звонка (ICE restart).
+
+---
+
+## Конец звонка, лаги и все строки `calls` (2026-11-03, ветка `claude/calls-finish`)
+
+### Что взяли и откуда
+- **LiveKit client-sdk-flutter v2.13.2** (`7adc5959f735045261e6a81accb5cb6a9ad79a7b`, Apache-2.0; опубликованный пакет `livekit_client` 2.13.2):
+  - `lib/src/core/transport.dart` 240–270 (`Transport._` → `onDispose`): колбэки обнулить → senders убрать → `close()` → `dispose()`. Скопировано в `apps/mobile/lib/features/calls/application/livekit_rtc.dart` (`disposePeerConnection`).
+  - `lib/src/stats/stats.dart` 192–204: `getNumValFromReport`, `getStringValFromReport` скопированы туда же.
+  - Порядок, а не код: `Room._cleanUp` (room.dart 1093: свои треки остановить → `engine.cleanUp` → транспорты) и пример `example/lib/pages/room.dart` 148–155 (`RoomDisconnectedEvent` → `addPostFrameCallback` → pop).
+- Лицензия: `apps/mobile/THIRD_PARTY_NOTICES.md` + `apps/mobile/third_party/licenses/livekit_client-2.13.2-LICENSE.txt`.
+
+### Причина «шторка застревает на половине» (R-037)
+В одном и том же кадре конец звонка запускал анимацию шторки (`_Fade` уезжает вниз) и всю нативную уборку: `pc.close`, остановку камеры, CallKit/Telecom `endCall`/`endAll`, остановку службы. Всё это идёт по платформенному потоку, который на Android (Choreographer) и iOS отдаёт Flutter кадры → анимация вставала на полпути. Потом экран закрывался собственным таймером 1,5 с, а «поздняя уборка» через 3 с — вторым таймером.
+
+Сейчас (эталон LiveKit):
+1. `_finish` (`call_controller.dart:2586`): фаза «ended» сразу, `releasing: true` — экран не двигается.
+2. `_release` (`:2628`): по очереди и с ожиданием — медиа (`close()`: треки → `disposePeerConnection` каждой связи), затем `dismiss` → `endAll` → остановка службы. Шаг, который не отвечает, ждём не дольше `kCallReleaseStepTimeout` (3 с).
+3. `releasing: false` → шторка уезжает; через `kCallEndedLinger` контроллер `idle` → экран закрывается после кадра (`call_screen.dart:333`). Своих таймеров у экрана нет; `kCallLateSweep` удалён.
+
+### Лаги (R-037)
+- Найдена гонка двойного соединения: `addPeer`/`open` для одного человека, пришедшие одновременно, создавали два `RTCPeerConnection`; второе становилось невидимым и отправляло камеру и звук параллельно (двойной трафик и нагрузка на телефон). Теперь второе сразу уничтожается (`call_media.dart:322`); соединение, созданное после конца звонка, тоже.
+- `close()` без `dispose()` оставлял нативное соединение живым (SFU и p2p): теперь `disposePeerConnection`.
+- Принудительного relay нет (`iceTransportPolicy` не задан), ограничения битрейта обычные (simulcast 1,2 М / 500 к / 150 к), камера 720p30.
+- Замер: `linkStatsFrom` читает RTT, джиттер, потери, полосу и типы кандидатов (host/srflx/relay); `CallStatsLog` копит их каждые 3 с, на конце звонка одна строка `callstats p2p|mesh|sfu n=… rtt=медиана/макс jitter=… loss<=… bwmin=… pair=local>remote` уходит в «Вылеты» в админке (`callStatsReport`, `call_controller.dart:295`; в store-сборке тоже, выключается флагом `crash_reports`). Адресов и личных данных в строке нет.
+
+### 4 сочетания (аудио/видео × адвокат→клиент / клиент→адвокат) — проверено по коду
+- Сервер: `CallsService.start` (`calls.service.ts:710`) выбирает собеседника как «другую сторону» беседы (`:759`), роль не влияет; пуш один (`enqueueCall`, `:847`), видео — только флаг.
+- Приложение: все кнопки (чат, профиль, консультация, контакты, вкладка «Звонки») вызывают один `CallController.call(conversationId, video:)`; входящий — один `call:incoming`/CallKit-путь. `isAttorney` в контроллере только для подписи.
+- Заблокированный экран (#519/#522/#538) на месте: `CallRinging.closeRingingScreen` (`CallRinging.kt:166`, сообщение без адреса класса — обход M4), `CallPushReceiver.kt`, `CallHangupReceiver.kt` (манифест 145/163), iOS `pushRegistry(...didReceiveIncomingPushWith...)` → `showCallkitIncoming` + `completion()` на каждой ветке (`AppDelegate.swift:380–541`).
+
+### SiMA Taxi против LawBid (по просьбе владельца, только чтение, код не переносился)
+| Вопрос | SiMA Taxi | LawBid |
+|---|---|---|
+| Чем звонит | Twilio Voice SDK (Android 6.9.0, iOS 6.13.1, закрытая лицензия). В рабочем режиме водитель звонит **на обычный номер телефона** (`Dial.number`), то есть входящий принимает обычная «звонилка» телефона. Код входящего VoIP — остатки примера Twilio Quickstart: на iOS PushKit не создаётся, на Android служба входящего не объявлена в манифесте | Свой WebRTC (flutter_webrtc) + Cloudflare SFU, входящий через flutter_callkit_incoming (CallKit / Telecom) |
+| Заблокированный экран | Решает телефонная сеть (обычный звонок) | VoIP-пуш → CallKit (iOS), FCM high → полноэкранный экран плагина (Android) |
+| Звонящий отменил | Twilio `CancelledCallInvite` → CXEndCallAction; на Android `stopForeground` + стоп звука | Пуш/сокет «окончен» → `dismiss` → `endAll`; Android — нативный `CallPushReceiver`, опрос статуса |
+| Пропущенный | Нет своей логики: таймаут `<Dial>` Twilio 30 с, журнал телефона | Сервер, 60 с, пуш `missed_call` с фото |
+| Обрывы | Встроенное переподключение Twilio, `AudioSwitch` (Apache-2.0) | Свой ICE-restart, reconnecting-состояние |
+| Конец | `disconnect` → CallKit end → закрыть экран, без таймеров | Теперь так же: медиа → CallKit/Telecom → экран, без таймеров (этот PR) |
+
+Вывод: «работает в Такси» потому, что там звонит обычная телефонная сеть, а не VoIP. Переносить нечего: Twilio закрыт и платный, VoIP-части Такси сломаны. Разрешённый пакет, которого у нас нет: только `com.twilio:audioswitch` (Apache-2.0) для выбора наушников/Bluetooth — у нас то же делают `Helper.setSpeakerphoneOn` (flutter_webrtc) и `audio_session`. Отдельная идея на решение владельца: запасной обычный телефонный звонок, если VoIP-пуш не дошёл (как фактически работает Такси) — платно, нужен провайдер.
+
+### Все 41 строка `calls` из OWNER_REQUESTS_CHECKLIST_2026-11-03
+Итог: исправлено в этом PR с тестом — 3; уже в main — 15; нужен телефон — 18; правило без кода — 3; решение владельца — 2.
+
+| Строка | Что просил | Где в коде сейчас | Статус |
+|---|---|---|---|
+| R-037 | лаги; шторка застревает при сбросе | `call_controller.dart:2586`, `call_screen.dart:333`, `call_media.dart:322` | **исправлено в PR** (тесты: `call_screen_end_slide_test`, `call_controller_test` «R-037 …», `call_media_teardown_test`); числа лагов — со следующего теста на телефоне |
+| R-024 | «отбой» не завершает звонок | `_finish`/`_release`, `call_media.dart:813` | **исправлено в PR** (порядок + таймаут шага, тесты те же); подтвердить на телефоне |
+| R-032 | Samsung: последний кадр зависает | медиа уходит до шторки, `disposePeerConnection` | **исправлено в PR** (тест порядка); подтвердить на Samsung |
+| R-002, R-004, R-005, R-011, R-012, R-013, R-014, R-015, R-016, R-017, R-018, R-022, R-027, R-029 | панели, группы до 9, кнопки видео, зеркало, кнопка над «+», Cloudflare/запасной, авто-конец | см. колонку чек-листа (`call_add_panel.dart`, `call_stage.dart:312`, `call_video_layout.dart:148`, `live_calls_fab.dart`, `media-provider.ts`) | уже в main |
+| R-021 | свайп по участникам / обзор | `call_stage.dart:312` (вид WhatsApp выбран владельцем) | уже в main |
+| R-001, R-006 | iPhone сбрасывает после «Ответить»; Android→iPhone | `callkit_bridge.dart`, `AppDelegate.swift:380` | нужен телефон |
+| R-003, R-007, R-008, R-009, R-010, R-019, R-020, R-028, R-030 | вид как WhatsApp, цвета, плавность | `call_screen.dart`, `call_controls.dart` (вид заморожен) | нужен телефон |
+| R-023, R-026, R-033 | замок: аватарка/имя, без лишнего полноэкранного | `callkit_bridge.dart:30,119` (Android аватарка — поле плагина; iPhone CallKit аватарку не умеет) | нужен телефон |
+| R-031, R-036, R-040 | замок: сброс/отмена не прекращает звонок | `CallRinging.kt:166`, `CallPushReceiver.kt`, `remoteEnded` (`call_controller.dart:2503`) | нужен телефон |
+| R-041 | видеозвонок с профиля адвоката приходит только «пропущенным» | один путь `call()`; VoIP-токен после смены аккаунта (M3, #538) | нужен телефон |
+| R-025, R-038, R-039 | макеты; только копия проверенного | этот PR: копия LiveKit с уведомлением | правило |
+| R-034, R-035 | перейти на LiveKit целиком | клиент LiveKit не используется | решение владельца (вариант A, раздел «Дополнение 2» в CALLS_COPY_PLAN) |
+
+### Проверка на телефонах для этого PR
+1. Аудио и видео, 4 сочетания: завершить с каждой стороны → шторка уезжает плавно, экран закрывается целиком, последнего кадра нет.
+2. После каждого звонка в админке «Вылеты» строка `callstats …`: прислать её (RTT, джиттер, потери, `pair=…relay` = звонок через TURN).

@@ -30,6 +30,7 @@ const KINDS: Record<string, string> = {
   capability_disabled: 'Возможность отключена',
   reconcile_drift: 'Расхождение со Stripe',
   duplicate_subscription: 'Двойная подписка',
+  dispute_refund: 'Возврат по спору ждёт решения',
 };
 const SLA: Record<string, { label: string; tone: 'success' | 'warning' | 'danger' }> = {
   ok: { label: 'в срок', tone: 'success' },

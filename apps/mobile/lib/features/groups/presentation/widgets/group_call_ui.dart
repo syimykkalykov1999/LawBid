@@ -7,6 +7,8 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart'
+    show isDesktopWindow;
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
@@ -50,12 +52,18 @@ Future<String?> startGroupChatCall(
   final max = groupCallRingMax(video: video);
   var ids = [for (final m in others.take(max)) m.userId];
   if (others.length > max) {
-    final picked = await showModalBottomSheet<List<String>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).extension<AppColorTokens>()!.surface,
-      builder: (_) => _CallPickerSheet(members: others, max: max, video: video),
-    );
+    Widget picker(BuildContext _) =>
+        _CallPickerSheet(members: others, max: max, video: video);
+    // Desktop web PR 5: a window in the middle; the phone sheet is as it was.
+    final picked = isDesktopWindow(context)
+        ? await showDesktopSheetDialog<List<String>>(context, picker)
+        : await showModalBottomSheet<List<String>>(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor:
+                Theme.of(context).extension<AppColorTokens>()!.surface,
+            builder: picker,
+          );
     if (picked == null) return null;
     ids = picked;
   }

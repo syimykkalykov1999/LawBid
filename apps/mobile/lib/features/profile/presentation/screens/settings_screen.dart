@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/core/navigation/push_once.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/theme/theme_picker_sheet.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
@@ -21,6 +20,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/partners/domain/partner_models.dart';
 import 'package:lawbid/features/privacy/privacy_routes.dart';
+import 'package:lawbid/features/profile/presentation/screens/desktop_settings.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
@@ -56,6 +56,11 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Desktop web plan §6.7: sections | section on a desktop window (the
+    // list inside the page is this same screen).
+    if (isDesktopWindow(context) && !DesktopSettingsScope.inPage(context)) {
+      return const DesktopSettingsPage();
+    }
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
     final chosenTheme = ref.watch(appThemeControllerProvider) ??
@@ -75,7 +80,7 @@ class SettingsScreen extends ConsumerWidget {
           AppListRow(
             icon: AppIcons.personOutlineRounded,
             label: t.t('settings.account'),
-            onTap: () => context.push(AccountRoutes.account),
+            onTap: () => openSettingsRoute(context, AccountRoutes.account),
           ),
           // docs/03 §5 (stage 3.9): contact preferences. Audit 2026-10-04:
           // clients only; phone / email are edited in Account.
@@ -85,12 +90,12 @@ class SettingsScreen extends ConsumerWidget {
               // Owner 2026-10-22 (audit #4 §1): the phone card is Contacts'.
               icon: AppIcons.forumOutlined,
               label: t.t('settings.contactPreferences'),
-              onTap: () => context.push(AppRoutes.myContacts),
+              onTap: () => openSettingsRoute(context, AppRoutes.myContacts),
             ),
           AppListRow(
             icon: AppIcons.shieldOutlined,
             label: t.t('settings.security'),
-            onTap: () => context.push(AppRoutes.activeDevices),
+            onTap: () => openSettingsRoute(context, AppRoutes.activeDevices),
           ),
           // Owner 2026-10-13: change the sign-in password. Owner
           // 2026-10-22 (audit #4 §2): the password is optional after the
@@ -104,21 +109,23 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.lockOutlineRounded,
               label: t.t('settings.setPassword'),
               subtitle: t.t('settings.setPassword.hint'),
-              onTap: () => context.push(AuthRoutes.setPassword),
+              onTap: () => openSettingsRoute(context, AuthRoutes.setPassword),
             )
           else
             AppListRow(
               key: const ValueKey('settings-change-password'),
               icon: AppIcons.lockOutlineRounded,
               label: t.t('auth.change.title'),
-              onTap: () => context.push(AuthRoutes.changePassword),
+              onTap: () =>
+                  openSettingsRoute(context, AuthRoutes.changePassword),
             ),
           // docs/01 §3.6 "Подписка (адвокат)" → docs/06 §1.7 screens.
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney)
             AppListRow(
               icon: AppIcons.workspacePremiumOutlined,
               label: t.t('settings.subscription'),
-              onTap: () => context.push(SubscriptionRoutes.subscription),
+              onTap: () =>
+                  openSettingsRoute(context, SubscriptionRoutes.subscription),
             ),
           // Owner 2026-10-22 (audit #4 §1, Stripe / Slack «Billing»): one
           // «Платежи» for both roles — receipts, case payments, purchases.
@@ -127,7 +134,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: AppIcons.receiptLongOutlined,
             label: t.t('payments.hub.title'),
             subtitle: t.t('payments.hint'),
-            onTap: () => context.push(AppRoutes.payments),
+            onTap: () => openSettingsRoute(context, AppRoutes.payments),
           ),
           // Owner 2026-10-05: attorney trust levels — what LawBid checked,
           // what raises the level, holds (docs/ATTORNEY_TRUST.md).
@@ -138,7 +145,7 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.verifiedUserOutlined,
               label: t.t('trust.me.title'),
               subtitle: t.t('trust.me.hint'),
-              onTap: () => context.push(TrustRoutes.me),
+              onTap: () => openSettingsRoute(context, TrustRoutes.me),
             ),
           // Owner 2026-10-01: assistants' access lives in Settings too —
           // the Team screen (seats, every access switch, removal).
@@ -149,7 +156,7 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.adminPanelSettingsOutlined,
               label: t.t('settings.assistants'),
               subtitle: t.t('settings.assistants.hint'),
-              onTap: () => context.push(TeamRoutes.team),
+              onTap: () => openSettingsRoute(context, TeamRoutes.team),
             ),
           // Owner 2026-10-05: client → attorney payments through the
           // platform (flag payments_in_app).
@@ -161,7 +168,8 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.accountBalanceOutlined,
               label: t.t('cpay.payout.title'),
               subtitle: t.t('cpay.payout.hint'),
-              onTap: () => context.push(CasePaymentsRoutes.payoutAccount),
+              onTap: () =>
+                  openSettingsRoute(context, CasePaymentsRoutes.payoutAccount),
             ),
           // Owner 2026-10-20: consultation booking (flag `consultations`):
           // the attorney sets the hours; both roles see the bookings.
@@ -176,7 +184,7 @@ class SettingsScreen extends ConsumerWidget {
                     ? 'consult.hint.attorney'
                     : 'consult.hint.client',
               ),
-              onTap: () => context.push(ConsultationsRoutes.list),
+              onTap: () => openSettingsRoute(context, ConsultationsRoutes.list),
             ),
           // Owner 2026-10-02: clients can earn the gold badge (paid).
           if (ref.watch(currentUserRoleProvider) == UserRole.client)
@@ -186,7 +194,7 @@ class SettingsScreen extends ConsumerWidget {
               // is the attorney's Trust row.
               icon: AppIcons.militaryTechRounded,
               label: t.t('cbadge.title'),
-              onTap: () => context.push(AppRoutes.clientBadge),
+              onTap: () => openSettingsRoute(context, AppRoutes.clientBadge),
             ),
           // Owner 2026-10-14: offer packs (flag `bid_packs`).
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
@@ -198,7 +206,7 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.localOfferOutlined,
               label: t.t('packs.title'),
               subtitle: t.t('packs.hint'),
-              onTap: () => context.push(AppRoutes.bidPacks),
+              onTap: () => openSettingsRoute(context, AppRoutes.bidPacks),
             ),
           // Owner 2026-10-20: stars — the balance, gifts, paid stickers
           // (flag `stars`).
@@ -209,7 +217,7 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.starRounded,
               label: t.t('stars.title'),
               subtitle: t.t('stars.hint'),
-              onTap: () => context.push(AppRoutes.stars),
+              onTap: () => openSettingsRoute(context, AppRoutes.stars),
             ),
           // Owner 2026-10-14: the firm profile (flag `firm_profiles`).
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
@@ -222,7 +230,7 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.groupsOutlined,
               label: t.t('firm.title'),
               subtitle: t.t('firm.hint'),
-              onTap: () => context.push(AppRoutes.myFirm),
+              onTap: () => openSettingsRoute(context, AppRoutes.myFirm),
             ),
           // Owner 2026-10-14: the attorney's own numbers.
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
@@ -232,7 +240,7 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.insightsOutlined,
               label: t.t('stats.title'),
               subtitle: t.t('stats.hint'),
-              onTap: () => context.push(AppRoutes.myStats),
+              onTap: () => openSettingsRoute(context, AppRoutes.myStats),
             ),
           // Owner 2026-10-05: promoted posts / cases (reach, clicks, stop) —
           // once there is one; the first starts from «Продвигать».
@@ -243,7 +251,7 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.campaignOutlined,
               label: t.t('promote.mine.title'),
               subtitle: t.t('promote.mine.hint'),
-              onTap: () => context.push(AppRoutes.myPromotions),
+              onTap: () => openSettingsRoute(context, AppRoutes.myPromotions),
             ),
           // Owner 2026-10-02: referrals (shown only when the program is on).
           if (ref.watch(referralMeProvider).value?.enabled ?? false)
@@ -251,7 +259,7 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.giftOutlined,
               label: t.t('referral.title'),
               subtitle: t.t('referral.hint'),
-              onTap: () => context.push(AppRoutes.referral),
+              onTap: () => openSettingsRoute(context, AppRoutes.referral),
             ),
           // Owner 2026-10-05: partner program — partners and, while the
           // owner allows self-enrolment, everyone who may join. Hidden when
@@ -264,7 +272,7 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('partner.title'),
               subtitle:
                   t.t(pm.isPartner ? 'partner.hint' : 'partner.join.hint'),
-              onTap: () => context.push(AppRoutes.partner),
+              onTap: () => openSettingsRoute(context, AppRoutes.partner),
             ),
           // Owner 2026-10-15: the client's Saved moved here from «Mine».
           // Owner 2026-10-22 (audit #4 §1, Instagram): «Сохранённое» in the
@@ -274,7 +282,7 @@ class SettingsScreen extends ConsumerWidget {
             key: const ValueKey('settings-saved'),
             icon: AppIcons.bookmarkBorderRounded,
             label: t.t('mine.tab.saved'),
-            onTap: () => context.push(AppRoutes.saved),
+            onTap: () => openSettingsRoute(context, AppRoutes.saved),
           ),
           // Owner 2026-10-18 (Instagram): every author's archived posts (an
           // assistant with "publish" sees the attorney's).
@@ -284,12 +292,12 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.inventory2Outlined,
               label: t.t('settings.archive'),
               subtitle: t.t('settings.archive.hint'),
-              onTap: () => context.push(AppRoutes.postArchive),
+              onTap: () => openSettingsRoute(context, AppRoutes.postArchive),
             ),
           AppListRow(
             icon: AppIcons.historyRounded,
             label: t.t('settings.caseHistory'),
-            onTap: () => context.push(AppRoutes.caseHistory),
+            onTap: () => openSettingsRoute(context, AppRoutes.caseHistory),
           ),
           // Owner 2026-10-14: the document templates row is gone from Settings.
         ],
@@ -311,7 +319,11 @@ class SettingsScreen extends ConsumerWidget {
           AppListRow(
             icon: AppIcons.notificationsNoneRounded,
             label: t.t('settings.notifications'),
-            onTap: () => context.pushOnce(ChatRoutes.notificationSettings),
+            onTap: () => openSettingsRoute(
+              context,
+              ChatRoutes.notificationSettings,
+              once: true,
+            ),
           ),
           // Owner 2026-10-20: last seen, who may write / call me, blocked
           // users, my reports and moderation decisions in one place.
@@ -320,7 +332,7 @@ class SettingsScreen extends ConsumerWidget {
             // Owner 2026-10-22 (audit #4 §1): the lock is the password's.
             icon: AppIcons.privacyTipOutlined,
             label: t.t('settings.privacy'),
-            onTap: () => context.push(PrivacyRoutes.privacy),
+            onTap: () => openSettingsRoute(context, PrivacyRoutes.privacy),
           ),
         ],
       ),
@@ -335,7 +347,7 @@ class SettingsScreen extends ConsumerWidget {
                 icon: AppIcons.helpOutlineRounded,
                 label: t.t('support.title'),
                 subtitle: t.t('support.hint.short'),
-                onTap: () => context.push(AppRoutes.support),
+                onTap: () => openSettingsRoute(context, AppRoutes.support),
               ),
               if (ref.watch(supportUnreadProvider))
                 PositionedDirectional(
@@ -361,25 +373,28 @@ class SettingsScreen extends ConsumerWidget {
             icon: AppIcons.infoOutlineRounded,
             label: t.t('about.title'),
             subtitle: t.t('about.hint'),
-            onTap: () => context.push(AppRoutes.about),
+            onTap: () => openSettingsRoute(context, AppRoutes.about),
           ),
           // Owner 2026-10-20: contacts like WhatsApp — who is on LawBid.
           AppListRow(
             icon: AppIcons.contactPhoneOutlined,
             label: t.t('phoneContacts.title'),
-            onTap: () => context.push('${AppRoutes.contacts}?tab=contacts'),
+            onTap: () => openSettingsRoute(
+              context,
+              '${AppRoutes.contacts}?tab=contacts',
+            ),
           ),
           // OQ-028: who I blocked, with Unblock.
           AppListRow(
             icon: AppIcons.blockFlipped,
             label: t.t('settings.blocked'),
-            onTap: () => context.push(AppRoutes.blockedUsers),
+            onTap: () => openSettingsRoute(context, AppRoutes.blockedUsers),
           ),
           // file 01 §10.7 → docs/06 §5.2: the background ZIP/JSON export.
           AppListRow(
             icon: AppIcons.downloadRounded,
             label: t.t('settings.downloadData'),
-            onTap: () => context.push(AppRoutes.dataExport),
+            onTap: () => openSettingsRoute(context, AppRoutes.dataExport),
           ),
           // Owner 2026-10-22 (client economy plan §5.2): the phone's
           // caches, «Хранить медиа», the limits and today's traffic.
@@ -388,7 +403,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: AppIcons.folderOutlined,
             label: t.t('settings.storage.title'),
             subtitle: t.t('settings.storage.hint'),
-            onTap: () => context.push(AppRoutes.storage),
+            onTap: () => openSettingsRoute(context, AppRoutes.storage),
           ),
         ],
       ),
@@ -406,7 +421,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: AppIcons.deleteOutlineRounded,
             label: t.t('settings.deleteAccount'),
             destructive: true,
-            onTap: () => context.push(AppRoutes.deleteAccount),
+            onTap: () => openSettingsRoute(context, AppRoutes.deleteAccount),
           ),
         ],
       ),

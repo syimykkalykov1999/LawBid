@@ -13,6 +13,7 @@ import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
 import 'package:lawbid/core/navigation/shell/desktop_side_nav.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
+import 'package:lawbid/core/navigation/shell/stable_under_cover.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
@@ -116,7 +117,7 @@ class _MainShellState extends ConsumerState<MainShell> {
       StartupIdleQueue.enqueue(() {
         if (mounted) ref.read(contactsBackgroundSyncProvider).start();
       });
-      // Owner 2026-10-24: attorneys / assistants without a passkey are
+      // Owner 2026-10-24 (R-140: every role): users without a passkey are
       // offered Face ID / fingerprint once (snoozable).
       unawaited(maybeShowPasskeyNudge(context, ref));
     });
@@ -149,6 +150,13 @@ class _MainShellState extends ConsumerState<MainShell> {
     // Owner 2026-10-15 (web): on a wide window the bar moves to the side.
     final layout = shellLayoutFor(MediaQuery.sizeOf(context).width);
     final side = layout != ShellLayout.bottom;
+    // Desktop web plan §6: on a desktop window Feed, Search and Mine lay
+    // themselves out across the width (pane, grid, list | case), and so does
+    // Profile (profile | side pane); Mine takes the narrow menu like Chats.
+    final desktop = windowClassOf(context).isDesktop;
+    final tab = navigationShell.currentIndex;
+    final ownWidth = desktop && tab <= 3;
+    final narrowMenu = desktop && tab == 2;
     final body = InsideMainShell(
       navAway: _navAway,
       child: DemoBannerHost(
@@ -165,7 +173,12 @@ class _MainShellState extends ConsumerState<MainShell> {
                 taken: miniPlayer,
                 // Owner 2026-10-18 (speed): tabs switch instantly — the
                 // whole-body fade drew the tab into an extra layer.
-                child: KeyedSubtree(key: _bodyKey, child: navigationShell),
+                // Owner 2026-11-04 (R-391): a sheet over a tab never moves
+                // what is beneath it (keyboard insets freeze while covered).
+                child: KeyedSubtree(
+                  key: _bodyKey,
+                  child: StableUnderCover(child: navigationShell),
+                ),
               ),
             ),
           ],
@@ -196,7 +209,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                     currentIndex: navigationShell.currentIndex,
                     onTabSelected: _onTabSelected,
                     onCreatePressed: () => _create(context),
-                    extended: layout == ShellLayout.extendedRail,
+                    extended: layout == ShellLayout.extendedRail && !narrowMenu,
                     createLabel: translator.t('nav.create'),
                   )
                 else
@@ -210,7 +223,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                   ),
                 Expanded(
                   child: ContentColumn(
-                    maxWidth: layout == ShellLayout.extendedRail
+                    maxWidth: layout == ShellLayout.extendedRail && !ownWidth
                         ? kShellContentMaxWidth
                         : null,
                     child: body,

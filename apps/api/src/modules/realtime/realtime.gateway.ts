@@ -20,8 +20,11 @@ import { PinoLogger } from 'nestjs-pino';
 import { socketClientIp } from './socket-ip';
 import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
+import { isIP } from 'node:net';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
 import { RealtimeStatsService } from '../../common/ops/realtime-stats.service';
+import { RuntimeStatsService } from '../../common/ops/runtime-stats.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
@@ -35,7 +38,10 @@ import {
   type AccessTokenClaims,
 } from '../auth/services/token.service';
 import {
+  CALL_SIGNALS_TTL_SEC,
   REALTIME_NAMESPACE,
+  callSignalsKey,
+  relayOnlyKey,
   channelRoom,
   conversationRoom,
   postRoom,
@@ -44,6 +50,7 @@ import {
   viewingKey,
   VIEWING_TTL_MS,
 } from './realtime-publisher.service';
+import { relayOnlySignal } from './call-signal-filter';
 import { demoContext } from '../../common/demo/demo-context';
 import {
   WsStormDetector,
@@ -51,6 +58,8 @@ import {
 } from '../../common/logging/ws-log-sampling';
 import { triMode, type TriMode } from '../../common/ops/tri-mode';
 import { shardContext } from '../../sharding/shard-context';
+import { pubSubClient } from '../../redis/redis-connection';
+import { isRedisInfraError } from '../../redis/redis-errors';
 import { RealtimeEventLog } from './realtime-event-log';
 import {
   newSocketEventBucket,
@@ -68,6 +77,7 @@ const TYPING_MIN_GAP_MS = 1000;
 const SIGNAL_EVENT_CAPACITY = 60;
 const SIGNAL_EVENT_REFILL_PER_SECOND = 10;
 const SIGNAL_CALL_CACHE_MS = 30_000;
+const RELAY_ONLY_CACHE_MS = 5_000;
 /** S1-12: the window in which a typer counts as "recent". */
 const TYPING_RECENT_MS = 5000;
 
@@ -89,6 +99,12 @@ const MAX_ROOMS_PER_SOCKET = 400;
 /** B-5: CGNAT / office / campus put hundreds of users behind one address;
  * a deploy reconnect storm must not lock them out (client backs off). */
 const DEFAULT_CONNECTS_PER_IP_PER_MINUTE = 600;
+/** One signed-in person: a healthy app reconnects a few times a minute at
+ * most; a loop (bad client) is cut here instead of hitting the shared address. */
+const DEFAULT_CONNECTS_PER_USER_PER_MINUTE = 60;
+/** Signed-in sockets share the address safety net: this many times the
+ * anonymous address limit (carrier / office addresses carry thousands). */
+const SIGNED_IN_IP_FACTOR = 10;
 /** How often a live socket refreshes its presence (and an assistant's
  * socket re-checks its duties). Owner 2026-10-22 (server load audit,
  * finding 5): no longer the session blacklist — a revoked session's
@@ -134,6 +150,10 @@ interface SocketState {
   /** S1-7: the last call looked up for signaling (30 s), so each ICE
    * candidate does not cost a database query. */
   signalCall?: { id: string; at: number; call: SignalCall };
+  /** R-404: the signal kinds of this call already noted in Redis. */
+  signalNoted?: { callId: string; kinds: Set<string> };
+  /** The `relay` mark of this person, as last read. */
+  relayOnly?: { at: number; on: boolean };
   viewing: Set<string>;
   /** Owner 2026-10-01: the other members of each open chat — "typing…"
    * also reaches their chat list. */
@@ -216,6 +236,7 @@ export class RealtimeGateway
     @Optional() private readonly stats?: RealtimeStatsService,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly eventLog?: RealtimeEventLog,
+    @Optional() private readonly runtime?: RuntimeStatsService,
   ) {
     this.logger.setContext(RealtimeGateway.name);
   }
@@ -244,6 +265,7 @@ export class RealtimeGateway
     { timer: NodeJS.Timeout; leftAt: Date }
   >();
   private timingTimer?: NodeJS.Timeout;
+  private gaugeTimer?: NodeJS.Timeout;
   /** S20-4: `log.ws_events` / `log.ws_sample_percent` (refreshed with the
    * timings) and the per-instance spike detector. */
   private wsLog: { mode: TriMode; samplePercent: number } = {
@@ -330,24 +352,29 @@ export class RealtimeGateway
     return this.draining;
   }
 
-  /** docs/06 §8 "число активных WebSocket-соединений": a gauge line per
-   * connect/disconnect on this instance (CloudWatch metric filter sums
+  /** docs/06 §8 "число активных WebSocket-соединений": a gauge line every 30 s on this instance (CloudWatch metric filter sums
    * the instances). */
   private gauge(): void {
-    const count = this.nsp?.sockets.size ?? 0;
+    const count = this.nsp?.sockets?.size ?? 0;
     this.logger.info({ metric: 'ws_connections', count }, 'ws connections');
   }
 
   afterInit(nsp: Namespace): void {
     this.nsp = nsp;
+    // One number a minute for the ECS socket-count scaling policy.
+    this.runtime?.registerSocketGauge(() => this.nsp?.sockets.size ?? 0);
     void this.loadTiming();
     this.timingTimer = setInterval(() => void this.loadTiming(), 30_000);
     this.timingTimer.unref();
+    // B-18: the connection gauge is a 30 s sample, not a line per connect /
+    // disconnect (a deploy with 50k sockets wrote ~100k lines).
+    this.gaugeTimer = setInterval(() => this.gauge(), 30_000);
+    this.gaugeTimer.unref();
     // Test doubles of REDIS_CLIENT can't pub/sub: stay on the in-memory
     // adapter (a single instance) then.
     if (typeof this.redis.duplicate !== 'function') return;
-    this.pub = this.redis.duplicate();
-    this.sub = this.redis.duplicate();
+    this.pub = pubSubClient(this.redis);
+    this.sub = pubSubClient(this.redis);
     // Owner 2026-10-22 (server load audit, finding 5): Redis 7 sharded
     // pub/sub (infra/modules/redis: engine 7.1). An event for `user:X`
     // reaches only the instances that hold that room, instead of every
@@ -361,7 +388,7 @@ export class RealtimeGateway
           })
         : createAdapter(this.pub, this.sub),
     );
-    this.revocations = this.redis.duplicate();
+    this.revocations = pubSubClient(this.redis);
     this.revocations.on('message', (channel: string, raw: string) => {
       if (channel === SESSION_REVOKED_CHANNEL) this.onSessionRevoked(raw);
     });
@@ -459,11 +486,11 @@ export class RealtimeGateway
     return sent;
   }
 
-  private sendGoingAway(socket: Socket): void {
+  private sendGoingAway(socket: Socket, reason = 'deploy'): void {
     const retryAfterMs = Math.floor(
       Math.random() * (this.timing.goingAwaySpreadMs + 1),
     );
-    socket.emit('server:going-away', { retryAfterMs, reason: 'deploy' });
+    socket.emit('server:going-away', { retryAfterMs, reason });
     this.stats?.record('going_away');
   }
 
@@ -471,7 +498,7 @@ export class RealtimeGateway
   private async waitForDrain(): Promise<void> {
     const budget = drainBudgetMs();
     const deadline = Date.now() + budget;
-    while (Date.now() < deadline && (this.nsp?.sockets.size ?? 0) > 0) {
+    while (Date.now() < deadline && (this.nsp?.sockets?.size ?? 0) > 0) {
       await new Promise((r) => setTimeout(r, 250));
     }
     await this.stats?.flush();
@@ -489,6 +516,7 @@ export class RealtimeGateway
    * before the shutdown hooks), so the adapter sends nothing more. */
   async onApplicationShutdown(): Promise<void> {
     if (this.timingTimer) clearInterval(this.timingTimer);
+    if (this.gaugeTimer) clearInterval(this.gaugeTimer);
     await this.settleAllOffline();
     await Promise.all(
       [this.pub, this.sub, this.revocations].map(async (c) => {
@@ -501,32 +529,83 @@ export class RealtimeGateway
     );
   }
 
-  /** Owner 2026-10-25: new connections per minute from one address
-   * (`realtime.max_connects_per_ip_per_minute`, 0 = off). Fails open: a
-   * Redis or settings hiccup never blocks a connection. Metric line:
-   * `ws_ip_limited`. */
-  private async overIpConnectLimit(socket: Socket): Promise<boolean> {
+  /** New connections per minute, counted per `who` and capped at `max`
+   * (0 = off). Fails open: a Redis or settings hiccup never blocks a
+   * connection. */
+  private async overConnectLimit(
+    who: string,
+    max: number,
+    metric: string,
+  ): Promise<boolean> {
+    if (max === 0) return false;
     try {
-      let max = DEFAULT_CONNECTS_PER_IP_PER_MINUTE;
-      const v = await this.settings?.number(
-        'realtime.max_connects_per_ip_per_minute',
-      );
-      if (v !== undefined && Number.isFinite(v) && v >= 0) max = Math.round(v);
-      if (max === 0) return false;
-      const ip = socketClientIp(
-        socket.handshake.headers,
-        socket.handshake.address,
-        Number(process.env.TRUST_PROXY_HOPS ?? 0) || 0,
-      );
-      if (!ip) return false;
-      const key = `ws:connect:${ip}`;
-      const n = await incrWithTtl(this.redis, key, 60);
+      const n = await incrWithTtl(this.redis, `ws:connect:${who}`, 60);
       if (n <= max) return false;
-      this.logger.warn({ metric: 'ws_ip_limited', ip }, 'ws connect limit');
+      this.logger.warn({ metric, who }, 'ws connect limit');
       return true;
     } catch {
       return false;
     }
+  }
+
+  private async connectLimit(
+    key: AppSettingKey,
+    fallback: number,
+  ): Promise<number> {
+    try {
+      const v = await this.settings?.number(key);
+      if (v !== undefined && Number.isFinite(v) && v >= 0) return Math.round(v);
+    } catch {
+      // settings hiccup: the default stands
+    }
+    return fallback;
+  }
+
+  /** Who is counted (how Telegram / WhatsApp / Instagram do it: the account
+   * and device are the identity, the address only guards what has no
+   * account). A signed-in person is counted per user
+   * (`realtime.max_connects_per_user_per_minute`, metric `ws_user_limited`),
+   * so one office or mobile-carrier address with thousands of people never
+   * blocks them; the address is then only a wide safety net (10x the address
+   * limit, `ws_ip_limited`). A socket with no valid token is counted per
+   * address (`realtime.max_connects_per_ip_per_minute`). 0 = off. */
+  private async overConnectLimits(
+    socket: Socket,
+    sub: string | undefined,
+  ): Promise<boolean> {
+    // Only a real address becomes a key: a forged X-Forwarded-For entry
+    // (hops set higher than the real proxy count) must not pick the key.
+    const rawIp = socketClientIp(
+      socket.handshake.headers,
+      socket.handshake.address,
+      Number(process.env.TRUST_PROXY_HOPS ?? 0) || 0,
+    );
+    const ip = rawIp && isIP(rawIp) ? rawIp : undefined;
+    const perIp = await this.connectLimit(
+      'realtime.max_connects_per_ip_per_minute',
+      DEFAULT_CONNECTS_PER_IP_PER_MINUTE,
+    );
+    if (sub === undefined) {
+      return ip
+        ? this.overConnectLimit(`ip:${ip}`, perIp, 'ws_ip_limited')
+        : false;
+    }
+    const perUser = await this.connectLimit(
+      'realtime.max_connects_per_user_per_minute',
+      DEFAULT_CONNECTS_PER_USER_PER_MINUTE,
+    );
+    // perIp 0 (off) stays off: 0 x factor = 0.
+    const [byUser, byIp] = await Promise.all([
+      this.overConnectLimit(`u:${sub}`, perUser, 'ws_user_limited'),
+      ip
+        ? this.overConnectLimit(
+            `ip:${ip}`,
+            perIp * SIGNED_IN_IP_FACTOR,
+            'ws_ip_limited',
+          )
+        : false,
+    ]);
+    return byUser || byIp;
   }
 
   async handleConnection(socket: Socket): Promise<void> {
@@ -537,10 +616,6 @@ export class RealtimeGateway
       socket.disconnect(true);
       return;
     }
-    // Runs alongside the token check below (not before it): a socket is
-    // usable the moment it connects, so a serial extra round trip here would
-    // widen the window where a first packet arrives before `socket.data`.
-    const ipLimited = this.overIpConnectLimit(socket);
     const auth = socket.handshake.auth as { token?: unknown } | undefined;
     const header = socket.handshake.headers.authorization;
     const token =
@@ -549,10 +624,20 @@ export class RealtimeGateway
         : header?.startsWith('Bearer ')
           ? header.slice(7)
           : undefined;
-    const claims = token ? await this.verify(token) : null;
+    let claims: AccessTokenClaims | null = null;
+    if (token) {
+      try {
+        claims = await this.verify(token);
+      } catch (error) {
+        this.busyHandshake(socket, 'verify', error);
+        return;
+      }
+    }
     // Never awaited: the limit check adds no latency to the handshake; an
     // over-limit socket is closed as soon as the answer arrives.
-    void ipLimited.then((limited) => {
+    // A demo session's person is shared by every visitor: counted by address.
+    const who = claims && claims.demo !== true ? claims.sub : undefined;
+    void this.overConnectLimits(socket, who).then((limited) => {
       if (!limited) return;
       socket.emit('auth:error', { code: 'RATE_LIMITED' });
       socket.disconnect(true);
@@ -605,13 +690,23 @@ export class RealtimeGateway
     // Shard-ready step 4: the socket's shard context is its user's shard
     // (the same weak default HTTP uses); handlers that touch another
     // entity set their own with shardContext.runForCase(...).
-    return demoContext.run(demo, () =>
-      shardContext.runForUser(
-        claims.sub,
-        () => this.finishConnection(socket, claims, token),
-        'socket',
-      ),
-    );
+    try {
+      await demoContext.run(demo, () =>
+        shardContext.runForUser(
+          claims.sub,
+          () => this.finishConnection(socket, claims, token),
+          'socket',
+        ),
+      );
+    } catch (error) {
+      // Joining the user's room goes through the Redis adapter; with Redis
+      // just back (or away) it can fail. The socket would stay connected
+      // but hear nothing, and nothing was logged (LOAD_RESILIENCE §4). Only
+      // Redis being unavailable is a «retry»: any other error is a bug and
+      // must not turn into an endless polite reconnect loop.
+      if (!isRedisInfraError(error)) throw error;
+      this.busyHandshake(socket, 'finish', error);
+    }
   }
 
   private async finishConnection(
@@ -720,7 +815,6 @@ export class RealtimeGateway
         // Presence is best-effort.
       }
     }
-    this.gauge();
     await this.markConnected(socket, claims.sub);
   }
 
@@ -847,7 +941,6 @@ export class RealtimeGateway
   }
 
   private async finishDisconnect(socket: Socket): Promise<void> {
-    this.gauge();
     const s = state(socket);
     if (!s?.user) return;
     clearTimeout(s.expiringTimer);
@@ -895,7 +988,9 @@ export class RealtimeGateway
   ): Promise<{ ok: boolean; expiresAt?: string }> {
     const raw = body?.accessToken ?? body?.token;
     const token = typeof raw === 'string' ? raw : '';
-    const claims = token ? await this.verify(token) : null;
+    // A failed revocation lookup ends the socket here as it always did (the
+    // app re-authenticates); only the handshake tells infra from a bad login.
+    const claims = token ? await this.verify(token).catch(() => null) : null;
     const s = state(socket);
     if (!claims || claims.sub !== (s.selfId ?? s.user.sub)) {
       socket.emit('auth:error', { code: 'UNAUTHORIZED' });
@@ -1066,11 +1161,52 @@ export class RealtimeGateway
     const id = typeof body?.postId === 'string' ? body.postId : '';
     const uid = state(socket)?.user?.sub;
     if (!uid || !UUID_RE.test(id)) return { ok: false };
+    // Same rules as the REST comment list (VISIBLE_POST_WHERE, kept inline
+    // so the gateway does not import the posts module): not archived, author
+    // active and not a suspended attorney, comments on; the author may also
+    // follow an own archived post. A block between the watcher and the author
+    // is refused. Security audit 2026-11-02: an archived post, comments off,
+    // a suspended attorney or an author who blocked the watcher must not
+    // stream `comment:new` to a stranger.
     const post = await this.prisma.post.findFirst({
-      where: { id, deleted_at: null, status: 'published' },
-      select: { id: true },
+      where: {
+        id,
+        deleted_at: null,
+        status: 'published',
+        OR: [
+          { author_id: uid },
+          {
+            archived_at: null,
+            comments_enabled: true,
+            author: {
+              status: 'active',
+              OR: [
+                { role: 'client' },
+                {
+                  attorney_profile: {
+                    verification_status: { not: 'suspended' },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      select: { author_id: true },
     });
     if (!post) return { ok: false };
+    if (post.author_id !== uid) {
+      const blocked = await this.prisma.userBlock.findFirst({
+        where: {
+          OR: [
+            { blocker_id: uid, blocked_id: post.author_id },
+            { blocker_id: post.author_id, blocked_id: uid },
+          ],
+        },
+        select: { blocker_id: true },
+      });
+      if (blocked) return { ok: false };
+    }
     if (this.roomsFull(socket, postRoom(id))) return { ok: false };
     await socket.join(postRoom(id));
     return { ok: true };
@@ -1294,12 +1430,59 @@ export class RealtimeGateway
       targets = [call.caller_id];
     }
     if (targets.length === 0) return { ok: false };
+    void this.noteCallSignal(st, callId, uid, data);
+    const out = (await this.relayOnly(st, uid)) ? relayOnlySignal(data) : data;
+    if (!out) return { ok: true };
     for (const t of targets) {
       this.nsp
         ?.to(userRoom(t))
-        .emit('call:signal', { callId, data, from: uid });
+        .emit('call:signal', { callId, data: out, from: uid });
     }
     return { ok: true };
+  }
+
+  /** The last ICE list of [uid] says `relay` (read at most every 5 s per
+   * socket; a failed read: no filtering). */
+  private async relayOnly(st: SocketState, uid: string): Promise<boolean> {
+    const t = Date.now();
+    if (st.relayOnly && t - st.relayOnly.at < RELAY_ONLY_CACHE_MS) {
+      return st.relayOnly.on;
+    }
+    let on = false;
+    try {
+      // The kill switch (`calls.relay_signal_filter`, on by default).
+      const enabled =
+        (await this.settings?.boolean('calls.relay_signal_filter')) ?? true;
+      on = enabled && (await this.redis.get(relayOnlyKey(uid))) !== null;
+    } catch {
+      on = false;
+    }
+    st.relayOnly = { at: t, on };
+    return on;
+  }
+
+  /** R-404: the first signal of each kind per socket and call is remembered
+   * (one Redis write, not one per ICE candidate). Best effort. */
+  private async noteCallSignal(
+    st: SocketState,
+    callId: string,
+    uid: string,
+    data: { type?: unknown },
+  ): Promise<void> {
+    const kind = data.type;
+    if (kind !== 'offer' && kind !== 'answer' && kind !== 'candidate') return;
+    if (st.signalNoted?.callId !== callId) {
+      st.signalNoted = { callId, kinds: new Set() };
+    }
+    if (st.signalNoted.kinds.has(kind)) return;
+    st.signalNoted.kinds.add(kind);
+    try {
+      const key = callSignalsKey(callId);
+      await this.redis.hset(key, `${uid}:${kind}`, '1');
+      await this.redis.expire(key, CALL_SIGNALS_TTL_SEC);
+    } catch {
+      // Only the diagnosis of a failed call loses a line.
+    }
   }
 
   private conversationIdOf(body: { conversationId?: unknown }): string | null {
@@ -1307,14 +1490,38 @@ export class RealtimeGateway
     return typeof id === 'string' && UUID_RE.test(id) ? id : null;
   }
 
+  /** The claims of a valid, not revoked token, or null (bad / expired /
+   * revoked). Throws only when the revocation lookup itself failed (Redis
+   * AND the database unreachable): that says nothing about the token, so the
+   * callers must not answer it as «unauthorized» (load test 2026-11-02,
+   * LOAD_RESILIENCE §4: a healthy client was told its login is wrong while
+   * the server was merely busy). */
   private async verify(token: string): Promise<AccessTokenClaims | null> {
+    let claims: AccessTokenClaims;
     try {
-      const claims = this.tokens.verifyAccessToken(token);
-      if (await this.revocation.isBlacklisted(claims.sid)) return null;
-      return claims;
+      claims = this.tokens.verifyAccessToken(token);
     } catch {
       return null;
     }
+    return (await this.revocation.isBlacklisted(claims.sid)) ? null : claims;
+  }
+
+  /** A handshake the server could not finish for its own reasons: the same
+   * `server:going-away {retryAfterMs}` every client already obeys on a
+   * deploy (wait a random moment, retry with the same token), instead of
+   * `auth:error` (which sends the app to refresh its login) or a socket
+   * left connected but deaf. */
+  private busyHandshake(socket: Socket, why: string, err?: unknown): void {
+    this.logger.warn(
+      {
+        metric: 'ws_handshake_busy',
+        why,
+        err: err instanceof Error ? err.message : err,
+      },
+      'ws handshake could not finish: client told to retry',
+    );
+    this.sendGoingAway(socket, 'busy');
+    socket.disconnect(true);
   }
 
   /**

@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
@@ -16,6 +18,8 @@ import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+
+import 'call_audio_fakes.dart';
 
 /// OQ-041: the call state machine — ring out, pick-up, signaling,
 /// hang-up; ring in, accept, decline; busy; refusals; answered on another
@@ -431,9 +435,12 @@ class _FakeMedia implements CallMedia {
   /// Owner 2026-10-26: a teardown that throws (a stopped camera track).
   bool closeThrows = false;
 
+  void Function()? onClose;
+
   @override
   Future<void> close() async {
     closed = true;
+    onClose?.call();
     if (closeThrows) throw StateError('track already disposed');
   }
 }
@@ -484,19 +491,44 @@ class _FakeForeground implements CallForeground {
   }) async =>
       started.add('$name|${since > 0}');
 
+  void Function()? onStop;
+
   @override
-  Future<void> stop() async => stops++;
+  Future<void> stop() async {
+    stops++;
+    onStop?.call();
+  }
 }
 
 class _SystemUi implements SystemCallUi {
   final dismissed = <String>[];
   int endAlls = 0;
 
-  @override
-  Future<void> showIncoming(AppCall call) async {}
+  final shown = <String>[];
 
   @override
-  Future<void> dismiss(String callId) async => dismissed.add(callId);
+  Future<void> showIncoming(AppCall call) async => shown.add(call.id);
+
+  void Function()? onDismiss;
+  void Function()? onEndAll;
+
+  /// The native side never answers (a stuck platform call).
+  bool hang = false;
+
+  /// dismiss fails from its Nth call on (1 = every call): endAll and the
+  /// service stop must still run. The earlier fire-and-forget calls of the
+  /// controller are outside the release steps and not under test.
+  int dismissThrowsFrom = 0;
+
+  @override
+  Future<void> dismiss(String callId) async {
+    dismissed.add(callId);
+    onDismiss?.call();
+    if (dismissThrowsFrom > 0 && dismissed.length >= dismissThrowsFrom) {
+      throw StateError('dismiss failed');
+    }
+    if (hang) await Completer<void>().future;
+  }
 
   @override
   Future<void> showOngoing(AppCall call) async {}
@@ -505,7 +537,10 @@ class _SystemUi implements SystemCallUi {
   Future<void> answered(AppCall call) async {}
 
   @override
-  Future<void> endAll() async => endAlls++;
+  Future<void> endAll() async {
+    endAlls++;
+    onEndAll?.call();
+  }
 }
 
 class _Harness {
@@ -515,6 +550,7 @@ class _Harness {
         callsRepositoryProvider.overrideWithValue(repo),
         callClockProvider.overrideWithValue(() => now()),
         callMediaFactoryProvider.overrideWithValue(() => media),
+        callAudioDevicesProvider.overrideWithValue(audio),
         realtimeEventsProvider.overrideWithValue(events.stream),
         appSoundsProvider.overrideWithValue(sounds),
         callForegroundProvider.overrideWithValue(foreground),
@@ -547,6 +583,7 @@ class _Harness {
   final foreground = _FakeForeground();
   final systemUi = _SystemUi();
   final media = _FakeMedia();
+  final audio = FakeCallAudioDevices();
   final events = StreamController<RealtimeEvent>.broadcast();
   final signals = <Map<String, Object?>>[];
   final signalTargets = <String?>[];
@@ -1110,6 +1147,107 @@ void main() {
     expect(h.s.outcome, CallStatus.declined);
   });
 
+  test('owner 2026-11-03: a decline is told to the server exactly once',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.emit(
+      'call:incoming',
+      _event(_call('c3', CallStatus.ringing, outgoing: false)),
+    );
+    await _settle();
+    // The CallKit decline and a second tap / echo of the same decline.
+    await Future.wait([h.c.decline(), h.c.decline()]);
+    await h.c.decline();
+    expect(h.repo.declined, ['c3']);
+  });
+
+  test(
+      'owner 2026-11-03: iPhone with the app open — the ringing call is '
+      "CallKit's (WhatsApp), not an alert or an in-app strip", () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    TestWidgetsFlutterBinding.instance
+        .handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.emit(
+      'call:incoming',
+      _event(_call('c6', CallStatus.ringing, outgoing: false)),
+    );
+    await _settle();
+    expect(h.systemUi.shown, ['c6']);
+    expect(h.container.read(systemRingingCallProvider), 'c6');
+    expect(h.sounds.rings, isNot(contains('ring')));
+  });
+
+  group('owner 2026-11-03: the push and the socket ring the same call', () {
+    test('push (app open) first, then the socket: one call screen, kept',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.ringFromPush('c7', showSystemUi: true);
+      await _settle();
+      h.emit(
+        'call:incoming',
+        _event(_call('c7', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.s.call?.id, 'c7');
+      expect(h.systemUi.shown, ['c7']);
+      expect(h.systemUi.dismissed, isEmpty);
+      expect(h.repo.declined, isEmpty);
+    });
+
+    test('the socket first, then the push: still one screen, never ended',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.emit(
+        'call:incoming',
+        _event(_call('c8', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      await h.c.ringFromPush('c8', showSystemUi: true);
+      await _settle();
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.systemUi.shown, ['c8']);
+      expect(h.systemUi.dismissed, isEmpty);
+      expect(h.repo.declined, isEmpty);
+    });
+
+    test('the socket rings while the push is still loading the call', () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.repo.getGate = Completer<void>();
+      final push = h.c.ringFromPush('c9', showSystemUi: true);
+      await _settle();
+      h.emit(
+        'call:incoming',
+        _event(_call('c9', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      h.repo.getGate!.complete();
+      await push;
+      await _settle();
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.systemUi.shown, ['c9']);
+      expect(h.systemUi.dismissed, isEmpty);
+      expect(h.repo.declined, isEmpty);
+    });
+
+    test('a push the system UI already showed (background) shows no second',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.ringFromPush('c10');
+      await _settle();
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.systemUi.shown, isEmpty);
+    });
+  });
+
   test('every end leaves the shade clean (decline and hang-up)', () async {
     final h = _Harness();
     addTearDown(h.dispose);
@@ -1247,6 +1385,8 @@ void main() {
     expect(h.foreground.started, ['Paul Phone|false']);
 
     await h.c.hangUp();
+    // Stopped once, by the ordered release after the media (R-037).
+    await _settle();
     expect(h.foreground.stops, 1);
   });
 
@@ -1660,6 +1800,116 @@ void main() {
     });
   });
 
+  group('headphones (owner 2026-11-04, WhatsApp)', () {
+    Future<_Harness> talking() async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      await _settle();
+      h.media.onState!(CallMediaState.connected);
+      await _settle();
+      return h;
+    }
+
+    test('a headset connected before the call takes its sound', () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.audio.list = [
+        FakeCallAudioDevices.phoneOut,
+        FakeCallAudioDevices.speakerOut,
+        FakeCallAudioDevices.btOut,
+      ];
+      await h.c.call('conv', peer: _peer);
+      await _settle();
+      final route = h.container.read(callAudioRouterProvider);
+      expect(h.audio.used, [FakeCallAudioDevices.btOut]);
+      expect(route.current, FakeCallAudioDevices.btOut);
+      expect(route.choice, isTrue);
+      expect(h.c.audioChoice, isTrue);
+      expect(h.s.speaker, isFalse);
+      await h.c.hangUp();
+      // The route is let go with the call.
+      expect(h.container.read(callAudioRouterProvider).current, isNull);
+    });
+
+    test('plugged in mid-call: the sound moves there; out: back to the ear',
+        () async {
+      final h = await talking();
+      expect(h.c.audioChoice, isFalse);
+      h.audio.connect(FakeCallAudioDevices.wiredOut);
+      await _settle();
+      expect(h.audio.used, [FakeCallAudioDevices.wiredOut]);
+      expect(
+        h.container.read(callAudioRouterProvider).current,
+        FakeCallAudioDevices.wiredOut,
+      );
+      expect(h.c.audioChoice, isTrue);
+
+      h.audio.disconnect(FakeCallAudioDevices.wiredOut);
+      await _settle();
+      // A voice call: the earpiece (the system's headset-first choice).
+      expect(h.audio.autos, [false]);
+      expect(
+        h.container.read(callAudioRouterProvider).current?.kind,
+        CallAudioKind.phone,
+      );
+      await h.c.hangUp();
+    });
+
+    test('the speaker chosen in the list; the button shows it', () async {
+      final h = await talking();
+      h.audio.connect(FakeCallAudioDevices.btOut);
+      await _settle();
+      expect(h.s.speaker, isFalse);
+      await h.c.selectAudioOutput(FakeCallAudioDevices.speakerOut);
+      await _settle();
+      expect(h.audio.used.last, FakeCallAudioDevices.speakerOut);
+      expect(h.s.speaker, isTrue);
+      // Back to the headset.
+      await h.c.selectAudioOutput(FakeCallAudioDevices.btOut);
+      await _settle();
+      expect(h.s.speaker, isFalse);
+      expect(h.container.read(callAudioRouterProvider).inHeadset, isTrue);
+      await h.c.hangUp();
+    });
+
+    test('the camera switched on keeps the sound in the headset', () async {
+      final h = await talking();
+      h.audio.connect(FakeCallAudioDevices.btOut);
+      await _settle();
+      await h.c.toggleVideo();
+      expect(h.s.video, isTrue);
+      // No loudspeaker forced past the headset (it used to be).
+      expect(h.s.speaker, isFalse);
+      expect(h.media.speaker, isNot(isTrue));
+      // Taken off in a video call: the loudspeaker.
+      h.audio.disconnect(FakeCallAudioDevices.btOut);
+      await _settle();
+      expect(h.audio.autos, [true]);
+      expect(h.s.speaker, isTrue);
+      await h.c.hangUp();
+    });
+
+    test('no headset: the speaker button switches the speaker as before',
+        () async {
+      final h = await talking();
+      await h.c.toggleSpeaker();
+      expect(h.media.speaker, isTrue);
+      expect(
+        h.container.read(callAudioRouterProvider).current?.kind,
+        CallAudioKind.speaker,
+      );
+      await h.c.toggleSpeaker();
+      expect(h.media.speaker, isFalse);
+      expect(h.audio.used, isEmpty);
+      await h.c.hangUp();
+    });
+  });
+
   group('the camera switched on mid-call (owner 2026-10-22)', () {
     /// A 1:1 voice call we placed, picked up and connected.
     Future<_Harness> talking({String me = 'me'}) async {
@@ -1890,28 +2140,68 @@ void main() {
     });
 
     test(
-        'end order: media at once, system call next, the late native sweep '
-        'only after the screen has slid away', () {
+        'R-037 end order (LiveKit): media closed → system call ended → '
+        'released → idle after the linger; no native work after release', () {
       fakeAsync((async) {
         final h = _Harness();
+        final order = <String>[];
+        h.media.onClose = () => order.add('media');
+        h.systemUi.onDismiss = () => order.add('system');
+        h.systemUi.onEndAll = () => order.add('endAll');
+        h.foreground.onStop = () => order.add('service');
         h.c.call('conv', peer: _peer);
         async.flushMicrotasks();
         h.c.hangUp();
-        // The camera / mic go with the end itself.
-        expect(h.media.closed, isTrue);
+        // «Call ended» at once; the screen holds still while it lets go.
+        expect(h.s.phase, CallPhase.ended);
+        expect(h.s.releasing, isTrue);
         async.flushMicrotasks();
-        final first = h.systemUi.endAlls;
-        expect(first, greaterThan(0));
-        expect(h.foreground.stops, 1);
-        // The screen closes at 1.5 s and slides for ~0.4 s: no native
-        // work lands in that window.
-        async.elapse(const Duration(milliseconds: 2900));
-        expect(h.systemUi.endAlls, first);
-        expect(h.foreground.stops, 1);
-        expect(kCallLateSweep, greaterThan(kCallEndedLinger));
-        async.elapse(const Duration(milliseconds: 200));
-        expect(h.systemUi.endAlls, first + 1);
-        expect(h.foreground.stops, 2);
+        expect(order, ['media', 'system', 'endAll', 'service']);
+        expect(h.s.releasing, isFalse);
+        expect(h.s.phase, CallPhase.ended);
+        // Nothing native lands while the screen slides away.
+        async.elapse(kCallEndedLinger + const Duration(seconds: 5));
+        expect(h.s.phase, CallPhase.idle);
+        expect(order, ['media', 'system', 'endAll', 'service']);
+        done(h);
+      });
+    });
+
+    test('R-037: a step that never answers cannot hold the ended screen', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.systemUi.hang = true;
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.c.hangUp();
+        async.flushMicrotasks();
+        expect(h.s.releasing, isTrue);
+        async.elapse(kCallReleaseStepTimeout);
+        expect(h.s.releasing, isFalse);
+        async.elapse(kCallEndedLinger + const Duration(milliseconds: 100));
+        expect(h.s.phase, CallPhase.idle);
+        done(h);
+      });
+    });
+
+    test('R-037: a new call during the release is not ended by it', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.systemUi.hang = true;
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.outgoing);
+        async.elapse(kCallReleaseStepTimeout * 2);
+        expect(h.s.phase, CallPhase.outgoing);
+        h.systemUi.hang = false;
+        h.c.hangUp();
+        async
+          ..flushMicrotasks()
+          ..elapse(kCallReleaseStepTimeout + kCallEndedLinger);
         done(h);
       });
     });
@@ -2026,6 +2316,61 @@ void main() {
         async.flushMicrotasks();
         expectClosed(h, async);
         done(h);
+      });
+    });
+
+    group('R-037: dismiss failing does not skip endAll and service stop', () {
+      void expectEnded(_Harness h, FakeAsync async) {
+        async.flushMicrotasks();
+        expect(h.systemUi.dismissed.toSet(), hasLength(1));
+        expect(h.systemUi.endAlls, 1);
+        expect(h.foreground.stops, 1);
+        done(h);
+      }
+
+      test('decline', () {
+        fakeAsync((async) {
+          final h = _Harness();
+          h.systemUi.dismissThrowsFrom = 2;
+          h.emit(
+            'call:incoming',
+            _event(_call('c5', CallStatus.ringing, outgoing: false)),
+          );
+          async.flushMicrotasks();
+          h.c.decline();
+          expectEnded(h, async);
+        });
+      });
+
+      test('cancel (outgoing, still ringing)', () {
+        fakeAsync((async) {
+          final h = _Harness();
+          h.systemUi.dismissThrowsFrom = 1;
+          h.c.call('conv', peer: _peer);
+          async.flushMicrotasks();
+          h.c.hangUp();
+          expectEnded(h, async);
+        });
+      });
+
+      test('remote hangup', () {
+        fakeAsync((async) {
+          final h = _Harness();
+          h.systemUi.dismissThrowsFrom = 2;
+          h.c.call('conv', peer: _peer);
+          async.flushMicrotasks();
+          h.emit(
+            'call:accepted',
+            _event(_call('c1', CallStatus.active, outgoing: true)),
+          );
+          async.flushMicrotasks();
+          h.media.onState!(CallMediaState.connected);
+          h.emit(
+            'call:ended',
+            _event(_call('c1', CallStatus.ended, outgoing: true)),
+          );
+          expectEnded(h, async);
+        });
       });
     });
 
@@ -2456,6 +2801,199 @@ void main() {
         h.c.call('conv', peer: _peer);
         async.flushMicrotasks();
         expect(h.repo.iceAsks, hasLength(2));
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+  });
+
+  group('R-402: «Соединение…» for minutes (owner 2026-11-04)', () {
+    /// Caller: accepted, offer out, answer in — the link is checking.
+    _Harness checking(FakeAsync async) {
+      final h = _Harness()..fakeClock(async);
+      h.c.call('conv', peer: _peer);
+      async.flushMicrotasks();
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      async.flushMicrotasks();
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'data': {'type': 'answer', 'sdp': 'a'},
+      });
+      async.flushMicrotasks();
+      expect(h.s.phase, CallPhase.connecting);
+      expect(h.media.iceRestarts, 0);
+      return h;
+    }
+
+    test(
+        'caller: still checking 10 s after the answer — a fresh relay list, '
+        'then an ICE restart; again every 10 s until it connects', () {
+      fakeAsync((async) {
+        final h = checking(async);
+        final asks = h.repo.iceAsks.length;
+        async.elapse(const Duration(seconds: 9));
+        expect(h.media.iceRestarts, 0);
+        async.elapse(const Duration(seconds: 2));
+        // Not relayFailed: a slow route, not a dead Cloudflare relay (the
+        // list had STUN only).
+        expect(h.repo.iceAsks.sublist(asks), [false]);
+        expect(h.media.iceUpdates, isNotEmpty);
+        expect(h.media.iceRestarts, 1);
+        async.elapse(kCallIceCheckingRestart);
+        expect(h.media.iceRestarts, 2);
+        // Connected: the watchdog is quiet for the rest of the call.
+        h.media.onState!(CallMediaState.connected);
+        expect(h.s.phase, CallPhase.active);
+        async.elapse(const Duration(seconds: 40));
+        expect(h.media.iceRestarts, 2);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    const cloudflare = [
+      IceServer(
+        urls: ['turn:turn.cloudflare.com:3478?transport=udp'],
+        username: 'test-user',
+        credential: 'test-credential',
+        relayOnly: true,
+      ),
+    ];
+
+    test(
+        'relay-only, the answer came and still no link: the relay is reported '
+        'and whatever the server answers now goes into the link', () {
+      fakeAsync((async) {
+        final h = _Harness()..fakeClock(async);
+        h.repo.servers = cloudflare;
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        h.emit('call:signal', {
+          'callId': 'c1',
+          'data': {'type': 'answer', 'sdp': 'a'},
+        });
+        async.flushMicrotasks();
+        final asks = h.repo.iceAsks.length;
+        const fallback = [
+          IceServer(urls: ['stun:stun.cloudflare.com:3478']),
+        ];
+        h.repo.servers = fallback;
+        async.elapse(kCallIceCheckingRestart + const Duration(seconds: 1));
+        expect(h.repo.iceAsks.sublist(asks), [true]);
+        expect(h.media.iceUpdates.last, fallback);
+        expect(h.media.iceRestarts, 1);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test('no signal ever came: the relay is NOT blamed (R-404)', () {
+      fakeAsync((async) {
+        final h = _Harness()..fakeClock(async);
+        h.repo.servers = cloudflare;
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        final asks = h.repo.iceAsks.length;
+        async.elapse(kCallIceCheckingRestart + const Duration(seconds: 1));
+        expect(h.repo.iceAsks.sublist(asks), isNot(contains(true)));
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test('a link that connects within 10 s is never restarted', () {
+      fakeAsync((async) {
+        final h = checking(async);
+        async.elapse(const Duration(seconds: 3));
+        h.media.onState!(CallMediaState.connected);
+        async.elapse(const Duration(seconds: 30));
+        expect(h.media.iceRestarts, 0);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test(
+        'callee: still checking 10 s after it answered — asks the caller to '
+        'restart (only the offerer makes offers)', () {
+      fakeAsync((async) {
+        final h = _Harness()
+          ..fakeClock(async)
+          ..emit(
+            'call:incoming',
+            _event(_call('c2', CallStatus.ringing, outgoing: false)),
+          );
+        async.flushMicrotasks();
+        h.c.accept();
+        async.flushMicrotasks();
+        h.emit('call:signal', {
+          'callId': 'c2',
+          'data': {'type': 'offer', 'sdp': 'o'},
+        });
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.connecting);
+        expect(h.signals.last, {'type': 'answer', 'sdp': 'answer-to-o'});
+        async.elapse(const Duration(seconds: 11));
+        expect(h.media.iceRestarts, 0);
+        expect(h.signals.last, {'type': 'restart'});
+        h.media.onState!(CallMediaState.connected);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test('two restart triggers within 2 s make ONE restart offer', () {
+      fakeAsync((async) {
+        final h = checking(async);
+        // The other side asks for a restart right as our watchdog fires.
+        async.elapse(const Duration(seconds: 10));
+        h.emit('call:signal', {
+          'callId': 'c1',
+          'data': {'type': 'restart'},
+        });
+        async.flushMicrotasks();
+        expect(h.media.iceRestarts, 1);
+        // A later ask (past the gap) goes through.
+        async.elapse(const Duration(seconds: 3));
+        h.emit('call:signal', {
+          'callId': 'c1',
+          'data': {'type': 'restart'},
+        });
+        async.flushMicrotasks();
+        expect(h.media.iceRestarts, 2);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test('the relay list is asked once for the ring and the media', () {
+      fakeAsync((async) {
+        final h = _Harness()..fakeClock(async);
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        expect(h.media.opened, isTrue);
+        // Asked with the call request, reused when the media opened.
+        expect(h.repo.iceAsks, hasLength(1));
         h.c.hangUp();
         async.flushMicrotasks();
         h.close();

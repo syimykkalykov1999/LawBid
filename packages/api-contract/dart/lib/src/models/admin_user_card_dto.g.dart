@@ -40,6 +40,9 @@ AdminUserCardDto _$AdminUserCardDtoFromJson(Map<String, dynamic> json) =>
           .map((e) => AdminUserBidDto.fromJson(e as Map<String, dynamic>))
           .toList(),
       warnings: (json['warnings'] as num).toInt(),
+      roleSwitches: (json['roleSwitches'] as List<dynamic>)
+          .map((e) => AdminRoleSwitchDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
 
 Map<String, dynamic> _$AdminUserCardDtoToJson(AdminUserCardDto instance) =>
@@ -62,4 +65,5 @@ Map<String, dynamic> _$AdminUserCardDtoToJson(AdminUserCardDto instance) =>
       'cases': instance.cases.map((e) => e.toJson()).toList(),
       'bids': instance.bids.map((e) => e.toJson()).toList(),
       'warnings': instance.warnings,
+      'roleSwitches': instance.roleSwitches.map((e) => e.toJson()).toList(),
     };

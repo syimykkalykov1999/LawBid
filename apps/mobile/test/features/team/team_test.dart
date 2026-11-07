@@ -118,6 +118,30 @@ void main() {
       });
     }
 
+    // Owner 2026-11-04 (R-390): All, Important, Overdue, the viewer's side,
+    // then the archive last.
+    testWidgets('the chips go: all, important, overdue, …, archive last',
+        (tester) async {
+      repo.active = [makeTask('a')];
+      await pump(tester, const TasksTab());
+      final keys = tester
+          .widgetList<Widget>(
+            find.byWidgetPredicate(
+              (w) =>
+                  w.key is ValueKey<String> &&
+                  (w.key! as ValueKey<String>).value.startsWith('tasks-view-'),
+            ),
+          )
+          .map((w) => (w.key! as ValueKey<String>).value)
+          .toList();
+      expect(keys.sublist(0, 3), [
+        'tasks-view-all',
+        'tasks-view-important',
+        'tasks-view-overdue',
+      ]);
+      expect(keys.last, 'tasks-view-done');
+    });
+
     testWidgets('a double tap marks the task done', (tester) async {
       repo.active = [
         makeTask('t1', dueAt: DateTime.now().add(const Duration(hours: 2))),

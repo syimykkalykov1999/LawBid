@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
@@ -187,6 +188,10 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final mq = MediaQuery.of(context);
     final height = (mq.size.height - mq.padding.top) * 0.86;
+    // Owner 2026-11-04 (R-386): with the `channels` flag off there is no
+    // «Сообщества» tab; the sheet is «Чаты» only.
+    final communities = ref.watch(channelsEnabledProvider);
+    final tab = communities ? _tab : _Tab.chats;
     return Padding(
       padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
       child: SizedBox(
@@ -203,10 +208,11 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
                 onChanged: (v) => setState(() => _q = v),
               ),
               PillTabs<_Tab>(
-                value: _tab,
+                value: tab,
                 tabs: [
                   (_Tab.chats, t.t('share.to.chats')),
-                  (_Tab.communities, t.t('share.to.communities')),
+                  if (communities)
+                    (_Tab.communities, t.t('share.to.communities')),
                 ],
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.screenSide,
@@ -218,11 +224,11 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
               ),
               Expanded(
                 child: SwipePages<_Tab>(
-                  value: _tab,
-                  values: _Tab.values,
+                  value: tab,
+                  values: communities ? _Tab.values : const [_Tab.chats],
                   onChanged: (v) => setState(() => _tab = v),
                   pageBuilder: (context, tab) => switch (tab) {
-                    _Tab.chats => _chatsGrid(t),
+                    _Tab.chats => _chatsGrid(t, withGroups: !communities),
                     _Tab.communities => _communities(t),
                   },
                 ),
@@ -257,7 +263,7 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
       c.request != MessageRequest.pending &&
       c.request != MessageRequest.declined;
 
-  Widget _chatsGrid(Translator t) {
+  Widget _chatsGrid(Translator t, {bool withGroups = false}) {
     final list = _q.isEmpty
         ? ref.watch(conversationsProvider)
         : ref.watch(
@@ -270,10 +276,13 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
     // Owner 2026-10-21 (inbox 25b, Instagram): anyone in the app by name or
     // @username, under the matching chats.
     final searching = peopleSuggestQuery(_q).length >= peopleSuggestMinChars;
-    if (list.isLoading && items.isEmpty && !searching) {
+    // Owner 2026-11-04 (R-386): with the Communities tab hidden, the groups I
+    // can write in follow the chats on this one tab.
+    final groupItems = withGroups ? _writableGroups() : const <api.GroupDto>[];
+    if (list.isLoading && items.isEmpty && groupItems.isEmpty && !searching) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (items.isEmpty && !searching) {
+    if (items.isEmpty && groupItems.isEmpty && !searching) {
       return _Empty(t.t(_q.isEmpty ? 'share.to.noChats' : 'share.to.empty'));
     }
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
@@ -315,6 +324,21 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
           sliver: grid,
         ),
+        if (groupItems.isNotEmpty)
+          SliverList.builder(
+            itemCount: groupItems.length,
+            itemBuilder: (context, i) {
+              final g = groupItems[i];
+              return _PickRow(
+                key: ValueKey('share-to-group-${g.id}'),
+                title: g.title,
+                subtitle: g.username == null ? null : '@${g.username}',
+                picked: _isPicked('group', g.id),
+                avatar: GroupAvatar(name: g.title, url: g.avatarUrl, size: 44),
+                onTap: () => _toggle('group', g.id),
+              );
+            },
+          ),
         if (searching)
           SliverToBoxAdapter(
             child: PeopleSuggestList(
@@ -390,16 +414,23 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
     return false;
   }
 
-  Widget _groupsList(Translator t) {
+  List<api.GroupDto> _writableGroups() {
     final list = ref.watch(groupsProvider);
     final q = _q.toLowerCase();
     final items = [
       for (final g in list.value?.items ?? const <api.GroupDto>[])
-        if (g.canPost && (q.isEmpty || g.title.toLowerCase().contains(q))) g,
+        if (g.canPost && textMatches(q, [g.title])) g,
     ];
     for (final g in items) {
       _groups[g.id] = g;
     }
+    return items;
+  }
+
+  Widget _groupsList(Translator t) {
+    final list = ref.watch(groupsProvider);
+    final q = _q.toLowerCase();
+    final items = _writableGroups();
     if (list.isLoading && items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }

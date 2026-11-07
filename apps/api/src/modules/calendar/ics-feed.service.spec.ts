@@ -3,13 +3,14 @@ import {
   IcsFeedService,
   hashToken,
 } from './ics-feed.service';
+import { withEvalIncr } from '../../redis/incr-with-ttl.test-support';
 
 const TOKEN = `lbc_${'a'.repeat(43)}`;
 
 /** R-38: the public feed is cached, conditional and rate limited per link. */
 function make() {
   const store = new Map<string, string>();
-  const redis = {
+  const redis = withEvalIncr({
     get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
     set: jest.fn((k: string, v: string) => {
       store.set(k, v);
@@ -22,7 +23,7 @@ function make() {
       return Promise.resolve(n);
     }),
     expire: jest.fn(() => Promise.resolve(1)),
-  };
+  });
   const prisma = {
     calendarFeedToken: {
       findUnique: jest.fn(() =>

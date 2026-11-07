@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/sync/sync_freshness.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
@@ -56,10 +57,7 @@ class MyPerson {
 
   /// [query] (already normalised by [peopleSuggestQuery], lower case) is in
   /// the name or the @username.
-  bool matches(String query) =>
-      query.isEmpty ||
-      name.toLowerCase().contains(query) ||
-      username.toLowerCase().contains(query);
+  bool matches(String query) => textMatches(query, [name, username]);
 
   @override
   bool operator ==(Object other) => other is MyPerson && other.id == id;
@@ -243,12 +241,147 @@ List<MyPerson> sortMyChatPeople(Iterable<MyPerson> people) {
   return list;
 }
 
-final myChatPeopleProvider = FutureProvider.autoDispose<List<MyPerson>>((
-  ref,
-) async {
-  final myId = ref.read(currentUserIdProvider);
-  final parts = await Future.wait([_chats(ref), _mutual(ref, myId)]);
-  return sortMyChatPeople(
-    mergeMyPeople(chats: parts[0], mutual: parts[1], myId: myId),
-  );
-});
+/// Owner 2026-10-22: the «Chats» tab of the «+» screen.
+///
+/// Owner 2026-11-04 (R-383, Telegram): opens at once on the list saved on
+/// the phone; the server (chats pages + both follow lists) is asked only on
+/// the first open of this app run, on pull-to-refresh or when older than
+/// [SyncWindows.chats] — never on a tab switch. A new message moves its
+/// person up from the chat list held on the phone (socket), no request.
+/// The follow lists have no `updatedSince` on the server: a sync reads them
+/// again.
+final myChatPeopleProvider =
+    AsyncNotifierProvider<MyChatPeople, List<MyPerson>>(MyChatPeople.new);
+
+class MyChatPeople extends AsyncNotifier<List<MyPerson>> {
+  static const _saved = 'my_chat_people';
+
+  bool _syncing = false;
+
+  String get _key => 'myChatPeople:${ref.read(currentUserIdProvider)}';
+
+  SyncFreshness get _fresh => ref.read(syncFreshnessProvider);
+
+  @override
+  Future<List<MyPerson>> build() async {
+    ref
+      ..watch(currentUserIdProvider)
+      // A chat on the phone moved (a message came): its person moves too.
+      ..listen(conversationsProvider, (_, next) {
+        final items = next.value?.items;
+        final shown = state.value;
+        if (items == null || shown == null) return;
+        final moved = mergeChatsInto(shown, myPeopleFromChats(items));
+        if (moved != null) state = AsyncData(moved);
+      });
+    final saved = await _read();
+    if (saved != null) {
+      if (_fresh.isStale(_key, SyncWindows.chats)) {
+        unawaited(Future<void>(sync));
+      }
+      return saved;
+    }
+    return _fetch();
+  }
+
+  /// The tab came into view: syncs only when older than the window.
+  Future<void> refreshIfStale() async {
+    if (_fresh.isStale(_key, SyncWindows.chats)) await sync();
+  }
+
+  /// Pull-to-refresh / a stale copy: the rows stay on screen, the answer
+  /// replaces them; a failure keeps them.
+  Future<void> sync() async {
+    if (_syncing) return;
+    _syncing = true;
+    try {
+      final fresh = await _fetch();
+      if (ref.mounted) state = AsyncData(fresh);
+    } on Object {
+      // Offline: what is shown stays.
+    } finally {
+      _syncing = false;
+    }
+  }
+
+  Future<List<MyPerson>> _fetch() async {
+    final myId = ref.read(currentUserIdProvider);
+    final parts = await Future.wait([_chats(ref), _mutual(ref, myId)]);
+    final list = sortMyChatPeople(
+      mergeMyPeople(chats: parts[0], mutual: parts[1], myId: myId),
+    );
+    _fresh.mark(_key);
+    ref.read(savedJsonProvider).save(_saved, {
+      'data': [for (final p in list) myPersonToJson(p)],
+    });
+    return list;
+  }
+
+  Future<List<MyPerson>?> _read() async {
+    try {
+      final json = await ref
+          .read(savedJsonProvider)
+          .read(_saved)
+          .timeout(const Duration(seconds: 1), onTimeout: () => null);
+      final data = json?['data'];
+      if (data is! List || data.isEmpty) return null;
+      return [
+        for (final row in data)
+          if (row is Map<String, dynamic>) myPersonFromJson(row),
+      ];
+    } on Object {
+      return null;
+    }
+  }
+}
+
+/// [shown] with the chat people of the list on the phone applied: a newer
+/// last message moves a person up, a new chat enters; nobody leaves (the
+/// list on the phone may hold fewer pages). Null when nothing changed.
+List<MyPerson>? mergeChatsInto(List<MyPerson> shown, List<MyPerson> chats) {
+  final byId = {for (final p in shown) p.id: p};
+  var changed = false;
+  for (final c in chats) {
+    final old = byId[c.id];
+    final at = c.lastAt;
+    if (old == null) {
+      byId[c.id] = c;
+      changed = true;
+    } else if (at != null && (old.lastAt == null || at.isAfter(old.lastAt!))) {
+      byId[c.id] = MyPerson(
+        id: old.id,
+        group: MyPeopleGroup.chats,
+        name: old.name,
+        username: old.username,
+        avatarUrl: old.avatarUrl,
+        lastAt: at,
+        role: old.role,
+      );
+      changed = true;
+    }
+  }
+  return changed ? sortMyChatPeople(byId.values) : null;
+}
+
+Map<String, dynamic> myPersonToJson(MyPerson p) => {
+      'id': p.id,
+      'group': p.group.name,
+      'name': p.name,
+      'username': p.username,
+      if (p.avatarUrl != null) 'avatarUrl': p.avatarUrl,
+      if (p.lastAt != null) 'lastAt': p.lastAt!.toUtc().toIso8601String(),
+      if (p.role != null) 'role': p.role,
+    };
+
+MyPerson myPersonFromJson(Map<String, dynamic> j) => MyPerson(
+      id: j['id'] as String,
+      group: MyPeopleGroup.values.firstWhere(
+        (g) => g.name == j['group'],
+        orElse: () => MyPeopleGroup.chats,
+      ),
+      name: j['name'] as String? ?? '',
+      username: j['username'] as String? ?? '',
+      avatarUrl: j['avatarUrl'] as String?,
+      lastAt: DateTime.tryParse(j['lastAt'] as String? ?? '')?.toLocal(),
+      role: j['role'] as String?,
+    );

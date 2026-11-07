@@ -10,6 +10,7 @@ import { growthError } from '@/components/growth/errors';
 import { api } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { fileMime, sha256Hex, sleep } from './media-utils';
+import { sendToStorage } from '@/lib/storage-upload';
 
 type Pack = components['schemas']['AdminStickerPackDto'];
 type Mime = components['schemas']['AdminStickerUploadDto']['mime'];
@@ -95,12 +96,9 @@ export function StickerUploader({ packId, onAdded }: { packId: string; onAdded: 
       ).data!.data;
 
       setPhase('upload');
-      const form = new FormData();
-      for (const [k, v] of Object.entries(presigned.upload.fields)) form.append(k, v);
-      form.append('file', file); // S3 POST policy: the file goes last
       let uploaded: Response;
       try {
-        uploaded = await fetch(presigned.upload.url, { method: 'POST', body: form });
+        uploaded = await sendToStorage(presigned.upload, file);
       } catch {
         throw new Error('Не удалось отправить файл в хранилище (сеть или CORS).');
       }

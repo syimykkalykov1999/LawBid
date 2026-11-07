@@ -32,9 +32,12 @@ import type {
 } from '../dto/verification-requests.dto';
 import type {
   SelfieCaptureTokenDto,
+  VerificationHandoffDto,
+  VerificationHandoffStatusDto,
   VerificationOverviewDto,
   VerificationRequestDto,
 } from '../dto/verification-responses.dto';
+import { VerificationHandoffStatus } from '../dto/verification-responses.dto';
 import {
   ATTESTATION_VERSION,
   EDITABLE_REQUEST_STATUSES,
@@ -55,6 +58,7 @@ import {
   SelfieCaptureTokensService,
   type SelfieCaptureGrant,
 } from './selfie-capture-tokens.service';
+import { VerificationHandoffService } from './verification-handoff.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -81,6 +85,7 @@ export type MissingItem =
   | 'identity_document'
   | 'identity_document_back'
   | 'selfie'
+  | 'photo'
   | `bar_license:${string}`
   | `file_not_clean:${string}`;
 
@@ -109,6 +114,8 @@ export class VerificationRequestsService {
     private readonly captureTokens: SelfieCaptureTokensService,
     // Owner 2026-10-14: the number's shape and the stepped cooldown.
     @Optional() private readonly attempts?: BarAttemptsService,
+    // R-146: «continue on your phone» codes for the selfie.
+    @Optional() private readonly handoff?: VerificationHandoffService,
   ) {}
 
   /**
@@ -162,6 +169,19 @@ export class VerificationRequestsService {
       }
     }
     return false;
+  }
+
+  /** Owner 2026-11-05: true when the attorney has their own clean profile
+   * photo, or the check is off (`verification.require_photo`). */
+  private async attorneyPhotoOk(userId: string): Promise<boolean> {
+    if (!(await this.settings.boolean('verification.require_photo'))) {
+      return true;
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatar_file_id: true },
+    });
+    return this.files.isCleanAvatar(user?.avatar_file_id ?? null, userId);
   }
 
   /** Photo of the bar card per license: optional unless switched on. */
@@ -517,6 +537,37 @@ export class VerificationRequestsService {
     return { ...issued, required };
   }
 
+  /**
+   * R-146 (owner 2026-11-04): the computer without a camera asks for a
+   * one-time «continue on your phone» code bound to this attorney and this
+   * editable request (rate-limited, journaled in auth_events).
+   */
+  async createHandoff(
+    userId: string,
+    requestId: string,
+    ip?: string,
+  ): Promise<VerificationHandoffDto> {
+    await this.requireActiveAttorney(userId);
+    const req = await this.load(this.prisma, userId, requestId);
+    assertEditable(req.status);
+    const made = await this.requireHandoff().create(userId, requestId, ip);
+    return { ...made, qrPayload: made.url };
+  }
+
+  /** R-146: pending / done / expired of the attorney's own code. */
+  async handoffStatus(
+    userId: string,
+    token: string,
+  ): Promise<VerificationHandoffStatusDto> {
+    const s = await this.requireHandoff().status(userId, token);
+    return { ...s, status: VerificationHandoffStatus[s.status] };
+  }
+
+  private requireHandoff(): VerificationHandoffService {
+    if (!this.handoff) throw new Error('VerificationHandoffService missing');
+    return this.handoff;
+  }
+
   private selfieLiveCaptureRequired(): Promise<boolean> {
     return this.settings.boolean('verification.selfie_live_capture_required');
   }
@@ -533,6 +584,16 @@ export class VerificationRequestsService {
       throw validationError('Capture data belongs to the selfie only.', {
         field: 'captureToken',
       });
+    }
+    if (!selfie && dto.handoffToken) {
+      throw validationError('The handoff code belongs to the selfie only.', {
+        field: 'handoffToken',
+      });
+    }
+    // R-146: the phone opened the computer's link — it must be this
+    // attorney's code for this request.
+    if (selfie && dto.handoffToken && this.handoff) {
+      await this.handoff.assertUsable(userId, requestId, dto.handoffToken);
     }
     await this.files.assertAttachable(
       userId,
@@ -568,6 +629,12 @@ export class VerificationRequestsService {
           .catch(() => undefined);
       }
       throw e;
+    }
+    // R-146: the computer waiting on «continue on your phone» reads `done`.
+    if (selfie && this.handoff) {
+      await this.handoff
+        .markDone(userId, requestId, dto.handoffToken)
+        .catch(() => undefined);
     }
     return this.get(userId, requestId);
   }
@@ -678,6 +745,7 @@ export class VerificationRequestsService {
     const { verificationStatus } = await this.requireActiveAttorney(userId);
     const max = await this.settings.number('verification.max_submissions_30d');
     const barDocRequired = await this.barDocumentRequired();
+    const photoOk = await this.attorneyPhotoOk(userId);
     let identityRequired = false;
     const firstSubmission = await withTxRetry(this.prisma, async (tx) => {
       const req = await this.load(tx, userId, requestId);
@@ -695,6 +763,8 @@ export class VerificationRequestsService {
         identityRequired,
         barDocRequired,
       );
+      // Owner 2026-11-05: a new submission needs the attorney's photo.
+      if (submissionPhotoMissing(fromDraft, photoOk)) missing.push('photo');
       // Owner 2026-10-04: a new submission carries the sworn statement.
       if (fromDraft && dto.attestation !== true) missing.unshift('attestation');
       if (missing.length > 0) {
@@ -938,6 +1008,16 @@ export function documentShape(dto: {
     side: isIdentity ? (dto.side ?? 'front') : null,
     stateCode: dto.stateCode ?? null,
   };
+}
+
+/** Owner 2026-11-05: only a NEW submission (from a draft) asks for the
+ * photo — an answer to «needs more info» on a request already sent is
+ * never refused for it, so older app builds keep working. */
+export function submissionPhotoMissing(
+  fromDraft: boolean,
+  photoOk: boolean,
+): boolean {
+  return fromDraft && !photoOk;
 }
 
 /** null when some identity document type is complete (front, plus back

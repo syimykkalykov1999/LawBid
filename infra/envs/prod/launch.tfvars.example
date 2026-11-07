@@ -16,7 +16,7 @@ dmarc_rua         = "support@lawbid.dev"
 ses_from_address  = "no-reply@lawbid.dev"
 api_image         = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-api:REPLACE"
 admin_image       = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-admin:REPLACE"
-clamav_image      = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-clamav:1.4"
+clamav_image      = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-clamav:1.4-debian"
 # Owner 2026-10-24: our own PgBouncer (docs/architecture/DB_POOLER.md, runbook
 # docs/runbooks/DB_POOLER.md). Order: apply infra/bootstrap (ECR repo) -> run
 # the "Build PgBouncer" workflow -> set the two lines below -> terraform apply.
@@ -54,7 +54,7 @@ worker_spot = true
 api_spot    = true
 
 redis_node_type = "cache.t4g.micro" # cache.r7g.large → t4g.micro (≈ $12)
-redis_replicas  = 1                 # owner 2026-10-23: failover replica in the other AZ (+ ≈ $12)
+redis_replicas  = 0                 # owner 2026-11-02: standby node OFF at launch; the API adds it by itself when people are online (docs/runbooks/ha-auto.md)
 
 nat_per_az = false # one NAT gateway instead of one per AZ (≈ $33 saved)
 # Owner rule 2026-10-25 (S9-6): the four interface endpoints (≈ $29/month in one
@@ -86,7 +86,7 @@ existing_database_identifier = "lawbid-prod-postgres"
 # only imports; review `plan` first (docs/runbooks/infra-hardening.md).
 # adopt_existing_database = true
 # After the Sunday Multi-AZ switch in the console also set:
-# database_multi_az = true
+# database_multi_az = false  # owner 2026-11-02: Multi-AZ starts OFF; the API switches it on by itself when people are online (docs/runbooks/ha-auto.md)
 # S4-6: RDS cross-Region automated backups (PITR in us-west-2, RPO minutes):
 # rds_cross_region_backups = true
 backup_enabled               = true
@@ -135,7 +135,7 @@ web_create_certificate = true
 # --- database autoscale (owner 2026-10-24, docs/runbooks/db-autoscale.md) ------
 # On by default for the database named in existing_database_identifier. Idle
 # until Multi-AZ is on (a pending modification pauses it). Optional:
-# db_autoscale_mode      = "dry-run"          # first days: e-mails only, changes nothing
+# db_autoscale_mode      = "dry-run"          # default: e-mails only, changes nothing; switch on later in SSM (docs/architecture/DB_AUTOSCALE.md)
 # db_autoscale_max_class = "db.r7g.xlarge"    # ceiling, about $698/month with Multi-AZ
 # db_autoscale_min_class = "db.t4g.micro"
 # db_autoscale_enabled   = false              # switch the whole thing off

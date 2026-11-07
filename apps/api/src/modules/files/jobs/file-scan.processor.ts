@@ -11,14 +11,15 @@ import {
   type VirusScanner,
 } from '../scanning/virus-scanner';
 import { ImageProcessor } from '../processing/image-processor';
+import { dangerousContent } from '../content-guard';
 import { detectMime } from '../magic-bytes';
+import { computeBlurhash } from '../processing/blurhash';
+import { putProcessedObjects } from '../processing/put-processed-objects';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import {
   DEDUP_PROFILE,
-  avifKey,
   derivedKeys,
   purposesOfProfile,
-  variantKey,
   FILE_MIME,
 } from '../files.policy';
 import {
@@ -69,6 +70,16 @@ export class FileScanProcessor {
   async run(fileId: string, finalAttempt: boolean): Promise<ScanOutcome> {
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     if (!file || file.scan_status !== 'pending') return 'skipped:not-pending';
+    // R-252: confirmed without reading the file (flag `files_confirm_light`):
+    // the checks `confirm` left are done first, before the dedup can look at
+    // the hash.
+    let held: Buffer | null = null;
+    if (file.source_sha256 === null) {
+      const checked = await this.finishLightConfirm(file, finalAttempt);
+      if (typeof checked === 'string') return checked;
+      held = checked;
+      file.source_sha256 = file.sha256;
+    }
     if (await this.deduplicate(file)) {
       await this.moderation?.enqueueFile(file.id, file.purpose);
       return 'deduplicated';
@@ -83,7 +94,7 @@ export class FileScanProcessor {
 
     let data: Buffer;
     try {
-      data = await this.storage.read(file.s3_bucket, file.s3_key);
+      data = held ?? (await this.storage.read(file.s3_bucket, file.s3_key));
       const verdict = await this.scanner.scan(data);
       if (verdict.infected) {
         await this.storage.remove(file.s3_bucket, [file.s3_key]);
@@ -138,28 +149,15 @@ export class FileScanProcessor {
     }
 
     try {
-      for (const [px, img] of processed.variants) {
-        await this.storage.put(
-          file.s3_bucket,
-          variantKey(file.s3_key, px),
-          img.data,
-          img.mime,
-        );
-      }
-      await this.putAvifTwins(file, processed);
       const main = processed.main;
-      if (main) {
-        await this.storage.put(
-          file.s3_bucket,
-          file.s3_key,
-          main.data,
-          main.mime,
-        );
-      }
+      // Placeholder for the app while the picture loads (never blocks).
+      const blurhash = main ? await computeBlurhash(main.data) : null;
+      await putProcessedObjects(this.storage, this.logger, file, processed);
       await this.prisma.file.updateMany({
         where: { id: fileId, scan_status: 'pending' },
         data: {
           scan_status: 'clean',
+          ...(blurhash ? { blurhash } : {}),
           // Owner 2026-10-18: videos get their shown size too (the app
           // draws the bubble at that shape before the video loads).
           ...(mime === FILE_MIME.mp4 || mime === FILE_MIME.mov
@@ -182,6 +180,51 @@ export class FileScanProcessor {
       await this.setStatus(fileId, 'failed');
       return 'failed';
     }
+  }
+
+  /**
+   * The size was checked at `confirm`; here the phone's hash is proven and the
+   * inside of the container is looked at, the same refusals `confirm` makes
+   * for a small file. A refused file is removed and ends `failed`, which the
+   * app shows as not attachable. Returns the bytes for the scan, or the end.
+   */
+  private async finishLightConfirm(
+    file: File,
+    finalAttempt: boolean,
+  ): Promise<Buffer | ScanOutcome> {
+    let data: Buffer;
+    try {
+      data = await this.storage.read(file.s3_bucket, file.s3_key);
+    } catch (err) {
+      if (!finalAttempt) throw err;
+      this.logger.error({ fileId: file.id, err }, 'Light confirm: no bytes');
+      await this.setStatus(file.id, 'failed');
+      return 'failed';
+    }
+    const sha256 = createHash('sha256').update(data).digest('hex');
+    const mime = detectMime(data, file.mime);
+    const refused =
+      sha256 !== file.sha256
+        ? 'checksum'
+        : !mime
+          ? 'unrecognised content'
+          : dangerousContent(data, mime);
+    if (refused) {
+      this.logger.warn(
+        { fileId: file.id, reason: refused },
+        'Upload refused after a light confirm',
+      );
+      await this.storage
+        .remove(file.s3_bucket, [file.s3_key])
+        .catch(() => undefined);
+      await this.setStatus(file.id, 'failed');
+      return 'failed';
+    }
+    await this.prisma.file.updateMany({
+      where: { id: file.id, scan_status: 'pending' },
+      data: { source_sha256: sha256 },
+    });
+    return data;
   }
 
   /**
@@ -221,6 +264,7 @@ export class FileScanProcessor {
         sha256: twin.sha256,
         width: twin.width,
         height: twin.height,
+        blurhash: twin.blurhash,
         scan_status: 'clean',
       },
     });
@@ -238,35 +282,6 @@ export class FileScanProcessor {
       );
     }
     return true;
-  }
-
-  /** Owner 2026-10-25: the AVIF twins (`images.avif_enabled`). A failure
-   * only costs the smaller file — the WebP/JPEG stays what is served. */
-  private async putAvifTwins(
-    file: File,
-    processed: Awaited<ReturnType<ImageProcessor['process']>>,
-  ): Promise<void> {
-    try {
-      if (processed.main?.avif) {
-        await this.storage.put(
-          file.s3_bucket,
-          avifKey(file.s3_key),
-          processed.main.avif.data,
-          processed.main.avif.mime,
-        );
-      }
-      for (const [px, img] of processed.variants) {
-        if (!img.avif) continue;
-        await this.storage.put(
-          file.s3_bucket,
-          avifKey(variantKey(file.s3_key, px)),
-          img.avif.data,
-          img.avif.mime,
-        );
-      }
-    } catch (err) {
-      this.logger.warn({ fileId: file.id, err }, 'AVIF twins not stored');
-    }
   }
 
   private async imageFormat(): Promise<ImageFormat> {

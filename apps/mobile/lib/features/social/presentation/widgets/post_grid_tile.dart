@@ -391,6 +391,19 @@ const kSearchPostGridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
   childAspectRatio: 0.75,
 );
 
+/// Desktop web plan 2026-10-28 §6.2: on a desktop window the Search grid
+/// takes as many 3:4 tiles as the width holds (3 to 5 in a 1200 column,
+/// tiles of at most 280); a phone and a tablet keep three.
+SliverGridDelegate searchPostGridDelegate(BuildContext context) =>
+    isDesktopWindow(context)
+        ? const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 280,
+            mainAxisSpacing: 2,
+            crossAxisSpacing: 2,
+            childAspectRatio: 0.75,
+          )
+        : kSearchPostGridDelegate;
+
 /// Owner 2026-10-18: the profile's «Рилсы» grid like Instagram's — three
 /// vertical 9:16 tiles a row.
 SliverGridDelegate reelsGridDelegate() =>

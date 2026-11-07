@@ -37,6 +37,7 @@ const LIVE_TITLE: Record<string, string> = {
   message_keys: 'Ключи шифрования сообщений',
   secret_rotation: 'Смена паролей и ключей',
   table_growth: 'Рост таблиц',
+  shard_growth: 'Рост базы данных',
 };
 
 const n = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -53,6 +54,7 @@ export function healthToItems(h: Health | undefined): SystemItem[] {
       i.status === 'red'
         ? 'Лампочка красная. На «Здоровье системы» написано, что именно не так и что нажать.'
         : 'Лампочка жёлтая: пока работает, но лучше посмотреть сегодня.';
+    if (i.key === 'storage' && typeof d.r2Fallback === 'string') why = d.r2Fallback;
     if (i.key === 'queues') {
       const failed = n(d.failed) ?? 0;
       const dlq = n(d.dlq) ?? 0;

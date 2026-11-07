@@ -17,8 +17,8 @@ SELECT md5('pa'||g)::uuid, 'perf_'||g, 'Perf '||g, 'practice.perf_'||g, g FROM g
 INSERT INTO users (id, role, first_name, last_name, email, status, country_code, created_at, updated_at)
 SELECT md5('u'||g)::uuid,
   CASE WHEN g = 0 THEN 'admin'::user_role WHEN g % 10 = 0 THEN 'attorney'::user_role ELSE 'client'::user_role END,
-  (ARRAY['Sofia','Ivan','Amelia','James','Priya','Victor','Emily','Daniel','Maria','Chen','Omar','Anna'])[1+g%12],
-  (ARRAY['Hernandez','Carter','Alvarez','Nata','Whitfield','Kim','Goodman','Brown','Lopez','Singh'])[1+g%10] || (g % 997),
+  (ARRAY['Sofia','Ivan','Amelia','James','Priya','Victor','Emily','Daniel','Maria','Chen','Omar','Anna'])[1+(g/7)%12],
+  (ARRAY['Hernandez','Carter','Alvarez','Nata','Whitfield','Kim','Goodman','Brown','Lopez','Singh'])[1+(g/10)%10] || (g % 997),
   'perf'||g||'@lawbid-perf.test',
   CASE WHEN g % 200 = 7 THEN 'suspended'::user_status ELSE 'active'::user_status END,
   (ARRAY['US','US','US','US','GB','CA','DE','FR'])[1+g%8],

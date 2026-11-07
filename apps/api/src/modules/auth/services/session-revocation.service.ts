@@ -1,10 +1,13 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type Redis from 'ioredis';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { TokenService } from './token.service';
 import { publishSessionRevoked } from '../../../redis/session-revoked';
+import { isRedisInfraError } from '../../../redis/redis-errors';
+import { throttledWarn } from '../../../common/logging/throttled-warn';
+import { L1Cache } from '../../../common/cache/l1-cache';
 
 export type RevokeReason =
   | 'logout'
@@ -24,7 +27,11 @@ export type RevokeReason =
   | 'assistant_removed'
   // 2026-10-25 (COPPA): an admin flagged or deleted a suspected minor.
   | 'minor_flagged'
-  | 'minor_deleted';
+  | 'minor_deleted'
+  // Owner 2026-11-05: the account switched between the attorney and the
+  // client profile — other sessions end (their tokens carry the old role),
+  // this one refreshes.
+  | 'role_switched';
 
 /**
  * Single choke point for every way a session can end (logout, logout-all,
@@ -45,9 +52,19 @@ export type RevokeReason =
  * token stays valid for up to its remaining TTL (<=15 min) instead of a
  * half-committed transaction. Documented trade-off, not an oversight.
  */
+
 @Injectable()
 export class SessionRevocationService {
   private readonly blacklistTtlSeconds: number;
+  private readonly logger = new Logger(SessionRevocationService.name);
+  private readonly warnRedis = throttledWarn(this.logger);
+  /** Database verdicts while Redis is away (chain id -> reason | null),
+   * 5 s each, single-flighted; an outage path, hence per-chain keys. */
+  private readonly dbMemo = new L1Cache<string | null>('authbl-db', {
+    ttlMs: 5000,
+    maxEntries: 20_000,
+    enabled: true,
+  });
 
   constructor(
     private readonly prisma: PrismaService,
@@ -159,13 +176,48 @@ export class SessionRevocationService {
   }
 
   async isBlacklisted(sessionChainId: string): Promise<boolean> {
-    const value = await this.redis.get(this.blacklistKey(sessionChainId));
-    return value !== null;
+    return (await this.blacklistReason(sessionChainId)) !== null;
   }
 
   /** Why a blacklisted chain ended ('1' for older entries), or null. */
   async blacklistReason(sessionChainId: string): Promise<string | null> {
-    return this.redis.get(this.blacklistKey(sessionChainId));
+    try {
+      return await this.redis.get(this.blacklistKey(sessionChainId));
+    } catch (error) {
+      return this.reasonFromDatabase(sessionChainId, error);
+    }
+  }
+
+  /**
+   * Load test 2026-11-02 (PR #606, LOAD_RESILIENCE §2): with Redis away the
+   * guard's one blacklist read failed every authenticated request. The
+   * database rows are the source of truth (revoked_at / revoked_reason are
+   * written BEFORE the blacklist, see revokeChain), so a lost cache degrades
+   * to one indexed single-row read per session chain per 5 s. A chain is
+   * alive while any of its rows is not revoked (rotation revokes the older
+   * generation with reason 'rotated' and inserts the next one in the same
+   * transaction), so the row with revoked_at NULL sorted first decides; no
+   * row at all means the chain never existed here — refused.
+   */
+  private reasonFromDatabase(
+    sessionChainId: string,
+    cause: unknown,
+  ): Promise<string | null> {
+    const hit = this.dbMemo.get(sessionChainId);
+    if (hit !== undefined) return Promise.resolve(hit);
+    this.warnRedis(
+      { err: cause, alert: 'session_blacklist_redis_down' },
+      'Session blacklist: Redis unavailable, reading sessions from the database',
+    );
+    return this.dbMemo.getOrLoad(sessionChainId, async () => {
+      const row = await this.prisma.session.findFirst({
+        where: { session_chain_id: sessionChainId },
+        orderBy: { revoked_at: { sort: 'desc', nulls: 'first' } },
+        select: { revoked_at: true, revoked_reason: true },
+      });
+      if (!row) return '1';
+      return row.revoked_at === null ? null : (row.revoked_reason ?? '1');
+    });
   }
 
   private async blacklist(
@@ -173,19 +225,33 @@ export class SessionRevocationService {
     reason: string = '1',
     userId?: string,
   ): Promise<void> {
-    await this.redis.set(
-      this.blacklistKey(sessionChainId),
-      reason,
-      'EX',
-      this.blacklistTtlSeconds,
-    );
-    // Owner 2026-10-22 (server load audit, finding 5): live sockets of the
-    // session are dropped by this message on every API instance, instead
-    // of each socket polling the blacklist every 45 s.
-    await publishSessionRevoked(this.redis, {
-      sessionId: sessionChainId,
-      ...(userId ? { userId } : {}),
-    });
+    // A verdict memoised while Redis was away must not outlive the revocation.
+    this.dbMemo.delete(sessionChainId);
+    try {
+      await this.redis.set(
+        this.blacklistKey(sessionChainId),
+        reason,
+        'EX',
+        this.blacklistTtlSeconds,
+      );
+      // Owner 2026-10-22 (server load audit, finding 5): live sockets of the
+      // session are dropped by this message on every API instance, instead
+      // of each socket polling the blacklist every 45 s.
+      await publishSessionRevoked(this.redis, {
+        sessionId: sessionChainId,
+        ...(userId ? { userId } : {}),
+      });
+    } catch (error) {
+      // Redis away: the database row (already committed by the caller) is
+      // what the guard reads now, so the revocation holds; logging out
+      // must not answer 503 because the cache is down. Sockets of the
+      // chain fall back to their 45 s blacklist poll.
+      if (!isRedisInfraError(error)) throw error;
+      this.warnRedis(
+        { err: error, alert: 'session_blacklist_redis_down' },
+        'Session blacklist: Redis unavailable, revocation kept in the database only',
+      );
+    }
   }
 
   private blacklistKey(sessionChainId: string): string {

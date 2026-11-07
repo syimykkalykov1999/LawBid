@@ -261,6 +261,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   chat_group_poll_options: 'poll options',
   chat_group_poll_votes: 'poll votes',
   saved_chat_messages: 'saved chat messages',
+  quick_replies: 'quick replies of attorneys',
   calls: 'calls',
   call_participants: 'group call members',
   call_votes: 'votes to remove a member from a group call',
@@ -307,6 +308,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   stripe_review_items:
     'Stripe review queue (disputes, failed payouts, fraud warnings)',
   billing_duplicate_fixes: 'auto-resolved duplicate subscriptions',
+  billing_dispute_refunds: 'automatic refunds of bank inquiries',
   // money ledger (test-mode entries; TRUNCATE ignores the append-only row triggers)
   ledger_lines: 'money ledger lines (test mode)',
   ledger_entries: 'money ledger entries (test mode)',
@@ -352,6 +354,9 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   // demo world registry (the demo database itself is reset from the admin)
   demo_accounts: 'demo accounts registry',
   storage_snapshots: 'daily storage statistics of the test period',
+  // R-401: derived nightly Q&A ranking snapshot, rebuilt every night.
+  reco_qa_snapshots:
+    'nightly Q&A ranking snapshot of the test period (derived)',
   // Staff package T1 (2026-10-27): staff work of the test period. Admins
   // themselves (admin_profiles) and their payroll are kept above.
   work_leases: 'who held which work item (test period)',
@@ -397,7 +402,23 @@ export const RESET_SQL: readonly string[] = [
 
 /** S3: every object goes except the keys of kept files rows (and their
  * resized variants `<key>_w<px>`) and the demo world's own prefix. */
-export const S3_SKIP_PREFIXES: readonly string[] = ['demo/'];
+export const S3_SKIP_PREFIXES: readonly string[] = ['demo/', 'ops/'];
+
+/**
+ * Owner 2026-11-04: the R2 bucket the wipe must empty too; its keys are
+ * kept in Admin → Integrations (`cloudflare_r2`) or in CLOUDFLARE_R2_* env.
+ */
+export function r2WipeTargets(fields: Record<string, string | undefined>): {
+  keys: { accountId: string; accessKeyId: string; secretAccessKey: string };
+  bucket: string;
+} | null {
+  const accountId = fields.accountId?.trim();
+  const accessKeyId = fields.accessKeyId?.trim();
+  const secretAccessKey = fields.secretAccessKey?.trim();
+  const bucket = fields.bucket?.trim();
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket) return null;
+  return { keys: { accountId, accessKeyId, secretAccessKey }, bucket };
+}
 
 /**
  * Redis: every key goes except these (glob patterns). Caches rebuild
@@ -508,6 +529,7 @@ export function redisGroup(key: string): string {
 export function s3KeyKept(key: string, keptKeys: ReadonlySet<string>): boolean {
   if (S3_SKIP_PREFIXES.some((p) => key.startsWith(p))) return true;
   if (keptKeys.has(key)) return true;
-  const m = /^(.*)_w\d+$/.exec(key);
+  // A variant (`_w256`) or an AVIF twin (`.avif`) goes with its original.
+  const m = /^(.*?)(_w\d+)?(\.avif)?$/.exec(key);
   return m !== null && keptKeys.has(m[1]);
 }

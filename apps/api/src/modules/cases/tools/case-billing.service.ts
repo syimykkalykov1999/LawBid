@@ -445,7 +445,12 @@ export class CaseBillingService {
       : cfg.invoiceDefaultDueDays > 0
         ? new Date(now.getTime() + cfg.invoiceDefaultDueDays * 86_400_000)
         : null;
+    const issuer = await this.prisma.user.findUnique({
+      where: { id: s.attorneyId },
+      select: { ui_language: true },
+    });
     const pdf = await renderInvoicePdf({
+      lang: issuer?.ui_language,
       number,
       issuedAt: now,
       caseTitle: kase.title,

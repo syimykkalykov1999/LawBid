@@ -24,7 +24,12 @@ describe('incoming call ring push', () => {
   const PEPPER = 'test-call-poll-pepper-at-least-32-chars-x';
 
   function build(
-    opts: { avatar?: boolean; video?: boolean; pepper?: string } = {},
+    opts: {
+      avatar?: boolean;
+      video?: boolean;
+      pepper?: string;
+      rang?: string[];
+    } = {},
   ) {
     const sent: PushMessage[] = [];
     const voipCalls: VoipCallPayload[] = [];
@@ -61,8 +66,13 @@ describe('incoming call ring push', () => {
     const voip = {
       ringCall: (_u: string, c: VoipCallPayload) => {
         voipCalls.push(c);
-        return Promise.resolve([]);
+        return Promise.resolve(opts.rang ?? []);
       },
+    };
+    const voipTokens = {
+      fcmTokensCoveredBy: jest.fn((sessions: string[]) =>
+        Promise.resolve(sessions.length ? ['fcm-iphone'] : []),
+      ),
     };
     const files = {
       avatarUrlsMany: jest.fn((ids: (string | null | undefined)[]) =>
@@ -89,17 +99,17 @@ describe('incoming call ring push', () => {
       sender,
       {} as never,
       {} as never,
-      {} as never,
+      { mutedCategories: () => Promise.resolve(new Set()) } as never,
       {} as never,
       { setContext: () => undefined, warn: () => undefined } as never,
       undefined,
       undefined,
       undefined,
       voip as never,
-      undefined,
+      voipTokens as never,
       files as never,
     );
-    return { d, sent, voipCalls, files };
+    return { d, sent, voipCalls, files, voipTokens };
   }
   const job = { kind: 'call' as const, recipientId: 'u1', callId: 'call-1' };
 
@@ -116,6 +126,26 @@ describe('incoming call ring push', () => {
         silent: false,
       },
     ]);
+  });
+
+  it('an iPhone that rang by VoIP gets no «Входящий звонок» alert (Android still rings)', async () => {
+    const { d, sent, voipTokens } = build({ rang: ['session-of-iphone'] });
+    await d.dispatch(job, 'j');
+    expect(voipTokens.fcmTokensCoveredBy).toHaveBeenCalledWith([
+      'session-of-iphone',
+    ]);
+    // One call push for the remaining devices (Android, data-only), with
+    // the iPhone's FCM token skipped.
+    expect(sent).toHaveLength(1);
+    expect(sent[0].call).toBe(true);
+    expect(sent[0].skipTokens).toEqual(['fcm-iphone']);
+  });
+
+  it('no VoIP ring (older iPhone app): the FCM alert stays the fallback', async () => {
+    const { d, sent, voipTokens } = build({ rang: [] });
+    await d.dispatch(job, 'j');
+    expect(voipTokens.fcmTokensCoveredBy).not.toHaveBeenCalled();
+    expect(sent[0].skipTokens).toEqual([]);
   });
 
   it('sends Android a data-only call message with the photo link', async () => {
@@ -143,8 +173,9 @@ describe('incoming call ring push', () => {
       u: 'u1',
     });
     expect(verifyCallPoll(key, t, 'call-2')).toBeNull();
-    // The iPhone's VoIP push is unchanged (iOS ends the ring by itself).
-    expect(voipCalls[0]).not.toHaveProperty('pollToken');
+    // Owner 2026-11-03: the iPhone's VoIP push carries the same ticket —
+    // «Decline» on a closed iPhone tells the server with it natively.
+    expect(voipCalls[0].pollToken).toBe(t);
   });
 
   it('sends no ticket without the pepper (older setups keep working)', async () => {

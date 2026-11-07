@@ -1,3 +1,5 @@
+import 'dart:math';
+
 /// Scale audit 2026-10-23: the knobs of the phone's own traffic (repeats of
 /// a failed request, polling, usage
 /// events). A store release takes days; if a build misbehaves under load
@@ -23,11 +25,31 @@ abstract final class ClientTuning {
   static int _videoPrefetchAhead = 3;
   static int _videoPrefetchCellular = 1;
   static int _videoCacheMb = 100;
+  static int _uploadsAtOnce = 4;
+  static int _downloadsAtOnce = 4;
+
+  /// Whether a bootstrap answer (or [reset]) has set the numbers yet.
+  static bool applied = false;
+
   static int _videoCacheChunkS = 4;
 
   /// Set by the connectivity monitor: true while the only way online is
   /// mobile data (S20-9). Reset by [reset].
   static bool metered = false;
+
+  /// R-256 (flag `low_power_mode`): little charge left or the phone's battery
+  /// saver is on (core/config/low_power.dart). Reset by [reset].
+  static bool lowPower = false;
+
+  /// Set when a big transfer starts: a phone with little memory
+  /// (core/transfers/transfer_limits.dart). Reset by [reset].
+  static bool weakDevice = false;
+
+  /// Flag `downloads_parallel`, set with every bootstrap answer.
+  static bool downloadsParallel = false;
+
+  /// Flag `video_cache_parallel`, set with every bootstrap answer.
+  static bool videoCacheParallel = false;
 
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
@@ -63,14 +85,36 @@ abstract final class ClientTuning {
   /// Reels warmed ahead of the one on screen: `client.video_prefetch_ahead`
   /// on Wi-Fi, `client.video_prefetch_cellular` on mobile data (S20-9; the
   /// server already folded its Выкл/Вкл/Авто switch into the two numbers).
-  static int get videoPrefetchAhead =>
-      metered && _videoPrefetchCellular < _videoPrefetchAhead
-          ? _videoPrefetchCellular
-          : _videoPrefetchAhead;
+  /// R-256: none at all while the phone is low on power.
+  static int get videoPrefetchAhead {
+    if (lowPower) return 0;
+    return metered && _videoPrefetchCellular < _videoPrefetchAhead
+        ? _videoPrefetchCellular
+        : _videoPrefetchAhead;
+  }
 
   /// Disk ceiling of the video chunk cache, MB; 0 = off
   /// (`client.video_cache_mb`).
   static int get videoCacheMb => _videoCacheMb;
+
+  /// R-251: pieces of files going up at once in the whole app
+  /// (`client.uploads_at_once`); two on mobile data, a weak phone or
+  /// low power.
+  static int get uploadsAtOnce => _gentle(_uploadsAtOnce);
+
+  /// R-251: pieces of files coming down at once in the whole app
+  /// (`client.downloads_at_once`); two on mobile data, a weak phone or
+  /// low power.
+  static int get downloadsAtOnce => _gentle(_downloadsAtOnce);
+
+  /// Pieces one document download is cut into; 1 = the old single stream.
+  static int get downloadPieces => downloadsParallel ? downloadsAtOnce : 1;
+
+  /// Blocks of a video's start fetched at once; 1 = one after another.
+  static int get videoBlocksAtOnce => videoCacheParallel ? downloadsAtOnce : 1;
+
+  static int _gentle(int n) =>
+      (metered || weakDevice || lowPower) && n > 2 ? 2 : n;
 
   /// Seconds from the start of a video kept on the phone
   /// (`client.video_cache_chunk_s`).
@@ -98,8 +142,75 @@ abstract final class ClientTuning {
     return Duration(seconds: s > _outboxRetryMaxS ? _outboxRetryMaxS : s);
   }
 
+  /// [d] plus up to 30% random extra, so a fleet that failed together does
+  /// not come back together. One rule for [outboxDelay] and the inline
+  /// `RetryInterceptor` backoff.
+  static Duration withJitter(Duration d, [Random? random]) {
+    final extra = (d.inMilliseconds * 0.3 * (random ?? _rng).nextDouble())
+        .round();
+    return d + Duration(milliseconds: extra);
+  }
+
+  /// The server's `Retry-After` in whole seconds (an HTTP date is ignored)
+  /// from the raw header values (Dio keeps a list, a proxy may send two:
+  /// the first counts); null when absent or unparseable. Clamped to a day so
+  /// an absurd number cannot overflow a [Duration].
+  static Duration? parseRetryAfter(Iterable<String>? values) {
+    final raw = values == null || values.isEmpty ? null : values.first;
+    final secs = raw == null ? null : int.tryParse(raw.trim());
+    if (secs == null || secs < 0) return null;
+    return Duration(seconds: secs > 86400 ? 86400 : secs);
+  }
+
+  /// How long a piece of a big upload waits before it is sent again. On a
+  /// 429 or 503 that carries `Retry-After` the server's number replaces
+  /// [backoff], capped at [retryAfterMax] (as `RetryInterceptor` does for API
+  /// calls); anything else keeps [backoff].
+  static Duration partRetryWait(
+    int? status,
+    Iterable<String>? retryAfterHeader,
+    Duration backoff,
+  ) {
+    if (status != 429 && status != 503) return backoff;
+    final d = parseRetryAfter(retryAfterHeader);
+    if (d == null) return backoff;
+    return d > retryAfterMax ? retryAfterMax : d;
+  }
+
+  /// The longest `Retry-After` the outbox / upload queue waits out (the
+  /// server may ask for more; a background queue does not sleep for hours).
+  static const Duration queueRetryAfterMax = Duration(minutes: 2);
+
+  /// The wait before retry number [failures] of the outbox / upload queue:
+  /// [outboxBackoff] with up to 30% jitter (downwards once at the
+  /// [outboxRetryMaxS] ceiling, so a long outage still spreads the clients
+  /// instead of landing them all on the same second). A server's
+  /// `Retry-After` ([retryAfter], at most [queueRetryAfterMax]) is a floor
+  /// and gets the same jitter on top: clients told «5» do not all return at
+  /// exactly 5.
+  static Duration outboxDelay(
+    int failures, {
+    Duration? retryAfter,
+    Random? random,
+  }) {
+    final cap = Duration(seconds: _outboxRetryMaxS);
+    final base = outboxBackoff(failures);
+    final extra = (random ?? _rng).nextDouble() * 0.3;
+    var own = base + base * extra;
+    if (own > cap) own = cap - base * extra;
+    if (retryAfter == null) return own;
+    final asked = retryAfter > queueRetryAfterMax
+        ? queueRetryAfterMax
+        : retryAfter;
+    final askedJittered = withJitter(asked, random);
+    return askedJittered > own ? askedJittered : own;
+  }
+
+  static final _rng = Random();
+
   /// Called with the `app_config` of every bootstrap answer.
   static void apply(Map<String, String> config) {
+    applied = true;
     int pick(String key, int fallback, int min, int max) {
       final v = num.tryParse(config[key] ?? '')?.toInt();
       return (v ?? fallback).clamp(min, max);
@@ -119,6 +230,8 @@ abstract final class ClientTuning {
     _videoPrefetchCellular = pick('client.video_prefetch_cellular', 1, 0, 6);
     _videoCacheMb = pick('client.video_cache_mb', 100, 0, 1000);
     _videoCacheChunkS = pick('client.video_cache_chunk_s', 4, 1, 15);
+    _uploadsAtOnce = pick('client.uploads_at_once', 4, 1, 4);
+    _downloadsAtOnce = pick('client.downloads_at_once', 4, 1, 4);
     _chatPhotoMaxPx = pick(
       'media.chat_photo_max_px',
       1600,
@@ -133,6 +246,10 @@ abstract final class ClientTuning {
   /// Back to the starter values (tests).
   static void reset() {
     metered = false;
+    lowPower = false;
+    weakDevice = false;
+    downloadsParallel = false;
+    videoCacheParallel = false;
     apply(const {});
   }
 }

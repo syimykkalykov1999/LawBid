@@ -44,6 +44,8 @@ import {
 import {
   MB,
   MEDIA_SIGNED_URL_TTL_SEC,
+  CONFIRM_PREFIX_BYTES,
+  LIGHT_CONFIRM_MIN_BYTES,
   PRESIGN_TTL_SEC,
   PURPOSE_RULES,
   UPLOAD_INTENT_TTL_SEC,
@@ -53,6 +55,8 @@ import {
   AVIF_PURPOSES,
   type FileMime,
   isImageMime,
+  DEDUP_PROFILE,
+  purposesOfProfile,
 } from './files.policy';
 import type {
   FileDto,
@@ -126,6 +130,14 @@ export interface SignedAttachment {
   sizeBytes: number;
   width: number | null;
   height: number | null;
+}
+
+/** Links of one post photo; `blurhash` is the loading placeholder. */
+export interface PostImageLinks {
+  url: string;
+  previewUrl: string;
+  mediumUrl: string;
+  blurhash: string | null;
 }
 
 @Injectable()
@@ -220,6 +232,8 @@ export class FilesService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+    const reused = await this.reuseOwnFile(userId, dto, bucket, allowed);
+    if (reused) return reused;
     if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
       await this.reserveDailyUpload(userId, dto.sizeBytes);
     }
@@ -269,6 +283,82 @@ export class FilesService {
       fileId,
       upload,
       expiresAt: new Date(Date.now() + PRESIGN_TTL_SEC * 1000).toISOString(),
+    };
+  }
+
+  /**
+   * R-254 (flag `files_reuse_own`): this user already stored these bytes, so
+   * nothing is uploaded; a new row points at the object, as the storage dedup
+   * does.
+   *
+   * ONLY the user's own files, by `owner_user_id`. A hash is not proof of
+   * having a file: anyone who learned the hash of someone else's document
+   * could otherwise get that document without ever holding it. The bytes of a
+   * proven hash only (`source_sha256`, empty until proven), same bucket (so a
+   * private file never lands among public ones), same processing, and only
+   * purposes with no image moderation: a moderated picture goes the usual way
+   * and gets its own check. Identity documents and video have no profile.
+   */
+  private async reuseOwnFile(
+    userId: string,
+    dto: PresignFileDto,
+    bucket: string,
+    allowed: readonly string[],
+  ): Promise<PresignedFileDto | null> {
+    const profile = DEDUP_PROFILE[dto.purpose];
+    if (
+      !dto.acceptsExisting ||
+      !profile ||
+      isModeratedPurpose(dto.purpose) ||
+      !(await this.flags.isEnabled('files_reuse_own', false)) ||
+      !(await this.settings.boolean('storage.dedup'))
+    ) {
+      return null;
+    }
+    const since = await avifSince(this.settings);
+    const own = await this.prisma.file.findFirst({
+      where: {
+        owner_user_id: userId,
+        s3_bucket: bucket,
+        source_sha256: dto.sha256,
+        purpose: { in: purposesOfProfile(profile) },
+        scan_status: 'clean',
+        deleted_at: null,
+        ...(since ? { created_at: { gte: since } } : {}),
+      },
+      orderBy: { created_at: 'desc' },
+    });
+    if (
+      !own ||
+      own.owner_user_id !== userId ||
+      !allowed.includes(own.mime) ||
+      (await this.mediaBlocked(own.id))
+    ) {
+      return null;
+    }
+    const fileId = randomUUID();
+    await this.prisma.file.create({
+      data: {
+        id: fileId,
+        owner_user_id: userId,
+        purpose: dto.purpose,
+        s3_bucket: own.s3_bucket,
+        s3_key: own.s3_key,
+        mime: own.mime,
+        size_bytes: own.size_bytes,
+        sha256: own.sha256,
+        source_sha256: own.source_sha256,
+        width: own.width,
+        height: own.height,
+        blurhash: own.blurhash,
+        scan_status: 'clean',
+      },
+    });
+    return {
+      fileId,
+      upload: { url: '', fields: {} },
+      expiresAt: new Date().toISOString(),
+      existing: true,
     };
   }
 
@@ -447,11 +537,31 @@ export class FilesService {
       await this.reject(fileId, intent);
       throw this.checksumMismatch();
     }
-    const data = await this.storage.read(intent.bucket, intent.key);
-    const sha256 = createHash('sha256').update(data).digest('hex');
-    if (data.length !== intent.size || sha256 !== intent.sha256) {
-      await this.reject(fileId, intent);
-      throw this.checksumMismatch();
+    // R-252: a big file is not read into the API's memory here. The start
+    // of the file settles its type at once; the checksum and the look inside
+    // the container move to the scan worker, which holds the file anyway. The
+    // file stays `pending`, and only `clean` files can be attached. A start
+    // the prefix cannot settle goes the full way.
+    let prefix: Buffer | null = null;
+    if (
+      head.size >= LIGHT_CONFIRM_MIN_BYTES &&
+      (await this.flags.isEnabled('files_confirm_light', false))
+    ) {
+      const start = await this.storage.readStart(
+        intent.bucket,
+        intent.key,
+        CONFIRM_PREFIX_BYTES,
+      );
+      if (detectMime(start, intent.mime) !== null) prefix = start;
+    }
+    const data = prefix ?? (await this.storage.read(intent.bucket, intent.key));
+    let sha256: string | null = null;
+    if (!prefix) {
+      sha256 = createHash('sha256').update(data).digest('hex');
+      if (data.length !== intent.size || sha256 !== intent.sha256) {
+        await this.reject(fileId, intent);
+        throw this.checksumMismatch();
+      }
     }
     const detected = detectMime(data, intent.mime);
     if (
@@ -468,7 +578,7 @@ export class FilesService {
     }
     // Owner 2026-10-07: no program, macro or script hidden inside an
     // allowed document (APK in a .docx, a macro, PDF JavaScript).
-    const danger = dangerousContent(data, detected);
+    const danger = prefix ? null : dangerousContent(data, detected);
     if (danger) {
       await this.reject(fileId, intent);
       throw new BadRequestException({
@@ -487,8 +597,12 @@ export class FilesService {
           s3_bucket: intent.bucket,
           s3_key: intent.key,
           mime: detected,
-          size_bytes: BigInt(data.length),
-          sha256,
+          size_bytes: BigInt(head.size),
+          // Light confirm: `sha256` is what the phone claimed, unproven until
+          // the worker checks it. An empty `source_sha256` is what tells the
+          // worker so, and it keeps the row out of the storage dedup: a false
+          // hash must never point this row at someone else's object.
+          sha256: sha256 ?? intent.sha256,
           source_sha256: sha256,
         },
       });
@@ -501,7 +615,7 @@ export class FilesService {
         throw err;
       }
     }
-    this.heavy?.upload(userId, data.length);
+    this.heavy?.upload(userId, head.size);
     await this.redis.del(intentKey(fileId));
     await this.redis.zrem(
       PENDING_UPLOADS_KEY,
@@ -581,6 +695,24 @@ export class FilesService {
     if (!fileId) return null;
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     return file ? this.mediaUrlOf(file) : null;
+  }
+
+  /** [mediaUrl] for several files in one query (fileId → link; files with
+   * no public link are left out). */
+  async mediaUrlsMany(
+    fileIds: (string | null | undefined)[],
+  ): Promise<Map<string, string>> {
+    const ids = [...new Set(fileIds.filter((x): x is string => !!x))];
+    const out = new Map<string, string>();
+    if (ids.length === 0) return out;
+    const rows = await this.prisma.file.findMany({
+      where: { id: { in: ids } },
+    });
+    for (const f of rows) {
+      const url = await this.mediaUrlOf(f);
+      if (url) out.set(f.id, url);
+    }
+    return out;
   }
 
   /** docs/03 §4.1 / OQ-012: true when [fileId] is [ownerId]'s own live
@@ -709,15 +841,8 @@ export class FilesService {
    * Signing is local (no S3 round trip); one DB read for the batch. With
    * MEDIA_CDN_BASE_URL set the links are CloudFront URLs (docs/06 §6.1).
    */
-  async postImageUrls(
-    fileIds: string[],
-  ): Promise<
-    Map<string, { url: string; previewUrl: string; mediumUrl: string }>
-  > {
-    const out = new Map<
-      string,
-      { url: string; previewUrl: string; mediumUrl: string }
-    >();
+  async postImageUrls(fileIds: string[]): Promise<Map<string, PostImageLinks>> {
+    const out = new Map<string, PostImageLinks>();
     if (fileIds.length === 0) return out;
     const files = await this.prisma.file.findMany({
       // Owner 2026-10-01: review photos share the post-photo variants.
@@ -734,6 +859,7 @@ export class FilesService {
         url,
         previewUrl: await sign(320),
         mediumUrl: await sign(1080),
+        blurhash: file.blurhash,
       });
     }
     return out;
@@ -789,6 +915,7 @@ export class FilesService {
       previewUrl: string;
       mime: string;
       sizeBytes: number;
+      blurhash: string | null;
     }[]
   > {
     if (fileIds.length === 0 || !this.storage.configured) return [];
@@ -810,6 +937,7 @@ export class FilesService {
       previewUrl: string;
       mime: string;
       sizeBytes: number;
+      blurhash: string | null;
     }[] = [];
     for (const id of fileIds) {
       const f = byId.get(id);
@@ -828,6 +956,8 @@ export class FilesService {
           : url,
         mime: f.mime,
         sizeBytes: Number(f.size_bytes),
+        // R-248: drawn while the picture loads (images only).
+        blurhash: isImageMime(f.mime) ? f.blurhash : null,
       });
     }
     return out;
@@ -1186,7 +1316,7 @@ export class FilesService {
   ): Promise<File> {
     const rule = PURPOSE_RULES[purpose];
     const fileId = randomUUID();
-    const bucket = this.storage.bucket(rule.bucket);
+    const bucket = await this.storage.resolveBucket(rule.bucket);
     await this.costGuard.consume('storage');
     const key =
       demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
@@ -1256,7 +1386,9 @@ export class FilesService {
    * S3 links. Documents never take this path. */
   private async mediaLink(bucket: string, key: string): Promise<string> {
     // Owner 2026-10-24: an object stored in R2 is served from its own
-    // public domain (the AWS CDN base below does not hold it).
+    // public domain (the AWS CDN base below does not hold it). The keys are
+    // loaded first: a fresh instance must not answer a CloudFront link for it.
+    await this.storage.ready();
     const r2 = this.storage.publicObjectUrl(bucket, key);
     if (r2) return r2;
     // Owner 2026-10-01: the CDN can be set in Admin → Integrations → Storage.

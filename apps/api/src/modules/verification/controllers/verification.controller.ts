@@ -31,6 +31,8 @@ import {
 import {
   AddLicenseDto,
   AttachDocumentDto,
+  CreateHandoffDto,
+  HandoffTokenParamDto,
   RequestDocumentParamDto,
   RequestIdParamDto,
   RequestLicenseParamDto,
@@ -39,6 +41,8 @@ import {
 } from '../dto/verification-requests.dto';
 import {
   SelfieCaptureTokenDto,
+  VerificationHandoffDto,
+  VerificationHandoffStatusDto,
   VerificationOverviewDto,
   VerificationRequestDto,
 } from '../dto/verification-responses.dto';
@@ -217,6 +221,45 @@ export class VerificationController {
     @Param() params: RequestIdParamDto,
   ): Promise<SelfieCaptureTokenDto> {
     return this.requests.issueSelfieCapture(user.sub, params.id);
+  }
+
+  // flag: none R-146 «continue on your phone»: only offered where the selfie camera cannot run (web / no camera); a code alone grants nothing
+  @Post('handoff')
+  @ApiOperation({
+    summary:
+      'R-146: one-time «continue on your phone» code for the ID selfie (10 min, bound to this attorney and request): QR + short link that opens the selfie step in the app',
+  })
+  @ApiEnvelopeResponse(VerificationHandoffDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    ...ATTORNEY_ERRORS,
+    400: [E.VALIDATION_ERROR],
+    409: [E.VERIFICATION_INVALID_STATUS],
+    429: [E.RATE_LIMITED],
+  })
+  createVerificationHandoff(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateHandoffDto,
+    @Ip() ip: string,
+  ): Promise<VerificationHandoffDto> {
+    return this.requests.createHandoff(user.sub, dto.requestId, ip);
+  }
+
+  @Get('handoff/:token/status')
+  @ApiOperation({
+    summary:
+      'R-146: pending / done / expired of an own «continue on your phone» code (the computer polls it every 3 s; the phone checks the link)',
+  })
+  @ApiEnvelopeResponse(VerificationHandoffStatusDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    404: [E.NOT_FOUND],
+  })
+  getVerificationHandoffStatus(
+    @CurrentUser() user: RequestUser,
+    @Param() params: HandoffTokenParamDto,
+  ): Promise<VerificationHandoffStatusDto> {
+    return this.requests.handoffStatus(user.sub, params.token);
   }
 
   @Delete('requests/:id/documents/:documentId')

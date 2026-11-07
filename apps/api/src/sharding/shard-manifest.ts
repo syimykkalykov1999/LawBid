@@ -121,6 +121,7 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
   VoipToken: spec('user', owner('user_id')),
   SavedItem: spec('user', owner('user_id')),
   SavedChatMessage: spec('user', owner('user_id')),
+  QuickReply: spec('user', owner('user_id')),
   Follow: spec('user', owner('follower_id')),
   UserBlock: spec('user', owner('blocker_id')),
   Story: spec('user', owner('author_id')),
@@ -348,6 +349,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   'ClientSubscription',
   'DemoAccount',
   'StorageSnapshot',
+  // R-401: the nightly Q&A ranking snapshot (one copy, primary).
+  'RecoQaSnapshot',
   'IdentityFingerprint',
   'ClientFraudProfile',
   'ClientFraudEvent',
@@ -403,6 +406,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   'StripeReviewItem',
   // Algo audit M-4 (owner 2026-10-28): auto-resolved duplicate subscriptions.
   'BillingDuplicateFix',
+  // R-237 (owner 2026-11-05): automatic refunds of bank inquiries.
+  'BillingDisputeRefund',
   'LedgerLine',
   // BUG-1 (package N-12b): the chat search blind index. Global for now (no
   // shard trigger needed); it joins the case family when that is split.

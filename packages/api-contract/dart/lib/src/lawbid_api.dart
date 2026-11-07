@@ -58,6 +58,9 @@ import 'clients/document_templates_client.dart';
 import 'clients/admin_document_templates_client.dart';
 import 'clients/admin_billing_client.dart';
 import 'clients/billing_client.dart';
+import 'clients/admin_launch_client.dart';
+import 'clients/admin_spend_client.dart';
+import 'clients/admin_infra_client.dart';
 import 'clients/admin_payroll_client.dart';
 import 'clients/support_client.dart';
 import 'clients/admin_support_client.dart';
@@ -87,9 +90,6 @@ import 'clients/contacts_sync_client.dart';
 import 'clients/admin_integrations_client.dart';
 import 'clients/admin_ops_client.dart';
 import 'clients/admin_shards_client.dart';
-import 'clients/admin_launch_client.dart';
-import 'clients/admin_spend_client.dart';
-import 'clients/admin_infra_client.dart';
 import 'clients/admin_promotion_client.dart';
 import 'clients/public_client.dart';
 import 'clients/admin_experiments_client.dart';
@@ -119,6 +119,7 @@ import 'clients/admin_client_badge_client.dart';
 import 'clients/realtime_client.dart';
 import 'clients/chat_client.dart';
 import 'clients/chat_saved_client.dart';
+import 'clients/quick_replies_client.dart';
 import 'clients/translations_client.dart';
 import 'clients/calls_client.dart';
 import 'clients/groups_client.dart';
@@ -210,6 +211,9 @@ class LawbidApi {
   AdminDocumentTemplatesClient? _adminDocumentTemplates;
   AdminBillingClient? _adminBilling;
   BillingClient? _billing;
+  AdminLaunchClient? _adminLaunch;
+  AdminSpendClient? _adminSpend;
+  AdminInfraClient? _adminInfra;
   AdminPayrollClient? _adminPayroll;
   SupportClient? _support;
   AdminSupportClient? _adminSupport;
@@ -239,9 +243,6 @@ class LawbidApi {
   AdminIntegrationsClient? _adminIntegrations;
   AdminOpsClient? _adminOps;
   AdminShardsClient? _adminShards;
-  AdminLaunchClient? _adminLaunch;
-  AdminSpendClient? _adminSpend;
-  AdminInfraClient? _adminInfra;
   AdminPromotionClient? _adminPromotion;
   PublicClient? _public;
   AdminExperimentsClient? _adminExperiments;
@@ -271,6 +272,7 @@ class LawbidApi {
   RealtimeClient? _realtime;
   ChatClient? _chat;
   ChatSavedClient? _chatSaved;
+  QuickRepliesClient? _quickReplies;
   TranslationsClient? _translations;
   CallsClient? _calls;
   GroupsClient? _groups;
@@ -449,6 +451,15 @@ class LawbidApi {
   BillingClient get billing =>
       _billing ??= BillingClient(_dio, baseUrl: _baseUrl);
 
+  AdminLaunchClient get adminLaunch =>
+      _adminLaunch ??= AdminLaunchClient(_dio, baseUrl: _baseUrl);
+
+  AdminSpendClient get adminSpend =>
+      _adminSpend ??= AdminSpendClient(_dio, baseUrl: _baseUrl);
+
+  AdminInfraClient get adminInfra =>
+      _adminInfra ??= AdminInfraClient(_dio, baseUrl: _baseUrl);
+
   AdminPayrollClient get adminPayroll =>
       _adminPayroll ??= AdminPayrollClient(_dio, baseUrl: _baseUrl);
 
@@ -537,15 +548,6 @@ class LawbidApi {
   AdminShardsClient get adminShards =>
       _adminShards ??= AdminShardsClient(_dio, baseUrl: _baseUrl);
 
-  AdminLaunchClient get adminLaunch =>
-      _adminLaunch ??= AdminLaunchClient(_dio, baseUrl: _baseUrl);
-
-  AdminSpendClient get adminSpend =>
-      _adminSpend ??= AdminSpendClient(_dio, baseUrl: _baseUrl);
-
-  AdminInfraClient get adminInfra =>
-      _adminInfra ??= AdminInfraClient(_dio, baseUrl: _baseUrl);
-
   AdminPromotionClient get adminPromotion =>
       _adminPromotion ??= AdminPromotionClient(_dio, baseUrl: _baseUrl);
 
@@ -627,6 +629,9 @@ class LawbidApi {
 
   ChatSavedClient get chatSaved =>
       _chatSaved ??= ChatSavedClient(_dio, baseUrl: _baseUrl);
+
+  QuickRepliesClient get quickReplies =>
+      _quickReplies ??= QuickRepliesClient(_dio, baseUrl: _baseUrl);
 
   TranslationsClient get translations =>
       _translations ??= TranslationsClient(_dio, baseUrl: _baseUrl);

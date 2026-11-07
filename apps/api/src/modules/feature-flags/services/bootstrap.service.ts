@@ -17,7 +17,11 @@ import {
 } from '../../../common/app-settings/realtime-settings';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
-import { bumpConfigVersion, readConfigVersion } from './config-version';
+import {
+  bumpConfigVersion,
+  configTag,
+  readConfigVersion,
+} from './config-version';
 import { FeatureFlagsService } from './feature-flags.service';
 import { AppConfigService } from './app-config.service';
 import {
@@ -135,7 +139,7 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // Owner 2026-10-17: the percent cap and where the percent is hidden.
   'fees.contingency_',
   // Owner 2026-10-22 (client economy plan §5): the on-device cache limits
-  // (`cache.limit_mb.*`, `cache.keep_media_days.default`) — the app may
+  // (`cache.limit_mb.*`) — the app may
   // lower them, never raise above these.
   'cache.',
   // Scale audit 2026-10-23: where "Update" opens the store (the iOS App
@@ -220,6 +224,45 @@ export class BootstrapService {
       if (mode !== 'monitor' && mode !== 'enforce') return {};
       const key = (await this.secrets?.get('turnstile'))?.fields?.siteKey;
       return key ? { 'turnstile.site_key': key } : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /** Owner 2026-11-02: the browser's push needs the Firebase web app and a
+   * VAPID key. They are public by design and live in Admin → Integrations →
+   * FCM (fields «Сайт: …»); the web build reads them from here at start, so
+   * changing them needs no rebuild. Published only when every required one
+   * is saved. */
+  async fcmWebConfig(): Promise<Record<string, string>> {
+    try {
+      // The first key set that carries the whole web group: the server keys
+      // may sit on several sets (main, backup) and their order follows
+      // failures, so the public config must not flip with it. Only the
+      // public fields named here are ever read; the private key is not.
+      for (const set of (await this.secrets?.getAll('fcm')) ?? []) {
+        const f = set.fields ?? {};
+        if (
+          !f.webApiKey ||
+          !f.webAppId ||
+          !f.webSenderId ||
+          !f.projectId ||
+          !f.webVapidKey
+        ) {
+          continue;
+        }
+        return {
+          'fcm.web.api_key': f.webApiKey,
+          'fcm.web.app_id': f.webAppId,
+          'fcm.web.sender_id': f.webSenderId,
+          'fcm.web.project_id': f.projectId,
+          'fcm.web.vapid_key': f.webVapidKey,
+          ...(f.webAuthDomain
+            ? { 'fcm.web.auth_domain': f.webAuthDomain }
+            : {}),
+        };
+      }
+      return {};
     } catch {
       return {};
     }
@@ -363,6 +406,7 @@ export class BootstrapService {
         [UPLOAD_LIMITS_KEY]: sanitizeUploadLimits(appConfig[UPLOAD_LIMITS_KEY]),
         ...(await this.sentryDsns()),
         ...(await this.turnstileSiteKey()),
+        ...(await this.fcmWebConfig()),
         ...(await this.videoPrefetchPlan(appConfig)),
       },
       client: { timings: clientTimingsFrom(appConfig) },
@@ -397,6 +441,12 @@ export class BootstrapService {
       version,
       Math.floor(now / BOOTSTRAP_ETAG_BUCKET_MS),
     );
+  }
+
+  /** R-385: a cheap ETag for another answer that changes only with the
+   * config version (legal documents): see [configTag]. */
+  configTag(...parts: (string | number | null | undefined)[]): Promise<string> {
+    return configTag(this.redis, ...parts);
   }
 
   private async getContent(): Promise<CachedBootstrapContent> {

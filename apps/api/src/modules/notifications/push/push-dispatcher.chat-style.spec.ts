@@ -102,6 +102,7 @@ function setup(
     {
       get: () => Promise.resolve({ total: 1 }),
       iconFor: () => Promise.resolve({ badge: iconOn ? 1 : 0, on: iconOn }),
+      mutedCategories: () => Promise.resolve(new Set(off)),
       topicSwitches: () =>
         Promise.resolve({
           on: (k: string) => !off.has(k),

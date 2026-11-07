@@ -1,22 +1,7 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import PDFDocument from 'pdfkit';
+import { applyPdfFonts } from '../../common/pdf-fonts/pdf-fonts';
 import type { CasePaymentDto } from './case-payments.dto';
 import type { PaymentQuote } from './case-payments.settings';
-
-/** Inter (same face as the app), covers Latin + Cyrillic. 3 levels up
- * from src/modules/case-payments, 4 from dist/src/modules/case-payments. */
-export const FONT_PATH = [3, 4]
-  .map((up) =>
-    join(
-      __dirname,
-      ...Array<string>(up).fill('..'),
-      'assets',
-      'fonts',
-      'Inter-Variable.ttf',
-    ),
-  )
-  .find((p) => existsSync(p));
 
 const NAVY = '#0B1B3F';
 const GOLD = '#B8860B';
@@ -30,6 +15,8 @@ const money = (cents: number) =>
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '—');
 
 export interface ReceiptInput {
+  /** Document language (BCP-47), picks the Han font. */
+  lang?: string;
   payment: CasePaymentDto;
   quote: PaymentQuote;
   clientEmail: string | null;
@@ -55,10 +42,7 @@ export function renderPaymentReceiptPdf(input: ReceiptInput): Promise<Buffer> {
     doc.on('data', (c: Buffer) => chunks.push(c));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
-    if (FONT_PATH) {
-      doc.registerFont('Inter', FONT_PATH);
-      doc.font('Inter');
-    }
+    applyPdfFonts(doc, { lang: input.lang });
     const p = input.payment;
     const q = input.quote;
     const left = doc.page.margins.left;

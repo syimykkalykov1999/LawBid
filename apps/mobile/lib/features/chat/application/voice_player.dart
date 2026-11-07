@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:lawbid/core/audio/safe_play.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -262,7 +263,7 @@ class VoicePlayer extends Notifier<VoicePlayback> {
   Future<void> _playFaded(AudioPlayer p) async {
     final gen = ++_gen;
     await p.setVolume(0);
-    unawaited(p.play());
+    p.playSafely();
     _watchProximity();
     await _ramp(p, 0, 1, gen);
   }
@@ -325,7 +326,7 @@ class VoicePlayer extends Notifier<VoicePlayback> {
       _earpiece = on;
       if (wasPlaying && p != null && ref.mounted && gen == _gen) {
         await p.setVolume(0);
-        unawaited(p.play());
+        p.playSafely();
         await _ramp(p, 0, 1, gen);
       }
     } on Object {

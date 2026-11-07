@@ -90,6 +90,13 @@ class ConsultationsNotifier extends SyncedListNotifier<Consultation> {
     return super.build();
   }
 
+  // Owner 2026-11-02: opens on the phone's copy of the first page.
+  @override
+  Future<CursorPage<Consultation>?> cachedFirstPage() {
+    final repo = ref.read(consultationsRepositoryProvider);
+    return phoneCopy(() => repo.list(view));
+  }
+
   @override
   Future<CursorPage<Consultation>> fetchPage(String? cursor) =>
       ref.read(consultationsRepositoryProvider).list(view, cursor: cursor);

@@ -585,7 +585,12 @@ export class CaseSigningService {
     signers.sort((a, b) =>
       a.role === b.role ? 0 : a.role === 'client' ? -1 : 1,
     );
+    const requester = await this.prisma.user.findUnique({
+      where: { id: r.created_by },
+      select: { ui_language: true },
+    });
     const pages = await renderSignaturePages({
+      lang: requester?.ui_language,
       requestId,
       caseId: r.case_id,
       caseTitle: kase.title,

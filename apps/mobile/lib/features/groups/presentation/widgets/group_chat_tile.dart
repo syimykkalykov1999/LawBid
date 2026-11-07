@@ -242,6 +242,17 @@ class GroupChatTile extends ConsumerWidget {
           muted ? 'chat.select.unmuted' : 'chat.select.muted',
         ),
       ),
+      onDelete: () => unawaited(
+        confirmDeleteChat(
+          context,
+          t: t,
+          group: true,
+          onConfirmed: () => act(
+            () => updateMyGroup(ref, g.id, hidden: true),
+            'chat.select.deleted',
+          ),
+        ),
+      ),
       child: row,
     );
   }

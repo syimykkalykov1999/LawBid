@@ -5,13 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' show ProviderScope;
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
-import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
 import 'package:lawbid/features/settings/storage/presentation/storage_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,7 +21,7 @@ import '../../helpers/ux_harness.dart';
 /// Owner 2026-10-22 (client economy plan §5.2): «Данные и память» shows
 /// what each store takes, «Очистить» empties it (and all of them), the
 /// user may lower a limit but never raise it over the administrator's
-/// ceiling, and «Хранить медиа» offers the four Telegram choices.
+/// ceiling.
 class _Flags extends FeatureFlagsController {
   _Flags(this.config);
 
@@ -81,21 +81,34 @@ void main() {
     await t.pumpAndSettle();
   }
 
-  testWidgets('shows every store with its size and the total', (t) async {
+  testWidgets('shows the ring total and the four categories with sizes',
+      (t) async {
     await pump(t, await overrides());
     expect(find.text('Data and storage'), findsOneWidget);
-    expect(find.text('6 KB used'), findsOneWidget);
-    expect(find.text('2 KB'), findsOneWidget); // request cache
-    expect(find.text('4 KB'), findsOneWidget); // messages
+    expect(find.text('6 KB'), findsNWidgets(2)); // ring + «Other»
+    for (final c in StorageCategory.values) {
+      expect(find.byKey(ValueKey('storage-cat-${c.name}')), findsOneWidget);
+    }
+    expect(find.text('Documents and case files'), findsOneWidget);
+    expect(find.text('Clear entire cache 6 KB'), findsOneWidget);
     await t.scrollUntilVisible(find.text('Requests: 0'), 200);
     expect(find.text('Requests: 0'), findsOneWidget);
   });
 
-  testWidgets('«Clear» on a row empties that store only', (t) async {
+  testWidgets('clearing only the ticked categories leaves the rest', (t) async {
     await pump(t, await overrides());
-    await t.tap(find.byKey(const ValueKey('storage-messages')));
+    // Untick «Other» (messages and requests): only the others are cleared.
+    await t.tap(find.byKey(const ValueKey('storage-cat-other')));
     await t.pumpAndSettle();
-    expect(find.text('Clear the cache?'), findsOneWidget);
+    expect(find.text('Clear selected 0 KB'), findsOneWidget);
+    await t.tap(find.byKey(const ValueKey('storage-cat-other')));
+    await t.tap(find.byKey(const ValueKey('storage-cat-video')));
+    await t.tap(find.byKey(const ValueKey('storage-cat-photos')));
+    await t.tap(find.byKey(const ValueKey('storage-cat-documents')));
+    await t.pumpAndSettle();
+    expect(find.text('Clear selected 6 KB'), findsOneWidget);
+    await t.tap(find.byKey(const ValueKey('storage-clear-all')));
+    await t.pumpAndSettle();
     expect(
       find.textContaining('Chat history on this phone'),
       findsOneWidget,
@@ -103,11 +116,23 @@ void main() {
     await t.tap(find.byKey(const ValueKey('storage-clear-confirm')));
     await t.pumpAndSettle();
     expect(await cache.messagesBytes(), 0);
-    expect(await cache.httpBytes(), greaterThan(0));
-    expect(find.text('2 KB used'), findsOneWidget);
+    expect(await cache.httpBytes(), 0);
+    expect(find.text('Cache cleared'), findsOneWidget);
   });
 
-  testWidgets('«Clear cache» empties everything but keeps the outbox',
+  testWidgets('unticked categories are not cleared', (t) async {
+    await pump(t, await overrides());
+    await t.tap(find.byKey(const ValueKey('storage-cat-other')));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('storage-clear-all')));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('storage-clear-confirm')));
+    await t.pumpAndSettle();
+    expect(await cache.messagesBytes(), greaterThan(0));
+    expect(await cache.httpBytes(), greaterThan(0));
+  });
+
+  testWidgets('«Clear entire cache» empties everything but keeps the outbox',
       (t) async {
     await pump(t, await overrides());
     final social = ProviderScope.containerOf(
@@ -120,10 +145,6 @@ void main() {
       conversationId: 'c1',
       body: 'not sent yet',
     );
-    await t.scrollUntilVisible(
-      find.byKey(const ValueKey('storage-clear-all')),
-      200,
-    );
     await t.tap(find.byKey(const ValueKey('storage-clear-all')));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const ValueKey('storage-clear-confirm')));
@@ -135,47 +156,65 @@ void main() {
     expect(find.text('Cache cleared'), findsOneWidget);
   });
 
-  testWidgets('a limit can only be lowered under the admin ceiling', (t) async {
-    await pump(
-      t,
-      await overrides(config: {'cache.limit_mb.images': '300'}),
-    );
-    final row = find.byKey(const ValueKey('storage-limit-images'));
+  testWidgets(
+      'auto-delete defaults: private never, groups 1 month, feed 1 week',
+      (t) async {
+    await pump(t, await overrides());
+    for (final (scope, label) in [
+      (AutoDeleteScope.privateChats, 'Never'),
+      (AutoDeleteScope.groups, '1 month'),
+      (AutoDeleteScope.feed, '1 week'),
+    ]) {
+      final row = find.byKey(ValueKey('storage-auto-${scope.key}'));
+      await t.scrollUntilVisible(row, 200);
+      expect(
+        find.descendant(of: row, matching: find.text(label)),
+        findsOneWidget,
+        reason: scope.name,
+      );
+    }
+  });
+
+  testWidgets('auto-delete offers Never / 3 days / 1 week / 1 month',
+      (t) async {
+    await pump(t, await overrides());
+    final row = find.byKey(const ValueKey('storage-auto-groups'));
     await t.scrollUntilVisible(row, 200);
-    expect(
-      find.descendant(of: row, matching: find.text('300 MB')),
-      findsOneWidget,
-    );
+    await t.ensureVisible(row);
+    await t.pumpAndSettle();
     await t.tap(row);
     await t.pumpAndSettle();
-    expect(find.text('Maximum (300 MB)'), findsOneWidget);
-    expect(find.text('500 MB'), findsNothing, reason: 'over the ceiling');
-    await t.tap(find.byKey(const ValueKey('storage-limit-images-100')));
+    for (final a in AutoDeleteAge.values) {
+      expect(
+        find.byKey(ValueKey('storage-auto-opt-${a.name}')),
+        findsOneWidget,
+      );
+    }
+    await t.tap(find.byKey(const ValueKey('storage-auto-opt-threeDays')));
     await t.pumpAndSettle();
     expect(
-      find.descendant(of: row, matching: find.text('100 MB')),
+      find.descendant(of: row, matching: find.text('3 days')),
       findsOneWidget,
     );
   });
 
-  testWidgets('«Keep chat media» offers 3 days / week / month / always',
+  testWidgets('the cap slider starts at 10 GB and stops at 5 / 10 / 30 / none',
       (t) async {
-    // The administrator allows «always» (0); with a 30-day ceiling the
-    // «Always» choice is not offered.
-    await pump(
-      t,
-      await overrides(config: {'cache.keep_media_days.default': '0'}),
-    );
-    final row = find.byKey(const ValueKey('storage-keep-media'));
-    await t.scrollUntilVisible(row, 200);
-    expect(find.text('Always'), findsOneWidget);
-    await t.tap(row);
+    await pump(t, await overrides());
+    final slider = find.byKey(const ValueKey('storage-cap-slider'));
+    await t.scrollUntilVisible(slider, 200);
+    await t.ensureVisible(slider);
     await t.pumpAndSettle();
-    for (final k in KeepMedia.values) {
-      expect(find.byKey(ValueKey('storage-keep-${k.name}')), findsOneWidget);
+    expect(t.widget<Slider>(slider).value, 1, reason: '10 GB is stop 1');
+    for (final label in ['5 GB', '10 GB', '30 GB', 'No limit']) {
+      expect(find.text(label), findsOneWidget);
     }
-    await t.tap(find.byKey(const ValueKey('storage-keep-threeDays')));
+    final container = ProviderScope.containerOf(t.element(slider));
+    expect(container.read(cacheLimitsProvider).capMb, 10 * 1024);
+    // Drag to the far right: «No limit».
+    await t.drag(slider, const Offset(600, 0));
     await t.pumpAndSettle();
-    expect(find.text('3 days'), findsOneWidget);
+    expect(container.read(cacheLimitsProvider).capBytes, isNull);
+    expect(t.widget<Slider>(slider).value, 3);
   });
 }

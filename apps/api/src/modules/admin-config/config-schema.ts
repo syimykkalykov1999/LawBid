@@ -199,6 +199,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 10000,
   };
+  out['calls.relay_signal_filter'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Phones whose ICE list said relay pass only relay candidates to the other phone (older apps ignore the policy). Off = every signal passes unchanged.',
+  };
   out['calls.transport_report_ratio_pct'] = {
     type: 'integer',
     defaultValue: 30,
@@ -363,17 +369,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: SEATS_HARD_CAP,
   };
-  // Owner 2026-10-22: duties per assistant (10 exist; the app and the API
-  // both refuse more).
+  // Owner 2026-10-22: duties per assistant (11 exist; the app and the API
+  // both refuse more). R-401 (owner 2026-11-04): 0 = «все» (no limit).
   out['assistants.max_duties'] = {
     ...out['assistants.max_duties'],
     type: 'integer',
     description:
-      'How many duties (roles) one assistant may hold at most, out of 10.',
-    min: 1,
-    // The 10 duties of assistants/assistant-duties.ts (not imported: the
+      'Макс. ролей у одного помощника (assistants.max_duties): число от 1 до 11 или 0 = все (без ограничения). По умолчанию 3.',
+    min: 0,
+    // The 11 duties of assistants/assistant-duties.ts (not imported: the
     // admin config stays free of feature modules).
-    max: 10,
+    max: 11,
   };
   // Owner 2026-10-22 (audit #4 §6): group / channel / post caps.
   out['groups.max_members'] = {
@@ -423,6 +429,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['realtime.max_connects_per_ip_per_minute'],
     description:
       'New live connections per minute from one address (0 = no limit). Mobile networks and offices share addresses: keep it generous.',
+    min: 0,
+    max: 100000,
+  };
+  out['realtime.max_connects_per_user_per_minute'] = {
+    ...out['realtime.max_connects_per_user_per_minute'],
+    description:
+      'New live connections per minute from one signed-in person (0 = no limit). A signed-in person is counted by account, not by address.',
     min: 0,
     max: 100000,
   };
@@ -533,8 +546,24 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['ops.route_metrics.mode'] = {
     ...out['ops.route_metrics.mode'],
     description:
-      'Per-route request / error / latency metrics for about 15 key routes (CloudWatch LawBid/Routes, about $13.5 a month when all routes report): off | on (always) | auto (default: a route reports only while it has 5xx answers or p95 above 1 s).',
+      'Per-route request / error / latency metrics for about 15 key routes (CloudWatch LawBid/Routes, about $13.5 a month when all routes report): off (default) | on (always) | auto (a route reports only while it has 5xx answers or p95 above 1 s; every route with one bad minute is billed).',
     pattern: /^(off|on|auto)$/,
+  };
+  // 2026-11-02: HA copies and the replica auto-create (typos must not act).
+  out['ha.mode'] = { ...out['ha.mode'], pattern: /^(off|on|auto)$/ };
+  out['db.replica_provision'] = {
+    ...out['db.replica_provision'],
+    pattern: /^(off|auto)$/,
+  };
+  out['ha.provision_online_users'] = {
+    ...out['ha.provision_online_users'],
+    min: 0,
+    max: 1_000_000,
+  };
+  out['ha.release_days'] = {
+    ...out['ha.release_days'],
+    min: 1,
+    max: 30,
   };
   // Legal-grade protection of client documents (2026-10-24).
   out['security.attorney_strong_auth'] = {
@@ -565,6 +594,23 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'off | on | auto (default). Image moderation (paid): auto = on inside the daily cost-guard cap.',
     pattern: /^(off|on|auto)$/,
+  };
+  out['moderation.video.frames_enabled'] = {
+    ...out['moderation.video.frames_enabled'],
+    description:
+      'Frame-by-frame video check (paid: every frame is one image_moderation unit inside the daily cap). Needs ffmpeg in the API image (build arg WITH_FFMPEG=1); without it only the cover is checked.',
+  };
+  out['moderation.video.frame_every_sec'] = {
+    ...out['moderation.video.frame_every_sec'],
+    description: 'One checked frame per this many seconds of the clip.',
+    min: 1,
+    max: 120,
+  };
+  out['moderation.video.frames_max'] = {
+    ...out['moderation.video.frames_max'],
+    description: 'At most this many frames checked per video.',
+    min: 1,
+    max: 12,
   };
   out['chat.link_preview_enabled'] = {
     ...out['chat.link_preview_enabled'],
@@ -633,10 +679,34 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'On (default): when one attorney ends up with two live subscriptions (a second device, a re-subscription after grace), the system keeps the newest paid one, cancels the other at once and refunds only the unused part of its last invoice — never on a disputed charge, an account under fraud review, a third duplicate in 90 days or above the daily cap (those wait for a person). Off: the newcomer is cancelled without a refund (old behaviour); the owner gets an alert either way.',
   };
+  out['billing.dispute_auto_cancel'] = {
+    ...out['billing.dispute_auto_cancel'],
+    description:
+      'On (default): when a bank disputes (chargeback) a subscription charge, the subscription is cancelled at Stripe at once so nothing more is charged, the admins get an e-mail and the audit log gets a row. No extra refund is made (the dispute already reverses the charge). Off: the dispute only appears in «Проверки Stripe».',
+  };
   out['billing.duplicate_autorefund_daily_cap_cents'] = {
     ...out['billing.duplicate_autorefund_daily_cap_cents'],
     description:
       'The most the duplicate-subscription auto-fix may refund in one UTC day, all attorneys together (cents; default 50000 = $500). A refund above it is not sent: it waits in «Проверки Stripe» for a person.',
+  };
+  out['billing.dispute_refund_max_cents'] = {
+    ...out['billing.dispute_refund_max_cents'],
+    description:
+      'The largest refund of a bank inquiry on a subscription charge the system makes by itself, in cents. Above it the refund waits for a person.',
+  };
+  out['billing.dispute_refund_user_limit'] = {
+    ...out['billing.dispute_refund_user_limit'],
+    description:
+      'How many automatic dispute refunds one user may get within the window. The next one waits for a person.',
+  };
+  out['billing.dispute_refund_window_days'] = {
+    ...out['billing.dispute_refund_window_days'],
+    description: 'The window of the per-user limit, in days.',
+  };
+  out['billing.dispute_refund_daily_cap_cents'] = {
+    ...out['billing.dispute_refund_daily_cap_cents'],
+    description:
+      'The most all automatic dispute refunds may return in one UTC day, in cents. Above it a refund waits for a person.',
   };
   out['billing.require_verified_for_purchases'] = {
     ...out['billing.require_verified_for_purchases'],
@@ -912,6 +982,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Public SEO pages: upload only the files that changed and reset the CDN only for them (at most 30 paths a day). Changed on the «Продвижение» page.',
     'seo.llms_enabled':
       'Public SEO pages: publish /llms.txt and /llms-full.txt. Changed on the «Продвижение» page.',
+    'seo.pages_cities_enabled':
+      'Public SEO pages: city and city x practice pages for clients. Changed on the «Продвижение» page.',
+    'seo.pages_posts_enabled':
+      'Public SEO pages: pages of the text posts of listed attorneys. Changed on the «Продвижение» page.',
+    'seo.pages_qa_enabled':
+      'Public SEO pages: legal question pages (reviewed answers only). Changed on the «Продвижение» page.',
     'seo.quality_gate_enabled':
       'Public SEO pages: thin pages get noindex and leave the sitemap. Turn on only after the page texts are longer (dry run first). Changed on the «Продвижение» page.',
     'seo.ramp_per_day':
@@ -1215,10 +1291,30 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   for (const t of ['messages', 'chat_group_messages', 'notifications']) {
     out[`partition.${t}_mode`] = {
       ...out[`partition.${t}_mode`],
-      description: `Hash partitioning of ${t}: off = plain table (default, faster while small), on = the online runner converts now, auto = converts at partition.auto_rows.`,
+      description: `Hash partitioning of ${t}: auto = converts by itself at partition.auto_rows (default; nothing happens while small), on = the online runner converts now, off = never.`,
       pattern: /^(off|on|auto)$/,
     };
   }
+  out['growth.shard_db_gb'] = {
+    ...out['growth.shard_db_gb'],
+    description:
+      'Primary database size (GB) at which the health card says it is time to prepare a second database (yellow from 80%, red at 100%). A signal only: nothing is moved by itself.',
+    min: 10,
+    max: 100_000,
+  };
+  out['growth.shard_rows'] = {
+    ...out['growth.shard_rows'],
+    description:
+      'Estimated rows of the sharded-family tables at which the health card says it is time to prepare a second database (yellow from 80%, red at 100%). A signal only.',
+    min: 1_000_000,
+    max: 100_000_000_000,
+  };
+  out['partition.post_view_events_mode'] = {
+    ...out['partition.post_view_events_mode'],
+    description:
+      'Monthly partitioning of post_view_events: auto = converts by itself at partition.auto_rows (default), on = the online runner converts now, off = never.',
+    pattern: /^(off|on|auto)$/,
+  };
   out['partition.auto_rows'] = {
     ...out['partition.auto_rows'],
     description:

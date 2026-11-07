@@ -104,6 +104,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1600));
     c.go(CallPhase.idle);
     await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
     await tester.pump(const Duration(seconds: 2));
 
     expect(find.byType(CallScreen), findsNothing);

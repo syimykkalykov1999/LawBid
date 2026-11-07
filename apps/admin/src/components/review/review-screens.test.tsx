@@ -129,6 +129,34 @@ describe('verification review screen', () => {
     expect(screen.getByTestId('review-done-count').textContent).toContain('1');
   });
 
+  it('a click on the document or selfie frame opens the shared lightbox with a counter (R-393)', async () => {
+    show(<VerificationReview />);
+    await screen.findByRole('heading', { level: 1, name: 'Anna Lawyer' });
+    await screen.findAllByRole('img');
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть: селфи' }));
+    expect(screen.getByTestId('lightbox-counter').textContent).toBe('3 из 3');
+    fireEvent.click(screen.getByRole('button', { name: /Вперёд/ }));
+    expect(screen.getByTestId('lightbox-title').textContent).toBe('ID штата (лицевая)');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByTestId('lightbox')).toBeNull();
+  });
+
+  it('lays the document, selfie and side cards out as sibling grid areas that cannot overlap (R-372)', async () => {
+    show(<VerificationReview />);
+    await screen.findByRole('heading', { level: 1, name: 'Anna Lawyer' });
+    const grid = screen.getByTestId('verification-grid');
+    expect(grid.className).toContain('grid-cols-[minmax(0,1fr)]');
+    expect(grid.className).toContain('lg:grid-cols-12');
+    const areas = ['verification-document', 'verification-selfie', 'verification-side'].map((id) => screen.getByTestId(id));
+    for (const el of areas) {
+      expect(el.parentElement).toBe(grid);
+      expect(el.className).toContain('min-w-0');
+      expect(el.className).not.toMatch(/\b(absolute|fixed|sticky)\b/);
+    }
+    expect(areas[2]!.className).toContain('lg:col-span-12');
+    expect(areas[2]!.className).toContain('xl:col-span-4');
+  });
+
   it('warms up only the next request, once (card + its pictures)', async () => {
     show(<VerificationReview />);
     await screen.findByRole('heading', { level: 1, name: 'Anna Lawyer' });

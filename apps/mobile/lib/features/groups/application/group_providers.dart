@@ -1,13 +1,20 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
+import 'package:lawbid/core/cache/chat_media_providers.dart';
+import 'package:lawbid/core/media/stable_network_image.dart'
+    show stableImageCacheKey;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
+import 'package:lawbid/core/uploads/upload_queue.dart';
+import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/groups/application/group_media_outbox.dart';
 import 'package:lawbid/features/groups/data/group_list_cache.dart';
 import 'package:lawbid/features/groups/data/group_repository.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
@@ -19,7 +26,21 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 Duration? _noRetry(int retryCount, Object error) => null;
 
 final groupRepositoryProvider = Provider<GroupRepository>(
-  (ref) => GroupRepository(ref.watch(dioProvider)),
+  (ref) => GroupRepository(
+    ref.watch(dioProvider),
+    // Owner 2026-11-03: group pictures are indexed as group media («Данные
+    // и память»: the groups' auto-delete age). Never blocks the chat.
+    noteMedia: (id, urls) => unawaited(
+      ref
+          .read(chatMediaIndexProvider)
+          .note(
+            id,
+            {for (final u in urls) stableImageCacheKey(u) ?? u},
+            isGroup: true,
+          )
+          .catchError((Object _) {}),
+    ),
+  ),
 );
 
 /// Owner 2026-10-22 (package B): the first page of my groups, per account.
@@ -132,6 +153,18 @@ class GroupsNotifier extends SyncedListNotifier<api.GroupDto> {
       ref.read(groupListCacheProvider).save(page.items);
     }
     return page;
+  }
+
+  /// How many rows a copy re-saved after a catch-up keeps (a first page).
+  static const _copyRows = 50;
+
+  // The copy follows «caught up to»: without this the next cold start shows
+  // the page of the last full read and asks only for changes since a later
+  // time, so a group changed in between stayed old on screen.
+  @override
+  void didMerge(List<api.GroupDto> items) {
+    if (archived) return;
+    ref.read(groupListCacheProvider).save(items.take(_copyRows).toList());
   }
 
   @override
@@ -432,11 +465,15 @@ class PendingGroupMessage {
     this.replyToId,
     this.mentionIds = const [],
     this.fileName,
+    this.slowWaitS,
   });
 
   final String clientMessageId;
   final String body;
   final bool failed;
+
+  /// Owner 2026-11-02 (slow mode): the server refused for now; seconds left.
+  final int? slowWaitS;
   final String? replyToId;
   final List<String> mentionIds;
   final String? fileName;
@@ -510,8 +547,21 @@ class GroupThread extends Notifier<GroupThreadState> {
     // Owner 2026-10-22: the group is open — its notification goes.
     unawaited(chatNotificationsChannel.clearChat(key.groupId));
     final sub = ref.watch(realtimeEventsProvider).listen(_onEvent);
+    // R-255: the files of this group waiting in the upload queue.
+    final media = ref.read(groupMediaOutboxProvider);
+    final owner = media.ownerId;
+    final jobs = owner == null
+        ? null
+        : media.db
+            .watchTarget(owner, key.groupId, kindPrefix: GroupMediaKind.prefix)
+            .listen(_onMediaJobs);
+    final sent = ref.read(groupMediaSentProvider).stream.listen((m) {
+      if (_inThisThread(m)) _upsert(m);
+    });
     ref.onDispose(() {
       sub.cancel();
+      unawaited(jobs?.cancel());
+      unawaited(sent.cancel());
       _expiryTimer?.cancel();
       realtime?.leave(key.groupId);
     });
@@ -797,12 +847,81 @@ class GroupThread extends Notifier<GroupThreadState> {
     );
   }
 
+  /// R-255 (flag `group_files_from_disk`): a picked file goes through the
+  /// persistent queue. With [path] it stays on disk (then [bytes] is empty):
+  /// it is copied to the queue folder and sent from there.
+  Future<void> queueAttachment({
+    required Uint8List bytes,
+    required String name,
+    required String mime,
+    String? path,
+    String? caption,
+    String? replyToId,
+  }) async {
+    // Read before the first await: the screen may be left meanwhile (this
+    // provider is auto-disposed) and the file must still be queued.
+    final queue = ref.read(groupMediaOutboxProvider);
+    final files = ref.read(uploadFilesProvider);
+    final cmid = _newClientId();
+    final file = path != null
+        ? await files.keep('$cmid.bin', fromPath: path)
+        : await files.keep('$cmid.bin', bytes: bytes);
+    await queue.enqueue(
+      id: cmid,
+      kind: GroupMediaKind.attachment,
+      target: key.groupId,
+      payload: {
+        'name': name,
+        'caption': caption?.trim() ?? '',
+        if (key.topicId != null) 'topicId': key.topicId,
+        if (replyToId != null) 'replyToId': replyToId,
+      },
+      fileName: file,
+      mime: mime,
+    );
+  }
+
+  /// Client ids of this thread's queued files, shown as pending bubbles.
+  Set<String> _mediaIds = const {};
+
+  /// The queue's jobs of this group → pending bubbles of this thread.
+  void _onMediaJobs(List<UploadJobRow> rows) {
+    if (!ref.mounted) return;
+    final jobs = [
+      for (final r in rows)
+        if (UploadJob.fromRow(r) case final j
+            when key.topicId == null || j.payload['topicId'] == key.topicId)
+          j,
+    ];
+    final old = _mediaIds;
+    _mediaIds = {for (final j in jobs) j.id};
+    final delivered = {for (final m in state.messages) m.clientMessageId};
+    state = state.copyWith(
+      pending: [
+        for (final p in state.pending)
+          if (!old.contains(p.clientMessageId)) p,
+        for (final j in jobs)
+          if (!delivered.contains(j.id))
+            PendingGroupMessage(
+              clientMessageId: j.id,
+              body: j.payload['caption'] as String? ?? '',
+              fileName: j.payload['name'] as String? ?? 'file',
+              replyToId: j.payload['replyToId'] as String?,
+              failed: j.failed,
+            ),
+      ],
+    );
+  }
+
   Future<void> _send(api.SendGroupMessageDto dto) async {
     try {
       final m = await _repo.send(key.groupId, dto);
       if (ref.mounted) _upsert(m);
-    } on ApiException {
+    } on ApiException catch (e) {
       if (!ref.mounted) return;
+      final slow = e.details?['kind'] == 'group_slow_mode'
+          ? (e.details?['retryAfterSeconds'] as num?)?.toInt()
+          : null;
       state = state.copyWith(
         pending: [
           for (final p in state.pending)
@@ -811,6 +930,7 @@ class GroupThread extends Notifier<GroupThreadState> {
                 clientMessageId: p.clientMessageId,
                 body: p.body,
                 failed: true,
+                slowWaitS: slow,
                 replyToId: p.replyToId,
                 mentionIds: p.mentionIds,
                 fileName: p.fileName,
@@ -824,6 +944,9 @@ class GroupThread extends Notifier<GroupThreadState> {
 
   /// Retry a failed text message with the same client id.
   Future<void> retry(String clientMessageId) async {
+    if (_mediaIds.contains(clientMessageId)) {
+      return ref.read(groupMediaOutboxProvider).retry(clientMessageId);
+    }
     final p = state.pending
         .where((x) => x.clientMessageId == clientMessageId)
         .firstOrNull;
@@ -854,12 +977,17 @@ class GroupThread extends Notifier<GroupThreadState> {
     );
   }
 
-  void dropPending(String clientMessageId) => state = state.copyWith(
-        pending: [
-          for (final p in state.pending)
-            if (p.clientMessageId != clientMessageId) p,
-        ],
-      );
+  void dropPending(String clientMessageId) {
+    if (_mediaIds.contains(clientMessageId)) {
+      unawaited(ref.read(groupMediaOutboxProvider).discard(clientMessageId));
+    }
+    state = state.copyWith(
+      pending: [
+        for (final p in state.pending)
+          if (p.clientMessageId != clientMessageId) p,
+      ],
+    );
+  }
 
   Future<void> edit(String messageId, String body) async {
     final m = await _repo.edit(key.groupId, messageId, body);

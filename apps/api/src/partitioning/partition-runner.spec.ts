@@ -54,6 +54,7 @@ describe('partition helpers', () => {
       'audit_log',
       'auth_events',
       'data_access_log',
+      'post_view_events',
     ]);
   });
 

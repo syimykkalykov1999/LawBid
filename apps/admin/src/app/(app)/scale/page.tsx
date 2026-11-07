@@ -222,12 +222,13 @@ export default function ScalePage() {
       />
       <ErrorNote text={economy.error ? errorText(economy.error) : health.error ? errorText(health.error) : null} />
 
-      {!e || !h ? (
-        <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
-      ) : (
-        <>
+      {/* R-369 (owner 2026-11-04): every block shows as soon as its own
+          data is here; a slow source keeps only its own skeleton. */}
+      <>
           <SectionTitle>Тревоги</SectionTitle>
-          {alarms.length === 0 ? (
+          {!h ? (
+            <Skeleton className="mb-6 h-32 rounded-[var(--radius-lg)]" />
+          ) : alarms.length === 0 ? (
             <Card className="mb-6 flex flex-wrap items-center gap-3 p-4">
               <Badge tone="success" dot>
                 Тревог нет
@@ -280,6 +281,10 @@ export default function ScalePage() {
           )}
 
           <SectionTitle>Серверы приложения</SectionTitle>
+          {!e ? (
+            <Skeleton className="mb-6 h-32 rounded-[var(--radius-lg)]" />
+          ) : (
+          <>
           {!onAws ? (
             <p className="mb-3 text-sm text-muted">Потолок меняется только на AWS. Здесь (на Mac) цифры справочные.</p>
           ) : null}
@@ -337,8 +342,14 @@ export default function ScalePage() {
               .
             </span>
           </Card>
+          </>
+          )}
 
           <SectionTitle>База данных и Redis</SectionTitle>
+          {!e ? (
+            <Skeleton className="mb-6 h-32 rounded-[var(--radius-lg)]" />
+          ) : (
+          <>
           {!e.capacity.onAws ? (
             <p className="mb-3 text-sm text-muted">Нагрузка читается, а кнопки работают только на AWS.</p>
           ) : null}
@@ -405,6 +416,8 @@ export default function ScalePage() {
               );
             })}
           </div>
+          </>
+          )}
 
           <SectionTitle>База: копия для чтения и разделение таблиц</SectionTitle>
           <ScaleSwitches />
@@ -428,13 +441,13 @@ export default function ScalePage() {
             />
             <InfoCard
               title="Звонки: трафик Cloudflare"
-              badge={<Badge tone={usageLine(h.items, 'cloudflare_usage').tone} dot>{LABEL[usageLine(h.items, 'cloudflare_usage').tone]}</Badge>}
-              line={usageLine(h.items, 'cloudflare_usage').line}
+              badge={h ? <Badge tone={usageLine(h.items, 'cloudflare_usage').tone} dot>{LABEL[usageLine(h.items, 'cloudflare_usage').tone]}</Badge> : null}
+              line={h ? usageLine(h.items, 'cloudflare_usage').line : 'Загрузка…'}
             />
             <InfoCard
               title="Видео: трафик и хранилище Bunny"
-              badge={<Badge tone={usageLine(h.items, 'bunny_usage').tone} dot>{LABEL[usageLine(h.items, 'bunny_usage').tone]}</Badge>}
-              line={usageLine(h.items, 'bunny_usage').line}
+              badge={h ? <Badge tone={usageLine(h.items, 'bunny_usage').tone} dot>{LABEL[usageLine(h.items, 'bunny_usage').tone]}</Badge> : null}
+              line={h ? usageLine(h.items, 'bunny_usage').line : 'Загрузка…'}
             />
             <DbSplitCard enabled={!!x?.dbSplitEnabled} />
           </div>
@@ -474,6 +487,7 @@ export default function ScalePage() {
 
           <SectionTitle>Бюджеты AWS (потолок расходов в месяц)</SectionTitle>
           <div className="mb-6 grid gap-3 md:grid-cols-2" data-testid="aws-budgets">
+            {budgets.isPending ? <Skeleton className="h-32 rounded-[var(--radius-lg)] md:col-span-2" /> : null}
             {budgets.data && !budgets.data.available ? (
               <Card className="p-4 text-sm text-muted md:col-span-2">Бюджеты читаются только на AWS (боевой сервер).</Card>
             ) : null}
@@ -530,6 +544,9 @@ export default function ScalePage() {
 
           <SectionTitle>Кнопки на крайний случай</SectionTitle>
           <div className="mb-6 grid gap-3 md:grid-cols-3">
+            {!h ? (
+              <Skeleton className="h-32 rounded-[var(--radius-lg)]" />
+            ) : (
             <Card className="flex flex-col gap-3 p-4">
               <div className="text-sm font-medium text-heading">{h.scaleMode?.mode === 'min' ? 'Сервер на минимуме' : 'Режим сервера: обычный'}</div>
               <p className="flex-1 text-sm text-muted">
@@ -549,8 +566,10 @@ export default function ScalePage() {
                 {h.scaleMode?.mode === 'min' ? 'Обычный режим' : 'Держать минимум'}
               </Button>
             </Card>
+            )}
           </div>
           <BackfillsCard />
+          {h ? (
           <p className="mb-6 text-xs text-muted">
             Общее состояние:{' '}
             <Badge tone={LIGHT_TONE[h.overall]} dot>
@@ -562,8 +581,8 @@ export default function ScalePage() {
             </Link>
             .
           </p>
-        </>
-      )}
+          ) : null}
+      </>
 
       <Dialog
         open={confirm !== null}

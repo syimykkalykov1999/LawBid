@@ -3,23 +3,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { FileText } from '@phosphor-icons/react';
+import { FileText, Tray } from '@phosphor-icons/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn, MotionRow } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { hasRegistryResult, RegistryResult } from '@/components/verification/registry-result';
 import { TrustPanel } from '@/components/trust/trust-panel';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/empty';
+import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { SelfieCaptureNote } from '@/components/verification/selfie-capture-note';
+import { DocumentGallery } from '@/components/verification/document-gallery';
+import { RegistryActions } from '@/components/verification/registry-actions';
 import { FocusBar, useNextVerification } from '@/components/workspace/queue-next';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
-import { canOpen } from '@/lib/rbac';
+import { can, canOpen } from '@/lib/rbac';
+import { livePoll } from '@/lib/live';
+import { cardHref, nextInQueue, queueFilterFrom, type QueueFilter, type QueueRow } from '@/lib/registry-conveyor';
+import { dialogOnScreen, reviewKeyOf } from '@/lib/review-flow';
 import { formatDateTime } from '@/lib/utils';
 import {
   CHECK_RESULT,
@@ -37,6 +43,30 @@ import {
 } from '@/lib/labels';
 
 const REJECTION = Object.entries(REJECTION_CODE).map(([value, l]) => ({ value, label: l }));
+/** R-394: how often the card re-reads itself while a registry lookup runs. */
+const CHECK_POLL_MS = 3000;
+/**
+ * R-400: the conveyor remembers what was decided or skipped on this page
+ * while the admin stays in the admin (one module, not the address), so the
+ * next request is never one they just left. Reset only for tests.
+ */
+const SEEN = new Set<string>();
+const PREFETCHED = new Set<string>();
+export function resetConveyorForTests(): void {
+  SEEN.clear();
+  PREFETCHED.clear();
+}
+/** The same card call as the page's own query (one cache key for both). */
+async function fetchCard(id: string) {
+  return (await api.GET('/admin/verification/requests/{id}', { params: { path: { id } } })).data!.data;
+}
+/** The head of the queue in the card's filter: a light list call, up to ten rows. */
+async function fetchQueueHead(filter: QueueFilter): Promise<QueueRow[]> {
+  const r = await api.GET('/admin/verification/requests', {
+    params: { query: { status: (filter.status || undefined) as never, stateCode: filter.stateCode || undefined, limit: 10 } },
+  });
+  return (r.data?.data ?? []).map((x) => ({ id: x.id, status: x.status, reviewerId: x.reviewerId }));
+}
 const SCAN_STATUS: Record<string, string> = {
   pending: 'проверяется',
   clean: 'чисто',
@@ -55,18 +85,48 @@ export default function VerificationCardPage() {
   const { confirm, dialog: confirmDialog } = useConfirm();
   const toast = useToast();
   const router = useRouter();
-  // Focus mode (from «Рабочее место»): a decision opens the next request.
-  const focus = useSearchParams().get('focus') === '1';
+  // Focus mode (from «Рабочее место»): a decision opens the next request on the review screen.
+  const search = useSearchParams();
+  const focus = search.get('focus') === '1';
   const next = useNextVerification(id);
+  // R-400 conveyor: the queue filter the card was opened from (the list's tabs
+  // and state box travel in the address); a decision opens the next request of
+  // that filter here, in the card, without the trip back to the list.
+  const filter = useMemo(() => queueFilterFrom(search), [search]);
+  const queueKey = ['verification-next', filter] as const;
+  const queue = useQuery({ queryKey: queueKey, staleTime: 30_000, queryFn: () => fetchQueueHead(filter) });
+  const [queueEmpty, setQueueEmpty] = useState(false);
+  const nextId = queue.data ? nextInQueue(queue.data, id, filter, me?.id, SEEN) : null;
+  // One item ahead: the next card is warmed up once, never the whole list.
+  useEffect(() => {
+    if (!nextId || PREFETCHED.has(nextId)) return;
+    PREFETCHED.add(nextId);
+    void qc.prefetchQuery({ queryKey: ['verification', nextId], queryFn: () => fetchCard(nextId), staleTime: 30_000 });
+  }, [nextId, qc]);
+  /** Leave this request (decided or skipped) and open the next one of the filter; none left → the empty state. */
+  const advance = async () => {
+    SEEN.add(id);
+    const rows = await qc.fetchQuery({ queryKey: queueKey, queryFn: () => fetchQueueHead(filter), staleTime: 30_000 }).catch(() => null);
+    const n = rows ? nextInQueue(rows, id, filter, me?.id, SEEN) : null;
+    if (n) router.push(cardHref(n, filter));
+    else setQueueEmpty(true);
+  };
   const decided = (text: string) => {
     done(text);
     if (focus) next.mutate();
+    else void advance();
   };
 
   const q = useQuery({
     queryKey: ['verification', id],
-    queryFn: async () =>
-      (await api.GET('/admin/verification/requests/{id}', { params: { path: { id } } })).data!.data,
+    queryFn: () => fetchCard(id),
+    // R-394: while a registry lookup runs in the background the card asks
+    // again every few seconds (one light GET), then stops by itself.
+    refetchInterval: livePoll((data) =>
+      (data as { licenses?: { registryCheck: unknown }[] } | undefined)?.licenses?.some((l) => l.registryCheck)
+        ? CHECK_POLL_MS
+        : false,
+    ),
   });
   const r = q.data;
   const onError = (e: unknown) => toast.error(e);
@@ -85,14 +145,32 @@ export default function VerificationCardPage() {
     onSuccess: () => done('Заявка взята в работу'),
     onError,
   });
+  /** R-394: a free request is taken first (the same «Взять в работу» call). */
+  const ensureMine = async () => {
+    if (r && (r.status === 'submitted' || (r.status === 'needs_more_info' && !r.reviewerId))) {
+      await api.POST('/admin/verification/requests/{id}/take', p);
+    }
+  };
   const approve = useMutation({
     mutationFn: async () => {
+      // Same as the review screen: licenses without a decision are confirmed
+      // first (the reviewer approves the request = vouches for them).
+      const pending = r ? r.licenses.filter((l) => l.status === 'pending') : [];
       const ok = await confirm({
         title: 'Одобрить заявку?',
-        description: 'Адвокат получит статус «верифицирован» и уведомление.',
+        description:
+          pending.length > 0
+            ? `Будут подтверждены лицензии без решения (${pending.length}), затем заявка одобрена. Адвокат получит статус «верифицирован» и уведомление.`
+            : 'Адвокат получит статус «верифицирован» и уведомление.',
         confirm: 'Одобрить',
       });
       if (!ok) return null;
+      for (const l of pending) {
+        await api.POST('/admin/verification/requests/{id}/licenses/{licenseId}/decision', {
+          params: { path: { id, licenseId: l.id } },
+          body: { decision: 'verified' } as never,
+        });
+      }
       return api.POST('/admin/verification/requests/{id}/approve', p);
     },
     onSuccess: (x) => x && decided('Заявка одобрена'),
@@ -145,6 +223,7 @@ export default function VerificationCardPage() {
         if (!a) return null;
         body = { decision: 'rejected', rejectionCode: a.choice, ...(a.text ? { note: a.text } : {}) };
       }
+      await ensureMine();
       return api.POST('/admin/verification/requests/{id}/licenses/{licenseId}/decision', {
         params: { path: { id, licenseId: v.licenseId } },
         body: body as never,
@@ -153,17 +232,19 @@ export default function VerificationCardPage() {
     onSuccess: (x) => x && done('Решение по лицензии сохранено'),
     onError,
   });
-  // Owner 2026-10-05: a lookup now, no status change (sets/clears the registry mark).
+  // Owner 2026-10-05: a lookup, no status change (sets/clears the registry mark).
+  // R-394: both buttons only queue the lookup (202); the row shows
+  // «проверяется…» and the card re-reads itself until the answer is stored.
   const registryCheck = useMutation({
     mutationFn: (licenseId: string) =>
       api.POST('/admin/verification/licenses/{licenseId}/registry-check', { params: { path: { licenseId } } }),
-    onSuccess: () => done('Проверено по реестру штата'),
+    onSuccess: () => done('Проверка по реестру запущена — результат появится в строке'),
     onError,
   });
   const recheck = useMutation({
     mutationFn: (licenseId: string) =>
       api.POST('/admin/verification/licenses/{licenseId}/recheck', { params: { path: { licenseId } } }),
-    onSuccess: () => done('Перепроверка запущена'),
+    onSuccess: () => done('Перепроверка запущена — результат появится в строке'),
     onError,
   });
   /** Owner 2026-10-24: the admin enters or clears the expiry date by hand. */
@@ -244,6 +325,65 @@ export default function VerificationCardPage() {
     onError,
   });
 
+  const name = r ? [r.attorney.firstName, r.attorney.lastName].filter(Boolean).join(' ') || `@${r.attorney.username}` : '';
+  const active = !!r && (r.status === 'in_review' || r.status === 'submitted' || r.status === 'needs_more_info');
+  const busy = take.isPending || approve.isPending || requestInfo.isPending || reject.isPending;
+  // R-400: the review screen's one-key shortcuts on the card too (A — одобрить,
+  // R — отклонить, N — следующая); never while typing or while a dialog or the
+  // lightbox owns the keyboard (reviewKeyOf), only for a request in my hands.
+  const keys = useRef({ approve, reject, advance, canDecide: false, canSkip: false });
+  keys.current = { approve, reject, advance, canDecide: active && mine && !busy, canSkip: !queueEmpty && !focus };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const k = reviewKeyOf(e, dialogOnScreen());
+      if (!k) return;
+      const c = keys.current;
+      if (k === 'next') {
+        if (!c.canSkip) return;
+        e.preventDefault();
+        void c.advance();
+        return;
+      }
+      if (!c.canDecide) return;
+      e.preventDefault();
+      if (k === 'approve') c.approve.mutate();
+      else c.reject.mutate();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  if (queueEmpty) {
+    return (
+      <>
+        <PageHeader eyebrow="Галочки · Адвокаты" title="Очередь пуста" />
+        <EmptyState
+          icon={Tray}
+          title="Очередь пуста — новых заявок нет."
+          text={filter.status || filter.stateCode ? 'В этом фильтре заявок больше нет. Снимите фильтр в списке или проверьте ещё раз.' : 'Все ожидающие заявки проверены.'}
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                loading={queue.isFetching}
+                onClick={() => {
+                  setQueueEmpty(false);
+                  void qc.invalidateQueries({ queryKey: queueKey }).then(() => advance());
+                }}
+              >
+                Проверить ещё раз
+              </Button>
+              <Link href="/verification" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+                К списку
+              </Link>
+            </div>
+          }
+        />
+      </>
+    );
+  }
+
   if (!r) {
     return (
       <>
@@ -258,10 +398,15 @@ export default function VerificationCardPage() {
       </>
     );
   }
-  const name = [r.attorney.firstName, r.attorney.lastName].filter(Boolean).join(' ') || `@${r.attorney.username}`;
-  const active = r.status === 'in_review' || r.status === 'submitted' || r.status === 'needs_more_info';
-  const busy = take.isPending || approve.isPending || requestInfo.isPending || reject.isPending;
   const canSeeUser = canOpen(me, '/users');
+  // R-394: who may decide a license here, and why not when they may not.
+  const canManage = can(me, 'verification', 'manage');
+  const lockedByOther = active && !!r.reviewerId && !mine;
+  const decideBlock = !canManage
+    ? 'Решение по лицензии принимает верификатор или супер-админ'
+    : lockedByOther
+      ? 'Заявку проверяет другой администратор'
+      : null;
 
   return (
     <>
@@ -274,7 +419,15 @@ export default function VerificationCardPage() {
           onSkip={() => next.mutate()}
           onExit={() => router.push(`/verification/${id}`)}
         />
-      ) : null}
+      ) : (
+        /* R-400: the conveyor strip — the same «Пропустить» (= следующая) as the focus mode, the queue filter in the address. */
+        <FocusBar
+          text={`После решения откроется следующая заявка${filter.status ? ` («${label(REQUEST_STATUS, filter.status)}»)` : ''}${filter.stateCode ? `, штат ${filter.stateCode}` : ''} — без возврата в список. Клавиши: A — одобрить, R — отклонить, N — следующая.`}
+          busy={queue.isFetching}
+          onSkip={() => void advance()}
+          onExit={() => router.push('/verification')}
+        />
+      )}
       <PageHeader
         eyebrow="Галочки · Адвокаты"
         title={name}
@@ -380,6 +533,13 @@ export default function VerificationCardPage() {
               ))}
               {r.documents.length === 0 ? <li className="py-2 text-muted">Нет документов</li> : null}
             </ul>
+            {/* Owner 2026-11-04 (R-393): thumbnails two per row, a click opens them full-screen. */}
+            <DocumentGallery
+              requestId={r.id}
+              documents={r.documents}
+              actions={<RegistryActions card={r} />}
+              lastSlide={<RegistryActions card={r} tone="overlay" />}
+            />
           </CardContent>
         </Card>
         </FadeIn>
@@ -425,9 +585,17 @@ export default function VerificationCardPage() {
                   {l.rejectionCode ? <div className="mt-1 text-xs text-muted">{label(REJECTION_CODE, l.rejectionCode)}{l.rejectionNote ? ` — ${l.rejectionNote}` : ''}</div> : null}
                 </Td>
                 <Td className="max-w-64 text-xs">
+                  {l.registryCheck ? (
+                    <div className="mb-1 font-medium text-muted" data-testid="registry-checking">
+                      проверяется…
+                    </div>
+                  ) : null}
                   {l.autoCheckResult ? (
                     <>
                       <div className="font-medium">{autoCheckLabel(l.autoCheckResult)}</div>
+                      {typeof l.autoCheckResult.checkedAt === 'string' ? (
+                        <div className="text-muted">проверено {formatDateTime(l.autoCheckResult.checkedAt)}</div>
+                      ) : null}
                       {l.registryFlag ? (
                         <div className="mt-1 font-medium text-warning">Отмечено для проверки: реестр не подтвердил</div>
                       ) : null}
@@ -440,7 +608,7 @@ export default function VerificationCardPage() {
                         </details>
                       )}
                     </>
-                  ) : '—'}
+                  ) : l.registryCheck ? null : '—'}
                 </Td>
                 <Td className="whitespace-nowrap">
                   {l.expiresAt ? formatDateTime(l.expiresAt) : '—'}
@@ -473,18 +641,34 @@ export default function VerificationCardPage() {
                 </Td>
                 <Td>
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="ghost" disabled={registryCheck.isPending} onClick={() => registryCheck.mutate(l.id)}>
+                    <Button size="sm" variant="ghost" disabled={registryCheck.isPending || !!l.registryCheck} onClick={() => registryCheck.mutate(l.id)}>
                       По реестру
                     </Button>
-                    <Button size="sm" variant="ghost" disabled={recheck.isPending} onClick={() => recheck.mutate(l.id)}>
+                    <Button size="sm" variant="ghost" disabled={recheck.isPending || !!l.registryCheck} onClick={() => recheck.mutate(l.id)}>
                       Перепроверить
                     </Button>
-                    {active && mine ? (
+                    {/* R-394: the reviewer always decides by hand — the registry's
+                        answer (or its silence) never greys the button out. */}
+                    {active && (l.status === 'pending' || mine) ? (
                       <>
-                        <Button size="sm" variant="outline" disabled={decide.isPending} onClick={() => decide.mutate({ licenseId: l.id, decision: 'verified' })}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          data-testid="license-confirm"
+                          disabled={!!decideBlock || (decide.isPending && decide.variables?.licenseId === l.id)}
+                          loading={decide.isPending && decide.variables?.licenseId === l.id && decide.variables.decision === 'verified'}
+                          title={decideBlock ?? 'Подтвердить лицензию вручную (реестр не обязателен)'}
+                          onClick={() => decide.mutate({ licenseId: l.id, decision: 'verified' })}
+                        >
                           Подтвердить
                         </Button>
-                        <Button size="sm" variant="danger" disabled={decide.isPending} onClick={() => decide.mutate({ licenseId: l.id, decision: 'rejected' })}>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          disabled={!!decideBlock || (decide.isPending && decide.variables?.licenseId === l.id)}
+                          title={decideBlock ?? undefined}
+                          onClick={() => decide.mutate({ licenseId: l.id, decision: 'rejected' })}
+                        >
                           Отклонить
                         </Button>
                       </>
@@ -572,7 +756,7 @@ function autoCheckLabel(r: Record<string, unknown>): string {
     case 'name_mismatch':
       return `Имя в реестре другое${name}`;
     case 'provider_error':
-      return 'Реестр не ответил — проверьте по ссылке';
+      return 'Реестр недоступен — подтвердите вручную';
     default:
       return String(r.result ?? '—');
   }

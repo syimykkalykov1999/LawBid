@@ -51,7 +51,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
       }),
       action: _t.t('prime.cta'),
     );
-    if (!ok) return;
+    if (!ok || !mounted) return;
     setState(() => _primeBusy = true);
     try {
       final next =
