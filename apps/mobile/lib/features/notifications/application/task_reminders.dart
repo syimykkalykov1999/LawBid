@@ -192,6 +192,7 @@ class _ResumeObserver with WidgetsBindingObserver {
 Future<void> _reportArmed(Ref ref, List<ReminderSlot> slots) async {
   if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
   try {
+    // ignore: deprecated_member_use
     final token = await FirebaseMessaging.instance.getToken();
     if (token == null) return;
     // Notifications switched off: no alarm will show, so nothing counts as
