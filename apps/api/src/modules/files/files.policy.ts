@@ -56,6 +56,17 @@ export interface PurposeRule {
   /** Verification files live in the documents bucket (docs/02 §1.6),
    * avatars and post photos in the media bucket (docs/06 §6). */
   readonly bucket: BucketKind;
+  /** Owner 2026-11-05 (storage rule): video and reels go to Bunny, never to
+   * Cloudflare R2. A `media` purpose with this flag stays on its AWS path
+   * even when `media.public_store` = r2, until Bunny handles it. */
+  readonly neverPublicStore?: boolean;
+}
+
+/** True when new files of [purpose] may go to the R2 public store (when the
+ * switch is on and R2 is proven): public media only, and never video. */
+export function mayUsePublicStore(purpose: FilePurpose): boolean {
+  const rule = PURPOSE_RULES[purpose];
+  return rule.bucket === 'media' && rule.neverPublicStore !== true;
 }
 
 const IMAGES: readonly FileMime[] = [
@@ -195,6 +206,7 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
     mimes: [],
     sizeSetting: 'files.max_size_mb',
     bucket: 'media',
+    neverPublicStore: true,
   },
   // docs/06 §5.2: written by the data-export worker only; never presigned
   // (no MIME is accepted for upload).

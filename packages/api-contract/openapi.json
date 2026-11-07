@@ -152117,7 +152117,8 @@
           "email",
           "state",
           "licensed_states",
-          "photo"
+          "photo",
+          "practices"
         ],
         "description": "What still blocks POST /users/me/onboarding/complete."
       },

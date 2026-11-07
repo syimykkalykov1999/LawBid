@@ -147,4 +147,42 @@ describe('missingRequirements (docs/01_FOUNDATION_AUTH.md §11)', () => {
       missingRequirements({ ...verified, role: 'client' }, true, facts, false),
     ).toEqual([]);
   });
+  it('owner 2026-11-05: attorney without a practice cannot finish onboarding; clients and finished attorneys are not affected', () => {
+    const attorney = {
+      ...base,
+      role: 'attorney' as const,
+      first_name: 'A',
+      last_name: 'B',
+      phone_verified_at: now,
+      email: 'a@b.co',
+    };
+    const noPractice = {
+      clientHasState: true,
+      attorneyHasLicensedStates: true,
+      attorneyHasPractices: false,
+    };
+    expect(missingRequirements(attorney, true, noPractice, true)).toEqual([
+      'practices',
+    ]);
+    expect(
+      missingRequirements(
+        attorney,
+        true,
+        { ...noPractice, attorneyHasPractices: true },
+        true,
+      ),
+    ).toEqual([]);
+    // Already onboarded (practicesRequired = false): never sent back.
+    expect(
+      missingRequirements(attorney, true, noPractice, true, false, false),
+    ).toEqual([]);
+    expect(
+      missingRequirements(
+        { ...attorney, role: 'client' as const },
+        true,
+        noPractice,
+        true,
+      ),
+    ).toEqual([]);
+  });
 });
