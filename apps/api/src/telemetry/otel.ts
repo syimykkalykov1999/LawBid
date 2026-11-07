@@ -1,7 +1,12 @@
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
-import { NodeSDK, tracing } from '@opentelemetry/sdk-node';
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import {
+  ParentBasedSampler,
+  TraceIdRatioBasedSampler,
+  type Sampler,
+} from '@opentelemetry/sdk-trace';
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
@@ -28,13 +33,25 @@ export function traceSampleRatio(env: NodeJS.ProcessEnv = process.env): number {
 
 /** ParentBased(TraceIdRatio): follows the caller's sampled flag, otherwise
  * keeps [ratio] of the traces — the cost ceiling of the tracing bill. */
-export function buildSampler(ratio: number): tracing.Sampler {
-  return new tracing.ParentBasedSampler({
-    root: new tracing.TraceIdRatioBasedSampler(ratio),
+export function buildSampler(ratio: number): Sampler {
+  return new ParentBasedSampler({
+    root: new TraceIdRatioBasedSampler(ratio),
   });
 }
 
+/** Tracing is optional: a failure here must never stop the API booting. */
 export function startTelemetry(service: 'api' | 'worker'): NodeSDK | null {
+  try {
+    return startTelemetryUnsafe(service);
+  } catch (err) {
+    console.warn(
+      `telemetry disabled: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return null;
+  }
+}
+
+function startTelemetryUnsafe(service: 'api' | 'worker'): NodeSDK | null {
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   if (!endpoint) return null;
   const sdk = new NodeSDK({
