@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ExecutionContext, Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import type {
   ThrottlerModuleOptions,
@@ -49,6 +49,13 @@ export class UserThrottlerGuard extends ThrottlerGuard {
     private readonly settings: AppSettingsService,
   ) {
     super(options, storage, reflector);
+  }
+
+  override async canActivate(context: ExecutionContext): Promise<boolean> {
+    // NestJS 12 runs global enhancers on WebSocket handlers too
+    // (docs.nestjs.com/websockets/guards); in 11 they were HTTP-only.
+    if (context.getType() !== 'http') return true;
+    return super.canActivate(context);
   }
 
   protected override async handleRequest(

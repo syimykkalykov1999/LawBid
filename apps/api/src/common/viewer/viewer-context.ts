@@ -47,6 +47,9 @@ export const viewerContext = new ViewerContext();
 @Injectable()
 export class ViewerContextInterceptor implements NestInterceptor {
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
+    // NestJS 12 runs global enhancers on WebSocket handlers too
+    // (docs.nestjs.com/websockets/guards); in 11 they were HTTP-only.
+    if (ctx.getType() !== 'http') return next.handle();
     const req = ctx
       .switchToHttp()
       .getRequest<{ user?: { sub?: string; sid?: string }; ip?: string }>();

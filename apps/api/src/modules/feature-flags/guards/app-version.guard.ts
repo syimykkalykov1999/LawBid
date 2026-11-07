@@ -44,6 +44,9 @@ export class AppVersionGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // NestJS 12 runs global enhancers on WebSocket handlers too
+    // (docs.nestjs.com/websockets/guards); in 11 they were HTTP-only.
+    if (context.getType() !== 'http') return true;
     const skip = this.reflector.getAllAndOverride<boolean>(
       SKIP_VERSION_CHECK_KEY,
       [context.getHandler(), context.getClass()],
