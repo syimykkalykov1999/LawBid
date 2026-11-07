@@ -3,6 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:lawbid/core/network/api_error.dart';
 
+/// 2026-11-07: SharedPreferences key of this device's current FCM address
+/// (its Firebase Installation ID on Android / iPhone, the registration token
+/// in the browser) — what the iPhone reports its armed reminders under.
+const pushDeviceIdKey = 'push.deviceId';
+
 /// S15-7: registers the FCM token with the server and keeps it registered.
 ///
 /// A failed `POST /push-tokens` used to be swallowed ("the next app start

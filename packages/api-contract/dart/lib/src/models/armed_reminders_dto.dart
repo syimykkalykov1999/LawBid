@@ -13,7 +13,7 @@ class ArmedRemindersDto {
   factory ArmedRemindersDto.fromJson(Map<String, Object?> json) =>
       _$ArmedRemindersDtoFromJson(json);
 
-  /// FCM registration token of this device.
+  /// FCM address of this device (registration token or Firebase Installation ID).
   final String token;
 
   /// `<taskId>@<remindAt ms>` of each armed reminder.

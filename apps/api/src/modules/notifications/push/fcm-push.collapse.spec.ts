@@ -30,7 +30,11 @@ describe('FcmPushSender collapse', () => {
   function build(chatStyle: string[] = []) {
     sent.length = 0;
     const tokens = {
-      activeTokens: jest.fn().mockResolvedValue(['droid', 'own', 'iphone']),
+      activeDevices: jest
+        .fn()
+        .mockResolvedValue(
+          ['droid', 'own', 'iphone'].map((token) => ({ token, fid: false })),
+        ),
       chatStyleTokens: jest.fn().mockResolvedValue(chatStyle),
       localReminderTokens: jest.fn().mockResolvedValue([]),
       webTokens: jest.fn().mockResolvedValue([]),
