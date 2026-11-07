@@ -17,16 +17,16 @@
     "seed:perf": "ts-node --transpile-only prisma/seed-perf.ts",
     "seed:economy": "ts-node --transpile-only scripts/seed-economy.ts",
     "seed:i18n": "ts-node --transpile-only prisma/seed.ts --i18n-only",
-    "test": "jest",
-    "test:fast": "jest --maxWorkers=50%",
-    "test:changed": "jest --onlyChanged --maxWorkers=50%",
-    "test:related": "jest --findRelatedTests --maxWorkers=50%",
+    "test": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test:fast": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest --maxWorkers=50%",
+    "test:changed": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest --onlyChanged --maxWorkers=50%",
+    "test:related": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest --findRelatedTests --maxWorkers=50%",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "lint:fast": "eslint \"{src,apps,libs,test}/**/*.ts\" --cache --cache-location .cache/eslint/ --cache-strategy content",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:watch": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest --watch",
+    "test:cov": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest --coverage",
+    "test:debug": "node --inspect-brk --experimental-vm-modules -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:e2e": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest --config ./test/jest-e2e.json",
     "test:e2e:sharded": "node scripts/run-e2e-sharded.mjs",
     "test:e2e:two-db": "node scripts/run-e2e-two-db.mjs",
     "shard:move": "ts-node --transpile-only scripts/shard-move.ts",
@@ -72,7 +72,7 @@
     "@nestjs/common": "^12.0.0",
     "@nestjs/config": "^12.0.0",
     "@nestjs/core": "^12.0.0",
-    "@nestjs/jwt": "^12.0.0",
+    "@nestjs/jwt": "^12.0.3",
     "@nestjs/platform-express": "^12.0.0",
     "@nestjs/platform-socket.io": "^12.0.0",
     "@nestjs/swagger": "^12.0.0",
@@ -185,9 +185,6 @@
       }
     },
     "testEnvironment": "node",
-    "transformIgnorePatterns": [
-      "node_modules/(?!(@nestjs/jwt|jose)/)"
-    ],
     "workerIdleMemoryLimit": "1GB"
   },
   "prisma": {

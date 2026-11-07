@@ -85,7 +85,8 @@ const baseArgs = ['jest', '--config', './test/jest-e2e.json', '--forceExit'];
 function runJest(extra, outFile) {
   return spawnSync(jest, [...baseArgs, ...extra, '--json', `--outputFile=${outFile}`, ...rest], {
     stdio: 'inherit',
-    env: process.env,
+    // NestJS 12 is ESM-only: Jest loads it through require(esm) (migration guide).
+    env: { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --experimental-vm-modules`.trim() },
   });
 }
 function failedSuites(file) {
