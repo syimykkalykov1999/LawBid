@@ -40,6 +40,10 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
   };
 
   const initials = (me?.email ?? '?').slice(0, 2).toUpperCase();
+  // R-382 (owner 2026-11-04): the account's photo in the same chip; a link
+  // that fails to load falls back to the initials.
+  const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
+  const avatar = me?.avatarUrl && me.avatarUrl !== brokenAvatar ? me.avatarUrl : null;
 
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line bg-canvas/75 px-3 pt-[env(safe-area-inset-top)] sm:h-16 sm:gap-3 sm:px-4 backdrop-blur-xl lg:px-8">
@@ -93,8 +97,19 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
           onClick={() => setMenu((o) => !o)}
           className="flex h-10 items-center gap-2 rounded-xl border border-line bg-surface pr-2 pl-1 sm:h-9 text-sm transition-colors hover:border-gold/50"
         >
-          <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-navy to-[#1b3170] text-[11px] font-semibold text-gold-300">
-            {initials}
+          <span className="grid h-7 w-7 place-items-center overflow-hidden rounded-lg bg-gradient-to-br from-brand-navy to-[#1b3170] text-[11px] font-semibold text-gold-300">
+            {avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatar}
+                alt=""
+                data-testid="topbar-avatar"
+                className="h-full w-full object-cover"
+                onError={() => setBrokenAvatar(avatar)}
+              />
+            ) : (
+              initials
+            )}
           </span>
           <CaretDown size={12} className="text-faint" />
         </button>

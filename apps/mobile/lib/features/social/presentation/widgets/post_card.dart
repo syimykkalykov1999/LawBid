@@ -221,10 +221,15 @@ class PostCard extends ConsumerWidget {
     this.fromProfile = false,
     this.onReply,
     this.showPin = false,
+    this.mediaApart = false,
     super.key,
   });
 
   final Post post;
+
+  /// The website's post window: the picture lies on its own beside this
+  /// card and the comments are under it, so the card shows neither.
+  final bool mediaApart;
 
   /// The open thread of a text post: the reply icon focuses the field.
   final VoidCallback? onReply;
@@ -381,6 +386,7 @@ class PostCard extends ConsumerWidget {
                     run: run,
                     promotionId: post.promotionId,
                     fromProfile: fromProfile,
+                    mediaApart: mediaApart,
                   )
                 : inDetail
                     ? _detail(context, ref, p, t, colors, actions, run)
@@ -767,7 +773,7 @@ class PostCard extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        if (p.video != null)
+        if (p.video != null && !mediaApart)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: ClipRRect(
@@ -781,7 +787,7 @@ class PostCard extends ConsumerWidget {
               ),
             ),
           ),
-        if (p.media.isNotEmpty)
+        if (p.media.isNotEmpty && !mediaApart)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: ClipRRect(
@@ -856,7 +862,7 @@ class PostCard extends ConsumerWidget {
                   .copyWith(color: colors.textSecondary),
             ),
           ),
-        if (p.commentCount > 0)
+        if (p.commentCount > 0 && !mediaApart)
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton(
@@ -900,11 +906,13 @@ class _InstagramPost extends ConsumerWidget {
     required this.run,
     this.promotionId,
     this.fromProfile = false,
+    this.mediaApart = false,
   });
 
   final Post post;
   final bool inDetail;
   final bool fromProfile;
+  final bool mediaApart;
 
   /// A paid promoted post: «Реклама» under the name, opens are reported.
   final String? promotionId;
@@ -957,7 +965,9 @@ class _InstagramPost extends ConsumerWidget {
           _AuthorRow(post: p, sponsored: promotionId != null)
         else
           _OwnMenuRow(post: p),
-        if (p.video != null)
+        if (mediaApart && hasMedia)
+          const SizedBox.shrink()
+        else if (p.video != null)
           AspectRatio(
             aspectRatio: p.video!.aspectRatio.clamp(_kVideoRatio, 1.91),
             child: InlineReel(
@@ -1038,7 +1048,7 @@ class _InstagramPost extends ConsumerWidget {
               documents: p.attachments,
             ),
           ),
-        if (p.commentCount > 0)
+        if (p.commentCount > 0 && !mediaApart)
           AppPressable(
             onTap: () => showCommentsSheet(
               context,

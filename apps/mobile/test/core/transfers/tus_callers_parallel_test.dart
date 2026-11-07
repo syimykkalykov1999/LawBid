@@ -109,7 +109,8 @@ void main() {
     maxDurationSec: 180,
   );
 
-  final callers = <String, Future<void> Function(
+  final callers = <String,
+      Future<void> Function(
     _Bunny bunny,
     XFile f,
     void Function(double) onProgress, {

@@ -129,6 +129,18 @@ describe('verification review screen', () => {
     expect(screen.getByTestId('review-done-count').textContent).toContain('1');
   });
 
+  it('a click on the document or selfie frame opens the shared lightbox with a counter (R-393)', async () => {
+    show(<VerificationReview />);
+    await screen.findByRole('heading', { level: 1, name: 'Anna Lawyer' });
+    await screen.findAllByRole('img');
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть: селфи' }));
+    expect(screen.getByTestId('lightbox-counter').textContent).toBe('3 из 3');
+    fireEvent.click(screen.getByRole('button', { name: /Вперёд/ }));
+    expect(screen.getByTestId('lightbox-title').textContent).toBe('ID штата (лицевая)');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByTestId('lightbox')).toBeNull();
+  });
+
   it('lays the document, selfie and side cards out as sibling grid areas that cannot overlap (R-372)', async () => {
     show(<VerificationReview />);
     await screen.findByRole('heading', { level: 1, name: 'Anna Lawyer' });

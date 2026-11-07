@@ -62,7 +62,18 @@ function spySend() {
   return calls;
 }
 
+/** The public domain and the web app answer like a finished setup. */
+function healthyWeb(): jest.SpyInstance {
+  return jest
+    .spyOn(global, 'fetch')
+    .mockResolvedValue(new Response(null, { status: 404 }));
+}
+
 describe('S3StorageService with Cloudflare R2', () => {
+  beforeEach(() => {
+    healthyWeb();
+    jest.spyOn(S3Client.prototype, 'send').mockResolvedValue({} as never);
+  });
   afterEach(() => jest.restoreAllMocks());
 
   it('switch off: public media is the AWS media bucket, nothing changes', async () => {
@@ -213,5 +224,114 @@ describe('S3StorageService with Cloudflare R2', () => {
     await expect(
       s.remove('lawbid-public-r2', ['avatar/u1/f1']),
     ).resolves.toBeUndefined();
+  });
+
+  describe('the switch on while R2 is not ready (owner 2026-11-04)', () => {
+    const on = () => r2service('r2');
+
+    it('keys refused or no bucket: new media stays on AWS and the admin is told', async () => {
+      jest
+        .spyOn(S3Client.prototype, 'send')
+        .mockRejectedValue(new Error('403') as never);
+      const s = on();
+      expect(await s.resolveBucket('media')).toBe('lawbid-media');
+      expect(s.publicStoreActive).toBe(false);
+      const st = await s.r2Status();
+      expect(st).toMatchObject({ selected: true, active: false });
+      expect(st.fallback).toContain('не принял ключи');
+    });
+
+    it.each([
+      ['the domain does not resolve', () => Promise.reject(new Error('DNS'))],
+      [
+        'the domain answers 5xx',
+        () => Promise.resolve(new Response(null, { status: 522 })),
+      ],
+    ])('%s: AWS', async (_name, answer) => {
+      jest.spyOn(global, 'fetch').mockImplementation(answer);
+      const s = on();
+      expect(await s.resolveBucket('media')).toBe('lawbid-media');
+      expect((await s.r2Status()).fallback).toContain('Публичный адрес');
+    });
+
+    it('the web app CSP does not allow R2 yet: AWS, and says terraform', async () => {
+      jest.spyOn(global, 'fetch').mockImplementation(((url: string) =>
+        Promise.resolve(
+          url === 'https://lawbid.dev'
+            ? new Response(null, {
+                headers: { 'content-security-policy': "connect-src 'self'" },
+              })
+            : new Response(null, { status: 404 }),
+        )) as never);
+      const s = r2service('r2', {
+        ...R2,
+        publicBaseUrl: 'https://media.lawbid.dev',
+      });
+      expect(await s.resolveBucket('media')).toBe('lawbid-media');
+      expect((await s.r2Status()).fallback).toContain('terraform');
+    });
+
+    it('the web app allowing R2, or not answering, does not hold it back', async () => {
+      jest
+        .spyOn(global, 'fetch')
+        .mockImplementation(((url: string) =>
+          url === 'https://lawbid.dev'
+            ? Promise.reject(new Error('down'))
+            : Promise.resolve(new Response(null, { status: 404 }))) as never);
+      const s = r2service('r2', {
+        ...R2,
+        publicBaseUrl: 'https://media.lawbid.dev',
+      });
+      expect(await s.resolveBucket('media')).toBe('lawbid-public-r2');
+    });
+
+    it('recovers by itself once R2 answers, without a restart', async () => {
+      const send = jest
+        .spyOn(S3Client.prototype, 'send')
+        .mockRejectedValue(new Error('403') as never);
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+      const s = on();
+      expect(await s.resolveBucket('media')).toBe('lawbid-media');
+      send.mockResolvedValue({} as never);
+      now.mockReturnValue(1_000_000 + 31_000);
+      expect(await s.resolveBucket('media')).toBe('lawbid-public-r2');
+      expect((await s.r2Status()).fallback).toBeNull();
+    });
+
+    it('looks at most once a minute while healthy', async () => {
+      const send = jest.spyOn(S3Client.prototype, 'send');
+      const s = on();
+      await Promise.all([s.resolveBucket('media'), s.resolveBucket('media')]);
+      await s.resolveBucket('media');
+      const heads = send.mock.calls.filter(
+        ([c]) => c.constructor.name === 'HeadBucketCommand',
+      );
+      expect(heads).toHaveLength(1);
+    });
+
+    it('a private kind never triggers a look and never reaches R2', async () => {
+      const send = jest.spyOn(S3Client.prototype, 'send');
+      const s = on();
+      expect(await s.resolveBucket('documents')).toBe('lawbid-documents');
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('the switch off: no look, no red line', async () => {
+      const send = jest.spyOn(S3Client.prototype, 'send');
+      const s = r2service('aws');
+      await s.resolveBucket('media');
+      expect(await s.r2Status()).toEqual({
+        selected: false,
+        active: false,
+        fallback: null,
+      });
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('no keys at all: AWS and a red line naming the integration', async () => {
+      const s = r2service('r2', { ...R2, bucket: undefined });
+      expect(await s.resolveBucket('media')).toBe('lawbid-media');
+      expect((await s.r2Status()).fallback).toContain('Cloudflare R2');
+    });
   });
 });

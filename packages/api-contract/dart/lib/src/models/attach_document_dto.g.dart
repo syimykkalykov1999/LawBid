@@ -21,6 +21,7 @@ AttachDocumentDto _$AttachDocumentDtoFromJson(Map<String, dynamic> json) =>
           : SelfieCaptureMetaDto.fromJson(
               json['captureMeta'] as Map<String, dynamic>,
             ),
+      handoffToken: json['handoffToken'] as String?,
     );
 
 Map<String, dynamic> _$AttachDocumentDtoToJson(AttachDocumentDto instance) =>
@@ -32,4 +33,5 @@ Map<String, dynamic> _$AttachDocumentDtoToJson(AttachDocumentDto instance) =>
       'note': ?instance.note,
       'captureToken': ?instance.captureToken,
       'captureMeta': ?instance.captureMeta?.toJson(),
+      'handoffToken': ?instance.handoffToken,
     };

@@ -37,6 +37,8 @@ export interface Me {
   countries?: string[];
   /** Country tabs to pick from in the top bar. */
   countryTabs?: { code: string; name: string }[];
+  /** R-382: the account's photo (the app avatar); null = initials. */
+  avatarUrl?: string | null;
 }
 
 export function useMe() {
@@ -46,6 +48,10 @@ export function useMe() {
       const { data } = await api.GET('/admin/auth/me');
       return data!.data as Me;
     },
-    staleTime: 5 * 60_000,
+    // No own staleTime: «me» is a reference key (15 min, lib/query-client.ts),
+    // so opening a page again asks nothing (R-385 budget).
+    // R-382: the photo is saved in the app, on another screen. Coming back to
+    // the panel re-reads «me» once it is stale; fresh data is not asked again.
+    refetchOnWindowFocus: true,
   });
 }

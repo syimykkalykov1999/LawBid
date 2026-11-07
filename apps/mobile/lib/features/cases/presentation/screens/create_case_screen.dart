@@ -1,14 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_urgency.dart';
@@ -18,6 +22,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
 /// docs/04 §3.1 — the client's "+" flow: five steps, local draft, publish.
 class CreateCaseScreen extends ConsumerStatefulWidget {
@@ -66,6 +71,12 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
     }
   }
 
+  /// Files dragged onto the «essence» step in the browser.
+  Future<void> _drop(List<XFile> dropped) async {
+    final limits = ref.read(uploadLimitsProvider)[UploadPlace.kase];
+    _c.addFiles(await droppedCaseFiles(dropped, limits));
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -83,11 +94,14 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
 
     final Widget step = switch (d.step) {
       0 => PracticeStep(draft: d, onChange: _c.update),
-      1 => EssenceStep(
-          draft: d,
-          onChange: _c.update,
-          contactError: contactError,
-          footer: const CasePhotosPicker(),
+      1 => FileDropZone(
+          onFiles: (f) => unawaited(_drop(f)),
+          child: EssenceStep(
+            draft: d,
+            onChange: _c.update,
+            contactError: contactError,
+            footer: const CasePhotosPicker(),
+          ),
         ),
       2 => PlaceStep(draft: d, onChange: _c.update),
       3 => BudgetStep(draft: d, onChange: _c.update),

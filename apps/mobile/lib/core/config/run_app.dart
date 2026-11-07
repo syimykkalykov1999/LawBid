@@ -7,6 +7,7 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:lawbid/app.dart';
 import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
@@ -34,6 +35,7 @@ import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
+import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/notifications/presentation/qa_notify_switch.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -111,6 +113,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
       // in-app screen only).
       if (!kIsWeb)
         systemCallUiProvider.overrideWithValue(const CallkitSystemUi()),
+      deviceTracesCleanerProvider.overrideWith(
+        (ref) => ref.read(pushServiceProvider).clearDeviceTraces,
+      ),
       // OQ-044: ringback / busy / end tones and message sounds.
       appSoundsProvider.overrideWithValue(JustAudioAppSounds()),
       // "Add participant" offers the LawBid people of the phone book.
@@ -217,8 +222,8 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // code (first launch only). Fire-and-forget, never delays first paint.
   unawaited(captureInstallReferrer(container));
 
-  // Owner 2026-10-22 (load audit finding 8): case files not opened for a
-  // week leave the phone — in the background, after the first screens.
+  // Broken case-file downloads leave the phone — in the background, after
+  // the first screens (finished files stay until someone deletes them).
   if (!kIsWeb) {
     unawaited(
       Future<void>.delayed(const Duration(seconds: 20), CaseFileCache.cleanUp),

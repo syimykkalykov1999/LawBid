@@ -300,12 +300,21 @@ class SessionController extends _$SessionController {
       }
       if (current != null && current != sent) return;
     }
+    final wasDemo = state?.isDemo ?? false;
     state = null;
     _pendingPersist = null;
     try {
       await store.clear();
+      // Owner 2026-11-05: the same as a sign-out: the demo's parked token
+      // waits only while a demo session is what ended here.
+      if (force || !wasDemo) await store.clearRealRefreshToken();
     } on Object catch (e) {
       debugPrint('could not clear the refresh token: $e');
+    }
+    try {
+      await ref.read(magicLinkVerifierStoreProvider).clear();
+    } on Object {
+      // Best effort: it is single-use on the server anyway.
     }
   }
 

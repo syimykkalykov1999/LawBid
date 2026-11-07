@@ -230,7 +230,8 @@ export class MineService {
         : {}),
       items: page.map((b) => ({
         ...bidFields(b),
-        coverUrl: covers.get(b.case.id) ?? null,
+        coverUrl: covers.get(b.case.id)?.url ?? null,
+        coverBlurhash: covers.get(b.case.id)?.blurhash ?? null,
         case: {
           id: b.case.id,
           title: b.case.title,
@@ -407,7 +408,8 @@ export class MineService {
             autoCloseAt: k.auto_close_at?.toISOString() ?? null,
             acceptedAt: b.decided_at?.toISOString() ?? null,
             closedAt: k.closed_at?.toISOString() ?? null,
-            coverUrl: covers.get(k.id) ?? null,
+            coverUrl: covers.get(k.id)?.url ?? null,
+            coverBlurhash: covers.get(k.id)?.blurhash ?? null,
           },
         ];
       }),

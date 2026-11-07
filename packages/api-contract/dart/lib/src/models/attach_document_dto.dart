@@ -20,6 +20,7 @@ class AttachDocumentDto {
     this.note,
     this.captureToken,
     this.captureMeta,
+    this.handoffToken,
   });
 
   factory AttachDocumentDto.fromJson(Map<String, Object?> json) =>
@@ -41,6 +42,9 @@ class AttachDocumentDto {
   /// Selfie only: the one-time token from POST requests/{id}/selfie-capture (owner 2026-10-28). Required while verification.selfie_live_capture_required is on (default); missing / unknown / used / expired → 400 VALIDATION_ERROR with details.reason capture_token_missing / capture_token_invalid / capture_token_expired.
   final String? captureToken;
   final SelfieCaptureMetaDto? captureMeta;
+
+  /// Selfie only, R-146: the code of POST verification/handoff when the phone opened the link from the computer. Must belong to this attorney and request (else 400 VALIDATION_ERROR, details.reason handoff_token_invalid / handoff_token_expired); the computer then reads `done`.
+  final String? handoffToken;
 
   Map<String, Object?> toJson() => _$AttachDocumentDtoToJson(this);
 }

@@ -10621,6 +10621,231 @@
         ]
       }
     },
+    "/verification/handoff": {
+      "post": {
+        "operationId": "createVerificationHandoff",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHandoffDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationHandoffEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_SUSPENDED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VERIFICATION_INVALID_STATUS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "R-146: one-time «continue on your phone» code for the ID selfie (10 min, bound to this attorney and request): QR + short link that opens the selfie step in the app",
+        "tags": [
+          "verification"
+        ]
+      }
+    },
+    "/verification/handoff/{token}/status": {
+      "get": {
+        "operationId": "getVerificationHandoffStatus",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 16,
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationHandoffStatusEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "R-146: pending / done / expired of an own «continue on your phone» code (the computer polls it every 3 s; the phone checks the link)",
+        "tags": [
+          "verification"
+        ]
+      }
+    },
     "/verification/requests/{id}/documents/{documentId}": {
       "delete": {
         "operationId": "removeVerificationDocument",
@@ -51521,6 +51746,356 @@
           }
         ],
         "summary": "Duplicate subscriptions cancelled / refunded automatically or held for a person (algo audit M-4, cursor)",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
+    "/admin/billing/dispute-refunds": {
+      "get": {
+        "operationId": "listDisputeRefunds",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DisputeRefundStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDisputeRefundListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Bank inquiries refunded automatically or held for a person",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
+    "/admin/billing/dispute-refunds/{id}/approve": {
+      "post": {
+        "operationId": "approveDisputeRefund",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDisputeRefundEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: REFUND_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Refund a held bank inquiry in full (one 2FA code)",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
+    "/admin/billing/dispute-refunds/{id}/reject": {
+      "post": {
+        "operationId": "rejectDisputeRefund",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminDisputeRefundRejectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDisputeRefundEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: REFUND_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Do not refund a held inquiry (one 2FA code)",
         "tags": [
           "admin-billing"
         ]
@@ -135200,6 +135775,11 @@
             "type": "string",
             "nullable": true
           },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-382 (owner 2026-11-04): the profile photo of the account behind this admin (the same photo as in the app, 256 px preview); null = none, the panel shows initials."
+          },
           "reasonRequiredAreas": {
             "description": "Sections where this admin must write a reason (always empty for the super admin).",
             "type": "array",
@@ -138316,6 +138896,12 @@
           },
           "captureMeta": {
             "$ref": "#/components/schemas/SelfieCaptureMetaDto"
+          },
+          "handoffToken": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 64,
+            "description": "Selfie only, R-146: the code of POST verification/handoff when the phone opened the link from the computer. Must belong to this attorney and request (else 400 VALIDATION_ERROR, details.reason handoff_token_invalid / handoff_token_expired); the computer then reads `done`."
           }
         },
         "required": [
@@ -138350,6 +138936,106 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/SelfieCaptureTokenDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "VerificationHandoffDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "One-time code (base64url), valid 10 minutes."
+          },
+          "url": {
+            "type": "string",
+            "description": "Short link that opens the selfie step of this request in the app (APP_LINK_BASE_URL/selfie/<token>)."
+          },
+          "qrPayload": {
+            "type": "string",
+            "description": "What the QR code carries (= url)."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "token",
+          "url",
+          "qrPayload",
+          "expiresAt"
+        ]
+      },
+      "CreateHandoffDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "requestId"
+        ]
+      },
+      "VerificationHandoffEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/VerificationHandoffDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "VerificationHandoffStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "done",
+          "expired"
+        ]
+      },
+      "VerificationHandoffStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VerificationHandoffStatus"
+              }
+            ]
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "requestId",
+          "expiresAt"
+        ]
+      },
+      "VerificationHandoffStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/VerificationHandoffStatusDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -152830,6 +153516,11 @@
             "nullable": true,
             "description": "Owner 2026-09-30: the first photo (the \"Mine\" grid), else null."
           },
+          "coverBlurhash": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-248: BlurHash of the cover, drawn while it loads (null = none)."
+          },
           "title": {
             "type": "string"
           },
@@ -153324,6 +154015,11 @@
           },
           "sizeBytes": {
             "type": "integer"
+          },
+          "blurhash": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-248: BlurHash of a photo, drawn while it loads (null for documents\nand older photos)."
           }
         },
         "required": [
@@ -155502,6 +156198,11 @@
             "type": "string",
             "nullable": true,
             "description": "Owner 2026-09-30: the case's first photo once this bid is accepted,\nelse null (the app shows the qualification's art)."
+          },
+          "coverBlurhash": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-248: BlurHash of the cover, drawn while it loads (null = none)."
           }
         },
         "required": [
@@ -155622,6 +156323,11 @@
             "type": "string",
             "nullable": true,
             "description": "Owner 2026-09-30: the case's first photo (the hired attorney sees\nthem), else null — the app shows the qualification's art."
+          },
+          "coverBlurhash": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-248: BlurHash of the cover, drawn while it loads (null = none)."
           }
         },
         "required": [
@@ -158259,6 +158965,16 @@
             "type": "string",
             "nullable": true,
             "description": "Practice category its posts mostly belong to (for the topic cover)."
+          },
+          "coverUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-11-04 (R-406): cover of a hashtag topic — the photo or video frame of its most popular post (90 days, nightly snapshot); null when the topic has no media posts."
+          },
+          "coverPostId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The post the cover comes from."
           }
         },
         "required": [
@@ -160255,6 +160971,134 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "DisputeRefundStatus": {
+        "type": "string",
+        "enum": [
+          "refunding",
+          "refunded",
+          "review",
+          "rejected",
+          "no_refund"
+        ]
+      },
+      "AdminDisputeRefundDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "disputeId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminBillingUserDto"
+              }
+            ]
+          },
+          "paymentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DisputeRefundStatus"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why it waits or was not refunded (over_amount, user_limit, daily_cap, prior_dispute, fraud_review, escalated, closed, refund_failed, refund_unknown, refund_unavailable)."
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "refundId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "disputeId",
+          "userId",
+          "user",
+          "paymentId",
+          "status",
+          "reason",
+          "amountCents",
+          "currency",
+          "refundId",
+          "note",
+          "createdAt"
+        ]
+      },
+      "AdminDisputeRefundListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminDisputeRefundDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminDisputeRefundEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminDisputeRefundDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminDisputeRefundRejectDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "note"
         ]
       },
       "RefundDto": {
@@ -175959,6 +176803,18 @@
           "rampPerDay": {
             "type": "number",
             "nullable": true
+          },
+          "pagesCities": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "pagesPosts": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "pagesQa": {
+            "type": "boolean",
+            "nullable": true
           }
         },
         "required": [
@@ -175967,7 +176823,10 @@
           "robotsAi",
           "llms",
           "qualityGate",
-          "rampPerDay"
+          "rampPerDay",
+          "pagesCities",
+          "pagesPosts",
+          "pagesQa"
         ]
       },
       "PublicSeoSettingsEnvelope": {
@@ -187159,7 +188018,8 @@
           "account_deauthorized",
           "capability_disabled",
           "reconcile_drift",
-          "duplicate_subscription"
+          "duplicate_subscription",
+          "dispute_refund"
         ]
       },
       "StripeReviewItemDto": {
@@ -189816,6 +190676,11 @@
           "avatarUrl": {
             "type": "string",
             "nullable": true
+          },
+          "avatarFullUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-405 (owner 2026-11-04): the 1024 px photo for the big round frame\nof the call screen; `avatarUrl` stays the 256 px preview for lists."
           },
           "status": {
             "allOf": [

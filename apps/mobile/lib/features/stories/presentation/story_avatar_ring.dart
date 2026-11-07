@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/presentation/story_navigation.dart';
@@ -54,7 +55,9 @@ class StoryAvatarRing extends ConsumerWidget {
           ? null
           : () => showPhotoGallery(
                 context,
-                urls: [photo],
+                // R-405: never a preview stretched over the screen.
+                urls: [avatarFullUrlFor(photo)],
+                previews: [photo],
                 closeLabel: photoCloseLabel ?? '',
               ),
       // The photo's own tap (its full-screen picture) must not win over the

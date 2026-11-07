@@ -121,6 +121,8 @@ const file05Ru = <String, String>{
   'tag.top': 'Топ',
   'tag.new': 'Новые',
   'tag.empty': 'Постов с этой темой пока нет',
+  'tag.view.list': 'Список',
+  'tag.view.grid': 'Сетка',
 
   // --- Моё ---
   'mine.saved.cases': 'Кейсы',
@@ -384,6 +386,8 @@ const file05En = <String, String>{
   'tag.top': 'Top',
   'tag.new': 'New',
   'tag.empty': 'No posts on this topic yet',
+  'tag.view.list': 'List',
+  'tag.view.grid': 'Grid',
 
   // --- My ---
   'mine.saved.cases': 'Cases',

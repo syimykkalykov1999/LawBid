@@ -38,6 +38,11 @@ interface Side {
 }
 
 /** The case statuses in which the workspace takes changes. */
+/** Data-layer audit 2026-11-04 (R-395): the most rows one tasks / updates /
+ * activity request reads per source (newest kept), so a long case never
+ * loads its whole history on every open. */
+export const WORKSPACE_LIST_MAX = 200;
+
 const WORKING_STATUSES = new Set([
   'in_progress',
   'pending_completion',
@@ -281,6 +286,7 @@ export class CaseWorkspaceService {
     const rows = await this.prisma.caseTask.findMany({
       where: { case_id: caseId },
       orderBy: { created_at: 'desc' },
+      take: WORKSPACE_LIST_MAX,
       include: {
         events: { orderBy: { created_at: 'asc' } },
         items: { orderBy: { position: 'asc' } },
@@ -298,6 +304,7 @@ export class CaseWorkspaceService {
                 case_task_id: null,
               },
               orderBy: { created_at: 'desc' },
+              take: WORKSPACE_LIST_MAX,
             })
           ).map((p): CaseTaskDto => ({
             id: p.id,
@@ -674,10 +681,16 @@ export class CaseWorkspaceService {
       string,
       { name: string; avatarUrl: string | null; states: string[] }
     >();
+    // One file query for both people (was one per person).
+    const avatars = await this.files.mediaUrlsMany(
+      users.map((u) => u.avatar_file_id),
+    );
     for (const u of users) {
       out.set(u.id, {
         name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim(),
-        avatarUrl: await this.files.mediaUrl(u.avatar_file_id),
+        avatarUrl: u.avatar_file_id
+          ? (avatars.get(u.avatar_file_id) ?? null)
+          : null,
         states: u.id === s.attorneyId ? licenses.map((l) => l.state_code) : [],
       });
     }
@@ -690,9 +703,15 @@ export class CaseWorkspaceService {
   ): Promise<CaseUpdateDto[]> {
     const s = await this.side(user, caseId);
     const [updates, events, files, people] = await Promise.all([
-      this.prisma.caseUpdate.findMany({ where: { case_id: caseId } }),
+      this.prisma.caseUpdate.findMany({
+        where: { case_id: caseId },
+        orderBy: { created_at: 'desc' },
+        take: WORKSPACE_LIST_MAX,
+      }),
       this.prisma.caseTaskEvent.findMany({
         where: { case_id: caseId, type: { in: ['done', 'files_added'] } },
+        orderBy: { created_at: 'desc' },
+        take: WORKSPACE_LIST_MAX,
         include: { task: { select: { title: true, id: true } } },
       }),
       this.filesOf(caseId, s, { source: { in: ['update', 'task'] } }),
@@ -741,7 +760,9 @@ export class CaseWorkspaceService {
         taskTitle: e.task.title,
       });
     }
-    return out.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+    return out
+      .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+      .slice(0, WORKSPACE_LIST_MAX);
   }
 
   async createUpdate(
@@ -785,9 +806,15 @@ export class CaseWorkspaceService {
   ): Promise<CaseActivityDto[]> {
     const s = await this.side(user, caseId);
     const [updates, events, people] = await Promise.all([
-      this.prisma.caseUpdate.findMany({ where: { case_id: caseId } }),
+      this.prisma.caseUpdate.findMany({
+        where: { case_id: caseId },
+        orderBy: { created_at: 'desc' },
+        take: WORKSPACE_LIST_MAX,
+      }),
       this.prisma.caseTaskEvent.findMany({
         where: { case_id: caseId },
+        orderBy: { created_at: 'desc' },
+        take: WORKSPACE_LIST_MAX,
         include: { task: { select: { title: true } } },
       }),
       this.people(s),
@@ -823,7 +850,9 @@ export class CaseWorkspaceService {
         at: e.created_at.toISOString(),
       })),
     ];
-    return out.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+    return out
+      .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+      .slice(0, WORKSPACE_LIST_MAX);
   }
 
   // ---- board (Mine › Tasks) ------------------------------------------

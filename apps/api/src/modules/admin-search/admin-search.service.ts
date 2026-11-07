@@ -2,8 +2,10 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -44,6 +46,9 @@ function toDto(g: GroupRow): SynonymGroupDto {
   };
 }
 
+/** How old a shared admin search statistic may be before a refresh. */
+export const STATS_FRESH_SEC = 300;
+
 /** Owner 2026-10-15: «Синонимы поиска» in the admin — words per language
  * and topic, edited live; plus what people searched and did not find. */
 @Injectable()
@@ -51,7 +56,17 @@ export class AdminSearchService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly synonyms: SearchSynonymsService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
+
+  /** Data-layer audit 2026-11-04 (R-395): the admin search page's counts
+   * and «top queries» GROUP BY over the search log (every search writes a
+   * row) are computed once per 5 minutes per window for the whole team
+   * (AdminSummaryService, stale-while-revalidate), not on every open. */
+  private shared<T>(key: string, compute: () => Promise<T>): Promise<T> {
+    if (!this.summary) return compute();
+    return this.summary.get(key, compute, STATS_FRESH_SEC).then((s) => s.data);
+  }
 
   async list(query: {
     q?: string;
@@ -229,12 +244,14 @@ export class AdminSearchService {
   }
 
   /** Queries that found nothing, the most frequent first. */
+  // Stays live: the admin fixes these with a new phrase and expects the
+  // list to follow at once (owner-search-synonyms e2e).
   noResults(days: number): Promise<SearchQueryStatDto[]> {
     return this.stats(days, true);
   }
 
   top(days: number): Promise<SearchQueryStatDto[]> {
-    return this.stats(days, false);
+    return this.shared(`search-top:${days}`, () => this.stats(days, false));
   }
 
   private async stats(
@@ -284,7 +301,13 @@ export class AdminSearchService {
     }));
   }
 
-  async overview(days: number): Promise<SearchOverviewDto> {
+  overview(days: number): Promise<SearchOverviewDto> {
+    return this.shared(`search-overview:${days}`, () =>
+      this.countOverview(days),
+    );
+  }
+
+  private async countOverview(days: number): Promise<SearchOverviewDto> {
     const since = this.since(days);
     const [queries, noResults, clicks] = await Promise.all([
       this.prisma.searchQueryLog.count({

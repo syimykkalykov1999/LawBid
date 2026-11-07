@@ -319,3 +319,11 @@ class NetworkUsageToday extends Notifier<NetworkUsage> {
 
 final networkUsageTodayProvider =
     NotifierProvider<NetworkUsageToday, NetworkUsage>(NetworkUsageToday.new);
+
+/// Owner 2026-11-05: clears what the operating system keeps for an account
+/// (the shade, the icon number, push tokens). Nothing here on its own: the
+/// running app wires the real one (`PushService.clearDeviceTraces`).
+final deviceTracesCleanerProvider =
+    Provider<Future<void> Function({required bool signedOut})>(
+  (ref) => ({required signedOut}) async {},
+);

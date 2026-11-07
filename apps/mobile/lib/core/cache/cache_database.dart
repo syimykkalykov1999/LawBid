@@ -800,6 +800,25 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
     }
   }
 
+  /// Owner 2026-11-05: the rows of an account that left the phone, with their
+  /// sync marks (a mark without its rows would hide the history for good);
+  /// the rows of [keepOwner] stay.
+  Future<void> clearAccountRows({String? keepOwner}) async {
+    await transaction(() async {
+      Expression<bool> others(GeneratedColumn<String> owner) =>
+          keepOwner == null
+              ? const Constant(true)
+              : owner.equals(keepOwner).not();
+      await (delete(cachedMessages)..where((r) => others(r.owner))).go();
+      await (delete(conversationSync)..where((r) => others(r.owner))).go();
+      await (delete(syncState)..where((r) => others(r.owner))).go();
+      await (delete(eventDedup)..where((r) => others(r.owner))).go();
+      await (delete(cachedTranslations)..where((r) => others(r.owner))).go();
+      await (delete(cachedFileViews)..where((r) => others(r.owner))).go();
+      await (delete(fileViewsSync)..where((r) => others(r.owner))).go();
+    });
+  }
+
   /// «Прочее»: everything small and technical.
   Future<void> clearOther({bool keepFileViews = false}) async {
     await delete(syncState).go();
