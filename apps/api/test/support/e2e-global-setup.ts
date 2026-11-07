@@ -194,6 +194,37 @@ export default async function globalSetup(): Promise<void> {
     },
     update: { enabled: false },
   });
+  // Owner 2026-11-06: these switches are on by default in production; the
+  // suites place and accept bids the plain way and expect immediate channel
+  // view counts and uploads read in full. They start with the old behaviour;
+  // the suites about each switch turn it on (and back off) themselves.
+  for (const key of [
+    'deal_record.enabled',
+    'bids.rich_terms_enabled',
+    'bids.confirmation_required',
+  ]) {
+    await seed.appConfig.upsert({
+      where: { key },
+      create: { key, value: false },
+      update: { value: false },
+    });
+  }
+  for (const key of [
+    'files_reuse_own',
+    'files_confirm_light',
+    'channel_views_buffered',
+  ]) {
+    await seed.featureFlag.upsert({
+      where: { key },
+      create: {
+        key,
+        enabled: false,
+        rollout_percent: 100,
+        description: 'e2e: off unless a suite is about the switch',
+      },
+      update: { enabled: false },
+    });
+  }
   await seed.$disconnect();
   await admin.$disconnect();
 

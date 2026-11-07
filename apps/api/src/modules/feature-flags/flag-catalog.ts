@@ -196,7 +196,7 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     // sends big files (video, documents over 16 MiB) in 8 MiB parts and
     // continues after an interruption instead of starting over.
     key: 'files_multipart',
-    enabled: false,
+    enabled: true,
     app: true,
     description: 'Resumable (multipart) uploads of large files',
   },
@@ -204,16 +204,16 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     // Owner 2026-11-05: channel post views go through the counter aggregator
     // (one multi-row UPDATE every few seconds), not one UPDATE per reader.
     key: 'channel_views_buffered',
-    enabled: false,
+    enabled: true,
     app: false,
     description: 'Channel post views are written to the database in batches',
   },
   {
     // Owner 2026-11-05: videos are warmed ahead into the disk cache the player
     // reads, in the stream it will open, and fewer while the viewer flicks.
-    // Off until checked on real phones.
+    //
     key: 'video_prefetch_smart',
-    enabled: false,
+    enabled: true,
     app: true,
     description: 'Videos warmed ahead land in the cache the player reads',
   },
@@ -222,25 +222,25 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     // arrows (the idea from Instagram) instead of a scrolling page. Phones
     // never: isDesktopWindow is false there.
     key: 'web_post_window',
-    enabled: false,
+    enabled: true,
     app: true,
     description: 'Website, wide window: a post opens as a window with arrows',
   },
   {
     // R-256: on, a phone with little charge or its battery saver on warms no
-    // videos ahead and does not re-encode clips up to 30 MB. Off until
-    // checked on real phones.
+    // videos ahead and does not re-encode clips up to 30 MB. Owner
+    // 2026-11-06: on by default.
     key: 'low_power_mode',
-    enabled: false,
+    enabled: true,
     app: true,
     description: 'The app goes gently on a phone low on power',
   },
   {
     // R-255: on, a video or document picked in a chat stays on disk and is
     // copied to the queue folder and streamed from there, instead of being
-    // read whole into the phone's memory. Off until checked on a phone.
+    // read whole into the phone's memory. On by default (owner 2026-11-06).
     key: 'chat_files_from_disk',
-    enabled: false,
+    enabled: true,
     app: true,
     description:
       'Chat videos and documents are sent from disk, not from memory',
@@ -248,9 +248,9 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
   {
     // R-255: on, a file of a group chat is a job of the upload queue (it
     // survives closing the app) and a video or document is streamed from
-    // disk. Off until checked on a phone: as before, read into memory.
+    // disk. On by default (owner 2026-11-06); off = as before, read into memory.
     key: 'group_files_from_disk',
-    enabled: false,
+    enabled: true,
     app: true,
     description:
       'Group chat files go through the upload queue and are sent from disk',
@@ -259,35 +259,35 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     // On the website, files dragged from the computer land in a chat, a new
     // post or a new case (desktop_drop). Phones never start the plugin.
     key: 'web_file_drop',
-    enabled: false,
+    enabled: true,
     app: true,
     description: 'Website: drag files into a chat, a post or a case',
   },
   {
     // R-254: on, a file this same user already stored is not uploaded again.
     // Own files only (a hash is not proof of holding a file). Needs the
-    // setting storage.dedup on. Off until checked against real storage.
+    // setting storage.dedup on. On by default (owner 2026-11-06).
     key: 'files_reuse_own',
-    enabled: false,
+    enabled: true,
     app: false,
     description: 'A file the user already stored is not uploaded again',
   },
   {
     // R-252: on, `confirm` of a file from 8 MiB reads only its first 256 KiB;
-    // the checksum and the look inside go to the scan worker. Off until
-    // checked against real storage.
+    // the checksum and the look inside go to the scan worker. On by default
+    // (owner 2026-11-06).
     key: 'files_confirm_light',
-    enabled: false,
+    enabled: true,
     app: false,
     description: 'Big uploads are confirmed without reading them into the API',
   },
   {
     // R-251: on, the app sends a reel to Bunny in 4 pieces at once and asks
     // Bunny to join them (TUS concatenation; Bunny announces it, but it was
-    // not tried with a real video: off until checked on a phone). A refusal
+    // not tried with a real video; on by default, owner 2026-11-06). A refusal
     // falls back to the plain single-stream upload.
     key: 'reels_tus_parallel',
-    enabled: false,
+    enabled: true,
     app: true,
     description:
       'Reels, stories and channel videos go to Bunny in parallel pieces',
@@ -296,26 +296,26 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     // R-251: on, a big queued chat file goes in parallel S3 parts while the
     // app is on screen and passes to the OS background transfer when it
     // leaves; several files of a group chat or a task go up together. Needs
-    // `files_multipart`. Off until checked on a phone with real storage.
+    // `files_multipart`. On by default (owner 2026-11-06).
     key: 'chat_upload_parallel',
-    enabled: false,
+    enabled: true,
     app: true,
     description: 'Chat files go in parallel parts while the app is on screen',
   },
   {
     // R-251: on, a document over 4 MB comes down in parallel HTTP Range
-    // pieces. A server without Range falls back by itself. Off until checked
-    // on a phone with real storage.
+    // pieces. A server without Range falls back by itself. On by default
+    // (owner 2026-11-06).
     key: 'downloads_parallel',
-    enabled: false,
+    enabled: true,
     app: true,
     description: 'Documents download in parallel pieces',
   },
   {
     // R-251: on, the blocks of a video's cached start are fetched at once.
-    // Off until measured against the real CDN.
+    // On by default (owner 2026-11-06).
     key: 'video_cache_parallel',
-    enabled: false,
+    enabled: true,
     app: true,
     description: 'The cached start of a video is fetched in parallel blocks',
   },
@@ -403,10 +403,10 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
   {
     // Owner 2026-11-05: Settings → Account «Сменить профиль» — the same
     // account (same phone and password, no SMS) switches between the
-    // attorney and the client profile; both profiles are kept. Off until
-    // the owner turns it on.
+    // attorney and the client profile; both profiles are kept. On by default
+    // (owner 2026-11-06).
     key: 'role_switch',
-    enabled: false,
+    enabled: true,
     app: true,
     description:
       'Switch the account between the attorney and the client profile (Settings → Account), confirmed with the password or a passkey',

@@ -310,7 +310,7 @@ export class FilesService {
       !dto.acceptsExisting ||
       !profile ||
       isModeratedPurpose(dto.purpose) ||
-      !(await this.flags.isEnabled('files_reuse_own', false)) ||
+      !(await this.flags.isEnabled('files_reuse_own', true)) ||
       !(await this.settings.boolean('storage.dedup'))
     ) {
       return null;
@@ -545,7 +545,7 @@ export class FilesService {
     let prefix: Buffer | null = null;
     if (
       head.size >= LIGHT_CONFIRM_MIN_BYTES &&
-      (await this.flags.isEnabled('files_confirm_light', false))
+      (await this.flags.isEnabled('files_confirm_light', true))
     ) {
       const start = await this.storage.readStart(
         intent.bucket,

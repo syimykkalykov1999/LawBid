@@ -1649,16 +1649,16 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
  *   long after posting (0 = editing off); earlier texts are kept. */
 /**
  * Deal record 2026-10-27 (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md):
- * «Запись о заключении сделки». Both off: the apps accept bids as today and
- * the bid form shows the classic fee types only.
+ * «Запись о заключении сделки». On by default (owner 2026-11-06). Off: the apps accept bids as the
+ * old way and the bid form shows the classic fee types only.
  */
 export const OWNER_DEAL_RECORD_SETTINGS = {
   /** Accept = deal record signed by both parties (POST /deal-records). */
-  'deal_record.enabled': false,
+  'deal_record.enabled': true,
   /** Rich payment terms (`paymentTerms`) on bids and counter-offers. */
-  'bids.rich_terms_enabled': false,
+  'bids.rich_terms_enabled': true,
   /** A change of an open case makes active bids wait for the attorney. */
-  'bids.confirmation_required': false,
+  'bids.confirmation_required': true,
   /** Days until the one reminder to confirm a bid. */
   'bids.confirmation_reminder_days': 3,
 };

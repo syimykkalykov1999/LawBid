@@ -117,6 +117,16 @@ describe('BootstrapService.build: S20-9 reel warm-up switch', () => {
   });
 });
 
+describe('BootstrapService.build deal-record switches', () => {
+  it('a stored admin value wins over the on-by-default value', async () => {
+    const r = await build({
+      config: { 'deal_record.enabled': false },
+    }).service.build();
+    expect(r.app_config['deal_record.enabled']).toBe(false);
+    expect(r.app_config['bids.rich_terms_enabled']).toBe(true);
+  });
+});
+
 describe('BootstrapService.build guest browsing (dedup D-12)', () => {
   const guest = async (config: Record<string, unknown>) => {
     const r = await build({ config }).service.build();
@@ -170,6 +180,11 @@ describe('BootstrapService.build', () => {
       // Owner 2026-10-22 (client economy plan §5): the on-device cache
       // ceilings, always sent (the defaults until the admin stores a value).
       ...OWNER_CACHE_SETTINGS,
+      // Owner 2026-11-06: the deal-record switches are on by default and
+      // always sent, so the app matches the API with nothing stored.
+      'deal_record.enabled': true,
+      'bids.rich_terms_enabled': true,
+      'bids.confirmation_required': true,
       // Owner 2026-10-23: guest browsing - off in the apps, on for the web,
       // always sent.
       'client.guest_browse_app_enabled': false,
