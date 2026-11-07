@@ -4,6 +4,8 @@ import 'dart:collection' show Queue;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/media/video_cache/range_plan.dart';
+import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/core/network/http_transport.dart';
 
 /// Owner 2026-10-23 (Instagram: "content opens instantly"): how Instagram
@@ -37,6 +39,14 @@ class HlsPrefetcher {
 
   static const _timeout = Duration(seconds: 8);
 
+  /// The loopback proxy: plain dart:io, no reason to go through the native
+  /// stack for a request that never leaves the phone.
+  static final Dio _loopback = Dio(BaseOptions(connectTimeout: _timeout));
+  Dio get _localDio => debugLocalDio ?? _loopback;
+
+  @visibleForTesting
+  Dio? debugLocalDio;
+
   static final HlsPrefetcher instance = HlsPrefetcher();
 
   final Dio _dio;
@@ -44,6 +54,17 @@ class HlsPrefetcher {
   /// S16-4: asked before any warm-up (admin mode, data saver, metered
   /// link — see prefetch_policy.dart). Default: allowed.
   bool Function() allow = () => true;
+
+  /// Flag `video_prefetch_smart` (off = the old warm-up, request for request):
+  /// the bytes go through the video disk cache, so the player reads them
+  /// instead of asking the CDN again. Without it they heat the CDN edge only:
+  /// the player's proxy has its own HTTP client and never sees them.
+  bool Function() smart = () => false;
+
+  /// The local URL of a stream through the disk cache; the same URL back
+  /// while there is no cache (see [VideoCache.resolve]).
+  String Function(String url) toLocal =
+      (url) => VideoCache.resolve(url, feed: true);
 
   /// At most this many streams are fetched at once.
   final int maxConcurrent;
@@ -58,6 +79,10 @@ class HlsPrefetcher {
   final _queue = Queue<String>();
   final _running = <String, CancelToken>{};
 
+  /// Wishes to fetch the old way: the flag is off, or the player of this
+  /// video does not read the disk cache (stories).
+  final _plain = <String>{};
+
   @visibleForTesting
   int get running => _running.length;
   @visibleForTesting
@@ -67,15 +92,24 @@ class HlsPrefetcher {
   @visibleForTesting
   bool warmed(String url) => _done.contains(url);
 
-  /// Warms [url] (an `.m3u8`). Other links (an MP4) are ignored. Calling it
-  /// again for the same stream is free.
-  void prefetch(String url) {
-    if (!url.contains('.m3u8')) return;
+  /// Warms [url] (an `.m3u8`). Other links (an MP4) are ignored unless
+  /// [smart] is on. Calling it again for the same stream is free.
+  ///
+  /// [viaCache]: false when the player of this video does not read the disk
+  /// cache, so the bytes would lie there unread.
+  void prefetch(String url, {bool viaCache = true}) {
+    final cached = viaCache && smart();
+    if (!url.contains('.m3u8') && !(cached && isVideoFileUrl(url))) return;
     if (!allow()) return;
     if (_done.contains(url) ||
         _running.containsKey(url) ||
         _queue.contains(url)) {
       return;
+    }
+    if (cached) {
+      _plain.remove(url);
+    } else {
+      _plain.add(url);
     }
     // The newest wish is the one the viewer is closest to: it goes first.
     _queue.addFirst(url);
@@ -127,16 +161,32 @@ class HlsPrefetcher {
 
   Future<void> _fetch(String url, CancelToken token) async {
     try {
-      final master = await _text(url, token);
-      final media = lowestRenditionUri(master, Uri.parse(url));
-      var playlistUrl = Uri.parse(url);
-      var playlist = master;
-      if (media != null) {
-        playlistUrl = media;
-        playlist = await _text(media.toString(), token);
+      final plain = _plain.remove(url);
+      final start = plain ? url : toLocal(url);
+      final local = start != url;
+      final dio = local ? _localDio : _dio;
+      // An MP4 in smart mode, no cache yet: an edge warm-up would give this
+      // phone nothing, the next wish goes through the cache.
+      if (!url.contains('.m3u8') && !local) return;
+      if (!url.contains('.m3u8')) {
+        await _head(dio, Uri.parse(start), token, limit: _fileHeadBytes());
+      } else {
+        final master = await _text(dio, start, token);
+        final media = lowestRenditionUri(master, Uri.parse(start));
+        var playlistUrl = Uri.parse(start);
+        var playlist = master;
+        if (media != null) {
+          playlistUrl = media;
+          playlist = await _text(dio, media.toString(), token);
+        }
+        final segment = firstSegmentUri(playlist, playlistUrl);
+        if (segment != null) {
+          await _head(dio, segment, token, limit: maxSegmentBytes);
+        }
+        // Smart, but the cache was still starting: not remembered, so a later
+        // wish can still put the bytes where the player reads them.
+        if (!plain && !local) return;
       }
-      final segment = firstSegmentUri(playlist, playlistUrl);
-      if (segment != null) await _head(segment, token);
       _done
         ..remove(url)
         ..add(url);
@@ -148,8 +198,15 @@ class HlsPrefetcher {
     }
   }
 
-  Future<String> _text(String url, CancelToken token) async {
-    final r = await _dio.get<String>(
+  /// Never past what the cache keeps of a file: the proxy pipes the rest
+  /// through without saving it, that would be traffic for nothing.
+  int _fileHeadBytes() {
+    final head = headBytesFor(seconds: ClientTuning.videoCacheChunkSeconds);
+    return head < maxSegmentBytes ? head : maxSegmentBytes;
+  }
+
+  Future<String> _text(Dio dio, String url, CancelToken token) async {
+    final r = await dio.get<String>(
       url,
       cancelToken: token,
       options: Options(responseType: ResponseType.plain),
@@ -157,17 +214,61 @@ class HlsPrefetcher {
     return r.data ?? '';
   }
 
-  /// Reads the start of the first segment (enough to heat the edge cache).
-  Future<void> _head(Uri segment, CancelToken token) async {
-    await _dio.get<List<int>>(
-      segment.toString(),
+  /// Reads the start of a file (enough to heat the edge cache, or to fill the
+  /// head blocks of the disk cache).
+  Future<void> _head(
+    Dio dio,
+    Uri file,
+    CancelToken token, {
+    required int limit,
+  }) async {
+    await dio.get<List<int>>(
+      file.toString(),
       cancelToken: token,
       options: Options(
         responseType: ResponseType.bytes,
-        headers: {'Range': 'bytes=0-${maxSegmentBytes - 1}'},
+        headers: {'Range': 'bytes=0-${limit - 1}'},
         validateStatus: (s) => s != null && s < 400,
       ),
     );
+  }
+}
+
+/// A plain video file (signed links carry a query), not a playlist.
+bool isVideoFileUrl(String url) {
+  final path = Uri.tryParse(url)?.path ?? '';
+  return path.endsWith('.mp4') || path.endsWith('.mov');
+}
+
+/// Flag `video_prefetch_smart`: warm-up that follows the finger. Short-video
+/// studies (The Register 23.09.2025 on Douyin and Kuaishou: discarded
+/// prefetches are over 40 % of transfer costs) point at swiping as the waste:
+/// while the viewer flicks through, only the next video is warmed, and a wish
+/// the viewer has passed is dropped. The idea only, no code taken.
+class SwipeWarm {
+  SwipeWarm({
+    DateTime Function()? now,
+    this.fastSwipe = const Duration(milliseconds: 1200),
+  }) : _now = now ?? DateTime.now;
+
+  final DateTime Function() _now;
+
+  /// A page left sooner than this counts as flicking.
+  final Duration fastSwipe;
+
+  DateTime? _at;
+  List<String> _last = const [];
+
+  /// What to warm and what to drop for the new page; [ahead] is nearest first.
+  ({List<String> warm, List<String> drop}) next(List<String> ahead) {
+    final now = _now();
+    final at = _at;
+    _at = now;
+    final fast = at != null && now.difference(at) < fastSwipe;
+    final warm = fast ? ahead.take(1).toList() : ahead;
+    final drop = _last.where((u) => !warm.contains(u)).toList();
+    _last = warm;
+    return (warm: warm, drop: drop);
   }
 }
 

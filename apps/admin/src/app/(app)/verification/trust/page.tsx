@@ -6,17 +6,14 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { Kpi, KpiSkeletons } from '@/components/billing/kpi';
-import { AttorneysList } from '@/components/trust/attorneys-list';
 import { BarLookups, BlockedChip } from '@/components/trust/bar-lookups';
 import { BulkBar, PageSelectBox, RowSelectBox, useSelection } from '@/components/bulk/bulk-controls';
-import { ClientFraud } from '@/components/fraud/client-fraud';
 import { useConfirm } from '@/components/legacy/confirm';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { TRUST_NOTE_MAX, useDocumentRequest } from '@/components/trust/document-request-dialog';
-import { StaffDecisions } from '@/components/trust/staff-decisions';
 import { invalidateTrust } from '@/components/trust/trust-panel';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
@@ -49,6 +46,11 @@ import dynamic from 'next/dynamic';
 
 // S18-8: loaded only when its tab is opened.
 const BlockedBarNumbers = dynamic(() => import('@/components/trust/blocked-bar-numbers').then((m) => m.BlockedBarNumbers));
+// Smoothness audit 2026-11-03: same for the other tabs shown one at a time.
+const TabLoading = () => <Skeleton className="h-40 w-full" />;
+const AttorneysList = dynamic(() => import('@/components/trust/attorneys-list').then((m) => m.AttorneysList), { loading: TabLoading });
+const ClientFraud = dynamic(() => import('@/components/fraud/client-fraud').then((m) => m.ClientFraud), { loading: TabLoading });
+const StaffDecisions = dynamic(() => import('@/components/trust/staff-decisions').then((m) => m.StaffDecisions), { loading: TabLoading });
 
 type Settings = components['schemas']['TrustSettingsDto'];
 type QueueItem = components['schemas']['TrustQueueItemDto'];

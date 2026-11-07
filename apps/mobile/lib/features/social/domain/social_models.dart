@@ -219,6 +219,14 @@ class PostVideo {
   String? playerUrl({required bool web, bool hlsOnly = false}) =>
       !hlsOnly && prefersMp4(web: web) ? fallbackUrl : playbackUrl;
 
+  /// What to warm ahead on a phone. [smart] (flag `video_prefetch_smart`): the
+  /// stream the player will really open; off: the HLS playlist, as before,
+  /// also for a short clip whose player opens the MP4.
+  String? warmUrl({required bool smart}) {
+    if (!ready) return null;
+    return smart ? playerUrl(web: false) : playbackUrl;
+  }
+
   /// True when [playerUrl] is the MP4 copy, not the HLS playlist.
   bool usesMp4({required bool web, bool hlsOnly = false}) =>
       !hlsOnly && prefersMp4(web: web);
