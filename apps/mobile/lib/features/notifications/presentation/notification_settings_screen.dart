@@ -10,6 +10,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/calls/application/call_sound_prefs.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
@@ -343,6 +344,19 @@ class _NotificationSettingsScreenState
                       iconBadge: s.iconBadge,
                     ),
                   ),
+                // Owner 2026-10-22 (R-007): the sound when the other person
+                // turns their video on in a call. On this phone only.
+                SwitchListTile.adaptive(
+                  key: const ValueKey('call-video-sound'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(t.t('call.videoSound')),
+                  subtitle: Text(t.t('call.videoSound.hint'), style: caption),
+                  value: ref.watch(callVideoSoundProvider),
+                  activeTrackColor: colors.gold,
+                  onChanged: (v) => unawaited(
+                    ref.read(callVideoSoundProvider.notifier).set(on: v),
+                  ),
+                ),
                 const SizedBox(height: AppSpacing.lg),
                 Text(
                   t.t('notif.settings.quiet'),

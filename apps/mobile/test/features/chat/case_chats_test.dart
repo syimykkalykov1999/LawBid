@@ -14,7 +14,12 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 import '../../helpers/ux_harness.dart';
 import '../groups/fake_group_repository.dart';
 
-Conversation _conv(String id, {required String lastFrom}) => Conversation(
+Conversation _conv(
+  String id, {
+  required String lastFrom,
+  String body = 'Hello',
+}) =>
+    Conversation(
       id: id,
       caseId: 'case-$id',
       caseTitle: 'Custody',
@@ -33,7 +38,7 @@ Conversation _conv(String id, {required String lastFrom}) => Conversation(
         id: 'm-$id',
         conversationId: id,
         kind: MessageKind.text,
-        body: 'Hello',
+        body: body,
         createdAt: DateTime(2026),
         senderId: lastFrom,
       ),
@@ -55,6 +60,7 @@ class _Chats implements ChatRepository {
       items: [
         _conv('a', lastFrom: 'u-a'),
         _conv('b', lastFrom: 'me'),
+        _conv('c', lastFrom: 'u-c', body: 'Thank you!'),
       ],
     );
   }
@@ -119,6 +125,21 @@ void main() {
     expect(repo.folders, contains(ChatListFolder.cases));
     expect(find.byKey(const ValueKey('chat-awaiting-a')), findsOneWidget);
     expect(find.byKey(const ValueKey('chat-awaiting-b')), findsNothing);
+    // N-03: a closing «Thank you!» does not wait for an answer.
+    expect(find.byKey(const ValueKey('chat-awaiting-c')), findsNothing);
+    // N-03: long-press → «No reply needed» clears the label of that chat.
+    await tester.longPress(find.byKey(const ValueKey('chat-organize-a')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('organize-no-reply')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-awaiting-a')), findsNothing);
+    // No label, no such menu row (and none on a chat that is not waiting).
+    await tester.longPress(find.byKey(const ValueKey('chat-organize-a')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('organize-no-reply')), findsNothing);
+    expect(find.byKey(const ValueKey('organize-pin')), findsOneWidget);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));

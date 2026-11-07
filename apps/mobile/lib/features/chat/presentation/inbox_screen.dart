@@ -23,6 +23,7 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
+import 'package:lawbid/features/chat/application/awaiting_reply.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
@@ -1164,8 +1165,29 @@ class ConversationRow extends ConsumerWidget {
         picking == null &&
         startDirectWith == null &&
         !ref.watch(isAssistantProvider);
-    void organize() =>
-        showChatOrganizeSheet(context, ref, c, inArchive: inArchive);
+    // Owner 2026-11-04 (N-03): «Awaiting reply» only while a reply is due —
+    // not after «thanks» / «bye», not after «No reply needed».
+    final awaits = showAwaiting &&
+        picking == null &&
+        awaitsMyReply(
+          c,
+          me: me,
+          closing: ref.watch(closingPhrasesProvider),
+          dismissed: {
+            if (ref.watch(
+              awaitingReplyDismissedProvider.select((m) => m[c.id]),
+            )
+                case final id?)
+              c.id: id,
+          },
+        );
+    void organize() => showChatOrganizeSheet(
+          context,
+          ref,
+          c,
+          inArchive: inArchive,
+          noReplyMessageId: awaits ? c.lastMessage?.id : null,
+        );
     final read = last != null && c.counterpartLastReadId == last.id;
     final secondary = type.bodySmall.copyWith(color: colors.textSecondary);
     // Owner 2026-10-18: no @username under the chat (WhatsApp/Telegram);
@@ -1338,11 +1360,7 @@ class ConversationRow extends ConsumerWidget {
                                 onTap: () => showChatNoteSheet(context, ref, c),
                               ),
                             ],
-                            if (showAwaiting &&
-                                picking == null &&
-                                last != null &&
-                                last.senderId != me &&
-                                last.kind != MessageKind.system) ...[
+                            if (awaits) ...[
                               const SizedBox(width: AppSpacing.sm),
                               Container(
                                 key: ValueKey('chat-awaiting-${c.id}'),
