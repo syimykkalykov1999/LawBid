@@ -4,6 +4,7 @@ import { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { phoneSignIn } from './support/password-login';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -72,19 +73,11 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
 
   /** A real mobile session (OTP) so revocation is observable. */
   async function signIn(phone: string): Promise<Record<string, string>> {
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: phone })
-      .expect(200);
-    const res = await api()
-      .post('/api/v1/auth/otp/verify')
-      .send({
-        channel: 'phone',
-        identifier: phone,
-        code: '000000',
-        deviceInfo: { deviceId: 'admin-users-e2e', deviceName: 'Pixel 8' },
-      })
-      .expect(201);
+    const res = await phoneSignIn(app, baseUrl, phone, {
+      deviceId: 'admin-users-e2e',
+      deviceName: 'Pixel 8',
+    });
+    expect(res.status).toBe(201);
     return {
       Authorization: `Bearer ${(res.body as { data: { accessToken: string } }).data.accessToken}`,
     };
@@ -450,19 +443,10 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
     });
     await api().get('/api/v1/users/me').set(c.auth).expect(401);
     // Sign-in is refused (docs/01 §10 ACCOUNT_SUSPENDED).
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: c.phone })
-      .expect(200);
-    const blocked = await api()
-      .post('/api/v1/auth/otp/verify')
-      .send({
-        channel: 'phone',
-        identifier: c.phone,
-        code: '000000',
-        deviceInfo: { deviceId: 'admin-users-e2e' },
-      })
-      .expect(403);
+    const blocked = await phoneSignIn(app, baseUrl, c.phone, {
+      deviceId: 'admin-users-e2e',
+    });
+    expect(blocked.status).toBe(403);
     expect((blocked.body as Body).error?.code).toBe('ACCOUNT_SUSPENDED');
 
     const statuses = async () =>

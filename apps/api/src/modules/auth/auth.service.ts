@@ -8,6 +8,7 @@ import {
 } from './otp-limits';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
+  BadRequestException,
   ForbiddenException,
   HttpException,
   HttpStatus,
@@ -208,7 +209,7 @@ export class AuthService {
     // "use your password" from POST /auth/phone/status only.
     const registeredPhone =
       dto.channel === 'phone'
-        ? await this.assertSmsOnlyForNewNumber(identifier, caller?.id)
+        ? await this.assertSmsOnlyForNewNumber(identifier)
         : false;
 
     // S14-6: Gmail dots and "+tags" are one mailbox — they share one budget.
@@ -317,6 +318,16 @@ export class AuthService {
     caller?: OtpCaller,
   ): Promise<{ purpose: OtpPurpose; scope: OtpScope }> {
     const purpose: OtpPurpose = dto.purpose ?? 'login';
+    // Owner 2026-11-07: an SMS goes out in exactly two cases — a new number
+    // (registration) and «Забыл пароль» (its own route). A step-up or a new
+    // sign-in method is confirmed with the password, never by SMS.
+    if (dto.channel === 'phone' && purpose !== 'login') {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message:
+          'An SMS code is only for registration and a forgotten password.',
+      });
+    }
     if (purpose === 'login') return { purpose, scope: {} };
     if (!caller) {
       throw new UnauthorizedException({
@@ -1507,34 +1518,37 @@ export class AuthService {
    * Owner 2026-10-16: an SMS code is only for a NEW number (registration).
    * A registered number signs in with its password; one without a password
    * is told to set it through the reset flow. Resend cooldown and a daily
-   * cap apply to registration codes. `sms.login_code_enabled` = true brings
-   * the old passwordless sign-in code back (rollback). S14-1 (2026-10-25):
+   * cap apply to registration codes. Owner 2026-11-07: no switch brings the
+   * passwordless sign-in code back; not even the signed-in owner gets an SMS
+   * for a registered number (step-up is the password). S14-1 (2026-10-25):
    * returns true for a registered number — the caller answers 200 `sent` and
    * sends nothing, instead of the old 409 that told anyone who is registered.
    */
   private async assertSmsOnlyForNewNumber(
     identifier: string,
-    callerId?: string,
   ): Promise<boolean> {
     const cfg = this.settings;
-    if (!cfg || (await cfg.boolean('sms.login_code_enabled'))) return false;
+    if (!cfg) return false;
     const owner = await this.prisma.userIdentifier.findUnique({
       where: {
         provider_provider_uid: { provider: 'phone', provider_uid: identifier },
       },
       select: { user_id: true },
     });
-    // Reauthentication: the signed-in owner of this very number.
-    if (owner && callerId && owner.user_id === callerId) return false;
     // S14-1: the cooldown and the daily cap count for EVERY number, known or
     // not, so neither the answer nor its 429 pattern says who is registered.
     const idHash = this.rateLimit.hashIdentifier(identifier);
     const cooldown = await cfg.number('sms.resend_cooldown_seconds');
-    const wait = await this.rateLimit.consumeFixedWindow(
-      ['sms-resend', idHash],
-      1,
-      cooldown,
-    );
+    // 0 = no cooldown (the admin form allows 10 s and up; only the e2e
+    // database seeds 0, so suites may ask for a number's code repeatedly).
+    const wait =
+      cooldown > 0
+        ? await this.rateLimit.consumeFixedWindow(
+            ['sms-resend', idHash],
+            1,
+            cooldown,
+          )
+        : { allowed: true, retryAfterSeconds: 0, remaining: 1 };
     if (!wait.allowed) {
       throw new HttpException(
         {

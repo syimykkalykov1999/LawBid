@@ -12,8 +12,8 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 /**
  * Owner 2026-10-16: fewer SMS. A code goes only to a NEW number (once per
  * cooldown, at most N a day) and to reset a password; a registered number
- * is told to sign in with its password (or to set one). `sms.login_code_enabled`
- * brings the old behaviour back.
+ * is told to sign in with its password (or to set one). No switch brings the
+ * passwordless sign-in code back (owner 2026-11-07).
  */
 jest.setTimeout(90_000);
 
@@ -51,11 +51,12 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
     base = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
     redis = app.get<Redis>(REDIS_CLIENT);
-    await setting('sms.login_code_enabled', false);
   });
 
   afterAll(async () => {
-    await setting('sms.login_code_enabled', true);
+    // Back to the suites' sign-up settings (e2e-global-setup).
+    await setting('sms.resend_cooldown_seconds', 0);
+    await setting('sms.registration_per_number_per_day', 100000);
     await app.close();
   });
 
@@ -172,23 +173,7 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
     await setting('sms.reset_per_number_per_hour', 3);
   });
 
-  it('the rollback switch brings the old sign-in code back', async () => {
-    const phone = fresh();
-    const user = await prisma.user.create({
-      data: { role: 'client', phone_e164: phone, status: 'active' },
-    });
-    await prisma.userIdentifier.create({
-      data: { user_id: user.id, provider: 'phone', provider_uid: phone },
-    });
-    expect((await otp(phone)).status).toBe(200);
-    expect((await verifies(phone)).status).toBe(401); // nothing was sent
-    await setting('sms.login_code_enabled', true);
-    expect((await otp(phone)).status).toBe(200);
-    expect((await verifies(phone)).status).toBe(201); // the old code is back
-    await setting('sms.login_code_enabled', false);
-  });
-
-  it('the signed-in owner of a number may ask a code for it (reauthentication); a stranger may not', async () => {
+  it('owner 2026-11-07: not even the signed-in owner gets an SMS for a registered number (step-up is the password)', async () => {
     const phone = fresh();
     const user = await prisma.user.create({
       data: { role: 'client', phone_e164: phone, status: 'active' },
@@ -207,9 +192,10 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
     const stranger = await otp(phone);
     expect(stranger.status).toBe(200);
     expect((await verifies(phone)).status).toBe(401);
-    // ...the signed-in owner gets a real one.
+    // ...and the signed-in owner gets none either (same 200, nothing sent).
+    await redis.del(...(await redis.keys('*sms-resend*')));
     const mine = await otp(phone).set('Authorization', bearer);
     expect(mine.status).toBe(200);
-    expect((await verifies(phone)).status).toBe(201);
+    expect((await verifies(phone)).status).toBe(401);
   });
 });

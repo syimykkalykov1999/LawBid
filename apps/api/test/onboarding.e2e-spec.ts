@@ -3,6 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
 import request from 'supertest';
+import { phoneSignIn } from './support/password-login';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { attachCleanAvatar } from './support/clean-avatar';
@@ -114,19 +115,10 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .send(await validCaseBody());
 
   async function login(phone: string): Promise<string> {
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: phone })
-      .expect(200);
-    const res = await api()
-      .post('/api/v1/auth/otp/verify')
-      .send({
-        channel: 'phone',
-        identifier: phone,
-        code: '000000',
-        deviceInfo: { deviceId: 'onboarding-e2e' },
-      })
-      .expect(201);
+    const res = await phoneSignIn(app, app.getHttpServer(), phone, {
+      deviceId: 'onboarding-e2e',
+    });
+    expect(res.status).toBe(201);
     return (res.body as { data: { accessToken: string } }).data.accessToken;
   }
 

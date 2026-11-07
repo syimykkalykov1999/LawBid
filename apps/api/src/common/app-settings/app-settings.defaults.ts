@@ -485,8 +485,8 @@ export const OWNER_TASKS_SETTINGS = {
 // origins are added on top outside production (src/common/cors).
 // Owner 2026-10-16: fewer SMS. A code goes out only to register a NEW number
 // and to reset a password; a registered number signs in with its password.
-// All values are editable in the admin (Настройки); `login_code_enabled` is
-// the rollback switch for the old passwordless sign-in code.
+// All values are editable in the admin (Настройки). Owner 2026-11-07: the
+// old passwordless sign-in code has no switch any more.
 // Owner 2026-10-16: an attorney who loses verification stops paying: the
 // subscription ends and the unused part is refunded (rollback: off).
 export const OWNER_BILLING_GATE_SETTINGS = {
@@ -550,7 +550,6 @@ export const OWNER_PAY_PAGE_SETTINGS = {
 
 export const OWNER_SMS_SETTINGS = {
   /** true = a registered number may still get a sign-in code (the old way). */
-  'sms.login_code_enabled': false,
   /** Seconds before the same number may ask for another registration code. */
   'sms.resend_cooldown_seconds': 60,
   /** Registration codes to one number in 24 hours. */

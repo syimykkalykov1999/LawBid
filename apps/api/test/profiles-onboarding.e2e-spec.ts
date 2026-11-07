@@ -4,11 +4,13 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
 import request from 'supertest';
+import { phoneSignIn } from './support/password-login';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import type Redis from 'ioredis';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { reauthByPassword } from './support/password-reauth';
 import { attachCleanAvatar } from './support/clean-avatar';
 import { attachPractice } from './support/attach-practice';
 
@@ -99,19 +101,10 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
   }
 
   async function login(phone: string): Promise<Record<string, string>> {
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: phone })
-      .expect(200);
-    const res = await api()
-      .post('/api/v1/auth/otp/verify')
-      .send({
-        channel: 'phone',
-        identifier: phone,
-        code: '000000',
-        deviceInfo: { deviceId: 'profiles-e2e' },
-      })
-      .expect(201);
+    const res = await phoneSignIn(app, baseUrl, phone, {
+      deviceId: 'profiles-e2e',
+    });
+    expect(res.status).toBe(201);
     const token = (res.body as { data: { accessToken: string } }).data
       .accessToken;
     return { Authorization: `Bearer ${token}` };
@@ -551,16 +544,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .expect(403);
     expect(noReauth.body.error.code).toBe('REAUTH_REQUIRED');
 
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: phone })
-      .expect(200);
-    const reauth = await api()
-      .post('/api/v1/auth/reauth')
-      .set(auth)
-      .send({ method: 'otp', identifier: phone, code: '000000' })
-      .expect(201);
-    const reauthToken = reauth.body.data.reauthToken as string;
+    const reauthToken = await reauthByPassword(app, baseUrl, auth, { userId });
 
     await api()
       .post('/api/v1/users/me/contacts/request')
@@ -610,15 +594,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .send({ provider: 'phone', identifier: extra, code: '000000' })
       .expect(403);
     expect(refused.body.error.code).toBe('REAUTH_REQUIRED');
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: newPhone })
-      .expect(200);
-    const again = await api()
-      .post('/api/v1/auth/reauth')
-      .set(auth)
-      .send({ method: 'otp', identifier: newPhone, code: '000000' })
-      .expect(201);
+    const again = await reauthByPassword(app, baseUrl, auth, { userId });
     await api()
       .post('/api/v1/auth/otp/request')
       .send({ channel: 'phone', identifier: extra })
@@ -628,7 +604,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     const disabled = await api()
       .post('/api/v1/auth/identifiers')
       .set(auth)
-      .set('X-Reauth-Token', again.body.data.reauthToken as string)
+      .set('X-Reauth-Token', again)
       .send({ provider: 'phone', identifier: extra, code: '000000' })
       .expect(403);
     expect(disabled.body.error.code).toBe('FEATURE_DISABLED');
@@ -640,19 +616,11 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     // Already-linked identifiers keep signing in with the switch off, so
     // an account linked before the switch was turned off is not locked out.
     await setSwitch('auth.additional_identifiers_enabled', true);
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: newPhone })
-      .expect(200);
-    const again2 = await api()
-      .post('/api/v1/auth/reauth')
-      .set(auth)
-      .send({ method: 'otp', identifier: newPhone, code: '000000' })
-      .expect(201);
+    const again2 = await reauthByPassword(app, baseUrl, auth, { userId });
     await api()
       .post('/api/v1/auth/identifiers')
       .set(auth)
-      .set('X-Reauth-Token', again2.body.data.reauthToken as string)
+      .set('X-Reauth-Token', again2)
       .send({ provider: 'phone', identifier: extra, code: '000000' })
       .expect(201);
     await setSwitch('auth.additional_identifiers_enabled', false);

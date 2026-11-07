@@ -5,6 +5,7 @@ import { Test } from '@nestjs/testing';
 import Redis from 'ioredis';
 import { Logger, PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
+import { reauthByPassword } from './support/password-reauth';
 import { AppModule } from '../src/app.module';
 import {
   CostGuardService,
@@ -52,10 +53,17 @@ describe('Cost guard (e2e)', () => {
       where: {
         OR: [
           { key: { startsWith: 'budget.' } },
-          // Owner 2026-10-16: the suites' sign-in switch stays.
           {
             key: { startsWith: 'sms.' },
-            NOT: { key: 'sms.login_code_enabled' },
+            // The suites' sign-up settings (e2e-global-setup) stay.
+            NOT: {
+              key: {
+                in: [
+                  'sms.resend_cooldown_seconds',
+                  'sms.registration_per_number_per_day',
+                ],
+              },
+            },
           },
         ],
       },
@@ -323,14 +331,12 @@ describe('Cost guard (e2e)', () => {
       const accessToken = login.body.data.accessToken as string;
 
       const reauthToken = async (): Promise<string> => {
-        await otpRequest(phone).expect(200);
-        const res = await api()
-          .post('/api/v1/auth/reauth')
-          .set('Authorization', `Bearer ${accessToken}`)
-          .set('X-Forwarded-For', nextIp())
-          .send({ method: 'otp', identifier: phone, code: FIXED_CODE });
-        expect(res.status).toBe(201);
-        return res.body.data.reauthToken as string;
+        return reauthByPassword(
+          app,
+          app.getHttpServer(),
+          { Authorization: `Bearer ${accessToken}` },
+          { phone },
+        );
       };
 
       const contactRequest = async (value: string) =>
