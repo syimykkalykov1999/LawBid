@@ -155,6 +155,15 @@ class _CaseOptionPickerState<T> extends State<CaseOptionPicker<T>> {
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
+                              // Owner 2026-11-06: open, the choice stands on
+                              // top with its hint and is not repeated below.
+                              if (chosen.isNotEmpty && _open)
+                                Text(
+                                  chosen.first.hint,
+                                  style: type.caption.copyWith(
+                                    color: colors.textSecondary,
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -180,15 +189,16 @@ class _CaseOptionPickerState<T> extends State<CaseOptionPicker<T>> {
                     onTap: () => widget.onChanged(null),
                   ),
                 for (final o in widget.options)
-                  line(
-                    key: ValueKey('option-picker-${o.value}'),
-                    title: o.title,
-                    hint: o.hint,
-                    onTap: () {
-                      setState(() => _open = false);
-                      widget.onChanged(o.value);
-                    },
-                  ),
+                  if (o.value != widget.value)
+                    line(
+                      key: ValueKey('option-picker-${o.value}'),
+                      title: o.title,
+                      hint: o.hint,
+                      onTap: () {
+                        setState(() => _open = false);
+                        widget.onChanged(o.value);
+                      },
+                    ),
               ],
             ],
           ),
