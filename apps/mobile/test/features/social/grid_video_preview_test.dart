@@ -25,7 +25,7 @@ class _Prefetcher extends HlsPrefetcher {
   final dropped = <String>[];
 
   @override
-  void prefetch(String url) => asked.add(url);
+  void prefetch(String url, {bool viaCache = true}) => asked.add(url);
 
   @override
   void drop(Iterable<String> urls) => dropped.addAll(urls);

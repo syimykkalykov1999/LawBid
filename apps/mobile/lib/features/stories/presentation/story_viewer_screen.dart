@@ -469,7 +469,10 @@ class _StoryPlaybackViewState extends ConsumerState<StoryPlaybackView>
             );
           }
           final stream = s.video?.playbackUrl;
-          if (stream != null) HlsPrefetcher.instance.prefetch(stream);
+          // The story player does not read the video disk cache.
+          if (stream != null) {
+            HlsPrefetcher.instance.prefetch(stream, viaCache: false);
+          }
         case StoryKind.text:
           break;
       }

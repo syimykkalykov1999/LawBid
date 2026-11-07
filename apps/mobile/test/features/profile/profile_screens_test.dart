@@ -243,7 +243,8 @@ void main() {
       await _teardown(tester);
     });
 
-    testWidgets('with News on, News is one more tab', (tester) async {
+    testWidgets('with News on there are still at most 4 tabs (R-104)',
+        (tester) async {
       await _pumpScreen(
         tester,
         const AttorneyProfileScreen(username: 'jane.doe'),
@@ -257,7 +258,6 @@ void main() {
         'profile-tab-posts',
         'profile-tab-reels',
         'profile-tab-reposts',
-        'profile-tab-news',
         'profile-tab-reviews',
       });
       await _teardown(tester);
@@ -851,6 +851,34 @@ void main() {
         c.read(currentUserControllerProvider).user?.avatarUrl,
         'https://cdn.test/a.jpg',
       );
+    });
+
+    test('the attorney profile screen reads again after the photo', () async {
+      // Owner 2026-11-04: «Фото обновлено», but the profile kept the initials.
+      const newUrl = 'https://cdn.test/new.jpg';
+      final attorneys = FakeAttorneyRepo()..profile = attorneyProfile();
+      final c = ProviderContainer(
+        overrides: [
+          avatarUploadRepositoryProvider.overrideWithValue(
+            FakeAvatarRepo(me: attorneyMe(avatarUrl: newUrl)),
+          ),
+          attorneyProfileRepositoryProvider.overrideWithValue(attorneys),
+          currentUserControllerProvider
+              .overrideWith(() => FixedController(attorneyMe())),
+        ],
+      );
+      addTearDown(c.dispose);
+      final keep = c.listen(avatarUploadControllerProvider, (_, __) {});
+      addTearDown(keep.close);
+      final provider = publicAttorneyProfileProvider('jane.doe');
+      final screen = c.listen(provider, (_, __) {});
+      addTearDown(screen.close);
+      expect((await c.read(provider.future)).avatarUrl, isNull);
+
+      attorneys.profile = attorneyProfile(avatarUrl: newUrl);
+      await c.read(avatarUploadControllerProvider.notifier).start(jpeg);
+
+      expect((await c.read(provider.future)).avatarUrl, newUrl);
     });
 
     test('a failed upload can be retried with the same photo', () async {

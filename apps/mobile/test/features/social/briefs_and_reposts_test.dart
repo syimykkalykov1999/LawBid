@@ -1,10 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/merged_paging.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
@@ -197,16 +200,22 @@ void main() {
   });
 
   group('ProfileBriefsAndReposts', () {
-    Future<void> pump(WidgetTester t, FakeSocialRepository repo) async {
+    Future<void> pump(
+      WidgetTester t,
+      FakeSocialRepository repo, {
+      bool isSelf = false,
+    }) async {
       t.view.physicalSize = const Size(400, 20000);
       t.view.devicePixelRatio = 1;
       addTearDown(t.view.reset);
       await t.pumpWidget(
         uxApp(
-          const Scaffold(
+          Scaffold(
             body: SingleChildScrollView(
-              child:
-                  ProfileBriefsAndReposts(attorneyId: 'att-1', isSelf: false),
+              child: ProfileBriefsAndReposts(
+                attorneyId: 'att-1',
+                isSelf: isSelf,
+              ),
             ),
           ),
           theme: AppTheme.light(),
@@ -321,6 +330,30 @@ void main() {
       expect(cardIds(t), expected);
       // Each reposts page was asked for once.
       expect(repo.userRepostsCursors, [null, '2', '4', '6']);
+      await settle(t);
+    });
+
+    testWidgets('a like elsewhere does not rebuild; undoing a repost does',
+        (t) async {
+      final repo = FakeSocialRepository(posts: [post('b1', day(10))])
+        ..reposts = [post('r1', day(1), repostedAt: day(9))];
+      await pump(t, repo, isSelf: true);
+      final overrides = ProviderScope.containerOf(
+        t.element(find.byType(ProfileBriefsAndReposts)),
+      ).read(postOverridesProvider.notifier);
+      BuildCounter.reset();
+      for (var i = 0; i < 5; i++) {
+        overrides.put(post('other$i', day(2)).copyWith(likedByMe: true));
+        await t.pump();
+      }
+      overrides.put(post('b1', day(10)).copyWith(likedByMe: true));
+      await t.pump();
+      expect(BuildCounter.of('profile.posts'), 0);
+
+      overrides.put(post('r1', day(1)).copyWith(repostedByMe: false));
+      await t.pump();
+      expect(BuildCounter.of('profile.posts'), 1);
+      expect(cardIds(t), ['b1']);
       await settle(t);
     });
 

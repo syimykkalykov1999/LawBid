@@ -222,6 +222,14 @@ function notYourTurn(details: Record<string, unknown>): ConflictException {
   );
 }
 
+/** Owner 2026-11-05: accepted only after the attorney answered a case change. */
+export function bidConfirmationRequired(): ConflictException {
+  return new ConflictException({
+    code: ErrorCode.BID_CONFIRMATION_REQUIRED,
+    message: 'Waiting for the attorney to confirm this bid.',
+  });
+}
+
 export function bidNotFound(): NotFoundException {
   return new NotFoundException({
     code: ErrorCode.NOT_FOUND,
@@ -240,6 +248,8 @@ export interface ApplyBidActionInput {
   /** counter only, contingency bids: the new percent in basis points
    * (owner 2026-10-17; the service checks the admin cap). */
   percentBps?: number;
+  /** counter only: another kind of fee («Поменять бид», owner 2026-11-05). */
+  feeType?: Bid['fee_type'];
   /** counter only: optional note (≤500 chars, validated by the DTO). */
   message?: string | null;
   /** counter only (deal record 2026-10-27): the rich payment terms of the
@@ -284,18 +294,23 @@ export class BidStateMachine {
       ...plan.data,
       ...BUMP_VERSION,
     };
-    if (plan.newOffer && bid.fee_type === 'contingency') {
+    // Owner 2026-11-05: «Поменять бид» may pick another kind of fee.
+    const feeType = input.feeType ?? bid.fee_type;
+    if (plan.newOffer && input.feeType) data.fee_type = feeType;
+    if (plan.newOffer && feeType === 'contingency') {
       const bps = input.percentBps;
       if (bps === undefined || !Number.isInteger(bps) || bps <= 0) {
         throw new Error('counter needs a positive integer percentBps');
       }
       data.percent_bps = bps;
+      if (input.feeType) data.amount_cents = 0;
     } else if (plan.newOffer) {
       const amount = input.amountCents;
       if (amount === undefined || !Number.isInteger(amount) || amount <= 0) {
         throw new Error('counter needs a positive integer amountCents');
       }
       data.amount_cents = amount;
+      if (input.feeType) data.percent_bps = null;
     }
     if (plan.newOffer) {
       data.payment_terms = input.paymentTerms ?? Prisma.JsonNull;
@@ -329,13 +344,11 @@ export class BidStateMachine {
           bid_id: bid.id,
           round_no: plan.newOffer.round_no,
           from_role: plan.newOffer.from_role,
-          fee_type: bid.fee_type,
+          fee_type: feeType,
           amount_cents:
-            bid.fee_type === 'contingency' ? 0 : (data.amount_cents as number),
+            feeType === 'contingency' ? 0 : (data.amount_cents as number),
           percent_bps:
-            bid.fee_type === 'contingency'
-              ? (data.percent_bps as number)
-              : null,
+            feeType === 'contingency' ? (data.percent_bps as number) : null,
           message: input.message ?? null,
           payment_terms: input.paymentTerms ?? Prisma.JsonNull,
           status: 'pending',

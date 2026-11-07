@@ -57,7 +57,7 @@ void prefetchPost(BuildContext context, Post p) {
   if (thumb != null && !(p.video?.ready ?? false)) {
     precacheImage(reelPosterProvider(thumb), context, onError: (_, __) {});
   }
-  final stream = (p.video?.ready ?? false) ? p.video?.playbackUrl : null;
+  final stream = p.video?.warmUrl(smart: HlsPrefetcher.instance.smart());
   if (stream != null && !kIsWeb) HlsPrefetcher.instance.prefetch(stream);
   final avatar = p.author.avatarUrl;
   if (avatar != null) {

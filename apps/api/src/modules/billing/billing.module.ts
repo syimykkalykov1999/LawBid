@@ -28,6 +28,9 @@ import { StripeWebhookController } from './stripe-webhook.controller';
 import { StripeWebhookIntakeService } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
 import { DuplicateSubscriptionsService } from './duplicate-subscriptions.service';
+import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
+import { DisputeRefundService } from './dispute-refund.service';
+import { SubscriptionDisputeService } from './subscription-dispute.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { PayPageController } from './pay-page.controller';
 import { PayLinkModule } from './pay-link.module';
@@ -78,6 +81,8 @@ export class BillingModule {
         LedgerModule,
         // Stripe robustness 2026-10-27: the review queue.
         StripeOpsCoreModule,
+        // R-237: the switch of the automatic dispute refund.
+        FeatureFlagsModule,
         // Algo audit M-4: the duplicate-subscription auto-fix writes audit
         // rows from the worker too (the module is just the audit writer).
         AdminAccessModule,
@@ -124,6 +129,9 @@ export class BillingModule {
         SubscriptionSyncService,
         // Algo audit M-4 (owner 2026-10-28): duplicate subscriptions.
         DuplicateSubscriptionsService,
+        // R-237 (owner 2026-11-05): automatic refund of a bank inquiry.
+        DisputeRefundService,
+        SubscriptionDisputeService,
         PricingService,
         SubscriptionsService,
         // Owner 2026-10-22: seats charged now / removed at the period end.
@@ -139,6 +147,7 @@ export class BillingModule {
         SubscriptionsService,
         SubscriptionSyncService,
         DuplicateSubscriptionsService,
+        DisputeRefundService,
         ClientPlansService,
         BillingRunner,
       ],

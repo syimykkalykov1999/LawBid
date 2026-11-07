@@ -45,7 +45,7 @@ final phoneCountryProvider =
 Future<bool> joinCountryWaitlist(
   Dio dio, {
   required String countryCode,
-  required String email,
+  String? email,
   String? locale,
 }) async {
   final res = await api.CountriesClient(dio).joinCountryWaitlist(

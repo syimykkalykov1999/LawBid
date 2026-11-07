@@ -1,18 +1,74 @@
-# Перенос домена lawbid.dev в Cloudflare (для фото в R2)
+# Фото в Cloudflare R2: перенос домена и включение
 
 Домен остаётся куплен в Namecheap. В Cloudflare переезжают только записи DNS.
 Сайт, приложение и почта не прерываются, если записи перенести точно.
 
-## Шаги для владельца (≈ 15 минут, потом ожидание до нескольких часов)
+## Чек-лист владельца: фото в R2 (делать строго по порядку, в самом конце)
 
-1. Cloudflare → **Domains → Add a domain** → `lawbid.dev` → тариф **Free**.
-2. Cloudflare сам найдёт записи. Сверьте со списком ниже: каждая должна быть,
-   и у **каждой** облачко **серое** («DNS only»). Оранжевое облачко не включать.
-3. Cloudflare покажет **два nameserver** (вида `xxx.ns.cloudflare.com`).
-4. Namecheap → Domain List → lawbid.dev → **Nameservers → Custom DNS** →
-   вписать эти два → сохранить.
-5. Написать мне. Я проверю, что сайт, API, админка и почта работают, и
-   дальше включу фото в R2 (bucket, адрес media.lawbid.dev, ключ).
+Пока не сделан шаг 9, ничего не меняется: фото идут в AWS. Чаты, файлы дел и
+документы всегда остаются в AWS, видео в Bunny.
+
+1. **Домен в Cloudflare.** Domains → Add a domain → `lawbid.dev` → тариф Free. Сверьте
+   записи с таблицей ниже: все на месте, у **каждой** облачко **серое** (DNS only).
+2. **Namecheap.** Domain List → lawbid.dev → Nameservers → Custom DNS → два адреса из
+   Cloudflare → сохранить. Дождитесь, когда Cloudflare напишет Active (до нескольких часов).
+3. **Бакет.** R2 → Create bucket → имя `lawbid-media`.
+4. **Домен бакета.** Бакет → Settings → Custom Domains → Add → `media.lawbid.dev` →
+   дождитесь Active. Адрес `r2.dev` не включать.
+5. **CORS.** Бакет → Settings → CORS Policy → Add CORS policy → вкладка JSON → вставить → Save:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://lawbid.dev", "https://www.lawbid.dev", "https://admin.lawbid.dev"],
+       "AllowedMethods": ["PUT", "GET", "HEAD"],
+       "AllowedHeaders": ["Content-Type", "Cache-Control"],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+6. **Правило кэша.** lawbid.dev → Caching → Cache Rules → Create rule:
+
+   | Поле | Значение |
+   | --- | --- |
+   | Rule name | `media: cache everything` |
+   | Hostname equals | `media.lawbid.dev` |
+   | Cache eligibility | Eligible for cache |
+   | Edge TTL | Ignore cache-control header and use this TTL → 1 day |
+   | Browser TTL | Respect origin TTL |
+
+7. **Сайт пускает R2.** Один раз `terraform apply` в `infra/envs/prod` с кодом этой версии
+   (перед ним `scripts/deploy/current-tag.sh`, см. ловушку 1 в `DEPLOY_PROD.md`). Без этого
+   сервер сам оставит фото в AWS и покажет красную строку.
+8. **Ключи.** R2 → Manage API Tokens → Create Account API token → Object Read & Write →
+   только бакет `lawbid-media`. Админка → Ключи и сервисы → Cloudflare R2 → 5 полей: Account ID,
+   Access Key ID, Secret Access Key, `lawbid-media`, `https://media.lawbid.dev` →
+   Сохранить → **Проверить** (должно быть зелёно; если нет, текст ошибки говорит, какой шаг
+   поправить) → **Включить**.
+9. **Включить.** Админка → Настройки → `media.public_store` = `r2`.
+10. **Проверка одной командой:**
+
+    ```
+    sh scripts/ops/verify-r2-media.sh
+    ```
+
+    Все строки `OK`. В «Здоровье системы» строка «Хранилище файлов» зелёная. Смените аватар в приложении: фото показывается.
+
+**Если R2 не готов** (ключи неверны, домен не отвечает, сайт не пускает), загрузка не ломается:
+новые фото идут в AWS, а в «Здоровье системы» строка «Хранилище файлов» красная и объясняет
+причину. Сервер проверяет R2 сам раз в минуту и начнёт писать туда, когда всё заработает.
+
+**Откат:** `media.public_store` = `aws`. Новые фото снова в AWS, уже загруженные в R2 открываются,
+пока ключи R2 на месте (ключи не удалять).
+
+**Перенос данных не нужен:** прод очищается командой `purge-test-data` (она теперь чистит и R2).
+Официальные стикеры, подарки и аватары админов остаются в AWS и открываются оттуда: у каждого
+файла в базе записан его бакет.
+
+**Необязательно:** Zone ID и токен Cache Purge в той же карточке. Тогда удалённое фото сразу
+исчезает с края Cloudflare, а не через сутки.
 
 ## Записи, которые должны быть в Cloudflare (снято 2026-10-24)
 
@@ -33,76 +89,6 @@
 Сертификат для api/admin (ACM) может иметь свою запись `_…api` / `_…admin` —
 если Cloudflare её нашёл, оставить. Всё, что есть в Namecheap и чего нет
 здесь, — тоже перенести как есть (Cloudflare делает это сам на шаге 2).
-
-## После переноса: два обязательных пункта для R2 (владелец, Cloudflare Dashboard)
-
-Без них фото в R2 будут открываться плохо (каждый показ идёт в R2 и считается
-платным чтением) или не загружаться из браузера (веб-версия и админка).
-
-### 1. CORS у бакета (R2 → ваш бакет → Settings → CORS Policy → Add CORS policy → вкладка JSON)
-
-Вставить как есть и нажать **Save**:
-
-```json
-[
-  {
-    "AllowedOrigins": [
-      "https://lawbid.dev",
-      "https://www.lawbid.dev",
-      "https://admin.lawbid.dev",
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:8080"
-    ],
-    "AllowedMethods": ["PUT", "GET", "HEAD"],
-    "AllowedHeaders": ["Content-Type", "Cache-Control"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
-
-- `PUT` нужен загрузке фото из браузера по подписанной ссылке (в ней фиксированы
-  `Content-Type` и `Cache-Control`), `GET`/`HEAD` — показу и проверке размера.
-- Три `localhost` — только для разработки (веб 3000, админка 3001, Flutter web 8080); в
-  `AllowedOrigins` порт нельзя заменить звёздочкой, поэтому порты перечислены. Если
-  разработка идёт на другом порту, добавьте его строкой.
-- Из терминала: `npx wrangler r2 bucket cors set <имя-бакета> --file cors.json`
-  (у Wrangler другой формат файла, см. developers.cloudflare.com/r2/buckets/cors);
-  проверить: `npx wrangler r2 bucket cors list <имя-бакета>`. Проще вставить JSON
-  выше в Dashboard.
-- **Если бакет уже отдаёт через `media.lawbid.dev`, после смены CORS очистить кэш**:
-  Cloudflare → Caching → Configuration → **Purge Cache → Custom Purge** → Hostname
-  `media.lawbid.dev` (иначе в уже закэшированных ответах не будет CORS-заголовков).
-
-### 2. Правило кэша для `media.lawbid.dev` (Cloudflare → lawbid.dev → Caching → Cache Rules → Create rule)
-
-| Поле | Значение |
-| --- | --- |
-| Rule name | `media: cache everything` |
-| When incoming requests match | **Hostname** equals `media.lawbid.dev` |
-| Cache eligibility | **Eligible for cache** («Cache Everything») |
-| Edge TTL | **Ignore cache-control header and use this TTL** → **1 day** |
-| Browser TTL | **Respect origin TTL** («Use cache-control header if present») |
-
-Браузер хранит файл год (в самом объекте `immutable, max-age=31536000`), край
-Cloudflare держит сутки. Дополнительно, по желанию: Caching → Tiered Cache →
-**Smart Tiered Cache Topology** (бесплатно, меньше обращений в R2).
-
-### 3. Проверка одной командой
-
-Возьмите адрес любого фото из приложения (например, открыть аватар в браузере →
-скопировать адрес) и выполните:
-
-```
-sh scripts/ops/verify-r2-media.sh https://media.lawbid.dev/<адрес-фото>
-```
-
-Все пять строк должны быть `OK`: `cf-cache-status: HIT` на втором запросе, `immutable`
-в `Cache-Control`, `Accept-Ranges`, `Access-Control-Allow-Origin` и разрешённый `PUT`
-в preflight. Любая `FAIL` объясняет, какую из двух настроек выше поправить. Также
-в админке → Состояние системы строка «Фото и медиа (Cloudflare R2)» должна быть зелёной,
-а «Хранилище» → строка «Cloudflare R2» показывает размер и число файлов (считается раз в сутки).
 
 ## Необязательно: улучшения Cloudflare (ничего платного не включено)
 
@@ -134,6 +120,6 @@ sh scripts/ops/verify-r2-media.sh https://media.lawbid.dev/<адрес-фото>
   Analytics API; мы считаем сами (один обход бакета раз в сутки, ≈ 1 цент за миллион
   файлов), потому что это не требует отдельного токена аналитики и работает с теми же ключами R2.
 
-## Откат
+## Откат домена
 Namecheap → Nameservers → **Namecheap BasicDNS**. Старые записи в Namecheap
 не удаляются, поэтому всё возвращается как было.

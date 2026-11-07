@@ -12,11 +12,14 @@ import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_media_view.dart';
+import 'package:lawbid/features/calls/application/call_sound_prefs.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/application/cloudflare_sfu_call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -68,7 +71,16 @@ class CallSession {
     this.notice,
     this.videoPrompt,
     this.endedAt,
+    this.releasing = false,
   });
+
+  /// R-037 (owner 2026-10-28, «the slide-down stops halfway»): the call
+  /// ended here and the phone is still letting go of it — camera and mic,
+  /// the peer connections, the system call (CallKit / Telecom) and the
+  /// ongoing-call service. Those run on the platform thread, which also
+  /// paces Flutter's frames: the screen holds still until they are done,
+  /// so no animation runs under them.
+  final bool releasing;
 
   /// When the call ended here (the «Call ended · 2:14» line).
   final DateTime? endedAt;
@@ -132,6 +144,7 @@ class CallSession {
     String? videoPrompt,
     bool clearVideoPrompt = false,
     DateTime? endedAt,
+    bool? releasing,
   }) =>
       CallSession(
         phase: phase ?? this.phase,
@@ -149,6 +162,7 @@ class CallSession {
         notice: clearNotice ? null : notice ?? this.notice,
         videoPrompt: clearVideoPrompt ? null : videoPrompt ?? this.videoPrompt,
         endedAt: endedAt ?? this.endedAt,
+        releasing: releasing ?? this.releasing,
       );
 }
 
@@ -276,6 +290,16 @@ void callTrace(String message) {
   CrashReporter.instance?.report('calltrace $at $message', StackTrace.empty);
 }
 
+/// R-037 (owner 2026-10-28, «calls lag»): one line per call with its link
+/// numbers (round trip, jitter, loss, bandwidth, direct or TURN — no
+/// addresses, nothing personal), in every build: the phone tests run the
+/// store build, and one line per call is light. Off with the
+/// `crash_reports` flag like every other report.
+void callStatsReport(String line) {
+  final at = DateTime.now().toUtc().toIso8601String().substring(11, 23);
+  CrashReporter.instance?.report('$line at=$at', StackTrace.empty);
+}
+
 /// The caller gives up after this — about a minute, like WhatsApp (owner
 /// 2026-10-20; it was 30 s); the server marks a forgotten call missed a
 /// little later.
@@ -346,6 +370,21 @@ const kCallReconnectingDelay = Duration(seconds: 3);
 /// server before ICE restarts anyway (owner: within 2 s).
 const kCallIceRefreshBudget = Duration(milliseconds: 1800);
 
+/// R-402 (owner 2026-11-04, «Соединение…» for minutes): a link that is still
+/// checking its routes this long after the answer gets a fresh relay list
+/// and an ICE restart — and again every period until it connects or the
+/// connect timeout ends the call. LiveKit's client gives a peer connection
+/// `peerConnectionTimeout` (15 s) before it reconnects; the first routes
+/// through a working relay come up within a second or two, so waiting
+/// longer only adds silence. The ICE library alone would sit in `checking`
+/// for the whole 45 s.
+const kCallIceCheckingRestart = Duration(seconds: 10);
+
+/// Two ICE restarts of one link come at least this far apart (our watchdog
+/// and the other side's «restart» ask can meet): the second offer would
+/// make the answer of the first stale and break the link.
+const kCallIceRestartMinGap = Duration(seconds: 2);
+
 /// Fresh relay lists after drops are asked at most this often (links that
 /// drop together share one request).
 const kCallIceRefreshEvery = Duration(seconds: 10);
@@ -373,11 +412,9 @@ const kCallAloneGrace = Duration(seconds: 3);
 /// How long the "Call ended" screen stays.
 const kCallEndedLinger = Duration(milliseconds: 1600);
 
-/// Owner 2026-10-28 («the slide-down stops halfway»): the second, safety
-/// sweep of the system call after an end runs once the call screen has
-/// slid away (it closes at 1.5 s, the slide takes ~0.4 s) — its native
-/// calls run on the platform's UI thread and must not land mid-animation.
-const kCallLateSweep = Duration(milliseconds: 3000);
+/// R-037: the longest one step of the end may hold the «Call ended»
+/// screen still (a native call that never answers must not keep it up).
+const kCallReleaseStepTimeout = Duration(seconds: 3);
 
 /// Who the call is with: the other person, or for a group the first two
 /// names and a count.
@@ -408,6 +445,12 @@ class CallController extends Notifier<CallSession> {
   StreamSubscription<RealtimeEvent>? _events;
   Timer? _ringTimer;
   Timer? _connectTimer;
+
+  /// R-402: the ICE checking watchdog of the connecting phase.
+  Timer? _checkingTimer;
+
+  /// The last ICE restart offer per peer (the min gap).
+  final _restartedAt = <String, DateTime>{};
   Timer? _syncTimer;
   Timer? _linger;
   Timer? _turnTimer;
@@ -568,6 +611,20 @@ class CallController extends Notifier<CallSession> {
     // The ongoing-call notification follows the call; its buttons come back.
     listenSelf(_syncForeground);
     listenSelf(_syncProximity);
+    listenSelf(_syncSocket);
+    // R-373: the feed's players follow the call (silent, no audio focus).
+    listenSelf((_, next) {
+      ref.read(callAudioActiveProvider.notifier).set(active: next.busy);
+    });
+    // Owner 2026-11-04 (headphones): a headset taken off mid-call leaves
+    // the sound on the loudspeaker in a video call, the earpiece in a
+    // voice call.
+    listenSelf((prev, next) {
+      if (prev?.video != next.video) {
+        ref.read(callAudioRouterProvider.notifier).setVideo(video: next.video);
+      }
+    });
+    ref.listen<CallAudioState>(callAudioRouterProvider, _onAudioRoute);
     final fg = ref.read(callForegroundProvider);
     final actions = fg.actions.listen(_onNotificationAction);
     unawaited(
@@ -590,8 +647,10 @@ class CallController extends Notifier<CallSession> {
 
   void _syncProximity(CallSession? prev, CallSession next) {
     if (kIsWeb) return;
+    // A headset: the phone is not held to the ear.
     final on = !next.video &&
         !next.speaker &&
+        !ref.read(callAudioRouterProvider).inHeadset &&
         (next.phase == CallPhase.connecting || next.phase == CallPhase.active);
     if (on == _proximityOn) return;
     _proximityOn = on;
@@ -601,6 +660,39 @@ class CallController extends Notifier<CallSession> {
         onError: (Object _) {},
       ),
     );
+  }
+
+  /// Owner 2026-11-04 (WhatsApp): the sound moved by itself (a headset
+  /// connected or taken off) or by the person's choice — the speaker
+  /// button and the proximity sensor follow it.
+  void _onAudioRoute(CallAudioState? prev, CallAudioState next) {
+    final current = next.current;
+    if (current == null || !state.busy || next.web) return;
+    final speaker = current.kind == CallAudioKind.speaker;
+    if (speaker != state.speaker) {
+      state = state.copyWith(speaker: speaker);
+    } else {
+      _syncProximity(null, state);
+    }
+  }
+
+  /// The speaker button with a headset connected (or more than one output
+  /// in a browser): the list of outputs; without one it just switches the
+  /// loudspeaker ([toggleSpeaker]).
+  bool get audioChoice => ref.read(callAudioRouterProvider).choice;
+
+  /// The person chose where the call's sound goes.
+  Future<void> selectAudioOutput(CallAudioOutput output) async {
+    if (!state.busy) return;
+    await ref.read(callAudioRouterProvider.notifier).select(output);
+  }
+
+  /// R-404 (owner 2026-11-04): offers, answers and candidates travel over the
+  /// socket; while a call lives it is kept up even with the app behind the
+  /// lock screen or the system call UI.
+  void _syncSocket(CallSession? prev, CallSession next) {
+    if ((prev?.busy ?? false) == next.busy) return;
+    ref.read(realtimeClientProvider)?.keepUpForCall(next.busy);
   }
 
   // Android ongoing-call notification (owner 2026-10-20).
@@ -1514,8 +1606,10 @@ class CallController extends Notifier<CallSession> {
         return;
       }
       // Like a video call from the start: the picture comes with the
-      // loudspeaker (WhatsApp).
-      if (!speaker) await toggleSpeaker();
+      // loudspeaker (WhatsApp) — unless the sound is in a headset.
+      if (!speaker && !ref.read(callAudioRouterProvider).inHeadset) {
+        await toggleSpeaker();
+      }
       // The SFU carries the new camera by itself (published in enableVideo);
       // a mesh needs a new offer on every link.
       if (media is! SfuCallMedia) {
@@ -1586,11 +1680,16 @@ class CallController extends Notifier<CallSession> {
       final mineOff = !(state.video && state.cameraOn);
       if (!state.video) {
         state = state.copyWith(video: true, cameraOn: false);
-        if (!state.speaker) unawaited(toggleSpeaker());
+        if (!state.speaker && !ref.read(callAudioRouterProvider).inHeadset) {
+          unawaited(toggleSpeaker());
+        }
       }
       if (fresh && mineOff) {
         state = state.copyWith(videoPrompt: peer);
-        unawaited(ref.read(appSoundsProvider).videoRequest());
+        // Owner 2026-10-22 (R-007): the sound has its own switch.
+        if (ref.read(callVideoSoundProvider)) {
+          unawaited(ref.read(appSoundsProvider).videoRequest());
+        }
       }
       return;
     }
@@ -1636,6 +1735,7 @@ class CallController extends Notifier<CallSession> {
   Future<void> toggleSpeaker() async {
     final on = !state.speaker;
     state = state.copyWith(speaker: on);
+    ref.read(callAudioRouterProvider.notifier).noteSpeaker(on: on);
     try {
       await _media?.setSpeaker(on);
     } on Object {
@@ -1671,7 +1771,18 @@ class CallController extends Notifier<CallSession> {
 
   /// A ring that arrived by push / the system call UI (app was in the
   /// background): load it and show it here.
-  Future<void> ringFromPush(String callId, {bool accept = false}) async {
+  ///
+  /// [showSystemUi] (owner 2026-11-03, iPhone → Samsung, the Samsung's ring
+  /// «got lost»): a push that reaches the OPEN app (FCM `onMessage`) has
+  /// shown nothing yet — no background handler ran — so the phone's own
+  /// call screen is shown here. Without it the push rang silently, set the
+  /// call as ringing, and the socket's `call:incoming` for the same call was
+  /// then skipped as a duplicate: nothing on screen while the caller rang.
+  Future<void> ringFromPush(
+    String callId, {
+    bool accept = false,
+    bool showSystemUi = false,
+  }) async {
     callTrace('ringFromPush $callId accept=$accept phase=${state.phase} '
         'current=${state.call?.id}');
     if (state.busy && state.call?.id != callId) {
@@ -1703,7 +1814,7 @@ class CallController extends Notifier<CallSession> {
             return;
           }
         } else {
-          _ring(call, showSystemUi: false);
+          _ring(call, showSystemUi: showSystemUi);
         }
       }
       if (accept) await this.accept();
@@ -1828,6 +1939,12 @@ class CallController extends Notifier<CallSession> {
     final servers = await _iceServers();
     if (gen != _gen || !ref.mounted) return;
     _servers = servers;
+    if (!servers.any((s) => s.username != null)) {
+      // R-402: the server had no TURN for us (keys off, coturn stopped):
+      // STUN only, a carrier NAT on either side and the call never comes
+      // up. The admin card says the same; here it is in the call trace.
+      callTrace('ice servers: no TURN relay offered, STUN only');
+    }
     // Owner 2026-10-24: a call carried by the Cloudflare SFU has ONE
     // connection to it; every other call (1:1, the mesh, the outage
     // fallback) keeps the device-to-device media exactly as before.
@@ -1862,6 +1979,10 @@ class CallController extends Notifier<CallSession> {
       return;
     }
     _mediaOpen = true;
+    // Owner 2026-11-04: a connected headset takes the call's sound.
+    unawaited(
+      ref.read(callAudioRouterProvider.notifier).start(video: video),
+    );
     // The other side may hang up while this phone has no socket (app in the
     // background, Doze): ask the server now and then, so the call and its
     // ringing/ongoing UI never outlive it.
@@ -2022,6 +2143,8 @@ class CallController extends Notifier<CallSession> {
         _syncReconnecting();
         if (state.phase != CallPhase.active && state.phase != CallPhase.ended) {
           _connectTimer?.cancel();
+          _checkingTimer?.cancel();
+          _checkingTimer = null;
           state = state.copyWith(
             phase: CallPhase.active,
             connectedAt: DateTime.now(),
@@ -2115,9 +2238,12 @@ class CallController extends Notifier<CallSession> {
   /// Both sides take a fresh relay list (each gathers its own relay
   /// candidates); then the side that offered restarts ICE, the other asks
   /// it to. A link that healed meanwhile is left alone.
-  Future<void> _freshIceThenRetryConnect(String peer) async {
+  Future<void> _freshIceThenRetryConnect(
+    String peer, {
+    bool blameRelay = true,
+  }) async {
     callTrace('link to $peer failed while connecting: one retry, fresh relays');
-    await _freshIce(relayFailed: _onCloudflareRelay, force: true);
+    await _freshIce(relayFailed: _onCloudflareRelay && blameRelay, force: true);
     if (!ref.mounted || !state.busy || state.phase != CallPhase.connecting) {
       return;
     }
@@ -2196,6 +2322,9 @@ class CallController extends Notifier<CallSession> {
         !state.busy) {
       return;
     }
+    final last = _restartedAt[peer];
+    if (last != null && _now.difference(last) < kCallIceRestartMinGap) return;
+    _restartedAt[peer] = _now;
     try {
       final offer = await media.restartIceFor(peer);
       await ref.read(callSignalSenderProvider)(call.id, offer, to: peer);
@@ -2211,6 +2340,7 @@ class CallController extends Notifier<CallSession> {
   }
 
   void _armConnectTimeout() {
+    _armCheckingWatchdog();
     _connectTimer?.cancel();
     _connectTimer = Timer(kCallConnectTimeout, () {
       if (state.phase != CallPhase.connecting) return;
@@ -2227,6 +2357,34 @@ class CallController extends Notifier<CallSession> {
         return;
       }
       unawaited(hangUp(reason: CallEndReason.failed));
+    });
+  }
+
+  /// R-402: while the call is connecting, every [kCallIceCheckingRestart] a
+  /// link that has not come up gets a fresh relay list and a new route —
+  /// the side that offered restarts ICE, the other asks it to. Stops with
+  /// the first connected link or when the phase moves on.
+  void _armCheckingWatchdog() {
+    _checkingTimer?.cancel();
+    _checkingTimer = Timer.periodic(kCallIceCheckingRestart, (t) {
+      if (!ref.mounted || !state.busy || state.phase != CallPhase.connecting) {
+        t.cancel();
+        if (identical(_checkingTimer, t)) _checkingTimer = null;
+        return;
+      }
+      final media = _media;
+      if (media == null || media is SfuCallMedia) return;
+      for (final peer in media.peers) {
+        if (_connected.contains(peer)) continue;
+        callTrace(
+          'link to $peer: still checking after '
+          '${kCallIceCheckingRestart.inSeconds} s, fresh relays + restart',
+        );
+        // Only a link whose offer / answer went through can blame the relay:
+        // with no signaling no relay could have helped (R-404). One that
+        // blames it takes the server's new answer as it is.
+        unawaited(_freshIceThenRetryConnect(peer, blameRelay: _signalSeen));
+      }
     });
   }
 
@@ -2552,6 +2710,18 @@ class CallController extends Notifier<CallSession> {
     await ref.read(systemCallUiProvider).answered(call);
   }
 
+  /// The end of a call, in the reference order (LiveKit `Room.disconnect`
+  /// → `_cleanUp`: local tracks stopped → each transport's callbacks
+  /// cleared, closed and disposed → the system call ended → only then the
+  /// UI, which pops on `RoomDisconnectedEvent` in a post-frame callback):
+  ///
+  /// 1. at once: the phase reads «ended» ([CallSession.releasing]: the
+  ///    screen holds still), the end tone;
+  /// 2. awaited, one after the other: the media ([_reset] → `close()`),
+  ///    then CallKit / Telecom and the ongoing-call service;
+  /// 3. then the screen lets the sheet go, and after [kCallEndedLinger]
+  ///    the controller goes idle — the call screen pops on that, and no
+  ///    native work is left to land in the middle of its animation.
   void _finish(CallStatus outcome, {AppCall? call, bool keepOpen = false}) {
     final wasCalling = state.busy;
     final endedId = call?.id ?? state.call?.id;
@@ -2559,18 +2729,15 @@ class CallController extends Notifier<CallSession> {
         'error=${state.errorCode}');
     // Owner 2026-10-26: nothing below may keep the phase from reaching
     // «ended» — a throwing side effect left the call screen up.
-    if (endedId != null) {
-      try {
-        _endSystemCall(endedId);
-      } on Object catch (e) {
-        callTrace('finish $endedId: system call end failed: $e');
-      }
-    }
     try {
       _reset();
     } on Object catch (e) {
       callTrace('finish $endedId: reset failed: $e');
     }
+    final media = _mediaClosing;
+    // The service is stopped by the release below, not by the state
+    // listener a moment from now (once, in order).
+    _fgKey = null;
     // OQ-044: "busy" beeps, or the short end-of-call tone.
     try {
       final sounds = ref.read(appSoundsProvider);
@@ -2591,7 +2758,26 @@ class CallController extends Notifier<CallSession> {
       call: call,
       reconnecting: false,
       endedAt: DateTime.now(),
+      releasing: true,
     );
+    unawaited(_release(media, endedId, gen: _gen, keepOpen: keepOpen));
+  }
+
+  /// Steps 2 and 3 of [_finish].
+  Future<void> _release(
+    Future<void> media,
+    String? endedId, {
+    required int gen,
+    required bool keepOpen,
+  }) async {
+    await _releaseStep('media', () => media);
+    if (endedId != null) {
+      await _releaseStep('system call', () => _endSystemCall(endedId));
+    }
+    // A new call began meanwhile: this end is not on screen any more.
+    if (!ref.mounted || gen != _gen || state.phase != CallPhase.ended) return;
+    callTrace('finish $endedId: released');
+    state = state.copyWith(releasing: false);
     // The 409 sheet decides when this screen goes.
     if (keepOpen) return;
     _linger = Timer(kCallEndedLinger, () {
@@ -2601,27 +2787,30 @@ class CallController extends Notifier<CallSession> {
     });
   }
 
-  /// The system call (CallKit / the ringing notification) and the
-  /// ongoing-call service go with the call.
-  void _endSystemCall(String endedId) {
-    final ui = ref.read(systemCallUiProvider);
-    unawaited(ui.dismiss(endedId).then<void>((_) => ui.endAll()));
-    // Device test 2026-10-21: after a group call «Leave» the ongoing-call
-    // notification (7003) and the plugin's records stayed in the shade.
-    // The end is stated outright, not left to the state listener, and
-    // again a moment later for a start that was still in flight.
-    final fg = ref.read(callForegroundProvider);
-    _fgKey = null;
-    unawaited(fg.stop());
-    unawaited(
-      Future<void>.delayed(kCallLateSweep, () async {
-        if (ref.mounted && !state.busy) {
-          await fg.stop();
-          await ui.endAll();
-        }
-      }),
-    );
+  Future<void> _releaseStep(String step, Future<void> Function() run) async {
+    try {
+      await run().timeout(kCallReleaseStepTimeout);
+    } on Object catch (e) {
+      callTrace('finish: $step failed: $e');
+    }
   }
+
+  /// The system call (CallKit / the ringing notification), every other
+  /// trace of a call, and the ongoing-call service go with the call —
+  /// stated outright (device test 2026-10-21: after a group call «Leave»
+  /// the ongoing-call notification and the plugin's records stayed).
+  Future<void> _endSystemCall(String endedId) async {
+    final ui = ref.read(systemCallUiProvider);
+    final fg = ref.read(callForegroundProvider);
+    // Each step on its own clock: one that throws or hangs must not keep
+    // the others (CallKit end, the ongoing-call service) from running.
+    await _releaseStep('system call dismiss', () => ui.dismiss(endedId));
+    await _releaseStep('system call endAll', ui.endAll);
+    await _releaseStep('foreground stop', fg.stop);
+  }
+
+  /// The media closing that the last [_reset] started.
+  Future<void> _mediaClosing = Future<void>.value();
 
   void _reset() {
     _gen++;
@@ -2631,13 +2820,14 @@ class CallController extends Notifier<CallSession> {
     _useMedia(null);
     _view.clear();
     _mediaOpen = false;
+    ref.read(callAudioRouterProvider.notifier).stop();
     if (media != null) {
       callTrace('reset: closing media');
-      unawaited(
-        media.close().catchError((Object e) {
-          callTrace('reset: media close failed: $e');
-        }),
-      );
+      _mediaClosing = media.close().catchError((Object e) {
+        callTrace('reset: media close failed: $e');
+      });
+    } else {
+      _mediaClosing = Future<void>.value();
     }
     ref.read(callCamerasOffProvider.notifier).clear();
     ref.read(callFrontCameraProvider.notifier).front();
@@ -2666,6 +2856,7 @@ class CallController extends Notifier<CallSession> {
     _iceAt = null;
     _sfuReportedAt = null;
     _connectRetried.clear();
+    _restartedAt.clear();
   }
 
   void _clearTimers() {
@@ -2677,6 +2868,8 @@ class CallController extends Notifier<CallSession> {
     _netSub = null;
     _ringTimer?.cancel();
     _connectTimer?.cancel();
+    _checkingTimer?.cancel();
+    _checkingTimer = null;
     _syncTimer?.cancel();
     for (final r in _reconnect.values) {
       r.grace.cancel();
@@ -2695,6 +2888,13 @@ class CallController extends Notifier<CallSession> {
 /// while TURN is not configured, so the button never leads nowhere).
 final videoCallsEnabledProvider = Provider<bool>(
   (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('video_calls'),
+);
+
+/// Owner 2026-11-04 (R-376): group calls (three people or more) are off for
+/// now — «Add participant», group and channel call buttons hide; one-to-one
+/// calls stay. Off when the switch is missing.
+final groupCallsEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('calls_group'),
 );
 
 /// Owner 2026-10-21: the group call this person left but that may still be

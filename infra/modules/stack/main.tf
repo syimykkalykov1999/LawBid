@@ -354,6 +354,10 @@ variable "deploy_rollback_on_slo" {
 variable "ses_from_address" { type = string }
 variable "api_image" { type = string }
 variable "admin_image" { type = string }
+variable "app_version" {
+  type    = string
+  default = ""
+}
 variable "alert_emails" { type = list(string) }
 variable "slack_webhook_url" {
   type      = string
@@ -1042,9 +1046,13 @@ module "web" {
   api_proxy_host         = var.web_api_proxy ? var.api_host : ""
   hosted_zone_id         = var.hosted_zone_id == null ? "" : var.hosted_zone_id
   api_origin             = "https://${var.api_host}"
-  media_origins          = ["https://${module.s3.media_cdn_domain}"]
-  tags                   = local.tags
-  force_destroy          = var.ephemeral
+  # media.<web host>: the public R2 bucket's custom domain (owner 2026-11-04).
+  media_origins = concat(
+    ["https://${module.s3.media_cdn_domain}"],
+    var.web_host != "" ? ["https://media.${var.web_host}"] : [],
+  )
+  tags          = local.tags
+  force_destroy = var.ephemeral
 }
 
 module "status_page" {
@@ -1505,7 +1513,7 @@ locals {
   # itself. The pool must be safe at the SMALLEST size it can shrink to
   # (db_autoscale_min_class); the check below asks only that the LARGEST size
   # (db_autoscale_max_class) can carry the task ceiling at all.
-  db_autoscale_on    = var.db_autoscale_enabled && local.db_identifier != ""
+  db_autoscale_on = var.db_autoscale_enabled && local.db_identifier != ""
   # Created even with no standby node yet: the Lambda itself refuses to resize a
   # one-node group (guard no_failover, e-mails) and starts once the API's
   # ha-auto service has added the node.
@@ -1875,6 +1883,7 @@ module "ecs" {
   admin_target_group_arn          = module.alb.admin_target_group_arn
   api_image                       = var.api_image
   admin_image                     = var.admin_image
+  app_version                     = var.app_version
   kms_key_arn                     = module.kms.key_arn
   tracing_enabled                 = var.tracing_enabled
   tracing_sample_ratio            = var.tracing_sample_ratio
@@ -1904,27 +1913,27 @@ module "ecs" {
   migrator_database_url_secret_arn = module.secrets.arns["MIGRATOR_DATABASE_URL"]
   # Worker only; empty until scripts/deploy/prod-db-setup.sh has filled it.
   partition_database_url_secret_arn = var.partition_role_enabled ? module.secrets.arns["PARTITION_DATABASE_URL"] : ""
-  alb_resource_label               = "${module.alb.arn_suffix}/${module.alb.api_target_group_arn_suffix}"
-  api_max_tasks                    = var.api_max_tasks
-  worker_max_tasks                 = var.worker_max_tasks
-  min_tasks                        = var.min_tasks
-  api_min_tasks                    = var.api_min_tasks
-  admin_tasks                      = var.admin_tasks
-  admin_cpu                        = var.admin_cpu
-  admin_memory                     = var.admin_memory
-  api_cpu                          = var.api_cpu
-  api_memory                       = var.api_memory
-  api_uv_threadpool_size           = var.api_uv_threadpool_size
-  worker_cpu                       = var.worker_cpu
-  worker_memory                    = var.worker_memory
-  clamav_image                     = var.clamav_image
-  cpu_architecture                 = var.cpu_architecture
-  container_insights               = var.container_insights
-  worker_spot                      = var.worker_spot
-  api_spot                         = var.api_spot
-  night_scale_mode                 = var.night_scale_mode
-  night_min_tasks                  = var.night_min_tasks
-  tags                             = local.tags
+  alb_resource_label                = "${module.alb.arn_suffix}/${module.alb.api_target_group_arn_suffix}"
+  api_max_tasks                     = var.api_max_tasks
+  worker_max_tasks                  = var.worker_max_tasks
+  min_tasks                         = var.min_tasks
+  api_min_tasks                     = var.api_min_tasks
+  admin_tasks                       = var.admin_tasks
+  admin_cpu                         = var.admin_cpu
+  admin_memory                      = var.admin_memory
+  api_cpu                           = var.api_cpu
+  api_memory                        = var.api_memory
+  api_uv_threadpool_size            = var.api_uv_threadpool_size
+  worker_cpu                        = var.worker_cpu
+  worker_memory                     = var.worker_memory
+  clamav_image                      = var.clamav_image
+  cpu_architecture                  = var.cpu_architecture
+  container_insights                = var.container_insights
+  worker_spot                       = var.worker_spot
+  api_spot                          = var.api_spot
+  night_scale_mode                  = var.night_scale_mode
+  night_min_tasks                   = var.night_min_tasks
+  tags                              = local.tags
 
   # P1 deploy safety: rolling + alarm rollback (docs/runbooks/DEPLOY_SAFETY.md).
   deployment_alarm_rollback     = var.deploy_alarm_rollback

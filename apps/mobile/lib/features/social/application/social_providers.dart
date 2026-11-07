@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show protected;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/file_types.dart';
@@ -117,6 +118,47 @@ class PostOverrides extends Notifier<Map<String, Post>> {
 
 final postOverridesProvider =
     NotifierProvider<PostOverrides, Map<String, Post>>(PostOverrides.new);
+
+/// Of the post [ids] a list shows, those whose override (if any) passes
+/// [test], as one string in the list's order. A list that only needs
+/// «which of my posts were undone here» watches
+/// `postOverridesProvider.select((m) => overrideIdsWhere(m, ids, …))` and so
+/// rebuilds when that answer changes, not on every like in the app (a `Set`
+/// has no value equality, a `String` does).
+/// Scanning only the shown [ids] keeps it cheap and ignores posts the list
+/// does not show. Read it back with [overrideIdSet].
+String overrideIdsWhere(
+  Map<String, Post> overrides,
+  Iterable<String> ids,
+  bool Function(Post) test,
+) {
+  if (overrides.isEmpty) return '';
+  return [
+    for (final id in ids)
+      if (overrides[id] case final p? when test(p)) id,
+  ].join(_idSep);
+}
+
+/// The ids of an [overrideIdsWhere] string.
+Set<String> overrideIdSet(String ids) =>
+    ids.isEmpty ? const {} : ids.split(_idSep).toSet();
+
+/// Of the post [ids] a list shows, those whose override passes [test];
+/// the widget rebuilds only when this answer changes (see
+/// [overrideIdsWhere]).
+Set<String> watchOverrideIds(
+  WidgetRef ref,
+  Iterable<String> ids,
+  bool Function(Post) test,
+) =>
+    overrideIdSet(
+      ref.watch(
+        postOverridesProvider.select((m) => overrideIdsWhere(m, ids, test)),
+      ),
+    );
+
+/// Cannot appear in an id.
+const _idSep = '\u0001';
 
 /// Posts gone from every public list in this session: deleted, or (owner
 /// 2026-10-18) archived — an archived one comes back with [remove] when the
@@ -245,10 +287,25 @@ class AttorneyPostsNotifier extends PagedNotifier<Post> {
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  /// One page of this list from [repo]: the tabs of a profile differ only in
+  /// what they ask for.
+  @protected
+  Future<CursorPage<Post>> readPage(SocialRepository repo, String? cursor) =>
+      repo.attorneyPosts(attorneyId, cursor: cursor);
+
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) => ref
-      .read(socialRepositoryProvider)
-      .attorneyPosts(attorneyId, cursor: cursor);
+  Future<CursorPage<Post>> fetch(String? cursor) =>
+      readPage(ref.read(socialRepositoryProvider), cursor);
+
+  // Owner 2026-10-28 (R-114, «на миллисекунду пустые квадраты»): a profile
+  // tab opens on the phone's copy of its first page at once (the feed's
+  // pattern), the live page replaces it; without this a cold open showed
+  // empty skeleton squares until the first answer.
+  @override
+  Future<CursorPage<Post>?> cachedFirstPage() {
+    final repo = ref.read(socialRepositoryProvider);
+    return phoneCopy(() => readPage(repo, null));
+  }
 
   @override
   Object idOf(Post item) => item.id;
@@ -282,9 +339,8 @@ class AttorneyNewsNotifier extends AttorneyPostsNotifier {
   AttorneyNewsNotifier(super.attorneyId);
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) => ref
-      .read(socialRepositoryProvider)
-      .attorneyPosts(attorneyId, cursor: cursor, newsOnly: true);
+  Future<CursorPage<Post>> readPage(SocialRepository repo, String? cursor) =>
+      repo.attorneyPosts(attorneyId, cursor: cursor, newsOnly: true);
 }
 
 final attorneyNewsProvider = AsyncNotifierProvider.autoDispose
@@ -299,12 +355,12 @@ class AttorneyPhotoPostsNotifier extends AttorneyPostsNotifier {
   AttorneyPhotoPostsNotifier(super.attorneyId);
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) =>
-      ref.read(socialRepositoryProvider).attorneyPosts(
-            attorneyId,
-            cursor: cursor,
-            media: ProfileMedia.visual,
-          );
+  Future<CursorPage<Post>> readPage(SocialRepository repo, String? cursor) =>
+      repo.attorneyPosts(
+        attorneyId,
+        cursor: cursor,
+        media: ProfileMedia.visual,
+      );
 }
 
 final attorneyPhotoPostsProvider = AsyncNotifierProvider.autoDispose
@@ -319,12 +375,12 @@ class AttorneyReelsNotifier extends AttorneyPostsNotifier {
   AttorneyReelsNotifier(super.attorneyId);
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) =>
-      ref.read(socialRepositoryProvider).attorneyPosts(
-            attorneyId,
-            cursor: cursor,
-            media: ProfileMedia.video,
-          );
+  Future<CursorPage<Post>> readPage(SocialRepository repo, String? cursor) =>
+      repo.attorneyPosts(
+        attorneyId,
+        cursor: cursor,
+        media: ProfileMedia.video,
+      );
 }
 
 final attorneyReelsProvider = AsyncNotifierProvider.autoDispose
@@ -518,6 +574,10 @@ class ExplorePostsNotifier extends PagedNotifier<Post> {
   ExplorePostsNotifier(this.key);
 
   final ExplorePostsKey key;
+
+  // R-385: back to a filter seen in the last 5 minutes = no request.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) {
@@ -735,6 +795,33 @@ final followListProvider = AsyncNotifierProvider.autoDispose
 );
 
 class SuggestionsNotifier extends PagedNotifier<AttorneyRow> {
+  /// R-389 (owner 04.11): the recommended grid of Search → «Люди» (both
+  /// roles) stays in memory for 10 minutes after the screen lets go of it —
+  /// a tab switch or a return to Search shows it at once, no new request
+  /// (the server ranks it for 10 minutes too). Pull-to-refresh re-reads it.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 10);
+
+  /// A failed read is not held for those 10 minutes: the next visit asks
+  /// again (only a good answer is kept).
+  @override
+  Future<PaginatedList<AttorneyRow>> build() async {
+    var failed = false;
+    ref.onCancel(() {
+      if (!failed) return;
+      // Not inside the life-cycle callback (Riverpod forbids it).
+      scheduleMicrotask(() {
+        if (ref.mounted) ref.invalidateSelf();
+      });
+    });
+    try {
+      return await super.build();
+    } on Object {
+      failed = true;
+      rethrow;
+    }
+  }
+
   @override
   Future<CursorPage<AttorneyRow>> fetch(String? cursor) async {
     // Owner 2026-10-22 (guest browsing): «who to follow» is personal — a
@@ -958,7 +1045,7 @@ class SocialActions {
           rethrow;
         }
         // A newly saved post joins the kept «Сохранённое» grid.
-        if (saved && _ref.exists(savedPostsProvider)) {
+        if (saved && _ref.read(savedPostsProvider.exists)) {
           unawaited(_ref.read(savedPostsProvider.notifier).refresh());
         }
         // Owner 2026-10-27 (app indexing): iPhone Spotlight finds saved posts.

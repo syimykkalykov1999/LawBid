@@ -12,9 +12,23 @@ plugins {
 // Only the prod flavor (com.lawbid.lawbid) is registered in Firebase; its
 // config sits in app/src/prod/google-services.json (git-ignored). dev and
 // staging build without one and simply have push switched off.
+// Owner 2026-11-03 (KNOWN_ERRORS 47): a prod release built from a fresh
+// worktree had no google-services.json — the Google plugin only warned, the
+// APK shipped without FCM and a closed Android app never rang. A prod
+// release now uses the plugin's own ERROR strategy; a CI dry run without the
+// secret (never uploaded) opts out with LAWBID_ALLOW_NO_FIREBASE=1.
+val prodReleaseRequested = gradle.startParameter.taskNames.any {
+    it.contains("ProdRelease", ignoreCase = true)
+}
+val firebaseRequired =
+    prodReleaseRequested && System.getenv("LAWBID_ALLOW_NO_FIREBASE") != "1"
 extensions.configure<com.google.gms.googleservices.GoogleServicesPlugin.GoogleServicesPluginConfig>("googleServices") {
     missingGoogleServicesStrategy =
-        com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy.WARN
+        if (firebaseRequired) {
+            com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy.ERROR
+        } else {
+            com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy.WARN
+        }
 }
 
 /** Minutes since 2026-01-01T00:00:00Z — always increasing; fits versionCode until year 6000. */

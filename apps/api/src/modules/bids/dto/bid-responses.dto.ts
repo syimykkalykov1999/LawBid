@@ -154,6 +154,10 @@ export class BidDto {
   @ApiProperty({ type: 'integer' })
   version!: number;
 
+  /** Owner 2026-11-05: the client changed the case; waiting for the attorney. */
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  confirmationRequiredAt?: string | null;
+
   @ApiProperty({ enum: PartyRole, enumName: 'PartyRole' })
   turn!: PartyRole;
 
@@ -179,4 +183,20 @@ export class BidDto {
   /** The attorney summary — only on GET /bids/:id. */
   @ApiPropertyOptional({ type: BidAttorneySummaryDto })
   attorney?: BidAttorneySummaryDto;
+}
+
+/** One thing the client changed in the case since the attorney's bid. */
+export class BidCaseChangeDto {
+  @ApiProperty({ example: 'description' })
+  field!: string;
+
+  /** Text, or JSON for the budget. */
+  @ApiProperty({ type: String, nullable: true })
+  oldValue!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  newValue!: string | null;
+
+  @ApiProperty({ format: 'date-time' })
+  at!: string;
 }

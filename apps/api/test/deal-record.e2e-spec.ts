@@ -26,6 +26,13 @@ class FakeS3 {
   bucket(kind: string): string {
     return `fake-${kind}`;
   }
+  // The real service loads its keys and the R2 switch first (R-407).
+  ready(): Promise<boolean> {
+    return Promise.resolve(true);
+  }
+  resolveBucket(kind: string): Promise<string> {
+    return Promise.resolve(this.bucket(kind));
+  }
   put(bucket: string, key: string, body: Buffer): Promise<void> {
     this.objects.set(`${bucket}/${key}`, Buffer.from(body));
     return Promise.resolve();
@@ -104,8 +111,8 @@ describe('Deal record (e2e, 2026-10-27)', () => {
   });
 
   afterAll(async () => {
-    await setSwitch('deal_record.enabled', null);
-    await setSwitch('bids.rich_terms_enabled', null);
+    await setSwitch('deal_record.enabled', false);
+    await setSwitch('bids.rich_terms_enabled', false);
     await app.close();
   });
 
@@ -273,9 +280,9 @@ describe('Deal record (e2e, 2026-10-27)', () => {
     return d;
   }
 
-  describe('switch off (default)', () => {
+  describe('switch off', () => {
     it('deal records do not exist and accept works as before', async () => {
-      await setSwitch('deal_record.enabled', null);
+      await setSwitch('deal_record.enabled', false);
       const client = await user('client');
       const att = await user('attorney');
       const caseId = await kase(client.id);
@@ -563,7 +570,7 @@ describe('Deal record (e2e, 2026-10-27)', () => {
     };
 
     it('is refused while the switch is off', async () => {
-      await setSwitch('bids.rich_terms_enabled', null);
+      await setSwitch('bids.rich_terms_enabled', false);
       const client = await user('client');
       const att = await user('attorney');
       const caseId = await kase(client.id);

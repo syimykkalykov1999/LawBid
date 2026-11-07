@@ -16,6 +16,7 @@ import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import type { RequestMeta } from '../auth/services/session.service';
 import {
   BidAcceptanceService,
+  bidConfirmationRequired,
   bidNotFound,
   paymentTermsOf,
   planBidTransition,
@@ -156,6 +157,12 @@ export class DealRecordsService {
       },
     });
     if (!bid) throw bidNotFound();
+    if (
+      bid.confirmation_required_at !== null &&
+      (await this.settings.boolean('bids.confirmation_required'))
+    ) {
+      throw bidConfirmationRequired();
+    }
     const by = partyOf(user, {
       client_id: bid.case.client_id,
       attorney_id: bid.attorney_id,
@@ -275,6 +282,7 @@ export class DealRecordsService {
       texts: {
         notContract: texts.notContract,
         footer: texts.footer,
+        terms: texts.terms,
         textVersion: texts.textVersion,
       },
     };

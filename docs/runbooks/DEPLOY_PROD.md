@@ -163,7 +163,8 @@ Twilio, Stripe `sk_live_…` + `whsec_…` (оба вебхука), Firebase JSO
 
 ```sh
 cd infra/envs/prod
-../../../scripts/deploy/current-tag.sh        # подставить api_image / admin_image в terraform.tfvars
+# api_image / admin_image в terraform.tfvars НЕ задавать: тег берётся из SSM last_good_tag (KNOWN_ERRORS №44).
+# Если они там всё же есть - удалить эти две строки (или сверить: ../../../scripts/deploy/current-tag.sh).
 terraform init -backend-config=backend.hcl
 terraform plan -out=plan.bin
 ../../../scripts/deploy/plan-guard.sh plan.bin   # падает, если удаляются база, секреты, KMS, Redis, S3
@@ -452,3 +453,43 @@ API расшифровывает его один раз при старте (`km
   `force_new_deployment`; иначе провайдер пересоздал бы сервис). Перед
   `apply` в `plan` должно быть `update in-place` для `aws_ecs_service`, а не
   `must be replaced`.
+
+## Очистка тестовых данных (R-374, 2026-11-04)
+
+Команда `apps/api/src/cli/purge-test-data.ts` удаляет пользователей приложения
+(клиенты, адвокаты, ассистенты) и всё, что они сделали: посты, рилсы (и видео в
+Bunny), комментарии, лайки, кейсы, ставки, чаты и сообщения, файлы в S3 и R2, истории,
+консультации, уведомления, токены, закладки, ключи в Redis. **Никогда не трогает:**
+аккаунты админки и её сотрудников (role admin / admin_profiles, admin_credentials,
+passkeys, журнал действий админов, staff-таблицы, зарплаты), переводы, настройки,
+флаги, планы и цены, юридические тексты, шаблоны, интеграции и ключи, справочники,
+демо-реестр. Списки таблиц — `src/ops/prelaunch-wipe.plan.ts` +
+`src/ops/purge-test-data.plan.ts`; новая таблица без класса останавливает запуск.
+
+Запуск — одноразовая задача ECS внутри VPC (база закрыта снаружи), тег — текущий
+прод (`scripts/deploy/current-tag.sh`). Сначала всегда просмотр, потом удаление:
+
+```bash
+TAG="$(scripts/deploy/current-tag.sh)"
+# 1) только список: кто остаётся (KEEP), кто удаляется (DELETE), что у кого есть
+scripts/deploy/prod-admin-ecs.sh "$TAG" purge "--all-users"
+# 2) удалить всех пользователей приложения и весь контент
+scripts/deploy/prod-admin-ecs.sh "$TAG" purge "--all-users --apply --confirm=DELETE-ALL-USERS"
+```
+
+Вариант «оставить аккаунты на своих номерах» (удаление через сервис удаления
+аккаунта, как «Удалить аккаунт», без 14 дней ожидания; строки остаются
+обезличенными):
+
+```bash
+scripts/deploy/prod-admin-ecs.sh "$TAG" purge "--keep-phones=7739935153,2244224434,8722720655"
+scripts/deploy/prod-admin-ecs.sh "$TAG" purge "--keep-phones=7739935153,2244224434,8722720655 --apply --confirm=DELETE-TEST-DATA"
+```
+
+После `--apply` команда печатает, сколько удалено, и ту же таблицу ещё раз (в DELETE
+должно быть 0). Код возврата не 0 при любой ошибке — задача и скрипт «FAILED».
+Если поисковый движок включён (Админка → Масштаб / `search.engine`), старые
+документы уходят пересборкой индекса: `node dist/src/cli/search-alias.js start
+--source=postgres`, `run`, `swap` (docs/runbooks/search-reindex.md). Счётчики
+админки из ночного снимка обновятся следующей ночью. Перед `--apply` убедитесь,
+что есть свежая копия базы (RDS snapshot): удаление необратимо.

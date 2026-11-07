@@ -14,7 +14,11 @@ import {
   type BroadcastAudience,
 } from './broadcast-audience';
 import { bullOptions } from '../../redis/redis-connection';
-import { closeWorker, workerTuning } from '../../common/queues/queue-hardening';
+import {
+  closeWorker,
+  workerTuning,
+  outageProof,
+} from '../../common/queues/queue-hardening';
 
 export const BROADCAST_QUEUE = 'admin-broadcast';
 export const BROADCAST_OPTIONS = Symbol('BROADCAST_OPTIONS');
@@ -85,7 +89,7 @@ export class BroadcastFanoutRunner
     if (!this.workerEnabled) return;
     this.worker = new Worker<BroadcastJob>(
       BROADCAST_QUEUE,
-      (job: Job<BroadcastJob>) => this.process(job.data),
+      outageProof((job: Job<BroadcastJob>) => this.process(job.data)),
       {
         ...bullOptions(BROADCAST_QUEUE, url, { worker: true }),
         ...workerTuning(BROADCAST_QUEUE),

@@ -20,7 +20,7 @@ part 'case_detail_for_attorney_dto.g.dart';
 @JsonSerializable()
 class CaseDetailForAttorneyDto {
   const CaseDetailForAttorneyDto({
-    required this.isNew,
+    required this.hasOwnBid,
     required this.title,
     required this.excerpt,
     required this.practiceArea,
@@ -33,31 +33,33 @@ class CaseDetailForAttorneyDto {
     required this.viewCount,
     required this.bidsCount,
     required this.createdAt,
-    required this.hasOwnBid,
+    required this.isNew,
+    required this.priorityClient,
     required this.commentCount,
     required this.shareCount,
     required this.isSaved,
     required this.promoted,
     required this.bidAllowed,
-    required this.priorityClient,
     required this.dossier,
-    required this.inMyPractice,
     required this.privateDetails,
+    required this.photosCount,
     required this.inMyLicensedStates,
     required this.acceptedBidIsMine,
-    required this.photosCount,
-    required this.description,
     required this.photos,
+    required this.description,
+    required this.inMyPractice,
     this.clientActivity,
+    this.extraPracticeCodes,
     this.ownBidId,
-    this.urgencyLevel,
+    this.promotedUntil,
     this.completionRequestedBy,
+    this.autoCloseAt,
     this.deadlineKind,
-    this.deadlineAt,
+    this.urgencyLevel,
     this.urgency,
     this.coverKey,
     this.city,
-    this.promotedUntil,
+    this.deadlineAt,
   });
 
   factory CaseDetailForAttorneyDto.fromJson(Map<String, Object?> json) =>
@@ -129,6 +131,9 @@ class CaseDetailForAttorneyDto {
   final CaseDossierDto dossier;
   final String description;
 
+  /// Codes of the topics besides the first: the bid form hides a percent the admin forbids for them (the server still checks).
+  final List<String>? extraPracticeCodes;
+
   /// The attorney's own bid on this case (§4.3: shown instead of "Сделать бид").
   final String? ownBidId;
 
@@ -137,6 +142,10 @@ class CaseDetailForAttorneyDto {
 
   /// Owner 2026-10-02: who marked "Done" first while the case waits for the other side (null otherwise).
   final CaseDetailForAttorneyDtoCompletionRequestedBy? completionRequestedBy;
+
+  /// R-392: when the close request closes the case by itself (ISO;.
+  /// pending_completion only, else null).
+  final String? autoCloseAt;
 
   /// OQ-031: photos — only when THIS attorney's bid was accepted.
   final List<CasePhotoDto> photos;

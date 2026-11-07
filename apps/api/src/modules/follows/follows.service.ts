@@ -24,6 +24,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BoostActions } from '../promotions/boost-actions.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { bumpFeedVersion } from '../../common/cache/feed-version';
+import { timeBucket, weakEtag } from '../../common/sync/cheap-etag';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import {
   CounterAggregator,
@@ -42,11 +43,17 @@ import type {
   PersonItemDto,
 } from './follows.dto';
 import { userDirectory } from '../../sharding/user-directory';
+import { shardContext } from '../../sharding/shard-context';
 
 const PAGE = 20;
+/** A follow-list tag rotates at least this often (names, photos and
+ * profile states of the people in the rows are not in the tag). */
+export const FOLLOW_LIST_TAG_BUCKET_MS = 5 * 60_000;
 /** Suggestions pool per client state, rebuilt at most every 10 minutes. */
 const SUGGEST_POOL = 300;
 const SUGGEST_TTL_SEC = 10 * 60;
+/** R-389: fewer real suggestions than this = a client's small-base fill. */
+const SUGGEST_MIN = 4;
 /** §7.3 "первые практики" on a list row. */
 const LIST_PRACTICES = 3;
 
@@ -334,6 +341,56 @@ export class FollowsService {
     return this.people(viewerId, attorneyId, 'following', cursor, q);
   }
 
+  /**
+   * Owner 2026-11-04 (R-385): the cheap ETag of the first page of a follow
+   * list (no cursor, no search): size and newest follow of the list, plus
+   * the viewer's own follows (the rows show «you follow»), all from the
+   * follows indexes — an unchanged list is a 304 without building the
+   * people rows. A follow moves the newest time, an unfollow the size.
+   * [userId] null = the viewer's own follows (GET /users/me/following).
+   */
+  async listTag(
+    viewerId: string,
+    userId: string | null,
+    side: 'followers' | 'following',
+  ): Promise<string> {
+    const of = async (where: Prisma.FollowWhereInput) => {
+      const [count, newest] = await Promise.all([
+        this.prisma.follow.count({ where }),
+        this.prisma.follow.findFirst({
+          where,
+          orderBy: { created_at: 'desc' },
+          select: { created_at: true },
+        }),
+      ]);
+      return [count, newest?.created_at] as const;
+    };
+    const list =
+      userId === null
+        ? null
+        : await of(
+            side === 'followers'
+              ? { followee_id: userId }
+              : { follower_id: userId },
+          );
+    const mine = await of({ follower_id: viewerId });
+    return weakEtag(
+      'follows',
+      side,
+      userId ?? 'me',
+      viewerId,
+      ...(list ?? []),
+      ...mine,
+      timeBucket(FOLLOW_LIST_TAG_BUCKET_MS),
+    );
+  }
+
+  /** 404 for a profile whose follow lists are not public (R-385: also run
+   * before a 304). */
+  assertListable(userId: string): Promise<void> {
+    return this.assertPublicAttorney(userId);
+  }
+
   /** The public lists exist for attorneys only: a client's follows are
    * visible to that client alone (§6.2), so any other id is a 404. */
   private async assertPublicAttorney(attorneyId: string): Promise<void> {
@@ -418,6 +475,26 @@ export class FollowsService {
         picked.push(pool[i]);
       }
     }
+    // R-389 (owner 04.11, Search → «Люди» as a client): §6.3 leaves out
+    // everyone I follow, so a client on a small base (few verified
+    // attorneys, most of them followed) got a near-empty grid. With fewer
+    // than SUGGEST_MIN real suggestions on the first page, a client's grid
+    // is filled up to the page size with the popular verified attorneys of
+    // their state, then nationwide (suggestionPool orders by state first),
+    // followed ones included — their tile shows «Вы подписаны». One page,
+    // no cursor. ≥ SUGGEST_MIN real suggestions: §6.3 as before.
+    let filled = false;
+    if (user.role === 'client' && start === 0 && picked.length < SUGGEST_MIN) {
+      const taken = new Set(picked);
+      for (const id of await this.suggestionPool(state)) {
+        if (picked.length >= limit) break;
+        if (id !== user.sub && !hidden.has(id) && !taken.has(id)) {
+          picked.push(id);
+          taken.add(id);
+          filled = true;
+        }
+      }
+    }
     const items = await this.present(picked, user.sub);
     // Owner 2026-10-13: people from my address book get a small caption.
     const inContacts = new Set(
@@ -434,7 +511,9 @@ export class FollowsService {
     return {
       items,
       nextCursor:
-        i < pool.length ? Buffer.from(String(i)).toString('base64url') : null,
+        !filled && i < pool.length
+          ? Buffer.from(String(i)).toString('base64url')
+          : null,
     };
   }
 
@@ -458,7 +537,13 @@ export class FollowsService {
     const cached = await this.redis.get(key);
     if (cached) return JSON.parse(cached) as string[];
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+    // Shard-ready: attorney_profiles / users / attorney_licenses are GLOBAL
+    // family, so the pool is read on the primary database, not on the
+    // viewer's shard (there the tables are empty once the families are
+    // split — the two-DB e2e found 0 attorneys). The posts tie-break is
+    // exact with one database and 0 for everyone once posts move away.
+    const rows = await shardContext.runOnPrimary(
+      () => this.prisma.$queryRaw<{ id: string }[]>`
       SELECT a.user_id::TEXT AS id
       FROM attorney_profiles AS a
       JOIN users AS u ON u.id = a.user_id AND u.status = 'active' AND u.deleted_at IS NULL
@@ -475,7 +560,8 @@ export class FollowsService {
            AND p.created_at > ${since}) DESC,
         a.rating_count DESC,
         a.user_id
-      LIMIT ${SUGGEST_POOL}`;
+      LIMIT ${SUGGEST_POOL}`,
+    );
     const ids = rows.map((r) => r.id);
     await this.redis.set(key, JSON.stringify(ids), 'EX', SUGGEST_TTL_SEC);
     return ids;

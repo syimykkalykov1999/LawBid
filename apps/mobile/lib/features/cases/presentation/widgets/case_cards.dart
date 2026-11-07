@@ -382,7 +382,7 @@ class ClientActivityLine extends StatelessWidget {
   }
 }
 
-/// Bid first (a little larger), then bids / comments / shares, and on the
+/// Bid first (a little larger), then bids / comments (no share: R-366), and on the
 /// right the time with Save.
 class _CaseCardRow extends StatelessWidget {
   const _CaseCardRow({
@@ -405,7 +405,7 @@ class _CaseCardRow extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AppIcon(icon, size: 22, color: colors.text),
+            AppIcon(icon, size: 22, color: colors.actionIcon),
             const SizedBox(width: 4),
             Text(
               SocialFormat.count(formats, n),
@@ -472,7 +472,6 @@ class _CaseCardRow extends StatelessWidget {
               commentsEnabled: true,
             ),
           ),
-          stat(AppIcons.sendOutlined, item.shareCount),
           // Owner 2026-10-15: Bid and the time sit at the right edge,
           // left of Save (Expanded + Align, not Spacer + Flexible).
           Expanded(
@@ -895,14 +894,22 @@ class BidCard extends StatelessWidget {
     required this.formats,
     required this.onTap,
     this.onAttorneyTap,
+    this.onAccept,
+    this.waiting = false,
     super.key,
   });
+
+  /// Owner 2026-11-05: the client changed the case, the attorney answers first.
+  final bool waiting;
 
   final CaseBid bid;
   final Translator t;
   final L10nFormats formats;
   final VoidCallback onTap;
   final VoidCallback? onAttorneyTap;
+
+  /// Owner 2026-11-05: on the case's Bids: «Посмотреть бид» and «Принять».
+  final VoidCallback? onAccept;
 
   @override
   Widget build(BuildContext context) {
@@ -980,15 +987,38 @@ class BidCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             Container(height: 1, color: colors.gold.withValues(alpha: 0.4)),
           ],
+          if (waiting) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              t.t('cases.bid.waitConfirm'),
+              key: ValueKey('bid-card-waiting-${bid.id}'),
+              style: typography.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+          ],
           // Owner 2026-10-19: say what comes next — the bid's screen, where
           // it is accepted, answered with a counter-offer or declined.
           const SizedBox(height: AppSpacing.md),
-          AppButton(
-            key: ValueKey('bid-card-view-${bid.id}'),
-            label: t.t('bids.card.view'),
-            icon: AppIcons.chevronRightRounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: onTap,
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  key: ValueKey('bid-card-view-${bid.id}'),
+                  label: t.t('bids.card.view'),
+                  variant: AppButtonVariant.secondary,
+                  onPressed: onTap,
+                ),
+              ),
+              if (onAccept != null && !waiting) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: AppButton(
+                    key: ValueKey('bid-card-accept-${bid.id}'),
+                    label: t.t('cases.accept.button'),
+                    onPressed: onAccept,
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),

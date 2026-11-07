@@ -486,6 +486,13 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
   description!: string;
 
   @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Codes of the topics besides the first: the bid form hides a percent the admin forbids for them (the server still checks).',
+  })
+  extraPracticeCodes?: string[];
+
+  @ApiPropertyOptional({
     type: String,
     nullable: true,
     description:
@@ -506,6 +513,11 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
       'Owner 2026-10-02: who marked "Done" first while the case waits for the other side (null otherwise).',
   })
   completionRequestedBy!: 'client' | 'attorney' | null;
+
+  /** R-392: when the close request closes the case by itself (ISO;
+   * pending_completion only, else null). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  autoCloseAt!: string | null;
 
   /** OQ-031: photos — only when THIS attorney's bid was accepted. */
   @ApiProperty({ type: [CasePhotoDto] })

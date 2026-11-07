@@ -174,6 +174,13 @@ Release builds are obfuscated (`--obfuscate --split-debug-info=build/symbols/<pl
 so crash stacks are unreadable until the symbols of that exact build are in
 Sentry. Keep `build/symbols/` of every store build (never commit or ship it).
 
+CI (`mobile-release.yml`) keeps them itself: every run uploads the artifacts
+`android-<flavor>-symbols` and `ios-<flavor>-symbols` (400 days). To read an
+obfuscated stack (build_id in its header) without Sentry:
+`gh run download <run-id> -n android-prod-symbols -D /tmp/sym` then
+`grep -rl <build_id> /tmp/sym` and `flutter symbolize -i stack.txt -d /tmp/sym`.
+A build made on a laptop must have its `build/symbols/` saved by hand.
+
 What the owner sets once (on the release Mac and/or as CI secrets):
 
 1. Sentry → Settings → Auth Tokens → create an **organization token** (scope

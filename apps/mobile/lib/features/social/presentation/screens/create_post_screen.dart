@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lawbid/core/addresses/address_field.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -13,6 +15,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/media/video_frames.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
@@ -36,12 +39,15 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/post_text.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/photo_crop_screen.dart';
+import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart'
+    show prefixEnd;
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
 /// One photo in the composer: uploaded right after it is picked, so
 /// "Опубликовать" only waits for what is still in flight.
@@ -77,6 +83,10 @@ class _VideoPick {
   /// A cover chosen from the gallery (uploaded), instead of a frame.
   Uint8List? coverBytes;
   String? coverFileId;
+
+  /// R-396: the upload that started when the video was picked (a held job
+  /// of [ReelPublishJob]); null when it did not start early.
+  String? draftId;
 }
 
 /// Owner 2026-09-30: "+" → a post (everyone) or News (attorneys): the
@@ -90,6 +100,7 @@ class CreatePostScreen extends ConsumerStatefulWidget {
     this.news = false,
     this.editing,
     @visibleForTesting this.debugPhotoCount = 0,
+    @visibleForTesting this.debugVideo,
     super.key,
   });
 
@@ -99,6 +110,9 @@ class CreatePostScreen extends ConsumerStatefulWidget {
 
   /// Tests: open the form with this many photos already uploaded.
   final int debugPhotoCount;
+
+  /// Tests: open the form with this video already picked (1 s, 720×1280).
+  final XFile? debugVideo;
 
   @override
   ConsumerState<CreatePostScreen> createState() => _CreatePostScreenState();
@@ -124,6 +138,23 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   late final _body = TextEditingController(text: _initial);
   final _bodyFocus = FocusNode();
 
+  /// Owner 2026-11-02: where the post was made (optional, new posts and
+  /// reels); the same suggestions as every address field.
+  final _place = TextEditingController();
+
+  /// The server's limit for a post's place (`PostLocationDto`, counted in
+  /// UTF-16 units like Dart's `String.length`).
+  static const _maxPlaceChars = 120;
+
+  /// The place to publish: trimmed, cut to the server's limit (a tapped
+  /// suggestion is set programmatically and skips the field's own limit),
+  /// null when empty. Never cuts a surrogate pair in half.
+  String? get _placeName {
+    final text = _place.text.trim();
+    if (text.isEmpty) return null;
+    return text.substring(0, prefixEnd(text, _maxPlaceChars)).trimRight();
+  }
+
   /// The typed (title, caption) as they are published: never a title.
   (String, String) get _parts => ('', postBodyOf(_body.text));
 
@@ -131,7 +162,39 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     for (var i = 0; i < widget.debugPhotoCount; i++)
       _Photo(Uint8List(0))..fileId = 'debug-$i',
   ];
-  _VideoPick? _video;
+  _VideoPick? _pickedVideo;
+
+  /// The picked video. Replacing or removing it drops its early upload
+  /// (R-396).
+  _VideoPick? get _video => _pickedVideo;
+  set _video(_VideoPick? next) {
+    final old = _pickedVideo;
+    if (old != null && !identical(old, next)) _dropDraft(old);
+    _pickedVideo = next;
+  }
+
+  /// The reel job, kept for [dispose] (no `ref` there).
+  late final ReelPublishJob _reels = ref.read(reelPublishJobProvider.notifier);
+
+  /// R-396 (owner 2026-11-04, Instagram): the picked video compresses and
+  /// uploads while the caption is typed; «Publish» only adds the caption.
+  /// Never for an edited post, nor while video is not allowed (#726).
+  void _startDraft(_VideoPick pick) {
+    if (_editing || pick.draftId != null || !_videoAllowed) return;
+    pick.draftId = _reels.startDraft(
+      file: pick.file,
+      cut: pick.cut,
+      previewSize: pick.size,
+      coverFileId: pick.coverFileId,
+    );
+  }
+
+  void _dropDraft(_VideoPick pick) {
+    final id = pick.draftId;
+    if (id == null) return;
+    pick.draftId = null;
+    _reels.discardDraft(id);
+  }
 
   /// The shape of the post's photos (original or square, Instagram).
   PhotoFrame _frame = PhotoFrame.original;
@@ -172,10 +235,29 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    final debug = widget.debugVideo;
+    if (debug != null) {
+      final pick = _VideoPick(
+        debug,
+        ReelCut.initial(1000, reelMaxSeconds(ref) * 1000),
+        const Size(720, 1280),
+      );
+      _video = pick;
+      _startDraft(pick);
+    }
+  }
+
+  @override
   void dispose() {
+    // R-396: closed without «Publish»: the early upload stops.
+    final pick = _pickedVideo;
+    if (pick != null) _dropDraft(pick);
     _docs.dispose();
     _body.dispose();
     _bodyFocus.dispose();
+    _place.dispose();
     super.dispose();
   }
 
@@ -183,9 +265,29 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   /// while the owner has video switched on (flag + Bunny keys). Owner
   /// 2026-10-06: clients too (their plans include video posts); an
   /// assistant only with "publish".
+  /// Owner 2026-11-04 (R-381): not for a client while
+  /// `reels_client_publish` is off.
   bool get _videoAllowed =>
-      ref.read(reelsEnabledProvider) &&
+      ref.read(canPublishReelsProvider) &&
       ref.read(canDoProvider(AssistantDuty.publish));
+
+  /// Owner 2026-11-04 (R-398): «Только с галочкой» and this client has no
+  /// badge — the video is in sight but locked (gallery hint, the
+  /// «Видео — по подписке» sheet instead of the editor or the recording).
+  bool get _videoPaywalled => ref.read(clientReelsPaywalledProvider);
+
+  /// The «Видео — по подписке» sheet: one way on — the badge screen.
+  Future<void> _videoPaywall() async {
+    final t = ref.read(translatorProvider);
+    final go = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('post.video.paid.title'),
+      message: t.t('post.video.paid.body'),
+      confirmLabel: t.t('post.video.paid.cta'),
+    );
+    if (go && mounted) unawaited(context.push(AppRoutes.clientBadge));
+  }
 
   static bool _isVideo(XFile f) {
     final mime = f.mimeType ?? '';
@@ -204,7 +306,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (left <= 0) return;
     final limits = postPhotoLimits(ref);
     final List<XFile> picked;
-    if (_videoAllowed) {
+    // Owner 2026-11-04 (R-398): a paywalled client still sees the videos
+    // in the picker; picking one opens the subscription sheet.
+    if (_videoAllowed || _videoPaywalled) {
       picked = await ImagePicker().pickMultipleMedia(
         maxWidth: limits.maxPx,
         maxHeight: limits.maxPx,
@@ -214,21 +318,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       );
       final video = picked.where(_isVideo).firstOrNull;
       if (video != null) {
-        if (!mounted) return;
-        // A reel carries one video and no photos: the picked ones would go.
-        if (_photos.isNotEmpty) {
-          final t = ref.read(translatorProvider);
-          final ok = await showConfirmSheet(
-            context,
-            t: t,
-            title: t.t('post.toReel.title'),
-            message: t.t('post.toReel.message'),
-            confirmLabel: t.t('post.toReel.confirm'),
-          );
-          if (!ok || !mounted) return;
-          setState(_photos.clear);
-        }
-        await _setVideo(video);
+        await _takeVideo(video);
         return;
       }
     } else {
@@ -245,6 +335,81 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     ];
     if (!mounted) return;
     await _frameAndAdd(added);
+  }
+
+  /// Files dragged onto the page in the browser: a video or photos go where
+  /// the gallery puts them, a document to the documents; the rest is said.
+  Future<void> _drop(List<XFile> dropped) async {
+    final t = ref.read(translatorProvider);
+    final limits = postPhotoLimits(ref);
+    final video = _videoAllowed ? dropped.where(_isVideo).firstOrNull : null;
+    final photos = [...dropped.where(isDroppedPhoto)];
+    final docsOn = ref.read(postAttachmentsAllowedProvider).value ?? false;
+    final docs = [
+      if (docsOn)
+        for (final f in dropped)
+          if (_docs.mimeForName(f.name) != null) f,
+    ];
+    final docBytes = <({Uint8List bytes, String name})>[
+      for (final f in docs)
+        if (await f.length() <= _docs.limits.fileBytes)
+          (bytes: await f.readAsBytes(), name: f.name),
+    ];
+    if (!mounted) return;
+    final refused = _docs.addAll(
+      docBytes,
+      eachMb: _docs.limits.fileMb,
+      totalMb: _docs.limits.totalMb,
+    );
+    final skipped = refused +
+        (docs.length - docBytes.length) +
+        dropped
+            .where(
+              (f) => !_isVideo(f) && !isDroppedPhoto(f) && !docs.contains(f),
+            )
+            .length +
+        (video == null ? dropped.where(_isVideo).length : 0);
+    if (skipped > 0) {
+      showAppSnackBar(
+        context,
+        t.t('post.docs.skipped', {
+          'count': '$skipped',
+          'mb': '${_docs.limits.fileMb}',
+          'total': '${_docs.limits.totalMb}',
+        }),
+      );
+    }
+    if (video != null) {
+      await _takeVideo(video);
+      return;
+    }
+    final left = _maxMedia - _photos.length;
+    if (left <= 0 || photos.isEmpty) return;
+    final added = <Uint8List>[
+      for (final f in photos.take(left))
+        await shrinkDroppedPhoto(await f.readAsBytes(), limits.maxPx.round()),
+    ];
+    if (!mounted) return;
+    await _frameAndAdd(added);
+  }
+
+  /// A reel carries one video and no photos: the picked ones would go.
+  Future<void> _takeVideo(XFile video) async {
+    if (!mounted) return;
+    if (_videoPaywalled) return _videoPaywall();
+    if (_photos.isNotEmpty) {
+      final t = ref.read(translatorProvider);
+      final ok = await showConfirmSheet(
+        context,
+        t: t,
+        title: t.t('post.toReel.title'),
+        message: t.t('post.toReel.message'),
+        confirmLabel: t.t('post.toReel.confirm'),
+      );
+      if (!ok || !mounted) return;
+      setState(_photos.clear);
+    }
+    await _setVideo(video);
   }
 
   /// Owner 2026-10-19: the picked photos go through the framing (each one
@@ -311,6 +476,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   /// Loads a picked video: its length, a first cut and the cover frame.
   Future<void> _setVideo(XFile file) async {
+    // Owner 2026-11-04 (R-381): a client does not publish reels while
+    // `reels_client_publish` is off.
+    if (ref.read(clientReelsBlockedProvider)) return;
     final t = ref.read(translatorProvider);
     final maxMs = reelMaxSeconds(ref) * 1000;
     final sourceSec = reelSourceSeconds(ref);
@@ -330,6 +498,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       info.size,
     );
     setState(() => _video = pick);
+    _startDraft(pick);
     unawaited(_loadCoverFrame(pick));
   }
 
@@ -342,7 +511,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   Future<void> _editVideo(int tab) async {
     final pick = _video;
-    if (pick == null) return;
+    // Owner 2026-11-04 (R-381): no reel editor for a held-back client.
+    if (pick == null || ref.read(clientReelsBlockedProvider)) return;
     final edit = await Navigator.of(context).push<VideoEdit>(
       MaterialPageRoute(
         builder: (_) => VideoEditorScreen(
@@ -356,12 +526,23 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       ),
     );
     if (edit == null || !mounted) return;
+    final before = pick.cut;
+    final changed = edit.cut.startMs != before.startMs ||
+        edit.cut.endMs != before.endMs ||
+        edit.cut.coverMs != before.coverMs ||
+        edit.coverFileId != pick.coverFileId;
     setState(() {
       pick
         ..cut = edit.cut
         ..coverBytes = edit.coverBytes
         ..coverFileId = edit.coverFileId;
     });
+    // R-396: the cut and the cover go with Bunny's upload slot — a changed
+    // one starts the early upload again with them.
+    if (changed && identical(_video, pick)) {
+      _dropDraft(pick);
+      _startDraft(pick);
+    }
     unawaited(_loadCoverFrame(pick));
   }
 
@@ -372,6 +553,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (left <= 0 && _video == null) return;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-11-04 (R-381): a client held back from reels only takes
+    // a photo — no «photo or video» choice. R-398: a paywalled client keeps
+    // the choice; «Снять видео» opens the subscription sheet.
+    if (ref.read(clientReelsBlockedProvider) && !_videoPaywalled) {
+      return _cameraPhoto();
+    }
     final photo = await showAppBottomSheet<bool>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -418,18 +605,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (photo == null || !mounted) return;
     final picker = ImagePicker();
     if (photo) {
-      final limits = postPhotoLimits(ref);
-      final x = await picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: limits.maxPx,
-        maxHeight: limits.maxPx,
-        imageQuality: limits.quality,
-      );
-      if (x == null || !mounted) return;
-      setState(() => _video = null);
-      final bytes = await x.readAsBytes();
-      if (!mounted) return;
-      await _frameAndAdd([bytes]);
+      await _cameraPhoto();
+    } else if (_videoPaywalled) {
+      await _videoPaywall();
     } else {
       final x = await picker.pickVideo(
         source: ImageSource.camera,
@@ -439,6 +617,22 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       setState(_photos.clear);
       await _setVideo(x);
     }
+  }
+
+  /// «Camera» → «Photo»: take one now and frame it.
+  Future<void> _cameraPhoto() async {
+    final limits = postPhotoLimits(ref);
+    final x = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      maxWidth: limits.maxPx,
+      maxHeight: limits.maxPx,
+      imageQuality: limits.quality,
+    );
+    if (x == null || !mounted) return;
+    setState(() => _video = null);
+    final bytes = await x.readAsBytes();
+    if (!mounted) return;
+    await _frameAndAdd([bytes]);
   }
 
   Future<void> _upload(_Photo photo) async {
@@ -547,22 +741,28 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       // background job and the form closes at once.
       final v = _video;
       if (v != null) {
-        // ignore: unawaited_futures
-        ref.read(reelPublishJobProvider.notifier).start(
-              ReelPublishRequest(
-                file: v.file,
-                cut: v.cut,
-                previewSize: v.size,
-                coverFileId: v.coverFileId,
-                cover: v.coverBytes ?? v.frame,
-                title: _parts.$1,
-                text: _parts.$2,
-                place: '',
-                commentsEnabled: true,
-                photoIds: const [],
-                attachments: _docs.refs,
-              ),
-            );
+        final request = ReelPublishRequest(
+          file: v.file,
+          cut: v.cut,
+          previewSize: v.size,
+          coverFileId: v.coverFileId,
+          cover: v.coverBytes ?? v.frame,
+          title: _parts.$1,
+          text: _parts.$2,
+          place: _placeName ?? '',
+          commentsEnabled: true,
+          photoIds: const [],
+          attachments: _docs.refs,
+        );
+        // R-396: the video went ahead when it was picked — only the
+        // caption is added now (the draft is no longer this form's).
+        final draft = v.draftId;
+        v.draftId = null;
+        unawaited(
+          draft != null
+              ? _reels.publishDraft(draft, request)
+              : _reels.start(request),
+        );
         // ignore: unawaited_futures
         AppHaptics.medium();
         if (mounted) Navigator.of(context).pop();
@@ -580,6 +780,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             'kind': _news ? 'news' : 'post',
             if (_markedLegal) 'contentClass': 'legal',
             'mediaFileIds': [for (final p in _photos) p.fileId!],
+            if (_placeName case final place?) 'location': {'name': place},
             if (_docs.items.isNotEmpty)
               'attachments': [
                 for (final d in _docs.refs)
@@ -607,6 +808,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           markedLegal: _markedLegal,
           mediaFileIds: [for (final p in _photos) p.fileId!],
           attachments: _docs.refs,
+          locationName: _placeName,
         ),
         thumbnail: _photos.firstOrNull?.bytes,
         onPublished: (post) {
@@ -636,15 +838,23 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => FileDropZone(
+        enabled: !_publishing && !_editing && _video == null,
+        onFiles: (f) => unawaited(_drop(f)),
+        child: _page(context),
+      );
+
+  Widget _page(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     // Owner 2026-10-06: the Post | News switch only while News is on.
     final attorney =
         ref.watch(actsAsAttorneyProvider) && ref.watch(newsEnabledProvider);
-    final video = ref.watch(reelsEnabledProvider) &&
+    final video = ref.watch(canPublishReelsProvider) &&
         ref.watch(canDoProvider(AssistantDuty.publish));
+    // Owner 2026-11-04 (R-398): «До 9 фото · видео по подписке» + a lock.
+    final paywalled = ref.watch(clientReelsPaywalledProvider);
     final practice = _practice;
     final missing = _triedPublish;
 
@@ -773,11 +983,16 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                               // Owner 2026-10-18: say what the gallery takes —
                               // photos only while video posts are off.
                               hint: t.t(
-                                _videoAllowed
+                                video
                                     ? 'post.src.galleryHintMax'
-                                    : 'post.src.galleryHintPhotos',
+                                    : paywalled
+                                        ? 'post.src.galleryHintPaid'
+                                        : 'post.src.galleryHintPhotos',
                                 {'max': '$_maxMedia'},
                               ),
+                              hintIcon: paywalled
+                                  ? AppIcons.lockOutlineRounded
+                                  : null,
                               tint: AppColorsFixed.sourceGalleryBlue,
                               onTap: _photos.length < _maxMedia ? _pick : null,
                             ),
@@ -915,6 +1130,21 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   ),
                   // OQ-042: "@…" suggests people to mention.
                   MentionSuggestions(controller: _body),
+                  // The place of a new post or reel. Never autofilled: the
+                  // phone would put the person's home address into a public
+                  // post.
+                  if (!_editing) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    AddressField(
+                      key: const ValueKey('post-place-field'),
+                      controller: _place,
+                      hintText: t.t('post.create.placeHint'),
+                      semanticLabel: t.t('post.create.placeHint'),
+                      leading: const AppIcon(AppIcons.placeOutlined, size: 18),
+                      maxLength: _maxPlaceChars,
+                      autofillHints: const [],
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   const SizedBox(height: AppSpacing.xl),
                   if (_showDisclaimer) const PostDisclaimer(),
@@ -1240,12 +1470,17 @@ class _SourceButton extends StatelessWidget {
     required this.hint,
     required this.tint,
     required this.onTap,
+    this.hintIcon,
     super.key,
   });
 
   final IconData icon;
   final String label;
   final String hint;
+
+  /// Owner 2026-11-04 (R-398): a small lock before the hint while the
+  /// video is «по подписке».
+  final IconData? hintIcon;
   final Color tint;
 
   /// Null = disabled (the post already holds the maximum).
@@ -1263,6 +1498,7 @@ class _SourceButton extends StatelessWidget {
       min: 3,
     );
     final enabled = onTap != null;
+    final hintIcon = this.hintIcon;
     return Semantics(
       button: true,
       enabled: enabled,
@@ -1300,10 +1536,31 @@ class _SourceButton extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                FitText(
-                  hint,
-                  style: type.caption.copyWith(color: colors.textSecondary),
-                ),
+                if (hintIcon == null)
+                  FitText(
+                    hint,
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  )
+                else
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppIcon(
+                        hintIcon,
+                        key: const ValueKey('post-gallery-lock'),
+                        color: colors.textSecondary,
+                        size: 12,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: FitText(
+                          hint,
+                          style: type.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),

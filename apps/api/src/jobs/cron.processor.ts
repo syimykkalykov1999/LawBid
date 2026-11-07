@@ -29,6 +29,7 @@ import { VerificationLossBillingJob } from './handlers/verification-loss-billing
 import {
   CaseStalePauseJob,
   CaseAutoCloseJob,
+  BidConfirmReminderJob,
   CaseCompletionReminderJob,
   CaseStaleAskJob,
 } from './handlers/case-lifecycle.jobs';
@@ -40,6 +41,7 @@ import { CrashReportsService } from '../modules/crash-reports/crash-reports.serv
 import { SearchLogService } from '../modules/search/search-log.service';
 import { SearchSynonymsService } from '../modules/search/search-synonyms.service';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
+import { TopicCoversJob } from '../modules/search/topic-covers.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
@@ -97,6 +99,7 @@ import { DemoService } from '../modules/demo/demo.service';
 import { StorageCleanupService } from '../modules/storage/storage-cleanup.service';
 import { DataRetentionService } from '../modules/storage/data-retention.service';
 import { StorageStatsService } from '../modules/storage/storage-stats.service';
+import { QaSnapshotService } from '../modules/recommendations/qa-snapshot.service';
 import { EconomyService } from '../common/economy/economy.service';
 import { ChatService } from '../modules/chat/chat.service';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
@@ -136,9 +139,11 @@ export class CronProcessor {
     private readonly caseStalePause: CaseStalePauseJob,
     private readonly caseAutoClose: CaseAutoCloseJob,
     private readonly caseCompletionReminder: CaseCompletionReminderJob,
+    private readonly bidConfirmReminder: BidConfirmReminderJob,
     private readonly countersReconcile: CountersReconcileJob,
     private readonly feedReco: FeedRecoJob,
     private readonly trendingTags: TrendingTagsJob,
+    private readonly topicCovers: TopicCoversJob,
     private readonly notificationsRetention: NotificationsRetentionJob,
     private readonly anonymization: AccountAnonymizationService,
     private readonly journalRetention: JournalRetentionService,
@@ -252,6 +257,8 @@ export class CronProcessor {
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
     // Algo audit 2026-10-27 (CASES M-3).
     @Optional() private readonly caseRebroadcast?: CaseRebroadcastJob,
+    // R-401: `reco.qa-snapshot`.
+    @Optional() private readonly qaSnapshot?: QaSnapshotService,
   ) {}
 
   /**
@@ -340,12 +347,16 @@ export class CronProcessor {
         return this.caseAutoClose.run();
       case CRON_JOBS.caseCompletionReminder:
         return this.caseCompletionReminder.run();
+      case CRON_JOBS.bidConfirmReminder:
+        return this.bidConfirmReminder.run();
       case CRON_JOBS.countersReconcile:
         return this.countersReconcile.run();
       case CRON_JOBS.feedReco:
         return this.feedReco.run();
       case CRON_JOBS.trendingTags:
         return this.trendingTags.run();
+      case CRON_JOBS.topicCovers:
+        return this.topicCovers.run();
       case CRON_JOBS.searchLearn:
         return this.searchLog?.learn();
       case CRON_JOBS.crashesPurge:
@@ -505,6 +516,8 @@ export class CronProcessor {
         return this.dataRetention?.run() ?? null;
       case CRON_JOBS.storageSnapshot:
         return this.storageStats?.snapshot() ?? null;
+      case CRON_JOBS.recoQaSnapshot:
+        return this.qaSnapshot?.rebuild() ?? null;
       case CRON_JOBS.rewardsAward:
         return this.rewards?.autoAward();
       case CRON_JOBS.outreachRetention:

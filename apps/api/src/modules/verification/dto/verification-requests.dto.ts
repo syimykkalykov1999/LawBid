@@ -27,6 +27,9 @@ const upperTrim = ({ value }: { value: unknown }): unknown =>
 
 /** Bar numbers: letters, digits and `-`, `.`, `/`, space inside;
  * normalized to upper case so "ab123" and "AB123" are one license. */
+/** R-146: a handoff code (base64url). */
+export const HANDOFF_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/;
+
 export const BAR_NUMBER_PATTERN = /^[A-Z0-9][A-Z0-9 ./-]{0,31}$/;
 
 export class RequestIdParamDto {
@@ -271,4 +274,35 @@ export class AttachDocumentDto {
   @ValidateNested()
   @Type(() => SelfieCaptureMetaDto)
   captureMeta?: SelfieCaptureMetaDto;
+
+  @ApiPropertyOptional({
+    maxLength: 64,
+    description:
+      'Selfie only, R-146: the code of POST verification/handoff when the ' +
+      'phone opened the link from the computer. Must belong to this attorney ' +
+      'and request (else 400 VALIDATION_ERROR, details.reason ' +
+      'handoff_token_invalid / handoff_token_expired); the computer then ' +
+      'reads `done`.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(16, 64)
+  @Matches(HANDOFF_TOKEN_PATTERN)
+  handoffToken?: string;
+}
+
+/** R-146: «continue on your phone» — the request whose selfie the phone
+ * takes. */
+export class CreateHandoffDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  requestId!: string;
+}
+
+export class HandoffTokenParamDto {
+  @ApiProperty({ minLength: 16, maxLength: 64 })
+  @IsString()
+  @Length(16, 64)
+  @Matches(HANDOFF_TOKEN_PATTERN)
+  token!: string;
 }

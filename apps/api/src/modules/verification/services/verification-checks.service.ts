@@ -18,6 +18,9 @@ import {
   VERIFICATION_NOTIFICATION_KIND as KIND,
 } from '../verification.constants';
 import { syncProfileStatus } from '../verification.helpers';
+import { withTimeout } from '../../../common/resilience/resilience';
+import { REGISTRY_CHECK_TIMEOUT_MS } from '../registry-check.queue';
+import { stateBarLookupUrl } from '../state-bar-links';
 import { VerificationProviderSelector } from '../providers/verification-provider.selector';
 import type {
   BarLookupProvider,
@@ -117,10 +120,16 @@ export class VerificationChecksService {
         allSupported = false;
         continue;
       }
-      const outcome = await this.barLookup(bar, license, request.id, {
-        firstName: request.attorney.user.first_name ?? '',
-        lastName: request.attorney.user.last_name ?? '',
-      });
+      const outcome = await this.barLookup(
+        bar,
+        license,
+        request.id,
+        {
+          firstName: request.attorney.user.first_name ?? '',
+          lastName: request.attorney.user.last_name ?? '',
+        },
+        { timeoutMs: REGISTRY_CHECK_TIMEOUT_MS },
+      );
       barResults.push(outcome.result);
     }
     const barPassed =
@@ -252,10 +261,16 @@ export class VerificationChecksService {
       const bar = await this.selector.barLookup();
       for (const license of request.attorney.licenses) {
         if (!(await bar.supports(license.state_code))) continue;
-        const outcome = await this.barLookup(bar, license, requestId, {
-          firstName: request.attorney.user.first_name ?? '',
-          lastName: request.attorney.user.last_name ?? '',
-        });
+        const outcome = await this.barLookup(
+          bar,
+          license,
+          requestId,
+          {
+            firstName: request.attorney.user.first_name ?? '',
+            lastName: request.attorney.user.last_name ?? '',
+          },
+          { timeoutMs: REGISTRY_CHECK_TIMEOUT_MS },
+        );
         const flag = await this.applyRegistryFlag(license.id, outcome);
         if (flag) await this.attempts?.recordFailure(license.attorney_id);
         else if (flag === null) await this.attempts?.reset(license.attorney_id);
@@ -305,15 +320,21 @@ export class VerificationChecksService {
     license: Pick<AttorneyLicense, 'id' | 'state_code' | 'bar_number'>,
     requestId: string | null,
     name: { firstName: string; lastName: string },
+    /** R-394: hard ceiling of the whole lookup (a slow registry = provider_error). */
+    opts: { timeoutMs?: number } = {},
   ): Promise<CheckOutcome> {
+    const lookup = () =>
+      provider.lookup({
+        stateCode: license.state_code,
+        barNumber: license.bar_number,
+        firstName: name.firstName,
+        lastName: name.lastName,
+      });
     const outcome = await this.safe(
       () =>
-        provider.lookup({
-          stateCode: license.state_code,
-          barNumber: license.bar_number,
-          firstName: name.firstName,
-          lastName: name.lastName,
-        }),
+        opts.timeoutMs
+          ? withTimeout('state-registry', opts.timeoutMs, lookup)
+          : lookup(),
       provider.name,
     );
     const checkedAt = new Date();
@@ -324,6 +345,8 @@ export class VerificationChecksService {
           result: outcome.result,
           lookupProvider: provider.name,
           checkedAt: checkedAt.toISOString(),
+          // R-394: where the verifier can look the number up by hand.
+          sourceUrl: stateBarLookupUrl(license.state_code, license.bar_number),
           ...outcome.details,
         },
       },

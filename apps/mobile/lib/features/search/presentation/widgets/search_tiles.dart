@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -340,11 +341,12 @@ class PagedTileGrid<T> extends StatelessWidget {
     required this.onRefresh,
     this.rows = false,
     this.header,
-    this.gridDelegate = kSearchPostGridDelegate,
+    this.gridDelegate,
     super.key,
   });
 
-  final SliverGridDelegate gridDelegate;
+  /// Null: the Search grid ([searchPostGridDelegate]).
+  final SliverGridDelegate? gridDelegate;
 
   final AsyncValue<PaginatedList<T>> value;
   final Widget Function(T item) itemBuilder;
@@ -387,7 +389,8 @@ class PagedTileGrid<T> extends StatelessWidget {
                   )
                 else
                   SliverGrid.builder(
-                    gridDelegate: gridDelegate,
+                    gridDelegate:
+                        gridDelegate ?? searchPostGridDelegate(context),
                     itemCount: value.items.length,
                     itemBuilder: (context, i) => itemBuilder(value.items[i]),
                   ),
@@ -444,6 +447,7 @@ class TopicRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.categoryCode,
+    this.coverUrl,
     this.onOpened,
     super.key,
   });
@@ -452,6 +456,11 @@ class TopicRow extends StatelessWidget {
   final String title;
   final String subtitle;
   final String? categoryCode;
+
+  /// Owner 2026-11-04 (R-406): a hashtag topic's cover — the picture of its
+  /// most popular post; shown when the topic has no practice photo of its
+  /// own ([categoryCode] null). Null and no practice: the letter tile.
+  final String? coverUrl;
 
   /// Owner 2026-10-15: told when the row opens (the search learns).
   final VoidCallback? onOpened;
@@ -480,30 +489,38 @@ class TopicRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadii.field),
                 child: SizedBox.square(
                   dimension: 56,
-                  child: categoryCode == null
-                      // A topic with no practiced posts yet: a tile in a
-                      // colour of the tag, with its first letter.
-                      ? ColoredBox(
-                          color: practiceAccent(
-                            _tileCategory(tag),
-                            surface: practiceCardBase(colors),
-                          ),
-                          child: Center(
-                            child: Text(
-                              tag.isEmpty ? '#' : tag[0].toUpperCase(),
-                              style: type.titleMedium.copyWith(
-                                color: onPracticeAccent(
-                                  practiceAccent(
-                                    _tileCategory(tag),
-                                    surface: practiceCardBase(colors),
+                  child: categoryCode == null && coverUrl != null
+                      ? ProgressivePhoto(
+                          key: const ValueKey('topic-cover'),
+                          fileId: 'topic-cover-$tag',
+                          previewUrl: coverUrl!,
+                          url: coverUrl!,
+                          decodeWidth: 320,
+                        )
+                      : categoryCode == null
+                          // A topic with no practiced posts yet: a tile in a
+                          // colour of the tag, with its first letter.
+                          ? ColoredBox(
+                              color: practiceAccent(
+                                _tileCategory(tag),
+                                surface: practiceCardBase(colors),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  tag.isEmpty ? '#' : tag[0].toUpperCase(),
+                                  style: type.titleMedium.copyWith(
+                                    color: onPracticeAccent(
+                                      practiceAccent(
+                                        _tileCategory(tag),
+                                        surface: practiceCardBase(colors),
+                                      ),
+                                    ),
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                fontWeight: FontWeight.w700,
                               ),
-                            ),
-                          ),
-                        )
-                      : PracticePhoto(categoryCode: categoryCode),
+                            )
+                          : PracticePhoto(categoryCode: categoryCode),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),

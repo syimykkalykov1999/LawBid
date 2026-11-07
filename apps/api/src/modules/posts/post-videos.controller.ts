@@ -66,6 +66,8 @@ export class PostVideosController {
     @Body() dto: CreateVideoUploadDto,
   ): Promise<VideoUploadDto> {
     await this.posts.assertCanPublish(user);
+    // Owner 2026-11-04 (R-381): clients only while `reels_client_publish`.
+    await this.posts.assertReelPublish(user);
     return this.videos.createUpload(user.sub, dto);
   }
 

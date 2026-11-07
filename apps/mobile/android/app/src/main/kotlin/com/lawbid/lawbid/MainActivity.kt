@@ -14,7 +14,10 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.media.Ringtone
 import android.media.RingtoneManager
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -46,6 +49,28 @@ class MainActivity : FlutterFragmentActivity() {
     private var pipActive = false
     private var chatChannel: MethodChannel? = null
     private var pendingChatOpen: Map<String, String>? = null
+
+    /**
+     * R-112 (owner 28.10): the window behind Flutter is the chosen theme's
+     * background, not the system's white. Dart writes `#AARRGGBB` under
+     * `flutter.design_system.window_bg` when the theme changes
+     * (core/design_system/theme/app_theme_repository.dart). Nothing saved =
+     * the values / values-night NormalTheme (follows the phone).
+     */
+    private fun paintWindowBackground() {
+        val raw = getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE)
+            .getString("flutter.design_system.window_bg", null) ?: return
+        val color = try { Color.parseColor(raw) } catch (_: IllegalArgumentException) { return }
+        window.setBackgroundDrawable(ColorDrawable(color))
+        window.decorView.setBackgroundColor(color)
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        paintWindowBackground()
+        super.onCreate(savedInstanceState)
+        // super re-applies NormalTheme; paint again so its background loses.
+        paintWindowBackground()
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -266,6 +291,11 @@ class MainActivity : FlutterFragmentActivity() {
                         CallRinging.endAll(this, listOfNotNull(id))
                         result.success(null)
                     }
+                    // R-373: no call runs in Dart — end what Telecom
+                    // still holds of ours (CallRinging.endOrphans).
+                    "endOrphans" -> {
+                        result.success(CallRinging.endOrphans(this))
+                    }
                     "pendingAction" -> {
                         result.success(pendingCallAction)
                         pendingCallAction = null
@@ -298,6 +328,11 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     "clearAll" -> {
                         ChatNotifications.clearAll(applicationContext)
+                        result.success(null)
+                    }
+                    // R-379: nothing unread — the leftover alerts go.
+                    "clearDelivered" -> {
+                        ChatNotifications.clearDelivered(applicationContext)
                         result.success(null)
                     }
                     // Owner 2026-10-26: «Ответить» / «Прочитано» on a chat

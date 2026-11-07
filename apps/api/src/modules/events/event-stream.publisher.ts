@@ -8,24 +8,20 @@ export abstract class EventStreamPublisher {
   abstract publish(events: readonly DomainEventRecord[]): Promise<void>;
 }
 
-interface KinesisModule {
-  KinesisClient: new (cfg: { region?: string }) => {
-    send(cmd: unknown): Promise<{ FailedRecordCount?: number }>;
-  };
-  PutRecordsCommand: new (input: unknown) => unknown;
-}
-
 /**
- * Kinesis adapter. The SDK package is loaded lazily so the API builds and
- * runs without it while `events_stream_enabled=false`; if the stream is
- * configured but the package is missing, publishing fails loudly and rows
- * simply stay unpublished (the table keeps them, nothing is lost).
+ * Kinesis adapter. `@aws-sdk/client-kinesis` is a hard dependency of the API
+ * (package.json; guarded by event-stream.deps.spec.ts). It is loaded lazily
+ * only to keep it out of the cold start while `events_stream_enabled=false`.
+ * A failed publish leaves the rows unpublished (the table keeps them, nothing
+ * is lost).
  */
 @Injectable()
 export class KinesisEventStreamPublisher extends EventStreamPublisher {
   private readonly log = new Logger(KinesisEventStreamPublisher.name);
-  private client?: InstanceType<KinesisModule['KinesisClient']>;
-  private mod?: KinesisModule;
+  private sdk?: {
+    client: import('@aws-sdk/client-kinesis').KinesisClient;
+    PutRecordsCommand: typeof import('@aws-sdk/client-kinesis').PutRecordsCommand;
+  };
 
   private name(): string {
     return (process.env.EVENTS_STREAM_NAME ?? '').trim();
@@ -37,15 +33,19 @@ export class KinesisEventStreamPublisher extends EventStreamPublisher {
 
   async publish(events: readonly DomainEventRecord[]): Promise<void> {
     if (events.length === 0) return;
-    if (!this.mod) {
-      const pkg = '@aws-sdk/client-kinesis';
-      this.mod = (await import(pkg)) as KinesisModule;
-      this.client = new this.mod.KinesisClient({
-        region: process.env.AWS_REGION,
-      });
+    if (!this.sdk) {
+      // Literal specifier: tsc and the bundler see the dependency (a computed
+      // name hid its absence). Still lazy: loaded on the first publish only.
+      const { KinesisClient, PutRecordsCommand } =
+        await import('@aws-sdk/client-kinesis');
+      // Set only after the client exists: a throwing constructor is retried.
+      this.sdk = {
+        client: new KinesisClient({ region: process.env.AWS_REGION }),
+        PutRecordsCommand,
+      };
     }
-    const res = await this.client!.send(
-      new this.mod.PutRecordsCommand({
+    const res = await this.sdk.client.send(
+      new this.sdk.PutRecordsCommand({
         StreamName: this.name(),
         Records: events.map((e) => ({
           // Same actor / type stays ordered inside one shard.

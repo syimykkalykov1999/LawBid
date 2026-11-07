@@ -8,12 +8,23 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// Deal record 2026-10-27 (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md):
 /// data of the record both parties sign before a bid is really accepted.
 /// Both admin switches travel in `GET /config/bootstrap.app_config`
-/// (`deal_record.enabled`, `bids.rich_terms_enabled`), off by default.
+/// (`deal_record.enabled`, `bids.rich_terms_enabled`), on by default
+/// (owner 2026-11-06).
 final dealRecordEnabledProvider = Provider<bool>(
   (ref) =>
       ref
           .watch(featureFlagsControllerProvider)
           .appConfig['deal_record.enabled'] ==
+      'true',
+);
+
+/// Owner 2026-11-05: `bids.confirmation_required`, on by default (since
+/// 2026-11-06).
+final bidConfirmationProvider = Provider<bool>(
+  (ref) =>
+      ref
+          .watch(featureFlagsControllerProvider)
+          .appConfig['bids.confirmation_required'] ==
       'true',
 );
 

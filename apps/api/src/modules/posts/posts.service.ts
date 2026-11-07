@@ -17,6 +17,7 @@ import {
 import type { ContentStatus, File, Post, Prisma } from '@prisma/client';
 import { classifyPost, isPostContentClass } from './content-filter.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { activeClientBadgeIds } from '../client-badge/client-badge.util';
 import {
   decodeCursor,
   encodeCursor,
@@ -79,6 +80,19 @@ export function safeFileName(name: string): string {
 
 /** Owner 2026-10-06: the whole News system, off by default. */
 export const NEWS_FLAG = 'news_posts';
+
+/** Owner 2026-11-04 (R-381): clients publish reels only while this switch
+ * is on (off by default); they still watch them. Attorneys and assistants
+ * always publish (assertReelPublish). */
+export const REELS_CLIENT_FLAG = 'reels_client_publish';
+
+/** Owner 2026-11-04 (R-398): with REELS_CLIENT_FLAG on, this narrows it to
+ * clients wearing the paid gold badge («Только с галочкой»). The admin
+ * shows both flags as ONE three-way choice. */
+export const REELS_CLIENT_PAID_FLAG = 'reels_client_publish_paid_only';
+
+/** The entitlement a client without the badge is told about (R-398). */
+export const REELS_CLIENT_ENTITLEMENT = 'verified_badge';
 
 /** Owner 2026-10-18 (profile tabs Посты | Рилсы | Брифы): which posts a
  * media filter keeps — the same split as the app's PostCard.isThreadsStyle. */
@@ -152,6 +166,38 @@ export class PostsService {
     return (await this.flags?.isEnabled(NEWS_FLAG, false)) ?? false;
   }
 
+  /** Owner 2026-11-04 (R-381): a client's reel (a video upload or a post
+   * with a video) needs `reels_client_publish` on — an old app build
+   * cannot publish one either. Photos and briefs are untouched. */
+  async assertReelPublish(user: RequestUser): Promise<void> {
+    if (user.role !== 'client') return;
+    if (!((await this.flags?.isEnabled(REELS_CLIENT_FLAG, false)) ?? false)) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Clients cannot publish reels yet.',
+        details: { flag: REELS_CLIENT_FLAG },
+      });
+    }
+    // Owner 2026-11-04 (R-398): «Только с галочкой» — the same gold-badge
+    // check the feed uses for the badge itself (approved documents + the
+    // paid badge subscription or a plan that includes it).
+    if (!(
+      (await this.flags?.isEnabled(REELS_CLIENT_PAID_FLAG, false)) ?? false
+    )) {
+      return;
+    }
+    const holders = await activeClientBadgeIds(this.prisma, [user.sub]);
+    if (holders.has(user.sub)) return;
+    throw new ForbiddenException({
+      code: ErrorCode.ENTITLEMENT_REQUIRED,
+      message: 'Reels are available to clients with the verified badge.',
+      details: {
+        flag: REELS_CLIENT_PAID_FLAG,
+        entitlement: REELS_CLIENT_ENTITLEMENT,
+      },
+    });
+  }
+
   /** The text limit of a post with files, or of a text-only brief. */
   private async maxChars(withFiles: boolean): Promise<number> {
     return this.settings.number(
@@ -205,6 +251,7 @@ export class PostsService {
     if ((dto.attachments?.length ?? 0) > 0) {
       await this.attachmentsPolicy.assertCanAttach(user.sub);
     }
+    if (dto.videoAssetId) await this.assertReelPublish(user);
     const video = dto.videoAssetId
       ? await this.attachableVideo(user.sub, dto.videoAssetId)
       : null;

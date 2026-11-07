@@ -5,7 +5,7 @@ import type { I18nBundleService } from './i18n-bundle.service';
 interface FakeKeyRow {
   id: string;
   key: string;
-  translations: { lang: string; value: string }[];
+  translations: { lang: string; value: string; admin_edited?: boolean }[];
 }
 
 /** Minimal stateful fake covering exactly the Prisma surface
@@ -338,5 +338,76 @@ describe('I18nImportService.run — missingOnly (every release)', () => {
       value: 'Отменить (админка)',
     });
     expect(cancel.translations).toContainEqual({ lang: 'en', value: 'Cancel' });
+  });
+
+  it('replaces a leftover English copy in another language, but not an admin-edited one', async () => {
+    const prisma = buildFakePrisma();
+    const bundle = buildFakeBundle();
+    const service = new I18nImportService(
+      prisma as never,
+      bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
+    );
+    prisma.keysByKey.set('settings.archive', {
+      id: 'key-y',
+      key: 'settings.archive',
+      translations: [
+        { lang: 'en', value: 'Archive' },
+        { lang: 'ky', value: 'archive' },
+        { lang: 'ru', value: 'Archive', admin_edited: true },
+      ],
+    });
+
+    const report = await service.run(
+      csv('key,en,ky,ru\nsettings.archive,Archive,Архив,Архив\n'),
+      'apply',
+      { missingOnly: true },
+    );
+
+    expect(report.changedKeys).toEqual([
+      { key: 'settings.archive', lang: 'ky' },
+    ]);
+  });
+});
+
+describe('I18nImportService.run — big file (KNOWN_ERRORS #48)', () => {
+  it('compares the file with the database in slices and still adds every new key for every language', async () => {
+    const prisma = buildFakePrisma();
+    const bundle = buildFakeBundle();
+    const service = new I18nImportService(
+      prisma as never,
+      bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
+    );
+    const total = 1000;
+    prisma.keysByKey.set('k.0', {
+      id: 'key-old',
+      key: 'k.0',
+      translations: [{ lang: 'ru', value: 'админка' }],
+    });
+    const lines = ['key,en,ru,ky'];
+    for (let i = 0; i < total; i += 1) lines.push(`k.${i},E${i},R${i},K${i}`);
+
+    const report = await service.run(csv(`${lines.join('\n')}\n`), 'dry-run', {
+      missingOnly: true,
+    });
+
+    expect(report.valid).toBe(true);
+    expect(report.newKeys).toHaveLength(total - 1);
+    // 3 languages for 999 new keys + en and ky for the edited one; ru kept.
+    expect(report.changedKeys).toHaveLength((total - 1) * 3 + 2);
+    expect(report.unchangedCount).toBe(1);
+    const calls = prisma.i18nKey.findMany.mock.calls as [
+      { where: { key: { in: string[] } }; include?: unknown },
+    ][];
+    expect(calls.length).toBeGreaterThan(1);
+    for (const [arg] of calls) {
+      expect(arg.where.key.in.length).toBeLessThanOrEqual(400);
+      expect(arg.include).toBeUndefined();
+    }
+    expect(prisma.keysByKey.get('k.0')!.translations).toContainEqual({
+      lang: 'ru',
+      value: 'админка',
+    });
   });
 });

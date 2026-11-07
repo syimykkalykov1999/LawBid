@@ -86,7 +86,13 @@ class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
       _files = [
         for (var i = 0; i < _files.length; i++)
           if (i == _index)
-            (bytes: bytes, name: editedName(f.name), mime: 'image/jpeg')
+            (
+              bytes: bytes,
+              name: editedName(f.name),
+              mime: 'image/jpeg',
+              path: null,
+              diskBytes: null,
+            )
           else
             _files[i],
       ];
@@ -238,6 +244,11 @@ class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
                         style: type.body.copyWith(color: ChatColors.onViewer),
                         cursorColor: ChatColors.onViewer,
                         decoration: InputDecoration(
+                          // The app theme fills every field with
+                          // `colors.surface`; here the dark viewer bar is the
+                          // field, so the theme fill (white in day) must not
+                          // cover it (R-378).
+                          filled: false,
                           border: InputBorder.none,
                           hintText: t.t('chat.preview.caption'),
                           hintStyle: type.body.copyWith(
@@ -356,7 +367,7 @@ class _Stage extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            byteSizeLabel(file.bytes.length),
+            byteSizeLabel(file.diskBytes ?? file.bytes.length),
             style: type.caption.copyWith(color: ChatColors.onViewerMuted),
           ),
         ],

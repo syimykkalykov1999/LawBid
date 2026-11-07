@@ -142,6 +142,7 @@ const planRu = <String, String>{
   'settings.hideLikes.hint': 'Под чужими постами и рилсами',
   'create.sheet.post': 'Пост',
   'create.sheet.postSub': 'Фото, видео или только текст',
+  'create.post.sub_photo': 'Фото или только текст',
   'create.sheet.case': 'Кейс',
   'create.sheet.caseSub': 'Опишите задачу, адвокаты откликнутся',
   'mine.tab.drafts': 'Черновики',
@@ -166,7 +167,7 @@ const planRu = <String, String>{
   'cases.comments.ask': 'Задать вопрос…',
   'cases.comments.send': 'Отправить вопрос',
   'cases.hero.stage': 'Этап {n} из 5: {name}',
-  'cases.tab.bids': 'Ставки',
+  'cases.tab.bids': 'Биды',
   'cases.hero.bidSent': 'Ставка отправлена',
   'cases.hero.published': 'опубл. {date}',
   'cases.stage.0': 'Опубликован',
@@ -213,6 +214,7 @@ const planRu = <String, String>{
   'post.create.hintBrief':
       'Первая строка станет заголовком поста, остальное — описанием. До {max} знаков',
   'post.create.hintCaption': 'Подпись к посту…',
+  'post.create.placeHint': 'Адрес / место',
   'post.crop.fit': 'Оригинал или квадрат',
   // Owner 2026-10-18: two fields on every post form.
   'post.create.hintTitle': 'Заголовок',
@@ -222,6 +224,12 @@ const planRu = <String, String>{
   'post.src.galleryHint': 'Фото и видео',
   'post.src.galleryHintMax': 'До {max} фото или 1 видео',
   'post.src.galleryHintPhotos': 'До {max} фото',
+  'post.src.galleryHintPaid': 'До {max} фото · видео по подписке',
+  'post.video.paid.title': 'Видео — по подписке',
+  'post.video.paid.body':
+      'Публиковать видео и рилсы могут клиенты с золотой галочкой.',
+  'post.video.paid.cta': 'К подписке',
+  'cbadge.benefit.reels': 'Публикация рилсов.',
   'post.src.cameraHint': 'Снять сейчас',
   'video.edit.uploadCover': 'Загрузить из галереи',
   'cases.create.exitTitle': 'Выйти без сохранения?',
@@ -387,6 +395,7 @@ const planEn = <String, String>{
   'settings.hideLikes.hint': "Under other people's posts and reels",
   'create.sheet.post': 'Post',
   'create.sheet.postSub': 'Photo, video or just text',
+  'create.post.sub_photo': 'Photo or text only',
   'create.sheet.case': 'Case',
   'create.sheet.caseSub': 'Describe your task, attorneys will respond',
   'mine.tab.drafts': 'Drafts',
@@ -458,6 +467,7 @@ const planEn = <String, String>{
   'post.create.hintBrief':
       'The first line becomes the post title, the rest its text. Up to {max} characters',
   'post.create.hintCaption': 'Write a caption for your post…',
+  'post.create.placeHint': 'Address / place',
   'post.crop.fit': 'Original or square',
   // Owner 2026-10-18: two fields on every post form.
   'post.create.hintTitle': 'Title',
@@ -467,6 +477,12 @@ const planEn = <String, String>{
   'post.src.galleryHint': 'Photos and video',
   'post.src.galleryHintMax': 'Up to {max} photos or 1 video',
   'post.src.galleryHintPhotos': 'Up to {max} photos',
+  'post.src.galleryHintPaid': 'Up to {max} photos · video by subscription',
+  'post.video.paid.title': 'Video — by subscription',
+  'post.video.paid.body':
+      'Clients with the gold badge can publish videos and reels.',
+  'post.video.paid.cta': 'Go to subscription',
+  'cbadge.benefit.reels': 'Publishing reels.',
   'post.src.cameraHint': 'Take it now',
   'video.edit.uploadCover': 'Upload from gallery',
   'cases.create.exitTitle': 'Exit without saving?',

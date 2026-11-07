@@ -12,6 +12,10 @@
  * jobs; AWS gives a Fargate Spot task 2 minutes (stopTimeout max 120 s),
  * so the wait must be bounded, not infinite.
  */
+import {
+  isDatabaseOutageError,
+  retryTransient,
+} from '../resilience/transient-errors';
 import type { MetricsOptions } from 'bullmq';
 import type { QueueMode } from './queue-mode';
 
@@ -150,4 +154,27 @@ export async function closeWorker(
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+/**
+ * Stability sweep 2026-11-02: wraps a BullMQ processor so that a transient
+ * database / Redis / network outage (RDS failover: 30–60 s) is waited out
+ * inside the job — repeated with backoff for up to 90 s — instead of
+ * burning the job's few retry attempts (3 × 5 s backoff ends before a
+ * failover does). ONLY a database outage is waited out: a partner HTTP
+ * timeout (push, Stripe, SES) or a Redis outage fails the job exactly as
+ * before, so a side effect that may have happened is never repeated here
+ * and a job whose lock is lost with Redis is not run twice.
+ */
+export function outageProof<A extends unknown[], R>(
+  processor: (...args: A) => Promise<R>,
+  windowMs = 90_000,
+): (...args: A) => Promise<R> {
+  return (...args: A) =>
+    retryTransient(() => processor(...args), {
+      retriable: isDatabaseOutageError,
+      windowMs,
+      baseDelayMs: 1_000,
+      maxDelayMs: 10_000,
+    });
 }

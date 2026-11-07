@@ -20,7 +20,8 @@ class ChatTextDrafts extends Notifier<Map<String, String>> {
 
   @override
   Map<String, String> build() {
-    _key = 'chat.textDrafts.v1.${ref.read(currentUserIdProvider)}';
+    // Watched: the next account never sees this one's drafts in memory.
+    _key = 'chat.textDrafts.v1.${ref.watch(currentUserIdProvider)}';
     try {
       _store = ref.read(sharedPreferencesProvider);
     } on Object {

@@ -2,15 +2,14 @@
 
 import { ArrowsClockwise, LockKey, Plugs, Plus } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import dynamic from 'next/dynamic';
 import { useRef, useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
-import { StateRegistries } from '@/components/registries/state-registries';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { CallsTransportCard } from '@/components/integrations/calls-transport-card';
-import { CustomServiceDialog } from '@/components/integrations/custom-service-dialog';
 import { IntegrationCard, type Guarded, type Integration } from '@/components/integrations/integration-card';
 import { Button } from '@/components/ui/button';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
@@ -18,6 +17,16 @@ import { useToast } from '@/components/ui/toast';
 import { api, ApiError, errorText } from '@/lib/api/client';
 import { CALL_PROVIDERS, isCallProvider } from '@/lib/calls-transport';
 import { fieldHint, fieldLabelWithKey, providerDescription, providerLabel, providerWarning } from '@/lib/integration-labels';
+
+// Smoothness audit 2026-11-03: the registries block sits below every card and
+// the new-service dialog opens on a click, so neither is part of the first JS.
+const StateRegistries = dynamic(
+  () => import('@/components/registries/state-registries').then((m) => m.StateRegistries),
+  { loading: () => <Skeleton className="mt-8 h-40 w-full rounded-[var(--radius-lg)]" /> },
+);
+const CustomServiceDialog = dynamic(() =>
+  import('@/components/integrations/custom-service-dialog').then((m) => m.CustomServiceDialog),
+);
 
 /** Russian service / field texts (keys stay as the server sends them). */
 function localize(it: Integration): Integration {
@@ -49,6 +58,8 @@ export default function IntegrationsPage() {
   const { ask, dialog: reasonDialog } = useReason();
   const [stepUp, setStepUp] = useState(false);
   const [adding, setAdding] = useState(false);
+  // Mounted from the first click on, so the dialog keeps its closing animation.
+  const [addingUsed, setAddingUsed] = useState(false);
   const retry = useRef<(() => void) | null>(null);
   const q = useQuery({
     queryKey: ['integrations'],
@@ -133,7 +144,10 @@ export default function IntegrationsPage() {
         actions={
           data?.storageEnabled ? (
             <>
-              <Button variant="outline" onClick={() => setAdding(true)}>
+              <Button variant="outline" onClick={() => {
+                  setAdding(true);
+                  setAddingUsed(true);
+                }}>
                 <Plus size={16} weight="light" />
                 Добавить сервис
               </Button>
@@ -187,7 +201,7 @@ export default function IntegrationsPage() {
       )}
       {/* Owner 2026-10-05: per-state lawyer registries (keys per state). */}
       <StateRegistries />
-      <CustomServiceDialog open={adding} onClose={() => setAdding(false)} guarded={guarded} />
+      {addingUsed ? <CustomServiceDialog open={adding} onClose={() => setAdding(false)} guarded={guarded} /> : null}
       <StepUpDialog
         open={stepUp}
         onCancel={() => setStepUp(false)}

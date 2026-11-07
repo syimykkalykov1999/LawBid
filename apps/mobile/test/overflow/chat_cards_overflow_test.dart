@@ -15,7 +15,6 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_cards.dart';
 import 'package:lawbid/features/chat/presentation/chat_message_menu.dart';
-import 'package:lawbid/features/chat/presentation/saved_chats_view.dart';
 import 'package:lawbid/features/translation/data/device_translator.dart';
 import 'package:lawbid/features/translation/presentation/translate_block.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -296,13 +295,6 @@ void main() {
             ),
           );
           expect(tester.takeException(), isNull);
-        });
-
-        testWidgets('Saved list', (tester) async {
-          await pump(tester, const Scaffold(body: SavedChatsView()));
-          expect(tester.takeException(), isNull);
-          expect(find.byType(ContactCardBody), findsOneWidget);
-          expect(find.byType(PlaceCardBody), findsOneWidget);
         });
 
         testWidgets('Translate line under a text', (tester) async {

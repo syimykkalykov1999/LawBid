@@ -13,6 +13,7 @@ import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.d
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
+import 'package:lawbid/features/chat/presentation/profile_video_call.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
@@ -25,6 +26,7 @@ import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart
         ReviewSummaryPanel,
         showReportReasonSheet,
         showReviewReplySheet;
+import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
     show currentUserIdProvider;
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
@@ -71,9 +73,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
   PageController? _pages;
 
   void _open(_Tab value) {
-    final tabs = p.canSeeReviews
-        ? _Tab.values
-        : const [_Tab.posts, _Tab.reels, _Tab.reposts];
+    final tabs = _tabsWith(reels: ref.read(clientProfileReelsTabProvider));
     final i = tabs.indexOf(value);
     final pages = _pages;
     if (pages != null && pages.hasClients && i >= 0) {
@@ -90,6 +90,15 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
   }
 
   PublicClientProfile get p => widget.profile;
+
+  /// The tabs shown. Owner 2026-11-04 (R-381): no «Рилсы» on a client's
+  /// profile while `reels_client_publish` is off.
+  List<_Tab> _tabsWith({required bool reels}) => [
+        _Tab.posts,
+        if (reels) _Tab.reels,
+        _Tab.reposts,
+        if (p.canSeeReviews) _Tab.reviews,
+      ];
 
   Future<void> _share(Translator t) async {
     final host = ref.read(appEnvironmentProvider).deepLinkHost;
@@ -309,6 +318,20 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                     ),
                   ),
                 ],
+                // R-012: video call, only where the chat itself allows it.
+                ProfileVideoCallButton(
+                  userId: p.id,
+                  builder: (label, onTap) => Padding(
+                    padding:
+                        const EdgeInsetsDirectional.only(start: AppSpacing.sm),
+                    child: ProfileIconSquare(
+                      key: const ValueKey('profile-video-call'),
+                      icon: AppIcons.videoCameraOutlined,
+                      semanticLabel: label,
+                      onTap: onTap,
+                    ),
+                  ),
+                ),
               ],
             ),
           const SizedBox(height: AppSpacing.md),
@@ -316,9 +339,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
       ),
     );
 
-    final tabs = p.canSeeReviews
-        ? _Tab.values
-        : const [_Tab.posts, _Tab.reels, _Tab.reposts];
+    final tabs = _tabsWith(reels: ref.watch(clientProfileReelsTabProvider));
     // Owner 2026-10-19: every page keeps at least half a screen. The two
     // grids are sliver pages (lazy, 2026-10-26 smoothness P4) held to the
     // same minimum; the other pages are boxes in a ConstrainedBox.
@@ -374,11 +395,12 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 AppIcons.gridOnRounded,
                 t.t('client.tab.posts'),
               ),
-              tabButton(
-                _Tab.reels,
-                AppIcons.playCircleOutlined,
-                t.t('profile.tab.reels'),
-              ),
+              if (tabs.contains(_Tab.reels))
+                tabButton(
+                  _Tab.reels,
+                  AppIcons.playCircleOutlined,
+                  t.t('profile.tab.reels'),
+                ),
               // Owner 2026-10-18: the same «Брифы и репосты» tab as an
               // attorney's (a client's text posts had no tab before).
               tabButton(

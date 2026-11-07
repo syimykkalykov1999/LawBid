@@ -164,7 +164,19 @@ abstract interface class CasesRepository {
 
   // --- both parties of a bid ---
   Future<CaseBid> bid(String bidId);
-  Future<CaseBid> accept(String bidId);
+  Future<CaseBid> accept(String bidId, {int? version});
+
+  /// Owner 2026-11-05: «Бид в силе», «Поменять бид», what the client changed.
+  Future<CaseBid> confirmBid(String bidId);
+  Future<CaseBid> changeBid(
+    String bidId, {
+    required FeeType feeType,
+    int? amountCents,
+    int? percentBps,
+    String? message,
+    api.PaymentTermsDto? paymentTerms,
+  });
+  Future<List<api.BidCaseChangeDto>> bidCaseChanges(String bidId);
 
   /// [percentBps] for a contingency bid (owner 2026-10-17), else
   /// [amountCents].
@@ -217,6 +229,9 @@ abstract interface class CasesRepository {
     String? note,
   );
   Future<void> confirmCompletion(String caseId);
+
+  /// R-392 «Не закрывать»: the case stays in work.
+  Future<void> declineCompletion(String caseId);
   Future<void> dispute(String caseId, String reason);
   Future<CaseConversation> openConversation(String caseId);
 
@@ -542,12 +557,55 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
       );
 
   @override
-  Future<CaseBid> accept(String bidId) async => CasesMappers.bid(
+  Future<CaseBid> accept(String bidId, {int? version}) async =>
+      CasesMappers.bid(
         (await guardApiCall(
-          () => _bids.acceptBid(id: bidId, extras: _createsResource),
+          () => _bids.acceptBid(
+            id: bidId,
+            ifMatch: version,
+            extras: _createsResource,
+          ),
         ))
             .data,
       );
+
+  @override
+  Future<CaseBid> confirmBid(String bidId) async => CasesMappers.bid(
+        (await guardApiCall(
+          () => _bids.confirmBid(id: bidId, extras: _createsResource),
+        ))
+            .data,
+      );
+
+  @override
+  Future<CaseBid> changeBid(
+    String bidId, {
+    required FeeType feeType,
+    int? amountCents,
+    int? percentBps,
+    String? message,
+    api.PaymentTermsDto? paymentTerms,
+  }) async =>
+      CasesMappers.bid(
+        (await guardApiCall(
+          () => _bids.changeBid(
+            id: bidId,
+            body: api.ChangeBidDto(
+              feeType: feeType,
+              amountCents: amountCents,
+              percentBps: percentBps,
+              message: message,
+              paymentTerms: paymentTerms,
+            ),
+            extras: _createsResource,
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<List<api.BidCaseChangeDto>> bidCaseChanges(String bidId) async =>
+      (await guardApiCall(() => _bids.bidCaseChanges(id: bidId))).data;
 
   @override
   Future<CaseBid> counter(
@@ -829,6 +887,10 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
   @override
   Future<void> confirmCompletion(String caseId) =>
       guardApiCall(() => _cases.confirmCaseCompletion(id: caseId));
+
+  @override
+  Future<void> declineCompletion(String caseId) =>
+      guardApiCall(() => _cases.declineCaseCompletion(id: caseId));
 
   @override
   Future<void> dispute(String caseId, String reason) => guardApiCall(

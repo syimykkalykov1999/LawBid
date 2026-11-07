@@ -7,7 +7,7 @@ are saved. Nothing runs on EC2 for calls any more.
 
 ## Cloudflare primary, own path as automatic backup (2026-10-26)
 
-- `calls.transport` (admin -> Settings): `auto` (default) | `cloudflare` | `own`.
+- `calls.transport` (admin -> Settings): `auto` (default) | `cloudflare` | `own`. Owner 2026-11-04: a healthy Cloudflare takes all the work in `auto` and `cloudflare` (only its relay, `iceTransportPolicy=relay`, no own TURN). `cloudflare` (Вкл) never falls back and never runs the box; `auto` uses own TURN and direct routes only while Cloudflare is down; `own` (Выкл) = Cloudflare off. `calls.transport` wins over `calls.own_turn.mode` (see `effectiveOwnTurnMode`). `calls.relay_signal_filter` (on) drops non-relay candidates of phones told `relay`.
   `auto`: Cloudflare (TURN for 1:1 ICE, Realtime SFU for groups) whenever its keys exist;
   our own path (own TURN from Integrations -> TURN / `TURN_URLS`, device-to-device mesh)
   only while the breaker is open. `cloudflare`: always Cloudflare (breaker ignored).

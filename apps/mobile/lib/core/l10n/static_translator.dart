@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/strings/audit_chat_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_social_strings.dart';
 import 'package:lawbid/core/l10n/strings/boost_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_billing_strings.dart';
+import 'package:lawbid/core/l10n/strings/case_close_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_cover_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_dossier_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_payments_strings.dart';
@@ -55,8 +56,10 @@ import 'package:lawbid/core/l10n/strings/plan_strings.dart';
 import 'package:lawbid/core/l10n/strings/post_inner_strings.dart';
 import 'package:lawbid/core/l10n/strings/privacy_strings.dart';
 import 'package:lawbid/core/l10n/strings/qr_strings.dart';
+import 'package:lawbid/core/l10n/strings/quick_replies_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
+import 'package:lawbid/core/l10n/strings/role_switch_strings.dart';
 import 'package:lawbid/core/l10n/strings/saved_cards_strings.dart';
 import 'package:lawbid/core/l10n/strings/seat_roles_strings.dart';
 import 'package:lawbid/core/l10n/strings/share_to_strings.dart';
@@ -356,10 +359,10 @@ class StaticTranslatorRu extends _MapTranslator {
         'auth.phone.waitlist.cta': 'Сообщить, когда откроемся',
         'auth.phone.waitlist.title': 'Сообщим, когда LawBid откроется у вас',
         'auth.phone.waitlist.body':
-            'Оставьте e-mail: придёт одно письмо, когда ваша страна откроется. Без рассылок.',
-        'auth.phone.waitlist.email': 'E-mail',
+            'Мы учтём вашу страну при запуске. E-mail можно не указывать.',
+        'auth.phone.waitlist.email': 'E-mail (необязательно)',
         'auth.phone.waitlist.submit': 'Сообщить мне',
-        'auth.phone.waitlist.done': 'Готово. Напишем, как только откроемся.',
+        'auth.phone.waitlist.done': 'Спасибо! Мы учтём вашу страну.',
         'auth.phone.waitlist.open': 'Уже открыто. Попробуйте войти ещё раз.',
         'auth.phone.hint': '(555) 123-4567',
         'auth.phone.useEmail': 'Войти по email',
@@ -1229,6 +1232,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...clientFraudRu,
         ...legalDocsRu,
         ...boostRu,
+        ...roleSwitchRu,
         ...starsRu,
         ...feedContentRu,
         ...newsOffRu,
@@ -1237,6 +1241,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...webCheckoutRu,
         ...feedFreshRu,
         ...chatNoteRu,
+        ...quickRepliesRu,
         ...groupSlowRu,
         ...shareToRu,
         ...peopleSuggestRu,
@@ -1246,6 +1251,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...caseSigningRu,
         ...caseToolsRu,
         ...dealRecordRu,
+        ...caseCloseRu,
         ...themeRu,
         ...postInnerRu,
         ...emailFlowsRu,
@@ -1455,10 +1461,10 @@ class StaticTranslatorEn extends _MapTranslator {
         'auth.phone.waitlist.cta': 'Tell me when it opens',
         'auth.phone.waitlist.title': "We'll tell you when LawBid opens for you",
         'auth.phone.waitlist.body':
-            'Leave your e-mail: one message when your country opens. No newsletters.',
-        'auth.phone.waitlist.email': 'E-mail',
+            'We will count your country at launch. The e-mail is optional.',
+        'auth.phone.waitlist.email': 'E-mail (optional)',
         'auth.phone.waitlist.submit': 'Notify me',
-        'auth.phone.waitlist.done': "Done. We'll write as soon as we open.",
+        'auth.phone.waitlist.done': 'Thank you! We will count your country.',
         'auth.phone.waitlist.open': "It's open already. Try signing in again.",
         'auth.phone.hint': '(555) 123-4567',
         'auth.phone.useEmail': 'Use email instead',
@@ -2686,6 +2692,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...clientFraudEn,
         ...legalDocsEn,
         ...boostEn,
+        ...roleSwitchEn,
         ...starsEn,
         ...feedContentEn,
         ...newsOffEn,
@@ -2694,6 +2701,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...webCheckoutEn,
         ...feedFreshEn,
         ...chatNoteEn,
+        ...quickRepliesEn,
         ...groupSlowEn,
         ...shareToEn,
         ...peopleSuggestEn,
@@ -2703,6 +2711,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...caseSigningEn,
         ...caseToolsEn,
         ...dealRecordEn,
+        ...caseCloseEn,
         ...themeEn,
         ...postInnerEn,
         ...storiesEn,

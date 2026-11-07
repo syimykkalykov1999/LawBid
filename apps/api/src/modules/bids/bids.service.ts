@@ -32,9 +32,11 @@ import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { assertContingency, contingencyPolicy } from '../cases/cases.public';
+import { assertExpectedVersion } from '../../common/concurrency/optimistic-lock';
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
-import type { BidDto } from './dto/bid-responses.dto';
+import type { BidCaseChangeDto, BidDto } from './dto/bid-responses.dto';
 import type {
+  ChangeBidDto,
   CounterOfferDto,
   CreateBidDto,
   PaymentTermsDto,
@@ -99,6 +101,22 @@ export async function reusableBid(
  * appended in the same transaction via CaseJournalService.append(). Bid
  * acceptance (§7, contacts disclosure) is stage 4.5 and lives elsewhere.
  */
+/** What «Изменения» shows and what asks an attorney to confirm a bid. */
+const CASE_CHANGE_FIELDS = [
+  'description',
+  'budget',
+  'urgency',
+  'deadlineAt',
+] as const;
+
+function bidNotActive(status: string): ConflictException {
+  return new ConflictException({
+    code: ErrorCode.BID_INVALID_STATE,
+    message: 'This bid is no longer active.',
+    details: { status },
+  });
+}
+
 @Injectable()
 export class BidsService {
   constructor(
@@ -196,7 +214,7 @@ export class BidsService {
           'You can send an offer only in states where you hold a verified licence.',
       });
     }
-    const paymentTerms = await this.checkPaymentTerms(dto.paymentTerms);
+    const paymentTerms = await this.checkPaymentTerms(dto.paymentTerms, caseId);
     // Owner 2026-10-17: a percent bid — within the admin cap, never on a
     // case whose topics forbid it (criminal, family by default).
     const percentBps =
@@ -534,6 +552,241 @@ export class BidsService {
     return this.applyAndRespond(bid.id, 'withdraw', 'attorney', {});
   }
 
+  /**
+   * POST /bids/:id/confirm (owner 2026-11-05, «Бид в силе»): the client changed
+   * the case and the attorney keeps the bid as it is. Nothing to confirm is
+   * not an error (a second tap, another device).
+   */
+  async confirm(user: RequestUser, bidId: string): Promise<BidDto> {
+    const bid = await this.loadForActor(bidId, user, 'attorney');
+    if (bid.status !== 'active') throw bidNotActive(bid.status);
+    await withTxRetry(this.prisma, async (tx) => {
+      const { count } = await tx.bid.updateMany({
+        where: {
+          id: bid.id,
+          status: 'active',
+          confirmation_required_at: { not: null },
+        },
+        data: {
+          confirmation_required_at: null,
+          confirmed_at: new Date(),
+          confirm_reminded_at: null,
+          version: { increment: 1 },
+        },
+      });
+      if (count === 0) return;
+      const kase = await tx.case.findUniqueOrThrow({
+        where: { id: bid.case_id },
+        select: { client_id: true },
+      });
+      await this.journal.append(tx, {
+        caseId: bid.case_id,
+        clientId: kase.client_id,
+        actor: { userId: bid.attorney_id, role: 'attorney' },
+        attorneyId: bid.attorney_id,
+        event: 'updated',
+        payload: { bidConfirmed: bid.id },
+      });
+    });
+    return this.reload(bid.id);
+  }
+
+  /**
+   * POST /bids/:id/change (owner 2026-11-05, «Поменять бид»). After the client
+   * changed the case: at any turn, no round spent, and it counts as the
+   * confirmation; the pending offer is replaced (the journal keeps the old
+   * one). Otherwise an ordinary counter-offer on the attorney's turn.
+   */
+  async change(
+    user: RequestUser,
+    bidId: string,
+    dto: ChangeBidDto,
+    expectedVersion?: number,
+  ): Promise<BidDto> {
+    await this.limits?.consume('bid_counter', user.sub);
+    const bid = await this.loadForActor(bidId, user, 'attorney');
+    const paymentTerms = await this.checkPaymentTerms(
+      dto.paymentTerms,
+      bid.case_id,
+    );
+    const free = dto.feeType === 'free_consultation';
+    let percentBps: number | undefined;
+    if (dto.feeType === 'contingency') {
+      percentBps = assertContingency(
+        await contingencyPolicy(this.settings),
+        await this.casePracticeCodes(bid.case_id),
+        dto.percentBps,
+        'percentBps',
+      );
+    } else if (!free && dto.amountCents === undefined) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'amountCents is required.',
+        details: { fields: ['amountCents'] },
+      });
+    }
+    const waiting =
+      bid.confirmation_required_at !== null &&
+      ((await this.settings?.boolean('bids.confirmation_required')) ?? false);
+    if (!waiting) {
+      if (free) {
+        throw new ConflictException({
+          code: ErrorCode.BID_COUNTER_NOT_ALLOWED,
+          message: 'A free consultation is not a counter-offer.',
+        });
+      }
+      return this.applyAndRespond(bid.id, 'counter', 'attorney', {
+        amountCents: percentBps === undefined ? dto.amountCents : undefined,
+        percentBps,
+        message: dto.message ?? null,
+        paymentTerms,
+        expectedVersion,
+        feeType: dto.feeType,
+      });
+    }
+    const amountCents =
+      free || percentBps !== undefined ? 0 : (dto.amountCents as number);
+    await withTxRetry(this.prisma, async (tx) => {
+      await tx.$queryRaw`SELECT id FROM bids WHERE id = ${bid.id}::UUID FOR UPDATE`;
+      const now = await tx.bid.findUniqueOrThrow({ where: { id: bid.id } });
+      assertExpectedVersion(now.version, expectedVersion);
+      if (now.status !== 'active') throw bidNotActive(now.status);
+      const terms = paymentTerms ?? Prisma.JsonNull;
+      // bid_offers keeps one row per round; the replaced offer stays in the
+      // journal, terms and message included.
+      const replaced = await tx.bidOffer.findFirst({
+        where: {
+          bid_id: bid.id,
+          round_no: now.round_count,
+          status: 'pending',
+        },
+        select: { message: true, payment_terms: true, from_role: true },
+      });
+      await tx.bid.update({
+        where: { id: bid.id },
+        data: {
+          fee_type: dto.feeType,
+          amount_cents: amountCents,
+          percent_bps: percentBps ?? null,
+          payment_terms: terms,
+          turn: 'client',
+          confirmation_required_at: null,
+          confirmed_at: new Date(),
+          confirm_reminded_at: null,
+          version: { increment: 1 },
+        },
+      });
+      await tx.bidOffer.updateMany({
+        where: {
+          bid_id: bid.id,
+          round_no: now.round_count,
+          status: 'pending',
+        },
+        data: {
+          from_role: 'attorney',
+          fee_type: dto.feeType,
+          amount_cents: amountCents,
+          percent_bps: percentBps ?? null,
+          message: dto.message ?? null,
+          payment_terms: terms,
+          created_at: new Date(),
+        },
+      });
+      const kase = await tx.case.findUniqueOrThrow({
+        where: { id: bid.case_id },
+        select: { client_id: true },
+      });
+      await this.journal.append(tx, {
+        caseId: bid.case_id,
+        clientId: kase.client_id,
+        actor: { userId: bid.attorney_id, role: 'attorney' },
+        attorneyId: bid.attorney_id,
+        event: 'offer_made',
+        payload: {
+          bidId: bid.id,
+          action: 'change',
+          feeType: dto.feeType,
+          amountCents,
+          percentBps: percentBps ?? null,
+          paymentTerms: paymentTerms,
+          before: {
+            feeType: now.fee_type,
+            amountCents: now.amount_cents,
+            percentBps: now.percent_bps,
+            paymentTerms: (replaced?.payment_terms ??
+              null) as Prisma.InputJsonValue | null,
+            message: replaced?.message ?? null,
+            fromRole: replaced?.from_role ?? null,
+          },
+        },
+      });
+      await this.notifications.emit(
+        {
+          type: 'bid_changed',
+          recipientId: kase.client_id,
+          payload: { caseId: bid.case_id, bidId: bid.id },
+        },
+        tx,
+      );
+    });
+    return this.reload(bid.id);
+  }
+
+  /**
+   * GET /bids/:id/case-changes (owner 2026-11-05): what the client changed in
+   * the case since the attorney's bid or last confirmation, from the journal.
+   * Only these fields: private details never reach the journal's text anyway.
+   */
+  async caseChanges(
+    user: RequestUser,
+    bidId: string,
+  ): Promise<BidCaseChangeDto[]> {
+    const bid = await this.loadForActor(bidId, user, 'attorney');
+    const rows = await this.prisma.caseJournal.findMany({
+      where: {
+        case_id: bid.case_id,
+        actor_role: 'client',
+        created_at: { gt: bid.confirmed_at ?? bid.created_at },
+      },
+      orderBy: { created_at: 'asc' },
+      take: 200,
+      select: { payload: true, created_at: true },
+    });
+    const text = (v: unknown): string | null =>
+      v === null || v === undefined
+        ? null
+        : typeof v === 'string'
+          ? v
+          : JSON.stringify(v);
+    const byField = new Map<string, BidCaseChangeDto>();
+    for (const row of rows) {
+      const payload = row.payload as Record<
+        string,
+        { old?: unknown; new?: unknown } | undefined
+      >;
+      for (const field of CASE_CHANGE_FIELDS) {
+        const change = payload[field];
+        if (!change) continue;
+        const seen = byField.get(field);
+        byField.set(field, {
+          field,
+          oldValue: seen ? seen.oldValue : text(change.old),
+          newValue: text(change.new),
+          at: row.created_at.toISOString(),
+        });
+      }
+    }
+    return [...byField.values()].filter((c) => c.oldValue !== c.newValue);
+  }
+
+  private async reload(bidId: string): Promise<BidDto> {
+    const bid = await this.prisma.bid.findUniqueOrThrow({
+      where: { id: bidId },
+      include: { offers: { orderBy: { round_no: 'asc' } } },
+    });
+    return toBidDto(bid);
+  }
+
   /** POST /bids/:id/decline (§6.3) — client only. */
   async decline(user: RequestUser, bidId: string): Promise<BidDto> {
     const bid = await this.loadForActor(bidId, user, 'client');
@@ -552,7 +805,10 @@ export class BidsService {
   ): Promise<BidDto> {
     await this.limits?.consume('bid_counter', user.sub);
     const { bid, by } = await this.loadForEitherParty(bidId, user);
-    const paymentTerms = await this.checkPaymentTerms(dto.paymentTerms);
+    const paymentTerms = await this.checkPaymentTerms(
+      dto.paymentTerms,
+      bid.case_id,
+    );
     // OQ-054: a counter from the client is their own action on the case.
     if (by === 'client') {
       await touchClientActive(this.prisma, bid.case_id, user.sub);
@@ -593,10 +849,13 @@ export class BidsService {
    * admin switch `bids.rich_terms_enabled` is on (400 PAYMENT_TERMS_DISABLED
    * otherwise, so an app with the field cannot slip it in), and only when
    * the object follows the rules of its type (400 PAYMENT_TERMS_INVALID,
-   * details.problems). Returns the canonical object to store, or null.
+   * details.problems). A percent inside the terms obeys the same rules as a
+   * percent bid: never on a topic that forbids it, never above the admin cap.
+   * Returns the canonical object to store, or null.
    */
   private async checkPaymentTerms(
     dto: PaymentTermsDto | undefined,
+    caseId: string,
   ): Promise<Prisma.InputJsonObject | null> {
     if (dto === undefined || dto === null) return null;
     const enabled =
@@ -614,6 +873,15 @@ export class BidsService {
         message: 'The payment terms are not valid.',
         details: { problems },
       });
+    }
+    // contingency_pct always has it here: paymentTermsProblems requires it.
+    if (dto.contingencyBps !== undefined && dto.contingencyBps !== null) {
+      assertContingency(
+        await contingencyPolicy(this.settings),
+        await this.casePracticeCodes(caseId),
+        dto.contingencyBps,
+        'paymentTerms.contingencyBps',
+      );
     }
     return normalizePaymentTerms(dto) as unknown as Prisma.InputJsonObject;
   }
@@ -717,6 +985,7 @@ export class BidsService {
       message?: string | null;
       paymentTerms?: Prisma.InputJsonObject | null;
       expectedVersion?: number;
+      feeType?: Bid['fee_type'];
     },
   ): Promise<BidDto> {
     const chat: ChatChange[] = [];
@@ -740,6 +1009,7 @@ export class BidsService {
         message: extra.message,
         paymentTerms: extra.paymentTerms ?? null,
         expectedVersion: extra.expectedVersion,
+        feeType: extra.feeType,
       });
       await this.journal.append(tx, {
         caseId: before.case_id,
@@ -998,6 +1268,7 @@ export function toBidDto(bid: BidWithOffers): BidDto {
     estimatedDurationDays: bid.estimated_duration_days,
     roundCount: bid.round_count,
     version: bid.version,
+    confirmationRequiredAt: bid.confirmation_required_at?.toISOString() ?? null,
     turn: bid.turn,
     outsidePractice: bid.outside_practice,
     outsideLicensedStates: bid.outside_licensed_states,

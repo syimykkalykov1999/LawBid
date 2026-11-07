@@ -26,6 +26,7 @@ class PillTabs<T> extends StatelessWidget {
     required this.onChanged,
     super.key,
     this.onDark = false,
+    this.labelSide = AppSpacing.sm,
     this.padding = const EdgeInsets.fromLTRB(
       AppSpacing.screenSide,
       AppSpacing.sm,
@@ -33,6 +34,10 @@ class PillTabs<T> extends StatelessWidget {
       AppSpacing.sm,
     ),
   });
+
+  /// Room on each side of a label; a tight row (the case's top bar) gives
+  /// the text more of its section.
+  final double labelSide;
 
   final T value;
   final List<(T, String)> tabs;
@@ -86,6 +91,7 @@ class PillTabs<T> extends StatelessWidget {
                       colors: colors,
                       typography: typography,
                       onDark: onDark,
+                      labelSide: labelSide,
                       onTap: () {
                         if (tabs[i].$1 == value) return;
                         AppHaptics.selection();
@@ -113,9 +119,11 @@ class _Segment extends StatelessWidget {
     required this.onTap,
     super.key,
     this.onDark = false,
+    this.labelSide = AppSpacing.sm,
   });
 
   final bool onDark;
+  final double labelSide;
 
   final String label;
   final bool selected;
@@ -137,8 +145,8 @@ class _Segment extends StatelessWidget {
           // the selected section is told apart by bold, darker text only.
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm,
+              padding: EdgeInsets.symmetric(
+                horizontal: labelSide,
                 vertical: AppSpacing.xs,
               ),
               child: FittedBox(

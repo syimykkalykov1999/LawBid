@@ -2,6 +2,7 @@ import { notifySeoPagesChanged } from '../../../common/seo/seo-generator.trigger
 import { FORMAT_UNUSUAL_FLAG } from '../bar-number-format';
 import { type CountryScope, userInScope } from '../../countries/country-scope';
 import { HttpStatus, Inject, Injectable, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type {
   AttorneyLicense,
   Prisma,
@@ -20,6 +21,11 @@ import {
   type StaffRecorder,
 } from '../../staff-core/staff-recorder.port';
 import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
+import {
+  ADMIN_COUNTS_SUMMARY_KEY,
+  verificationQueueWhere,
+} from '../../../common/admin-queues/admin-queues';
+import { AdminSummaryService } from '../../../common/admin-summary/admin-summary.service';
 import {
   BLOCK_SOURCE,
   BarNumberBlocksService,
@@ -42,8 +48,7 @@ import {
   type AttorneyVerificationStatusDto,
   type DocumentUrlDto,
   type LicenseDecisionDto,
-  type LicenseRecheckDto,
-  type RegistryCheckDto,
+  type RegistryCheckQueuedDto,
   type RegistryFlagItemDto,
   type RejectRequestDto,
   type VerificationQueuePage,
@@ -69,6 +74,13 @@ import {
   syncProfileStatus,
 } from '../verification.helpers';
 import { VerificationChecksService } from './verification-checks.service';
+import {
+  REGISTRY_CHECK_TIMEOUT_MS,
+  RegistryCheckQueue,
+  RegistryCheckWorker,
+  type RegistryCheckJobData,
+  type RegistryCheckKind,
+} from '../registry-check.queue';
 
 type Tx = Prisma.TransactionClient;
 
@@ -124,7 +136,21 @@ export class VerificationAdminService {
     private readonly staffRecorder?: StaffRecorder,
     // Staff package T4: a decision ends the verifier's work lease.
     @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
-  ) {}
+    // Owner 2026-11-04 (R-394): registry lookups run in the background.
+    @Optional() private readonly registryQueue?: RegistryCheckQueue,
+    @Optional() registryWorker?: RegistryCheckWorker,
+    // R-403: a decision drops the shared sidebar counts (badge = list).
+    @Optional() private readonly summary?: AdminSummaryService,
+  ) {
+    registryWorker?.handle((data) => this.runRegistryCheck(data));
+  }
+
+  /** R-403: the next `GET /admin/counts` recounts (an item left the queue). */
+  private dropCounts(): Promise<void> {
+    return (
+      this.summary?.dropFamily(ADMIN_COUNTS_SUMMARY_KEY) ?? Promise.resolve()
+    );
+  }
 
   private endLease(admin: AdminActor, requestId: string, outcome: string) {
     return closeStaffDecision(
@@ -164,22 +190,12 @@ export class VerificationAdminService {
     const after = query.cursor ? decodeCursor(query.cursor) : null;
     const rows = await this.prisma.verificationRequest.findMany({
       where: {
-        // Owner 2026-10-05: a verifier for one country sees only its
-        // attorneys.
-        ...(countries && {
-          AND: [{ attorney: { user: userInScope(countries) } }],
-        }),
-        status: {
-          in: query.status ? [query.status] : ['submitted', 'needs_more_info'],
-        },
-        submitted_at: { not: null },
-        ...(query.stateCode && {
-          attorney: {
-            licenses: {
-              some: { state_code: query.stateCode, license_status: 'pending' },
-            },
-          },
-        }),
+        // R-403: the same predicate feeds the sidebar badge
+        // (common/admin-queues), so badge == rows of this default view.
+        ...verificationQueueWhere(
+          { status: query.status, stateCode: query.stateCode },
+          countries,
+        ),
         ...(after && {
           OR: [
             { submitted_at: { gt: after.createdAt } },
@@ -244,6 +260,11 @@ export class VerificationAdminService {
     });
     if (!row) throw notFound('Verification request not found.');
     const renewal = await this.renewalOpts();
+    // R-394: «проверяется…» while a queued registry lookup runs.
+    const checking =
+      (await this.registryQueue?.pending(
+        row.attorney.licenses.map((l) => l.id),
+      )) ?? new Map<string, RegistryCheckJobData>();
     const history = await this.prisma.verificationRequest.findMany({
       where: { attorney_id: row.attorney_id, id: { not: row.id } },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -272,7 +293,9 @@ export class VerificationAdminService {
         username: row.attorney.username,
         verificationStatus: row.attorney.verification_status,
       },
-      licenses: row.attorney.licenses.map((l) => licenseDto(l, renewal)),
+      licenses: row.attorney.licenses.map((l) =>
+        licenseDto(l, renewal, checking.get(l.id)),
+      ),
       documents: row.documents.map((d) => ({
         id: d.id,
         docType: d.doc_type,
@@ -385,6 +408,7 @@ export class VerificationAdminService {
         requestId: req.id,
       });
     });
+    await this.dropCounts();
     return this.card(requestId);
   }
 
@@ -456,6 +480,11 @@ export class VerificationAdminService {
                 ? (dto.rejectionCode ?? 'other')
                 : null,
             note: dto.note || null,
+            // R-394: a person decided, whatever the registry said (or
+            // whether it answered at all).
+            manual: true,
+            decidedBy: admin.id,
+            registryResult: registryResultOf(license.auto_check_result),
           },
           ip: admin.ip,
         },
@@ -564,6 +593,7 @@ export class VerificationAdminService {
       outcome: 'approve',
     });
     await this.endLease(admin, requestId, 'approve');
+    await this.dropCounts();
     return this.card(requestId);
   }
 
@@ -604,6 +634,7 @@ export class VerificationAdminService {
       });
     });
     await this.endLease(admin, requestId, 'request_info');
+    await this.dropCounts();
     return this.card(requestId);
   }
 
@@ -692,77 +723,24 @@ export class VerificationAdminService {
       outcome: 'reject',
     });
     await this.endLease(admin, requestId, 'reject');
+    await this.dropCounts();
     return this.card(requestId);
   }
 
   /**
-   * `recheck` (§2.5): runs the bar lookup again with the currently
-   * selected provider. A `pass` just refreshes auto_check_result;
-   * anything else queues the license for manual review — the license
-   * goes to `pending` inside the attorney's open request, or a new
-   * `submitted` request (admin_note `license_recheck: …`).
+   * `recheck` (§2.5). Owner 2026-11-04 (R-394): queued, never inside the
+   * click — answers at once with a check id; the lookup runs in the worker
+   * (runRegistryCheck). A `pass` just refreshes auto_check_result; anything
+   * else queues a decided license for manual review — it goes to `pending`
+   * inside the attorney's open request, or a new `submitted` request
+   * (admin_note `license_recheck: …`). A license already under review is
+   * only looked up again.
    */
-  async recheck(
+  recheck(
     admin: AdminActor,
     licenseId: string,
-    now = new Date(),
-  ): Promise<LicenseRecheckDto> {
-    const license = await this.prisma.attorneyLicense.findUnique({
-      where: { id: licenseId },
-      include: {
-        state: true,
-        attorney: {
-          select: { user: { select: { first_name: true, last_name: true } } },
-        },
-      },
-    });
-    if (!license) throw notFound('License not found.');
-    if (license.license_status === 'pending') {
-      throw httpError(
-        HttpStatus.CONFLICT,
-        ErrorCode.VERIFICATION_INVALID_STATUS,
-        'The license is already under review.',
-        { licenseStatus: license.license_status },
-      );
-    }
-    const provider = await this.selector.barLookup();
-    const outcome = await this.checks.barLookup(provider, license, null, {
-      firstName: license.attorney.user.first_name ?? '',
-      lastName: license.attorney.user.last_name ?? '',
-    });
-    const requestId = await withTxRetry(this.prisma, async (tx) => {
-      const queuedIn =
-        outcome.result !== 'pass'
-          ? await this.queueForReview(tx, license, outcome, provider.name, now)
-          : null;
-      await this.audit.record(
-        {
-          adminId: admin.id,
-          action: AUDIT_ACTION.recheck,
-          targetType: 'attorney_license',
-          targetId: license.id,
-          before: { status: license.license_status },
-          after: {
-            status: queuedIn ? 'pending' : license.license_status,
-            result: outcome.result,
-            lookupProvider: provider.name,
-            requestId: queuedIn,
-          },
-          ip: admin.ip,
-        },
-        tx,
-      );
-      return queuedIn;
-    });
-    const fresh = await this.prisma.attorneyLicense.findUniqueOrThrow({
-      where: { id: license.id },
-      include: { state: true },
-    });
-    return {
-      license: licenseDto(fresh, await this.renewalOpts()),
-      result: outcome.result,
-      requestId,
-    };
+  ): Promise<RegistryCheckQueuedDto> {
+    return this.enqueueRegistryCheck(admin, licenseId, 'recheck');
   }
 
   /**
@@ -796,7 +774,12 @@ export class VerificationAdminService {
       flag === 'not_found' ? 3 : flag === 'name_mismatch' ? 2 : 1;
     rows.sort((x, y) => risk(y.registry_flag) - risk(x.registry_flag));
     const renewal = await this.renewalOpts();
-    return rows.slice(0, limit).map((l) => ({
+    const shown = rows.slice(0, limit);
+    // R-394: «проверяется…» on the rows whose lookup is still running.
+    const checking =
+      (await this.registryQueue?.pending(shown.map((l) => l.id))) ??
+      new Map<string, RegistryCheckJobData>();
+    return shown.map((l) => ({
       attorney: {
         id: l.attorney.user_id,
         firstName: l.attorney.user.first_name,
@@ -804,62 +787,135 @@ export class VerificationAdminService {
         username: l.attorney.username,
         verificationStatus: l.attorney.verification_status,
       },
-      license: licenseDto(l, renewal),
+      license: licenseDto(l, renewal, checking.get(l.id)),
       latestRequestId: l.attorney.verification_requests[0]?.id ?? null,
     }));
   }
 
   /**
-   * Owner 2026-10-05: "Проверить по реестру" — one lookup now, whatever the
+   * Owner 2026-10-05: "Проверить по реестру" — one lookup, whatever the
    * license status; the result is stored on the license and, for a
    * verified license, sets or clears its registry flag. Nothing else
-   * changes (unlike `recheck`, which queues a non-pass for review).
+   * changes (unlike `recheck`). Owner 2026-11-04 (R-394): queued, the
+   * worker does the lookup (runRegistryCheck).
    */
-  async registryCheck(
+  registryCheck(
     admin: AdminActor,
     licenseId: string,
-  ): Promise<RegistryCheckDto> {
+  ): Promise<RegistryCheckQueuedDto> {
+    return this.enqueueRegistryCheck(admin, licenseId, 'registry');
+  }
+
+  private async enqueueRegistryCheck(
+    admin: AdminActor,
+    licenseId: string,
+    kind: RegistryCheckKind,
+  ): Promise<RegistryCheckQueuedDto> {
     const license = await this.prisma.attorneyLicense.findUnique({
       where: { id: licenseId },
-      include: {
-        attorney: {
-          select: { user: { select: { first_name: true, last_name: true } } },
-        },
-      },
+      select: { id: true },
     });
     if (!license) throw notFound('License not found.');
-    const provider = await this.selector.barLookup();
-    const outcome = await this.checks.barLookup(provider, license, null, {
-      firstName: license.attorney.user.first_name ?? '',
-      lastName: license.attorney.user.last_name ?? '',
-    });
-    if (license.license_status === 'verified') {
-      await this.checks.applyRegistryFlag(license.id, outcome);
-    }
-    await this.audit.record({
-      adminId: admin.id,
-      action: AUDIT_ACTION.registryCheck,
-      targetType: 'attorney_license',
-      targetId: license.id,
-      before: { flag: license.registry_flag },
-      after: {
-        result: outcome.result,
-        reason:
-          typeof outcome.details.reason === 'string'
-            ? outcome.details.reason
-            : null,
-      },
-      ip: admin.ip,
-    });
-    const fresh = await this.prisma.attorneyLicense.findUniqueOrThrow({
-      where: { id: license.id },
-      include: { state: true },
-    });
+    const input = { licenseId, kind, adminId: admin.id, adminIp: admin.ip };
+    const run = (data: RegistryCheckJobData) => this.runRegistryCheck(data);
+    const job = this.registryQueue
+      ? await this.registryQueue.enqueue(input, run)
+      : startInBackground(input, run);
     return {
-      license: licenseDto(fresh, await this.renewalOpts()),
-      result: outcome.result,
-      details: outcome.details,
+      licenseId,
+      checkId: job.checkId,
+      kind: job.kind,
+      status: 'queued',
+      queuedAt: job.queuedAt,
     };
+  }
+
+  /**
+   * R-394: one queued registry lookup (BullMQ worker). Hard timeout
+   * REGISTRY_CHECK_TIMEOUT_MS: a registry that is slow or down is stored as
+   * `manual_review` / `provider_error` («реестр недоступен — подтвердите
+   * вручную»), with checkedAt and the state bar's page link.
+   */
+  async runRegistryCheck(
+    data: RegistryCheckJobData,
+    now = new Date(),
+  ): Promise<void> {
+    try {
+      const license = await this.prisma.attorneyLicense.findUnique({
+        where: { id: data.licenseId },
+        include: {
+          attorney: {
+            select: {
+              user: { select: { first_name: true, last_name: true } },
+            },
+          },
+        },
+      });
+      if (!license) return;
+      const provider = await this.selector.barLookup();
+      const outcome = await this.checks.barLookup(
+        provider,
+        license,
+        null,
+        {
+          firstName: license.attorney.user.first_name ?? '',
+          lastName: license.attorney.user.last_name ?? '',
+        },
+        { timeoutMs: REGISTRY_CHECK_TIMEOUT_MS },
+      );
+      const reason =
+        typeof outcome.details.reason === 'string'
+          ? outcome.details.reason
+          : null;
+      if (data.kind === 'registry') {
+        if (license.license_status === 'verified') {
+          await this.checks.applyRegistryFlag(license.id, outcome);
+        }
+        await this.audit.record({
+          adminId: data.adminId,
+          action: AUDIT_ACTION.registryCheck,
+          targetType: 'attorney_license',
+          targetId: license.id,
+          before: { flag: license.registry_flag },
+          after: { result: outcome.result, reason, checkId: data.checkId },
+          ip: data.adminIp,
+        });
+        return;
+      }
+      await withTxRetry(this.prisma, async (tx) => {
+        const queuedIn =
+          outcome.result !== 'pass' && license.license_status !== 'pending'
+            ? await this.queueForReview(
+                tx,
+                license,
+                outcome,
+                provider.name,
+                now,
+              )
+            : null;
+        await this.audit.record(
+          {
+            adminId: data.adminId,
+            action: AUDIT_ACTION.recheck,
+            targetType: 'attorney_license',
+            targetId: license.id,
+            before: { status: license.license_status },
+            after: {
+              status: queuedIn ? 'pending' : license.license_status,
+              result: outcome.result,
+              reason,
+              lookupProvider: provider.name,
+              requestId: queuedIn,
+              checkId: data.checkId,
+            },
+            ip: data.adminIp,
+          },
+          tx,
+        );
+      });
+    } finally {
+      await this.registryQueue?.clearPending(data.licenseId);
+    }
   }
 
   /** Owner 2026-10-05: the admin looked at a registry difference and
@@ -1263,6 +1319,7 @@ interface RenewalOpts {
 function licenseDto(
   l: AttorneyLicense & { state: State },
   renewal?: RenewalOpts,
+  checking?: RegistryCheckJobData,
 ): AdminLicenseDto {
   return {
     id: l.id,
@@ -1294,7 +1351,34 @@ function licenseDto(
     decidedBy: l.verified_by,
     registryFlag: (l.registry_flag as AdminLicenseDto['registryFlag']) ?? null,
     registryFlaggedAt: l.registry_flagged_at?.toISOString() ?? null,
+    registryCheck: checking
+      ? {
+          checkId: checking.checkId,
+          kind: checking.kind,
+          queuedAt: checking.queuedAt,
+        }
+      : null,
   };
+}
+
+/** R-394: what the registry said before a manual decision (audit only). */
+function registryResultOf(value: Prisma.JsonValue | null): string | null {
+  const o = asObject(value);
+  return o && typeof o.result === 'string' ? o.result : null;
+}
+
+/** No queue in this process (unit tests): still never inside the request. */
+function startInBackground(
+  input: Omit<RegistryCheckJobData, 'checkId' | 'queuedAt'>,
+  run: (data: RegistryCheckJobData) => Promise<void>,
+): RegistryCheckJobData {
+  const data: RegistryCheckJobData = {
+    ...input,
+    checkId: randomUUID(),
+    queuedAt: new Date().toISOString(),
+  };
+  setImmediate(() => void run(data).catch(() => undefined));
+  return data;
 }
 
 /** Owner 2026-10-28: the stored selfie capture record, read defensively

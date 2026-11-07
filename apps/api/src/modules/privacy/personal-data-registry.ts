@@ -56,6 +56,7 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   VoipToken: ['user_id'],
   SavedItem: ['user_id'],
   SavedChatMessage: ['user_id'],
+  QuickReply: ['user_id'],
   UserBlock: ['blocker_id', 'blocked_id'],
   StoryView: ['viewer_id'],
   StoryHidden: ['owner_id', 'hidden_user_id'],
@@ -273,6 +274,8 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'StripeReviewItem',
       // Algo audit M-4: auto-resolved duplicate subscriptions (refund record).
       'BillingDuplicateFix',
+      // R-237: automatic refunds of bank inquiries (refund record).
+      'BillingDisputeRefund',
       // Staff package T1: piecework days feed payroll_accruals (pay records).
       'StaffPieceworkDay',
     ),

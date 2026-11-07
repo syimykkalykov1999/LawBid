@@ -72,10 +72,11 @@ export default function SpendPage() {
         }
       />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
+      {/* R-370 (owner 2026-11-04): every block shows as soon as its own
+          data is here; the registry has its own request and skeleton. */}
       {!r ? (
-        <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
+        <Skeleton className="mb-6 h-40 rounded-[var(--radius-lg)]" />
       ) : (
-        <>
           <Card className="mb-6 p-5" data-testid="spend-total">
             <div className="text-xs text-muted">Сколько держать на счету в этом месяце</div>
             <div className="mt-1 text-3xl font-semibold text-heading">{money(r.total.keepOnAccountUsd)}</div>
@@ -89,9 +90,14 @@ export default function SpendPage() {
               Комиссию Stripe не нужно держать на счету: он сам вычитает её из платежей клиентов.
             </p>
           </Card>
+      )}
 
-          <CostRegistry />
+      <CostRegistry />
 
+      {!r ? (
+        <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
+      ) : (
+        <>
           <SectionTitle>По сервисам</SectionTitle>
           <div className="mb-6 grid gap-3 lg:grid-cols-2">
             {r.vendors.map((v) => (

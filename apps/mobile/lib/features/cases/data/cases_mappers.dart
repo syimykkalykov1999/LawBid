@@ -29,6 +29,7 @@ abstract final class CasesMappers {
   static CaseSummary summary(api.CaseSummaryDto c) => CaseSummary(
         id: c.id,
         coverUrl: c.coverUrl,
+        coverBlurhash: c.coverBlurhash,
         title: c.title,
         practice: practiceRef(c.practiceArea),
         extraPracticeCount: c.extraPracticeCount,
@@ -112,6 +113,7 @@ abstract final class CasesMappers {
         previewUrl: p.previewUrl,
         mime: p.mime,
         sizeBytes: p.sizeBytes,
+        blurhash: p.blurhash,
       );
 
   static BidAttorney attorney(api.BidAttorneySummaryDto a) => BidAttorney(
@@ -162,6 +164,8 @@ abstract final class CasesMappers {
       );
 
   static CaseBid bid(api.BidDto b) => CaseBid(
+        version: b.version,
+        confirmationRequiredAt: b.confirmationRequiredAt,
         id: b.id,
         caseId: b.caseId,
         attorneyId: b.attorneyId,
@@ -245,6 +249,7 @@ abstract final class CasesMappers {
         excerpt: c.excerpt,
         practice: feedPractice(c.practiceArea),
         extraPracticeCount: c.extraPracticeCount,
+        extraPracticeCodes: c.extraPracticeCodes ?? const [],
         primaryStateCode: c.primaryStateCode,
         additionalStateCodes: c.additionalStateCodes,
         city: c.city,
@@ -264,6 +269,7 @@ abstract final class CasesMappers {
         isSaved: c.isSaved,
         ownBidId: c.ownBidId,
         completionRequestedBy: c.completionRequestedBy?.json,
+        autoCloseAt: _dateOrNull(c.autoCloseAt),
         photos: c.photos.map(casePhoto).toList(growable: false),
         photosCount: c.photosCount.toInt(),
         commentCount: c.commentCount,
@@ -311,11 +317,13 @@ abstract final class CasesMappers {
         primaryStateCode: b.caseValue.primaryStateCode,
         lastOffer: offer(b.lastOffer),
         coverUrl: b.coverUrl,
+        coverBlurhash: b.coverBlurhash,
       );
 
   static WorkItem workItem(api.WorkItemDto w) => WorkItem(
         caseId: w.caseId,
         coverUrl: w.coverUrl,
+        coverBlurhash: w.coverBlurhash,
         bidId: w.bidId,
         title: w.title,
         status: w.status,

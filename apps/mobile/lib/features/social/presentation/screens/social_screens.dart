@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
@@ -16,8 +18,10 @@ import 'package:lawbid/features/practice/practice_options.dart' as practices;
 import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart'
     show SliverMinExtent;
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
+import 'package:lawbid/features/search/presentation/widgets/search_tiles.dart';
 import 'package:lawbid/features/social/application/merged_paging.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/social/application/topic_view_mode.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
@@ -28,6 +32,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_prefetch.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_window.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
@@ -173,6 +178,7 @@ class FilteredPostsView extends ConsumerWidget {
     this.stateCode,
     this.newsOnly = false,
     this.generalOnly = false,
+    this.grid = false,
     super.key,
   });
 
@@ -189,6 +195,10 @@ class FilteredPostsView extends ConsumerWidget {
   /// Owner 2026-10-05: the "Posts" topic — general (personal) posts.
   final bool generalOnly;
 
+  /// Owner 2026-11-04 (R-406): the topic page's «grid» view — the same
+  /// 3-column tiles as Search → Posts instead of the feed's cards.
+  final bool grid;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
@@ -200,6 +210,27 @@ class FilteredPostsView extends ConsumerWidget {
       practices: practices?.join(','),
     );
     final notifier = ref.read(filteredPostsProvider(key).notifier);
+    if (grid) {
+      final posts = _withoutDeleted(
+        ref.watch(filteredPostsProvider(key)),
+        ref.watch(deletedPostsProvider),
+      );
+      return TopicPostsGrid(
+        posts: posts,
+        empty: AppEmptyState(
+          icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,
+          message: t.t(
+            newsOnly
+                ? 'feed.news.empty'
+                : generalOnly
+                    ? 'feed.posts.empty'
+                    : 'feed.practice.empty',
+          ),
+        ),
+        onRefresh: notifier.refresh,
+        onLoadMore: notifier.loadMore,
+      );
+    }
     return LayoutBuilder(
       builder: (context, box) {
         final height =
@@ -315,35 +346,39 @@ class PostScreen extends ConsumerWidget {
               value: post,
               t: t,
               onRetry: () => ref.invalidate(postProvider(postId)),
-              builder: (p) => PostCard.isThreadsStyle(p)
-                  ? _ThreadDetail(post: p, fromProfile: fromProfile)
-                  : AppRefreshIndicator(
-                      color: colors.gold,
-                      onRefresh: () async =>
-                          ref.invalidate(postProvider(postId)),
-                      child: ListView(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.paddingOf(context).bottom +
-                              AppSpacing.xl,
+              builder: (p) => postWindowOn(context)
+                  // The website's wide window: a link or a notification
+                  // opens the same window as a grid, on this page.
+                  ? Center(child: PostWindowBody(post: p))
+                  : PostCard.isThreadsStyle(p)
+                      ? _ThreadDetail(post: p, fromProfile: fromProfile)
+                      : AppRefreshIndicator(
+                          color: colors.gold,
+                          onRefresh: () async =>
+                              ref.invalidate(postProvider(postId)),
+                          child: ListView(
+                            padding: EdgeInsets.only(
+                              bottom: MediaQuery.paddingOf(context).bottom +
+                                  AppSpacing.xl,
+                            ),
+                            children: [
+                              PostImpressionTracker(
+                                post: p,
+                                child: PostCard(
+                                  post: p,
+                                  inDetail: true,
+                                  fromProfile: fromProfile,
+                                ),
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.screenSide,
+                                ),
+                                child: PostDisclaimer(),
+                              ),
+                            ],
+                          ),
                         ),
-                        children: [
-                          PostImpressionTracker(
-                            post: p,
-                            child: PostCard(
-                              post: p,
-                              inDetail: true,
-                              fromProfile: fromProfile,
-                            ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: AppSpacing.screenSide,
-                            ),
-                            child: PostDisclaimer(),
-                          ),
-                        ],
-                      ),
-                    ),
             ),
     );
   }
@@ -478,10 +513,25 @@ class TagScreen extends ConsumerStatefulWidget {
 class _TagScreenState extends ConsumerState<TagScreen> {
   TagSort _sort = TagSort.top;
 
+  /// Owner 2026-11-04 (R-406): top right of the topic header — «list» (the
+  /// feed's cards) or «grid» (the Search tab's tiles); the icon shows the
+  /// view a tap switches to. Remembered on the device per account.
+  Widget _viewToggle(Translator t, AppColorTokens colors, bool grid) =>
+      AppIconButton(
+        key: const ValueKey('topic-view-toggle'),
+        icon: AppIcon(
+          grid ? AppIcons.viewListRounded : AppIcons.gridOnRounded,
+          color: colors.text,
+        ),
+        semanticLabel: t.t(grid ? 'tag.view.list' : 'tag.view.grid'),
+        onPressed: () => ref.read(topicViewModeProvider.notifier).toggle(),
+      );
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final grid = ref.watch(topicViewModeProvider) == TopicViewMode.grid;
     // Audit 2026-10-01: a qualification's topic shows every post of that
     // qualification (and its subcategories), not only the hashtagged ones.
     final category = categoryForTopicTag(widget.tag);
@@ -494,10 +544,12 @@ class _TagScreenState extends ConsumerState<TagScreen> {
             onPressed: () => Navigator.of(context).maybePop(),
           ),
           title: Text(practice_options.practiceLabel(ref, category)),
+          actions: [_viewToggle(t, colors, grid)],
         ),
         body: FilteredPostsView(
           key: ValueKey('topic-$category'),
           practice: category,
+          grid: grid,
         ),
       );
     }
@@ -509,6 +561,7 @@ class _TagScreenState extends ConsumerState<TagScreen> {
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text('#${widget.tag}'),
+        actions: [_viewToggle(t, colors, grid)],
       ),
       body: Column(
         children: [
@@ -532,6 +585,7 @@ class _TagScreenState extends ConsumerState<TagScreen> {
                 key: ValueKey(sort),
                 tag: widget.tag,
                 sort: sort,
+                grid: grid,
               ),
             ),
           ),
@@ -543,10 +597,18 @@ class _TagScreenState extends ConsumerState<TagScreen> {
 
 /// One section of [TagScreen] (Top, New or Video).
 class _TagSortPage extends ConsumerWidget {
-  const _TagSortPage({required this.tag, required this.sort, super.key});
+  const _TagSortPage({
+    required this.tag,
+    required this.sort,
+    this.grid = false,
+    super.key,
+  });
 
   final String tag;
   final TagSort sort;
+
+  /// R-406: the Search tab's tiles instead of the feed's cards.
+  final bool grid;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -557,6 +619,17 @@ class _TagSortPage extends ConsumerWidget {
       ref.watch(deletedPostsProvider),
     );
     final notifier = ref.read(tagPostsProvider(key).notifier);
+    if (grid) {
+      return TopicPostsGrid(
+        posts: value,
+        empty: AppEmptyState(
+          icon: AppIcons.tagRounded,
+          message: t.t('tag.empty'),
+        ),
+        onRefresh: notifier.refresh,
+        onLoadMore: notifier.loadMore,
+      );
+    }
     return PagedListBody<Post>(
       value: value,
       t: t,
@@ -573,6 +646,37 @@ class _TagSortPage extends ConsumerWidget {
       onRefresh: notifier.refresh,
       onLoadMore: notifier.loadMore,
       onRetryMore: notifier.retryLoadMore,
+    );
+  }
+}
+
+/// Owner 2026-11-04 (R-406): a topic's posts as the Search tab's grid —
+/// the very same [PagedTileGrid] and [SearchPostTile] (a tap opens the
+/// posts as a feed from that tile; a video tile opens the Reels player).
+class TopicPostsGrid extends StatelessWidget {
+  const TopicPostsGrid({
+    required this.posts,
+    required this.empty,
+    required this.onRefresh,
+    required this.onLoadMore,
+    super.key,
+  });
+
+  final AsyncValue<PaginatedList<Post>> posts;
+  final Widget empty;
+  final Future<void> Function() onRefresh;
+  final VoidCallback onLoadMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = posts.value?.items;
+    return PagedTileGrid<Post>(
+      key: const ValueKey('topic-posts-grid'),
+      value: posts,
+      itemBuilder: (p) => SearchPostTile(post: p, feed: items),
+      empty: empty,
+      onRefresh: onRefresh,
+      onLoadMore: onLoadMore,
     );
   }
 }
@@ -772,11 +876,18 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final deleted = ref.watch(deletedPostsProvider);
-    final overrides = ref.watch(postOverridesProvider);
     final postsValue = ref.watch(attorneyPostsProvider(attorneyId));
     final repostsValue = ref.watch(userRepostsProvider(attorneyId));
     final posts = postsValue.value;
     final reposts = repostsValue.value;
+    // Only «undone from here» matters, and only for the reposts shown: a
+    // like elsewhere must not rebuild the whole profile list.
+    final repostIds = [
+      if (isSelf)
+        for (final p in reposts?.items ?? const <Post>[]) p.id,
+    ];
+    final unreposted = watchOverrideIds(ref, repostIds, (p) => !p.repostedByMe);
+    BuildCounter.hit('profile.posts');
 
     if (posts == null || reposts == null) {
       final failed = (posts == null && postsValue.hasError) ||
@@ -843,9 +954,7 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
     bool visible(Post p, int source) =>
         !deleted.contains(p.id) &&
         // Undone from here (or from the post's own ↻): gone at once.
-        !(source == _reposts &&
-            isSelf &&
-            overrides[p.id]?.repostedByMe == false);
+        !(source == _reposts && isSelf && unreposted.contains(p.id));
     final pinnedShown = [
       for (final p in pinned)
         if (visible(p, _briefs)) p,
@@ -937,11 +1046,16 @@ class SavedPostsList extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final value = ref.watch(savedPostsProvider);
     final notifier = ref.read(savedPostsProvider.notifier);
-    final overrides = ref.watch(postOverridesProvider);
+    // Only «unsaved here» matters, and only for the posts shown: a like
+    // elsewhere must not rebuild the grid.
+    final shownIds = [
+      for (final s in value.value?.items ?? const <SavedPost>[])
+        if (s.post != null) s.postId,
+    ];
+    final unsaved = watchOverrideIds(ref, shownIds, (p) => !p.savedByMe);
+    BuildCounter.hit('saved.posts');
     final filtered = value.whenData(
-      (v) => v.without(
-        (s) => s.post != null && overrides[s.postId]?.savedByMe == false,
-      ),
+      (v) => v.without((s) => s.post != null && unsaved.contains(s.postId)),
     );
     // Owner 2026-10-28: the saved posts are the profile's grid (covers only,
     // no autoplay); a tap opens the posts viewer from that item. Posts that
@@ -1189,8 +1303,14 @@ class ProfilePostsGrid extends ConsumerWidget {
                   PostImpressionTracker(
                     key: ValueKey('imp-${p.id}'),
                     post: p,
-                    child:
-                        PostCard(key: ValueKey(p.id), post: p, showPin: true),
+                    // Owner 2026-11-03 (R-136): a profile's list, so the header
+                    // is the posts' own row.
+                    child: PostCard(
+                      key: ValueKey(p.id),
+                      post: p,
+                      showPin: true,
+                      fromProfile: true,
+                    ),
                   ),
                 if (page.canLoadMore)
                   TextButton(

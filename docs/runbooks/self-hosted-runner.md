@@ -5,7 +5,7 @@
 ## Как это устроено
 - `api-ci.yml`: у 4 тяжёлых job `runs-on` выбирает раннер по переменной репозитория **`CI_RUNNER`**. `self` и (событие не PR или PR из ЭТОГО репозитория) → метки `self-hosted, linux, lawbid-ci`. Иначе `ubuntu-latest`. PR из форков на ноут не попадают никогда.
 - Раннер офлайн: GitHub сам на `ubuntu-latest` не переключит, поэтому `down` ставит `CI_RUNNER=github`. Если ноут выключился без `down`, в Settings → Secrets and variables → Actions → Variables поменять `CI_RUNNER` на `github` (или удалить). Job не потеряются, только встанут в очередь до смены.
-- Скрипт `scripts/ci/self-hosted-runner.sh`: N контейнеров-раннеров (по умолчанию 4 × 6 CPU / 12 ГБ), каждый **эфемерный**: один job, потом контейнер уничтожается и поднимается новый. Без монтирования домашней папки. Docker для service-контейнеров (Postgres, Redis) — свой Docker-in-Docker рядом с каждым раннером, не сокет хоста. Токен регистрации берётся через `gh` в момент запуска и нигде не хранится.
+- Скрипт `scripts/ci/self-hosted-runner.sh`: N слотов (по умолчанию 4 × 6 CPU / 12 ГБ), в каждом раннер `lawbid-ci-N` **эфемерный**: один job, потом контейнер уничтожается и поднимается новый с новым токеном. Без монтирования домашней папки. Docker для service-контейнеров (Postgres, Redis, MailHog) — свой Docker-in-Docker sidecar `lawbid-ci-dind-N` рядом с каждым раннером (по умолчанию 2 CPU / 2 ГБ, `DIND_CPUS`, `DIND_MEM`), не сокет хоста. Раннер живёт в сетевом namespace своего sidecar, поэтому порты сервисов (5432, 6379, 1025) видны ему на `localhost`, как на ubuntu-latest, и у соседних слотов не сталкиваются. Рабочая папка `/home/runner/_work` — общий том раннера и sidecar: `docker run -v "$PWD/..."` из шага работает, а вот `/tmp` sidecar не видит, поэтому файлы для docker кладём в `$RUNNER_TEMP`. Токен регистрации берётся через `gh` в момент запуска и нигде не хранится. Логи супервизоров: `~/.local/state/lawbid-ci/slot-N.log`.
 
 ## Что сделать владельцу один раз (в браузере)
 1. Settings → Actions → General → **Fork pull request workflows**: включить **Require approval for all outside collaborators** (минимум). Репозиторий публичный, это обязательно.
@@ -19,9 +19,13 @@ git clone https://github.com/syimykkalykov1999/LawBid && cd LawBid
 scripts/ci/self-hosted-runner.sh up
 scripts/ci/self-hosted-runner.sh status
 ```
+Остановка: `scripts/ci/self-hosted-runner.sh down` (убивает слоты и удаляет их офлайн-регистрации). Размер: `RUNNERS=6 RUNNER_CPUS=5 RUNNER_MEM=5g scripts/ci/self-hosted-runner.sh up`.
+Если на ноуте стоит Docker Desktop, раннеры надо запускать на системном движке, а не в его ВМ (иначе они делят её лимит CPU/RAM с тем, что там крутится):
+```
+DOCKER_HOST=unix:///var/run/docker.sock RUNNERS=4 RUNNER_CPUS=5 RUNNER_MEM=5g scripts/ci/self-hosted-runner.sh up
+```
+Обкатка 02.11.2026 на ноуте: 4 слота × (5 CPU / 5 ГБ) + sidecar × (2 CPU / 2 ГБ) рядом с идущим нагрузочным стендом; job берутся и идут параллельно без конфликтов портов.
 Кэш npm: у каждого раннера свой именованный том `lawbid-ci-npm-N` на `~/.npm` (переживает job, `down` его не удаляет; чистка: сначала `scripts/ci/self-hosted-runner.sh down`, потом `docker volume rm lawbid-ci-npm-1 …`, потом `up` (том занят работающим контейнером, пока раннер поднят); первый job после этого скачает всё заново). В GitHub-кэш с self-hosted ничего не выгружается (шаг «Post setup-node» занимал 17 мин под нагрузкой), только читается кэш, сохранённый GitHub-раннерами.
-
-Остановка: `scripts/ci/self-hosted-runner.sh down`. Размер: `RUNNERS=6 RUNNER_CPUS=5 scripts/ci/self-hosted-runner.sh up`.
 
 ## Риски (честно)
 - Контейнер раннера исполняет код PR из репозитория: любой, у кого есть запись в репозиторий, исполняет код на ноуте. Docker-in-Docker привилегированный. Лучше запускать в отдельной ВМ или на ноуте без личных данных и не держать на нём `gh` с лишними правами.

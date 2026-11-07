@@ -62,6 +62,7 @@ export const CRON_JOBS = {
   caseStalePause: 'cases.stale-pause',
   caseAutoClose: 'cases.auto-close',
   caseCompletionReminder: 'cases.completion-reminder',
+  bidConfirmReminder: 'bids.confirm-reminder',
   /** Algo audit 2026-10-27 (CASES M-3): no offers after 24 / 72 h — the
    * not-yet-alerted part of the audience is told. */
   caseRebroadcast: 'cases.rebroadcast',
@@ -71,6 +72,8 @@ export const CRON_JOBS = {
   feedReco: 'feed.reco',
   /** docs/05 §7.2: popular tags every 10 minutes. */
   trendingTags: 'search.trending-tags',
+  /** Owner 2026-11-04 (R-406): nightly covers of hashtag topics. */
+  topicCovers: 'search.topic-covers',
   /** Owner 2026-10-15: nightly "query → topic" learning from clicks. */
   searchLearn: 'search.learn',
   /** Owner 2026-10-15: topics of texts that name none (every 5 minutes). */
@@ -191,6 +194,9 @@ export const CRON_JOBS = {
   storageCleanup: 'storage.gc',
   storageRetention: 'storage.retention',
   storageSnapshot: 'storage.snapshot',
+  /** R-401 (owner 2026-11-04): nightly Q&A ranking snapshot — attorney
+   * scores and per-topic top lists the recommendations read. */
+  recoQaSnapshot: 'reco.qa-snapshot',
   /** Owner 2026-10-05: client fraud — re-score the queue, propagate fresh
    * blocks to linked accounts, delete old hashes (retention). */
   fraudSweep: 'fraud.sweep',
@@ -288,10 +294,12 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.caseStalePause, pattern: '25 * * * *' },
   { name: CRON_JOBS.caseAutoClose, pattern: '35 * * * *' },
   { name: CRON_JOBS.caseCompletionReminder, pattern: '45 * * * *' },
+  { name: CRON_JOBS.bidConfirmReminder, pattern: '50 * * * *' },
   { name: CRON_JOBS.caseRebroadcast, pattern: '55 * * * *' },
   { name: CRON_JOBS.countersReconcile, pattern: '50 4 * * *' },
   { name: CRON_JOBS.feedReco, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.trendingTags, pattern: '5-55/10 * * * *' },
+  { name: CRON_JOBS.topicCovers, pattern: '40 3 * * *' },
   { name: CRON_JOBS.searchLearn, pattern: '30 3 * * *' },
   { name: CRON_JOBS.searchTagTopics, pattern: '3-58/5 * * * *' },
   { name: CRON_JOBS.searchIndex, pattern: '* * * * *' },
@@ -348,6 +356,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.storageCleanup, pattern: '17 * * * *' },
   { name: CRON_JOBS.storageRetention, pattern: '35 4 * * *' },
   { name: CRON_JOBS.storageSnapshot, pattern: '55 4 * * *' },
+  // 05:20 UTC daily: after the rating / trust recomputes, before the US morning.
+  { name: CRON_JOBS.recoQaSnapshot, pattern: '20 5 * * *' },
   { name: CRON_JOBS.fraudSweep, pattern: '55 3 * * *' },
   { name: CRON_JOBS.opsGuard, pattern: '* * * * *' },
   { name: CRON_JOBS.statusWatchdog, pattern: '* * * * *' },
@@ -451,9 +461,11 @@ export const HEAVY_JOBS: readonly CronJobName[] = [
   CRON_JOBS.journalRetention,
   CRON_JOBS.ledgerReconcile,
   CRON_JOBS.storageSnapshot,
+  CRON_JOBS.recoQaSnapshot,
   CRON_JOBS.storageRetention,
   CRON_JOBS.fraudSweep,
   CRON_JOBS.searchLearn,
+  CRON_JOBS.topicCovers,
   CRON_JOBS.usagePoll,
   CRON_JOBS.contactsPepperBackfill,
   CRON_JOBS.treasuryDaily,

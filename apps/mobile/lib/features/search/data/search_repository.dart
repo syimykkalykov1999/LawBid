@@ -20,6 +20,9 @@ enum SearchPeriod { day, week, month, all }
 /// OQ-036: which Search tab a filter set belongs to.
 enum SearchFilterKind { people, cases, myCases, posts, topics }
 
+/// Owner 2026-10-28 (R-084): People filter «по подписке».
+enum FollowFilter { all, following, notFollowing }
+
 enum PostSort { relevance, newest, popular }
 
 enum TopicKind { all, practices, hashtags }
@@ -41,6 +44,7 @@ class SearchFilters {
     this.period = SearchPeriod.all,
     this.role,
     this.verifiedOnly = false,
+    this.follow = FollowFilter.all,
     this.practiceCategory,
     this.budgetMin,
     this.budgetMax,
@@ -70,6 +74,9 @@ class SearchFilters {
   /// People: 'attorney' / 'client' (null = everyone).
   final String? role;
   final bool verifiedOnly;
+
+  /// People: only those I follow / do not follow (default: everyone).
+  final FollowFilter follow;
 
   /// Cases / My cases / Posts (as its topic): a practice category code.
   final String? practiceCategory;
@@ -115,6 +122,7 @@ class SearchFilters {
         period: period,
         role: role,
         verifiedOnly: verifiedOnly,
+        follow: follow,
         practiceCategory: practiceCategory,
         budgetMin: budgetMin,
         budgetMax: budgetMax,
@@ -140,6 +148,7 @@ class SearchFilters {
         if (period != SearchPeriod.all) period,
         role,
         if (verifiedOnly) true,
+        if (follow != FollowFilter.all) follow,
         practiceCategory,
         if (budgetMin != null || budgetMax != null) true,
         if (budgetUnknown) true,
@@ -163,6 +172,7 @@ class SearchFilters {
         period,
         role,
         verifiedOnly,
+        follow,
         practiceCategory,
         budgetMin,
         budgetMax,
@@ -344,6 +354,11 @@ class ApiSearchRepository implements SearchRepository {
           _ => null,
         },
         verifiedOnly: f.verifiedOnly ? true : null,
+        follow: switch (f.follow) {
+          FollowFilter.following => api.Follow.following,
+          FollowFilter.notFollowing => api.Follow.notFollowing,
+          FollowFilter.all => null,
+        },
       ),
     );
     return CursorPage(
@@ -437,6 +452,8 @@ class ApiSearchRepository implements SearchRepository {
               tag: d.tag,
               postsCount: d.postsCount?.toInt(),
               categoryCode: d.categoryCode,
+              coverUrl: d.coverUrl,
+              coverPostId: d.coverPostId,
             ),
           )
           .toList();
@@ -451,6 +468,8 @@ class ApiSearchRepository implements SearchRepository {
               tag: d.tag,
               postsCount: d.postsCount?.toInt(),
               categoryCode: d.categoryCode,
+              coverUrl: d.coverUrl,
+              coverPostId: d.coverPostId,
             ),
           )
           .toList();

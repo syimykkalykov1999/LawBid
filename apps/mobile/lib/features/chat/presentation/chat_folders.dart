@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
+import 'package:lawbid/features/chat/application/awaiting_reply.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 
@@ -158,15 +159,28 @@ Future<void> showChatOrganizeSheet(
   WidgetRef ref,
   Conversation c, {
   bool inArchive = false,
+  String? noReplyMessageId,
 }) =>
     showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _OrganizeSheet(conversation: c, inArchive: inArchive),
+      builder: (_) => _OrganizeSheet(
+        conversation: c,
+        inArchive: inArchive,
+        noReplyMessageId: noReplyMessageId,
+      ),
     );
 
 class _OrganizeSheet extends ConsumerStatefulWidget {
-  const _OrganizeSheet({required this.conversation, required this.inArchive});
+  const _OrganizeSheet({
+    required this.conversation,
+    required this.inArchive,
+    this.noReplyMessageId,
+  });
+
+  /// Owner 2026-11-04 (N-03): the last message of a chat that shows
+  /// «Awaiting reply»; the sheet then offers «No reply needed» for it.
+  final String? noReplyMessageId;
 
   final Conversation conversation;
 
@@ -252,6 +266,21 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                             : 'chat.organize.pinned',
                       ),
             ),
+            if (widget.noReplyMessageId != null)
+              AppListRow(
+                key: const ValueKey('organize-no-reply'),
+                icon: AppIcons.doneAllRounded,
+                label: t.t('chat.noReply'),
+                onTap: _busy
+                    ? null
+                    : () async {
+                        await ref
+                            .read(awaitingReplyDismissedProvider.notifier)
+                            .dismiss(c.id, widget.noReplyMessageId!);
+                        if (!context.mounted) return;
+                        Navigator.of(context).pop();
+                      },
+              ),
             // Owner 2026-10-20: the long-press menu has the usual quick
             // actions — mute, mark read, delete.
             AppListRow(

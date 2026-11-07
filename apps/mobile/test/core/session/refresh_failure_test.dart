@@ -60,7 +60,9 @@ class _Store extends TokenSecureStore {
   Future<void> writeRealRefreshToken(String token) async {}
 
   @override
-  Future<void> clearRealRefreshToken() async {}
+  Future<void> clearRealRefreshToken() async => realClears++;
+
+  int realClears = 0;
 }
 
 String _jwt() {
@@ -256,6 +258,8 @@ void main() {
         expect(await session().bootstrap(), SessionBootstrapResult.signedOut);
         expect(store.token, isNull);
         expect(store.clears, 1);
+        // Owner 2026-11-05: a forced sign-out leaves no parked token either.
+        expect(store.realClears, 1);
         expect(adapter.requests, hasLength(1));
       });
     }

@@ -36,6 +36,7 @@ export class HealthItemDto {
       'cloudflare_usage',
       'bunny_usage',
       'table_growth',
+      'shard_growth',
     ],
   })
   key!: string;
@@ -511,4 +512,32 @@ export class QueueRetryResultDto {
     description: 'Per queue: failed jobs retried.',
   })
   byQueue!: Record<string, number>;
+}
+
+/** R-401 (owner 2026-11-04): the nightly Q&A ranking snapshot on the config page. */
+export class RecoQaStatusDto {
+  @ApiProperty({ description: 'Flag recommendations_qa_ranking.' })
+  enabled!: boolean;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'ISO time of the last run; null before the first.',
+  })
+  lastRunAt!: string | null;
+
+  @ApiProperty({ description: 'How long the last run took, ms.' })
+  durationMs!: number;
+
+  @ApiProperty({ description: 'Attorneys with a Q&A score.' })
+  attorneys!: number;
+
+  @ApiProperty({ description: 'Open questions in the per-topic lists.' })
+  questions!: number;
+
+  @ApiProperty({ description: 'Open cases in the per-topic lists.' })
+  cases!: number;
+
+  @ApiProperty({ description: 'A recompute was queued by this call.' })
+  queued!: boolean;
 }

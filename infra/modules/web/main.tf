@@ -85,12 +85,13 @@ variable "media_origins" {
 variable "app_connect_src" {
   type = list(string)
   default = [
-    "https://*.amazonaws.com",    # uploads (presigned POST) and signed links
-    "https://*.cloudfront.net",   # media CDN
-    "https://video.bunnycdn.com", # video uploads (TUS)
-    "https://*.b-cdn.net",        # video playback
-    "https://fonts.gstatic.com",  # engine fallback fonts
-    "https://api.stripe.com",     # card page (/pay.html)
+    "https://*.amazonaws.com",            # uploads (presigned POST) and signed links
+    "https://*.r2.cloudflarestorage.com", # R2: presigned PUT of public media
+    "https://*.cloudfront.net",           # media CDN
+    "https://video.bunnycdn.com",         # video uploads (TUS)
+    "https://*.b-cdn.net",                # video playback
+    "https://fonts.gstatic.com",          # engine fallback fonts
+    "https://api.stripe.com",             # card page (/pay.html)
     "https://*.stripe.com",
     "https://*.stripe.network",
     "https://maps.googleapis.com",
@@ -242,7 +243,10 @@ locals {
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https:",
     "worker-src 'self' blob:",
-    "connect-src ${join(" ", concat(["'self'", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}", "https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"], var.extra_connect_src, var.app_connect_src, var.media_origins))}",
+    # blob: is how the web app reads a picked file (image_picker returns a
+    # blob: URL and cross_file loads it with XHR). Without it every photo pick
+    # fails with «Не удалось открыть фото» (2026-11-04, KNOWN_ERRORS №58).
+    "connect-src ${join(" ", concat(["'self'", "blob:", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}", "https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"], var.extra_connect_src, var.app_connect_src, var.media_origins))}",
     "frame-src ${join(" ", concat(["'self'", local.turnstile_origin], var.stripe_frame_src))}",
     "frame-ancestors 'none'",
     "base-uri 'self'",

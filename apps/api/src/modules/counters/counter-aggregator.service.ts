@@ -3,6 +3,7 @@ import {
   Injectable,
   OnApplicationBootstrap,
   OnApplicationShutdown,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
@@ -13,6 +14,11 @@ import { forEachDatabase } from '../../sharding/for-each-database';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ck } from '../../redis/redis-cluster-safe';
+import {
+  errorLogFields,
+  SHUTDOWN_FLUSH_MS,
+  settleWithin,
+} from '../../common/errors/error-log-fields';
 
 /**
  * docs/02 §1.5 / docs/05 §4–§6 (stage 5.1): hot counters are not updated
@@ -68,6 +74,14 @@ export const COUNTERS = {
     table: 'channels',
     key: 'id',
     fields: ['post_count'],
+    recount: false,
+  },
+  // Owner 2026-11-05 (flag channel_views_buffered): other writers still touch
+  // the row while the flag is off, so the nightly job leaves it alone.
+  channel_post: {
+    table: 'channel_posts',
+    key: 'id',
+    fields: ['view_count'],
     recount: false,
   },
   attorney: {
@@ -158,10 +172,12 @@ return 1`;
 
 @Injectable()
 export class CounterAggregator
-  implements OnApplicationBootstrap, OnApplicationShutdown
+  implements OnApplicationBootstrap, OnModuleDestroy, OnApplicationShutdown
 {
   private timer?: ReturnType<typeof setInterval>;
   private localTimer?: ReturnType<typeof setInterval>;
+  /** The timer-driven flush now running, so shutdown waits for it. */
+  private timerFlush?: Promise<unknown>;
   /** entity|field|id -> delta not yet sent to Redis (S6-6). */
   private local = new Map<string, number>();
   /** Deltas this process has taken out of `local` (on their way to Redis)
@@ -191,29 +207,48 @@ export class CounterAggregator
 
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => {
-      this.flush({ waitForRunning: false }).catch((error: unknown) =>
-        this.logger.error(
-          { err: error instanceof Error ? error.message : String(error) },
-          'counter flush failed',
-        ),
+      this.timerFlush = this.flush({ waitForRunning: false }).catch(
+        (error: unknown) =>
+          this.logger.error(errorLogFields(error), 'counter flush failed'),
       );
     }, COUNTER_FLUSH_MS);
     this.timer.unref?.();
     this.localTimer = setInterval(() => {
       this.flushLocal().catch((error: unknown) =>
-        this.logger.error(
-          { err: error instanceof Error ? error.message : String(error) },
-          'counter local flush failed',
-        ),
+        this.logger.error(errorLogFields(error), 'counter local flush failed'),
       );
     }, COUNTER_LOCAL_MS);
     this.localTimer.unref?.();
   }
 
-  async onApplicationShutdown(): Promise<void> {
+  /** onModuleDestroy, not onApplicationShutdown: Prisma disconnects in its
+   * own onModuleDestroy and the Redis client quits right after, so the final
+   * flush must run here. Local deltas go to Redis and then Redis to the DB
+   * (waitForRunning false: if another pod holds the flush lock the deltas
+   * stay in Redis for it). A failure keeps the deltas in Redis / `local`. */
+  async onModuleDestroy(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     if (this.localTimer) clearInterval(this.localTimer);
-    await this.flushLocal().catch(() => undefined);
+    await settleWithin(
+      (async () => {
+        // A timer flush already running holds the lock: let it finish
+        // (it would hit the closed DB), then flush what is left.
+        await this.timerFlush;
+        await this.flush({ waitForRunning: false });
+      })(),
+      SHUTDOWN_FLUSH_MS,
+      (error) =>
+        this.logger.error(errorLogFields(error), 'counter final flush failed'),
+    );
+  }
+
+  /** Requests still draining after onModuleDestroy may bump once more:
+   * send those to Redis (the DB is closed by now; the next flusher applies
+   * them). */
+  async onApplicationShutdown(): Promise<void> {
+    await this.flushLocal().catch((error: unknown) =>
+      this.logger.error(errorLogFields(error), 'counter local flush failed'),
+    );
   }
 
   /** Records +delta / -delta for one row. Call only after the source row

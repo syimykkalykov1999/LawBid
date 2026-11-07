@@ -17,6 +17,14 @@ describe('realtime settings (owner 2026-10-23)', () => {
     }
   });
 
+  it('one address may open 600 sockets a minute (laptop load test 2026-11-02: 120 cut 10 000 test users from one address)', () => {
+    expect(
+      (APP_SETTINGS as Record<string, unknown>)[
+        'realtime.max_connects_per_ip_per_minute'
+      ],
+    ).toBe(600);
+  });
+
   it("defaults are the doc's and every default is inside its range", () => {
     const t = clientTimingsFrom({});
     expect(t).toMatchObject({

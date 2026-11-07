@@ -20,6 +20,8 @@ export const NOTIFICATION_CATEGORY: Record<
 > = {
   bid_received: 'bids',
   offer_countered: 'bids',
+  bid_changed: 'bids',
+  bid_confirm_reminder: 'bids',
   offer_accepted: 'bids',
   bid_accepted: 'bids',
   bid_rejected: 'bids',
@@ -130,6 +132,8 @@ export const NOTIFICATION_CATEGORY: Record<
 export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   bid_received: true,
   offer_countered: true,
+  bid_changed: true,
+  bid_confirm_reminder: true,
   offer_accepted: true,
   bid_accepted: true,
   bid_rejected: true,

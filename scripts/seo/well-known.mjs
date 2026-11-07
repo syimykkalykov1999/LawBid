@@ -38,6 +38,7 @@ export const APP_PATHS = [
   ['/c/*', 'Channel (lawbid.dev/c/<username>)'],
   ['/auth/email-code', 'Email magic sign-in link'],
   ['/verification/wizard', 'Continue verification on the phone (ID selfie), owner 2026-10-28'],
+  ['/selfie/*', 'One-time «continue on your phone» code for the ID selfie (R-146)'],
 ];
 
 export function appleAppSiteAssociation() {

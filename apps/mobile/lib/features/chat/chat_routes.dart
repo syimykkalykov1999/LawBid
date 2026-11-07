@@ -35,7 +35,11 @@ abstract final class ChatRoutes {
   static const call = '/call';
 }
 
-List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
+List<RouteBase> chatRoutes(
+  GlobalKey<NavigatorState> root, {
+  Widget Function(String location, Widget page)? sectionPage,
+}) =>
+    [
       GoRoute(
         path: ChatRoutes.inbox,
         parentNavigatorKey: root,
@@ -117,12 +121,17 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'notification_settings_screen',
-            load: d_notification_settings_screen.loadLibrary,
-            builder: (_) =>
-                d_notification_settings_screen.NotificationSettingsScreen(),
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
+              id: 'notification_settings_screen',
+              load: d_notification_settings_screen.loadLibrary,
+              builder: (_) =>
+                  d_notification_settings_screen.NotificationSettingsScreen(),
+            ),
           ),
         ),
       ),
     ];
+
+Widget _plain(String location, Widget page) => page;

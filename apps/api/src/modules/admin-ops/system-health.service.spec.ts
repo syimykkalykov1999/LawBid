@@ -24,8 +24,11 @@ function build(
     reencryptState?: Record<string, unknown> | null;
     s3Bucket?: string;
     r2Bucket?: string | null;
+    r2Fallback?: string;
     head?: (bucket: string) => Promise<unknown>;
     bloatOver?: string[];
+    /** R-370: the status-board extra probes (absent = none). */
+    probes?: { extra: () => Promise<unknown[]> };
   } = {},
 ) {
   const opts = over;
@@ -92,6 +95,13 @@ function build(
     ),
     bucket: jest.fn(() => 'media'),
     publicStoreBucket: jest.fn(() => Promise.resolve(over.r2Bucket ?? null)),
+    r2Status: jest.fn(() =>
+      Promise.resolve({
+        selected: !!over.r2Fallback,
+        active: false,
+        fallback: over.r2Fallback ?? null,
+      }),
+    ),
   };
   const cipher = opts.cipher ?? { enabled: false, activeKid: null, kids: [] };
   const reencrypt = {
@@ -110,6 +120,7 @@ function build(
     storage as never,
     cipher as never,
     reencrypt as never,
+    over.probes as never,
   );
   return { svc, now, storage };
 }
@@ -146,6 +157,7 @@ describe('SystemHealthService', () => {
       restore_drill: 'grey',
       message_keys: 'grey',
       table_growth: 'grey',
+      shard_growth: 'grey',
       cost: 'grey',
     });
     expect(r.overall).toBe('yellow');
@@ -246,6 +258,17 @@ describe('SystemHealthService', () => {
       expect(it?.detail).toHaveProperty('r2LatencyMs');
     });
 
+    it('is red with the reason when the R2 switch is on but files stay on AWS', async () => {
+      const { it } = await item({
+        s3Bucket: 'aws',
+        r2Bucket: 'r2b',
+        r2Fallback: 'Публичный адрес бакета не отвечает.',
+      });
+      expect(it?.status).toBe('red');
+      expect(it?.detail?.r2Fallback).toContain('новые фото идут в AWS');
+      expect(it?.detail?.r2Fallback).toContain('не отвечает');
+    });
+
     it('is red with r2Error when only R2 fails', async () => {
       const { it } = await item({
         s3Bucket: 'aws',
@@ -315,8 +338,15 @@ describe('SystemHealthService.cachedReport', () => {
     expect(summary.refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('does not show old lights: an entry older than 2 minutes waits for a new report', async () => {
-    const { s, build } = svc({ age: 5 * 60_000, data: old('red') });
+  it('R-370: a 5-minute-old copy opens at once, one refresh runs behind it', async () => {
+    const { s, build, summary } = svc({ age: 5 * 60_000, data: old('red') });
+    expect((await s.cachedReport()).overall).toBe('red');
+    expect(summary.refresh).toHaveBeenCalledTimes(1);
+    expect(build).toHaveBeenCalledTimes(1); // the background refresh
+  });
+
+  it('a copy older than 15 minutes waits for a new report', async () => {
+    const { s, build } = svc({ age: 16 * 60_000, data: old('red') });
     expect((await s.cachedReport()).overall).toBe('green');
     expect(build).toHaveBeenCalledTimes(1);
   });
@@ -334,5 +364,68 @@ describe('SystemHealthService.cachedReport', () => {
       'ops:system-health',
       expect.objectContaining({ overall: 'green' }),
     );
+  });
+});
+
+describe('SystemHealthService.shardGrowth', () => {
+  const item = (partitions: unknown) =>
+    (
+      Object.assign(Object.create(SystemHealthService.prototype) as object, {
+        partitions,
+      }) as unknown as {
+        shardGrowth: () => Promise<{ status: string; detail: unknown }>;
+      }
+    ).shardGrowth();
+
+  it('is grey without the probe or when it fails', async () => {
+    expect((await item(undefined)).status).toBe('grey');
+    expect(
+      (await item({ shardSignal: () => Promise.reject(new Error('x')) }))
+        .status,
+    ).toBe('grey');
+  });
+
+  it('passes the status and the plan of the probe through', async () => {
+    const r = await item({
+      shardSignal: () =>
+        Promise.resolve({
+          status: 'yellow',
+          ratio: 0.9,
+          plan: { shards: 128, rows: 1, estimatedSeconds: 2 },
+          autoMove: false,
+        }),
+    });
+    expect(r.status).toBe('yellow');
+    expect(r.detail).toMatchObject({ autoMove: false, ratio: 0.9 });
+  });
+});
+
+describe('SystemHealthService build (R-370)', () => {
+  it('hung extra probes cost at most ~4 s; the core lights still show', async () => {
+    const { svc, now } = build({
+      probes: { extra: () => new Promise<unknown[]>(() => undefined) },
+    });
+    const started = Date.now();
+    const r = await svc.report(now);
+    expect(Date.now() - started).toBeLessThan(4_900);
+    expect(r.items.find((i) => i.key === 'database')?.status).toBe('green');
+  }, 10_000);
+
+  it('the extra probes run together with the core lights, not after them', async () => {
+    let extraStarted = false;
+    const { svc, now } = build({
+      probes: {
+        extra: () => {
+          extraStarted = true;
+          return Promise.resolve([
+            { key: 'push', status: 'green', detail: {} },
+          ]);
+        },
+      },
+    });
+    const p = svc.report(now);
+    expect(extraStarted).toBe(true); // started before any core probe answered
+    const r = await p;
+    expect(r.items.map((i) => i.key)).toContain('push');
   });
 });

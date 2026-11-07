@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -10,6 +12,7 @@ import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/feed/application/feed_content.dart';
@@ -87,6 +90,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _setNavAway(0);
     });
+    // R-404 (a): the saved chats list is read into memory now, so the Chats
+    // page draws its rows in its very first frame when it slides in.
+    if (!ref.read(isGuestProvider)) {
+      unawaited(ref.read(chatListCacheProvider).warm());
+    }
   }
 
   @override

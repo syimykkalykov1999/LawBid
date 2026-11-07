@@ -37,8 +37,11 @@ class _Keys implements PasskeysRepository {
     final e = addError;
     if (e != null) throw e;
     added++;
-    final k =
-        PasskeyInfo(id: 'k$added', name: 'iPhone', createdAt: DateTime(2026));
+    final k = PasskeyInfo(
+      id: 'k$added',
+      name: 'iPhone',
+      createdAt: DateTime(2026),
+    );
     existing = [...existing, k];
     return k;
   }
@@ -62,22 +65,24 @@ void main() {
   });
 
   group('PasskeyNudgePolicy', () {
-    test('due at first; «Later» hides it for 7 days, three times at most',
-        () async {
-      final p = PasskeyNudgePolicy(prefs, 'u1');
-      final t0 = DateTime(2026, 10, 24, 12);
-      expect(p.due(t0), isTrue);
-      await p.later(t0);
-      expect(p.due(t0.add(const Duration(days: 6, hours: 23))), isFalse);
-      final t1 = t0.add(const Duration(days: 7));
-      expect(p.due(t1), isTrue);
-      await p.later(t1);
-      final t2 = t1.add(const Duration(days: 7));
-      expect(p.due(t2), isTrue);
-      await p.later(t2);
-      // Three «Later» in: retired for good.
-      expect(p.due(t2.add(const Duration(days: 365))), isFalse);
-    });
+    test(
+      'due at first; «Later» hides it for 7 days, three times at most',
+      () async {
+        final p = PasskeyNudgePolicy(prefs, 'u1');
+        final t0 = DateTime(2026, 10, 24, 12);
+        expect(p.due(t0), isTrue);
+        await p.later(t0);
+        expect(p.due(t0.add(const Duration(days: 6, hours: 23))), isFalse);
+        final t1 = t0.add(const Duration(days: 7));
+        expect(p.due(t1), isTrue);
+        await p.later(t1);
+        final t2 = t1.add(const Duration(days: 7));
+        expect(p.due(t2), isTrue);
+        await p.later(t2);
+        // Three «Later» in: retired for good.
+        expect(p.due(t2.add(const Duration(days: 365))), isFalse);
+      },
+    );
 
     test('shown but not answered hides it for a day only', () async {
       final p = PasskeyNudgePolicy(prefs, 'u1');
@@ -126,8 +131,9 @@ void main() {
             translator: t,
             extra: [
               sharedPreferencesProvider.overrideWithValue(prefs),
-              passkeyNudgePolicyProvider
-                  .overrideWithValue(PasskeyNudgePolicy(prefs, 'u1')),
+              passkeyNudgePolicyProvider.overrideWithValue(
+                PasskeyNudgePolicy(prefs, 'u1'),
+              ),
               currentUserRoleProvider.overrideWithValue(role),
               passkeysRepositoryProvider.overrideWithValue(keys),
               passkeysAvailableProvider.overrideWith((ref) async => available),
@@ -141,8 +147,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
-  testWidgets('an attorney without a key is offered it; «Turn on» enrols',
-      (tester) async {
+  testWidgets('an attorney without a key is offered it; «Turn on» enrols', (
+    tester,
+  ) async {
     final keys = _Keys();
     await host(tester, keys);
     expect(
@@ -179,8 +186,9 @@ void main() {
     expect(PasskeyNudgePolicy(prefs, 'u1').due(DateTime.now()), isFalse);
   });
 
-  testWidgets('a real failure stays on the sheet with a line of text',
-      (tester) async {
+  testWidgets('a real failure stays on the sheet with a line of text', (
+    tester,
+  ) async {
     final keys = _Keys(
       addError: const PasskeyAuthenticatorException(PasskeyFailure.other),
     );
@@ -192,10 +200,30 @@ void main() {
     expect(find.byKey(const ValueKey('passkey-nudge-enable')), findsOneWidget);
   });
 
-  testWidgets('not shown to clients, without passkey support, or with a key',
-      (tester) async {
+  testWidgets('a client is offered it too (R-140)', (tester) async {
     await host(tester, _Keys(), role: UserRole.client);
-    expect(find.byKey(const ValueKey('passkey-nudge-enable')), findsNothing);
+    expect(find.byKey(const ValueKey('passkey-nudge-enable')), findsOneWidget);
+  });
+
+  testWidgets(
+    'not shown twice in a row after an answer or an unanswered show',
+    (tester) async {
+      await host(tester, _Keys(), role: UserRole.client);
+      expect(
+        find.byKey(const ValueKey('passkey-nudge-enable')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('passkey-nudge-later')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await host(tester, _Keys(), role: UserRole.client);
+      expect(find.byKey(const ValueKey('passkey-nudge-enable')), findsNothing);
+    },
+  );
+
+  testWidgets('not shown without passkey support, or with a key', (
+    tester,
+  ) async {
     await host(tester, _Keys(), available: false);
     expect(find.byKey(const ValueKey('passkey-nudge-enable')), findsNothing);
     final has = _Keys(
@@ -215,8 +243,9 @@ void main() {
   });
 
   for (final id in AppThemeId.values) {
-    testWidgets('longest strings, 2x text: no overflow in ${id.name}',
-        (tester) async {
+    testWidgets('longest strings, 2x text: no overflow in ${id.name}', (
+      tester,
+    ) async {
       await host(
         tester,
         _Keys(),

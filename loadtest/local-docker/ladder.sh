@@ -3,7 +3,7 @@
 # growing size, one after another, stops at the first rung that fails.
 #
 #   ladder.sh <fixtures dir> <rung> [<rung> ...]
-#   rungs: r100  r1k  r3k  s10k  auth  (r1k+writes: r1kw)
+#   rungs: r100  r1k  r3k  s10k  auth  (r1k+writes: r1kw)  q500 q1k q2k q5k q10k q20k q50k qmax (fixed req/s, open model; qmax = climb until the ceiling)
 #
 #   r100  100 people            2 API   (does the whole chain work at all)
 #   r1k   1 000 people + 200 sockets    8 API    (last measured: passed, 513 req/s)
@@ -41,6 +41,18 @@ scale_api() {  # scale_api <n> [env file]; returns when all n replicas answer th
   echo "API did not become healthy after scaling to $n"; return 1
 }
 
+
+# qrung <rps> <api replicas> <held sockets> <ramp>: one open-model rung (fixed requests per second,
+# docs/perf/LOAD_STEPS_2026-11-02.md). VUS is only the worker pool (capped by the laptop's memory).
+# Returns 0 when the rate was held, 10 when not; saturation.py prints "ceiling = N rps, bottleneck: X".
+# DB=<database> picks the data set (a smaller one, 1M or 100k, can give more req/s).
+qrung() {
+  rps="$1"; api="$2"; ws="$3"; ramp="$4"; name="$stamp-q$rps"
+  vus=$(( rps < 20000 ? rps : 20000 ))
+  scale_api "$api" && "$here/run.sh" "$name" "$fx" RPS="$rps" VUS="$vus" WS="$ws" HOLD=4m RAMP="$ramp"
+  python3 "$here/saturation.py" "$RESULTS/$name" "$rps"
+}
+
 # SMS caps and abuse guards are database settings (app_config); the login storm
 # needs them out of the way. Set for the auth rung, removed afterwards (also on failure).
 AUTH_CFG=(
@@ -69,6 +81,22 @@ for rung in "$@"; do
     r1k)   scale_api 8  && "$here/run.sh" "$name" "$fx" VUS=1000 WS=200  HOLD=4m RAMP=1m ;;
     r1kw)  scale_api 8  && "$here/run.sh" "$name" "$fx" VUS=1000 WS=200  HOLD=4m RAMP=1m WRITES=1 ;;
     r3k)   scale_api 16 && "$here/run.sh" "$name" "$fx" VUS=3000 WS=1000 HOLD=5m RAMP=3m ;;
+    # open model (docs/perf/LOAD_STEPS_2026-11-02.md): fixed requests per second, few "people"
+    # (VUS = worker pool). Same mix as m1/m10. The first rung that misses stops the ladder = the ceiling.
+    q500)  qrung 500   8  1000  1m ;;
+    q1k)   qrung 1000  16 2000  2m ;;
+    q2k)   qrung 2000  16 4000  2m ;;
+    q5k)   qrung 5000  16 8000  3m ;;
+    q10k)  qrung 10000 16 10000 3m ;;
+    q20k)  qrung 20000 16 10000 3m ;;
+    q50k)  qrung 50000 16 10000 4m ;;
+    qmax)  # climbs 500 -> 100000 by itself and stops at the first rung the laptop or the server cannot hold
+      ceil=""
+      for r in 500 1000 2000 5000 10000 20000 50000 100000; do
+        qrung "$r" 16 10000 3m || { ceil=$r; break; }
+      done
+      echo "=== qmax: $( [ -n "$ceil" ] && echo "stopped at $ceil rps (see the line 'ceiling =' above)" || echo 'held 100000 rps: the laptop is not the limit' )"
+      rc=0; continue ;;
     s10k)  scale_api 16 && "$here/run.sh" "$name" "$fx" VUS=2000 WS=10000 HOLD=5m RAMP=4m WS_HOLD_SECONDS=600 ;;
     auth)
       [ -f "$here/api-auth.env" ] || { echo "no api-auth.env: run  AUTH_TEST=1 ./make-env.sh"; exit 2; }
