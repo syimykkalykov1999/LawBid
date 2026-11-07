@@ -17,7 +17,7 @@ type ConfigEntry = { key: string; type: string; value: unknown; defaultValue: un
 type TextRow = { key: string; values: Record<string, string>; edited: string[] };
 type Texts = { languages: { code: string; name: string }[]; keys: TextRow[] };
 
-/** The two tumblers of the page (app settings, both off by default). */
+/** The two tumblers of the page (app settings, both on by default since 2026-11-06). */
 const SWITCHES: { key: string; title: string; what: string; warn?: string }[] = [
   {
     key: 'deal_record.enabled',

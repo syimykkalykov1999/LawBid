@@ -81,7 +81,7 @@ export interface RoleSwitchPreview {
  *   per 24 h; every switch is an auth event (admin user card) and ends the
  *   account's other sessions (their tokens carry the old role), the
  *   caller refreshes its own token.
- * - Behind the `role_switch` flag (off by default): 404 while off.
+ * - Behind the `role_switch` flag (on by default): 404 while off.
  */
 @Injectable()
 export class RoleSwitchService {
@@ -97,7 +97,7 @@ export class RoleSwitchService {
 
   /** 404 while the admin switch is off: the route does not exist yet. */
   async assertEnabled(): Promise<void> {
-    if (!(await this.flags.isEnabled(ROLE_SWITCH_FLAG, false))) {
+    if (!(await this.flags.isEnabled(ROLE_SWITCH_FLAG, true))) {
       throw new NotFoundException({
         code: ErrorCode.NOT_FOUND,
         message: 'Not found.',

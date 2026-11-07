@@ -4,7 +4,10 @@ import { ConfigService } from '@nestjs/config';
 import type { I18nLanguage, LegalDocument } from '@prisma/client';
 import type Redis from 'ioredis';
 import { weakEtag } from '../../../common/sync/cheap-etag';
-import { OWNER_CACHE_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
+import {
+  OWNER_CACHE_SETTINGS,
+  OWNER_DEAL_RECORD_SETTINGS,
+} from '../../../common/app-settings/app-settings.defaults';
 import {
   CLIENT_TUNING_DEFS,
   effectivePrefetch,
@@ -149,7 +152,7 @@ export const PUBLIC_CONFIG_PREFIXES = [
   'store_url_',
   'client.',
   // Deal record 2026-10-27: the app chooses the accept path and the bid
-  // form variant from these two switches (both off by default).
+  // form variant from these two switches (both on by default, owner 2026-11-06).
   'deal_record.',
   'bids.rich_terms_enabled',
   'bids.confirmation_required',
@@ -385,6 +388,16 @@ export class BootstrapService {
         // Owner 2026-10-22 (client economy plan §5): the cache ceilings are
         // always present — the defaults until the admin stores a value.
         ...OWNER_CACHE_SETTINGS,
+        // Owner 2026-11-06: the deal-record switches are on by default, so
+        // the app is told the default too (a stored admin value wins below);
+        // otherwise a fresh database would show the old accept path while
+        // the API already asks for a signed record.
+        'deal_record.enabled':
+          OWNER_DEAL_RECORD_SETTINGS['deal_record.enabled'],
+        'bids.rich_terms_enabled':
+          OWNER_DEAL_RECORD_SETTINGS['bids.rich_terms_enabled'],
+        'bids.confirmation_required':
+          OWNER_DEAL_RECORD_SETTINGS['bids.confirmation_required'],
         // Owner 2026-10-23: whether the apps / the website offer browsing
         // without an account; always present (app off, web on) until the
         // admin stores a value.

@@ -111,8 +111,8 @@ describe('Deal record (e2e, 2026-10-27)', () => {
   });
 
   afterAll(async () => {
-    await setSwitch('deal_record.enabled', null);
-    await setSwitch('bids.rich_terms_enabled', null);
+    await setSwitch('deal_record.enabled', false);
+    await setSwitch('bids.rich_terms_enabled', false);
     await app.close();
   });
 
@@ -280,9 +280,9 @@ describe('Deal record (e2e, 2026-10-27)', () => {
     return d;
   }
 
-  describe('switch off (default)', () => {
+  describe('switch off', () => {
     it('deal records do not exist and accept works as before', async () => {
-      await setSwitch('deal_record.enabled', null);
+      await setSwitch('deal_record.enabled', false);
       const client = await user('client');
       const att = await user('attorney');
       const caseId = await kase(client.id);
@@ -570,7 +570,7 @@ describe('Deal record (e2e, 2026-10-27)', () => {
     };
 
     it('is refused while the switch is off', async () => {
-      await setSwitch('bids.rich_terms_enabled', null);
+      await setSwitch('bids.rich_terms_enabled', false);
       const client = await user('client');
       const att = await user('attorney');
       const caseId = await kase(client.id);

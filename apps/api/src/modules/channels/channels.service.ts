@@ -963,7 +963,7 @@ export class ChannelsService {
     // number on screen is that much later.
     if (
       this.counters &&
-      (await this.flags.isEnabled(CHANNEL_VIEWS_BUFFERED_FLAG, false))
+      (await this.flags.isEnabled(CHANNEL_VIEWS_BUFFERED_FLAG, true))
     ) {
       for (const f of fresh) {
         await this.counters.bump('channel_post', f.post_id, 'view_count', 1);

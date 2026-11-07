@@ -61,7 +61,7 @@ describe('Bid confirmation after a case change (e2e)', () => {
   });
 
   afterAll(async () => {
-    await setSwitch(SWITCH, null);
+    await setSwitch(SWITCH, false);
     await app.close();
   });
 
@@ -350,7 +350,7 @@ describe('Bid confirmation after a case change (e2e)', () => {
       orderBy: { created_at: 'desc' },
     });
     expect(entry.payload).toMatchObject({ before: { amountCents: 60_000 } });
-    await setSwitch('bids.rich_terms_enabled', null);
+    await setSwitch('bids.rich_terms_enabled', false);
   });
 
   it('one reminder, no withdrawal', async () => {
