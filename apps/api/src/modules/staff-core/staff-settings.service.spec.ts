@@ -15,6 +15,7 @@ import {
   StaffSettingsService,
   resolveStaffSettings,
 } from './staff-settings.service';
+import { STAFF_ALL_OFF } from './staff-settings.test-support';
 
 const service = (stored: Record<string, unknown> = {}) => {
   const all = jest.fn(() => Promise.resolve(stored));
@@ -25,13 +26,15 @@ const service = (stored: Record<string, unknown> = {}) => {
 };
 
 describe('staff settings (staff package T1, plan part D)', () => {
-  it('has every D1 switch and they are ALL off by default', async () => {
+  it('has every D1 switch; all ON by default except piecework pay and the AI switches (owner 2026-11-07)', async () => {
     expect(STAFF_SWITCH_KEYS).toHaveLength(36);
     const { svc } = service();
     const s = await svc.get();
-    expect(Object.values(s.switches).every((v) => v === false)).toBe(true);
+    const offByDefault = (k: string) =>
+      k === 'staff.piecework_enabled' || k.startsWith('staff.ai_');
     for (const k of STAFF_SWITCH_KEYS) {
-      expect(APP_SETTINGS[k]).toBe(false);
+      expect(s.switches[k]).toBe(!offByDefault(k));
+      expect(APP_SETTINGS[k]).toBe(!offByDefault(k));
       expect(k).toMatch(/^staff\.[a-z_]+_enabled$/);
     }
   });
@@ -83,19 +86,25 @@ describe('staff settings (staff package T1, plan part D)', () => {
     expect(s.numbers['staff.lease.ttl_ticket_min']).toBe(13);
   });
 
-  it('a switch is on only for a stored true (not "true", not 1)', () => {
+  it('a switch follows a stored boolean; "true" / 1 are not booleans and fall back to the default', () => {
     const s = resolveStaffSettings({
-      'staff.rating_enabled': true,
-      'staff.head_enabled': 'true',
-      'staff.desk_enabled': 1,
+      'staff.rating_enabled': false,
+      'staff.head_enabled': 'false',
+      'staff.piecework_enabled': 1,
     });
-    expect(s.switches['staff.rating_enabled']).toBe(true);
-    expect(s.switches['staff.head_enabled']).toBe(false);
-    expect(s.switches['staff.desk_enabled']).toBe(false);
+    expect(s.switches['staff.rating_enabled']).toBe(false);
+    expect(s.switches['staff.head_enabled']).toBe(true);
+    expect(s.switches['staff.piecework_enabled']).toBe(false);
+    expect(
+      resolveStaffSettings({ 'staff.piecework_enabled': true }).switches[
+        'staff.piecework_enabled'
+      ],
+    ).toBe(true);
   });
 
   it('AI sub-switches need the AI master switch; queue lease switches need staff.lease_enabled', () => {
     const subOnly = resolveStaffSettings({
+      ...STAFF_ALL_OFF,
       'staff.ai_qa_enabled': true,
       'staff.ai_hint_enabled': true,
       'staff.lease_support_enabled': true,
@@ -104,6 +113,7 @@ describe('staff settings (staff package T1, plan part D)', () => {
     expect(subOnly.switches['staff.ai_hint_enabled']).toBe(false);
     expect(subOnly.switches['staff.lease_support_enabled']).toBe(false);
     const withMaster = resolveStaffSettings({
+      ...STAFF_ALL_OFF,
       'staff.ai_enabled': true,
       'staff.ai_qa_enabled': true,
       'staff.lease_enabled': true,
@@ -132,10 +142,11 @@ describe('staff settings (staff package T1, plan part D)', () => {
     }
   });
 
-  it('GET admin/staff/settings returns the resolved settings (all off)', async () => {
+  it('GET admin/staff/settings returns the resolved settings (defaults)', async () => {
     const { svc } = service();
     const out = await new StaffSettingsController(svc).getStaffSettings();
-    expect(Object.values(out.switches).every((v) => v === false)).toBe(true);
+    expect(out.switches['staff.piecework_enabled']).toBe(false);
+    expect(out.switches['staff.rating_enabled']).toBe(true);
     expect(out.numbers['staff.rating.window_days']).toBe(30);
   });
 });

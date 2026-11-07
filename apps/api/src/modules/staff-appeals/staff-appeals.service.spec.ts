@@ -6,6 +6,7 @@ import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { PendingAdminActions } from './staff-admin-actions.port';
 import { StaffAppealsService } from './staff-appeals.service';
+import { STAFF_ALL_OFF } from '../staff-core/staff-settings.test-support';
 
 const NOW = new Date('2026-10-27T12:00:00Z');
 const owner = {
@@ -29,7 +30,11 @@ const deputy = { ...worker, id: 'd1', manageAdmins: true } as AdminActor;
 
 const settings = (stored: Record<string, unknown> = {}) =>
   new StaffSettingsService({
-    all: () => Promise.resolve({ 'staff.appeals_enabled': true, ...stored }),
+    all: () =>
+      Promise.resolve({
+        ...STAFF_ALL_OFF,
+        ...{ 'staff.appeals_enabled': true, ...stored },
+      }),
   } as unknown as AppSettingsService);
 
 type Fn = jest.Mock;

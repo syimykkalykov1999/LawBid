@@ -8,11 +8,12 @@ import {
 } from './staff-desk-read.controller';
 import { resolveStaffSettings } from './staff-settings.service';
 import type { StaffSettingsService } from './staff-settings.service';
+import { STAFF_ALL_OFF } from '../staff-core/staff-settings.test-support';
 
 const me = { id: 'a1' } as AdminActor;
 
 function build(stored: Record<string, unknown> = {}, rows: unknown[] = []) {
-  const settings = resolveStaffSettings(stored);
+  const settings = resolveStaffSettings({ ...STAFF_ALL_OFF, ...stored });
   const findMany = jest.fn(() => Promise.resolve(rows));
   const staff = {
     get: jest.fn(() => Promise.resolve(settings)),

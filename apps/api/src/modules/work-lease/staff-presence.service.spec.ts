@@ -2,10 +2,11 @@ import type Redis from 'ioredis';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { StaffPresenceService } from './staff-presence.service';
+import { STAFF_ALL_OFF } from '../staff-core/staff-settings.test-support';
 
 const settings = (stored: Record<string, unknown> = {}) =>
   new StaffSettingsService({
-    all: () => Promise.resolve(stored),
+    all: () => Promise.resolve({ ...STAFF_ALL_OFF, ...stored }),
   } as unknown as AppSettingsService);
 
 /** An in-memory Redis with just the commands presence uses; counts them. */

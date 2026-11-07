@@ -317,13 +317,15 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       max: def.max,
     };
   }
-  // Staff package T1 (2026-10-27): switches (all off) and numbers with
+  // Staff package T1 (2026-10-27): switches (on by default since 2026-11-07,
+  // except piecework pay and AI) and numbers with
   // their bounds; Russian label + key, like the realtime timings.
   for (const [key, labelRu] of Object.entries(STAFF_SWITCH_LABELS)) {
+    const on = APP_SETTINGS[key as keyof typeof APP_SETTINGS] === true;
     out[key] = {
       type: 'boolean',
-      defaultValue: false,
-      description: `${labelRu} (${key}). По умолчанию выключено.`,
+      defaultValue: on,
+      description: `${labelRu} (${key}). По умолчанию ${on ? 'включено' : 'выключено'}.`,
     };
   }
   for (const [key, def] of Object.entries(STAFF_NUMBER_DEFS)) {
@@ -991,7 +993,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'seo.quality_gate_enabled':
       'Public SEO pages: thin pages get noindex and leave the sitemap. Turn on only after the page texts are longer (dry run first). Changed on the «Продвижение» page.',
     'seo.ramp_per_day':
-      'Public SEO pages: at most this many NEW pages enter the index a day; 0 = no limit. Changed on the «Продвижение» page.',
+      'Public SEO pages: at most this many NEW pages enter the index a day (starts at 50); 0 = no limit. Changed on the «Продвижение» page.',
     'seo.robots_ai_enabled':
       'Public SEO pages: robots.txt lets search and answer bots in and keeps training bots out. Changed on the «Продвижение» page.',
     'seo.sitemap_index_enabled':

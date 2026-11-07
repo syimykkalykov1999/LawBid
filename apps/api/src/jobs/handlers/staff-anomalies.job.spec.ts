@@ -2,10 +2,11 @@ import type { AppSettingsService } from '../../common/app-settings/app-settings.
 import { StaffSettingsService } from '../../modules/staff-core/staff-settings.service';
 import type { StaffAnomalyService } from '../../modules/staff-security/staff-anomaly.service';
 import { StaffAnomaliesJob } from './staff-anomalies.job';
+import { STAFF_ALL_OFF } from '../../modules/staff-core/staff-settings.test-support';
 
 const settings = (stored: Record<string, unknown>) =>
   new StaffSettingsService({
-    all: () => Promise.resolve(stored),
+    all: () => Promise.resolve({ ...STAFF_ALL_OFF, ...stored }),
   } as unknown as AppSettingsService);
 
 describe('staff.anomalies cron job (staff package T11)', () => {

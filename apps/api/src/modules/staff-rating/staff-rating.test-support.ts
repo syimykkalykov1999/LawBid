@@ -1,11 +1,12 @@
 import type Redis from 'ioredis';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
+import { STAFF_ALL_OFF } from '../staff-core/staff-settings.test-support';
 
 /** Test-only: a real StaffSettingsService over a stored-config object. */
 export const settingsOf = (stored: Record<string, unknown> = {}) =>
   new StaffSettingsService({
-    all: () => Promise.resolve(stored),
+    all: () => Promise.resolve({ ...STAFF_ALL_OFF, ...stored }),
   } as unknown as AppSettingsService);
 
 /** Every switch the rating package needs, on. */

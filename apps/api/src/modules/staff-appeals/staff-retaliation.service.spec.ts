@@ -2,13 +2,18 @@ import type { AppSettingsService } from '../../common/app-settings/app-settings.
 import type { PrismaService } from '../../prisma/prisma.service';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { StaffRetaliationService } from './staff-retaliation.service';
+import { STAFF_ALL_OFF } from '../staff-core/staff-settings.test-support';
 
 const DAY = 86_400_000;
 const NOW = new Date('2026-10-27T12:00:00Z');
 
 const settings = (stored: Record<string, unknown> = {}) =>
   new StaffSettingsService({
-    all: () => Promise.resolve({ 'staff.appeals_enabled': true, ...stored }),
+    all: () =>
+      Promise.resolve({
+        ...STAFF_ALL_OFF,
+        ...{ 'staff.appeals_enabled': true, ...stored },
+      }),
   } as unknown as AppSettingsService);
 
 function mockDb() {

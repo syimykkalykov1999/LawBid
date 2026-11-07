@@ -6,6 +6,7 @@ import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import type { StaffAdminActionsAdapter } from '../staff-appeals/staff-admin-actions.adapter';
 import { StaffDecisionService } from './staff-decision.service';
+import { STAFF_ALL_OFF } from '../staff-core/staff-settings.test-support';
 
 const ON = { 'staff.rating_enabled': true, 'staff.suggestions_enabled': true };
 const owner = {
@@ -42,7 +43,7 @@ function build(
   const svc = new StaffDecisionService(
     prisma as unknown as PrismaService,
     new StaffSettingsService({
-      all: () => Promise.resolve(stored),
+      all: () => Promise.resolve({ ...STAFF_ALL_OFF, ...stored }),
     } as unknown as AppSettingsService),
     audit as unknown as AuditLogService,
     { disable } as unknown as StaffAdminActionsAdapter,

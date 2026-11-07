@@ -51,7 +51,7 @@ describe('switch contract: defaults (a)', () => {
     ['trust.enabled', true],
     ['ops.auto_pause_heavy_jobs', true],
     ['ops.auto_scale_down_on_budget', true],
-    ['seo.generator_mode', 'off'],
+    ['seo.generator_mode', 'nightly'],
     ['deal_record.enabled', true],
     ['bids.rich_terms_enabled', true],
     ['bids.confirmation_required', true],
@@ -336,16 +336,19 @@ describe('seo.generator_mode (off | nightly | nightly+events)', () => {
       directory,
     };
   };
-  it('off (the default) and a typo: the job returns before it reads anything', async () => {
-    for (const stored of [{}, { 'seo.generator_mode': 'nightlyy' }]) {
+  it('off (chosen) and a typo: the job returns before it reads anything', async () => {
+    for (const stored of [
+      { 'seo.generator_mode': 'off' },
+      { 'seo.generator_mode': 'nightlyy' },
+    ]) {
       const t = job(stored);
       await expect(t.job.run()).resolves.toEqual({ skipped: 'off' });
       expect(t.directory.attorneys).not.toHaveBeenCalled();
     }
   });
-  it('nightly / nightly+events: the job starts (it reads the directory)', async () => {
-    for (const mode of ['nightly', 'nightly+events']) {
-      const t = job({ 'seo.generator_mode': mode });
+  it('nightly (the default since owner 2026-11-07) / nightly+events: the job starts (it reads the directory)', async () => {
+    for (const mode of [undefined, 'nightly', 'nightly+events']) {
+      const t = job(mode ? { 'seo.generator_mode': mode } : {});
       await expect(t.job.run()).rejects.toThrow('DB touched');
       expect(t.directory.attorneys).toHaveBeenCalledTimes(1);
     }

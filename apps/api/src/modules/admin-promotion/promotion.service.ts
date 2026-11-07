@@ -178,7 +178,9 @@ export class PromotionService {
 
   /**
    * What the generator reads (GET /public/seo-settings): the stored value
-   * of each switch, or null when the admin never decided. Public-safe:
+   * of each switch; when the admin never decided, the built-in default if it
+   * is ON or a positive number (the ramp) (owner 2026-11-07: the safe SEO part is on by default), else null
+   * (the repository variable of the same name applies). Public-safe:
    * booleans/integers only, no personal data. Reads the cached app_config map
    * (no query of its own).
    */
@@ -189,10 +191,15 @@ export class PromotionService {
       string,
     ][]) {
       const v = await this.settings.raw(key);
-      out[field] =
-        typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v))
-          ? v
-          : null;
+      if (
+        typeof v === 'boolean' ||
+        (typeof v === 'number' && Number.isFinite(v))
+      ) {
+        out[field] = v;
+        continue;
+      }
+      const d = configSchema()[key]?.defaultValue;
+      out[field] = d === true || (typeof d === 'number' && d > 0) ? d : null;
     }
     return out as unknown as PublicSeoSettingsDto;
   }

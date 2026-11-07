@@ -36,7 +36,8 @@ const CACHE_MS = 60_000;
  * Staff package T1 (plan part D): the ONE typed reader of the staff
  * switches and numbers. Every staff module and job reads its thresholds
  * here, never a number in code.
- *  - a switch is on only when an admin stored `true` (default: all off);
+ *  - a switch follows what an admin stored; never stored = the default of
+ *    OWNER_STAFF_SETTINGS (ON, except piecework pay and the AI switches);
  *    the AI sub-switches also need `staff.ai_enabled`, the per-queue lease
  *    switches also need `staff.lease_enabled`;
  *  - a number outside its [min, max] (or not a number) is clamped / falls
@@ -74,7 +75,9 @@ export function resolveStaffSettings(
   stored: Readonly<Record<string, unknown>>,
 ): StaffSettings {
   const switches = {} as Record<StaffSwitchKey, boolean>;
-  for (const k of STAFF_SWITCH_KEYS) switches[k] = stored[k] === true;
+  for (const k of STAFF_SWITCH_KEYS)
+    switches[k] =
+      typeof stored[k] === 'boolean' ? stored[k] : OWNER_STAFF_SETTINGS[k];
   for (const k of AI_SUB) switches[k] &&= switches['staff.ai_enabled'];
   for (const k of LEASE_SUB) switches[k] &&= switches['staff.lease_enabled'];
   const numbers = {} as Record<StaffNumberKey, number>;

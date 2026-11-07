@@ -1128,10 +1128,14 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
  * §2.2): the BullMQ job `seo.generate` builds the public pages
  * (/lawyers, /practice-areas, /attorneys) from the database and publishes only
  * the changed ones to the web bucket. `off` (default) = the job does nothing
- * and nothing is queued; the nightly GitHub run stays the only builder. */
+ * and nothing is queued; the nightly GitHub run stays the only builder.
+ * Owner 2026-11-07: the safe part is ON by default (generator `nightly`,
+ * robots for AI bots, llms.txt, sitemap index, quality gate, incremental
+ * upload), and the page types (`seo.pages_*`) are ON too, throttled by
+ * `seo.ramp_per_day` = 50 new pages a day (0 would mean NO limit). */
 export const OWNER_SEO_SETTINGS = {
   /** off | nightly | nightly+events (also after an attorney is published or removed). */
-  'seo.generator_mode': 'off',
+  'seo.generator_mode': 'nightly',
   /** Events within this many seconds become one run (debounce). */
   'seo.generator_debounce_seconds': 60,
   /** At least this many minutes between two event runs. */
@@ -1872,23 +1876,23 @@ export const OWNER_SEO_PROMOTION_SETTINGS = {
   'seo.checklist.video_social': false,
   'seo.checklist.yelp_bbb': false,
   /** Upload only changed files (SEO_INCREMENTAL). */
-  'seo.incremental_enabled': false,
+  'seo.incremental_enabled': true,
   /** /llms.txt and /llms-full.txt (SEO_LLMS). */
-  'seo.llms_enabled': false,
+  'seo.llms_enabled': true,
   /** City and city x practice pages (SEO_PAGES_CITIES). */
-  'seo.pages_cities_enabled': false,
+  'seo.pages_cities_enabled': true,
   /** Pages of attorneys' text posts (SEO_PAGES_POSTS). */
-  'seo.pages_posts_enabled': false,
+  'seo.pages_posts_enabled': true,
   /** Reviewed legal question pages (SEO_PAGES_QA). */
-  'seo.pages_qa_enabled': false,
+  'seo.pages_qa_enabled': true,
   /** Thin pages: noindex and out of the sitemap (SEO_QUALITY_GATE). */
-  'seo.quality_gate_enabled': false,
+  'seo.quality_gate_enabled': true,
   /** At most N new pages a day enter the index; 0 = no limit (SEO_RAMP_PER_DAY). */
-  'seo.ramp_per_day': 0,
+  'seo.ramp_per_day': 50,
   /** Search/answer bots in, training bots out (SEO_ROBOTS_AI). */
-  'seo.robots_ai_enabled': false,
+  'seo.robots_ai_enabled': true,
   /** /sitemap.xml becomes an index of /sitemaps/*.xml (SEO_SITEMAP_INDEX). */
-  'seo.sitemap_index_enabled': false,
+  'seo.sitemap_index_enabled': true,
 };
 
 /**

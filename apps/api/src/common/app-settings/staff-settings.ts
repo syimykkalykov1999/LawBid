@@ -1,8 +1,11 @@
 // Staff package T1 (2026-10-27, docs/architecture/ADMIN_STAFF_PACKAGE_PLAN_2026-10-27.md
 // part D): every switch and number of «Админка и сотрудники» lives in
 // app_config, changed from the admin (Настройки) without a release.
-//  - Switches (`staff.*_enabled`) are ALL OFF: with everything off the
-//    package does nothing (no queries, no jobs, no new screens).
+//  - Switches (`staff.*_enabled`): owner 2026-11-07 (rule: needed features
+//    are on by default) all ON except `staff.piecework_enabled` (it moves
+//    money) and `staff.ai_*` (they need an AI key). With no staff accounts
+//    the package has nobody to route to or rate and does nothing visible; a
+//    value the owner saved in the admin is never overridden (app_config row).
 //  - Numbers start at the research values (plan D2); the admin may change
 //    them only inside [min, max] (config-schema.ts checks on save, and
 //    StaffSettingsService clamps on read, so a bad stored value cannot
@@ -11,39 +14,39 @@
 
 /** Defaults. A literal object so `AppSettingKey` keeps the exact keys. */
 export const OWNER_STAFF_SETTINGS = {
-  // --- D1 switches (all OFF) ---
-  'staff.workspaces_enabled': false,
-  'staff.desk_enabled': false,
-  'staff.lease_enabled': false,
-  'staff.lease_support_enabled': false,
-  'staff.lease_verification_enabled': false,
-  'staff.lease_report_enabled': false,
-  'staff.lease_appeal_enabled': false,
-  'staff.lease_finance_enabled': false,
-  'staff.presence_enabled': false,
-  'staff.push_offer_enabled': false,
-  'staff.rating_enabled': false,
-  'staff.suggestions_enabled': false,
-  'staff.auto_apply_enabled': false,
-  'staff.sampling_enabled': false,
-  'staff.golden_enabled': false,
-  'staff.peer_check_enabled': false,
-  'staff.trust_tiers_enabled': false,
-  'staff.head_enabled': false,
-  'staff.appeals_enabled': false,
-  'staff.case_appeals_enabled': false,
+  // --- D1 switches (ON, except piecework pay and AI) ---
+  'staff.workspaces_enabled': true,
+  'staff.desk_enabled': true,
+  'staff.lease_enabled': true,
+  'staff.lease_support_enabled': true,
+  'staff.lease_verification_enabled': true,
+  'staff.lease_report_enabled': true,
+  'staff.lease_appeal_enabled': true,
+  'staff.lease_finance_enabled': true,
+  'staff.presence_enabled': true,
+  'staff.push_offer_enabled': true,
+  'staff.rating_enabled': true,
+  'staff.suggestions_enabled': true,
+  'staff.auto_apply_enabled': true,
+  'staff.sampling_enabled': true,
+  'staff.golden_enabled': true,
+  'staff.peer_check_enabled': true,
+  'staff.trust_tiers_enabled': true,
+  'staff.head_enabled': true,
+  'staff.appeals_enabled': true,
+  'staff.case_appeals_enabled': true,
   'staff.piecework_enabled': false,
-  'staff.worker_progress_enabled': false,
-  'staff.masking_enabled': false,
-  'staff.watermark_enabled': false,
-  'staff.export_block_enabled': false,
-  'staff.session_binding_enforce_enabled': false,
-  'staff.anomalies_enabled': false,
-  'staff.owner_home_enabled': false,
-  'staff.nav_groups_enabled': false,
-  'staff.pins_enabled': false,
-  'staff.weekly_digest_enabled': false,
-  'staff.forecast_enabled': false,
+  'staff.worker_progress_enabled': true,
+  'staff.masking_enabled': true,
+  'staff.watermark_enabled': true,
+  'staff.export_block_enabled': true,
+  'staff.session_binding_enforce_enabled': true,
+  'staff.anomalies_enabled': true,
+  'staff.owner_home_enabled': true,
+  'staff.nav_groups_enabled': true,
+  'staff.pins_enabled': true,
+  'staff.weekly_digest_enabled': true,
+  'staff.forecast_enabled': true,
   'staff.ai_enabled': false,
   'staff.ai_qa_enabled': false,
   'staff.ai_hint_enabled': false,
@@ -123,7 +126,7 @@ export const OWNER_STAFF_SETTINGS = {
   'staff.pins_max': 7,
   'staff.anomalies.fast_pct': 20,
   'staff.anomalies.top_n': 20,
-  // --- AI mode (T12; the switches above are OFF) ---
+  // --- AI mode (T12; the ai_* switches above stay OFF) ---
   'staff.ai.monthly_cents': 500,
   'staff.ai.model_tier': 0,
   'staff.ai.qa_sample_pct': 0,

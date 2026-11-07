@@ -15,6 +15,7 @@ import {
   adminStepUp,
   type AdminSession,
 } from './support/admin-login';
+import { STAFF_ALL_OFF } from '../src/modules/staff-core/staff-settings.test-support';
 
 /**
  * Staff package T10: «Сегодня» (one snapshot, owner only), the worker's OWN
@@ -42,6 +43,7 @@ describe('Staff owner home (e2e)', () => {
     jest.spyOn(settings, 'get').mockImplementation(() =>
       Promise.resolve(
         resolveStaffSettings({
+          ...STAFF_ALL_OFF,
           'staff.owner_home_enabled': true,
           'staff.rating_enabled': true,
           'staff.suggestions_enabled': true,
@@ -305,7 +307,12 @@ describe('Staff owner home (e2e)', () => {
     jest
       .spyOn(settings, 'get')
       .mockImplementation(() =>
-        Promise.resolve(resolveStaffSettings({ 'staff.rating_enabled': true })),
+        Promise.resolve(
+          resolveStaffSettings({
+            ...STAFF_ALL_OFF,
+            'staff.rating_enabled': true,
+          }),
+        ),
       );
     await api()
       .get('/api/v1/admin/staff/me/progress')

@@ -67,28 +67,42 @@ describe('promotion catalog', () => {
     expect(keys).toEqual([...keys].sort());
   });
 
-  it('everything is off by default', () => {
+  it('the checklist is off by default; every SEO switch is on, the ramp is 50 a day (owner 2026-11-07)', () => {
     for (const id of CHECKLIST_IDS)
       expect(APP_SETTINGS[checklistKey(id) as keyof typeof APP_SETTINGS]).toBe(
         false,
       );
-    expect(APP_SETTINGS['seo.sitemap_index_enabled']).toBe(false);
-    expect(APP_SETTINGS['seo.ramp_per_day']).toBe(0);
+    for (const k of [
+      'seo.sitemap_index_enabled',
+      'seo.robots_ai_enabled',
+      'seo.llms_enabled',
+      'seo.quality_gate_enabled',
+      'seo.incremental_enabled',
+    ] as const)
+      expect(APP_SETTINGS[k]).toBe(true);
+    for (const k of [
+      'seo.pages_cities_enabled',
+      'seo.pages_posts_enabled',
+      'seo.pages_qa_enabled',
+    ] as const)
+      expect(APP_SETTINGS[k]).toBe(true);
+    expect(APP_SETTINGS['seo.generator_mode']).toBe('nightly');
+    expect(APP_SETTINGS['seo.ramp_per_day']).toBe(50);
   });
 });
 
 describe('PromotionService.publicSettings (what the generator reads)', () => {
-  it('is null for every switch the admin never decided', async () => {
+  it('is the built-in default when it is ON, else null, for a switch the admin never decided', async () => {
     expect(await make().svc.publicSettings()).toEqual({
-      incremental: null,
-      sitemapIndex: null,
-      robotsAi: null,
-      llms: null,
-      qualityGate: null,
-      rampPerDay: null,
-      pagesCities: null,
-      pagesPosts: null,
-      pagesQa: null,
+      incremental: true,
+      sitemapIndex: true,
+      robotsAi: true,
+      llms: true,
+      qualityGate: true,
+      rampPerDay: 50,
+      pagesCities: true,
+      pagesPosts: true,
+      pagesQa: true,
     });
   });
 
@@ -97,7 +111,7 @@ describe('PromotionService.publicSettings (what the generator reads)', () => {
       'seo.sitemap_index_enabled': true,
       'seo.llms_enabled': false,
       'seo.ramp_per_day': 0,
-      'seo.robots_ai_enabled': 'yes',
+      'seo.pages_cities_enabled': 'yes',
       'seo.pages_qa_enabled': true,
       'seo.pages_posts_enabled': false,
     }).svc.publicSettings();
@@ -105,10 +119,10 @@ describe('PromotionService.publicSettings (what the generator reads)', () => {
       sitemapIndex: true,
       llms: false,
       rampPerDay: 0,
-      robotsAi: null,
+      robotsAi: true,
       pagesQa: true,
       pagesPosts: false,
-      pagesCities: null,
+      pagesCities: true, // a malformed stored value falls back to the default
     });
   });
 
@@ -140,7 +154,7 @@ describe('PromotionService.overview / update', () => {
     const inc = o.switches.find((s) => s.key === 'seo.incremental_enabled');
     expect(inc).toMatchObject({ value: true, stored: true, type: 'boolean' });
     const llms = o.switches.find((s) => s.key === 'seo.llms_enabled');
-    expect(llms).toMatchObject({ value: false, stored: false });
+    expect(llms).toMatchObject({ value: true, stored: false });
     expect(o.switches.find((s) => s.key === 'seo.ramp_per_day')?.type).toBe(
       'integer',
     );

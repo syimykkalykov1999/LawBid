@@ -9,11 +9,12 @@ import {
   STAFF_RETENTION_BATCH,
   StaffRetentionJob,
 } from './staff-retention.job';
+import { STAFF_ALL_OFF } from '../../modules/staff-core/staff-settings.test-support';
 
 /** Real StaffSettingsService over a stored-config object. */
 const settings = (stored: Record<string, unknown> = {}) =>
   new StaffSettingsService({
-    all: () => Promise.resolve(stored),
+    all: () => Promise.resolve({ ...STAFF_ALL_OFF, ...stored }),
   } as unknown as AppSettingsService);
 
 /** A database that fails the test if anything touches it. */

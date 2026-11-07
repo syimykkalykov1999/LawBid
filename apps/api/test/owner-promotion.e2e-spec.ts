@@ -103,22 +103,24 @@ describe('Promotion admin page (e2e)', () => {
     await api().post('/api/v1/admin/promotion/dry-run').set(v.auth).expect(404);
   });
 
-  it('the owner sees everything off, flips a switch and a tick, and the generator sees it', async () => {
+  it('the owner sees the defaults (all SEO on, ramp 50), flips a switch and a tick, and the generator sees it', async () => {
     const owner = await adminSession(base, prisma, 'super_admin');
     const o = data<Overview>(
       await api().get('/api/v1/admin/promotion').set(owner.auth).expect(200),
     );
     const llms = o.switches.find((s) => s.key === 'seo.llms_enabled');
-    expect(llms).toMatchObject({ value: false, stored: false });
+    expect(llms).toMatchObject({ value: true, stored: false });
     expect(o.checklist.every((c) => !c.done)).toBe(true);
     expect(o.dryRun.command).toContain('seo-deploy.yml');
     expect(o.status.manifestUrl).toMatch(/\/seo-manifest\.json$/);
 
-    // Never decided: the generator gets null for every switch.
+    // Never decided: the generator gets the built-in default (all on, ramp 50).
     const before = data<PublicSettings>(
       await api().get('/api/v1/public/seo-settings').expect(200),
     );
-    expect(Object.values(before).every((v) => v === null)).toBe(true);
+    expect(Object.values(before).every((v) => v === true || v === 50)).toBe(
+      true,
+    );
 
     await api()
       .put('/api/v1/admin/promotion/settings/seo.sitemap_index_enabled')
@@ -156,15 +158,15 @@ describe('Promotion admin page (e2e)', () => {
     const pub = await api().get('/api/v1/public/seo-settings').expect(200);
     expect(pub.headers['cache-control']).toContain('max-age=');
     expect(data<PublicSettings>(pub)).toEqual({
-      incremental: null,
+      incremental: true,
       sitemapIndex: true,
-      robotsAi: null,
-      llms: false, // an explicit OFF is reported, not null
-      qualityGate: null,
+      robotsAi: true,
+      llms: false, // an explicit OFF is reported
+      qualityGate: true,
       rampPerDay: 200,
-      pagesCities: null,
-      pagesPosts: null,
-      pagesQa: null,
+      pagesCities: true,
+      pagesPosts: true,
+      pagesQa: true,
     });
 
     // Every change left an audit row with before/after.

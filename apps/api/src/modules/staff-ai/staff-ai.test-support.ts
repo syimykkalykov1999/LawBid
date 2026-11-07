@@ -5,6 +5,7 @@ import type { SecretsService } from '../../common/secrets/secrets.service';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { StaffAiBudgetService } from './staff-ai-budget.service';
 import { StaffAiClient, type StaffAiFetch } from './staff-ai-client.service';
+import { STAFF_ALL_OFF } from '../staff-core/staff-settings.test-support';
 
 /** The Redis commands staff AI mode uses, in memory. */
 export class MemRedis {
@@ -45,7 +46,7 @@ export class MemRedis {
 /** Real StaffSettingsService over a stored-config object. */
 export const settingsOf = (stored: Record<string, unknown> = {}) =>
   new StaffSettingsService({
-    all: () => Promise.resolve(stored),
+    all: () => Promise.resolve({ ...STAFF_ALL_OFF, ...stored }),
   } as unknown as AppSettingsService);
 
 /** Switches: master + the three features on. */

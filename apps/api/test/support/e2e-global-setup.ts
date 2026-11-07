@@ -1,3 +1,4 @@
+import { STAFF_SWITCH_KEYS } from '../../src/common/app-settings/staff-settings';
 import { DEFAULT_BAR_FORMATS } from '../../src/modules/verification/bar-number-format';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -223,6 +224,19 @@ export default async function globalSetup(): Promise<void> {
         description: 'e2e: off unless a suite is about the switch',
       },
       update: { enabled: false },
+    });
+  }
+  // Owner 2026-11-07: the staff switches (all but piecework pay and AI) and
+  // the SEO switches are on by default in production. The suites describe
+  // the old world (nothing stored = staff off); they start with the old values and the suites about each switch turn it on themselves.
+  const oldWorld: [string, boolean | number | string][] = [
+    ...STAFF_SWITCH_KEYS.map((k) => [k, false] as [string, boolean]),
+  ];
+  for (const [key, value] of oldWorld) {
+    await seed.appConfig.upsert({
+      where: { key },
+      create: { key, value },
+      update: { value },
     });
   }
   await seed.$disconnect();

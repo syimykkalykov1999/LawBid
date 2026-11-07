@@ -442,6 +442,8 @@ List<Override> channelsOverrides(
       translatorProvider.overrideWithValue(translator),
       // The screens under test: channels are on, not «next update».
       channelsComingSoonProvider.overrideWithValue(false),
+      // The `channels` flag is off by default since 2026-11-07 (R-386).
+      channelsEnabledProvider.overrideWithValue(true),
       channelsRepositoryProvider.overrideWithValue(repo),
       currentUserIdProvider.overrideWithValue(me),
       if (uploader != null)

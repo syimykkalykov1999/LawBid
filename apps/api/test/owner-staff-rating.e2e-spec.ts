@@ -24,6 +24,7 @@ import { StaffRecorderService } from '../src/modules/staff-rating/staff-recorder
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { adminSession, type AdminSession } from './support/admin-login';
+import { STAFF_ALL_OFF } from '../src/modules/staff-core/staff-settings.test-support';
 
 /**
  * Staff package T5 (rating / KPI engine): decisions → Redis counters →
@@ -62,7 +63,9 @@ describe('Staff rating engine (e2e)', () => {
   const setSwitches = (on: Record<string, boolean>) =>
     jest
       .spyOn(settings, 'get')
-      .mockImplementation(() => Promise.resolve(resolveStaffSettings(on)));
+      .mockImplementation(() =>
+        Promise.resolve(resolveStaffSettings({ ...STAFF_ALL_OFF, ...on })),
+      );
 
   async function decide(a: AdminSession, n: number, handleMs = 40_000) {
     for (let i = 0; i < n; i++) {

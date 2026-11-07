@@ -534,19 +534,24 @@ describe('SeoGenerateJob', () => {
     );
   });
 
-  it('passes the SEO_* switches to the library exactly as build.mjs reads them (all off when unset)', async () => {
+  it('passes the SEO_* switches to the library exactly as build.mjs reads them (gate ON and ramp 50 by default since 2026-11-07)', async () => {
     const off = make();
     await off.job.run();
     expect(off.lib.renderSite.mock.calls[0][1]).toMatchObject({
       site: 'https://example.test',
       indexEmpty: false,
-      rampPerDay: 0,
+      rampPerDay: 50,
       gate: {
-        enabled: false,
+        enabled: true,
         minWords: 300,
         minAttorneys: 3,
         minBioChars: 150,
       },
+    });
+    const gateOff = make({ stored: { 'seo.quality_gate_enabled': false } });
+    await gateOff.job.run();
+    expect(gateOff.lib.renderSite.mock.calls[0][1]).toMatchObject({
+      gate: { enabled: false },
     });
     const on = make({
       env: {
@@ -565,8 +570,27 @@ describe('SeoGenerateJob', () => {
   });
 
   describe('page types of 2026-10-27 (posts, city hubs, legal Q&A)', () => {
-    it('switches OFF (the default, even in nightly mode): no post or question is read, no such page is rendered or published', async () => {
+    it('default (owner 2026-11-07): all three page types ON, ramp 50 a day', async () => {
       const t = make({ posts: 3, questions: 2 });
+      await t.job.run();
+      expect(t.lib.renderSite.mock.calls[0][1]).toMatchObject({
+        pagesPosts: true,
+        pagesCities: true,
+        pagesQa: true,
+        rampPerDay: 50,
+      });
+    });
+
+    it('switches OFF by the admin: no post or question is read, no such page is rendered or published', async () => {
+      const t = make({
+        posts: 3,
+        questions: 2,
+        stored: {
+          'seo.pages_posts_enabled': false,
+          'seo.pages_cities_enabled': false,
+          'seo.pages_qa_enabled': false,
+        },
+      });
       const r = await t.job.run();
       expect(r).toMatchObject({ pages: 3 }); // home + 2 attorneys
       expect(t.directory.seoPosts).not.toHaveBeenCalled();
@@ -604,6 +628,7 @@ describe('SeoGenerateJob', () => {
         stored: {
           'seo.pages_posts_enabled': true,
           'seo.pages_cities_enabled': true,
+          'seo.pages_qa_enabled': false,
         },
       });
       await on.job.run();
@@ -634,6 +659,10 @@ describe('SeoGenerateJob', () => {
         questions: 4,
         rowsPerCall: 2,
         env: { SEO_PAGES_POSTS: 'true' },
+        stored: {
+          'seo.pages_cities_enabled': false,
+          'seo.pages_qa_enabled': false,
+        },
       });
       await t.job.run();
       expect(t.directory.seoQuestions).not.toHaveBeenCalled();
@@ -647,7 +676,14 @@ describe('SeoGenerateJob', () => {
         [...t.store.objects.keys()].filter((k) => k.includes('/posts/')),
       ).toHaveLength(5);
 
-      const q = make({ questions: 3, env: { SEO_PAGES_QA: '1' } });
+      const q = make({
+        questions: 3,
+        env: { SEO_PAGES_QA: '1' },
+        stored: {
+          'seo.pages_posts_enabled': false,
+          'seo.pages_cities_enabled': false,
+        },
+      });
       await q.job.run();
       expect(q.directory.seoPosts).not.toHaveBeenCalled();
       expect(
@@ -665,6 +701,10 @@ describe('SeoGenerateJob', () => {
           SEO_MIN_POST_CHARS: '500',
           SEO_MIN_QA_CHARS: '200',
           SEO_AD_LABEL: 'off',
+        },
+        stored: {
+          'seo.pages_posts_enabled': false,
+          'seo.pages_qa_enabled': false,
         },
       });
       await t.job.run();

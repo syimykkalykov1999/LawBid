@@ -5,6 +5,7 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { StaffPieceworkReadService } from './staff-piecework-read.service';
+import { STAFF_ALL_OFF } from '../staff-core/staff-settings.test-support';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -85,7 +86,11 @@ function make(on = true) {
   const svc = new StaffPieceworkReadService(
     prisma as unknown as PrismaService,
     new StaffSettingsService({
-      all: () => Promise.resolve(on ? { 'staff.piecework_enabled': true } : {}),
+      all: () =>
+        Promise.resolve({
+          ...STAFF_ALL_OFF,
+          ...(on ? { 'staff.piecework_enabled': true } : {}),
+        }),
     } as unknown as AppSettingsService),
   );
   return { svc, stat };

@@ -9,10 +9,11 @@ import type { LeaseService } from './lease.service';
 import type { StaffEventsPublisher } from './staff-events.publisher';
 import type { StaffPresenceService } from './staff-presence.service';
 import { STAFF_NAMESPACE, StaffGateway } from './staff.gateway';
+import { STAFF_ALL_OFF } from '../staff-core/staff-settings.test-support';
 
 const settings = (stored: Record<string, unknown> = {}) =>
   new StaffSettingsService({
-    all: () => Promise.resolve(stored),
+    all: () => Promise.resolve({ ...STAFF_ALL_OFF, ...stored }),
   } as unknown as AppSettingsService);
 
 function makeSocket(token?: string) {

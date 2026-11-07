@@ -4,10 +4,11 @@ import type { StaffRetaliationService } from '../../modules/staff-appeals/staff-
 import { StaffSettingsService } from '../../modules/staff-core/staff-settings.service';
 import { StaffHeadScoreJob } from './staff-head-score.job';
 import { StaffRetaliationExpireJob } from './staff-retaliation-expire.job';
+import { STAFF_ALL_OFF } from '../../modules/staff-core/staff-settings.test-support';
 
 const settings = (stored: Record<string, unknown> = {}) =>
   new StaffSettingsService({
-    all: () => Promise.resolve(stored),
+    all: () => Promise.resolve({ ...STAFF_ALL_OFF, ...stored }),
   } as unknown as AppSettingsService);
 
 const NOW = new Date('2026-10-27T03:22:00Z');

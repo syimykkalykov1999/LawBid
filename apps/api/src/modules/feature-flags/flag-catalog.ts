@@ -108,8 +108,10 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
   },
   {
     // Owner 2026-10-20: Telegram-style channels of attorneys and companies.
+    // Owner 2026-11-07 (R-386): hidden everywhere until the next update; the
+    // code stays (hiding behaviour: #731).
     key: 'channels',
-    enabled: true,
+    enabled: false,
     app: true,
     description: 'Channels: posts from admins to subscribers',
   },

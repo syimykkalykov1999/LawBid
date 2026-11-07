@@ -7,6 +7,7 @@ import { deviceFingerprint } from '../admin-auth/admin-session.service';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { StaffSecurityService } from './staff-security.service';
 import { withEvalIncr } from '../../redis/incr-with-ttl.test-support';
+import { STAFF_ALL_OFF } from '../staff-core/staff-settings.test-support';
 
 const USER_ID = '3f2b8a52-1c3e-4a6f-9d2e-0a1b2c3d4e5f';
 
@@ -54,7 +55,7 @@ function setup(
   };
   const all = { ...stored };
   const staff = new StaffSettingsService({
-    all: () => Promise.resolve(all),
+    all: () => Promise.resolve({ ...STAFF_ALL_OFF, ...all }),
   } as unknown as AppSettingsService);
   const settings = {
     stringList: jest.fn((k: string) =>

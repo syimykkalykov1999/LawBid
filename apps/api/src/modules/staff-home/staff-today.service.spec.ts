@@ -4,10 +4,11 @@ import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { RuleBasedRecommendationTemplate } from './staff-recommendation.template';
 import { StaffTodayService } from './staff-today.service';
+import { STAFF_ALL_OFF } from '../staff-core/staff-settings.test-support';
 
 const settings = (stored: Record<string, unknown>) =>
   new StaffSettingsService({
-    all: () => Promise.resolve(stored),
+    all: () => Promise.resolve({ ...STAFF_ALL_OFF, ...stored }),
   } as unknown as AppSettingsService);
 
 const ALL_ON = {

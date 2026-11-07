@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
+import { OWNER_SEO_PROMOTION_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   SEO_LAST_RUN_KEY,
@@ -222,7 +223,7 @@ export class SeoGenerateJob {
 
     const { files } = lib.renderSite(
       attorneys,
-      this.renderOptions(
+      await this.renderOptions(
         lib,
         args.site,
         today,
@@ -406,20 +407,45 @@ export class SeoGenerateJob {
   /** The admin's choice («Продвижение») wins; never decided = the variable. */
   private async pageSwitch(key: string, envName: string): Promise<boolean> {
     const stored = await this.settings!.raw(key);
-    return typeof stored === 'boolean'
-      ? stored
-      : truthy(this.config.get<string>(envName));
+    if (typeof stored === 'boolean') return stored;
+    const v = this.config.get<string>(envName);
+    // Never decided and no variable: the built-in default (ON since 2026-11-07).
+    return v !== undefined && v.trim() !== ''
+      ? truthy(v)
+      : OWNER_SEO_PROMOTION_SETTINGS[
+          key as keyof typeof OWNER_SEO_PROMOTION_SETTINGS
+        ] === true;
+  }
+
+  /** New pages a day: the admin's number, then the variable, then the
+   * built-in default (50 since owner 2026-11-07). */
+  private async rampPerDay(envValue: string | undefined): Promise<number> {
+    const stored = await this.settings?.raw('seo.ramp_per_day');
+    if (typeof stored === 'number' && Number.isFinite(stored)) return stored;
+    if (envValue !== undefined && envValue.trim() !== '')
+      return int(envValue, 0);
+    return OWNER_SEO_PROMOTION_SETTINGS['seo.ramp_per_day'];
+  }
+
+  /** Quality gate: the admin's choice wins, then the variable, then the
+   * built-in default (ON since owner 2026-11-07). */
+  private async gateSwitch(envValue: string | undefined): Promise<boolean> {
+    const stored = await this.settings?.raw('seo.quality_gate_enabled');
+    if (typeof stored === 'boolean') return stored;
+    if (envValue !== undefined && envValue.trim() !== '')
+      return truthy(envValue);
+    return OWNER_SEO_PROMOTION_SETTINGS['seo.quality_gate_enabled'];
   }
 
   /** The same switches (names and meaning) as scripts/seo/build.mjs. */
-  private renderOptions(
+  private async renderOptions(
     lib: SeoLib,
     site: string,
     today: string,
     prev: unknown,
     rows: { posts: SeoPostRow[]; questions: SeoQuestionRow[] },
     pages: { cities: boolean; posts: boolean; qa: boolean },
-  ): SeoRenderOptions {
+  ): Promise<SeoRenderOptions> {
     const env = (k: string) => this.config.get<string>(k);
     // Thresholds of the 2026-10-27 page types: only set when the variable is,
     // so the library's own defaults (plan §2.1) stay in one place.
@@ -436,11 +462,11 @@ export class SeoGenerateJob {
       robotsAi: false,
       allowTraining: false,
       llms: false,
-      rampPerDay: int(env('SEO_RAMP_PER_DAY'), 0),
+      rampPerDay: await this.rampPerDay(env('SEO_RAMP_PER_DAY')),
       rampBaseline: env('SEO_RAMP_BASELINE') === 'none' ? 'none' : 'all',
       manifest: false,
       gate: {
-        enabled: truthy(env('SEO_QUALITY_GATE')),
+        enabled: await this.gateSwitch(env('SEO_QUALITY_GATE')),
         minWords: int(env('SEO_MIN_WORDS'), lib.defaultGate.minWords),
         minAttorneys: int(
           env('SEO_MIN_ATTORNEYS'),

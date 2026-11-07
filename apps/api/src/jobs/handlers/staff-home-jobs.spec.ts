@@ -6,10 +6,11 @@ import type { StaffTodayService } from '../../modules/staff-home/staff-today.ser
 import type { StaffTodaySystemService } from '../../modules/staff-home/staff-today-system.service';
 import { StaffTodayJob } from './staff-today.job';
 import { StaffWeeklyDigestJob } from './staff-weekly-digest.job';
+import { STAFF_ALL_OFF } from '../../modules/staff-core/staff-settings.test-support';
 
 const settings = (stored: Record<string, unknown> = {}) =>
   new StaffSettingsService({
-    all: () => Promise.resolve(stored),
+    all: () => Promise.resolve({ ...STAFF_ALL_OFF, ...stored }),
   } as unknown as AppSettingsService);
 
 describe('staff.today job (T10)', () => {
