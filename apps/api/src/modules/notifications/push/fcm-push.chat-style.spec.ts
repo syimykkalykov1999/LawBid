@@ -12,7 +12,11 @@ describe('FcmPushSender chat-style message', () => {
     sent.length = 0;
     const chatStyleTokens = jest.fn().mockResolvedValue(['own']);
     const tokens = {
-      activeTokens: jest.fn().mockResolvedValue(['old', 'own', 'iphone']),
+      activeDevices: jest
+        .fn()
+        .mockResolvedValue(
+          ['old', 'own', 'iphone'].map((token) => ({ token, fid: false })),
+        ),
       chatStyleTokens,
       localReminderTokens: jest.fn().mockResolvedValue([]),
       webTokens: jest.fn().mockResolvedValue([]),

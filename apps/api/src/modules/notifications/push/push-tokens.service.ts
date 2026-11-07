@@ -4,6 +4,18 @@ import { PrismaService } from '../../../prisma/prisma.service';
 /** At most this many devices get a push per user (newest first). */
 const MAX_DEVICES = 10;
 
+/** 2026-11-07: what a device's FCM address is. FCM HTTP v1 deprecates
+ * `message.token` (registration token) for `message.fid` (Firebase
+ * Installation ID); older app versions keep sending tokens, so both are
+ * stored (https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages). */
+export type PushTokenKind = 'token' | 'fid';
+
+/** One device to push to: its address and which FCM field carries it. */
+export interface PushDevice {
+  token: string;
+  fid: boolean;
+}
+
 /**
  * docs/05 §9.5 push tokens: bound to the device's session chain (the JWT
  * `sid`), so logging out of a device stops its pushes. Registration moves
@@ -21,6 +33,7 @@ export class PushTokensService {
     localReminders = false,
     chatStyle = false,
     actorStyle = false,
+    kind: PushTokenKind = 'token',
   ): Promise<void> {
     const session = await this.prisma.session.findFirst({
       where: {
@@ -38,6 +51,7 @@ export class PushTokensService {
         user_id: userId,
         session_id: session.id,
         fcm_token: token,
+        token_kind: kind,
         platform,
         local_reminders: localReminders,
         chat_style: chatStyle,
@@ -46,6 +60,7 @@ export class PushTokensService {
       update: {
         user_id: userId,
         session_id: session.id,
+        token_kind: kind,
         platform,
         local_reminders: localReminders,
         chat_style: chatStyle,
@@ -53,6 +68,12 @@ export class PushTokensService {
         last_seen_at: new Date(),
       },
     });
+    // 2026-11-07: the same signed-in device (session chain) moved from its
+    // registration token to its FID — the old token row goes, so the phone
+    // never gets each push twice. Until the FID arrives the token stays.
+    if (kind === 'fid') {
+      await this.dropLegacyTokens(userId, sessionChainId, token);
+    }
     // Keep the newest MAX_DEVICES per user (security review: no unbounded
     // token rows from one account).
     const stale = await this.prisma.pushToken.findMany({
@@ -68,9 +89,40 @@ export class PushTokensService {
     }
   }
 
-  async unregister(userId: string, token: string): Promise<void> {
+  /** Sign-out of a device: its address (FID or token) goes, and so does a
+   * legacy token row left by the same signed-in device. */
+  async unregister(
+    userId: string,
+    token: string,
+    sessionChainId?: string,
+  ): Promise<void> {
     await this.prisma.pushToken.deleteMany({
       where: { user_id: userId, fcm_token: token },
+    });
+    if (sessionChainId) {
+      await this.dropLegacyTokens(userId, sessionChainId, token);
+    }
+  }
+
+  /** Registration-token rows of [sessionChainId] (one device's sign-in)
+   * other than [keep]. Two queries by id, no join (shard-ready step 0). */
+  private async dropLegacyTokens(
+    userId: string,
+    sessionChainId: string,
+    keep: string,
+  ): Promise<void> {
+    const sessions = await this.prisma.session.findMany({
+      where: { user_id: userId, session_chain_id: sessionChainId },
+      select: { id: true },
+    });
+    if (sessions.length === 0) return;
+    await this.prisma.pushToken.deleteMany({
+      where: {
+        user_id: userId,
+        token_kind: 'token',
+        session_id: { in: sessions.map((s) => s.id) },
+        fcm_token: { not: keep },
+      },
     });
   }
 
@@ -78,10 +130,17 @@ export class PushTokensService {
    * old session row but keeps the chain alive, so liveness is checked on
    * the chain; tokens of a chain fully signed out are removed. */
   async activeTokens(userId: string): Promise<string[]> {
+    return (await this.activeDevices(userId)).map((d) => d.token);
+  }
+
+  /** [activeTokens] with each device's FCM field (2026-11-07: an FID goes
+   * out as `message.fid`, a legacy token as `message.token`). */
+  async activeDevices(userId: string): Promise<PushDevice[]> {
     const rows = await this.prisma.$queryRaw<
-      { token: string; alive: boolean }[]
+      { token: string; kind: string; alive: boolean }[]
     >`
       SELECT t.fcm_token AS token,
+             t.token_kind AS kind,
              EXISTS (SELECT 1 FROM sessions s2
                      WHERE s2.session_chain_id = s.session_chain_id
                        AND s2.revoked_at IS NULL
@@ -97,7 +156,9 @@ export class PushTokensService {
         where: { fcm_token: { in: dead } },
       });
     }
-    return rows.filter((r) => r.alive).map((r) => r.token);
+    return rows
+      .filter((r) => r.alive)
+      .map((r) => ({ token: r.token, fid: r.kind === 'fid' }));
   }
 
   /** Browser tokens: a browser push must show something, so silent

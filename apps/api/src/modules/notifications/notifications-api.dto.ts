@@ -307,11 +307,23 @@ export class UpdateNotificationSettingsDto {
 }
 
 export class PushTokenDto {
-  @ApiProperty({ description: 'FCM registration token.' })
+  @ApiProperty({
+    description:
+      'FCM address of this device: a registration token, or its Firebase Installation ID when kind is "fid".',
+  })
   @IsString()
   @MinLength(20)
   @MaxLength(4096)
   token!: string;
+
+  @ApiPropertyOptional({
+    enum: ['token', 'fid'],
+    description:
+      '2026-11-07: "fid" = token is a Firebase Installation ID (firebase_messaging 17 register()/onRegistered); default "token" (older app versions).',
+  })
+  @IsOptional()
+  @IsIn(['token', 'fid'])
+  kind?: 'token' | 'fid';
 
   @ApiProperty({ enum: ['ios', 'android', 'web'] })
   @IsIn(['ios', 'android', 'web'])
@@ -344,7 +356,10 @@ export class PushTokenDto {
 
 /** Owner 2026-10-20: the planner reminders an iPhone has armed locally. */
 export class ArmedRemindersDto {
-  @ApiProperty({ description: 'FCM registration token of this device.' })
+  @ApiProperty({
+    description:
+      'FCM address of this device (registration token or Firebase Installation ID).',
+  })
   @IsString()
   @MinLength(20)
   @MaxLength(4096)
