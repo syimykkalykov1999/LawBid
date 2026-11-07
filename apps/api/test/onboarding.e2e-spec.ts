@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { attachCleanAvatar } from './support/clean-avatar';
+import { attachPractice } from './support/attach-practice';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15 stage 1.7, server side of the acceptance
@@ -292,10 +293,12 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .set(auth)
       .expect(403);
     expect(noPhoto.body.error.code).toBe('ONBOARDING_INCOMPLETE');
-    expect(noPhoto.body.error.details.missing).toEqual(['photo']);
+    expect(noPhoto.body.error.details.missing).toEqual(['photo', 'practices']);
     const me = await api().get('/api/v1/users/me').set(auth).expect(200);
-    expect(me.body.data.missing).toEqual(['photo']);
+    expect(me.body.data.missing).toEqual(['photo', 'practices']);
     await attachCleanAvatar(prisma, me.body.data.id as string);
+    // Owner 2026-11-05: the practices step is mandatory on the server too.
+    await attachPractice(prisma, me.body.data.id as string);
     await api()
       .post('/api/v1/users/me/onboarding/complete')
       .set(auth)

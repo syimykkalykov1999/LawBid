@@ -28,6 +28,7 @@ export const MISSING_REQUIREMENTS = [
   'state',
   'licensed_states',
   'photo',
+  'practices',
 ] as const;
 
 export class OnboardingStateDto {
