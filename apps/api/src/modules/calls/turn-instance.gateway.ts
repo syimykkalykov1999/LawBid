@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { opsCredentials } from '../../common/ops/ops-credentials';
 import type {
   Ec2State,
   TurnInstanceInfo,
@@ -17,7 +18,10 @@ interface Ec2ClientLike {
   }>;
 }
 interface Ec2ModuleLike {
-  EC2Client: new (cfg: { region: string }) => Ec2ClientLike;
+  EC2Client: new (cfg: {
+    region: string;
+    credentials?: ReturnType<typeof opsCredentials>;
+  }) => Ec2ClientLike;
   DescribeInstancesCommand: new (input: { InstanceIds: string[] }) => unknown;
   StartInstancesCommand: new (input: { InstanceIds: string[] }) => unknown;
   StopInstancesCommand: new (input: { InstanceIds: string[] }) => unknown;
@@ -25,8 +29,9 @@ interface Ec2ModuleLike {
 
 /**
  * Owner 2026-11-02: the on-demand coturn box. Terraform passes
- * TURN_ONDEMAND_INSTANCE_ID (empty = the feature is off) and lets the API
- * task role Describe / Start / Stop exactly that one instance. The SDK is
+ * TURN_ONDEMAND_INSTANCE_ID (empty = the feature is off) and lets the ops role
+ * (or the API task role while ops_role_split is off) Describe / Start / Stop
+ * exactly that one instance. The SDK is
  * loaded on first use so nothing else pays for it (and a Mac without AWS
  * never touches it).
  */
@@ -54,7 +59,12 @@ export class TurnInstanceGateway implements TurnInstancePort {
         this.config.get<string>('AWS_REGION') ??
         this.config.get<string>('AWS_DEFAULT_REGION') ??
         'us-east-1';
-      this.client = new this.mod.EC2Client({ region });
+      // S4-1: with ops_role_split the Start / Stop right sits on the separate
+      // ops role (OPS_ROLE_ARN), not on the task role of the public API.
+      this.client = new this.mod.EC2Client({
+        region,
+        credentials: opsCredentials((n) => this.config.get<string>(n), region),
+      });
     }
     return { mod: this.mod, client: this.client };
   }

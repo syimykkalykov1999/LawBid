@@ -322,6 +322,21 @@ data "aws_iam_policy_document" "deploy" {
     actions   = ["ssm:GetParameter", "ssm:PutParameter"]
     resources = ["arn:aws:ssm:${var.region}:${local.account}:parameter/${local.name}/deploy/*"]
   }
+  # Daily self-check (scripts/ops/self-check.sh, read-only): the alert topic
+  # and its e-mail subscription, and the monthly budget. ListTopics has no
+  # resource-level permission; the rest is scoped to this environment.
+  statement {
+    actions   = ["sns:ListTopics"]
+    resources = ["*"]
+  }
+  statement {
+    actions   = ["sns:ListSubscriptionsByTopic"]
+    resources = ["arn:aws:sns:${var.region}:${local.account}:${local.name}-alerts"]
+  }
+  statement {
+    actions   = ["budgets:ViewBudget"]
+    resources = ["arn:aws:budgets::${local.account}:budget/${local.name}-monthly"]
+  }
   statement {
     actions   = ["iam:PassRole"]
     resources = ["arn:aws:iam::${local.account}:role/${local.name}-*"]
