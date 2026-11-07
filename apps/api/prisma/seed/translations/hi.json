@@ -3811,6 +3811,8 @@
   "post.video.remove": "वीडियो हटाएँ",
   "post.video.trim": "ट्रिम {start}–{end}",
   "post.viewComments": "सभी टिप्पणियाँ देखें ({count})",
+  "post.window.next": "अगली पोस्ट",
+  "post.window.prev": "पिछली पोस्ट",
   "postInner.docs.empty": "कोई दस्तावेज़ नहीं",
   "postInner.documentsCount": "दस्तावेज़: {count}",
   "postInner.info.author": "लेखक",

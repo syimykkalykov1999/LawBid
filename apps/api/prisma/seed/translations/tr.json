@@ -3811,6 +3811,8 @@
   "post.video.remove": "Videoyu kaldır",
   "post.video.trim": "Kırp {start}–{end}",
   "post.viewComments": "Tüm yorumları gör ({count})",
+  "post.window.next": "Sonraki gönderi",
+  "post.window.prev": "Önceki gönderi",
   "postInner.docs.empty": "Belge yok",
   "postInner.documentsCount": "belge: {count}",
   "postInner.info.author": "Yazar",

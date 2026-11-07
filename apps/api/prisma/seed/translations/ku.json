@@ -3811,6 +3811,8 @@
   "post.video.remove": "Vîdyoyê rake",
   "post.video.trim": "Jê bike {start}–{end}",
   "post.viewComments": "Hemû şîroveyan bibînin ({count})",
+  "post.window.next": "Şandiya din",
+  "post.window.prev": "Şandiya berê",
   "postInner.docs.empty": "Belge tune",
   "postInner.documentsCount": "belge: {count}",
   "postInner.info.author": "Nivîskar",

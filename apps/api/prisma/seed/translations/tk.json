@@ -3811,6 +3811,8 @@
   "post.video.remove": "Wideony aýyr",
   "post.video.trim": "Gýs {start}–{end}",
   "post.viewComments": "Ähli teswirleri görmek ({count})",
+  "post.window.next": "Indiki ýazgy",
+  "post.window.prev": "Öňki ýazgy",
   "postInner.docs.empty": "Resminama ýok",
   "postInner.documentsCount": "resminama: {count}",
   "postInner.info.author": "Awtor",

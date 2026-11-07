@@ -10,6 +10,8 @@ const reelsDocsRu = <String, String>{
       'PDF, Word или текст · до {mb} МБ каждый, всего до {total} МБ',
   'post.docs.remove': 'Убрать документ',
   'upload.drop.hint': 'Перетащите файлы сюда',
+  'post.window.next': 'Следующий пост',
+  'post.window.prev': 'Предыдущий пост',
   'post.docs.skipped':
       'Не добавлено: {count}. Подходят PDF, Word и текст до {mb} МБ, всего до {total} МБ, не больше 9 файлов.',
   'post.docs.open': 'Скачать документ {name}',
@@ -46,6 +48,8 @@ const reelsDocsEn = <String, String>{
       'PDF, Word or text · up to {mb} MB each, {total} MB in total',
   'post.docs.remove': 'Remove document',
   'upload.drop.hint': 'Drop files here',
+  'post.window.next': 'Next post',
+  'post.window.prev': 'Previous post',
   'post.docs.skipped':
       '{count} not added. PDF, Word and text up to {mb} MB each, {total} MB in total, at most 9 files.',
   'post.docs.open': 'Download document {name}',

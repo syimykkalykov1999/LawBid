@@ -3811,6 +3811,8 @@
   "post.video.remove": "व्हिडिओ काढा",
   "post.video.trim": "ट्रिम {start}–{end}",
   "post.viewComments": "सर्व टिप्पण्या पाहा ({count})",
+  "post.window.next": "पुढील पोस्ट",
+  "post.window.prev": "मागील पोस्ट",
   "postInner.docs.empty": "कागदपत्रे नाहीत",
   "postInner.documentsCount": "कागदपत्रे: {count}",
   "postInner.info.author": "लेखक",

@@ -3811,6 +3811,8 @@
   "post.video.remove": "Supprimer la vidéo",
   "post.video.trim": "Couper {start}–{end}",
   "post.viewComments": "Voir tous les commentaires ({count})",
+  "post.window.next": "Publication suivante",
+  "post.window.prev": "Publication précédente",
   "postInner.docs.empty": "Aucun document",
   "postInner.documentsCount": "documents : {count}",
   "postInner.info.author": "Auteur",

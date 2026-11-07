@@ -3811,6 +3811,8 @@
   "post.video.remove": "移除影片",
   "post.video.trim": "剪裁 {start}–{end}",
   "post.viewComments": "檢視全部評論（{count}）",
+  "post.window.next": "下一篇貼文",
+  "post.window.prev": "上一篇貼文",
   "postInner.docs.empty": "沒有文件",
   "postInner.documentsCount": "文件：{count}",
   "postInner.info.author": "作者",

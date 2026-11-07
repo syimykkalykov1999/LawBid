@@ -3811,6 +3811,8 @@
   "post.video.remove": "Hapus video",
   "post.video.trim": "Pangkas {start}–{end}",
   "post.viewComments": "Lihat semua komentar ({count})",
+  "post.window.next": "Postingan berikutnya",
+  "post.window.prev": "Postingan sebelumnya",
   "postInner.docs.empty": "Tidak ada dokumen",
   "postInner.documentsCount": "dokumen: {count}",
   "postInner.info.author": "Penulis",

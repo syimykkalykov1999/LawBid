@@ -3811,6 +3811,8 @@
   "post.video.remove": "Yọ fídíò kúrò",
   "post.video.trim": "Gé {start}–{end}",
   "post.viewComments": "Wo gbogbo àwọn àsọyé ({count})",
+  "post.window.next": "Ìfiránṣẹ́ tó kàn",
+  "post.window.prev": "Ìfiránṣẹ́ tó ṣáájú",
   "postInner.docs.empty": "Kò sí ìwé",
   "postInner.documentsCount": "àwọn ìwé: {count}",
   "postInner.info.author": "Òǹkọ̀wé",

@@ -3811,6 +3811,8 @@
   "post.video.remove": "Neħħi l-vidjo",
   "post.video.trim": "Aqta' {start}–{end}",
   "post.viewComments": "Ara l-kummenti kollha ({count})",
+  "post.window.next": "Il-post li jmiss",
+  "post.window.prev": "Il-post ta' qabel",
   "postInner.docs.empty": "Ebda dokumenti",
   "postInner.documentsCount": "dokumenti: {count}",
   "postInner.info.author": "Awtur",

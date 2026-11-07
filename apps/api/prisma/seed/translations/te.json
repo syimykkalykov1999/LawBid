@@ -3811,6 +3811,8 @@
   "post.video.remove": "వీడియో తొలగించండి",
   "post.video.trim": "ట్రిమ్ {start}–{end}",
   "post.viewComments": "అన్ని వ్యాఖ్యలను చూడండి ({count})",
+  "post.window.next": "తదుపరి పోస్ట్",
+  "post.window.prev": "మునుపటి పోస్ట్",
   "postInner.docs.empty": "పత్రాలు లేవు",
   "postInner.documentsCount": "పత్రాలు: {count}",
   "postInner.info.author": "రచయిత",

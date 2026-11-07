@@ -3811,6 +3811,8 @@
   "post.video.remove": "ویډیو لرې کړئ",
   "post.video.trim": "پرې کړئ {start}–{end}",
   "post.viewComments": "ټول نظرونه وګورئ ({count})",
+  "post.window.next": "بله خپرونه",
+  "post.window.prev": "پخوانۍ خپرونه",
   "postInner.docs.empty": "هیڅ سند نشته",
   "postInner.documentsCount": "اسناد: {count}",
   "postInner.info.author": "لیکوال",

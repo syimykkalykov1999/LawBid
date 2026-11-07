@@ -3811,6 +3811,8 @@
   "post.video.remove": "വീഡിയോ നീക്കുക",
   "post.video.trim": "ട്രിം {start}–{end}",
   "post.viewComments": "എല്ലാ കമന്റുകളും കാണുക ({count})",
+  "post.window.next": "അടുത്ത പോസ്റ്റ്",
+  "post.window.prev": "മുമ്പത്തെ പോസ്റ്റ്",
   "postInner.docs.empty": "രേഖകളില്ല",
   "postInner.documentsCount": "രേഖകൾ: {count}",
   "postInner.info.author": "രചയിതാവ്",

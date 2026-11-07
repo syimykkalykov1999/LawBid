@@ -3811,6 +3811,8 @@
   "post.video.remove": "Ta bort video",
   "post.video.trim": "Trimma {start}–{end}",
   "post.viewComments": "Visa alla kommentarer ({count})",
+  "post.window.next": "Nästa inlägg",
+  "post.window.prev": "Föregående inlägg",
   "postInner.docs.empty": "Inga dokument",
   "postInner.documentsCount": "dokument: {count}",
   "postInner.info.author": "Författare",

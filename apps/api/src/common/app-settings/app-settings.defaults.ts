@@ -956,8 +956,10 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   /** Scale audit 2026-10-23: live connections of one person per server. */
   'realtime.max_sockets_per_user': 10,
   /** Owner 2026-10-25: new socket connections per minute from one address
-   * (CGNAT / offices carry many people: generous). 0 = no limit. */
-  'realtime.max_connects_per_ip_per_minute': 120,
+   * (CGNAT / offices carry many people: generous). 0 = no limit. 120 -> 600
+   * on 2026-11-02: the laptop load test (10 000 sockets from one address) was cut
+   * at 482; a university / mobile-operator address carries hundreds of people. */
+  'realtime.max_connects_per_ip_per_minute': 600,
   /** New socket connections per minute from one signed-in person (the
    * identity that is counted; the address only guards sockets with no
    * account). 0 = no limit. */

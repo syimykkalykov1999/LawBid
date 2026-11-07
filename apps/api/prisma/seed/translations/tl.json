@@ -3811,6 +3811,8 @@
   "post.video.remove": "Alisin ang video",
   "post.video.trim": "I-trim {start}–{end}",
   "post.viewComments": "Tingnan ang lahat ng komento ({count})",
+  "post.window.next": "Susunod na post",
+  "post.window.prev": "Nakaraang post",
   "postInner.docs.empty": "Walang dokumento",
   "postInner.documentsCount": "mga dokumento: {count}",
   "postInner.info.author": "May-akda",

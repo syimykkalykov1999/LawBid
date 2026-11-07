@@ -3811,6 +3811,8 @@
   "post.video.remove": "වීඩියෝව ඉවත් කරන්න",
   "post.video.trim": "කපන්න {start}–{end}",
   "post.viewComments": "සියලු අදහස් බලන්න ({count})",
+  "post.window.next": "ඊළඟ පළ කිරීම",
+  "post.window.prev": "පෙර පළ කිරීම",
   "postInner.docs.empty": "ලේඛන නැත",
   "postInner.documentsCount": "ලේඛන: {count}",
   "postInner.info.author": "කතෘ",

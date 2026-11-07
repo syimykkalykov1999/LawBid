@@ -3811,6 +3811,8 @@
   "post.video.remove": "ವೀಡಿಯೊ ತೆಗೆಯಿರಿ",
   "post.video.trim": "ಟ್ರಿಮ್ {start}–{end}",
   "post.viewComments": "ಎಲ್ಲಾ ಕಾಮೆಂಟ್‌ಗಳನ್ನು ನೋಡಿ ({count})",
+  "post.window.next": "ಮುಂದಿನ ಪೋಸ್ಟ್",
+  "post.window.prev": "ಹಿಂದಿನ ಪೋಸ್ಟ್",
   "postInner.docs.empty": "ದಾಖಲೆಗಳಿಲ್ಲ",
   "postInner.documentsCount": "ದಾಖಲೆಗಳು: {count}",
   "postInner.info.author": "ಲೇಖಕ",

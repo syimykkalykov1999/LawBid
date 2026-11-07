@@ -3811,6 +3811,8 @@
   "post.video.remove": "Poista video",
   "post.video.trim": "Leikkaa {start}–{end}",
   "post.viewComments": "Näytä kaikki kommentit ({count})",
+  "post.window.next": "Seuraava julkaisu",
+  "post.window.prev": "Edellinen julkaisu",
   "postInner.docs.empty": "Ei asiakirjoja",
   "postInner.documentsCount": "asiakirjoja: {count}",
   "postInner.info.author": "Tekijä",

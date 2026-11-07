@@ -3811,6 +3811,8 @@
   "post.video.remove": "Ukloni video",
   "post.video.trim": "Obreži {start}–{end}",
   "post.viewComments": "Prikaži sve komentare ({count})",
+  "post.window.next": "Sljedeća objava",
+  "post.window.prev": "Prethodna objava",
   "postInner.docs.empty": "Nema dokumenata",
   "postInner.documentsCount": "dokumenata: {count}",
   "postInner.info.author": "Autor",

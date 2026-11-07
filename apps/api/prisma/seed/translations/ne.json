@@ -3811,6 +3811,8 @@
   "post.video.remove": "भिडियो हटाउनुहोस्",
   "post.video.trim": "ट्रिम {start}–{end}",
   "post.viewComments": "सबै टिप्पणीहरू हेर्नुहोस् ({count})",
+  "post.window.next": "अर्को पोस्ट",
+  "post.window.prev": "अघिल्लो पोस्ट",
   "postInner.docs.empty": "कुनै कागजात छैन",
   "postInner.documentsCount": "कागजात: {count}",
   "postInner.info.author": "लेखक",

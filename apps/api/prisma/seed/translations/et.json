@@ -3811,6 +3811,8 @@
   "post.video.remove": "Eemalda video",
   "post.video.trim": "Lõika {start}–{end}",
   "post.viewComments": "Vaata kõiki kommentaare ({count})",
+  "post.window.next": "Järgmine postitus",
+  "post.window.prev": "Eelmine postitus",
   "postInner.docs.empty": "Dokumente pole",
   "postInner.documentsCount": "dokumente: {count}",
   "postInner.info.author": "Autor",
