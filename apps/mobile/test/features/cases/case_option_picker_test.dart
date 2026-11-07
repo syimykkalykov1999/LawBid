@@ -43,4 +43,36 @@ void main() {
     expect(find.text('Fixed'), findsOneWidget);
     expect(find.text('One sum'), findsOneWidget);
   });
+
+  testWidgets('startOpen stands open over a default, a pick folds',
+      (tester) async {
+    String? value = 'b';
+    await tester.pumpWidget(
+      uxApp(
+        Scaffold(
+          body: StatefulBuilder(
+            builder: (context, set) => CaseOptionPicker<String>(
+              label: 'Fee',
+              value: value,
+              startOpen: true,
+              options: const [
+                CaseOption('a', 'Fixed', 'One sum'),
+                CaseOption('b', 'Later', 'Agree later'),
+              ],
+              onChanged: (v) => set(() => value = v),
+            ),
+          ),
+        ),
+        theme: AppTheme.light(),
+        disableAnimations: true,
+      ),
+    );
+    expect(find.text('One sum'), findsOneWidget);
+    expect(find.text('Agree later'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('option-picker-b')));
+    await tester.pumpAndSettle();
+    expect(value, 'b');
+    expect(find.text('One sum'), findsNothing);
+  });
 }

@@ -21,6 +21,7 @@ class CaseOptionPicker<T> extends StatefulWidget {
     required this.onChanged,
     this.clearLabel,
     this.enabled = true,
+    this.startOpen = false,
     super.key,
   });
 
@@ -33,12 +34,16 @@ class CaseOptionPicker<T> extends StatefulWidget {
   final String? clearLabel;
   final bool enabled;
 
+  /// Owner 2026-11-06: the list stands open over a default choice, until the
+  /// first pick folds it.
+  final bool startOpen;
+
   @override
   State<CaseOptionPicker<T>> createState() => _CaseOptionPickerState<T>();
 }
 
 class _CaseOptionPickerState<T> extends State<CaseOptionPicker<T>> {
-  late bool _open = widget.value == null;
+  late bool _open = widget.value == null || widget.startOpen;
 
   @override
   void didUpdateWidget(CaseOptionPicker<T> old) {
