@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "Pódese pagar a través de LawBid",
   "trust.signal.payments.ok.self": "Os clientes poden pagarlle a través de LawBid",
   "trust.signal.selfAttested": "Declaración xurada aceptada",
+  "upload.drop.hint": "Solta os ficheiros aquí",
   "verification.attest.required": "Marca a declaración xurada para enviar.",
   "verification.attest.text": "Xuro que son o avogado coa licenza do número indicado e que a licenza está vixente. Os datos falsos supoñen o bloqueo e a responsabilidade é só miña.",
   "verification.camera.denied.body": "Permita o acceso á cámara para LawBid na configuración do teléfono e ténteo de novo.",

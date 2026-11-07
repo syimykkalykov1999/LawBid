@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "LawBid द्वारे पैसे देता येतात",
   "trust.signal.payments.ok.self": "क्लायंट LawBid द्वारे तुम्हाला पैसे देऊ शकतात",
   "trust.signal.selfAttested": "शपथेवरील घोषणा स्वीकारली",
+  "upload.drop.hint": "फायली येथे सोडा",
   "verification.attest.required": "पाठवण्यासाठी शपथेवर खूण करा.",
   "verification.attest.text": "वर दिलेल्या क्रमांकाचा परवाना असलेला वकील मीच आहे आणि परवाना वैध आहे, अशी मी शपथ घेतो/घेते. चुकीची माहिती दिल्यास खाते ब्लॉक होईल आणि सर्व जबाबदारी माझी आहे.",
   "verification.camera.denied.body": "आपल्या फोनच्या सेटिंग्जमध्ये LawBid साठी कॅमेरा प्रवेशाला परवानगी द्या आणि पुन्हा प्रयत्न करा.",

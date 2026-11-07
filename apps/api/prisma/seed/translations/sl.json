@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "Plačilo prek LawBid je mogoče",
   "trust.signal.payments.ok.self": "Stranke vam lahko plačajo prek LawBid",
   "trust.signal.selfAttested": "Izjava pod prisego sprejeta",
+  "upload.drop.hint": "Spustite datoteke sem",
   "verification.attest.required": "Za pošiljanje označite izjavo pod prisego.",
   "verification.attest.text": "Prisegam, da sem odvetnik z licenco navedene številke in da je licenca veljavna. Lažni podatki pomenijo blokado, odgovornost pa nosim samo jaz.",
   "verification.camera.denied.body": "V nastavitvah telefona dovolite aplikaciji LawBid dostop do kamere in poskusite znova.",

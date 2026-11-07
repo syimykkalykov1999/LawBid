@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "Accetta pagamenti tramite LawBid",
   "trust.signal.payments.ok.self": "I clienti possono pagarla tramite LawBid",
   "trust.signal.selfAttested": "Dichiarazione giurata accettata",
+  "upload.drop.hint": "Trascina qui i file",
   "verification.attest.required": "Spunta la dichiarazione giurata per inviare.",
   "verification.attest.text": "Giuro di essere l'avvocato titolare della licenza con il numero indicato e che la licenza è attiva. Dati falsi comportano il blocco e ne sono l'unico responsabile.",
   "verification.camera.denied.body": "Consenta a LawBid l'accesso alla fotocamera nelle impostazioni del telefono, poi riprovi.",

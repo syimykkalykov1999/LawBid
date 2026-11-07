@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "LawBid-এর মাধ্যমে পেমেন্ট করা যায়",
   "trust.signal.payments.ok.self": "ক্লায়েন্টরা LawBid-এর মাধ্যমে আপনাকে পেমেন্ট করতে পারেন",
   "trust.signal.selfAttested": "হলফনামা গৃহীত হয়েছে",
+  "upload.drop.hint": "ফাইলগুলো এখানে ছাড়ুন",
   "verification.attest.required": "পাঠাতে শপথে টিক দিন।",
   "verification.attest.text": "আমি শপথ করে বলছি যে আমি উপরের নম্বরের লাইসেন্সধারী আইনজীবী এবং লাইসেন্সটি বৈধ। ভুল তথ্য দিলে অ্যাকাউন্ট ব্লক হবে এবং সম্পূর্ণ দায় আমার।",
   "verification.camera.denied.body": "আপনার ফোনের সেটিংসে LawBid-কে ক্যামেরা ব্যবহারের অনুমতি দিন, তারপর আবার চেষ্টা করুন।",

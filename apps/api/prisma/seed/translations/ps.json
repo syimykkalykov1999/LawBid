@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "د LawBid له لارې تادیه کېدای شي",
   "trust.signal.payments.ok.self": "مراجعین کولای شي د LawBid له لارې تاسو ته پیسې درکړي",
   "trust.signal.selfAttested": "د لوړې ژمنې اعلان ومنل شو",
+  "upload.drop.hint": "فایلونه دلته پرېږدئ",
   "verification.attest.required": "د لېږلو لپاره سوګند نښه کړئ.",
   "verification.attest.text": "زه سوګند کوم چې زه هغه وکیل یم چې پورته شمېرې جواز لري او جواز معتبر دی. غلطې معلومات د بندیدو معنا لري او ټوله مسئولیت زما دی.",
   "verification.camera.denied.body": "د خپل تلیفون په تنظیماتو کې LawBid ته د کیمرې اجازه ورکړئ، بیا هڅه وکړئ.",

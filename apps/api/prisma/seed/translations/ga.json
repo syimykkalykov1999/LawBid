@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "Is féidir íoc trí LawBid",
   "trust.signal.payments.ok.self": "Is féidir le cliaint íoc leat trí LawBid",
   "trust.signal.selfAttested": "Glacadh leis an ráiteas faoi mhionn",
+  "upload.drop.hint": "Scaoil na comhaid anseo",
   "verification.attest.required": "Cuir tic leis an ráiteas faoi mhionn chun a sheoladh.",
   "verification.attest.text": "Mionnaím gur mise an dlíodóir a bhfuil ceadúnas leis an uimhir thuas aige agus go bhfuil an ceadúnas bailí. Ciallaíonn faisnéis bhréagach cosc, agus is mise amháin atá freagrach.",
   "verification.camera.denied.body": "Ceadaigh rochtain ar an gceamara do LawBid i socruithe do ghutháin, ansin bain triail eile as.",

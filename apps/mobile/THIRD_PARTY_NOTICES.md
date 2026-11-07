@@ -115,6 +115,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## desktop_drop (MixinNetwork/flutter-plugins) — Apache-2.0
+
+Used as a pub.dev package, unchanged: dragging files onto the website.
+https://github.com/MixinNetwork/flutter-plugins/tree/main/packages/desktop_drop
+
+Licensed under the Apache License, Version 2.0. You may obtain a copy of the
+License at http://www.apache.org/licenses/LICENSE-2.0
+
 ## battery_plus — BSD-3-Clause
 
 Used as a published dependency (pinned in `pubspec.lock`, version 7.1.2) for

@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "Var samaksāt caur LawBid",
   "trust.signal.payments.ok.self": "Klienti var jums maksāt caur LawBid",
   "trust.signal.selfAttested": "Ar zvērestu apliecināts paziņojums pieņemts",
+  "upload.drop.hint": "Nometiet failus šeit",
   "verification.attest.required": "Lai nosūtītu, atzīmējiet zvērestu.",
   "verification.attest.text": "Zvēru, ka esmu advokāts ar iepriekš norādītā numura licenci un licence ir derīga. Nepatiesi dati nozīmē bloķēšanu, un visa atbildība ir uz mani.",
   "verification.camera.denied.body": "Tālruņa iestatījumos atļaujiet LawBid piekļuvi kamerai un mēģiniet vēlreiz.",

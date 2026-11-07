@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "Accepte les paiements via LawBid",
   "trust.signal.payments.ok.self": "Vos clients peuvent vous payer via LawBid",
   "trust.signal.selfAttested": "Déclaration sur l'honneur acceptée",
+  "upload.drop.hint": "Déposez les fichiers ici",
   "verification.attest.required": "Cochez la déclaration sur l'honneur pour envoyer.",
   "verification.attest.text": "Je jure être l'avocat titulaire de la licence portant le numéro indiqué et que la licence est active. Toute fausse information entraîne un bannissement et j'en suis seul responsable.",
   "verification.camera.denied.body": "Autorisez l'accès à l'appareil photo pour LawBid dans les réglages de votre téléphone, puis réessayez.",

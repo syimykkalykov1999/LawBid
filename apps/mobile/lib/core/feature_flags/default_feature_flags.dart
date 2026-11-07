@@ -59,6 +59,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'low_power_mode': false,
   'chat_files_from_disk': false,
   'group_files_from_disk': false,
+  'web_file_drop': false,
   'reels_tus_parallel': false,
   'chat_upload_parallel': false,
   'downloads_parallel': false,

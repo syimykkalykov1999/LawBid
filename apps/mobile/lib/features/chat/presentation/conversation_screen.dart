@@ -75,6 +75,7 @@ import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 int get kMessageMaxChars => TextLimits.of(TextLimit.chatMessage);
@@ -280,6 +281,21 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           .read(featureFlagsControllerProvider)
           .isEnabled('chat_files_from_disk'),
     );
+    await _previewAndSend(files);
+  }
+
+  /// Files dragged onto the chat in the browser: the same preview.
+  Future<void> _drop(List<XFile> dropped) async {
+    final files = await droppedChatFiles(
+      context,
+      ref.read(translatorProvider),
+      dropped,
+      limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
+    );
+    await _previewAndSend(files);
+  }
+
+  Future<void> _previewAndSend(List<PickedChatFile> files) async {
     if (files.isEmpty || !mounted) return;
     // Owner 2026-10-22 (WhatsApp): nothing is sent yet - the preview opens
     // (big picture, thumbnails, caption, rotate / crop); the typed text is
@@ -555,11 +571,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                       ),
                     ),
                     Expanded(
-                      child: Consumer(
-                        builder: (context, ref, _) => _MessageList(
-                          key: _listKey,
-                          state: ref.watch(thread.select(_ListSlice.new)).s,
-                          onMore: _thread.loadMore,
+                      child: FileDropZone(
+                        enabled: c != null &&
+                            !c.closed &&
+                            c.contactsUnlocked &&
+                            ref.watch(canDoProvider(AssistantDuty.files)),
+                        onFiles: (f) => unawaited(_drop(f)),
+                        child: Consumer(
+                          builder: (context, ref, _) => _MessageList(
+                            key: _listKey,
+                            state: ref.watch(thread.select(_ListSlice.new)).s,
+                            onMore: _thread.loadMore,
+                          ),
                         ),
                       ),
                     ),
