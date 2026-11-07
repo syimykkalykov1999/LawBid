@@ -3811,6 +3811,8 @@
   "post.video.remove": "Fjern video",
   "post.video.trim": "Klipp {start}–{end}",
   "post.viewComments": "Se alle kommentarer ({count})",
+  "post.window.next": "Neste innlegg",
+  "post.window.prev": "Forrige innlegg",
   "postInner.docs.empty": "Ingen dokumenter",
   "postInner.documentsCount": "dokumenter: {count}",
   "postInner.info.author": "Forfatter",

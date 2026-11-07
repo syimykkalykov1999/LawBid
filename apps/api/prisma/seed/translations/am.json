@@ -3811,6 +3811,8 @@
   "post.video.remove": "ቪዲዮውን አስወግድ",
   "post.video.trim": "ቁረጥ {start}–{end}",
   "post.viewComments": "ሁሉንም አስተያየቶች ይመልከቱ ({count})",
+  "post.window.next": "ቀጣይ ልጥፍ",
+  "post.window.prev": "ቀዳሚ ልጥፍ",
   "postInner.docs.empty": "ምንም ሰነድ የለም",
   "postInner.documentsCount": "ሰነዶች፡ {count}",
   "postInner.info.author": "ደራሲ",

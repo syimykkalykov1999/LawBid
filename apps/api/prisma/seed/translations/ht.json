@@ -3811,6 +3811,8 @@
   "post.video.remove": "Retire videyo a",
   "post.video.trim": "Koupe {start}–{end}",
   "post.viewComments": "Wè tout kòmantè yo ({count})",
+  "post.window.next": "Pòs ki vin apre a",
+  "post.window.prev": "Pòs anvan an",
   "postInner.docs.empty": "Pa gen dokiman",
   "postInner.documentsCount": "dokiman: {count}",
   "postInner.info.author": "Otè",

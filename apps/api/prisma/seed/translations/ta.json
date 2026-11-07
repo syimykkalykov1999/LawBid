@@ -3811,6 +3811,8 @@
   "post.video.remove": "வீடியோவை நீக்கு",
   "post.video.trim": "வெட்டு {start}–{end}",
   "post.viewComments": "அனைத்துக் கருத்துகளையும் காண்க ({count})",
+  "post.window.next": "அடுத்த பதிவு",
+  "post.window.prev": "முந்தைய பதிவு",
   "postInner.docs.empty": "ஆவணங்கள் இல்லை",
   "postInner.documentsCount": "ஆவணங்கள்: {count}",
   "postInner.info.author": "ஆசிரியர்",

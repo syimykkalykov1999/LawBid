@@ -32,6 +32,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_prefetch.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_window.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
@@ -345,35 +346,39 @@ class PostScreen extends ConsumerWidget {
               value: post,
               t: t,
               onRetry: () => ref.invalidate(postProvider(postId)),
-              builder: (p) => PostCard.isThreadsStyle(p)
-                  ? _ThreadDetail(post: p, fromProfile: fromProfile)
-                  : AppRefreshIndicator(
-                      color: colors.gold,
-                      onRefresh: () async =>
-                          ref.invalidate(postProvider(postId)),
-                      child: ListView(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.paddingOf(context).bottom +
-                              AppSpacing.xl,
+              builder: (p) => postWindowOn(context)
+                  // The website's wide window: a link or a notification
+                  // opens the same window as a grid, on this page.
+                  ? Center(child: PostWindowBody(post: p))
+                  : PostCard.isThreadsStyle(p)
+                      ? _ThreadDetail(post: p, fromProfile: fromProfile)
+                      : AppRefreshIndicator(
+                          color: colors.gold,
+                          onRefresh: () async =>
+                              ref.invalidate(postProvider(postId)),
+                          child: ListView(
+                            padding: EdgeInsets.only(
+                              bottom: MediaQuery.paddingOf(context).bottom +
+                                  AppSpacing.xl,
+                            ),
+                            children: [
+                              PostImpressionTracker(
+                                post: p,
+                                child: PostCard(
+                                  post: p,
+                                  inDetail: true,
+                                  fromProfile: fromProfile,
+                                ),
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.screenSide,
+                                ),
+                                child: PostDisclaimer(),
+                              ),
+                            ],
+                          ),
                         ),
-                        children: [
-                          PostImpressionTracker(
-                            post: p,
-                            child: PostCard(
-                              post: p,
-                              inDetail: true,
-                              fromProfile: fromProfile,
-                            ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: AppSpacing.screenSide,
-                            ),
-                            child: PostDisclaimer(),
-                          ),
-                        ],
-                      ),
-                    ),
             ),
     );
   }

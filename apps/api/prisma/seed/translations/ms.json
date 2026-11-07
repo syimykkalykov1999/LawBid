@@ -3811,6 +3811,8 @@
   "post.video.remove": "Alih keluar video",
   "post.video.trim": "Potong {start}–{end}",
   "post.viewComments": "Lihat semua komen ({count})",
+  "post.window.next": "Siaran seterusnya",
+  "post.window.prev": "Siaran sebelumnya",
   "postInner.docs.empty": "Tiada dokumen",
   "postInner.documentsCount": "dokumen: {count}",
   "postInner.info.author": "Penulis",

@@ -3811,6 +3811,8 @@
   "post.video.remove": "ویڈیو ہٹائیں",
   "post.video.trim": "تراشیں {start}–{end}",
   "post.viewComments": "تمام تبصرے دیکھیں ({count})",
+  "post.window.next": "اگلی پوسٹ",
+  "post.window.prev": "پچھلی پوسٹ",
   "postInner.docs.empty": "کوئی دستاویز نہیں",
   "postInner.documentsCount": "دستاویزات: {count}",
   "postInner.info.author": "مصنف",
