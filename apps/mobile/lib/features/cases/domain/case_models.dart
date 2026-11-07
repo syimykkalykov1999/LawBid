@@ -445,10 +445,18 @@ class CaseBid {
     this.outsideLicensedStates = false,
     this.percentBps,
     this.paymentTerms,
+    this.version = 0,
+    this.confirmationRequiredAt,
   });
 
   /// Owner 2026-09-30: the case's practice is outside the attorney's own —
   /// the client is told to discuss it before accepting.
+  /// Sent back on accepting: only the version the client saw is accepted.
+  final int version;
+
+  /// Owner 2026-11-05: the client changed the case; waiting for the attorney.
+  final DateTime? confirmationRequiredAt;
+
   final bool outsidePractice;
 
   /// Owner 2026-10-04: the attorney has no verified licence in the case's

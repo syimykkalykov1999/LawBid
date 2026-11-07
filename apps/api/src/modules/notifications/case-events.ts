@@ -28,6 +28,7 @@ const KIND_OF: Record<string, CaseUpdateKind> = {
   offer_accepted: 'bid_accepted',
   bid_rejected: 'bid_declined',
   offer_countered: 'bid_countered',
+  bid_changed: 'bid_countered',
   negotiation_failed: 'bid_declined',
   bid_withdrawn: 'bid_withdrawn',
   case_updated: 'updated',

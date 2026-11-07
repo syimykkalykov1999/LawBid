@@ -895,8 +895,12 @@ class BidCard extends StatelessWidget {
     required this.onTap,
     this.onAttorneyTap,
     this.onAccept,
+    this.waiting = false,
     super.key,
   });
+
+  /// Owner 2026-11-05: the client changed the case, the attorney answers first.
+  final bool waiting;
 
   final CaseBid bid;
   final Translator t;
@@ -983,6 +987,14 @@ class BidCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             Container(height: 1, color: colors.gold.withValues(alpha: 0.4)),
           ],
+          if (waiting) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              t.t('cases.bid.waitConfirm'),
+              key: ValueKey('bid-card-waiting-${bid.id}'),
+              style: typography.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+          ],
           // Owner 2026-10-19: say what comes next — the bid's screen, where
           // it is accepted, answered with a counter-offer or declined.
           const SizedBox(height: AppSpacing.md),
@@ -996,7 +1008,7 @@ class BidCard extends StatelessWidget {
                   onPressed: onTap,
                 ),
               ),
-              if (onAccept != null) ...[
+              if (onAccept != null && !waiting) ...[
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: AppButton(

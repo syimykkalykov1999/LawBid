@@ -9,6 +9,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
+import 'package:lawbid/features/cases/deals/deal_record_data.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -85,8 +86,35 @@ class _EditFormState extends ConsumerState<_EditForm> {
         _error = null;
       });
 
+  /// Owner 2026-11-05: active bids will wait for the attorneys.
+  bool get _asksBidsToConfirm {
+    final o = draftFromCase(widget.original);
+    final d = _draft;
+    return ref.read(bidConfirmationProvider) &&
+        widget.original.status == CaseStatus.open &&
+        widget.original.bidsCount > 0 &&
+        (d.description != o.description ||
+            d.budgetIsAmount != o.budgetIsAmount ||
+            d.budgetDollars != o.budgetDollars ||
+            d.budgetIsPercent != o.budgetIsPercent ||
+            d.budgetPercentBps != o.budgetPercentBps ||
+            d.urgency != o.urgency ||
+            d.deadlineAt != o.deadlineAt);
+  }
+
   Future<void> _save() async {
     if (_saving) return;
+    if (_asksBidsToConfirm) {
+      final tr = ref.read(translatorProvider);
+      final ok = await showConfirmSheet(
+        context,
+        t: tr,
+        title: tr.t('cases.owner.editCase'),
+        message: tr.t('cases.edit.bidsWillConfirm'),
+        confirmLabel: tr.t('common.save'),
+      );
+      if (!ok || !mounted) return;
+    }
     setState(() => _saving = true);
     final t = ref.read(translatorProvider);
     // Held before the await: the lists must refresh even if this screen

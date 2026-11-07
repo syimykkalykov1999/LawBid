@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/addresses/open_in_maps.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -11,7 +14,9 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/case_views_queue.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
+import 'package:lawbid/features/cases/deals/deal_record_data.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
     show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -21,6 +26,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
+import 'package:lawbid/features/cases/presentation/widgets/change_bid_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -33,6 +39,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
 import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Opens the subscription call-to-action when the server answers
 /// SUBSCRIPTION_REQUIRED (docs/04 §2); true when it handled [e].
@@ -155,6 +162,17 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
     }
   }
 
+  /// Owner 2026-11-05: «Бид в силе».
+  Future<void> _confirmBid(CaseBid bid) async {
+    final t = ref.read(translatorProvider);
+    try {
+      await ref.read(caseActionsProvider).confirmBid(bid);
+      if (mounted) showAppSnackBar(context, t.t('cases.changes.keep'));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
   /// Audit 2026-10-04: once the case left "open" with THIS attorney's
   /// bid accepted, the work screen (chat, completion, dispute) is the
   /// right place — the feed view would be a dead end.
@@ -223,6 +241,7 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
             formats: formats,
             sections: _sections,
             onWithdraw: _withdraw,
+            onConfirm: _confirmBid,
           ),
         ),
       ),
@@ -298,10 +317,12 @@ class _Body extends ConsumerStatefulWidget {
     required this.formats,
     required this.sections,
     required this.onWithdraw,
+    required this.onConfirm,
   });
 
   final CaseSectionsBar sections;
   final ValueChanged<CaseBid> onWithdraw;
+  final ValueChanged<CaseBid> onConfirm;
   final FeedCase kase;
   final Translator t;
   final L10nFormats formats;
@@ -600,14 +621,86 @@ class _BodyState extends ConsumerState<_Body> {
       ];
     }
     final bid = ref.watch(bidProvider(bidId)).value;
+    final changes = ref.watch(bidCaseChangesProvider(bidId)).value;
+    final canAct = ref.watch(canDoProvider(AssistantDuty.bids));
+    final waiting = bid != null &&
+        bid.isActive &&
+        bid.confirmationRequiredAt != null &&
+        ref.watch(bidConfirmationProvider);
     return [
+      if (changes != null && changes.isEmpty)
+        Padding(
+          key: const ValueKey('case-changes-none'),
+          padding: side,
+          child: Text(
+            t.t('cases.changes.none'),
+            style: type.body.copyWith(color: colors.textSecondary),
+          ),
+        ),
+      for (final ch in changes ?? const <api.BidCaseChangeDto>[])
+        Padding(
+          key: ValueKey('case-change-${ch.field}'),
+          padding: side,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                t.t(
+                  switch (ch.field) {
+                    'description' => 'cases.detail.description',
+                    'budget' => 'cases.card.budget',
+                    _ => 'cases.facts.deadline',
+                  },
+                ),
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                _changeValue(t, formats, ch.field, ch.oldValue),
+                style: type.bodySmall.copyWith(
+                  color: colors.textSecondary,
+                  decoration: TextDecoration.lineThrough,
+                ),
+              ),
+              Text(
+                _changeValue(t, formats, ch.field, ch.newValue),
+                style: type.body.copyWith(color: colors.text),
+              ),
+            ],
+          ),
+        ),
       Padding(
         padding: side,
         child: _OwnBidCard(bidId: bidId, t: t, formats: formats),
       ),
-      if (bid != null &&
-          bid.isActive &&
-          ref.watch(canDoProvider(AssistantDuty.bids)))
+      if (bid != null && bid.isActive && canAct) ...[
+        if (waiting)
+          Padding(
+            padding: side,
+            child: AppButton(
+              key: const ValueKey('case-bid-keep'),
+              label: t.t('cases.changes.keep'),
+              onPressed: () => widget.onConfirm(bid),
+            ),
+          ),
+        // Without a change of the case, only on the attorney's turn.
+        if (waiting || (bid.isTurnOf(PartyRole.attorney) && bid.canCounter))
+          Padding(
+            padding: side,
+            child: AppButton(
+              key: const ValueKey('case-bid-change'),
+              label: t.t('cases.changes.change'),
+              variant: AppButtonVariant.secondary,
+              onPressed: () => showChangeBidSheet(
+                context,
+                bid: bid,
+                free: waiting,
+                percentAllowed: !ContingencyRules.of(
+                  ref.read(featureFlagsControllerProvider),
+                ).blockedFor([c.practice.code, ...c.extraPracticeCodes]),
+              ),
+            ),
+          ),
         Padding(
           padding: side,
           child: AppButton(
@@ -617,7 +710,29 @@ class _BodyState extends ConsumerState<_Body> {
             onPressed: () => widget.onWithdraw(bid),
           ),
         ),
+      ],
     ];
+  }
+
+  /// A journal value in words: the budget comes as JSON, the rest as text.
+  String _changeValue(
+    Translator t,
+    L10nFormats formats,
+    String field,
+    String? value,
+  ) {
+    if (value == null) return t.t('cases.facts.notSet');
+    if (field == 'budget') {
+      final b = jsonDecode(value) as Map<String, dynamic>;
+      final bps = b['percentBps'] as int?;
+      final cents = b['cents'] as int?;
+      if (bps != null) return '${ContingencyRules.plain(bps)} %';
+      if (cents != null) return CaseFormat.money(formats, cents);
+      return t.t('cases.budget.clarifyLater');
+    }
+    if (field == 'deadlineAt') return formats.date(DateTime.parse(value));
+    if (field == 'urgency') return t.t('cases.urgency.$value');
+    return value;
   }
 }
 

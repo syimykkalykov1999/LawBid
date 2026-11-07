@@ -29,6 +29,7 @@ import { VerificationLossBillingJob } from './handlers/verification-loss-billing
 import {
   CaseStalePauseJob,
   CaseAutoCloseJob,
+  BidConfirmReminderJob,
   CaseCompletionReminderJob,
   CaseStaleAskJob,
 } from './handlers/case-lifecycle.jobs';
@@ -138,6 +139,7 @@ export class CronProcessor {
     private readonly caseStalePause: CaseStalePauseJob,
     private readonly caseAutoClose: CaseAutoCloseJob,
     private readonly caseCompletionReminder: CaseCompletionReminderJob,
+    private readonly bidConfirmReminder: BidConfirmReminderJob,
     private readonly countersReconcile: CountersReconcileJob,
     private readonly feedReco: FeedRecoJob,
     private readonly trendingTags: TrendingTagsJob,
@@ -345,6 +347,8 @@ export class CronProcessor {
         return this.caseAutoClose.run();
       case CRON_JOBS.caseCompletionReminder:
         return this.caseCompletionReminder.run();
+      case CRON_JOBS.bidConfirmReminder:
+        return this.bidConfirmReminder.run();
       case CRON_JOBS.countersReconcile:
         return this.countersReconcile.run();
       case CRON_JOBS.feedReco:

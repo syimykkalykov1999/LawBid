@@ -381,6 +381,12 @@ final caseBidsProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
+/// Owner 2026-11-05: what the client changed since the attorney's bid.
+final bidCaseChangesProvider =
+    FutureProvider.autoDispose.family<List<api.BidCaseChangeDto>, String>(
+  (ref, bidId) => ref.watch(casesRepositoryProvider).bidCaseChanges(bidId),
+);
+
 final bidProvider = FutureProvider.autoDispose.family<CaseBid, String>(
   (ref, id) {
     _rereadOn(
@@ -861,7 +867,7 @@ class CaseActions {
   }
 
   Future<CaseBid> accept(CaseBid bid) async {
-    final result = await _repo.accept(bid.id);
+    final result = await _repo.accept(bid.id, version: bid.version);
     _afterBidChange(result);
     return result;
   }
@@ -878,6 +884,34 @@ class CaseActions {
   Future<CaseBid> decline(CaseBid bid) async {
     final result = await _repo.decline(bid.id);
     _afterBidChange(result);
+    return result;
+  }
+
+  Future<CaseBid> confirmBid(CaseBid bid) async {
+    final result = await _repo.confirmBid(bid.id);
+    _afterBidChange(result);
+    _ref.invalidate(bidCaseChangesProvider(bid.id));
+    return result;
+  }
+
+  Future<CaseBid> changeBid(
+    CaseBid bid, {
+    required FeeType feeType,
+    int? amountCents,
+    int? percentBps,
+    String? message,
+    api.PaymentTermsDto? paymentTerms,
+  }) async {
+    final result = await _repo.changeBid(
+      bid.id,
+      feeType: feeType,
+      amountCents: amountCents,
+      percentBps: percentBps,
+      message: message,
+      paymentTerms: paymentTerms,
+    );
+    _afterBidChange(result);
+    _ref.invalidate(bidCaseChangesProvider(bid.id));
     return result;
   }
 

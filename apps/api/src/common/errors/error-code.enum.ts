@@ -585,6 +585,8 @@ export enum ErrorCode {
   // 409: `deal_record.enabled` is on — accept through POST /deal-records
   // (an old app build shows "update the app").
   DEAL_RECORD_REQUIRED = 'DEAL_RECORD_REQUIRED',
+  // 409: the client changed the case; the attorney has not confirmed this bid.
+  BID_CONFIRMATION_REQUIRED = 'BID_CONFIRMATION_REQUIRED',
   // 409: this case already has a deal record waiting for signatures.
   DEAL_RECORD_PENDING = 'DEAL_RECORD_PENDING',
   // 409: the record is not in a state that allows this (sign twice, decline

@@ -1003,6 +1003,10 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Deal record: accepting a bid opens the "Deal record" (not a contract) that both parties sign in the app; the bid is accepted only after both signatures. Off = accept as before. Changed on the «Запись о сделке» page.',
     'bids.rich_terms_enabled':
       'Bids: attorneys may add detailed payment terms (hourly, retainer + installments, contingency, to be clarified, mixed). Off = the classic fee types only. Changed on the «Запись о сделке» page.',
+    'bids.confirmation_required':
+      'Bids: after the client changes the description, budget or urgency of an open case, active bids wait for the attorney (keep, change or withdraw) and cannot be accepted until then. Switch on only once attorneys have an app version with the «Changes» section. Off = as before.',
+    'bids.confirmation_reminder_days':
+      'Bids: days until the one reminder to an attorney whose bid waits for confirmation. There is no automatic withdrawal.',
   };
   for (const [k, description] of Object.entries(dealRecordText)) {
     out[k] = { ...out[k], description };

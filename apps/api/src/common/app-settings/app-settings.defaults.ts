@@ -1657,6 +1657,10 @@ export const OWNER_DEAL_RECORD_SETTINGS = {
   'deal_record.enabled': false,
   /** Rich payment terms (`paymentTerms`) on bids and counter-offers. */
   'bids.rich_terms_enabled': false,
+  /** A change of an open case makes active bids wait for the attorney. */
+  'bids.confirmation_required': false,
+  /** Days until the one reminder to confirm a bid. */
+  'bids.confirmation_reminder_days': 3,
 };
 
 export const OWNER_CASE_TOOLS_SETTINGS = {

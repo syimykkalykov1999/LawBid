@@ -218,8 +218,19 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
       return null;
     }
     final myTurn = bid.isTurnOf(viewer);
+    // Owner 2026-11-05: the case changed, the attorney answers first.
+    final waiting = viewer == PartyRole.client &&
+        bid.isActive &&
+        bid.confirmationRequiredAt != null &&
+        ref.read(bidConfirmationProvider);
     final children = <Widget>[
-      if (myTurn)
+      if (waiting)
+        Text(
+          t.t('cases.bid.waitConfirm'),
+          key: const ValueKey('bid-waiting'),
+          textAlign: TextAlign.center,
+        )
+      else if (myTurn)
         GavelStrikeButton(
           label: t.t('cases.accept.button'),
           strike: true,

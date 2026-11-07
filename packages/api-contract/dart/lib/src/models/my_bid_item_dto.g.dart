@@ -36,6 +36,9 @@ MyBidItemDto _$MyBidItemDtoFromJson(Map<String, dynamic> json) => MyBidItemDto(
       ? null
       : PaymentTermsDto.fromJson(json['paymentTerms'] as Map<String, dynamic>),
   percentBps: (json['percentBps'] as num?)?.toInt(),
+  confirmationRequiredAt: json['confirmationRequiredAt'] == null
+      ? null
+      : DateTime.parse(json['confirmationRequiredAt'] as String),
   attorney: json['attorney'] == null
       ? null
       : BidAttorneySummaryDto.fromJson(
@@ -45,30 +48,32 @@ MyBidItemDto _$MyBidItemDtoFromJson(Map<String, dynamic> json) => MyBidItemDto(
   coverBlurhash: json['coverBlurhash'] as String?,
 );
 
-Map<String, dynamic> _$MyBidItemDtoToJson(MyBidItemDto instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'caseId': instance.caseId,
-      'attorneyId': instance.attorneyId,
-      'status': instance.status.toJson(),
-      'feeType': instance.feeType.toJson(),
-      'amountCents': instance.amountCents,
-      'paymentTerms': ?instance.paymentTerms?.toJson(),
-      'percentBps': ?instance.percentBps,
-      'message': instance.message,
-      'startAvailability': instance.startAvailability.toJson(),
-      'startDate': ?instance.startDate?.toIso8601String(),
-      'estimatedDurationDays': ?instance.estimatedDurationDays,
-      'roundCount': instance.roundCount,
-      'version': instance.version,
-      'turn': instance.turn.toJson(),
-      'decidedAt': ?instance.decidedAt?.toIso8601String(),
-      'outsidePractice': instance.outsidePractice,
-      'outsideLicensedStates': instance.outsideLicensedStates,
-      'createdAt': instance.createdAt.toIso8601String(),
-      'attorney': ?instance.attorney?.toJson(),
-      'case': instance.caseValue.toJson(),
-      'lastOffer': instance.lastOffer.toJson(),
-      'coverUrl': ?instance.coverUrl,
-      'coverBlurhash': ?instance.coverBlurhash,
-    };
+Map<String, dynamic> _$MyBidItemDtoToJson(
+  MyBidItemDto instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'caseId': instance.caseId,
+  'attorneyId': instance.attorneyId,
+  'status': instance.status.toJson(),
+  'feeType': instance.feeType.toJson(),
+  'amountCents': instance.amountCents,
+  'paymentTerms': ?instance.paymentTerms?.toJson(),
+  'percentBps': ?instance.percentBps,
+  'message': instance.message,
+  'startAvailability': instance.startAvailability.toJson(),
+  'startDate': ?instance.startDate?.toIso8601String(),
+  'estimatedDurationDays': ?instance.estimatedDurationDays,
+  'roundCount': instance.roundCount,
+  'version': instance.version,
+  'confirmationRequiredAt': ?instance.confirmationRequiredAt?.toIso8601String(),
+  'turn': instance.turn.toJson(),
+  'decidedAt': ?instance.decidedAt?.toIso8601String(),
+  'outsidePractice': instance.outsidePractice,
+  'outsideLicensedStates': instance.outsideLicensedStates,
+  'createdAt': instance.createdAt.toIso8601String(),
+  'attorney': ?instance.attorney?.toJson(),
+  'case': instance.caseValue.toJson(),
+  'lastOffer': instance.lastOffer.toJson(),
+  'coverUrl': ?instance.coverUrl,
+  'coverBlurhash': ?instance.coverBlurhash,
+};

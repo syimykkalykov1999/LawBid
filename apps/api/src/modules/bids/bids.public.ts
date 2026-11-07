@@ -7,7 +7,11 @@ export {
   AttorneyInactive,
   BidAcceptanceService,
 } from './acceptance/bid-acceptance.service';
-export { bidNotFound, planBidTransition } from './domain/bid-state-machine';
+export {
+  bidConfirmationRequired,
+  bidNotFound,
+  planBidTransition,
+} from './domain/bid-state-machine';
 export {
   describePaymentTerms,
   isValidPaymentTerms,

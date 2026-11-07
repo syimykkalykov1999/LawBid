@@ -152,6 +152,7 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // form variant from these two switches (both off by default).
   'deal_record.',
   'bids.rich_terms_enabled',
+  'bids.confirmation_required',
 ] as const;
 
 @Injectable()

@@ -38,6 +38,7 @@ abstract final class ApiErrorCodes {
 
   // Deal record 2026-10-27 (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md).
   static const dealRecordRequired = 'DEAL_RECORD_REQUIRED';
+  static const bidConfirmationRequired = 'BID_CONFIRMATION_REQUIRED';
   static const dealRecordPending = 'DEAL_RECORD_PENDING';
   static const dealRecordInvalidState = 'DEAL_RECORD_INVALID_STATE';
   static const paymentTermsDisabled = 'PAYMENT_TERMS_DISABLED';
@@ -370,6 +371,7 @@ abstract final class ApiErrorCodes {
     experimentStateInvalid,
     staleVersion,
     dealRecordRequired,
+    bidConfirmationRequired,
     dealRecordPending,
     dealRecordInvalidState,
     paymentTermsDisabled,

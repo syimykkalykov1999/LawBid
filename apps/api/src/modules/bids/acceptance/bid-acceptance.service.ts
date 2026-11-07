@@ -1,3 +1,4 @@
+import { assertExpectedVersion } from '../../../common/concurrency/optimistic-lock';
 import { assertNoBlockBetween } from '../../blocks/block-check';
 import { ConflictException, Injectable, Optional } from '@nestjs/common';
 import type { PartyRole, Prisma } from '@prisma/client';
@@ -22,6 +23,7 @@ import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.servic
 import { SubscriptionAccessService } from '../../subscriptions/subscription-access.service';
 import {
   BidStateMachine,
+  bidConfirmationRequired,
   bidNotFound,
   planBidTransition,
 } from '../domain/bid-state-machine';
@@ -93,6 +95,7 @@ export class BidAcceptanceService {
     user: RequestUser,
     bidId: string,
     meta: RequestMeta,
+    expectedVersion?: number,
   ): Promise<BidDto> {
     const by = await this.partyOf(user, bidId);
     if (await this.dealRecordRequired()) {
@@ -106,7 +109,15 @@ export class BidAcceptanceService {
     try {
       const result = await withTxRetry(this.prisma, (tx) => {
         chat.length = 0;
-        return this.acceptInTx(tx, bidId, by, user.sub, meta, chat);
+        return this.acceptInTx(
+          tx,
+          bidId,
+          by,
+          user.sub,
+          meta,
+          chat,
+          expectedVersion,
+        );
       });
       await this.afterAccept(result, by, user.sub, chat);
       return toBidDto(result);
@@ -165,6 +176,7 @@ export class BidAcceptanceService {
     actorId: string,
     meta: RequestMeta,
     chat: ChatChange[],
+    expectedVersion?: number,
   ) {
     const now = new Date();
     const ref = await tx.bid.findUnique({
@@ -201,6 +213,15 @@ export class BidAcceptanceService {
     // BID_NOT_YOUR_TURN) — the machine's own pure check, run before the
     // eligibility re-check so a finished bid never gets "withdrawn".
     planBidTransition(bid, 'accept', by, now);
+    // Owner 2026-11-05: the client changed the case; the attorney answers first.
+    if (
+      by === 'client' &&
+      bid.confirmation_required_at !== null &&
+      ((await this.settings?.boolean('bids.confirmation_required')) ?? false)
+    ) {
+      throw bidConfirmationRequired();
+    }
+    assertExpectedVersion(bid.version, expectedVersion);
 
     // §7 step 2 — the attorney must still be verified and subscribed at the
     // moment of acceptance. Owner 2026-10-14: a licence in the case's state

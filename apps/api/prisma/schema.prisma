@@ -511,6 +511,8 @@ enum NotificationType {
   case_archived
   completion_requested
   completion_reminder
+  bid_changed
+  bid_confirm_reminder
   case_closed
   new_message
   new_follower
@@ -2093,6 +2095,13 @@ model Bid {
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
   version                 Int               @default(0)
+  /// Owner 2026-11-05: the client changed the open case; the bid waits for the
+  /// attorney (`bids.confirmation_required`). Null = nothing to confirm.
+  confirmation_required_at DateTime?        @db.Timestamptz
+  /// When the attorney last confirmed or changed the bid after such a change.
+  confirmed_at             DateTime?        @db.Timestamptz
+  /// The one reminder has gone out for the current wait.
+  confirm_reminded_at      DateTime?        @db.Timestamptz
 
   accepted_for_case  Case?                @relation("CaseAcceptedBid")
   offers             BidOffer[]

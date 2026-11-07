@@ -164,6 +164,8 @@ abstract final class CasesMappers {
       );
 
   static CaseBid bid(api.BidDto b) => CaseBid(
+        version: b.version,
+        confirmationRequiredAt: b.confirmationRequiredAt,
         id: b.id,
         caseId: b.caseId,
         attorneyId: b.attorneyId,

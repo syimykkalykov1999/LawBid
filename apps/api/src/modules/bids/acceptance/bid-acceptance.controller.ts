@@ -1,4 +1,8 @@
 import {
+  ApiIfMatchVersion,
+  ExpectedVersion,
+} from '../../../common/concurrency/optimistic-lock';
+import {
   Controller,
   HttpCode,
   HttpStatus,
@@ -44,6 +48,7 @@ export class BidAcceptanceController {
   // OQ-049: or an assistant the attorney trusted (their responsibility).
   @AttorneyOnly('bids')
   @Post('bids/:id/accept')
+  @ApiIfMatchVersion()
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({
@@ -60,6 +65,8 @@ export class BidAcceptanceController {
       E.BID_INVALID_STATE,
       E.BID_NOT_YOUR_TURN,
       E.BID_ATTORNEY_INACTIVE,
+      E.BID_CONFIRMATION_REQUIRED,
+      E.STALE_VERSION,
       E.IDEMPOTENCY_KEY_CONFLICT,
     ],
   })
@@ -67,8 +74,14 @@ export class BidAcceptanceController {
     @CurrentUser() user: RequestUser,
     @Param() params: BidIdParamDto,
     @Req() req: Request,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<BidDto> {
-    return this.acceptance.accept(user, params.id, requestMeta(req));
+    return this.acceptance.accept(
+      user,
+      params.id,
+      requestMeta(req),
+      expectedVersion,
+    );
   }
 }
 

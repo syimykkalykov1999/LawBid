@@ -38,6 +38,7 @@ class CaseBidItemDto {
     required this.lowOffer,
     this.paymentTerms,
     this.percentBps,
+    this.confirmationRequiredAt,
   });
 
   factory CaseBidItemDto.fromJson(Map<String, Object?> json) =>
@@ -63,6 +64,9 @@ class CaseBidItemDto {
 
   /// Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION).
   final int version;
+
+  /// Owner 2026-11-05: the client changed the case; waiting for the attorney.
+  final DateTime? confirmationRequiredAt;
   final PartyRole turn;
   final DateTime? decidedAt;
 
