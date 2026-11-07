@@ -69,10 +69,23 @@ void main() {
     );
     expect(find.text('One sum'), findsOneWidget);
     expect(find.text('Agree later'), findsOneWidget);
+    // The choice stands on top, once, with its hint.
+    expect(find.text('Later'), findsOneWidget);
+    expect(find.byKey(const ValueKey('option-picker-b')), findsNothing);
 
+    await tester.tap(find.byKey(const ValueKey('option-picker-a')));
+    await tester.pumpAndSettle();
+    expect(value, 'a');
+    expect(find.text('One sum'), findsNothing);
+    expect(find.text('Later'), findsNothing);
+
+    // The default stays in the list and can be picked back.
+    await tester.tap(find.byKey(const ValueKey('option-picker-field')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('option-picker-b')));
     await tester.pumpAndSettle();
     expect(value, 'b');
-    expect(find.text('One sum'), findsNothing);
+    expect(find.text('Later'), findsOneWidget);
+    expect(find.text('Fixed'), findsNothing);
   });
 }
