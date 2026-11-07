@@ -209,6 +209,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Channel post views are written to the database in batches',
   },
   {
+    // Owner 2026-11-05: videos are warmed ahead into the disk cache the player
+    // reads, in the stream it will open, and fewer while the viewer flicks.
+    // Off until checked on real phones.
+    key: 'video_prefetch_smart',
+    enabled: false,
+    app: true,
+    description: 'Videos warmed ahead land in the cache the player reads',
+  },
+  {
     // On a wide website window a post of a grid opens as a window with
     // arrows (the idea from Instagram) instead of a scrolling page. Phones
     // never: isDesktopWindow is false there.
@@ -245,6 +254,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     app: true,
     description:
       'Group chat files go through the upload queue and are sent from disk',
+  },
+  {
+    // On the website, files dragged from the computer land in a chat, a new
+    // post or a new case (desktop_drop). Phones never start the plugin.
+    key: 'web_file_drop',
+    enabled: false,
+    app: true,
+    description: 'Website: drag files into a chat, a post or a case',
   },
   {
     // R-254: on, a file this same user already stored is not uploaded again.

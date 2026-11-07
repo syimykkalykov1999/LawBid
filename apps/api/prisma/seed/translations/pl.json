@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "Przyjmuje płatności przez LawBid",
   "trust.signal.payments.ok.self": "Klienci mogą płacić Ci przez LawBid",
   "trust.signal.selfAttested": "Oświadczenie pod przysięgą zaakceptowane",
+  "upload.drop.hint": "Upuść pliki tutaj",
   "verification.attest.required": "Zaznacz oświadczenie pod przysięgą, aby wysłać.",
   "verification.attest.text": "Przysięgam, że jestem adwokatem z licencją o podanym numerze i że licencja jest aktywna. Fałszywe dane oznaczają blokadę, a odpowiedzialność ponoszę tylko ja.",
   "verification.camera.denied.body": "Zezwól LawBid na dostęp do aparatu w ustawieniach telefonu i spróbuj ponownie.",

@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "LawBid හරහා ගෙවිය හැක",
   "trust.signal.payments.ok.self": "සේවාදායකයින්ට LawBid හරහා ඔබට ගෙවිය හැක",
   "trust.signal.selfAttested": "දිවුරුම් ප්‍රකාශය පිළිගැණුනි",
+  "upload.drop.hint": "ගොනු මෙතැනට දමන්න",
   "verification.attest.required": "යැවීමට දිවුරුම ටික් කරන්න.",
   "verification.attest.text": "ඉහත ඇතුළත් කළ අංකයේ බලපත්‍රය ඇති නීතිඥයා මා බවත් බලපත්‍රය වලංගු බවත් දිවුරමි. අසත්‍ය තොරතුරු නම් ගිණුම අවහිර වන අතර සියලු වගකීම මාගේය.",
   "verification.camera.denied.body": "ඔබේ දුරකථන සැකසුම්වල LawBid සඳහා කැමරා ප්‍රවේශය ඉඩ දී නැවත උත්සාහ කරන්න.",

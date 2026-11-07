@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "LawBid के माध्यम से भुगतान संभव",
   "trust.signal.payments.ok.self": "क्लाइंट LawBid के माध्यम से आपको भुगतान कर सकते हैं",
   "trust.signal.selfAttested": "शपथ-पत्र स्वीकार किया गया",
+  "upload.drop.hint": "फ़ाइलें यहाँ छोड़ें",
   "verification.attest.required": "भेजने के लिए शपथ पर टिक करें।",
   "verification.attest.text": "मैं शपथपूर्वक कहता/कहती हूँ कि मैं ऊपर दिए गए नंबर के लाइसेंस वाला वकील हूँ और लाइसेंस वैध है। गलत जानकारी पर खाता ब्लॉक होगा और पूरी ज़िम्मेदारी मेरी है।",
   "verification.camera.denied.body": "अपने फ़ोन की सेटिंग्स में LawBid को कैमरे की अनुमति दें, फिर पुनः प्रयास करें।",

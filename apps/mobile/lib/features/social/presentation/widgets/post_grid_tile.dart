@@ -9,6 +9,7 @@ import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
+import 'package:lawbid/core/media/video_prefetch.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
@@ -257,7 +258,9 @@ class _GridTileProbeState extends ConsumerState<GridTileProbe>
   /// Playlists of the videos among the next posts.
   List<String> get _ahead => [
         for (final p in widget.warmAhead)
-          if (p.video?.ready ?? false) p.video!.playbackUrl!,
+          if (p.video?.warmUrl(smart: HlsPrefetcher.instance.smart())
+              case final url?)
+            url,
       ];
 
   void _report() {

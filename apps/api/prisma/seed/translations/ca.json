@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "Es pot pagar a través de LawBid",
   "trust.signal.payments.ok.self": "Els clients li poden pagar a través de LawBid",
   "trust.signal.selfAttested": "Declaració jurada acceptada",
+  "upload.drop.hint": "Deixa anar els fitxers aquí",
   "verification.attest.required": "Marca la declaració jurada per enviar.",
   "verification.attest.text": "Jur que sóc l'advocat amb la llicència del número indicat i que la llicència està vigent. Les dades falses comporten el bloqueig i la responsabilitat és només meva.",
   "verification.camera.denied.body": "Permeteu que LawBid accedeixi a la càmera a la configuració del telèfon i torneu-ho a provar.",

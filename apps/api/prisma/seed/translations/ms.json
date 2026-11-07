@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "Boleh dibayar melalui LawBid",
   "trust.signal.payments.ok.self": "Klien boleh membayar anda melalui LawBid",
   "trust.signal.selfAttested": "Akuan bersumpah diterima",
+  "upload.drop.hint": "Lepaskan fail di sini",
   "verification.attest.required": "Tandakan akuan bersumpah untuk menghantar.",
   "verification.attest.text": "Saya bersumpah bahawa saya peguam yang memegang lesen bernombor di atas dan lesen itu aktif. Maklumat palsu bermakna akaun disekat dan saya sendiri bertanggungjawab.",
   "verification.camera.denied.body": "Benarkan akses kamera untuk LawBid dalam tetapan telefon anda, kemudian cuba lagi.",

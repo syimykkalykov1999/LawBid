@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "يمكن الدفع عبر LawBid",
   "trust.signal.payments.ok.self": "يمكن للعملاء الدفع لك عبر LawBid",
   "trust.signal.selfAttested": "تم قبول الإقرار المشفوع بالقسم",
+  "upload.drop.hint": "أفلِت الملفات هنا",
   "verification.attest.required": "ضع علامة على الإقرار المؤكد باليمين للإرسال.",
   "verification.attest.text": "أقسم أنني المحامي صاحب الرخصة بالرقم المُدخل أعلاه وأن الرخصة سارية. المعلومات الكاذبة تعني حظر الحساب وأتحمل المسؤولية وحدي.",
   "verification.camera.denied.body": "اسمح لـ LawBid بالوصول إلى الكاميرا من إعدادات هاتفك، ثم حاول مرة أخرى.",

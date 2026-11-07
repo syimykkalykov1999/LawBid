@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "Lze zaplatit přes LawBid",
   "trust.signal.payments.ok.self": "Klienti vám mohou platit přes LawBid",
   "trust.signal.selfAttested": "Přísežné prohlášení přijato",
+  "upload.drop.hint": "Přetáhněte soubory sem",
   "verification.attest.required": "Pro odeslání zaškrtněte čestné prohlášení.",
   "verification.attest.text": "Přísahám, že jsem advokát s licencí uvedeného čísla a že licence je platná. Nepravdivé údaje znamenají zablokování a odpovědnost nesu jen já.",
   "verification.camera.denied.body": "Povolte aplikaci LawBid přístup k fotoaparátu v nastavení telefonu a zkuste to znovu.",

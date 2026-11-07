@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "ສາມາດຊຳລະຜ່ານ LawBid ໄດ້",
   "trust.signal.payments.ok.self": "ລູກຄ້າສາມາດຊຳລະເງິນໃຫ້ທ່ານຜ່ານ LawBid ໄດ້",
   "trust.signal.selfAttested": "ຮັບຄຳປະຕິຍານແລ້ວ",
+  "upload.drop.hint": "ວາງໄຟລ໌ທີ່ນີ້",
   "verification.attest.required": "ຕິກຄຳສາບານເພື່ອສົ່ງ.",
   "verification.attest.text": "ຂ້າພະເຈົ້າສາບານວ່າເປັນທະນາຍຄວາມທີ່ມີໃບອະນຸຍາດເລກທີ່ປ້ອນຂ້າງເທິງ ແລະ ໃບອະນຸຍາດຍັງໃຊ້ໄດ້. ຂໍ້ມູນເທັດຈະຖືກບລັອກບັນຊີ ແລະ ຂ້າພະເຈົ້າຮັບຜິດຊອບທັງໝົດ.",
   "verification.camera.denied.body": "ອະນຸຍາດໃຫ້ LawBid ເຂົ້າເຖິງກ້ອງໃນການຕັ້ງຄ່າໂທລະສັບຂອງທ່ານ ແລ້ວລອງໃໝ່.",

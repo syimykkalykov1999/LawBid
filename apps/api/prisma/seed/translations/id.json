@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "Bisa dibayar melalui LawBid",
   "trust.signal.payments.ok.self": "Klien dapat membayar Anda melalui LawBid",
   "trust.signal.selfAttested": "Pernyataan di bawah sumpah diterima",
+  "upload.drop.hint": "Lepaskan file di sini",
   "verification.attest.required": "Centang pernyataan sumpah untuk mengirim.",
   "verification.attest.text": "Saya bersumpah bahwa saya adalah advokat dengan lisensi bernomor di atas dan lisensi itu aktif. Data palsu berarti pemblokiran dan saya sendiri yang bertanggung jawab.",
   "verification.camera.denied.body": "Izinkan akses kamera untuk LawBid di pengaturan ponsel Anda, lalu coba lagi.",

@@ -6307,6 +6307,7 @@
   "trust.signal.payments.ok": "LawBid üzerinden ödeme kabul ediyor",
   "trust.signal.payments.ok.self": "Müvekkiller size LawBid üzerinden ödeme yapabilir",
   "trust.signal.selfAttested": "Yeminli beyan kabul edildi",
+  "upload.drop.hint": "Dosyaları buraya bırakın",
   "verification.attest.required": "Göndermek için yeminli beyanı işaretleyin.",
   "verification.attest.text": "Yukarıda girilen numaralı lisansa sahip avukat olduğuma ve lisansın geçerli olduğuna yemin ederim. Yanlış bilgi hesabın engellenmesine yol açar, sorumluluk yalnızca bana aittir.",
   "verification.camera.denied.body": "Telefon ayarlarından LawBid için kamera erişimine izin verin, ardından tekrar deneyin.",
