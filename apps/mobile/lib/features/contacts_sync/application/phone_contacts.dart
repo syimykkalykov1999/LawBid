@@ -24,13 +24,19 @@ typedef PhoneBookEntriesReader = Future<List<PhoneBookEntry>?> Function();
 
 Future<List<PhoneBookEntry>?> readPhoneBookEntries() async {
   if (kIsWeb) return null;
-  if (!await FlutterContacts.requestPermission(readonly: true)) return null;
-  final contacts = await FlutterContacts.getContacts(withProperties: true);
+  final status = await FlutterContacts.permissions.request(PermissionType.read);
+  if (status != PermissionStatus.granted &&
+      status != PermissionStatus.limited) {
+    return null;
+  }
+  final contacts = await FlutterContacts.getAll(
+    properties: {ContactProperty.name, ContactProperty.phone},
+  );
   return [
     for (final c in contacts)
       if (c.phones.isNotEmpty)
         PhoneBookEntry(
-          name: c.displayName.trim(),
+          name: (c.displayName ?? '').trim(),
           numbers: [for (final p in c.phones) p.number],
         ),
   ];

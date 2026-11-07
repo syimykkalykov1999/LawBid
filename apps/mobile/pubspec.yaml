@@ -48,7 +48,7 @@ dependencies:
   flutter_secure_storage: ^9.2.4
 
   crypto: ^3.0.8
-  flutter_contacts: ^1.1.9+2
+  flutter_contacts: ^2.6.0
 
   # Biometric reauth (Phase 4 of the auth networking work, docs/CHANGELOG.md):
   # local Face ID/Touch ID/fingerprint gate (file 01 §10.1) used as a local
@@ -110,8 +110,8 @@ dependencies:
   # (lib/core/media/app_image_cache.dart); already in the lock as
   # cached_network_image's dependency.
   flutter_cache_manager: ^3.4.1
-  firebase_core: ^4.15.0
-  firebase_messaging: ^16.7.1
+  firebase_core: ^5.1.0
+  firebase_messaging: ^17.0.1
   # Owner 2026-10-22: native crashes / ANRs in Sentry (prod release only,
   # core/diagnostics/sentry_native.dart).
   sentry_flutter: ^10.1.0
@@ -174,7 +174,7 @@ dependencies:
   # the request comes from our app (core/security/app_check.dart,
   # docs/runbooks/APP_CHECK.md). Official FlutterFire; the version pairs
   # with the pinned firebase_core.
-  firebase_app_check: ^0.4.9
+  firebase_app_check: ^0.5.1
   passkeys: ^2.23.1
   # Its availability query (features/auth/data/passkey_authenticator.dart).
   passkeys_platform_interface: ^2.10.0
@@ -259,11 +259,6 @@ flutter:
           weight: 600
 
 dependency_overrides:
-  # 2026-10-16: flutter_contacts 1.1.9+2 force-unwraps the app delegate's
-  # window when it registers; with the UIScene lifecycle that is nil and the
-  # iOS app crashed at launch. Patched copy (MIT): third_party/flutter_contacts.
-  flutter_contacts:
-    path: third_party/flutter_contacts
   # Riverpod bumped 2.x -> 3.x on 2026-09-22 specifically to escape this: riverpod_generator
   # 2.x's analyzer-touching chain (riverpod_analyzer_utils, custom_lint_core, analyzer_plugin)
   # was never updated for analyzer's Element -> Element2 migration and cannot build against any
