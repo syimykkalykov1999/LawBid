@@ -90,6 +90,9 @@
     "turn_enabled": {
       "type": "boolean"
     },
+    "turn_on_demand": {
+      "type": "boolean"
+    },
     "turn_second_enabled": {
       "type": "boolean"
     },

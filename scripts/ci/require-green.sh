@@ -17,6 +17,10 @@
 # REQUIRE_GREEN_JSON (a file with check runs: offline test mode).
 set -euo pipefail
 SHA="${1:?sha}"; MUST="${2:?must-have regex}"; EXCLUDE="${3:-^$}"
+# KNOWN_ERRORS 64: the job "Dependabot" of the "Dependabot Updates" workflow
+# (GitHub's own updater, runs on main after a manifest change) is not CI of our
+# code: its failure must not close the deploy gate. Matched by exact name only.
+EXCLUDE="(${EXCLUDE})|^Dependabot\$"
 TIMEOUT="${REQUIRE_GREEN_TIMEOUT:-2700}"; POLL="${REQUIRE_GREEN_POLL:-30}"
 start=$(date +%s)
 

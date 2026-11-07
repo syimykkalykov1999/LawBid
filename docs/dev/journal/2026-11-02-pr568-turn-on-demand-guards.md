@@ -1,0 +1,3 @@
+# 2026-11-02 · PR #568
+
+02.11 Включение coturn «по требованию»: в проде `turn_on_demand` оставлен `false` (включение пересоздаёт TURN-машину: новый адрес, без DNS, надо остановить вручную, шаги в `docs/runbooks/TURN.md`). Права Start/Stop EC2 при `ops_role_split` уходят на роль `<name>-ops`, шлюз `turn-instance.gateway.ts` берёт её через `OPS_ROLE_ARN`. План Terraform падает, если `turn_on_demand` без `turn_enabled` или вместе с `turn_second_enabled` (`terraform_data.turn_on_demand_guard`). Из PR убран случайно закоммиченный `.endpoints-autoscale-*.zip`, добавлен в `infra/.gitignore`. `terraform validate` не запускался (нет бинарника) — проверит CI и первый `plan` на Mac. SHA слияния дописать.
