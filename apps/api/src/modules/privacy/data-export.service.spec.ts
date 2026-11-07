@@ -16,6 +16,20 @@ const MESSAGES = 50_000;
 // garbage V8 has not collected yet (under `jest --coverage` in CI that
 // alone passed 256 MB while the export itself held ~one page). With it,
 // the sample is what the export really keeps alive.
+//
+// KNOWN_ERRORS №65 (2026-11-07): a full GC costs time in proportion to the
+// WHOLE live heap of the jest worker, not to this test. In the full CI run
+// the worker has already run hundreds of files (up to workerIdleMemoryLimit
+// 1 GB, plus coverage counters), and one gc() took ~2.2 s on an 820 MB heap
+// (reproduced on Linux, node:26.12.1). The old 250 ms setInterval sampler
+// then ran a full GC on every event-loop turn, and the ZIP needs thousands
+// of turns (zlib deflates in the thread pool): 100 % of the time in GC, the
+// export never finished (600 s timeout on main after #812; 80–180 s and
+// two 180 s timeouts on Node 22 before, №51). So the samples are taken at a
+// fixed number of points tied to the data (every SAMPLE_EVERY pages, while
+// the previous page and the stream buffers are alive), never on a timer:
+// the GC cost is bounded by the number of pages, not by wall-clock time.
+const SAMPLE_EVERY = 5;
 setFlagsFromString('--expose-gc');
 const gc = runInNewContext('gc') as () => void;
 
@@ -53,8 +67,9 @@ function build() {
   const findMessages = (args: Parameters<typeof messagePage>[0]) => {
     messageTakes.push(args.take);
     // The previous page and every stream buffer are still alive here, so
-    // a whole-list leak would show up in this sample.
-    onPage();
+    // a whole-list leak would show up in this sample (it only grows, so
+    // every SAMPLE_EVERY-th page and the last one are enough).
+    if (messageTakes.length % SAMPLE_EVERY === 0) onPage();
     return messagePage(args);
   };
   const empty = jest.fn().mockResolvedValue([]);
@@ -159,12 +174,10 @@ describe('DataExportService (streamed)', () => {
     let peak = 0;
     const sample = () => (peak = Math.max(peak, used() - base));
     setOnPage(sample);
-    const t = setInterval(sample, 250);
     const progress: number[] = [];
     const r = await svc.process('e1', {
       onProgress: (p) => progress.push(p.rows),
     });
-    clearInterval(t);
     sample();
 
     expect(r.bytes).toBeGreaterThan(50 * 1024 * 1024);
