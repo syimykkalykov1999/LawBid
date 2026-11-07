@@ -57,8 +57,11 @@ import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/link_preview_card.dart';
 import 'package:lawbid/features/chat/presentation/media_preview_screen.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart';
+import 'package:lawbid/features/chat/presentation/quick_replies_sheet.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/consultations/presentation/consultation_chat_card.dart';
+import 'package:lawbid/features/groups/application/chat_list_merge.dart'
+    show caseChatsWithProvider;
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
@@ -71,6 +74,8 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 int get kMessageMaxChars => TextLimits.of(TextLimit.chatMessage);
@@ -272,7 +277,25 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       onPlace: () => unawaited(_sendPlace()),
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
       prepareVideo: _prepareVideo,
+      fromDisk: ref
+          .read(featureFlagsControllerProvider)
+          .isEnabled('chat_files_from_disk'),
     );
+    await _previewAndSend(files);
+  }
+
+  /// Files dragged onto the chat in the browser: the same preview.
+  Future<void> _drop(List<XFile> dropped) async {
+    final files = await droppedChatFiles(
+      context,
+      ref.read(translatorProvider),
+      dropped,
+      limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
+    );
+    await _previewAndSend(files);
+  }
+
+  Future<void> _previewAndSend(List<PickedChatFile> files) async {
     if (files.isEmpty || !mounted) return;
     // Owner 2026-10-22 (WhatsApp): nothing is sent yet - the preview opens
     // (big picture, thumbnails, caption, rotate / crop); the typed text is
@@ -537,6 +560,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                         icon: AppIcons.lockOutlineRounded,
                         text: t.t('chat.closed'),
                       ),
+                    // R-404 (b): under the header of a direct chat, the case
+                    // chats with this person (only when there are some).
+                    if (c != null && c.isDirect && c.counterpart.id != null)
+                      CasesWithPersonRow(userId: c.counterpart.id!),
                     Consumer(
                       builder: (context, ref, _) => PinnedBanner(
                         state: ref.watch(thread),
@@ -544,11 +571,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                       ),
                     ),
                     Expanded(
-                      child: Consumer(
-                        builder: (context, ref, _) => _MessageList(
-                          key: _listKey,
-                          state: ref.watch(thread.select(_ListSlice.new)).s,
-                          onMore: _thread.loadMore,
+                      child: FileDropZone(
+                        enabled: c != null &&
+                            !c.closed &&
+                            c.contactsUnlocked &&
+                            ref.watch(canDoProvider(AssistantDuty.files)),
+                        onFiles: (f) => unawaited(_drop(f)),
+                        child: Consumer(
+                          builder: (context, ref, _) => _MessageList(
+                            key: _listKey,
+                            state: ref.watch(thread.select(_ListSlice.new)).s,
+                            onMore: _thread.loadMore,
+                          ),
                         ),
                       ),
                     ),
@@ -826,6 +860,7 @@ class _ListSlice {
       identical(other.s.voiceOutbox, s.voiceOutbox) &&
       identical(other.s.conversation, s.conversation) &&
       other.s.nextCursor == s.nextCursor &&
+      other.s.loading == s.loading &&
       other.s.loadingMore == s.loadingMore &&
       other.s.loadMoreFailed == s.loadMoreFailed &&
       other.s.unreadFromId == s.unreadFromId &&
@@ -838,6 +873,7 @@ class _ListSlice {
         identityHashCode(s.voiceOutbox),
         identityHashCode(s.conversation),
         s.nextCursor,
+        s.loading,
         s.loadingMore,
         s.loadMoreFailed,
         s.unreadFromId,
@@ -995,6 +1031,9 @@ class _MessageListState extends ConsumerState<_MessageList> {
     final me = ref.watch(currentUserIdProvider);
     final items = _itemsOf(state);
     if (items.isEmpty) {
+      // R-380: the composer is already up (the conversation came from the
+      // chats list); the first page is still on its way.
+      if (state.loading) return const CasesListSkeleton();
       return AppEmptyState(
         icon: AppIcons.chatBubbleOutlineRounded,
         message: t.t('chat.thread.empty'),
@@ -1273,7 +1312,13 @@ String? _systemTarget(
     'payment_requested' ||
     'payment_request_canceled' ||
     'payment_fee_countered' ||
-    'payment_fee_agreed' =>
+    'payment_fee_agreed' ||
+    // R-392: closing with both sides, the sealed deal record.
+    'close_requested_client' ||
+    'close_requested_attorney' ||
+    'close_declined_client' ||
+    'close_declined_attorney' ||
+    'deal_record_sealed' =>
       attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId),
     'no_agreement' ||
     'accepted_by_other' =>
@@ -1720,7 +1765,11 @@ class _Bubble extends ConsumerWidget {
                           !m.revoked &&
                           !m.contactMasked &&
                           firstUrlIn(m.body) != null)
-                        LinkPreviewCard(url: firstUrlIn(m.body)!, mine: mine),
+                        LinkPreviewCard(
+                          url: firstUrlIn(m.body)!,
+                          mine: mine,
+                          conversationId: m.conversationId,
+                        ),
                       if (!inlineMeta) ...[
                         const SizedBox(height: 2),
                         pad(metaRow),
@@ -2055,6 +2104,58 @@ class _TypingDotsState extends State<_TypingDots>
   }
 }
 
+/// R-404 (b) (owner 2026-11-04, Telegram: one person = one row in Chats):
+/// the direct chat's row «Cases with this person (N)», shown only while N > 0;
+/// a tap lists those case chats (the same rows as the Chats list) and opens
+/// one. The count comes from the chats list in memory — no request.
+class CasesWithPersonRow extends ConsumerWidget {
+  const CasesWithPersonRow({required this.userId, super.key});
+
+  final String userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final cases = ref.watch(caseChatsWithProvider(userId));
+    if (cases.isEmpty) return const SizedBox.shrink();
+    return AppListRow(
+      key: const ValueKey('chat-cases-with-person'),
+      icon: AppIcons.balanceRounded,
+      dense: true,
+      label: t.t('chat.casesWith', {'count': context.digits(cases.length)}),
+      onTap: () => showAppBottomSheet<void>(
+        context: context,
+        builder: (sheet) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: AppSpacing.sm),
+              const AppSheetHandle(),
+              // The same rows as the Chats list, the newest first.
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final c in ref.read(caseChatsWithProvider(userId)))
+                      KeyedSubtree(
+                        key: ValueKey('chat-case-with-${c.id}'),
+                        child: ConversationRow(
+                          conversation: c,
+                          showAwaiting: true,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Banner extends StatelessWidget {
   const _Banner({required this.icon, required this.text, super.key});
 
@@ -2348,6 +2449,29 @@ class _Composer extends ConsumerStatefulWidget {
 }
 
 class _ComposerState extends ConsumerState<_Composer> {
+  /// The field's text before the last change (a fresh «/» is told from a
+  /// backspace that leaves one).
+  String _lastText = '';
+
+  /// Opens the quick replies; the chosen text replaces the «/». Closing the
+  /// sheet without a choice leaves the «/» in the field.
+  Future<void> _pickQuickReply() async {
+    final text = await showQuickRepliesSheet(context);
+    if (!mounted) return;
+    final c = widget.controller;
+    if (text != null && c.text == '/') {
+      c
+        ..text = text
+        ..selection = TextSelection.collapsed(offset: text.length);
+      _lastText = text;
+      widget.onTyping(true);
+    } else {
+      _lastText = c.text;
+      widget.onTyping(c.text.isNotEmpty);
+    }
+    widget.focusNode.requestFocus();
+  }
+
   bool _recording = false;
   bool _locked = false;
 
@@ -2395,10 +2519,25 @@ class _ComposerState extends ConsumerState<_Composer> {
       _paused = true;
       _elapsed = Duration(milliseconds: draft.durationMs);
     }
+    _lastText = widget.controller.text;
+    widget.controller.addListener(_watchSlash);
+  }
+
+  /// Owner 2026-11-02 (WhatsApp Business): a «/» typed into an empty field
+  /// opens the attorney's quick replies (a backspace that leaves a «/» does
+  /// not).
+  void _watchSlash() {
+    final text = widget.controller.text;
+    final fresh = text == '/' && _lastText.isEmpty;
+    _lastText = text;
+    if (fresh && ref.read(currentUserRoleProvider) == UserRole.attorney) {
+      unawaited(_pickQuickReply());
+    }
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_watchSlash);
     _tick?.cancel();
     unawaited(_player.stopDraft());
     unawaited(_saveDraft());
@@ -2603,6 +2742,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (h == null) return _finish(send: true);
     _tick?.cancel();
     await _player.stop();
+    if (!mounted) return;
     setState(_reset);
     // ignore: unawaited_futures
     AppHaptics.light();

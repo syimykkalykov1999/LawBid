@@ -18,6 +18,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
+  BackgroundSubscriber,
+  backgroundSubscriber,
+} from '../../redis/subscribe-in-background';
+import {
   cleanPasted,
   PROVIDERS,
   providerById,
@@ -85,7 +89,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
   private readonly cooldown = new Map<string, number>();
   private custom: { at: number; defs: Map<string, ProviderDefinition> } | null =
     null;
-  private sub?: Redis;
+  private sub?: BackgroundSubscriber;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -104,26 +108,21 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     return this.envelope !== null;
   }
 
-  async onModuleInit(): Promise<void> {
-    if (typeof this.redis.duplicate !== 'function') return;
-    try {
-      this.sub = this.redis.duplicate();
-      await this.sub.subscribe(CHANNEL);
-      this.sub.on('message', (_channel: string, provider: string) => {
+  /** Cache invalidation over pub/sub; not awaited — see redis/subscribe-in-background.ts. */
+  onModuleInit(): void {
+    this.sub = backgroundSubscriber(
+      this.redis,
+      CHANNEL,
+      (_channel, provider) => {
         if (provider === CUSTOM_CHANNEL_KEY) this.custom = null;
         this.cache.delete(provider);
-      });
-    } catch (e) {
-      this.logger.warn(`secrets pub/sub unavailable: ${String(e)}`);
-    }
+      },
+      (m) => this.logger.warn(`secrets pub/sub unavailable: ${m}`),
+    );
   }
 
   async onModuleDestroy(): Promise<void> {
-    try {
-      await this.sub?.quit();
-    } catch {
-      this.sub?.disconnect();
-    }
+    await this.sub?.close();
   }
 
   // --- runtime ---------------------------------------------------------------
@@ -877,14 +876,20 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     if (!env) return out;
     const page = 200;
     // Join codes ('plain:' rows are local-dev values and stay).
-    let after = '';
+    // Keyset cursor: null on the first page. Never '' — the id column is a
+    // uuid and Postgres/Prisma reject an empty string.
+    let after: string | null = null;
     for (;;) {
-      const rows = await this.prisma.assistantMembership.findMany({
-        where: { id: { gt: after }, join_code_enc: { not: null } },
-        select: { id: true, join_code_enc: true },
-        orderBy: { id: 'asc' },
-        take: page,
-      });
+      const rows: Array<{ id: string; join_code_enc: string | null }> =
+        await this.prisma.assistantMembership.findMany({
+          where: {
+            ...(after === null ? {} : { id: { gt: after } }),
+            join_code_enc: { not: null },
+          },
+          select: { id: true, join_code_enc: true },
+          orderBy: { id: 'asc' },
+          take: page,
+        });
       for (const r of rows) {
         after = r.id;
         const stored = r.join_code_enc;

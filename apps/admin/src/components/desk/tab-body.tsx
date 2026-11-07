@@ -1,14 +1,8 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState } from 'react';
-import ModerationAppealsPage from '@/app/(app)/moderation-appeals/page';
-import ModerationQueuePage from '@/app/(app)/moderation/page';
-import PaymentsPage from '@/app/(app)/payments/page';
-import PayrollPage from '@/app/(app)/payroll/page';
-import ReviewAppealsPage from '@/app/(app)/review-appeals/page';
-import SupportInboxPage from '@/app/(app)/support/page';
-import TreasuryPage from '@/app/(app)/treasury/page';
-import VerificationQueuePage from '@/app/(app)/verification/page';
+import { Skeleton } from '@/components/ui/empty';
 import { Tabs } from '@/components/ui/tabs';
 import type { DeskSettingsView, MyLeases } from '@/lib/desk-data';
 import type { DeskRole } from '@/lib/desk';
@@ -20,6 +14,20 @@ import { MyRating } from './my-rating';
 import { ReviewTab } from './review-tab';
 import { SupportChatsTab } from './support-chats-tab';
 import { TeamPanel } from './team-panel';
+
+// Owner 2026-11-03 (smoothness audit, admin): a desk shows ONE tab at a time,
+// but these eight full pages used to be bundled into every /desk/[role]
+// load. Each is fetched only when its tab opens (next/dynamic, the same
+// pattern as the trust page).
+const TabLoading = () => <Skeleton className="h-40 w-full" />;
+const ModerationAppealsPage = dynamic(() => import('@/app/(app)/moderation-appeals/page'), { ssr: false, loading: TabLoading });
+const ModerationQueuePage = dynamic(() => import('@/app/(app)/moderation/page'), { ssr: false, loading: TabLoading });
+const PaymentsPage = dynamic(() => import('@/app/(app)/payments/page'), { ssr: false, loading: TabLoading });
+const PayrollPage = dynamic(() => import('@/app/(app)/payroll/page'), { ssr: false, loading: TabLoading });
+const ReviewAppealsPage = dynamic(() => import('@/app/(app)/review-appeals/page'), { ssr: false, loading: TabLoading });
+const SupportInboxPage = dynamic(() => import('@/app/(app)/support/page'), { ssr: false, loading: TabLoading });
+const TreasuryPage = dynamic(() => import('@/app/(app)/treasury/page'), { ssr: false, loading: TabLoading });
+const VerificationQueuePage = dynamic(() => import('@/app/(app)/verification/page'), { ssr: false, loading: TabLoading });
 
 /**
  * What each tab shows. The queue tabs are the existing pages of the admin,

@@ -9,6 +9,7 @@ import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
+import 'package:lawbid/core/media/video_prefetch.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
@@ -257,7 +258,9 @@ class _GridTileProbeState extends ConsumerState<GridTileProbe>
   /// Playlists of the videos among the next posts.
   List<String> get _ahead => [
         for (final p in widget.warmAhead)
-          if (p.video?.ready ?? false) p.video!.playbackUrl!,
+          if (p.video?.warmUrl(smart: HlsPrefetcher.instance.smart())
+              case final url?)
+            url,
       ];
 
   void _report() {
@@ -390,6 +393,19 @@ const kSearchPostGridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
   crossAxisSpacing: 2,
   childAspectRatio: 0.75,
 );
+
+/// Desktop web plan 2026-10-28 §6.2: on a desktop window the Search grid
+/// takes as many 3:4 tiles as the width holds (3 to 5 in a 1200 column,
+/// tiles of at most 280); a phone and a tablet keep three.
+SliverGridDelegate searchPostGridDelegate(BuildContext context) =>
+    isDesktopWindow(context)
+        ? const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 280,
+            mainAxisSpacing: 2,
+            crossAxisSpacing: 2,
+            childAspectRatio: 0.75,
+          )
+        : kSearchPostGridDelegate;
 
 /// Owner 2026-10-18: the profile's «Рилсы» grid like Instagram's — three
 /// vertical 9:16 tiles a row.

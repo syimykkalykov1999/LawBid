@@ -21,6 +21,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
 import {
   RealtimePublisher,
@@ -29,6 +30,7 @@ import {
 import { ongoingCalls } from '../../common/calls/ongoing-call';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
+import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { FilesService } from '../files/files.service';
 import { decodeOffset, encodeOffset } from '../recommendations/offset-cursor';
@@ -101,6 +103,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * queue (channel / channel_post), the admin panel lists and closes channels.
  */
 
+const CHANNEL_VIEWS_BUFFERED_FLAG = 'channel_views_buffered';
+
 @Injectable()
 export class ChannelsService {
   private readonly logger = new Logger(ChannelsService.name);
@@ -123,6 +127,9 @@ export class ChannelsService {
     // Owner 2026-10-22 (client economy plan, package F): `channel:post` to
     // the sockets that have the channel open.
     @Optional() private readonly realtime?: RealtimePublisher,
+    @Optional() private readonly counters?: CounterAggregator,
+    // Replica seam: the discover rows come from a cached snapshot anyway.
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   async assertEnabled(): Promise<void> {
@@ -264,7 +271,11 @@ export class ChannelsService {
     const nextCursor =
       start + 30 < ranked.length ? encodeOffset(start + 30) : null;
     if (ids.length === 0) return { items: [], nextCursor };
-    const found = await this.prisma.channel.findMany({
+    // Rows of a cached ranked snapshot: a few seconds of lag is invisible.
+    // My subscriptions (read-your-writes) stay on the primary below.
+    const found = await (
+      this.read?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma
+    ).channel.findMany({
       where: { id: { in: ids }, status: 'active' },
     });
     const byId = new Map(found.map((c) => [c.id, c]));
@@ -604,7 +615,20 @@ export class ChannelsService {
     await this.assertEnabled();
     const ch = await this.findReadable(user.sub, id);
     const c = cursor ? decodeCursor(cursor) : null;
-    const rows = await this.prisma.channelPost.findMany({
+    // Replica seam: only OLDER pages (a cursor) of a reader's list come from
+    // the replica. The first page holds the newest posts (a push says "new
+    // post", the reader taps it: it must be there) and stays on the primary,
+    // as does the owner's and the admins' list (they just posted, edited or
+    // deleted: read-your-writes).
+    const staff =
+      !!c &&
+      (ch.owner_id === user.sub ||
+        (!isGuestId(user.sub) && !!(await this.roleOf(user.sub, ch.id))));
+    const rows = await (
+      c && !staff
+        ? (this.read?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma)
+        : this.prisma
+    ).channelPost.findMany({
       where: {
         channel_id: ch.id,
         status: 'active',
@@ -932,12 +956,24 @@ export class ChannelsService {
       SELECT unnest(${valid.map((v) => v.id)}::UUID[]), ${user.sub}::UUID
       ON CONFLICT DO NOTHING
       RETURNING post_id::TEXT AS post_id`;
-    if (fresh.length > 0) {
-      await this.prisma.channelPost.updateMany({
-        where: { id: { in: fresh.map((f) => f.post_id) } },
-        data: { view_count: { increment: 1 } },
-      });
+    if (fresh.length === 0) return;
+    // Owner 2026-11-05 (flag channel_views_buffered): in a big channel every
+    // reader's view was an UPDATE of the same hot rows. Through the counter
+    // aggregator they become one multi-row UPDATE every few seconds; the
+    // number on screen is that much later.
+    if (
+      this.counters &&
+      (await this.flags.isEnabled(CHANNEL_VIEWS_BUFFERED_FLAG, false))
+    ) {
+      for (const f of fresh) {
+        await this.counters.bump('channel_post', f.post_id, 'view_count', 1);
+      }
+      return;
     }
+    await this.prisma.channelPost.updateMany({
+      where: { id: { in: fresh.map((f) => f.post_id) } },
+      data: { view_count: { increment: 1 } },
+    });
   }
 
   /** POST /channels/:id/posts/:postId/share — one share per person and

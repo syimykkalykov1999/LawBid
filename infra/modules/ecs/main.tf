@@ -25,6 +25,11 @@ variable "api_ws_target_group_arn" {
   description = "S4-7: second target group (sticky, /socket.io only) the api service also registers in. Empty = none."
 }
 variable "api_image" { type = string }
+variable "app_version" {
+  type        = string
+  default     = ""
+  description = "Image tag the app containers report as APP_VERSION (scripts/deploy/roll-services.sh sets the same variable on every deploy; smoke.sh and the synthetic check read it). Empty = not set by Terraform."
+}
 variable "admin_image" { type = string }
 variable "kms_key_arn" { type = string }
 
@@ -42,6 +47,11 @@ variable "secret_arns" {
   description = "Env var name → Secrets Manager ARN, injected into api/worker."
 }
 variable "migrator_database_url_secret_arn" { type = string }
+variable "partition_database_url_secret_arn" {
+  type        = string
+  default     = ""
+  description = "PARTITION_DATABASE_URL (role lawbid_partition) for the WORKER only: the online table partitioning (messages, notifications, ...) needs DDL rights the app role does not have. Empty = not injected, partitioning stays a status card. Never given to the api task."
+}
 
 variable "api_cpu" {
   type    = number
@@ -50,7 +60,7 @@ variable "api_cpu" {
 variable "api_uv_threadpool_size" {
   type        = number
   default     = 4
-  description = "S8-7: libuv thread pool of the API task (Node default 4, max 1024; gzip, dns.lookup, fs, crypto share it). 4 = unset. Raise to 8 only after the ThreadPoolLagMs metric (LawBid/Runtime) shows a queue under load."
+  description = "S8-7: libuv thread pool of the API task (Node default 4, max 1024; gzip, dns.lookup, fs, crypto share it). 4 = unset. Raise to 8 only after the ThreadPoolLagMs field (a plain field of the LawBid/Runtime log line, not a billed metric since 2026-11-02; read it in CloudWatch Logs Insights) shows a queue under load."
   validation {
     condition     = var.api_uv_threadpool_size >= 4 && var.api_uv_threadpool_size <= 64
     error_message = "api_uv_threadpool_size: 4..64."
@@ -164,6 +174,11 @@ variable "alb_resource_label" {
 variable "api_requests_per_task" {
   type    = number
   default = 200
+}
+variable "api_sockets_per_task" {
+  type        = number
+  default     = 2500
+  description = "Open WebSocket connections one api task may hold on average before the service adds a task (LawBid/Runtime OpenSockets, emitted by runtime-stats.service.ts). 0 = no socket policy (CPU and request count only). Costs nothing until the average passes it."
 }
 variable "metrics_namespace" {
   type        = string
@@ -352,7 +367,7 @@ resource "aws_iam_role_policy_attachment" "execution" {
 data "aws_iam_policy_document" "execution_secrets" {
   statement {
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = concat(values(var.secret_arns), [var.migrator_database_url_secret_arn])
+    resources = concat(values(var.secret_arns), [var.migrator_database_url_secret_arn], var.partition_database_url_secret_arn == "" ? [] : [var.partition_database_url_secret_arn])
   }
   statement {
     actions   = ["kms:Decrypt"]
@@ -420,6 +435,9 @@ resource "aws_iam_role" "task_minimal" {
 # --- task definitions ----------------------------------------------------
 locals {
   api_environment = [for k, v in var.api_env : { name = k, value = v }]
+  # Same variable roll-services.sh writes on every deploy: a Terraform-made
+  # revision must carry it too, or the version checks go blind after an apply.
+  app_version_env = var.app_version != "" ? [{ name = "APP_VERSION", value = var.app_version }] : []
   # The worker has its own DB_POOL_SIZE when worker_db_pool_size > 0 (the
   # api_env value is dropped so the name is never listed twice).
   worker_environment = var.worker_db_pool_size > 0 ? concat(
@@ -437,8 +455,9 @@ locals {
     worker = floor(max(var.worker_memory - var.clamav_memory, 512) * 0.7)
     admin  = floor(var.admin_memory * 0.7)
   }
-  node_options = { for k, mb in local.heap_mb : k => { name = "NODE_OPTIONS", value = "--max-old-space-size=${mb}" } }
-  api_secrets  = [for k, arn in var.secret_arns : { name = k, valueFrom = arn }]
+  node_options   = { for k, mb in local.heap_mb : k => { name = "NODE_OPTIONS", value = "--max-old-space-size=${mb}" } }
+  api_secrets    = [for k, arn in var.secret_arns : { name = k, valueFrom = arn }]
+  worker_secrets = concat(local.api_secrets, var.partition_database_url_secret_arn == "" ? [] : [{ name = "PARTITION_DATABASE_URL", valueFrom = var.partition_database_url_secret_arn }])
   log_config = { for svc in ["api", "worker", "clamav", "admin", "migrate"] : svc => {
     logDriver = "awslogs"
     options = {
@@ -533,7 +552,7 @@ resource "aws_ecs_task_definition" "api" {
     essential    = true
     command      = ["node", "dist/src/main.js"]
     portMappings = [{ containerPort = 3000, protocol = "tcp" }]
-    environment  = concat(local.api_environment, local.tracing_env, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }, local.node_options["api"]], var.api_uv_threadpool_size > 4 ? [{ name = "UV_THREADPOOL_SIZE", value = tostring(var.api_uv_threadpool_size) }] : [])
+    environment  = concat(local.api_environment, local.app_version_env, local.tracing_env, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }, local.node_options["api"]], var.api_uv_threadpool_size > 4 ? [{ name = "UV_THREADPOOL_SIZE", value = tostring(var.api_uv_threadpool_size) }] : [])
     secrets      = local.api_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -579,8 +598,8 @@ resource "aws_ecs_task_definition" "worker" {
     command   = ["node", "dist/src/worker.js"]
     # Uploads are scanned by the clamd sidecar below (same task, localhost):
     # without a scanner every photo/document stays scan_status=pending.
-    environment = concat(local.worker_environment, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
-    secrets     = local.api_secrets
+    environment = concat(local.worker_environment, local.app_version_env, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
+    secrets     = local.worker_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
     # and forwards signals.
@@ -647,7 +666,7 @@ resource "aws_ecs_task_definition" "admin" {
     image        = var.admin_image
     essential    = true
     portMappings = [{ containerPort = 3001, protocol = "tcp" }]
-    environment  = concat([for k, v in var.admin_env : { name = k, value = v }], [local.node_options["admin"]])
+    environment  = concat([for k, v in var.admin_env : { name = k, value = v }], local.app_version_env, [local.node_options["admin"]])
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
     # and forwards signals.
@@ -969,6 +988,36 @@ resource "aws_appautoscaling_policy" "api_requests" {
     predefined_metric_specification {
       predefined_metric_type = "ALBRequestCountPerTarget"
       resource_label         = var.alb_resource_label
+    }
+  }
+}
+
+# Scale audit 2026-11-02: idle sockets cost memory and timers but no CPU and no
+# ALB requests, so the two policies above never see them (SCALE_LIMITS_AUDIT
+# row "Sockets"). Each api task emits OpenSockets once a minute (EMF, no
+# agent); the AVERAGE over the running tasks is the sockets per task. Same
+# rule as the others: out fast (60 s), in slowly (600 s, a scale-in drains
+# the sockets of the stopped task). While the app is small the average stays
+# far under the target and this policy never adds a task.
+resource "aws_appautoscaling_policy" "api_sockets" {
+  count              = var.api_sockets_per_task > 0 ? 1 : 0
+  name               = "${var.name}-api-sockets"
+  policy_type        = "TargetTrackingScaling"
+  service_namespace  = aws_appautoscaling_target.svc["api"].service_namespace
+  scalable_dimension = aws_appautoscaling_target.svc["api"].scalable_dimension
+  resource_id        = aws_appautoscaling_target.svc["api"].resource_id
+  target_tracking_scaling_policy_configuration {
+    target_value       = var.api_sockets_per_task
+    scale_in_cooldown  = 600
+    scale_out_cooldown = 60
+    customized_metric_specification {
+      metric_name = "OpenSockets"
+      namespace   = "LawBid/Runtime"
+      statistic   = "Average"
+      dimensions {
+        name  = "Service"
+        value = "api"
+      }
     }
   }
 }

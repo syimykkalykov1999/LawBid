@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:video_compress/video_compress.dart';
 
@@ -62,6 +63,15 @@ abstract class VideoCompressor {
   Future<void> cancel();
 }
 
+/// R-256: a phone low on power skips the re-encode of a video up to this
+/// size: encoding drains the battery, and a small clip gains little. A bigger
+/// one is still encoded, so it fits the upload limits.
+const kLowPowerKeepOriginalBytes = 30 * 1024 * 1024;
+
+/// Whether to send the original as it is.
+bool keepOriginalForPower({required bool lowPower, required int bytes}) =>
+    lowPower && bytes <= kLowPowerKeepOriginalBytes;
+
 /// The free open-source `video_compress` plugin (AVFoundation on iOS,
 /// MediaCodec on Android) — no paid service, nothing leaves the phone.
 class PluginVideoCompressor implements VideoCompressor {
@@ -71,7 +81,18 @@ class PluginVideoCompressor implements VideoCompressor {
     required VideoLimits limits,
     void Function(double progress)? onProgress,
   }) async {
+    // The browser: the original goes up and the server transcodes it.
+    // 2026-11-03 search: no maintained MIT/Apache/BSD pure-Dart or WASM
+    // encoder exists (ffmpeg.wasm is LGPL/GPL and needs cross-origin
+    // isolation headers; WebCodecs needs our own muxer glue), so by
+    // Rule #1 nothing is invented here.
     if (kIsWeb) return null;
+    if (keepOriginalForPower(
+      lowPower: ClientTuning.lowPower,
+      bytes: await source.length(),
+    )) {
+      return null;
+    }
     final sub = VideoCompress.compressProgress$.subscribe(
       (p) => onProgress?.call((p / 100).clamp(0, 1)),
     );

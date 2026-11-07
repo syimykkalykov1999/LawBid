@@ -18,7 +18,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { NotificationCategory, NotificationType } from '@prisma/client';
 import { Worker, type Job } from 'bullmq';
-import { parseQueueMode } from '../../../common/queues/queue-hardening';
+import {
+  parseQueueMode,
+  outageProof,
+} from '../../../common/queues/queue-hardening';
 import type { QueueMode } from '../../../common/queues/queue-mode';
 import { PinoLogger } from 'nestjs-pino';
 import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
@@ -29,7 +32,6 @@ import { RealtimePublisher } from '../../realtime/realtime-publisher.service';
 import { BadgesService } from '../badges.service';
 import {
   ALWAYS_PUSH,
-  DEFAULT_PUSH,
   EMAIL_TYPES,
   LOCKED_CATEGORIES,
   quietHoursApply,
@@ -284,7 +286,7 @@ export class PushDispatcher
     const url = this.config.getOrThrow<string>('REDIS_URL');
     this.worker = new Worker<PushJobData>(
       PUSH_QUEUE,
-      (job: Job<PushJobData>) => this.processJob(job),
+      outageProof((job: Job<PushJobData>) => this.processJob(job)),
       {
         ...bullOptions(PUSH_QUEUE, url, { worker: true }),
         ...workerTuning(PUSH_QUEUE),
@@ -479,6 +481,7 @@ export class PushDispatcher
     // Owner 2026-10-17: iPhones with a VoIP token ring through Apple
     // directly (CallKit, even when the app is closed); their FCM call push
     // is skipped so they don't ring twice.
+    const poll = this.pollToken(data.recipientId, data.callId);
     const rang =
       (await this.voip?.ringCall(data.recipientId, {
         callId: data.callId,
@@ -487,6 +490,9 @@ export class PushDispatcher
         avatarUrl,
         video: call.video,
         silent,
+        // Owner 2026-11-03: «Decline» on a closed iPhone tells the server
+        // natively with this ticket (AppDelegate.onDecline).
+        ...poll,
       })) ?? [];
     const skipTokens = rang.length
       ? ((await this.voipTokens?.fcmTokensCoveredBy(rang)) ?? [])
@@ -511,7 +517,7 @@ export class PushDispatcher
           ringSeconds: String(CALL_RING_SECONDS),
           // Owner 2026-10-28: a locked Android phone asks the call's state
           // with this while it rings (older apps ignore it).
-          ...this.pollToken(data.recipientId, data.callId),
+          ...poll,
         },
         call: true,
         skipTokens,
@@ -624,7 +630,7 @@ export class PushDispatcher
           select: {
             ui_language: true,
             timezone: true,
-            quiet_hours: { select: { timezone: true } },
+            quiet_hours: true,
             status: true,
             email: true,
             email_verified_at: true,
@@ -662,7 +668,7 @@ export class PushDispatcher
           APP_SETTINGS['case_alerts.urgent_fast_enabled'],
       )
     ) {
-      const until = await this.quietUntil(n.user_id);
+      const until = quietUntilOf(n.user.quiet_hours);
       if (until) {
         await this.queue.defer(data, until, jobId || n.id);
         return 'deferred';
@@ -888,7 +894,12 @@ export class PushDispatcher
     const [user, member, message, group] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: data.recipientId },
-        select: { status: true, ui_language: true, first_name: true },
+        select: {
+          status: true,
+          ui_language: true,
+          first_name: true,
+          quiet_hours: true,
+        },
       }),
       this.prisma.chatGroupMember.findUnique({
         where: {
@@ -1002,7 +1013,7 @@ export class PushDispatcher
       return { result: 'disabled' };
     }
     if (!data.deferred) {
-      const until = await this.quietUntil(data.recipientId);
+      const until = quietUntilOf(user.quiet_hours);
       if (until) {
         await this.queue.defer(data, until, jobId || data.messageId);
         return { result: 'deferred' };
@@ -1053,10 +1064,21 @@ export class PushDispatcher
         jobId,
       );
     }
+    // Load test 2026-11-02 (LOAD_RESILIENCE §3): a push read the user, their
+    // "messages" switch, their quiet hours, the sender, the avatar file and
+    // its visibility one by one (~8 round trips per job; the 0.5 CPU worker
+    // cleared ~26 jobs/s). The quiet hours now ride on the user read and the
+    // switch comes from the per-user prefs cache BadgesService already keeps
+    // in Redis (the same entry the icon badge and the topic switches of this
+    // very push read), so two database reads are gone.
     const [user, part, message] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: data.recipientId },
-        select: { status: true, ui_language: true },
+        select: {
+          status: true,
+          ui_language: true,
+          quiet_hours: true,
+        },
       }),
       this.prisma.conversationParticipant.findUnique({
         where: {
@@ -1132,7 +1154,7 @@ export class PushDispatcher
     if (await this.realtime.isViewing(data.recipientId, data.conversationId)) {
       return 'viewing';
     }
-    if (!(await this.pushAllowed(data.recipientId, 'messages'))) {
+    if ((await this.badges.mutedCategories(data.recipientId)).has('messages')) {
       return 'disabled';
     }
     // Owner 2026-10-21 (inbox 30): «Reactions» off silences reactions to
@@ -1145,7 +1167,7 @@ export class PushDispatcher
       return 'disabled';
     }
     if (!data.deferred) {
-      const until = await this.quietUntil(data.recipientId);
+      const until = quietUntilOf(user.quiet_hours);
       if (until) {
         await this.queue.defer(data, until, jobId || data.messageId);
         return 'deferred';
@@ -1272,16 +1294,14 @@ export class PushDispatcher
     return out;
   }
 
+  /** The category's push switch: the per-user prefs entry BadgesService
+   * keeps in Redis (the one source of truth for the icon badge, the topic
+   * switches and this check), not a row read per push. */
   private async pushAllowed(
     userId: string,
     category: NotificationCategory,
   ): Promise<boolean> {
-    if (LOCKED_CATEGORIES.has(category)) return true;
-    const s = await this.prisma.notificationSetting.findUnique({
-      where: { user_id_category: { user_id: userId, category } },
-      select: { push_enabled: true },
-    });
-    return s ? s.push_enabled : DEFAULT_PUSH[category];
+    return !(await this.badges.mutedCategories(userId)).has(category);
   }
 
   private async emailAllowed(
@@ -1294,13 +1314,6 @@ export class PushDispatcher
       select: { email_enabled: true },
     });
     return s ? s.email_enabled : true;
-  }
-
-  private async quietUntil(userId: string): Promise<Date | null> {
-    const qh = await this.prisma.notificationQuietHours.findUnique({
-      where: { user_id: userId },
-    });
-    return qh ? quietHoursEnd(new Date(), qh) : null;
   }
 
   /** One email per notification even if the push job is retried. */
@@ -1344,4 +1357,11 @@ export class PushDispatcher
     if (this.rateTimer) clearInterval(this.rateTimer);
     await closeWorker(this.worker);
   }
+}
+
+/** The end of the quiet hours the person is in now, or null (none set). */
+function quietUntilOf(
+  qh: Parameters<typeof quietHoursEnd>[1] | null,
+): Date | null {
+  return qh ? quietHoursEnd(new Date(), qh) : null;
 }

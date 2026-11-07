@@ -475,43 +475,24 @@ void main() {
         '/onboarding/consents',
       ),
     ],
-    // Owner 2026-10-22 (audit #4 §2, WhatsApp / Telegram): the password
-    // after the code is optional — nothing is held back.
-    'Owner 2026-10-13 / 2026-10-22: no password yet → optional': [
+    // Owner 2026-11-04 (R-384): the password right after the code is
+    // mandatory again — before consents / role / profile data.
+    'Owner 2026-10-13 / 2026-11-04: no password yet → set it first': [
       _Case(
-        'onboarding goes on without a password',
-        '/feed',
+        'just verified the code → the password screen, not the next step',
+        '/auth/otp',
         _signedIn(meFixture(passwordRequired: true)),
-        '/onboarding/consents',
-      ),
-      _Case(
-        'the onboarding step itself stays',
-        '/onboarding/consents',
-        _signedIn(meFixture(passwordRequired: true)),
-        null,
-      ),
-      _Case(
-        'a fully onboarded user without a password uses the app',
-        '/feed',
-        _signedIn(
-          meFixture(
-            role: UserRole.client,
-            consents: true,
-            phone: '+15551234567',
-            phoneVerified: true,
-            email: 'a@b.co',
-            emailVerified: true,
-            firstName: 'Ann',
-            lastName: 'Lee',
-            completed: true,
-            passwordRequired: true,
-          ),
-        ),
-        null,
-      ),
-      _Case(
-        'Settings → «Задать пароль» opens the screen',
         '/auth/set-password',
+      ),
+      _Case(
+        'an onboarding step waits until the password is set',
+        '/onboarding/consents',
+        _signedIn(meFixture(passwordRequired: true)),
+        '/auth/set-password',
+      ),
+      _Case(
+        'an existing account without a password sets it once',
+        '/feed',
         _signedIn(
           meFixture(
             role: UserRole.client,
@@ -526,7 +507,7 @@ void main() {
             passwordRequired: true,
           ),
         ),
-        null,
+        '/auth/set-password',
       ),
       _Case(
         'the screen itself stays',

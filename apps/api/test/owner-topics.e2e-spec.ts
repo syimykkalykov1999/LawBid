@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { TrendingTagsJob } from '../src/modules/search/trending-tags.job';
+import { TopicCoversJob } from '../src/modules/search/topic-covers.job';
 import { ensurePostPractices } from './support/post-practices';
 
 /**
@@ -145,5 +146,82 @@ describe('Topics (e2e)', () => {
       .query({ sort: 'new' })
       .set(v);
     expect(gone.body.data).toHaveLength(3);
+  });
+
+  // Owner 2026-11-04 (R-406): a hashtag topic's cover is the photo of its
+  // most popular post (nightly snapshot), served with the topic lists; a
+  // topic with only text posts has no cover (the app shows its letter).
+  it('topic covers: the photo of the popular post, none for a text-only topic', async () => {
+    const a = await attorney();
+    const viewer = await prisma.user.create({ data: { role: 'client' } });
+    const v = auth(viewer.id, 'client');
+    const pic = `cvr${randomUUID()
+      .replace(/[^a-f]/g, '')
+      .slice(0, 6)}`;
+    const text = `txt${randomUUID()
+      .replace(/[^a-f]/g, '')
+      .slice(0, 6)}`;
+    const plain = await publish(a, `Plain words #${pic}`);
+    const photo = await publish(a, `With a photo #${pic}`);
+    const textOnly = await publish(a, `Only words #${text}`);
+    expect([plain.status, photo.status, textOnly.status]).toEqual([
+      201, 201, 201,
+    ]);
+    const fileId = randomUUID();
+    await prisma.file.create({
+      data: {
+        id: fileId,
+        owner_user_id: a.id,
+        purpose: 'post_image',
+        s3_bucket: 'lawbid-media',
+        s3_key: `posts/${fileId}`,
+        mime: 'image/jpeg',
+        size_bytes: BigInt(1000),
+        sha256: 'b'.repeat(64),
+        scan_status: 'clean',
+        width: 800,
+        height: 600,
+      },
+    });
+    await prisma.postMedia.create({
+      data: { post_id: photo.body.data.id, file_id: fileId, position: 0 },
+    });
+    // The text post is "more popular", yet only a post with a picture can
+    // be the cover.
+    await prisma.post.update({
+      where: { id: plain.body.data.id },
+      data: { like_count: 50, comment_count: 10 },
+    });
+
+    expect(await app.get(TopicCoversJob).run()).toEqual(
+      expect.objectContaining({ topics: expect.any(Number) }),
+    );
+    await app.get(TrendingTagsJob).run();
+
+    type Row = {
+      tag: string;
+      coverUrl: string | null;
+      coverPostId: string | null;
+    };
+    const found = await api()
+      .get('/api/v1/search/tags')
+      .query({ q: pic.slice(0, 5) })
+      .set(v);
+    const row = (found.body.data as Row[]).find((t) => t.tag === pic);
+    expect(row?.coverPostId).toBe(photo.body.data.id);
+    expect(typeof row?.coverUrl).toBe('string');
+    expect(row?.coverUrl).toContain(`posts/${fileId}`);
+
+    const trending = await api().get('/api/v1/search/trending-tags').set(v);
+    const rows = trending.body.data as Row[];
+    expect(rows.find((t) => t.tag === pic)).toEqual(
+      expect.objectContaining({
+        coverPostId: photo.body.data.id,
+        coverUrl: row?.coverUrl,
+      }),
+    );
+    expect(rows.find((t) => t.tag === text)).toEqual(
+      expect.objectContaining({ coverUrl: null, coverPostId: null }),
+    );
   });
 });

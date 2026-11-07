@@ -31,7 +31,7 @@ for f in $(echo "$CH" | grep -E 'apps/api/prisma/migrations/.*/migration\.sql$')
   grep -qi 'lock_timeout' "$f" || bad "$f has no SET LOCAL lock_timeout (squawk will fail)"
 done
 
-# 4. i18n: every key used in code exists in the workbook, all 85 languages filled.
+# 4. i18n: every key used in code exists in the translations seed (prisma/seed/translations/*.json), all 85 languages filled.
 if has '^(apps/(api|mobile|admin)/|scripts/i18n)'; then
   node scripts/i18n-audit.mjs --ci >/tmp/precheck-i18n.log 2>&1 && ok "i18n audit" || { bad "i18n audit (tail below; add keys with scripts/i18n-add.mjs)"; tail -8 /tmp/precheck-i18n.log; }
 fi

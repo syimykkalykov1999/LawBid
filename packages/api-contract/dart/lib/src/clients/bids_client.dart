@@ -5,9 +5,11 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/bid_case_change_list_envelope.dart';
 import '../models/bid_draft_body_dto.dart';
 import '../models/bid_draft_envelope.dart';
 import '../models/bid_envelope.dart';
+import '../models/change_bid_dto.dart';
 import '../models/conflict_check_envelope.dart';
 import '../models/counter_offer_dto.dart';
 import '../models/create_bid_dto.dart';
@@ -47,6 +49,31 @@ abstract class BidsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Keep a bid after the client changed the case
+  @POST('/bids/{id}/confirm')
+  Future<BidEnvelope> confirmBid({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Change a bid: free and out of turn after the client changed the case, else a counter-offer.
+  ///
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
+  @POST('/bids/{id}/change')
+  Future<BidEnvelope> changeBid({
+    @Path('id') required String id,
+    @Body() required ChangeBidDto body,
+    @Header('If-Match') int? ifMatch,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// What the client changed since this bid
+  @GET('/bids/{id}/case-changes')
+  Future<BidCaseChangeListEnvelope> bidCaseChanges({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Counter-offer, whichever party's turn it is (max 5 rounds).
   ///
   /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
@@ -58,10 +85,13 @@ abstract class BidsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Accept a bid (whichever party's turn it is): case → in_progress, other bids auto-rejected, contacts disclosed
+  /// Accept a bid (whichever party's turn it is): case → in_progress, other bids auto-rejected, contacts disclosed.
+  ///
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
   @POST('/bids/{id}/accept')
   Future<BidEnvelope> acceptBid({
     @Path('id') required String id,
+    @Header('If-Match') int? ifMatch,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -397,3 +397,68 @@ export class CaseCompletionReminderJob {
     return { processed: processed ?? 0, ran: processed !== null };
   }
 }
+
+/**
+ * Owner 2026-11-05: one reminder to an attorney whose bid has waited for
+ * confirmation `bids.confirmation_reminder_days` days. Never withdraws.
+ */
+@Injectable()
+export class BidConfirmReminderJob {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+    private readonly settings: AppSettingsService,
+    private readonly logger: PinoLogger,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+  ) {
+    this.logger.setContext(BidConfirmReminderJob.name);
+  }
+
+  async run(now: Date = new Date()): Promise<CaseJobResult> {
+    if (!(await this.settings.boolean('bids.confirmation_required'))) {
+      return { processed: 0, ran: false };
+    }
+    const days = await this.settings.number('bids.confirmation_reminder_days');
+    const before = new Date(now.getTime() - days * 86_400_000);
+    const processed = await withJobLock(
+      this.redis,
+      'bids.confirm-reminder',
+      LOCK_TTL_MS,
+      async () => {
+        let sent = 0;
+        // Bounded: a row that keeps failing must not spin the job.
+        for (let page = 0; page < 20; page += 1) {
+          const rows = await this.prisma.bid.findMany({
+            where: {
+              status: 'active',
+              confirmation_required_at: { lte: before },
+              confirm_reminded_at: null,
+            },
+            select: { id: true, case_id: true, attorney_id: true },
+            take: CASE_JOB_BATCH,
+          });
+          for (const row of rows) {
+            try {
+              await this.prisma.bid.update({
+                where: { id: row.id },
+                data: { confirm_reminded_at: now },
+              });
+              await this.notifications.emit({
+                type: 'bid_confirm_reminder',
+                recipientId: row.attorney_id,
+                payload: { caseId: row.case_id, bidId: row.id },
+              });
+              sent += 1;
+            } catch (error) {
+              logFailure(this.logger, 'bids.confirm-reminder')(row.id, error);
+            }
+          }
+          if (rows.length < CASE_JOB_BATCH) break;
+        }
+        return sent;
+      },
+    );
+    this.logger.info({ processed }, 'bid confirmation reminders');
+    return { processed: processed ?? 0, ran: processed !== null };
+  }
+}

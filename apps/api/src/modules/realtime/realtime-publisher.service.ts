@@ -29,6 +29,16 @@ export const viewingKey = (userId: string, conversationId: string) =>
  * the key alive. */
 export const VIEWING_TTL_MS = 120_000;
 
+/** R-404 (owner 2026-11-04): which signals of a call really went through the
+ * socket (`<userId>:offer|answer|candidate`), so the end of a call that never
+ * connected can tell «no signaling» from «signaling fine, the relay failed». */
+export const callSignalsKey = (callId: string) => `rt:callsig:${callId}`;
+export const CALL_SIGNALS_TTL_SEC = 3600;
+/** Owner 2026-11-04: the last ICE list this person got says `relay`, so their
+ * direct addresses do not go to the other phone. Outlives a long call. */
+export const relayOnlyKey = (userId: string) => `rt:relayonly:${userId}`;
+const RELAY_ONLY_TTL_SEC = 24 * 3600;
+
 export type SocketAdapterMode = 'sharded' | 'classic';
 
 /** Owner 2026-10-22 (server load audit, finding 5): SOCKET_IO_ADAPTER —
@@ -262,6 +272,34 @@ export class RealtimePublisher {
       this.qrEmitter.to(qrRoom(qrId)).emit(event, data);
     } catch {
       // best-effort (see class doc)
+    }
+  }
+
+  /** Never throws: without the mark a phone's signals pass unfiltered. */
+  async setRelayOnly(userId: string, on: boolean): Promise<void> {
+    try {
+      if (on) {
+        await this.redis.set(
+          relayOnlyKey(userId),
+          '1',
+          'EX',
+          RELAY_ONLY_TTL_SEC,
+        );
+      } else {
+        await this.redis.del(relayOnlyKey(userId));
+      }
+    } catch {
+      // Best effort.
+    }
+  }
+
+  /** R-404: the signals seen for [callId] (see [callSignalsKey]); empty when
+   * Redis cannot say. Never throws. */
+  async callSignals(callId: string): Promise<string[]> {
+    try {
+      return await this.redis.hkeys(callSignalsKey(callId));
+    } catch {
+      return [];
     }
   }
 

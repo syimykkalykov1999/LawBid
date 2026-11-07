@@ -5,10 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:lawbid/core/permissions/permission_primer.dart';
+import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart'
-    show callTrace;
-
+    show callStatsReport, callTrace;
 import 'package:lawbid/features/calls/application/call_quality.dart';
+import 'package:lawbid/features/calls/application/livekit_rtc.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:record/record.dart' show AudioRecorder;
 
@@ -170,39 +171,88 @@ class _Link {
 }
 
 /// A reading of one link from `getStats` (W3C names): the nominated
-/// candidate pair gives the round trip and the bandwidth estimate, the
-/// remote-inbound report the loss the other side saw. Null before a pair
-/// exists.
+/// candidate pair gives the round trip, the bandwidth estimate and (through
+/// its candidates) whether the link is direct or relayed; the inbound
+/// reports the jitter, the remote-inbound report the loss the other side
+/// saw. Null before a pair exists.
 LinkStats? linkStatsFrom(Iterable<StatsReport> reports) {
   double? rtt;
   var bps = 0.0;
   var loss = 0.0;
+  var jitter = 0.0;
   var pair = false;
-  double toD(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+  String? localId;
+  String? remoteId;
+  final types = <String, String>{};
+  double num0(Map<dynamic, dynamic> v, String key) {
+    try {
+      return getNumValFromReport(v, key)?.toDouble() ?? 0;
+    } on Object {
+      return 0;
+    }
+  }
+
+  String str(Map<dynamic, dynamic> v, String key) {
+    final x = v[key];
+    return x == null ? '' : '$x';
+  }
+
   for (final r in reports) {
     final v = r.values;
     if (r.type == 'candidate-pair' &&
         (v['nominated'] == true || '${v['state']}' == 'succeeded')) {
       pair = true;
-      final t = toD(v['currentRoundTripTime']);
+      final t = num0(v, 'currentRoundTripTime');
       if (t > 0) rtt = t * 1000;
-      final a = toD(v['availableOutgoingBitrate']);
+      final a = num0(v, 'availableOutgoingBitrate');
       if (a > 0) bps = a;
+      localId = str(v, 'localCandidateId');
+      remoteId = str(v, 'remoteCandidateId');
     } else if (r.type == 'remote-inbound-rtp') {
-      final l = toD(v['fractionLost']) * 100;
+      final l = num0(v, 'fractionLost') * 100;
       if (l > loss) loss = l;
-      final t = toD(v['roundTripTime']);
+      final t = num0(v, 'roundTripTime');
       if (rtt == null && t > 0) rtt = t * 1000;
+    } else if (r.type == 'inbound-rtp') {
+      final j = num0(v, 'jitter') * 1000;
+      if (j > jitter) jitter = j;
+    } else if (r.type == 'local-candidate' || r.type == 'remote-candidate') {
+      types[r.id] = str(v, 'candidateType');
     }
   }
   if (!pair && rtt == null) return null;
-  return LinkStats(rttMs: rtt ?? 0, lossPct: loss, availableBps: bps);
+  return LinkStats(
+    rttMs: rtt ?? 0,
+    lossPct: loss,
+    availableBps: bps,
+    jitterMs: jitter,
+    localCandidate: types[localId] ?? '',
+    remoteCandidate: types[remoteId] ?? '',
+  );
 }
 
 /// flutter_webrtc: echo cancellation on; an audio call starts on the
 /// earpiece, a video call on the speaker with the front camera (up to
 /// 720p, 30 fps — enough for a face, light on mobile data).
 class WebRtcCallMedia implements CallMedia {
+  WebRtcCallMedia({
+    Future<RTCPeerConnection> Function(Map<String, dynamic> config)? createPc,
+    Future<MediaStream> Function(Map<String, dynamic> constraints)?
+        getUserMedia,
+  })  : _createPc = createPc ?? createPeerConnection,
+        _getUserMedia =
+            getUserMedia ?? ((c) => navigator.mediaDevices.getUserMedia(c));
+
+  final Future<RTCPeerConnection> Function(Map<String, dynamic>) _createPc;
+  final Future<MediaStream> Function(Map<String, dynamic>) _getUserMedia;
+
+  /// Closed: a link still being set up when the call ended is torn down,
+  /// never kept (it would send our voice after the end).
+  bool _closed = false;
+
+  /// R-037: every quality reading, one summary line at the end.
+  final _stats = CallStatsLog();
+
   final _links = <String, _Link>{};
   String _first = '';
   List<IceServer> _servers = const [];
@@ -246,18 +296,100 @@ class WebRtcCallMedia implements CallMedia {
     _video = video;
     _servers = iceServers;
     _first = peer;
-    _mic = await navigator.mediaDevices.getUserMedia({
-      'audio': {
-        'echoCancellation': true,
-        'noiseSuppression': true,
-        'autoGainControl': true,
-      },
+    await prepareCallAudioSession();
+    final stream = await _getUserMedia({
+      'audio': _micConstraints,
       'video': video ? _cameraConstraints() : false,
     });
+    // close() ran while the permission/camera was pending: it found no
+    // stream to stop, so this one is ours to release — mic and camera must
+    // not stay live after the end.
+    if (_closed) {
+      for (final t in stream.getTracks()) {
+        await _guard('track.stop (late)', t.stop);
+      }
+      await _guard('stream.dispose (late)', stream.dispose);
+      return;
+    }
+    _mic = stream;
     if (video) _local.value = _mic;
     await _newLink(peer, onSignal: onSignal, onState: onState);
     await setSpeaker(video);
+    if (kIsWeb) unawaited(_watchWebMic());
     onState(CallMediaState.connecting);
+  }
+
+  static const _micConstraints = {
+    'echoCancellation': true,
+    'noiseSuppression': true,
+    'autoGainControl': true,
+  };
+
+  /// Owner 2026-11-04 (headphones on a computer): a browser keeps the
+  /// microphone it opened even when the system's default one changes (a
+  /// headset plugged in or connected). LiveKit's web client
+  /// (Apache-2.0, `Room.handleDeviceChange`): when the default input is
+  /// another device now, the microphone is opened again on it and its
+  /// track replaces the old one on every link (no new offer). The sound
+  /// out follows the default by itself (or the chosen output,
+  /// CallWebAudioSinks).
+  StreamSubscription<void>? _deviceSub;
+  String? _micGroup;
+  bool _micSwitching = false;
+
+  Future<void> _watchWebMic() async {
+    _micGroup = await _defaultMicGroup();
+    if (_closed) return;
+    _deviceSub ??= CallDeviceChanges.stream.listen((_) {
+      unawaited(_followDefaultMic());
+    });
+  }
+
+  static Future<String?> _defaultMicGroup() async {
+    try {
+      final devices = await navigator.mediaDevices.enumerateDevices();
+      final inputs = devices.where((d) => d.kind == 'audioinput').toList();
+      final def = inputs.where((d) => d.deviceId == 'default').firstOrNull ??
+          inputs.firstOrNull;
+      return def?.groupId ?? def?.deviceId;
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _followDefaultMic() async {
+    final mic = _mic;
+    if (_closed || mic == null || _micSwitching) return;
+    final group = await _defaultMicGroup();
+    if (group == null || group == _micGroup) return;
+    _micSwitching = true;
+    try {
+      final fresh = await _getUserMedia({'audio': _micConstraints});
+      final track = fresh.getAudioTracks().firstOrNull;
+      if (_closed || track == null || !identical(mic, _mic)) {
+        for (final t in fresh.getTracks()) {
+          await _guard('track.stop (mic switch)', t.stop);
+        }
+        return;
+      }
+      track.enabled = !_mutedNow;
+      for (final link in _links.values.toList()) {
+        for (final sender in await link.pc.getSenders()) {
+          if (sender.track?.kind == 'audio') await sender.replaceTrack(track);
+        }
+      }
+      for (final old in mic.getAudioTracks()) {
+        await mic.removeTrack(old);
+        await _guard('track.stop (old mic)', old.stop);
+      }
+      await mic.addTrack(track);
+      _micGroup = group;
+      callTrace('web mic: switched to the default input');
+    } on Object catch (e) {
+      callTrace('web mic: switch failed: $e');
+    } finally {
+      _micSwitching = false;
+    }
   }
 
   Future<_Link> _newLink(
@@ -265,7 +397,17 @@ class WebRtcCallMedia implements CallMedia {
     required void Function(Map<String, Object?> signal) onSignal,
     required void Function(CallMediaState state) onState,
   }) async {
-    final pc = await createPeerConnection(_config());
+    final pc = await _createPc(_config());
+    // R-037: two set-ups of the same link racing (an offer and our own
+    // add) made two peer connections — one of them unseen, sending our
+    // camera on top of the other. The first one stays; a link set up
+    // after the end goes at once.
+    final existing = _links[peer];
+    if (_closed || existing != null) {
+      await _guard('pc.dispose (duplicate)', () => disposePeerConnection(pc));
+      if (existing != null) return existing;
+      throw StateError('call media closed');
+    }
     final link = _Link(peer, pc);
     _links[peer] = link;
     for (final track in _mic!.getTracks()) {
@@ -302,6 +444,7 @@ class WebRtcCallMedia implements CallMedia {
         switch (s) {
           case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
             onState(CallMediaState.connected);
+            unawaited(_traceRoute(link));
           case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
             onState(CallMediaState.disconnected);
           case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
@@ -314,6 +457,28 @@ class WebRtcCallMedia implements CallMedia {
     _watchLevels();
     _watchQuality();
     return link;
+  }
+
+  /// R-402 (owner 2026-11-04): one trace line per connected link saying
+  /// which candidate pair won — host (same network), srflx (direct through
+  /// STUN) or relay (TURN) — so a weak or slow call can be told apart from
+  /// «no relay at all». Dev/test builds only ([callTrace] is silent in the
+  /// store build); the end-of-call stats line keeps reporting the route.
+  Future<void> _traceRoute(_Link link) async {
+    try {
+      final stats = linkStatsFrom(await link.pc.getStats());
+      if (stats == null) return;
+      final local = stats.localCandidate.isEmpty ? '?' : stats.localCandidate;
+      final remote =
+          stats.remoteCandidate.isEmpty ? '?' : stats.remoteCandidate;
+      final via = local == 'relay' || remote == 'relay' ? 'TURN' : 'direct';
+      callTrace(
+        'link to ${link.peer}: connected via local=$local remote=$remote '
+        '($via)',
+      );
+    } on Object {
+      // The link is closing.
+    }
   }
 
   // --- Link quality: thin the picture, keep the voice ----------------------
@@ -338,6 +503,7 @@ class WebRtcCallMedia implements CallMedia {
       try {
         final stats = linkStatsFrom(await link.pc.getStats());
         if (stats == null) continue;
+        _stats.add(stats);
         final q = link.tracker.add(stats);
         if (q.index > worst.index) worst = q;
         if (_video) {
@@ -394,6 +560,10 @@ class WebRtcCallMedia implements CallMedia {
 
   Map<String, dynamic> _config() => {
         'iceServers': [for (final s in _servers) s.toJson()],
+        // Owner 2026-11-04: set on every config, so a fresh list that says
+        // `all` (the relay failed) really opens the other routes again.
+        'iceTransportPolicy':
+            _servers.any((s) => s.relayOnly) ? 'relay' : 'all',
         'sdpSemantics': 'unified-plan',
         'iceCandidatePoolSize': 2,
         'bundlePolicy': 'max-bundle',
@@ -406,6 +576,7 @@ class WebRtcCallMedia implements CallMedia {
     final r = _webAudio[peer] ??= RTCVideoRenderer();
     await r.initialize();
     r.srcObject = stream;
+    CallWebAudioSinks.attach(r);
   }
 
   /// Group calls: who is talking — the audio levels of the incoming
@@ -594,9 +765,10 @@ class WebRtcCallMedia implements CallMedia {
   Future<void> removePeer(String peer) async {
     final link = _links.remove(peer);
     if (link == null) return;
-    await link.pc.close();
+    await _guard('pc.dispose', () => disposePeerConnection(link.pc));
     final r = _webAudio.remove(peer);
     if (r != null) {
+      CallWebAudioSinks.detach(r);
       r.srcObject = null;
       await r.dispose();
     }
@@ -619,9 +791,11 @@ class WebRtcCallMedia implements CallMedia {
 
   @override
   Future<void> setSpeaker(bool on) async {
-    // Browsers pick the output device themselves.
+    // Browsers pick the output device themselves (a chosen one: the
+    // call's audio route, CallWebAudioSinks). Owner 2026-11-04: a
+    // connected headset keeps the sound.
     if (kIsWeb) return;
-    await Helper.setSpeakerphoneOn(on);
+    await setCallSpeakerPreferHeadset(on);
   }
 
   @override
@@ -668,7 +842,7 @@ class WebRtcCallMedia implements CallMedia {
       return;
     }
     _frontCamera = true;
-    final cam = await navigator.mediaDevices.getUserMedia({
+    final cam = await _getUserMedia({
       'audio': false,
       'video': _cameraConstraints(),
     });
@@ -721,7 +895,7 @@ class WebRtcCallMedia implements CallMedia {
     final mic = _mic;
     if (mic == null || _links.isEmpty) return;
     _frontCamera = !_frontCamera;
-    final cam = await navigator.mediaDevices.getUserMedia({
+    final cam = await _getUserMedia({
       'audio': false,
       'video': _cameraConstraints(front: _frontCamera),
     });
@@ -743,27 +917,37 @@ class WebRtcCallMedia implements CallMedia {
   /// already stopped by a video toggle threw in `stop()`, the rest was
   /// skipped, the peer connection stayed open and the other phone kept our
   /// picture and voice.
+  ///
+  /// R-037 (owner 2026-10-28): the LiveKit order (`Room._cleanUp`: local
+  /// tracks unpublished and stopped → `engine.cleanUp` → each transport's
+  /// callbacks cleared, senders removed, `close()` + `dispose()`): our
+  /// camera and mic stop first, then every link goes without firing one
+  /// more callback into a call that is over.
   @override
   Future<void> close() async {
+    if (_closed) return;
+    _closed = true;
     _levelTimer?.cancel();
     _levelTimer = null;
     _qualityTimer?.cancel();
     _qualityTimer = null;
     _quality.value = LinkQuality.good;
-    final links = _links.values.toList();
-    _links.clear();
-    // The links first: the other side hears the hang-up at once.
-    for (final link in links) {
-      await _guard('pc.close', link.pc.close);
-    }
     for (final t in _mic?.getTracks() ?? const <MediaStreamTrack>[]) {
       await _guard('track.stop', t.stop);
+    }
+    final links = _links.values.toList();
+    _links.clear();
+    for (final link in links) {
+      await _guard('pc.dispose', () => disposePeerConnection(link.pc));
     }
     _local.value = null;
     _remote.value = null;
     _remotes.value = const {};
     _speaking.value = const {};
+    unawaited(_deviceSub?.cancel());
+    _deviceSub = null;
     for (final r in _webAudio.values) {
+      CallWebAudioSinks.detach(r);
       r.srcObject = null;
       await _guard('audio.dispose', r.dispose);
     }
@@ -774,6 +958,8 @@ class WebRtcCallMedia implements CallMedia {
     if (mic != null) await _guard('stream.dispose', mic.dispose);
     _video = false;
     _mutedNow = false;
+    final line = _stats.summary(links.length > 1 ? 'mesh' : 'p2p');
+    if (line != null) callStatsReport(line);
   }
 
   static Future<void> _guard(String step, Future<void> Function() run) async {

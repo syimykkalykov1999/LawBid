@@ -25,8 +25,25 @@ variable "hosted_zone_id" {
 }
 variable "dmarc_rua" { type = string }
 variable "ses_from_address" { type = string }
-variable "api_image" { type = string }
-variable "admin_image" { type = string }
+# Image pins. LEAVE BOTH EMPTY (default): the tag then comes from the SSM
+# parameter deploy.yml writes after every green release, so an apply never
+# moves prod to an older image (docs/dev/KNOWN_ERRORS.md #44). A non-empty
+# value pins that exact image (first launch, ARM64 switch, break-glass).
+variable "api_image" {
+  type        = string
+  default     = ""
+  description = "Full image reference for api + worker + migrate, or empty = <ECR>/lawbid-api:<last_good_tag from SSM>."
+}
+variable "admin_image" {
+  type        = string
+  default     = ""
+  description = "Full image reference for admin, or empty = <ECR>/lawbid-admin:<last_good_tag from SSM>."
+}
+variable "last_good_tag_ssm_parameter" {
+  type        = string
+  default     = "/lawbid-prod/deploy/last_good_tag"
+  description = "SSM parameter deploy.yml writes with the tag of the last release that passed every check."
+}
 variable "alert_emails" { type = list(string) }
 variable "slack_webhook_url" {
   type      = string
@@ -73,8 +90,9 @@ variable "redis_node_type" {
   default = "cache.r7g.large"
 }
 variable "redis_replicas" {
-  type    = number
-  default = 1
+  type        = number
+  default     = 0
+  description = "Standby Redis nodes at creation. Owner 2026-11-02: 0 (saves about $12 a month); the API adds the node by itself once people are online and the module ignores node-count drift (docs/runbooks/ha-auto.md)."
 }
 variable "api_max_tasks" {
   type    = number
@@ -350,8 +368,8 @@ variable "database_backup_retention_days" {
 # --- reliability (owner 2026-10-22, docs/runbooks/backups.md) -------------
 variable "database_multi_az" {
   type        = bool
-  default     = true
-  description = "RDS Multi-AZ for a Terraform-managed database; for the existing one it is checked at plan time (warning) and switched on in the console."
+  default     = false
+  description = "RDS Multi-AZ for a Terraform-managed database; for the existing one it is checked at plan time (warning); Terraform no longer reverts it, the API owns it from now on. Owner 2026-11-02: starts OFF (saves about $14 a month) and the API switches the existing database to Multi-AZ by itself once people are online (setting ha.provision_online_users, docs/runbooks/ha-auto.md); set true again here after that so the plan check stays quiet."
 }
 variable "existing_database_identifier" {
   type        = string
@@ -398,7 +416,7 @@ variable "db_autoscale_initial_ceiling_class" {
 }
 variable "db_autoscale_mode" {
   type        = string
-  default     = "on"
+  default     = "dry-run"
   description = "Start value of the switch: on | dry-run (e-mails what it would do, changes nothing) | off. Later changes are made in SSM, not here."
   validation {
     condition     = contains(["on", "dry-run", "off"], var.db_autoscale_mode)

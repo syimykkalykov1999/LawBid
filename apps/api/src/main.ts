@@ -1,9 +1,10 @@
 // Tracing must be wired before any instrumented module is required.
+import { warmCjkFonts } from './common/pdf-fonts/pdf-fonts';
 import { startTelemetry } from './telemetry/otel';
 
 startTelemetry('api');
 
-import { installProcessGuards } from './common/process-guards';
+import { installProcessGuards, runEntrypoint } from './common/process-guards';
 
 installProcessGuards();
 
@@ -30,6 +31,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true, // needed later for Stripe webhook signature verification (docs/06_PRODUCTION.md §1.5)
     bufferLogs: true,
+    abortOnError: false, // a start-up error must reach runEntrypoint, not process.abort()
   });
 
   // Logger, shutdown hooks, trust proxy, helmet, validation, global
@@ -38,6 +40,8 @@ async function bootstrap(): Promise<void> {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
+  // CJK PDF fonts (not in git): fetched in the background, sha256-checked.
+  void warmCjkFonts();
   // Every cipher has read its keys by now: drop them from the environment.
   scrubKeyEnv();
   // docs/06 §4.1 (stage 6.1): server-side request timeouts.
@@ -59,4 +63,4 @@ async function bootstrap(): Promise<void> {
   server.headersTimeout = server.keepAliveTimeout + 1_000; // 311 s
 }
 
-void bootstrap();
+void runEntrypoint('api', bootstrap);

@@ -8,6 +8,7 @@ import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/network_usage.dart';
+import 'package:lawbid/features/cases/application/paged_notifier.dart';
 
 import '../../helpers/fake_http_adapter.dart';
 
@@ -77,6 +78,33 @@ void main() {
     expect(usage.value.requests, 2);
   });
 
+  test('mustAskAgain ends the cachedFor window for that path only', () async {
+    final dio = build();
+    final cache = dio.interceptors.whereType<HttpCacheInterceptor>().single;
+    final hour = cachedFor(const Duration(hours: 1));
+    await dio.get<dynamic>('/attorneys/jane.doe', options: hour);
+    await dio.get<dynamic>('/attorneys/other', options: hour);
+    final before = adapter.requests.length;
+
+    await dio.get<dynamic>('/attorneys/jane.doe', options: hour);
+    expect(adapter.requests.length, before, reason: 'still fresh');
+
+    // Any case: the link may spell the handle differently.
+    cache.mustAskAgain('/attorneys/Jane.Doe');
+    etag = 'W/"v2"';
+    body = {'data': 'two'};
+    final fresh = await dio.get<dynamic>(
+      '/attorneys/jane.doe',
+      options: hour,
+    );
+    expect(adapter.requests.length, before + 1);
+    expect(adapter.requests.last.headers['If-None-Match'], 'W/"v1"');
+    expect((fresh.data as Map)['data'], 'two');
+
+    await dio.get<dynamic>('/attorneys/other', options: hour);
+    expect(adapter.requests.length, before + 1, reason: 'other is untouched');
+  });
+
   test('cachedFor serves the copy with no request while it is fresh', () async {
     final usage = NetworkUsageCounter();
     final dio = build(usage: usage);
@@ -109,6 +137,101 @@ void main() {
       options: cachedFor(const Duration(hours: 1)),
     );
     expect(adapter.requests.length, 2);
+  });
+
+  test('readFromPhoneOnly: the copy is served with no request, any age',
+      () async {
+    final dio = build();
+    await dio.get<dynamic>('/cases/mine');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final before = adapter.requests.length;
+    now = now.add(const Duration(days: 3));
+
+    // A new process (empty memory): the disk copy answers.
+    final restarted = build();
+    final r = (await readFromPhoneOnly(
+      () => restarted.get<Map<String, dynamic>>('/cases/mine'),
+    ))!;
+    expect(r.data, body);
+    expect(r.extra[kFromCacheExtra], true);
+    expect(adapter.requests.length, before, reason: 'no request at all');
+  });
+
+  test('readFromPhoneOnly: no copy fails without touching the network',
+      () async {
+    final dio = build();
+    await expectLater(
+      readFromPhoneOnly(() => dio.get<dynamic>('/never/seen')),
+      throwsA(
+        isA<DioException>().having((e) => e.error, 'error', kNoPhoneCopy),
+      ),
+    );
+    expect(adapter.requests, isEmpty);
+    // Outside the helper the same GET goes out as before.
+    await dio.get<dynamic>('/never/seen');
+    expect(adapter.requests, hasLength(1));
+  });
+
+  test('the phone-only disk wait stays under the list copy budget', () {
+    expect(
+      HttpCacheInterceptor().phoneOnlyDiskWait,
+      lessThan(PagedNotifier.savedCopyTimeout),
+    );
+  });
+
+  test('readFromPhoneOnly: a slow disk is a miss before the list gives up',
+      () async {
+    final slow = _SlowStore(
+      const Duration(milliseconds: 300),
+      HttpCacheEntry(
+        etag: 'e',
+        data: body,
+        bytes: 10,
+        fetchedAt: now,
+      ),
+    );
+    Dio make() => Dio(BaseOptions(baseUrl: 'https://api.test'))
+      ..httpClientAdapter = adapter
+      ..interceptors.add(
+        HttpCacheInterceptor(
+          disk: slow,
+          phoneOnlyDiskWait: const Duration(milliseconds: 50),
+          now: () => now,
+        ),
+      );
+
+    final sw = Stopwatch()..start();
+    await expectLater(
+      readFromPhoneOnly(() => make().get<dynamic>('/slow')),
+      throwsA(
+        isA<DioException>().having((e) => e.error, 'error', kNoPhoneCopy),
+      ),
+    );
+    expect(sw.elapsedMilliseconds, lessThan(290));
+    expect(adapter.requests, isEmpty);
+
+    // The normal path keeps its longer wait and still uses the disk copy.
+    final r = await make().get<dynamic>('/slow');
+    expect(r.data, body);
+    expect(adapter.requests.single.headers['If-None-Match'], 'e');
+  });
+
+  test('cold start offline: the phone copy opens the screen, live read fails',
+      () async {
+    await build().get<dynamic>('/cases/mine');
+    for (var i = 0; i < 100 && await db.httpBytes() == 0; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    adapter.handler = (o) async => throwConnectionError(o);
+    final restarted = build(); // empty memory, disk only
+    final copy = (await readFromPhoneOnly(
+      () => restarted.get<Map<String, dynamic>>('/cases/mine'),
+    ))!;
+    expect(copy.data, body);
+    // The refresh that follows is served stale-if-error, never an empty list.
+    final live = await restarted.get<dynamic>('/cases/mine');
+    expect(live.data, body);
+    expect(live.extra[kStaleExtra], true);
   });
 
   test('stale-if-error: a dead network or 502-504 serves the copy', () async {
@@ -226,25 +349,78 @@ void main() {
 
   test('limits: the user may only lower the admin ceiling', () {
     final l = CacheLimits.fromAppConfig(
-      {'cache.limit_mb.http': '32', 'cache.keep_media_days.default': '30'},
+      {'cache.limit_mb.http': '32'},
       userMb: {CacheStore.http: 64, CacheStore.images: 100},
-      userKeepMediaDays: 7,
     );
     expect(l.limitMb(CacheStore.http), 32);
     expect(l.limitMb(CacheStore.images), 100);
-    expect(l.limitMb(CacheStore.video), 1000);
-    expect(l.keepMediaDays, 7);
-    expect(l.keepMedia, KeepMedia.week);
+    expect(l.limitMb(CacheStore.video), 0, reason: 'no own ceiling');
+    // The media stores have no ceiling of their own: the cap rules them.
+    expect(l.limitMb(CacheStore.chatMedia), 0);
     expect(
-      CacheLimits.fromAppConfig(const {}, userKeepMediaDays: 0).keepMediaDays,
-      30,
-    );
-    expect(
-      CacheLimits.fromAppConfig(
-        const {'cache.keep_media_days.default': '0'},
-        userKeepMediaDays: 0,
-      ).keepMedia,
-      KeepMedia.always,
+      l.limitBytes(CacheStore.chatMedia),
+      CacheLimits.unboundedBytes,
     );
   });
+
+  test('server ceilings of 0 leave the 10 GB cap in charge of the media', () {
+    final l = CacheLimits.fromAppConfig(const {
+      'cache.limit_mb.images': '0',
+      'cache.limit_mb.chat_media': '0',
+      'cache.limit_mb.files': '0',
+      'cache.limit_mb.video': '0',
+    });
+    for (final s in [
+      CacheStore.images,
+      CacheStore.chatMedia,
+      CacheStore.files,
+      CacheStore.video,
+    ]) {
+      expect(l.limitBytes(s), CacheLimits.unboundedBytes, reason: s.name);
+    }
+    expect(l.capBytes, 10 * 1024 * 1024 * 1024);
+  });
+
+  test('cap and auto-delete: owner defaults, user choices', () {
+    const d = CacheLimits();
+    expect(d.capMb, 10 * 1024, reason: 'default 10 GB');
+    expect(d.capBytes, 10 * 1024 * 1024 * 1024);
+    expect(d.autoDelete(AutoDeleteScope.privateChats), AutoDeleteAge.never);
+    expect(d.autoDelete(AutoDeleteScope.groups), AutoDeleteAge.month);
+    expect(d.autoDelete(AutoDeleteScope.feed), AutoDeleteAge.week);
+    final u = CacheLimits.fromAppConfig(
+      const {},
+      userCapMb: 0,
+      userAutoDeleteDays: {AutoDeleteScope.groups: 3},
+    );
+    expect(u.capBytes, isNull, reason: '«Нет»');
+    expect(u.autoDelete(AutoDeleteScope.groups), AutoDeleteAge.threeDays);
+    expect(AutoDeleteAge.fromDays(5), AutoDeleteAge.week);
+  });
+}
+
+/// A disk that answers [delay] late (a busy phone).
+class _SlowStore implements HttpCacheStore {
+  _SlowStore(this.delay, this.entry);
+  final Duration delay;
+  final HttpCacheEntry entry;
+
+  @override
+  Future<HttpCacheEntry?> read(String key) async {
+    await Future<void>.delayed(delay);
+    return entry;
+  }
+
+  @override
+  Future<void> write(String key, HttpCacheEntry entry, String json) async {}
+
+  @override
+  Future<void> touch(
+    String key,
+    DateTime now, {
+    required bool confirmed,
+  }) async {}
+
+  @override
+  Future<void> clear() async {}
 }

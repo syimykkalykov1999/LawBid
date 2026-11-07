@@ -19,7 +19,7 @@ import {
 import { GroupsModule } from './groups.module';
 import { GroupsService } from './groups.service';
 import { bullOptions } from '../../redis/redis-connection';
-import { closeWorker } from '../../common/queues/queue-hardening';
+import { closeWorker, outageProof } from '../../common/queues/queue-hardening';
 
 export const GROUP_FANOUT_OPTIONS = Symbol('GROUP_FANOUT_OPTIONS');
 
@@ -62,7 +62,7 @@ export class GroupFanoutWorker
     for (let i = 0; i < GROUP_FANOUT_PARTITIONS; i++) {
       const worker = new Worker<GroupFanoutJob>(
         fanoutQueueName(i),
-        (job: Job<GroupFanoutJob>) => this.process(job.data),
+        outageProof((job: Job<GroupFanoutJob>) => this.process(job.data)),
         {
           ...bullOptions(fanoutQueueName(i), url, { worker: true }),
           concurrency: 1,

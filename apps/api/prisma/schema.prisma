@@ -333,6 +333,8 @@ enum CaseJournalEvent {
   contacts_disclosed
   completion_requested
   completion_confirmed
+  // R-392: the other side answered «Не закрывать» (back to in_progress).
+  completion_declined
   auto_closed
   disputed
   dispute_resolved
@@ -509,6 +511,8 @@ enum NotificationType {
   case_archived
   completion_requested
   completion_reminder
+  bid_changed
+  bid_confirm_reminder
   case_closed
   new_message
   new_follower
@@ -928,6 +932,7 @@ model User {
   blocked_by                  UserBlock[]                    @relation("Blocked")
   saved_items                 SavedItem[]
   saved_chat_messages         SavedChatMessage[]
+  quick_replies               QuickReply[]
   conversations_attorney      Conversation[]                 @relation("ConversationAttorney")
   conversations_client        Conversation[]                 @relation("ConversationClient")
   conversation_memberships    ConversationParticipant[]
@@ -1049,6 +1054,9 @@ model File {
   source_sha256      String?
   width              Int?
   height             Int?
+  /// BlurHash (4x3) of a clean image, drawn by the app as a placeholder
+  /// while the picture loads. Null for non-images / not yet computed.
+  blurhash           String?            @db.VarChar(40)
   scan_status        ScanStatus         @default(pending)
   is_public          Boolean            @default(false)
   deleted_at         DateTime?          @db.Timestamptz
@@ -1579,7 +1587,9 @@ model CountryWaitlist {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   country_code String    @db.Char(2)
   country      Country   @relation(fields: [country_code], references: [code], onDelete: Cascade)
-  email        String
+  /// Optional (owner 2026-11-02: no mail is required, a country is enough);
+  /// rows without an address only count demand and are never mailed.
+  email        String?
   locale       String    @default("en")
   created_at   DateTime  @default(now()) @db.Timestamptz
   notified_at  DateTime? @db.Timestamptz
@@ -2085,6 +2095,13 @@ model Bid {
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
   version                 Int               @default(0)
+  /// Owner 2026-11-05: the client changed the open case; the bid waits for the
+  /// attorney (`bids.confirmation_required`). Null = nothing to confirm.
+  confirmation_required_at DateTime?        @db.Timestamptz
+  /// When the attorney last confirmed or changed the bid after such a change.
+  confirmed_at             DateTime?        @db.Timestamptz
+  /// The one reminder has gone out for the current wait.
+  confirm_reminded_at      DateTime?        @db.Timestamptz
 
   accepted_for_case  Case?                @relation("CaseAcceptedBid")
   offers             BidOffer[]
@@ -3218,6 +3235,9 @@ model ChatGroup {
   /// Owner 2026-10-21 (Telegram «Запретить копирование»): no forwarding,
   /// copying or saving of the group's messages; sharing sends the link.
   protect_content       Boolean   @default(false)
+  /// Owner 2026-11-02 (Telegram «Медленный режим»): seconds a non-admin must
+  /// wait between two own messages; null = off.
+  slow_mode_s           Int?
   /// Telegram's member permissions beyond post / add / edit-info / call.
   who_can_media         GroupWho  @default(all)
   who_can_poll          GroupWho  @default(all)
@@ -3789,6 +3809,33 @@ model BillingDuplicateFix {
 /// failed payouts and refunds, disputes, early fraud warnings, a disconnect
 /// from the platform, a disabled capability. One open row per (kind,
 /// stripe_ref); `due_at` is the SLA clock (or Stripe's evidence deadline).
+/// R-237 (owner 2026-11-05): a bank inquiry on a subscription charge the
+/// automatic refund acted on or held for a person. One row per dispute: the
+/// unique id is what makes a repeated webhook unable to refund twice.
+model BillingDisputeRefund {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dispute_id   String   @unique @db.VarChar(80)
+  user_id      String   @db.Uuid
+  payment_id   String   @db.Uuid
+  /// refunding | refunded | review | rejected | no_refund
+  status       String   @db.VarChar(16)
+  /// Why it waits or was not refunded (over_amount, user_limit, daily_cap,
+  /// prior_dispute, fraud_review, escalated, closed, refund_failed, ...).
+  reason       String?  @db.VarChar(40)
+  amount_cents Int
+  currency     String   @default("usd") @db.VarChar(3)
+  refund_id    String?  @db.Uuid
+  /// The admin who approved or rejected a held refund.
+  decided_by   String?  @db.Uuid
+  note         String?  @db.VarChar(300)
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @updatedAt @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([created_at(sort: Desc), id(sort: Desc)])
+  @@map("billing_dispute_refunds")
+}
+
 model StripeReviewItem {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// payout_failed | refund_failed | dispute | early_fraud_warning |
@@ -4488,6 +4535,7 @@ model PostViewEvent {
   @@index([post_id, viewer_id, kind, created_at(sort: Desc)])
   @@index([post_id, kind, created_at(sort: Desc)])
   @@index([viewer_id], map: "post_view_events_viewer_id_idx")
+  @@index([created_at], map: "post_view_events_created_idx")
   @@map("post_view_events")
 }
 
@@ -6757,6 +6805,22 @@ model StorageSnapshot {
   @@map("storage_snapshots")
 }
 
+/// R-401 (owner 2026-11-04): the nightly Q&A ranking snapshot
+/// (docs/architecture/QA_RECOMMENDATIONS_2026-11-04.md). kind = attorney
+/// (key = attorney id: score, answers, likes, best, topics), topic_attorneys /
+/// topic_questions / topic_cases (key = practice category id: ranked ids),
+/// meta (key = last_run). Read paths read this (Redis hot copy first);
+/// an empty table = today's behaviour.
+model RecoQaSnapshot {
+  kind        String   @db.VarChar(32)
+  key         String   @db.VarChar(80)
+  payload     Json
+  computed_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([kind, key])
+  @@map("reco_qa_snapshots")
+}
+
 /// Owner 2026-10-05 (docs/CLIENT_FRAUD.md): hashed identity signals of an
 /// account — phone, e-mail, Apple / Google subject, on-device key, card,
 /// IP, case text. HMAC-SHA256 only, never the value. A sign-in sharing a
@@ -8032,6 +8096,10 @@ model LegalAnswer {
   /// state_not_licensed — shown to the admin only.
   safety_flags String[]      @default([])
   content_hash String?       @db.VarChar(64)
+  /// R-401 (owner 2026-11-04): the assistant who typed the answer with the
+  /// «qa_answers» duty; null = the attorney themself. The answer is the
+  /// attorney's either way (attorney_id).
+  authored_by_user_id String? @db.Uuid
   created_at   DateTime      @default(now()) @db.Timestamptz
   updated_at   DateTime      @updatedAt @db.Timestamptz
 
@@ -8945,4 +9013,27 @@ model StaffDigest {
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@map("staff_digests")
+}
+
+/// Owner 2026-11-02: quick replies (WhatsApp Business): ready-made answers an
+/// attorney inserts into a chat from the composer. Private to the owner;
+/// at most QUICK_REPLIES_MAX per person (the API counts under a per-person
+/// advisory lock).
+model QuickReply {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// Short name shown in the picker.
+  title      String   @db.VarChar(60)
+  body       String   @db.VarChar(1000)
+  /// Order in the list (ascending); new ones go last (insertion order).
+  position   Int      @default(0)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
+  shard_id Int @default(0) @db.SmallInt
+
+  @@index([user_id, position, created_at])
+  @@map("quick_replies")
 }

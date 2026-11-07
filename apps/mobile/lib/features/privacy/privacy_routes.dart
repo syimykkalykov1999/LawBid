@@ -16,16 +16,23 @@ abstract final class PrivacyRoutes {
   static const notices = '/profile/settings/privacy/decisions';
 }
 
-List<RouteBase> privacyRoutes(GlobalKey<NavigatorState> root) => [
+List<RouteBase> privacyRoutes(
+  GlobalKey<NavigatorState> root, {
+  Widget Function(String location, Widget page)? sectionPage,
+}) =>
+    [
       GoRoute(
         path: PrivacyRoutes.privacy,
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'privacy_screen',
-            load: d_privacy_screen.loadLibrary,
-            builder: (_) => d_privacy_screen.PrivacyScreen(),
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
+              id: 'privacy_screen',
+              load: d_privacy_screen.loadLibrary,
+              builder: (_) => d_privacy_screen.PrivacyScreen(),
+            ),
           ),
         ),
       ),
@@ -55,3 +62,5 @@ List<RouteBase> privacyRoutes(GlobalKey<NavigatorState> root) => [
         ),
       ),
     ];
+
+Widget _plain(String location, Widget page) => page;

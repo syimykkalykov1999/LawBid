@@ -95,6 +95,7 @@ import { CaseFanoutModule } from './modules/notifications/case-fanout/case-fanou
 import { GroupFanoutModule } from './modules/groups/group-fanout.module';
 import { ForwardModule } from './modules/forward/forward.module';
 import { ChatSavedModule } from './modules/chat-saved/chat-saved.module';
+import { QuickRepliesModule } from './modules/quick-replies/quick-replies.module';
 import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
@@ -224,6 +225,8 @@ export const pinoHttpOptions: PinoHttpOptions = {
       'req.body.currentPassword',
       'req.body.newPassword',
       'req.body.totp',
+      // Owner 2026-11-03: the ring ticket of POST /calls/:id/status/decline.
+      'req.body.t',
       'req.body.token',
       'req.body.secret',
       'req.body.apiKey',
@@ -416,6 +419,7 @@ const isDev =
     RealtimeGatewayModule,
     ChatModule,
     ChatSavedModule,
+    QuickRepliesModule,
     TranslationModule,
     CallsModule,
     MentionsModule,

@@ -93,7 +93,14 @@ class WebPageFrame extends ConsumerWidget {
     // Notifications to the menu; the chats pages take the whole width next
     // to the narrow menu and split it themselves (list | chat).
     final desktop = windowClassOf(context).isDesktop;
-    final listDetail = desktop && isListDetailLocation(location);
+    final listDetail = desktop &&
+        (isListDetailLocation(location) ||
+            isCaseDetailLocation(location) ||
+            isSettingsLocation(location));
+    // The public profile splits the width itself (profile | side pane) but
+    // keeps the full menu.
+    final ownWidth =
+        listDetail || (desktop && isPublicProfileLocation(location));
     final extended = layout == ShellLayout.extendedRail && !listDetail;
     final translator = ref.watch(translatorProvider);
     final tabs = tabsForRole(ref.watch(currentUserRoleProvider), translator);
@@ -137,7 +144,7 @@ class WebPageFrame extends ConsumerWidget {
                   ),
           ),
           Expanded(
-            child: listDetail
+            child: ownWidth
                 ? child
                 : ContentColumn(
                     maxWidth: extended ? kShellContentMaxWidth : null,

@@ -4,6 +4,11 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import { demoContext } from '../demo/demo-context';
 import { SecretEnvelope } from './secret-envelope';
 import { SecretsService } from './secrets.service';
+import {
+  brokenRedis,
+  fakeSubscriber,
+  redisWithSubscriber,
+} from '../../redis/subscribe-in-background.test-support';
 
 const KEYS = 'k1:0123456789abcdef0123456789abcdef';
 
@@ -61,5 +66,74 @@ describe('SecretsService in the demo world (owner 2026-10-20)', () => {
     const creds = await service.get('turn');
     expect(creds?.fields.secret).toBe('s3cret');
     expect(seenDemo).toEqual([false]);
+  });
+});
+
+describe('SecretsService.reencryptStores', () => {
+  function setup(rows: Array<{ id: string; join_code_enc: string | null }>) {
+    const wheres: unknown[] = [];
+    const prisma = {
+      assistantMembership: {
+        findMany: jest.fn((args: { where: unknown }) => {
+          wheres.push(args.where);
+          return Promise.resolve(wheres.length === 1 ? rows : []);
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      stateBarRegistry: { findMany: () => Promise.resolve([]) },
+      adminCredential: { findMany: () => Promise.resolve([]) },
+    } as unknown as PrismaService;
+    const config = {
+      get: (k: string) =>
+        k === 'SECRETS_MASTER_KEYS'
+          ? KEYS
+          : k === 'SECRETS_ACTIVE_KID'
+            ? 'k1'
+            : undefined,
+    } as unknown as ConfigService;
+    const service = new SecretsService(prisma, config, {} as unknown as Redis);
+    return { service, wheres };
+  }
+
+  it('never filters a uuid column by an empty string on the first page', async () => {
+    const { service, wheres } = setup([]);
+    await service.reencryptStores();
+    const first = JSON.stringify(wheres[0]);
+    expect(first).not.toContain('"gt":""');
+    expect(wheres[0]).not.toHaveProperty('id');
+  });
+
+  it('pages with the last id as the cursor, a real uuid', async () => {
+    const rows = Array.from({ length: 200 }, (_, i) => ({
+      id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+      join_code_enc: 'plain:X',
+    }));
+    const { service, wheres } = setup(rows);
+    await service.reencryptStores();
+    expect(wheres).toHaveLength(2);
+    expect((wheres[1] as { id: { gt: string } }).id.gt).toBe(rows[199].id);
+  });
+});
+
+describe('SecretsService without Redis', () => {
+  const make = (redis: Redis) =>
+    new SecretsService(
+      { integrationCredential: {} } as unknown as PrismaService,
+      { get: () => undefined } as unknown as ConfigService,
+      redis,
+    );
+
+  it('onModuleInit returns while SUBSCRIBE still waits; the handler is wired; shutdown drops the client', async () => {
+    const { sub, handlers } = fakeSubscriber();
+    const service = make(redisWithSubscriber(sub));
+    service.onModuleInit(); // synchronous by type
+    expect(sub.subscribe).toHaveBeenCalledWith(expect.any(String));
+    expect(handlers).toHaveLength(1);
+    await service.onModuleDestroy();
+    expect(sub.disconnect).toHaveBeenCalled();
+  });
+
+  it('a duplicate() that throws degrades to «pub/sub unavailable», never a failed boot', () => {
+    expect(() => make(brokenRedis()).onModuleInit()).not.toThrow();
   });
 });

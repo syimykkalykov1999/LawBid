@@ -87,7 +87,7 @@ export class GroupFanoutQueue
     this.logger.setContext(GroupFanoutQueue.name);
   }
 
-  async onApplicationBootstrap(): Promise<void> {
+  onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url) return;
     this.queues = Array.from(
@@ -98,22 +98,33 @@ export class GroupFanoutQueue
           bullOptions(fanoutQueueName(i), url),
         ),
     );
-    // One job at a time per partition, whichever process runs it.
-    await Promise.all(
-      this.queues.map((q) =>
-        q
-          .setGlobalConcurrency(1)
-          .catch((error: unknown) =>
-            this.logger.warn(
-              { queue: q.name, err: errMsg(error) },
-              'group fan-out concurrency not set',
-            ),
+    this.configureInBackground();
+  }
+
+  /**
+   * One job at a time per partition, whichever process runs it. BullMQ
+   * answers only once its connection is ready, so this is not awaited: with
+   * Redis away at start the API never opened its port (load test
+   * 2026-11-02, PR #606). The setting is idempotent and lands as soon as
+   * Redis is reachable (BullMQ defers its own queue meta the same way).
+   * @internal exposed for the spec
+   */
+  configureInBackground(): void {
+    for (const q of this.queues ?? []) {
+      void q
+        .setGlobalConcurrency(1)
+        .catch((error: unknown) =>
+          this.logger.warn(
+            { queue: q.name, err: errMsg(error) },
+            'group fan-out concurrency not set',
           ),
-      ),
-    );
+        );
+    }
   }
 
   async onApplicationShutdown(): Promise<void> {
+    // Queue.close() on the shared producer connection returns at once even
+    // while Redis is away (bullmq: a shared connection is never quit here).
     await Promise.all((this.queues ?? []).map((q) => q.close()));
   }
 

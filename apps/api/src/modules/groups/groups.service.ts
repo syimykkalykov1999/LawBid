@@ -10,7 +10,11 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
+  Inject,
   Injectable,
+  Logger,
   Optional,
   NotFoundException,
 } from '@nestjs/common';
@@ -23,13 +27,16 @@ import type {
   ChatGroupMessage,
   ChatGroupTopic,
 } from '@prisma/client';
+import type Redis from 'ioredis';
 import { Subject } from 'rxjs';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import {
   parseUpdatedSince,
   syncedAt,
@@ -153,6 +160,8 @@ export interface Membership {
  */
 @Injectable()
 export class GroupsService {
+  private readonly slowLog = new Logger('GroupSlowMode');
+
   readonly membershipEnded$ = new Subject<MembershipEnded>();
 
   constructor(
@@ -173,6 +182,9 @@ export class GroupsService {
     // are admin settings again.
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly limits?: UsageLimitsService,
+    // Replica seam: the discover rows come from a cached snapshot anyway.
+    @Optional() private readonly replica?: PrismaReadService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
   /** `groups.max_members` (admin), never above the hard ceiling. */
@@ -595,7 +607,8 @@ export class GroupsService {
       dto.username !== undefined ||
       dto.joinApproval !== undefined ||
       dto.topicsEnabled !== undefined ||
-      dto.protectContent !== undefined;
+      dto.protectContent !== undefined ||
+      dto.slowModeS !== undefined;
     const info =
       dto.title !== undefined ||
       dto.description !== undefined ||
@@ -649,6 +662,8 @@ export class GroupsService {
           : { connect: { id: dto.avatarFileId } };
     }
     if (disappearing) data.disappear_after_s = dto.disappearAfterS || null;
+    // Owner 2026-11-02 (Telegram «Медленный режим»): 0 / null = off.
+    if (dto.slowModeS !== undefined) data.slow_mode_s = dto.slowModeS || null;
     if (dto.whoCanPost) data.who_can_post = dto.whoCanPost;
     if (dto.whoCanAdd) data.who_can_add = dto.whoCanAdd;
     if (dto.whoCanEditInfo) data.who_can_edit_info = dto.whoCanEditInfo;
@@ -1314,7 +1329,11 @@ export class GroupsService {
     const next =
       start + limit < ranked.length ? encodeOffset(start + limit) : null;
     if (slice.length === 0) return { items: [], nextCursor: next };
-    const rows = await this.prisma.chatGroup.findMany({
+    // Rows of a cached ranked snapshot: a few seconds of lag is invisible.
+    // My memberships / join requests (read-your-writes) stay on the primary.
+    const rows = await (
+      this.replica?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma
+    ).chatGroup.findMany({
       where: {
         id: { in: slice.map((r) => r.id) },
         group_type: 'public',
@@ -1583,6 +1602,55 @@ export class GroupsService {
     );
   }
 
+  /**
+   * Owner 2026-11-02 (Telegram «Медленный режим»): a member who is not an
+   * admin sends one message per `slow_mode_s` seconds. One Redis key per
+   * (group, person) holding the time of the last send; the pause is compared
+   * with the CURRENT setting, so lowering or switching it off frees people at
+   * once. SET NX EX = one round trip in the common case, only in groups that
+   * switched it on. Redis down = the message goes through (slow mode is a
+   * courtesy, not a security fence; logged). Returns a function that gives
+   * the slot back when the message was not stored after all.
+   */
+  async takeSlowModeSlot(
+    m: { admin: boolean; group: { id: string; slow_mode_s: number | null } },
+    userId: string,
+  ): Promise<() => Promise<void>> {
+    const wait = m.group.slow_mode_s;
+    const noop = (): Promise<void> => Promise.resolve();
+    if (m.admin || !wait || !this.redis) return noop;
+    const redis = this.redis;
+    const key = `group:slow:${m.group.id}:${userId}`;
+    const release = async (): Promise<void> => {
+      await redis.del(key).catch(() => undefined);
+    };
+    let left = 0;
+    try {
+      // The key outlives a shortened setting at most; its value, not its
+      // TTL, decides.
+      const now = Date.now();
+      const taken = await redis.set(key, String(now), 'EX', 3600, 'NX');
+      if (taken) return release;
+      const last = Number(await redis.get(key));
+      left = Math.ceil((last + wait * 1000 - now) / 1000);
+      if (!(left > 0)) {
+        await redis.set(key, String(now), 'EX', 3600);
+        return release;
+      }
+    } catch (error) {
+      this.slowLog.warn(`slow mode skipped, Redis failed: ${String(error)}`);
+      return noop;
+    }
+    throw new HttpException(
+      {
+        code: ErrorCode.RATE_LIMITED,
+        message: 'Slow mode is on in this group.',
+        details: { kind: 'group_slow_mode', retryAfterSeconds: left },
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
+
   /** 409 GROUP_USERNAME_TAKEN for the unique-@username violation. */
   private usernameTaken(error: unknown): ConflictException | null {
     if (
@@ -1672,6 +1740,8 @@ export class GroupsService {
           })
         ).map((r) => r.user_id)
       : [];
+    // After every check: a refused message must not burn the member's slot.
+    const giveSlotBack = await this.takeSlowModeSlot(m, user.sub);
     let row: ChatGroupMessage;
     try {
       row = await withTxRetry(this.prisma, async (tx) => {
@@ -1709,6 +1779,7 @@ export class GroupsService {
         return created;
       });
     } catch (error) {
+      await giveSlotBack();
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -2600,6 +2671,7 @@ export class GroupsService {
       showServiceMessages: g.show_service_messages,
       disappearAfterS: g.disappear_after_s,
       protectContent: g.protect_content,
+      slowModeS: g.slow_mode_s,
       lastMessageAt: g.last_message_at,
       updatedAt: g.updated_at,
     };

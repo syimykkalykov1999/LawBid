@@ -50,6 +50,22 @@ export const NOTIFICATION_TEMPLATES: Partial<
     en: { title: 'New bid', body: 'An attorney sent a bid on your case.' },
     ru: { title: 'Новый бид', body: 'Адвокат отправил бид на ваш кейс.' },
   },
+  bid_changed: {
+    group: 'bids',
+    en: { title: 'The attorney changed the bid', body: 'See the new terms.' },
+    ru: { title: 'Адвокат поменял бид', body: 'Посмотрите новые условия.' },
+  },
+  bid_confirm_reminder: {
+    group: 'bids',
+    en: {
+      title: 'The client changed the case',
+      body: 'Confirm, change or withdraw your bid.',
+    },
+    ru: {
+      title: 'Клиент изменил кейс',
+      body: 'Подтвердите, поменяйте или отзовите бид.',
+    },
+  },
   offer_countered: {
     group: 'bids',
     en: {

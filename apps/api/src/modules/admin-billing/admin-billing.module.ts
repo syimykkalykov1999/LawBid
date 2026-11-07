@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
+import { AdminLaunchModule } from '../admin-launch/admin-launch.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AdminBillingController } from './admin-billing.controller';
@@ -14,6 +15,7 @@ import { BillingPromoController } from './billing-promo.controller';
 import { ContractGrantsService } from './contract-grants.service';
 import { PromoCodesService } from './promo-codes.service';
 import { RefundsService } from './refunds.service';
+import { DisputeRefundsAdminService } from './dispute-refunds-admin.service';
 import { SeatChangesAdminService } from './seat-changes-admin.service';
 import { DuplicateFixesAdminService } from './duplicate-fixes-admin.service';
 import {
@@ -33,6 +35,8 @@ import { LedgerModule } from '../ledger/ledger.public';
 @Module({
   imports: [
     AdminAccessModule,
+    // Owner 2026-11-04 (R-399): a saved price rebuilds the public site.
+    AdminLaunchModule,
     NotificationsModule,
     SubscriptionsModule,
     LedgerModule,
@@ -57,6 +61,8 @@ import { LedgerModule } from '../ledger/ledger.public';
     SeatChangesAdminService,
     // Algo audit M-4: «Двойные подписки».
     DuplicateFixesAdminService,
+    // R-237: «Возвраты по спорам».
+    DisputeRefundsAdminService,
     BillingOverviewService,
     AdminPricingService,
     AdminPlansService,

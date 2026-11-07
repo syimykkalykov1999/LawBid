@@ -585,6 +585,8 @@ export enum ErrorCode {
   // 409: `deal_record.enabled` is on — accept through POST /deal-records
   // (an old app build shows "update the app").
   DEAL_RECORD_REQUIRED = 'DEAL_RECORD_REQUIRED',
+  // 409: the client changed the case; the attorney has not confirmed this bid.
+  BID_CONFIRMATION_REQUIRED = 'BID_CONFIRMATION_REQUIRED',
   // 409: this case already has a deal record waiting for signatures.
   DEAL_RECORD_PENDING = 'DEAL_RECORD_PENDING',
   // 409: the record is not in a state that allows this (sign twice, decline
@@ -595,4 +597,11 @@ export enum ErrorCode {
   // 400: the payment terms object breaks the rules of its type.
   // details: { problems: string[] }.
   PAYMENT_TERMS_INVALID = 'PAYMENT_TERMS_INVALID',
+  // Owner 2026-11-05 (Settings → Account «Сменить профиль»).
+  // 409: something in the current profile must be finished first.
+  // details: { blockers: RoleSwitchBlocker[] }.
+  ROLE_SWITCH_BLOCKED = 'ROLE_SWITCH_BLOCKED',
+  // 403: this account cannot switch (an assistant, a suspended account,
+  // a demo session).
+  ROLE_SWITCH_NOT_ALLOWED = 'ROLE_SWITCH_NOT_ALLOWED',
 }

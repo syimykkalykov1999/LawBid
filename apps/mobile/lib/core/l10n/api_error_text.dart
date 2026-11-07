@@ -84,6 +84,7 @@ bool isOfflineError(Object? error) =>
 const _keys = <String, String>{
   ApiException.networkErrorCode: 'error.api.NETWORK_ERROR',
   ApiErrorCodes.validationError: 'error.api.VALIDATION_ERROR',
+  ApiErrorCodes.bidConfirmationRequired: 'cases.bid.waitConfirm',
   ApiErrorCodes.dealRecordPending: 'error.api.DEAL_RECORD_PENDING',
   ApiErrorCodes.dealRecordInvalidState: 'error.api.DEAL_RECORD_INVALID_STATE',
   ApiErrorCodes.paymentTermsInvalid: 'error.api.PAYMENT_TERMS_INVALID',
@@ -277,6 +278,7 @@ const _keys = <String, String>{
       'error.api.CLIENT_CONTACTS_INCOMPLETE',
   ApiErrorCodes.onboardingIncomplete: 'error.api.ONBOARDING_INCOMPLETE',
   ApiErrorCodes.roleAlreadySet: 'error.api.ROLE_ALREADY_SET',
+  ApiErrorCodes.roleSwitchBlocked: 'account.roleSwitch.blocked',
   ApiErrorCodes.i18nLanguageNotFound: 'error.api.I18N_LANGUAGE_NOT_FOUND',
   ApiErrorCodes.accountSuspended: 'error.api.ACCOUNT_SUSPENDED',
   ApiErrorCodes.accountRestricted: 'error.api.ACCOUNT_RESTRICTED',

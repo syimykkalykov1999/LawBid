@@ -8,6 +8,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
+import 'package:lawbid/features/profile/presentation/widgets/desktop_profile.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart'
     show GiftHeaderButton;
@@ -136,36 +137,40 @@ class AttorneyProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
-    return Scaffold(
-      backgroundColor: colors.bg,
-      // Owner 2026-09-29: "@username" centered, like the own-profile tab.
-      appBar: ProfileHandleBar(
-        handle: username,
-        leading: AppBackButton(
-          semanticLabel: t.t('common.back'),
-          onPressed: () => _leave(context),
+    // Desktop web plan §6.5: the profile | a side pane on a desktop window.
+    return ProfileAdaptivePage(
+      username: username,
+      page: Scaffold(
+        backgroundColor: colors.bg,
+        // Owner 2026-09-29: "@username" centered, like the own-profile tab.
+        appBar: ProfileHandleBar(
+          handle: username,
+          leading: AppBackButton(
+            semanticLabel: t.t('common.back'),
+            onPressed: () => _leave(context),
+          ),
+          // Owner 2026-09-30: "⋯" (Block / Report) opposite the @username.
+          actions: [
+            // Owner 2026-10-21: their gifts behind an icon up here.
+            if (ref.watch(publicAttorneyProfileProvider(username)).value
+                case final p? when !(p.isBlocked || p.hasBlockedMe))
+              GiftHeaderButton(userId: p.id, isMe: p.isSelf),
+            if (ref.watch(publicAttorneyProfileProvider(username)).value
+                case final p? when !p.isSelf)
+              AppIconButton(
+                icon: AppIcon(AppIcons.moreHorizRounded, color: colors.text),
+                semanticLabel: t.t('chat.menu'),
+                onPressed: () => showAttorneyMoreSheet(context, ref, p),
+              ),
+          ],
         ),
-        // Owner 2026-09-30: "⋯" (Block / Report) opposite the @username.
-        actions: [
-          // Owner 2026-10-21: their gifts behind an icon up here.
-          if (ref.watch(publicAttorneyProfileProvider(username)).value
-              case final p? when !(p.isBlocked || p.hasBlockedMe))
-            GiftHeaderButton(userId: p.id, isMe: p.isSelf),
-          if (ref.watch(publicAttorneyProfileProvider(username)).value
-              case final p? when !p.isSelf)
-            AppIconButton(
-              icon: AppIcon(AppIcons.moreHorizRounded, color: colors.text),
-              semanticLabel: t.t('chat.menu'),
-              onPressed: () => showAttorneyMoreSheet(context, ref, p),
-            ),
-        ],
-      ),
-      body: SafeArea(
-        top: false,
-        child: AttorneyProfileBody(
-          username: username,
-          initialTab: initialTab,
-          onBack: () => _leave(context),
+        body: SafeArea(
+          top: false,
+          child: AttorneyProfileBody(
+            username: username,
+            initialTab: initialTab,
+            onBack: () => _leave(context),
+          ),
         ),
       ),
     );

@@ -49,6 +49,10 @@ class ReconnectController {
   int _failures = 0;
   bool _paused = false;
   bool _holding = false;
+  bool _keepUp = false;
+
+  /// May the socket be retried now: in front, or a call needs it.
+  bool get mayRetry => !_paused || _keepUp;
 
   int get failures => _failures;
   bool get paused => _paused;
@@ -63,7 +67,7 @@ class ReconnectController {
   /// whole fleet may be restarting.
   void onFailure({bool serverClosed = false}) {
     _failures++;
-    if (_paused || _holding || hasPendingAttempt) return;
+    if (!mayRetry || _holding || hasPendingAttempt) return;
     var wait = ReconnectBackoff.delay(
       _failures - 1,
       _timings(),
@@ -90,17 +94,36 @@ class ReconnectController {
   /// `server:going-away {retryAfterMs}`: wait exactly that, whatever else
   /// fails in the meantime. Not counted as a failure.
   void onGoingAway(Duration retryAfter) {
-    if (_paused) return;
+    if (!mayRetry) return;
     _cancel();
     _holding = true;
     _schedule(retryAfter.isNegative ? Duration.zero : retryAfter);
   }
 
-  /// App in the background: keep the socket, stop the timers.
+  /// App in the background: keep the socket, stop the timers (unless a call
+  /// needs the socket, see [keepUp]).
   void pause() {
     _paused = true;
+    if (_keepUp) return;
     _holding = false;
     _cancel();
+  }
+
+  /// Owner 2026-11-04 (R-404): a call answered from the lock screen or the
+  /// system call UI never brings the app to the front, and a socket that
+  /// dropped in the background was never retried: the offer and the answer
+  /// had no way through and both phones sat on «Соединение…». While a call
+  /// lives the socket is retried whatever the lifecycle says.
+  // ignore: avoid_positional_boolean_parameters
+  void keepUp(bool on) {
+    if (_keepUp == on) return;
+    _keepUp = on;
+    if (on) {
+      if (!_isConnected() && !_holding) _fire();
+    } else if (_paused) {
+      _holding = false;
+      _cancel();
+    }
   }
 
   /// App back in front: try at once when not connected.
@@ -111,7 +134,7 @@ class ReconnectController {
 
   /// The network came back: try at once when not connected.
   void networkBack() {
-    if (_paused || _isConnected()) return;
+    if (!mayRetry || _isConnected()) return;
     _fire();
   }
 
@@ -121,7 +144,7 @@ class ReconnectController {
     _pending = _timer(wait, () {
       _pending = null;
       _holding = false;
-      if (_paused || _isConnected()) return;
+      if (!mayRetry || _isConnected()) return;
       _attempt();
     });
   }

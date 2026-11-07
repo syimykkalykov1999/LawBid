@@ -29,6 +29,13 @@ describe('system items (owner «Система» block)', () => {
     expect(healthToItems(undefined)).toEqual([]);
   });
 
+  it('the storage light says why R2 is held back (owner 2026-11-04)', () => {
+    const rows = healthToItems(health([{ key: 'storage', status: 'red', detail: { r2Fallback: 'R2 включён, но новые фото идут в AWS.' } }]));
+    expect(rows[0].why).toBe('R2 включён, но новые фото идут в AWS.');
+    const plain = healthToItems(health([{ key: 'storage', status: 'red', detail: { error: 'x' } }]));
+    expect(plain[0].why).toContain('Лампочка красная');
+  });
+
   it('merges server and live rows by urgency, deduped by code', () => {
     const merged = mergeSystemItems(
       [item('cost_80', 'medium'), item('worker_down', 'critical'), item('live_queues', 'low')],

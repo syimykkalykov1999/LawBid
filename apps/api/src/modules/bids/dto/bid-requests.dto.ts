@@ -308,3 +308,10 @@ export class CounterOfferDto {
   @MaxTextChars('limits.counter_message_chars')
   message?: string | null;
 }
+
+/** Owner 2026-11-05: «Поменять бид»; the kind of fee is chosen anew. */
+export class ChangeBidDto extends CounterOfferDto {
+  @ApiProperty({ enum: FeeType, enumName: 'FeeType' })
+  @IsEnum(FeeType)
+  feeType!: FeeType;
+}

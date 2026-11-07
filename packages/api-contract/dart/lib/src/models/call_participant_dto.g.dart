@@ -15,6 +15,7 @@ CallParticipantDto _$CallParticipantDtoFromJson(Map<String, dynamic> json) =>
       displayName: json['displayName'] as String?,
       username: json['username'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
+      avatarFullUrl: json['avatarFullUrl'] as String?,
       joinedAt: json['joinedAt'] == null
           ? null
           : DateTime.parse(json['joinedAt'] as String),
@@ -30,6 +31,7 @@ Map<String, dynamic> _$CallParticipantDtoToJson(CallParticipantDto instance) =>
       'displayName': ?instance.displayName,
       'username': ?instance.username,
       'avatarUrl': ?instance.avatarUrl,
+      'avatarFullUrl': ?instance.avatarFullUrl,
       'status': instance.status.toJson(),
       'muted': instance.muted,
       'mutedByHost': instance.mutedByHost,

@@ -58,6 +58,8 @@ void main() {
     'longest, right-to-left': (LongestTranslator(), TextDirection.rtl),
     // Owner 2026-10-19: Nepali and Arabic, the longest, in their own text.
     'ne': (ShippedTranslator('ne'), TextDirection.ltr),
+    'de': (ShippedTranslator('de'), TextDirection.ltr),
+    'mr': (ShippedTranslator('mr'), TextDirection.ltr),
     'ar': (ShippedTranslator('ar'), TextDirection.rtl),
     'ru': (
       L10nTranslator(language: AppLanguage.ru, cache: const {}),
@@ -71,7 +73,7 @@ void main() {
     prefs = await SharedPreferences.getInstance();
   });
 
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.1, 1.3]) {
     for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
       group('no overflow at 360 dp ($name, text x$scale)', () {
         List<Override> overrides({
@@ -336,6 +338,17 @@ void main() {
             await tester.enterText(
               find.byKey(const ValueKey('post-body-field')),
               'Text ' * 40,
+            );
+            // The place of the post, as long as the server allows (the field
+            // sits below the fold: scroll to it first).
+            await tester.scrollUntilVisible(
+              find.byKey(const ValueKey('post-place-field')),
+              200,
+              scrollable: find.byType(Scrollable).first,
+            );
+            await tester.enterText(
+              find.byKey(const ValueKey('post-place-field')),
+              'Place ' * 20,
             );
             await tester.pump();
             expect(tester.takeException(), isNull);

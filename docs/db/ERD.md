@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-298 tables.
+301 tables.
 
 ```mermaid
 erDiagram
@@ -62,6 +62,7 @@ erDiagram
     String source_sha256 "nullable"
     Int width "nullable"
     Int height "nullable"
+    String blurhash "nullable"
     enum_ScanStatus scan_status
     Boolean is_public
     DateTime deleted_at "nullable"
@@ -305,7 +306,7 @@ erDiagram
   country_waitlist {
     String id PK
     String country_code FK
-    String email
+    String email "nullable"
     String locale
     DateTime created_at
     DateTime notified_at "nullable"
@@ -514,6 +515,9 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     Int version
+    DateTime confirmation_required_at "nullable"
+    DateTime confirmed_at "nullable"
+    DateTime confirm_reminded_at "nullable"
     Int shard_id
   }
   bid_offers {
@@ -969,6 +973,7 @@ erDiagram
     Boolean show_service_messages
     Int disappear_after_s "nullable"
     Boolean protect_content
+    Int slow_mode_s "nullable"
     enum_GroupWho who_can_media
     enum_GroupWho who_can_poll
     enum_GroupWho who_can_pin
@@ -1224,6 +1229,21 @@ erDiagram
     String payment_id "nullable"
     String refund_id "nullable"
     DateTime canceled_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  billing_dispute_refunds {
+    String id PK
+    String dispute_id UK
+    String user_id
+    String payment_id
+    String status
+    String reason "nullable"
+    Int amount_cents
+    String currency
+    String refund_id "nullable"
+    String decided_by "nullable"
+    String note "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -2733,6 +2753,12 @@ erDiagram
     BigInt db_bytes
     DateTime created_at
   }
+  reco_qa_snapshots {
+    String kind PK
+    String key PK
+    Json payload
+    DateTime computed_at
+  }
   identity_fingerprints {
     String id PK
     String user_id
@@ -3348,6 +3374,7 @@ erDiagram
     Boolean is_best
     DateTime deleted_at "nullable"
     String content_hash "nullable"
+    String authored_by_user_id "nullable"
     DateTime created_at
     DateTime updated_at
     Int shard_id
@@ -3816,6 +3843,16 @@ erDiagram
     Json payload
     DateTime created_at
   }
+  quick_replies {
+    String id PK
+    String user_id FK
+    String title
+    String body
+    Int position
+    DateTime created_at
+    DateTime updated_at
+    Int shard_id
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -4127,4 +4164,5 @@ erDiagram
   csam_reports }o--|| media_moderation_checks : "check_id"
   experiment_exposures }o--|| experiments : "experiment_id"
   experiment_results }o--|| experiments : "experiment_id"
+  quick_replies }o--|| users : "user_id"
 ```

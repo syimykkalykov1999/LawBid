@@ -1,6 +1,7 @@
 // Token helpers shared by mint.mjs and discover.mjs. Node's own crypto only.
 // Same ids and claims as apps/api/bench/mint-tokens.mjs.
 import { createHash, createHmac } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 
 let secret = process.env.JWT_SECRET;
 const kid = process.env.JWT_KID || process.env.JWT_ACTIVE_KID || 'j1';
@@ -27,12 +28,16 @@ export function sign(payload, aud, jti) {
   return `${head}.${body}.${sig}`;
 }
 export const userId = (n) => uuid('u' + n);
+/** (user id, sid) of every access token signed here. The minters write them as
+ *  <out>.sessions.txt for scripts/seed-sessions.sh: with Redis away the API checks
+ *  revocation in the `sessions` table, and a token without a row is refused. */
+const sessions = new Set();
+const accessToken = (sub, role, sid) => {
+  sessions.add(`${sub}\t${sid}`);
+  return sign({ sub, role, sid, verified: role === 'attorney', subscriptionStatus: role === 'attorney' ? 'active' : 'none', typ: 'access' }, 'lawbid-app');
+};
 /** Access token of a seeded person. n = seed number (md5('u'||n) is the user id). */
-export const access = (n, role) =>
-  sign(
-    { sub: userId(n), role, sid: uuid('s' + n), verified: role === 'attorney', subscriptionStatus: role === 'attorney' ? 'active' : 'none', typ: 'access' },
-    'lawbid-app',
-  );
+export const access = (n, role) => accessToken(userId(n), role, uuid('s' + n));
 /** Access token for a user id we only know as a uuid (found through the API). */
-export const accessFor = (sub, role) =>
-  sign({ sub, role, sid: uuid('s-' + sub), verified: role === 'attorney', subscriptionStatus: role === 'attorney' ? 'active' : 'none', typ: 'access' }, 'lawbid-app');
+export const accessFor = (sub, role) => accessToken(sub, role, uuid('s-' + sub));
+export const writeSessions = (out) => writeFileSync(`${out}.sessions.txt`, [...sessions].join('\n') + '\n');

@@ -28,6 +28,7 @@ const KIND_OF: Record<string, CaseUpdateKind> = {
   offer_accepted: 'bid_accepted',
   bid_rejected: 'bid_declined',
   offer_countered: 'bid_countered',
+  bid_changed: 'bid_countered',
   negotiation_failed: 'bid_declined',
   bid_withdrawn: 'bid_withdrawn',
   case_updated: 'updated',
@@ -95,7 +96,10 @@ export function eventOf(
   const kind =
     type === 'bid_rejected' && p.reason === 'withdrawn'
       ? 'bid_withdrawn'
-      : KIND_OF[type];
+      : // R-392: «Не закрывать» moves the case back to work.
+        type === 'case_workspace_activity' && p.kind === 'close_declined'
+        ? 'updated'
+        : KIND_OF[type];
   if (!kind || typeof p.caseId !== 'string') return null;
   const bid = bidPatchOf(kind, p);
   return {

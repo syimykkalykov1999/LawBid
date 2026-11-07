@@ -376,6 +376,13 @@ class _LicenseBlock extends StatelessWidget {
                 icon: AppIcons.photoCameraOutlined,
                 onTap: () => actions.addFile(slot, FileOrigin.cameraCard),
               ),
+              // Owner 2026-11-05: the phone's photo gallery too — «Фото или
+              // PDF» opens Files, where photos are hard to find.
+              SlotAction(
+                label: t.t('verification.source.library'),
+                icon: AppIcons.photoLibraryOutlined,
+                onTap: () => actions.addFile(slot, FileOrigin.library),
+              ),
               SlotAction(
                 label: t.t('verification.source.file'),
                 icon: AppIcons.uploadFileRounded,
@@ -514,6 +521,7 @@ class SelfieStep extends StatelessWidget {
     required this.state,
     required this.actions,
     this.needsPhone = false,
+    this.handoffToken,
     super.key,
   });
 
@@ -521,9 +529,13 @@ class SelfieStep extends StatelessWidget {
   final WizardState state;
   final StepActions actions;
 
-  /// Owner 2026-10-28: no guided camera here (web): «continue on the
-  /// phone» instead of «Open camera».
+  /// Owner 2026-10-28 + R-146: no guided camera here (web, or no camera at
+  /// all): «continue on the phone» instead of «Open camera».
   final bool needsPhone;
+
+  /// R-146: this device opened the computer's «continue on your phone»
+  /// link (`…/selfie/<token>`).
+  final String? handoffToken;
 
   @override
   Widget build(BuildContext context) {
@@ -584,9 +596,18 @@ class SelfieStep extends StatelessWidget {
             ),
           ),
         const SizedBox(height: AppSpacing.md),
-        if (needsPhone && !state.request.selfieComplete)
-          PhoneHandoffPanel(t: t)
-        else
+        if (handoffToken case final token?) ...[
+          HandoffPhoneNotice(
+            t: t,
+            token: token,
+            received: state.request.selfieComplete,
+            needsApp: needsPhone,
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        if (needsPhone && handoffToken == null)
+          PhoneHandoffPanel(t: t, received: state.request.selfieComplete)
+        else if (!needsPhone)
           DocumentSlotCard(
             t: t,
             title: t.t('verification.selfie.card'),
@@ -802,6 +823,7 @@ String missingText(Translator t, MissingItem m, VerificationRequest r) =>
       MissingIdentity(back: false) => t.t('verification.missing.id'),
       MissingIdentity(back: true) => t.t('verification.missing.idBack'),
       MissingSelfie() => t.t('verification.missing.selfie'),
+      MissingPhoto() => t.t('onboarding.profile.error.photoRequired'),
       MissingCleanFile() => t.t('verification.missing.notClean'),
     };
 

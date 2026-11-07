@@ -92,9 +92,14 @@ void main() {
         expect(find.textContaining('You placed'), findsNothing);
         // Owner 2026-10-15: Bid sits in the icon row, left of the time.
         final button = t.getCenter(find.text(label));
-        final icons = t.getCenter(find.byIcon(AppIcons.sendOutlined));
+        final icons = t.getCenter(find.byIcon(AppIcons.modeCommentOutlined));
         expect((button.dy - icons.dy).abs(), lessThan(20));
         expect(button.dx, greaterThan(icons.dx));
+        // Owner 2026-11-03 (R-366): a case is private, no share icon.
+        expect(find.byIcon(AppIcons.sendOutlined), findsNothing);
+        expect(find.byIcon(AppIcons.iosShareRounded), findsNothing);
+        expect(find.byIcon(AppIcons.gavelRounded), findsOneWidget);
+        expect(find.byIcon(AppIcons.modeCommentOutlined), findsOneWidget);
         // Icons, comments, time and Save all fit in 360dp.
         expect(
           t.getTopRight(find.byIcon(AppIcons.bookmarkBorderRounded)).dx,
@@ -178,7 +183,7 @@ void main() {
     expect(t.takeException(), isNull);
     final files = t.getTopLeft(find.byIcon(AppIcons.folderOutlined)).dy;
     final bid = t.getTopLeft(find.text('Bid')).dy;
-    final icons = t.getTopLeft(find.byIcon(AppIcons.sendOutlined)).dy;
+    final icons = t.getTopLeft(find.byIcon(AppIcons.modeCommentOutlined)).dy;
     expect(files, lessThan(icons));
     expect((bid - icons).abs(), lessThan(20));
     // Save sits at the right edge, the time right before it.

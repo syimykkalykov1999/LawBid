@@ -4,7 +4,7 @@
 # docker cannot reach it; prod-run.sh seed/admin is for a reachable DB).
 #   scripts/deploy/prod-admin-ecs.sh <image tag>          seed + super admin
 #   scripts/deploy/prod-admin-ecs.sh <image tag> i18n     add what the
-#        database lacks from the translations_seed.xlsx baked into the image
+#        database lacks from the prisma/seed/translations/*.json baked into the image
 #        (every release, deploy.yml); texts already there — the owner's
 #        uploads in Admin → Localization — are never overwritten
 #   scripts/deploy/prod-admin-ecs.sh <image tag> i18n-full  re-import the
@@ -15,7 +15,17 @@
 #        env + secrets, the KMS unwrap, one Postgres and one Redis round
 #        trip. Runs with the app's own DATABASE_URL (not the migrator), prints
 #        names only, exit 1 stops the deploy before anything changes.
-# Seed = reference data + all 85 languages from prisma/seed/translations_seed
+#   scripts/deploy/prod-admin-ecs.sh <image tag> purge "<args>"   R-374: remove
+#        test accounts and their content (src/cli/purge-test-data.ts). Without
+#        --apply it only prints the KEEP / DELETE table. Examples:
+#          … purge "--all-users"
+#          … purge "--all-users --apply --confirm=DELETE-ALL-USERS"
+#          … purge "--keep-phones=7739935153,2244224434,8722720655"
+#   scripts/deploy/prod-admin-ecs.sh <image tag> avatars "<args>"   R-405: make the
+#        256 px / 1024 px variants of avatars stored before the scan job did
+#        (src/cli/backfill-avatar-variants.ts). "" = dry run (counts only);
+#        "--limit=20 --apply" a first batch; "--apply" the rest.
+# Seed = reference data + all 85 languages from prisma/seed/translations/
 # .xlsx (in the image) + the admin row. The e-mail, login and password are
 # typed here (hidden), go into a temporary Secrets Manager secret that only
 # the ECS execution role may read, reach the task as `secrets` (never in the
@@ -83,19 +93,43 @@ case "$MODE" in
   i18n)
     echo "1/3 (no secret needed)"
     TMP_SECRET_ARN_FOR_TD=""
-    CMD='node dist/src/cli/import-translations.js prisma/seed/translations_seed.xlsx --missing-only 2>&1 | cut -c1-300'
+    # KNOWN_ERRORS #48: the pipe used to hide the importer's exit code (OOM "Killed"
+    # still went green); heap 1400 MiB fits the 2 GiB task and fails with a message.
+    CMD='{ NODE_OPTIONS=--max-old-space-size=1400 node dist/src/cli/import-translations.js prisma/seed/translations --missing-only 2>&1; echo $? > /tmp/i18n.rc; } | cut -c1-300; exit $(cat /tmp/i18n.rc)'
     ;;
   i18n-full)
     echo "1/3 (no secret needed)"
     TMP_SECRET_ARN_FOR_TD=""
-    CMD='node dist/src/cli/import-translations.js prisma/seed/translations_seed.xlsx 2>&1 | cut -c1-300'
+    CMD='{ NODE_OPTIONS=--max-old-space-size=1400 node dist/src/cli/import-translations.js prisma/seed/translations 2>&1; echo $? > /tmp/i18n.rc; } | cut -c1-300; exit $(cat /tmp/i18n.rc)'
     ;;
   config)
     echo "1/3 (no secret needed)"
     TMP_SECRET_ARN_FOR_TD=""
     CMD='{ node dist/src/cli/check-config.js 2>&1; echo $? > /tmp/check.rc; } | cut -c1-300; exit "$(cat /tmp/check.rc)"'
     ;;
-  *) echo "unknown mode: $MODE (admin | i18n | i18n-full | config)" >&2; exit 2 ;;
+  purge)
+    echo "1/3 (no secret needed)"
+    TMP_SECRET_ARN_FOR_TD=""
+    PURGE_ARGS="${3:?purge needs its arguments, e.g. \"--all-users\" (dry run)}"
+    # Only flags of purge-test-data.ts reach the task's shell: letters, digits, = , - + and spaces.
+    printf '%s' "$PURGE_ARGS" | grep -Eq '^[A-Za-z0-9=,+ -]+$' \
+      || { echo "purge: unexpected characters in the arguments" >&2; exit 2; }
+    LOG_TAIL=400
+    # KNOWN_ERRORS #48: the exit code of node survives the pipe.
+    CMD="{ NODE_OPTIONS=--max-old-space-size=1400 node dist/src/cli/purge-test-data.js ${PURGE_ARGS} 2>&1; echo \$? > /tmp/purge.rc; } | cut -c1-400; exit \$(cat /tmp/purge.rc)"
+    ;;
+  avatars)
+    # R-405: sized variants for avatars stored before the scan job made them
+    # (src/cli/backfill-avatar-variants.ts). Without --apply it only counts.
+    echo "1/3 (no secret needed)"
+    TMP_SECRET_ARN_FOR_TD=""
+    AV_ARGS="${3:-}"
+    printf '%s' "$AV_ARGS" | grep -Eq '^[A-Za-z0-9= -]*$' \
+      || { echo "avatars: unexpected characters in the arguments" >&2; exit 2; }
+    LOG_TAIL=400
+    CMD="{ NODE_OPTIONS=--max-old-space-size=1400 node dist/src/cli/backfill-avatar-variants.js ${AV_ARGS} 2>&1; echo \$? > /tmp/avatars.rc; } | cut -c1-400; exit \$(cat /tmp/avatars.rc)"
+    ;;
+  *) echo "unknown mode: $MODE (admin | i18n | i18n-full | config | purge | avatars)" >&2; exit 2 ;;
 esac
 
 echo "2/3 task definition (copy of ${CLUSTER}-api, image ${TAG})"
@@ -146,7 +180,7 @@ GROUP="$(node -e 'const t=require(process.argv[1]);process.stdout.write(t.contai
 SP="$(node -e 'const t=require(process.argv[1]);process.stdout.write(t.containerDefinitions[0].logConfiguration.options["awslogs-stream-prefix"])' "$WORK/td.json")"
 echo "---- task log ----"
 aws logs get-log-events --log-group-name "$GROUP" --log-stream-name "${SP}/api/${ARN##*/}" \
-  --query 'events[].message' --output text 2>/dev/null | tr '\t' '\n' | tail -25 || true
+  --query 'events[].message' --output text 2>/dev/null | tr '\t' '\n' | tail -"${LOG_TAIL:-25}" || true
 echo "------------------"
 echo "exit code: $EXIT  ($REASON)"
 if [ "$EXIT" = "0" ]; then echo "DONE ✓"; else echo "FAILED"; exit 1; fi

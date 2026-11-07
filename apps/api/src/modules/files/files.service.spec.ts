@@ -77,6 +77,7 @@ function make(
         ),
       ),
       awsBucket: jest.fn((k: string) => `lawbid-${k}`),
+      ready: jest.fn().mockResolvedValue(true),
       isPublicStoreBucket: jest.fn((b: string) => b === 'lawbid-r2'),
       publicObjectUrl: jest.fn((b: string, k: string) =>
         b === 'lawbid-r2' ? `https://media.example/${k}` : null,
@@ -302,6 +303,29 @@ describe('FilesService', () => {
       expect(deps.storage.presignPost).toHaveBeenCalledWith(
         expect.objectContaining({ bucket: 'lawbid-documents' }),
       );
+    });
+  });
+
+  describe('R2 links and server-made files (owner 2026-11-04)', () => {
+    it('loads the R2 keys before answering a link: a fresh instance gives the R2 address', async () => {
+      const { service, deps } = make({
+        file: { purpose: 'avatar', s3_bucket: 'lawbid-r2', s3_key: 'avatar/k' },
+      });
+      const order: string[] = [];
+      deps.storage.ready.mockImplementation(() => {
+        order.push('ready');
+        return Promise.resolve(true);
+      });
+      deps.storage.publicObjectUrl.mockImplementation(
+        (b: string, k: string) => {
+          order.push('url');
+          return b === 'lawbid-r2' ? `https://media.example/${k}` : null;
+        },
+      );
+      expect(await service.mediaUrl('f1')).toBe(
+        'https://media.example/avatar/k',
+      );
+      expect(order.slice(0, 2)).toEqual(['ready', 'url']);
     });
   });
 
@@ -911,6 +935,260 @@ describe('FilesService', () => {
       });
       expect(deps.scans.enqueueScan).toHaveBeenCalledWith('f1', 'u1');
     });
+  });
+});
+
+describe('reusing a stored file (R-254, files_reuse_own)', () => {
+  const HASH = 'a'.repeat(64);
+  type Row = Record<string, unknown>;
+  const row = (over: Row = {}): Row => ({
+    id: 'mine',
+    owner_user_id: 'me',
+    s3_bucket: 'lawbid-documents',
+    s3_key: 'chat_attachment/me/mine',
+    source_sha256: HASH,
+    sha256: HASH,
+    purpose: 'chat_attachment',
+    scan_status: 'clean',
+    deleted_at: null,
+    mime: 'application/pdf',
+    size_bytes: BigInt(1000),
+    width: null,
+    height: null,
+    blurhash: null,
+    ...over,
+  });
+  /** A real look at the rows by the query's own filter: a test that only
+   * read the `where` could pass while the filter was wrong. */
+  const matches = (r: Row, where: Record<string, unknown>) =>
+    Object.entries(where).every(([k, v]) =>
+      v && typeof v === 'object' && 'in' in v
+        ? (v as { in: unknown[] }).in.includes(r[k])
+        : r[k] === v,
+    );
+  const setup = (
+    rows: Row[],
+    opts: { flag?: boolean; dedup?: boolean } = {},
+  ) => {
+    const { service, deps } = make();
+    const create = jest.fn().mockResolvedValue({});
+    const flagOn = opts.flag ?? true;
+    Object.assign(deps.flags, {
+      isEnabled: jest.fn((k: string) =>
+        Promise.resolve(k === 'files_reuse_own' && flagOn),
+      ),
+    });
+    Object.assign(deps.settings, {
+      boolean: jest.fn((k: string) =>
+        Promise.resolve(k === 'storage.dedup' ? (opts.dedup ?? true) : false),
+      ),
+    });
+    Object.assign(deps.prisma.file, {
+      create,
+      findFirst: jest.fn(({ where }: { where: Record<string, unknown> }) =>
+        Promise.resolve(rows.find((r) => matches(r, where)) ?? null),
+      ),
+    });
+    return { service, deps, create };
+  };
+  const dto = (over: Record<string, unknown> = {}) =>
+    ({
+      purpose: 'chat_attachment',
+      mime: 'application/pdf',
+      sizeBytes: 1000,
+      sha256: HASH,
+      acceptsExisting: true,
+      ...over,
+    }) as never;
+
+  it('my own stored file: a new clean row, no upload', async () => {
+    const t = setup([row()]);
+    const out = await t.service.presign('me', dto());
+    expect(out.existing).toBe(true);
+    expect(out.upload.url).toBe('');
+    const data = (t.create.mock.calls[0] as [{ data: Row }])[0].data;
+    expect(data.owner_user_id).toBe('me');
+    expect(data.s3_key).toBe('chat_attachment/me/mine');
+    expect(data.scan_status).toBe('clean');
+    expect(data.id).not.toBe('mine');
+  });
+
+  it("SECURITY: the same hash in someone else's file gives nothing", async () => {
+    const t = setup([
+      row({ id: 'theirs', owner_user_id: 'victim', s3_key: 'victim/secret' }),
+    ]);
+    const out = await t.service.presign('me', dto());
+    expect(out.existing).toBeUndefined();
+    expect(out.upload.url).not.toBe('');
+    expect(JSON.stringify(out)).not.toContain('victim');
+    const made = t.create.mock.calls as [{ data: Row }][];
+    expect(made.some(([c]) => c.data.s3_key === 'victim/secret')).toBe(false);
+  });
+
+  it('SECURITY: the owner filter is in the query itself', async () => {
+    const t = setup([]);
+    await t.service.presign('me', dto());
+    const q = (
+      (t.deps.prisma.file as unknown as { findFirst: jest.Mock }).findFirst.mock
+        .calls as [{ where: Row }][]
+    )[0][0];
+    expect(q.where.owner_user_id).toBe('me');
+    expect(q.where.scan_status).toBe('clean');
+    expect(q.where.deleted_at).toBeNull();
+  });
+
+  const refused: [string, Row][] = [
+    ['deleted', { deleted_at: new Date() }],
+    ['not scanned yet', { scan_status: 'pending' }],
+    ['infected', { scan_status: 'infected' }],
+    ['hash not proven (light confirm)', { source_sha256: null }],
+    ['in another bucket', { s3_bucket: 'lawbid-media' }],
+    ['another processing', { purpose: 'avatar' }],
+    ['a type no longer allowed', { mime: 'application/x-msdownload' }],
+  ];
+  it.each(refused)('my file that is %s is not reused', async (_, over) => {
+    const t = setup([row(over)]);
+    expect((await t.service.presign('me', dto())).existing).toBeUndefined();
+  });
+
+  it('a file blocked by moderation is not reused', async () => {
+    const t = setup([row()]);
+    Object.assign(t.deps.prisma.mediaModerationCheck, {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ status: 'hidden', decision: null }),
+    });
+    expect((await t.service.presign('me', dto())).existing).toBeUndefined();
+  });
+
+  it.each([
+    ['post photos', 'post_image', 'image/jpeg'],
+    ['avatars', 'avatar', 'image/jpeg'],
+    ['review photos', 'review_photo', 'image/jpeg'],
+  ])(
+    '%s go the usual way, to get their moderation',
+    async (_, purpose, mime) => {
+      const t = setup([row({ purpose, mime, s3_bucket: 'lawbid-media' })]);
+      const out = await t.service.presign('me', dto({ purpose, mime }));
+      expect(out.existing).toBeUndefined();
+    },
+  );
+
+  it.each([['identity documents', 'verification_document', 'application/pdf']])(
+    '%s are never shared',
+    async (_, purpose, mime) => {
+      const t = setup([row({ purpose, mime })]);
+      const out = await t.service.presign('me', dto({ purpose, mime }));
+      expect(out.existing).toBeUndefined();
+    },
+  );
+
+  it('an older app (no acceptsExisting), the flag off, or dedup off: upload', async () => {
+    for (const t of [
+      { s: setup([row()]), d: dto({ acceptsExisting: undefined }) },
+      { s: setup([row()], { flag: false }), d: dto() },
+      { s: setup([row()], { dedup: false }), d: dto() },
+    ]) {
+      expect((await t.s.service.presign('me', t.d)).existing).toBeUndefined();
+    }
+  });
+});
+
+describe('confirm without reading a big file (R-252, files_confirm_light)', () => {
+  const MIB = 1024 * 1024;
+  const pdfStart = Buffer.concat([
+    Buffer.from('%PDF-1.7'),
+    Buffer.alloc(1000, 0x20),
+  ]);
+  const setup = (opts: {
+    flag: boolean;
+    size: number;
+    start?: Buffer;
+    full?: Buffer;
+    mime?: string;
+  }) => {
+    const { service, deps } = make();
+    const intent = {
+      userId: 'u1',
+      purpose: 'chat_attachment',
+      mime: opts.mime ?? 'application/pdf',
+      size: opts.size,
+      sha256: 'claimed-hash',
+      bucket: 'lawbid-documents',
+      key: 'chat_attachment/u1/f1',
+    };
+    const read = jest.fn().mockResolvedValue(opts.full ?? pdfStart);
+    const readStart = jest.fn().mockResolvedValue(opts.start ?? pdfStart);
+    const create = jest.fn().mockResolvedValue({});
+    Object.assign(deps.flags, {
+      isEnabled: jest.fn((k: string) =>
+        Promise.resolve(k === 'files_confirm_light' && opts.flag),
+      ),
+    });
+    Object.assign(deps.redis, {
+      get: jest.fn().mockResolvedValue(JSON.stringify(intent)),
+      del: jest.fn().mockResolvedValue(1),
+      zrem: jest.fn().mockResolvedValue(1),
+    });
+    Object.assign(deps.storage, {
+      head: jest.fn().mockResolvedValue({ size: opts.size }),
+      read,
+      readStart,
+      remove: jest.fn().mockResolvedValue(undefined),
+    });
+    Object.assign(deps.prisma.file, { create });
+    return { service, read, readStart, create };
+  };
+
+  it('a big file: only its start is read; the row waits for the worker', async () => {
+    const t = setup({ flag: true, size: 50 * MIB });
+    await t.service.confirm('u1', 'f1').catch(() => undefined);
+    expect(t.read).not.toHaveBeenCalled();
+    expect(t.readStart).toHaveBeenCalledTimes(1);
+    const row = (
+      t.create.mock.calls[0] as [{ data: Record<string, unknown> }]
+    )[0].data;
+    expect(row.size_bytes).toBe(BigInt(50 * MIB));
+    expect(row.sha256).toBe('claimed-hash');
+    expect(row.source_sha256).toBeNull();
+  });
+
+  it('flag off: the whole file is read, as before', async () => {
+    const t = setup({ flag: false, size: pdfStart.length });
+    await t.service.confirm('u1', 'f1').catch(() => undefined);
+    expect(t.read).toHaveBeenCalledTimes(1);
+    expect(t.readStart).not.toHaveBeenCalled();
+  });
+
+  it('a small file stays on the full path with the flag on', async () => {
+    const t = setup({ flag: true, size: MIB, full: pdfStart });
+    await t.service.confirm('u1', 'f1').catch(() => undefined);
+    expect(t.readStart).not.toHaveBeenCalled();
+    expect(t.read).toHaveBeenCalledTimes(1);
+  });
+
+  it('the start shows another type: refused at once', async () => {
+    const t = setup({
+      flag: true,
+      size: 50 * MIB,
+      start: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]),
+    });
+    await expect(t.service.confirm('u1', 'f1')).rejects.toMatchObject({
+      response: { code: 'FILE_TYPE_NOT_ALLOWED' },
+    });
+    expect(t.create).not.toHaveBeenCalled();
+  });
+
+  it('a start the prefix cannot settle goes the full way', async () => {
+    const t = setup({
+      flag: true,
+      size: 50 * MIB,
+      start: Buffer.alloc(100, 0),
+      full: Buffer.alloc(100, 0),
+    });
+    await expect(t.service.confirm('u1', 'f1')).rejects.toBeDefined();
+    expect(t.read).toHaveBeenCalledTimes(1);
+    expect(t.create).not.toHaveBeenCalled();
   });
 });
 

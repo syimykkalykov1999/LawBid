@@ -193,6 +193,49 @@ describe('People search + client usernames (e2e, OQ-026)', () => {
     ).toBe(true);
   });
 
+  it('people: «по подписке» — following / not_following / all (R-084)', async () => {
+    // Own query word: the ranked list of `@${token}` is cached for a minute
+    // by the tests above, so it would not contain these new people.
+    const fk = `fk${randomUUID().replace(/-/g, '').slice(0, 8)}`;
+    const att = await attorney(`${fk}.fol`, ['Followed', 'Lawyer']);
+    const other = await attorney(`${fk}.nof`, ['Notfollowed', 'Lawyer']);
+    const cli = await client([fk, 'Followedclient'], `${fk}.fcl`);
+    const viewer = await client(['Viewer', 'Follow'], `${fk}.vf`);
+    await prisma.follow.createMany({
+      data: [
+        { follower_id: viewer.id, followee_id: att.id },
+        { follower_id: viewer.id, followee_id: cli.id },
+      ],
+    });
+    const ids = async (follow?: string) => {
+      const r = await api()
+        .get('/api/v1/search/people')
+        .query({ q: `@${fk}`, ...(follow ? { follow } : {}) })
+        .set(viewer.auth);
+      expect(r.status).toBe(200);
+      return (
+        r.body.data as {
+          attorney: { id: string } | null;
+          client: { id: string } | null;
+        }[]
+      ).map((i) => i.attorney?.id ?? i.client?.id);
+    };
+    const all = await ids();
+    expect(all).toEqual(expect.arrayContaining([att.id, other.id, cli.id]));
+    const following = await ids('following');
+    expect(following).toEqual(expect.arrayContaining([att.id, cli.id]));
+    expect(following).not.toContain(other.id);
+    const not = await ids('not_following');
+    expect(not).toContain(other.id);
+    expect(not).not.toContain(att.id);
+    expect(not).not.toContain(cli.id);
+    const bad = await api()
+      .get('/api/v1/search/people')
+      .query({ q: fk, follow: 'maybe' })
+      .set(viewer.auth);
+    expect(bad.status).toBe(400);
+  });
+
   it('people: a name in another alphabet, any word order, a typo (owner 2026-10-18)', async () => {
     const att = await attorney(`${token}.emily`, ['Emily', 'Zvorykina']);
     const cli = await client(['Rachel', 'Vanderbilt'], `${token}.rachel`);

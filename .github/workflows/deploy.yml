@@ -138,7 +138,9 @@ jobs:
           context: .
           file: apps/api/Dockerfile
           platforms: linux/${{ matrix.arch }}
-          build-args: APP_VERSION=${{ env.IMAGE_TAG }}
+          build-args: |
+            APP_VERSION=${{ env.IMAGE_TAG }}
+            WITH_FFMPEG=${{ vars.WITH_FFMPEG == '1' && '1' || '0' }}
           outputs: type=image,name=${{ env.ECR_REGISTRY }}/lawbid-api,push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=api-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=api-${{ matrix.arch }}
@@ -321,7 +323,7 @@ jobs:
       # Owner 2026-10-18: the translations table goes up with every release
       # (before, only by hand — the live site missed new texts). Dry run
       # first inside the task; only missing texts are added (admin uploads stay).
-      - name: Translations (all 85 languages from translations_seed.xlsx)
+      - name: Translations (all 85 languages from prisma/seed/translations)
         env:
           CLUSTER: lawbid-staging
           SECRET_PREFIX: lawbid-staging
@@ -399,7 +401,7 @@ jobs:
           # fail (default) | warn | off — prisma/verify-schema.mjs
           SCHEMA_DRIFT_CHECK: ${{ vars.SCHEMA_DRIFT_CHECK }}
         run: scripts/deploy/run-migrations.sh lawbid-prod "$IMAGE_TAG"
-      - name: Translations (all 85 languages from translations_seed.xlsx)
+      - name: Translations (all 85 languages from prisma/seed/translations)
         env:
           CLUSTER: lawbid-prod
           SECRET_PREFIX: lawbid-prod

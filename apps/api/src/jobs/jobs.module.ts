@@ -11,6 +11,7 @@ import { RewardsModule } from '../modules/rewards/rewards.module';
 import { SupportModule } from '../modules/support/support.module';
 import { LegalExportsCoreModule } from '../modules/admin-data-requests/legal-exports-core.module';
 import { StorageCoreModule } from '../modules/storage/storage.module';
+import { RecommendationsModule } from '../modules/recommendations/recommendations.module';
 import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ContactsJoinedJob } from './handlers/contacts-joined.job';
 import { ContactsPepperBackfillJob } from './handlers/contacts-pepper-backfill.job';
@@ -39,6 +40,7 @@ import { VerificationLossBillingJob } from './handlers/verification-loss-billing
 import {
   CaseStalePauseJob,
   CaseAutoCloseJob,
+  BidConfirmReminderJob,
   CaseCompletionReminderJob,
   CaseStaleAskJob,
 } from './handlers/case-lifecycle.jobs';
@@ -50,6 +52,7 @@ import { CrashReportsService } from '../modules/crash-reports/crash-reports.serv
 import { SearchLogService } from '../modules/search/search-log.service';
 import { SearchSynonymsService } from '../modules/search/search-synonyms.service';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
+import { TopicCoversJob } from '../modules/search/topic-covers.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
@@ -156,6 +159,8 @@ export class JobsModule {
         // Owner 2026-10-05: `storage.gc`, `storage.retention`,
         // `storage.snapshot`.
         StorageCoreModule,
+        // R-401: `reco.qa-snapshot`.
+        RecommendationsModule,
         LegalExportsCoreModule,
         // Owner 2026-10-05: `treasury.daily` (profit and reserve).
         TreasuryCoreModule,
@@ -203,6 +208,7 @@ export class JobsModule {
         CaseStaleAskJob,
         CaseStalePauseJob,
         CaseAutoCloseJob,
+        BidConfirmReminderJob,
         CaseCompletionReminderJob,
         // Algo audit 2026-10-27 (CASES M-3): `cases.rebroadcast`.
         CaseRebroadcastJob,
@@ -210,6 +216,7 @@ export class JobsModule {
         CountersReconcileJob,
         FeedRecoJob,
         TrendingTagsJob,
+        TopicCoversJob,
         SearchLogService,
         SearchSynonymsService,
         CrashReportsService,

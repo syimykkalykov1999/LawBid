@@ -24,6 +24,34 @@ Future<void> cancelBackgroundUpload(String taskId) async {
   }
 }
 
+/// Forgets the record of [taskId]; the next post sends the file again.
+Future<void> forgetBackgroundUpload(String taskId) async {
+  if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return;
+  try {
+    await FileDownloader().database.deleteRecordWithId(taskId);
+  } on Object catch (e) {
+    debugPrint('forget upload $taskId: $e');
+  }
+}
+
+bool get backgroundHandsOff =>
+    !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+/// A transfer of [taskId] that is running or complete. On any doubt: true, so
+/// the file stays with the OS as before.
+Future<bool> backgroundUploadKnown(String taskId) async {
+  if (!backgroundHandsOff) return false;
+  try {
+    await BackgroundStorageTransport._start();
+    final record = await FileDownloader().database.recordForId(taskId);
+    return record != null &&
+        (record.status == TaskStatus.complete || record.status.isNotFinalState);
+  } on Object catch (e) {
+    debugPrint('upload record $taskId: $e');
+    return true;
+  }
+}
+
 /// Owner 2026-10-22 (audit #4 §3): the S3 POST of a queued file as an OS
 /// background transfer (`background_downloader`: Android WorkManager, iOS
 /// background URLSession). The task id is the queue job's id, so after the
@@ -90,7 +118,11 @@ class BackgroundStorageTransport implements StorageTransport {
         httpRequestMethod: target.isPut ? 'PUT' : 'POST',
         // R2 (PUT): the file is the raw body, with the signed headers.
         post: target.isPut ? 'binary' : null,
-        headers: target.isPut ? target.headers : null,
+        // An empty Content-Disposition keeps the plugin from adding its own
+        // `attachment` (R2 would store it and serve photos as downloads).
+        headers: target.isPut
+            ? {...target.headers, 'Content-Disposition': ''}
+            : null,
         mimeType: mime,
         fields: target.isPut ? null : target.fields,
         updates: Updates.statusAndProgress,

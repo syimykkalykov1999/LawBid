@@ -39,8 +39,10 @@ class MyBidItemDto {
     required this.lastOffer,
     this.paymentTerms,
     this.percentBps,
+    this.confirmationRequiredAt,
     this.attorney,
     this.coverUrl,
+    this.coverBlurhash,
   });
 
   factory MyBidItemDto.fromJson(Map<String, Object?> json) =>
@@ -66,6 +68,9 @@ class MyBidItemDto {
 
   /// Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION).
   final int version;
+
+  /// Owner 2026-11-05: the client changed the case; waiting for the attorney.
+  final DateTime? confirmationRequiredAt;
   final PartyRole turn;
   final DateTime? decidedAt;
 
@@ -89,6 +94,9 @@ class MyBidItemDto {
   /// Owner 2026-09-30: the case's first photo once this bid is accepted,.
   /// else null (the app shows the qualification's art).
   final String? coverUrl;
+
+  /// R-248: BlurHash of the cover, drawn while it loads (null = none).
+  final String? coverBlurhash;
 
   Map<String, Object?> toJson() => _$MyBidItemDtoToJson(this);
 }

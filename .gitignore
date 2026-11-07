@@ -62,3 +62,7 @@ loadtest/results/
 
 # Local dev caches (tsc incremental, eslint, hash-skip stamps) - scripts/dev
 .cache/
+__pycache__/
+
+# Binary translations seed is not kept in git (KNOWN_ERRORS #39); the source is apps/api/prisma/seed/translations/*.json
+*.xlsx

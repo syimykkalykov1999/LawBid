@@ -88,9 +88,21 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Video calls in chats (WebRTC, needs a TURN relay)',
   },
   {
+    // Owner 2026-11-04 (R-376): group calls off for now, one-to-one calls
+    // stay; they come back in a later update. Off: the app hides «Add
+    // participant» and the group / channel call buttons, the API refuses
+    // starting, joining or growing a group call (old app builds included).
+    key: 'calls_group',
+    enabled: false,
+    app: true,
+    description:
+      'Group calls (3+ people): add participants, group call from a group chat',
+  },
+  {
     // Owner 2026-10-20: stories (24 h) like Instagram / WhatsApp.
+    // Owner 2026-10-22 (R-049): hidden until the next update; the code stays.
     key: 'stories',
-    enabled: true,
+    enabled: false,
     app: true,
     description: 'Stories: photo / video / text for 24 hours',
   },
@@ -116,6 +128,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: true,
     app: true,
     description: 'Ask a lawyer: public questions and attorneys answers',
+  },
+  {
+    // R-401 (owner 2026-11-04): answers to clients' questions lift an
+    // attorney in the recommendations (people grid, cases, the attorney's
+    // recommended questions) — read from the nightly snapshot
+    // `reco.qa-snapshot`. Off = the snapshot is not read: today's ranking.
+    // On by default: an empty snapshot changes nothing either.
+    key: 'recommendations_qa_ranking',
+    enabled: true,
+    description:
+      'Recommendations: Q&A answers and likes rank attorneys (nightly snapshot; admin: Настройки → reco.qa.*)',
   },
   {
     // Owner 2026-10-20: court deadlines and statutes of limitations. Off by
@@ -144,6 +167,31 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Video attachments on feed posts',
   },
   {
+    // Owner 2026-11-04 (R-381): reels from clients off until there are
+    // more users. Off: clients only watch reels (photos and briefs as
+    // before), the app hides every reel-publishing entry point for a
+    // client, the API refuses a client's video upload / post with a video
+    // (old app builds included). Attorneys always publish. Under
+    // `video_posts`: with reels off globally nothing changes.
+    key: 'reels_client_publish',
+    enabled: false,
+    app: true,
+    description:
+      'Clients may publish reels (off: clients only watch, attorneys still publish)',
+  },
+  {
+    // Owner 2026-11-04 (R-398): the second half of ONE three-way admin
+    // choice for client reels — Выключено / Бесплатно всем / Только с
+    // галочкой. Read only while `reels_client_publish` is on: then on =
+    // only clients wearing the paid gold badge publish reels (the API
+    // answers 403 ENTITLEMENT_REQUIRED to the others), off = every client.
+    key: 'reels_client_publish_paid_only',
+    enabled: false,
+    app: true,
+    description:
+      'With client reels on: only clients with the paid gold badge publish (off: every client)',
+  },
+  {
     // Checklist reconciliation 2026-11-01: resumable uploads. On: the app
     // sends big files (video, documents over 16 MiB) in 8 MiB parts and
     // continues after an interruption instead of starting over.
@@ -151,6 +199,125 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: false,
     app: true,
     description: 'Resumable (multipart) uploads of large files',
+  },
+  {
+    // Owner 2026-11-05: channel post views go through the counter aggregator
+    // (one multi-row UPDATE every few seconds), not one UPDATE per reader.
+    key: 'channel_views_buffered',
+    enabled: false,
+    app: false,
+    description: 'Channel post views are written to the database in batches',
+  },
+  {
+    // Owner 2026-11-05: videos are warmed ahead into the disk cache the player
+    // reads, in the stream it will open, and fewer while the viewer flicks.
+    // Off until checked on real phones.
+    key: 'video_prefetch_smart',
+    enabled: false,
+    app: true,
+    description: 'Videos warmed ahead land in the cache the player reads',
+  },
+  {
+    // On a wide website window a post of a grid opens as a window with
+    // arrows (the idea from Instagram) instead of a scrolling page. Phones
+    // never: isDesktopWindow is false there.
+    key: 'web_post_window',
+    enabled: false,
+    app: true,
+    description: 'Website, wide window: a post opens as a window with arrows',
+  },
+  {
+    // R-256: on, a phone with little charge or its battery saver on warms no
+    // videos ahead and does not re-encode clips up to 30 MB. Off until
+    // checked on real phones.
+    key: 'low_power_mode',
+    enabled: false,
+    app: true,
+    description: 'The app goes gently on a phone low on power',
+  },
+  {
+    // R-255: on, a video or document picked in a chat stays on disk and is
+    // copied to the queue folder and streamed from there, instead of being
+    // read whole into the phone's memory. Off until checked on a phone.
+    key: 'chat_files_from_disk',
+    enabled: false,
+    app: true,
+    description:
+      'Chat videos and documents are sent from disk, not from memory',
+  },
+  {
+    // R-255: on, a file of a group chat is a job of the upload queue (it
+    // survives closing the app) and a video or document is streamed from
+    // disk. Off until checked on a phone: as before, read into memory.
+    key: 'group_files_from_disk',
+    enabled: false,
+    app: true,
+    description:
+      'Group chat files go through the upload queue and are sent from disk',
+  },
+  {
+    // On the website, files dragged from the computer land in a chat, a new
+    // post or a new case (desktop_drop). Phones never start the plugin.
+    key: 'web_file_drop',
+    enabled: false,
+    app: true,
+    description: 'Website: drag files into a chat, a post or a case',
+  },
+  {
+    // R-254: on, a file this same user already stored is not uploaded again.
+    // Own files only (a hash is not proof of holding a file). Needs the
+    // setting storage.dedup on. Off until checked against real storage.
+    key: 'files_reuse_own',
+    enabled: false,
+    app: false,
+    description: 'A file the user already stored is not uploaded again',
+  },
+  {
+    // R-252: on, `confirm` of a file from 8 MiB reads only its first 256 KiB;
+    // the checksum and the look inside go to the scan worker. Off until
+    // checked against real storage.
+    key: 'files_confirm_light',
+    enabled: false,
+    app: false,
+    description: 'Big uploads are confirmed without reading them into the API',
+  },
+  {
+    // R-251: on, the app sends a reel to Bunny in 4 pieces at once and asks
+    // Bunny to join them (TUS concatenation; Bunny announces it, but it was
+    // not tried with a real video: off until checked on a phone). A refusal
+    // falls back to the plain single-stream upload.
+    key: 'reels_tus_parallel',
+    enabled: false,
+    app: true,
+    description:
+      'Reels, stories and channel videos go to Bunny in parallel pieces',
+  },
+  {
+    // R-251: on, a big queued chat file goes in parallel S3 parts while the
+    // app is on screen and passes to the OS background transfer when it
+    // leaves; several files of a group chat or a task go up together. Needs
+    // `files_multipart`. Off until checked on a phone with real storage.
+    key: 'chat_upload_parallel',
+    enabled: false,
+    app: true,
+    description: 'Chat files go in parallel parts while the app is on screen',
+  },
+  {
+    // R-251: on, a document over 4 MB comes down in parallel HTTP Range
+    // pieces. A server without Range falls back by itself. Off until checked
+    // on a phone with real storage.
+    key: 'downloads_parallel',
+    enabled: false,
+    app: true,
+    description: 'Documents download in parallel pieces',
+  },
+  {
+    // R-251: on, the blocks of a video's cached start are fetched at once.
+    // Off until measured against the real CDN.
+    key: 'video_cache_parallel',
+    enabled: false,
+    app: true,
+    description: 'The cached start of a video is fetched in parallel blocks',
   },
   {
     key: 'payments_in_app',
@@ -234,6 +401,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
       "The store's «Rate LawBid» dialog, shown once after a positive moment (iOS and Android)",
   },
   {
+    // Owner 2026-11-05: Settings → Account «Сменить профиль» — the same
+    // account (same phone and password, no SMS) switches between the
+    // attorney and the client profile; both profiles are kept. Off until
+    // the owner turns it on.
+    key: 'role_switch',
+    enabled: false,
+    app: true,
+    description:
+      'Switch the account between the attorney and the client profile (Settings → Account), confirmed with the password or a passkey',
+  },
+  {
     // Owner 2026-10-13: sign in with a password, no SMS each time.
     key: 'password_login',
     enabled: true,
@@ -271,5 +449,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: true,
     app: true,
     description: 'Sign in with a passkey (WebAuthn)',
+  },
+  {
+    // R-237 (owner 2026-11-05): REAL MONEY. On: a bank inquiry on a
+    // subscription charge is refunded in full within the limits; above them
+    // it waits for a person. Off (default): nothing is refunded.
+    key: 'dispute_auto_refund',
+    enabled: false,
+    description:
+      'Automatic refund of a bank inquiry on a subscription charge (real money; off by default)',
   },
 ];

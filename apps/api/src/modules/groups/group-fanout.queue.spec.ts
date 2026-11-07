@@ -88,7 +88,7 @@ describe('GroupFanoutQueue', () => {
       { get: () => undefined } as unknown as ConfigService,
       logger,
     );
-    await q.onApplicationBootstrap();
+    q.onApplicationBootstrap();
     const inline = jest.fn().mockResolvedValue(undefined);
     await q.enqueue(
       { kind: 'message', groupId: 'g1', messageId: 'm1' },
@@ -158,5 +158,27 @@ describe('GroupFanoutQueue', () => {
       inline,
     );
     expect(inline).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('GroupFanoutQueue boot while Redis is away', () => {
+  const logger = {
+    setContext: jest.fn(),
+    warn: jest.fn(),
+  } as unknown as PinoLogger;
+
+  it('configureInBackground returns at once while setGlobalConcurrency waits for a connection', () => {
+    const q = new GroupFanoutQueue(
+      { get: () => undefined } as unknown as ConfigService,
+      logger,
+    );
+    const queues = Array.from({ length: GROUP_FANOUT_PARTITIONS }, (_, i) => ({
+      name: fanoutQueueName(i),
+      setGlobalConcurrency: jest.fn(() => new Promise<void>(() => undefined)),
+    }));
+    (q as unknown as { queues: unknown }).queues = queues;
+    q.configureInBackground(); // synchronous by type: boot is not held
+    for (const fake of queues)
+      expect(fake.setGlobalConcurrency).toHaveBeenCalledWith(1);
   });
 });

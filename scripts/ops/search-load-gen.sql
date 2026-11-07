@@ -9,8 +9,8 @@ CREATE OR REPLACE FUNCTION rnd_words(k int) RETURNS text LANGUAGE sql VOLATILE A
   FROM generate_series(1,k) $$;
 INSERT INTO users (id, role, first_name, last_name, status, updated_at)
 SELECT gen_random_uuid(), CASE WHEN g % 10 = 0 THEN 'attorney'::user_role ELSE 'client'::user_role END,
-  (ARRAY['Sofia','Ivan','Amelia','James','Priya','Victor','Emily','Daniel','Maria','Chen','Omar','Anna'])[1+g%12],
-  (ARRAY['Hernandez','Carter','Alvarez','Nata','Whitfield','Kim','Goodman','Brown','Lopez','Singh'])[1+g%10] || (g % 997), 'active', now()
+  (ARRAY['Sofia','Ivan','Amelia','James','Priya','Victor','Emily','Daniel','Maria','Chen','Omar','Anna'])[1+(g/7)%12],
+  (ARRAY['Hernandez','Carter','Alvarez','Nata','Whitfield','Kim','Goodman','Brown','Lopez','Singh'])[1+(g/10)%10] || (g % 997), 'active', now()
 FROM generate_series(1,500000) g;
 INSERT INTO attorney_profiles (user_id, username, username_lower, updated_at, verification_status)
 SELECT id, 'law'||row_number() over (), 'law'||row_number() over (), now(), 'verified'

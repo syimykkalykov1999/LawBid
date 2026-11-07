@@ -1,6 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
+import { delSafe } from '../../redis/redis-cluster-safe';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { ADMIN_ACTIVE_KEY } from '../ops/admin-activity';
 
 /** A precomputed admin aggregate with the time it was computed. */
 export interface Summary<T> {
@@ -55,6 +57,42 @@ export class AdminSummaryService {
     return this.refresh(key, compute, true);
   }
 
+  /**
+   * R-370 (owner 2026-11-04 «все страницы так открываются»): keeps [key]
+   * warm from inside the API process — for boards the worker cannot build
+   * (they read this process: the «API» light, the AWS/SSM clients of the
+   * API task). Every [everyMs], while an admin request was seen in the last
+   * 10 minutes (ADMIN_ACTIVE_KEY, the same signal the `admin.summaries`
+   * cron follows in Авто), a copy older than [freshMs] is recomputed once
+   * across all API tasks (the refresh lock). Nobody looking = no work.
+   * Returns the stopper (onModuleDestroy).
+   */
+  keepWarm<T>(
+    key: string,
+    compute: () => Promise<T>,
+    freshMs: number,
+    everyMs = 60_000,
+  ): () => void {
+    const timer = setInterval(() => {
+      void this.warmOnce(key, compute, freshMs).catch(() => undefined);
+    }, everyMs);
+    timer.unref?.();
+    return () => clearInterval(timer);
+  }
+
+  /** One keep-warm tick (exposed for tests): true when it recomputed. */
+  async warmOnce<T>(
+    key: string,
+    compute: () => Promise<T>,
+    freshMs: number,
+  ): Promise<boolean> {
+    if ((await this.redis.exists(ADMIN_ACTIVE_KEY)) !== 1) return false;
+    const hit = await this.peek<T>(key);
+    if (hit && Date.now() - Date.parse(hit.computedAt) < freshMs) return false;
+    await this.refresh(key, compute);
+    return true;
+  }
+
   /** Stores a value computed elsewhere (an action that just rebuilt it). */
   async put<T>(key: string, data: T): Promise<void> {
     const summary: Summary<T> = { data, computedAt: new Date().toISOString() };
@@ -65,6 +103,45 @@ export class AdminSummaryService {
         'EX',
         HARD_TTL_SECONDS,
       );
+    } catch {
+      /* not shared, still right */
+    }
+  }
+
+  /**
+   * R-403: {@link get} with one stored copy per [scope] of [family] (a null
+   * scope is the family's own key). The scopes in use are remembered, so
+   * {@link dropFamily} forgets them all without a key scan.
+   */
+  async getScoped<T>(
+    family: string,
+    scope: string | null,
+    compute: () => Promise<T>,
+    freshSec: number,
+  ): Promise<Summary<T>> {
+    if (!scope) return this.get(family, compute, freshSec);
+    const scopes = `${PREFIX}${family}:scopes`;
+    try {
+      await this.redis.sadd(scopes, scope);
+      await this.redis.expire(scopes, HARD_TTL_SECONDS);
+    } catch {
+      /* not shared, still right */
+    }
+    return this.get(`${family}:${scope}`, compute, freshSec);
+  }
+
+  /**
+   * R-403: forgets every stored copy of [family], so the next read recomputes
+   * at once (an admin action just changed what a badge counts; the next poll
+   * must not see the 30 s copy).
+   */
+  async dropFamily(family: string): Promise<void> {
+    try {
+      const scopes = await this.redis.smembers(`${PREFIX}${family}:scopes`);
+      await delSafe(this.redis, [
+        PREFIX + family,
+        ...scopes.map((s) => `${PREFIX}${family}:${s}`),
+      ]);
     } catch {
       /* not shared, still right */
     }

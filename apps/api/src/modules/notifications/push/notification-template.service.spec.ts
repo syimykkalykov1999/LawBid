@@ -87,6 +87,27 @@ describe('NotificationTemplateService.renderFor', () => {
   });
 
   // Owner 2026-10-20: the planner push says what and when, never the title.
+  it('R-392: the close request names who asked (not always «Клиент»)', async () => {
+    const byAttorney = await service.renderFor(
+      'completion_requested',
+      { caseId: 'c', by: 'attorney' },
+      'ru',
+    );
+    expect(byAttorney.body).toContain('Адвокат предлагает закрыть кейс');
+    const byClient = await service.renderFor(
+      'completion_requested',
+      { caseId: 'c', by: 'client' },
+      'en',
+    );
+    expect(byClient.body).toContain('The client asks to close the case');
+    const declined = await service.renderFor(
+      'case_workspace_activity',
+      { caseId: 'c', kind: 'close_declined' },
+      'en',
+    );
+    expect(declined.body).toContain('kept the case open');
+  });
+
   describe('task_reminder', () => {
     const payload = {
       kind: 'meeting',

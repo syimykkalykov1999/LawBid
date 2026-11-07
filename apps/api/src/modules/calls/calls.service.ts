@@ -30,6 +30,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CALL_SILENT_MS } from '../../common/calls/ongoing-call';
 import { CALL_RING_TIMEOUT_MS } from '../../common/calls/ring';
 import {
+  type CallPollClaims,
   callPollKey,
   verifyCallPoll,
 } from '../../common/calls/call-poll-token';
@@ -81,7 +82,7 @@ import {
 import { checkRelay } from './relay-check';
 import { TurnInstanceGateway } from './turn-instance.gateway';
 import {
-  parseOwnTurnMode,
+  effectiveOwnTurnMode,
   RedisTurnStore,
   TurnOnDemand,
 } from './turn-on-demand';
@@ -141,6 +142,10 @@ export const GROUP_MAX_AUDIO = 9;
 export const GROUP_MAX_VIDEO = 9;
 /** The channels feature switch (ChannelsService.assertEnabled). */
 const CHANNELS_FLAG = 'channels';
+/** Owner 2026-11-04 (R-376): group calls (3+ people). Off = only
+ * one-to-one calls: no group / channel call, no joining one, no adding a
+ * participant (assertGroupCalls). */
+export const CALLS_GROUP_FLAG = 'calls_group';
 const IN_CALL = ['joined', 'invited'];
 /** A vote to remove a member runs this long, then the count decides. */
 export const CALL_VOTE_MS = 30_000;
@@ -160,6 +165,11 @@ export const DEFAULT_STUN_URLS = [
  * comes within this long (ICE gathers from both at once; usually it is the
  * cached login and costs nothing). */
 export const CLOUDFLARE_TURN_OPEN_TRY_MS = 500;
+/** R-404: `failed` this soon after the answer = the media never came up
+ * (the app's connect timeout is 45 s). */
+export const CALL_NEVER_UP_WITHIN_MS = 60_000;
+/** R-402: the «STUN only, no relay» warning is written at most this often. */
+export const NO_RELAY_WARN_EVERY_MS = 60_000;
 
 type Outcome = 'ended' | 'missed' | 'declined' | 'busy' | 'canceled' | 'failed';
 
@@ -333,7 +343,10 @@ export class CallsService {
       instance: box,
       store: new RedisTurnStore(this.redis),
       mode: async () =>
-        parseOwnTurnMode(await this.settings?.string('calls.own_turn.mode')),
+        effectiveOwnTurnMode(
+          await this.settings?.string('calls.transport'),
+          await this.settings?.string('calls.own_turn.mode'),
+        ),
       needed: async () => {
         // A fixed own TURN address wins: that server is always on, no box.
         const keys = (await this.secrets?.get('turn'))?.fields ?? {};
@@ -341,8 +354,10 @@ export class CallsService {
           return false;
         const t = this.cfTransport;
         if ((await t.isOpen('turn')) || (await t.isOpen('sfu'))) return true;
-        // Own forced: the box is the only relay.
-        return (await t.mode()) === 'own';
+        // Выкл, or no Cloudflare at all: the box is the only relay.
+        if ((await t.mode()) === 'own') return true;
+        const { cfKeyId, cfToken } = await this.cloudflareKeys();
+        return !cfKeyId || !cfToken;
       },
       activeCalls: () =>
         this.prisma.call.count({
@@ -953,6 +968,8 @@ export class CallsService {
     }
     if (call.callee_id !== user.sub) throw notFound();
     if (call.status !== 'ringing') return this.toDto(call, user.sub);
+    // Review #693: only a call that still rings is declined — an answer
+    // landing between the read above and this write stays an answer.
     return this.finish(
       call,
       'declined',
@@ -960,6 +977,7 @@ export class CallsService {
       undefined,
       undefined,
       user.sid,
+      ['ringing'],
     );
   }
 
@@ -1006,8 +1024,18 @@ export class CallsService {
     }
     // A call that was up and ended normally connected; `failed` is the
     // app saying the media never came up (ICE / TURN).
-    if (outcome === 'ended') this.slo?.count('callConnected');
-    if (outcome === 'failed') this.slo?.count('callFailed');
+    // R-404 (owner 2026-11-04): the app gives up [kCallConnectTimeout] (45 s)
+    // after the answer with reason `failed`; a link that was up and then lost
+    // has the 30 s reconnect grace on top of its talk, so nearly always more.
+    // Those calls used to count as `callConnected`: nothing on the server
+    // ever saw a call stuck on «Соединение…».
+    const neverUp =
+      dropped &&
+      !!call.answered_at &&
+      Date.now() - call.answered_at.getTime() < CALL_NEVER_UP_WITHIN_MS;
+    if (neverUp) void this.onNeverConnected(call).catch(() => undefined);
+    if (outcome === 'ended' && !neverUp) this.slo?.count('callConnected');
+    if (outcome === 'failed' || neverUp) this.slo?.count('callFailed');
     return this.finish(
       call,
       outcome,
@@ -1031,21 +1059,7 @@ export class CallsService {
     id: string,
     token: string,
   ): Promise<{ state: 'ringing' | 'active' | 'ended' }> {
-    if (this.pollKey === undefined) {
-      let pepper: string | undefined;
-      try {
-        pepper = this.config.get<string>('AUTH_EVENT_PEPPER');
-      } catch {
-        pepper = undefined;
-      }
-      this.pollKey = pepper ? callPollKey(pepper) : null;
-    }
-    if (!this.pollKey || !verifyCallPoll(this.pollKey, token, id)) {
-      throw new UnauthorizedException({
-        code: ErrorCode.UNAUTHORIZED,
-        message: 'Invalid or expired ticket.',
-      });
-    }
+    this.pollClaims(id, token);
     const call = await this.prisma.call.findUnique({
       where: { id },
       select: { status: true, created_at: true },
@@ -1059,6 +1073,49 @@ export class CallsService {
       return { state: 'ringing' };
     }
     return { state: 'ended' };
+  }
+
+  /**
+   * POST /calls/:id/status/decline — owner 2026-11-03 (iPhone «Decline» on
+   * the lock screen left the Samsung caller in the call): a closed iPhone
+   * runs no Dart, so CallKit's decline is sent by AppDelegate.onDecline
+   * (flutter_callkit_incoming README: the server is told there, then the
+   * action is fulfilled) with the ring push's ticket instead of a session.
+   * Exactly the authenticated decline for the ticket's account: only a
+   * ringing call is declined, a repeat (or a call already over) changes
+   * nothing.
+   */
+  async declineByTicket(
+    id: string,
+    token: string,
+  ): Promise<{ state: 'ringing' | 'active' | 'ended' }> {
+    const claims = this.pollClaims(id, token);
+    const out = await this.decline({ sub: claims.u } as RequestUser, id);
+    if (out.status === 'active') return { state: 'active' };
+    return { state: out.status === 'ringing' ? 'ringing' : 'ended' };
+  }
+
+  /** The claims of the ring push's ticket for call [id]; 401 otherwise. */
+  private pollClaims(id: string, token: string): CallPollClaims {
+    if (this.pollKey === undefined) {
+      let pepper: string | undefined;
+      try {
+        pepper = this.config.get<string>('AUTH_EVENT_PEPPER');
+      } catch {
+        pepper = undefined;
+      }
+      this.pollKey = pepper ? callPollKey(pepper) : null;
+    }
+    const claims = this.pollKey
+      ? verifyCallPoll(this.pollKey, token, id)
+      : null;
+    if (!claims) {
+      throw new UnauthorizedException({
+        code: ErrorCode.UNAUTHORIZED,
+        message: 'Invalid or expired ticket.',
+      });
+    }
+    return claims;
   }
 
   async get(user: RequestUser, id: string): Promise<CallDto> {
@@ -1116,50 +1173,28 @@ export class CallsService {
     const out: IceServersDto = {
       iceServers: [{ urls: stun, username: null, credential: null }],
       ttlSec: TURN_TTL_SEC,
+      iceTransportPolicy: 'all',
     };
-    // Owner 2026-10-26: Cloudflare Realtime TURN is the PRIMARY relay of
-    // every call; our own TURN (Admin -> Integrations -> TURN, or TURN_URLS)
-    // is only the backup. A call never waits more than 1.5 s for Cloudflare
-    // (first try + one quick retry); then it goes on our own TURN, and the
-    // failure counts for the SLO alarm and the shared breaker. While the
-    // breaker is open (N failures in M minutes) new calls skip Cloudflare,
-    // which is probed once a minute and used again when it answers.
-    // `calls.transport`: auto (default) | cloudflare (forced) | own.
-    const cf = (await this.secrets?.get('cloudflare_turn'))?.fields ?? {};
-    const cfKeyId = (
-      cf.keyId ??
-      this.config.get<string>('CLOUDFLARE_TURN_KEY_ID') ??
-      ''
-    ).trim();
-    const cfToken = (
-      cf.apiToken ??
-      this.config.get<string>('CLOUDFLARE_TURN_API_TOKEN') ??
-      ''
-    ).trim();
-    let turn = (turnKeys.urls ?? this.config.get<string>('TURN_URLS') ?? '')
-      .split(',')
-      .map((u) => u.trim())
-      .filter(Boolean);
-    // Owner 2026-11-02: no fixed own TURN -> the on-demand box's live address
-    // (only while the box runs and answers; STUN only before that).
-    if (turn.length === 0 && this.turnOnDemand) {
-      const live = await this.turnOnDemand.address().catch(() => null);
-      if (live) turn = [live];
-      else this.nudgeTurnBox();
-    }
-    const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
-    const ownTurn = turn.length > 0 && Boolean(secret);
-    let cfWorks = false;
-    /** Cloudflare offered as the BACKUP (own TURN first): the breaker is
-     * open, or the phone said its Cloudflare relay died. */
-    let cfSecond = false;
-    // Owner 2026-10-26 (failover): a phone whose call lost its relay asks
-    // again with relayFailed — it gets a NEW login and our own TURN next
-    // to (and before) Cloudflare, so the ICE restart finds a working relay
-    // whichever side is down. Its report teaches the breaker (enough
-    // distinct phones in the window; see recordClientFailure), and the API
-    // checks the relay itself once (CF-6).
+    // Owner 2026-10-26: a call never waits more than 1.5 s for Cloudflare
+    // (first try + one quick retry); the failure counts for the SLO alarm and
+    // the shared breaker, and an open breaker is probed once a minute.
+    // `calls.transport` (admin «Связь для звонков»):
+    // cloudflare (Вкл) = Cloudflare only: no own TURN, no box, policy `relay`
+    // even with no relay on offer (the call fails, with an alert);
+    // auto (Авто, default) = the same while Cloudflare is healthy; ours
+    // (own TURN, direct) only while it is down;
+    // own (Выкл) = Cloudflare off: own TURN and direct.
+    const cloudflareOnly = (await this.cfTransport.mode()) === 'cloudflare';
+    let ownTurn = false;
+    const { cfKeyId, cfToken } = await this.cloudflareKeys();
+    // Owner 2026-11-04: a healthy Cloudflare takes all the work in every
+    // mode: only its relay, policy `relay`, nothing of ours next to it (this
+    // replaces FO-1 / TS-2, which always offered own TURN too). Ours work only
+    // when Cloudflare has no keys, its login fails or the breaker is open.
+    // A phone's relayFailed teaches the breaker; it opens no route by itself.
     const relayFailed = opts.relayFailed === true;
+    let relay: IceServerDto | null = null;
+    let cfHealthy = false;
     if (cfKeyId && cfToken) {
       if (relayFailed) {
         forgetCloudflareTurn(cfKeyId, user.sub);
@@ -1180,66 +1215,174 @@ export class CallsService {
           }),
         () => this.slo?.count('turnProviderFailed'),
       );
-      // Breaker open but no own TURN to fall back on: Cloudflare is still
-      // the best relay we have, so it is tried anyway.
-      if (d.use || (d.reason === 'breaker_open' && !ownTurn)) {
-        const relay = await this.cloudflareRelay(user.sub, cfKeyId, cfToken);
-        if (relay) {
-          out.iceServers.unshift(relay);
-          cfWorks = true;
-          cfSecond = relayFailed;
-          if (relayFailed) {
-            // CF-6: one real Allocate on the relay the phone complained
-            // about (fleet-wide at most every 10 s); never waited for.
-            void this.cfTransport
-              .verify('turn', () => checkRelayLogin(relay, this.relayCheck))
-              .catch(() => undefined);
-          } else {
-            // The denominator of the phones' relay reports.
-            void this.cfTransport.noteUse('turn').catch(() => undefined);
-          }
+      if (d.use) {
+        relay = await this.cloudflareRelay(user.sub, cfKeyId, cfToken);
+        cfHealthy = relay !== null;
+        const login = relay;
+        if (login && relayFailed) {
+          // CF-6: one real Allocate on the relay the phone complained about
+          // (fleet-wide at most every 10 s); never waited for.
+          void this.cfTransport
+            .verify('turn', () => checkRelayLogin(login, this.relayCheck))
+            .catch(() => undefined);
+        } else if (login) {
+          // The denominator of the phones' relay reports.
+          void this.cfTransport.noteUse('turn').catch(() => undefined);
         }
       } else if (d.reason === 'breaker_open') {
-        // FO-8: own TURN carries the call; Cloudflare is still offered
-        // second when its login comes quickly (nothing is counted here —
-        // the minute probe owns the breaker while it is open).
-        const relay = await this.cloudflareRelay(
+        // FO-8: ours carry the call; Cloudflare is still offered second when
+        // its login comes quickly (nothing is counted here: the minute probe
+        // owns the breaker while it is open).
+        relay = await this.cloudflareRelay(
           user.sub,
           cfKeyId,
           cfToken,
           CLOUDFLARE_TURN_OPEN_TRY_MS,
           false,
         );
-        if (relay) {
-          out.iceServers.unshift(relay);
-          cfWorks = true;
-          cfSecond = true;
-        }
       }
     }
-    // FO-1 / TS-2 (audit 2026-10-26): our own TURN is ALWAYS offered next
-    // to Cloudflare — after it while Cloudflare is primary (ICE gathers from
-    // both at once; a dead Cloudflare relay with a live credential API then
-    // costs a timed-out candidate, not the call), FIRST after a relay
-    // failure or while the breaker is open (WebRTC prefers the earlier TURN
-    // server).
-    if (ownTurn && secret) {
-      const urls = withTcpFallback(turn);
-      const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
-      const own: IceServerDto = {
-        urls,
-        username,
-        credential: createHmac('sha1', secret)
-          .update(username)
-          .digest('base64'),
-      };
-      if (cfWorks && cfSecond) {
-        out.iceServers.unshift(own);
-      } else {
-        out.iceServers.push(own);
+    if (cfHealthy && relay) {
+      out.iceServers = [relay];
+      out.iceTransportPolicy = 'relay';
+    } else if (!cloudflareOnly) {
+      let turn = (turnKeys.urls ?? this.config.get<string>('TURN_URLS') ?? '')
+        .split(',')
+        .map((u) => u.trim())
+        .filter(Boolean);
+      // Owner 2026-11-02: no fixed own TURN -> the on-demand box's live
+      // address (only while the box runs and answers; STUN only before that).
+      if (turn.length === 0 && this.turnOnDemand) {
+        const live = await this.turnOnDemand.address().catch(() => null);
+        if (live) turn = [live];
+        else this.nudgeTurnBox();
+      }
+      const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
+      if (relay) out.iceServers.unshift(relay);
+      if (turn.length > 0 && secret) {
+        const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
+        const own: IceServerDto = {
+          urls: withTcpFallback(turn),
+          username,
+          credential: createHmac('sha1', secret)
+            .update(username)
+            .digest('base64'),
+        };
+        // WebRTC prefers the earlier TURN server: ours carry the call now.
+        if (relay) out.iceServers.unshift(own);
+        else out.iceServers.push(own);
+        ownTurn = true;
       }
     }
+    if (cloudflareOnly) out.iceTransportPolicy = 'relay';
+    // What this phone may offer the other one (`call:signal` drops the rest:
+    // builds that ignore the policy still gather direct addresses).
+    await this.realtime?.setRelayOnly(
+      user.sub,
+      out.iceTransportPolicy === 'relay',
+    );
+    this.warnWhenNoRelay(out, {
+      cloudflareKeys: Boolean(cfKeyId && cfToken),
+      cloudflareUsed: cfHealthy,
+      ownTurn,
+    });
     return out;
+  }
+
+  /**
+   * R-404: a 1:1 call was answered and its media never came up. Only when the
+   * answer really travelled (both sockets work) can the relay be to blame:
+   * then both phones count as reports for the Cloudflare breaker (which wakes
+   * the on-demand coturn when it opens) and the relay gets one real check.
+   * Without an answer there was no signaling at all, and no relay could have
+   * helped: that must not move the fleet off Cloudflare, it is only logged.
+   */
+  private async onNeverConnected(call: Call): Promise<void> {
+    const seen = new Set(await this.realtime.callSignals(call.id));
+    const has = (who: string, kind: string) => seen.has(`${who}:${kind}`);
+    const side = (who: string | null) =>
+      who
+        ? (['offer', 'answer', 'candidate'] as const)
+            .filter((k) => has(who, k))
+            .join('+') || 'nothing'
+        : 'nothing';
+    const signaled =
+      (call.caller_id && has(call.caller_id, 'answer')) ||
+      (call.callee_id && has(call.callee_id, 'answer'));
+    this.logger.warn(
+      `alert=${signaled ? 'call_media_never_up' : 'call_no_signaling'} call=${call.id} caller_sent=${side(call.caller_id)} callee_sent=${side(call.callee_id)}`,
+    );
+    if (!signaled) return;
+    const { cfKeyId, cfToken } = await this.cloudflareKeys();
+    if (!cfKeyId || !cfToken) return;
+    // Авто only: with Cloudflare forced there is nothing to fall back on,
+    // with it off it carried nothing.
+    if ((await this.cfTransport.mode()) !== 'auto') return;
+    for (const who of [call.caller_id, call.callee_id]) {
+      if (!who) continue;
+      forgetCloudflareTurn(cfKeyId, who);
+      await this.cfTransport.recordClientFailure(
+        'turn',
+        who,
+        'call never connected',
+      );
+    }
+    await this.cfTransport.verify('turn', () =>
+      probeCloudflareRelay(cfKeyId, cfToken, {
+        check: this.relayCheck,
+        loginTimeoutMs: CLOUDFLARE_TURN_BUDGET_MS,
+      }),
+    );
+  }
+
+  private async cloudflareKeys(): Promise<{
+    cfKeyId: string;
+    cfToken: string;
+  }> {
+    const cf = (await this.secrets?.get('cloudflare_turn'))?.fields ?? {};
+    return {
+      cfKeyId: (
+        cf.keyId ??
+        this.config.get<string>('CLOUDFLARE_TURN_KEY_ID') ??
+        ''
+      ).trim(),
+      cfToken: (
+        cf.apiToken ??
+        this.config.get<string>('CLOUDFLARE_TURN_API_TOKEN') ??
+        ''
+      ).trim(),
+    };
+  }
+
+  /** Last `alert=no_turn_relay` line (one a minute, not one per call). */
+  private noRelayWarnedAt = 0;
+
+  /**
+   * R-402 (owner 2026-11-04, «Соединение…» for minutes): a list without a
+   * single TURN entry means STUN only — phones behind a carrier (symmetric)
+   * NAT never connect, or connect slowly and weakly. Nothing told anyone:
+   * the saved Cloudflare keys were not switched on («Включить» in the
+   * admin), our own coturn box was stopped, and the API handed out STUN in
+   * silence. Now it says so in the log (the admin card reads the same
+   * state through /admin/system-health/calls-path).
+   */
+  private warnWhenNoRelay(
+    out: IceServersDto,
+    why: { cloudflareKeys: boolean; cloudflareUsed: boolean; ownTurn: boolean },
+  ): void {
+    if (out.iceServers.some((s) => s.username && s.credential)) return;
+    const t = Date.now();
+    if (t - this.noRelayWarnedAt < NO_RELAY_WARN_EVERY_MS) return;
+    this.noRelayWarnedAt = t;
+    const reason = why.cloudflareKeys
+      ? 'Cloudflare TURN login failed (keys are set) and no own TURN (calls.transport = cloudflare: such a call fails)'
+      : why.ownTurn
+        ? 'own TURN has no secret'
+        : 'no Cloudflare TURN keys enabled (Admin → Integrations → ' +
+          'Cloudflare TURN → «Включить») and no own TURN (fixed or on-demand)';
+    this.logger.warn(
+      `alert=no_turn_relay GET /calls/ice-servers hands out STUN only: ${reason}. Calls across mobile networks will not connect or stay weak.`,
+    );
   }
 
   /** A Cloudflare TURN login within [budgetMs] (1.5 s by default): a 1 s
@@ -1403,6 +1546,8 @@ export class CallsService {
     endReason?: string,
     /** LC-1: the phone that declined keeps quiet (no VoIP stop to it). */
     byChainId?: string,
+    /** The states this end may move the call from (default: any live). */
+    from: readonly CallStatus[] = LIVE,
   ): Promise<CallDto> {
     const now = at ?? new Date();
     const durationSec =
@@ -1413,7 +1558,7 @@ export class CallsService {
           )
         : 0;
     const { count } = await this.prisma.call.updateMany({
-      where: { id: call.id, status: { in: LIVE } },
+      where: { id: call.id, status: { in: [...from] } },
       data: {
         status: outcome,
         ended_at: now,
@@ -1580,6 +1725,7 @@ export class CallsService {
     if (!groups) throw notFound();
     const video = dto.video === true;
     const m = await groups.assertMember(user.sub, groupId);
+    await this.assertGroupCalls();
     // The same right as the button (GroupDto.canCall, canStartCall).
     if (!(m.group.who_can_call === 'all' || m.can('calls'))) {
       throw new ForbiddenException({
@@ -1690,6 +1836,17 @@ export class CallsService {
   }
 
   /** The running (not yet ended) call of a group, else null. */
+  /** Owner 2026-11-04 (R-376): the `calls_group` switch, off by default —
+   * an old app build cannot start, join or grow a group call either. */
+  private async assertGroupCalls(): Promise<void> {
+    if (await this.flags.isEnabled(CALLS_GROUP_FLAG, false)) return;
+    throw new ForbiddenException({
+      code: ErrorCode.FEATURE_DISABLED,
+      message: 'Group calls are not available yet.',
+      details: { flag: CALLS_GROUP_FLAG },
+    });
+  }
+
   private async runningGroupCall(groupId: string): Promise<Call | null> {
     return this.prisma.call.findFirst({
       where: { group_id: groupId, status: 'active' },
@@ -1774,6 +1931,7 @@ export class CallsService {
   ): Promise<CallDto> {
     const video = dto.video === true;
     const role = await this.assertChannelReader(user.sub, channelId);
+    await this.assertGroupCalls();
     await this.sweepIfDue();
     const running = await this.runningChannelCall(channelId);
     if (running) return this.joinCall(user, running.id);
@@ -1954,6 +2112,8 @@ export class CallsService {
     const rows = await this.rowsOf(fresh.id);
     const me = rows.find((r) => r.user_id === user.sub);
     if (me?.status === 'joined') return this.toDto(fresh, user.sub);
+    // Someone already in the call keeps it; nobody new comes in.
+    await this.assertGroupCalls();
     if (me?.status === 'removed') {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
@@ -2067,6 +2227,7 @@ export class CallsService {
         username:
           u?.attorney_profile?.username ?? u?.client_profile?.username ?? null,
         avatarUrl: a?.url256 ?? a?.url ?? null,
+        avatarFullUrl: a?.url ?? null,
         status: r.status as CallParticipantDto['status'],
         muted: r.muted,
         mutedByHost: r.muted_by_host,
@@ -2178,6 +2339,8 @@ export class CallsService {
       ? me?.status === 'joined'
       : call.caller_id === user.sub || call.callee_id === user.sub;
     if (!isMember) throw notFound();
+    // Adding anyone makes the call three people or more.
+    await this.assertGroupCalls();
 
     const targetId = await this.resolveInvitee(dto);
     if (!targetId || targetId === user.sub) {

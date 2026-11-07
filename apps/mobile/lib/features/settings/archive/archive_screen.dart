@@ -110,7 +110,8 @@ class ArchivedPostScreen extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final p = ref.watch(postOverridesProvider)[post.id] ?? post;
+    final p =
+        ref.watch(postOverridesProvider.select((m) => m[post.id])) ?? post;
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(

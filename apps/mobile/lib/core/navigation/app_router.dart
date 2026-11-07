@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/deeplinks/deep_link.dart';
 import 'package:lawbid/core/deeplinks/deep_link_routes.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
@@ -10,7 +11,9 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
+import 'package:lawbid/core/navigation/shell/desktop_layouts.dart';
 import 'package:lawbid/core/navigation/shell/main_shell.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
@@ -21,6 +24,7 @@ import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/deals/deal_record_screen.dart'
     deferred as d_deal_record_screen;
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart'
     deferred as d_bid_detail_screen;
 import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart'
@@ -37,6 +41,7 @@ import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart'
     deferred as d_work_case_screen;
+import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart'
@@ -48,6 +53,7 @@ import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart'
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
 import 'package:lawbid/features/deadlines/deadlines_routes.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
+import 'package:lawbid/features/feed/presentation/widgets/desktop_feed_pane.dart';
 import 'package:lawbid/features/groups/group_router.dart';
 import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart'
     deferred as d_dmca_notice_screen;
@@ -69,6 +75,7 @@ import 'package:lawbid/features/profile/presentation/screens/attorney_stats_scre
 import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart'
     deferred as d_delete_account_screen;
+import 'package:lawbid/features/profile/presentation/screens/desktop_settings.dart';
 import 'package:lawbid/features/profile/presentation/screens/firm_screen.dart'
     deferred as d_firm_screen;
 import 'package:lawbid/features/profile/presentation/screens/my_contacts_screen.dart'
@@ -197,7 +204,8 @@ GoRouter appRouter(Ref ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.feed,
-                builder: (context, state) => const FeedScreen(),
+                builder: (context, state) =>
+                    const FeedAdaptivePage(feed: FeedScreen()),
               ),
             ],
           ),
@@ -206,7 +214,10 @@ GoRouter appRouter(Ref ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.search,
-                builder: (context, state) => const SearchScreen(),
+                builder: (context, state) => const ReadableWidth(
+                  maxWidth: kSearchMaxWidth,
+                  child: SearchScreen(),
+                ),
               ),
             ],
           ),
@@ -259,10 +270,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'active_devices_screen',
-            load: d_active_devices_screen.loadLibrary,
-            builder: (_) => d_active_devices_screen.ActiveDevicesScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'active_devices_screen',
+              load: d_active_devices_screen.loadLibrary,
+              builder: (_) => d_active_devices_screen.ActiveDevicesScreen(),
+            ),
           ),
         ),
       ),
@@ -297,10 +311,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'my_contacts_screen',
-            load: d_my_contacts_screen.loadLibrary,
-            builder: (_) => d_my_contacts_screen.MyContactsScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'my_contacts_screen',
+              load: d_my_contacts_screen.loadLibrary,
+              builder: (_) => d_my_contacts_screen.MyContactsScreen(),
+            ),
           ),
         ),
       ),
@@ -347,9 +364,19 @@ GoRouter appRouter(Ref ref) {
             id: 'verification_wizard_screen',
             load: d_verification_wizard_screen.loadLibrary,
             builder: (_) =>
-                d_verification_wizard_screen.VerificationWizardScreen(),
+                d_verification_wizard_screen.VerificationWizardScreen(
+              handoffToken: state.uri.queryParameters['handoff'],
+            ),
           ),
         ),
+      ),
+      // R-146: the computer's «continue on your phone» link opened in a
+      // browser tab of this app (web) — the same wizard step.
+      GoRoute(
+        path: AppRoutes.selfieHandoffPattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        redirect: (context, state) =>
+            selfieHandoffLocation(state.pathParameters['token'] ?? ''),
       ),
       // Owner 2026-10-05 (legal documents): accept the documents of my role.
       GoRoute(
@@ -388,7 +415,15 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          OwnerCaseScreen(caseId: state.pathParameters['id'] ?? ''),
+          // Desktop web plan §6.4: list | case on a desktop window.
+          CasesAdaptivePage(
+            location: state.matchedLocation,
+            phone: OwnerCaseScreen(
+              caseId: state.pathParameters['id'] ?? '',
+              initialSection:
+                  caseSectionFromName(state.uri.queryParameters['tab']),
+            ),
+          ),
         ),
       ),
       GoRoute(
@@ -481,11 +516,16 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'work_case_screen',
-            load: d_work_case_screen.loadLibrary,
-            builder: (_) => d_work_case_screen.WorkCaseScreen(
-              caseId: state.pathParameters['id'] ?? '',
+          CasesAdaptivePage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'work_case_screen',
+              load: d_work_case_screen.loadLibrary,
+              builder: (_) => d_work_case_screen.WorkCaseScreen(
+                caseId: state.pathParameters['id'] ?? '',
+                initialSection:
+                    caseSectionFromName(state.uri.queryParameters['tab']),
+              ),
             ),
           ),
         ),
@@ -501,10 +541,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'case_history_screens',
-            load: d_case_history_screens.loadLibrary,
-            builder: (_) => d_case_history_screens.CaseHistoryScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'case_history_screens',
+              load: d_case_history_screens.loadLibrary,
+              builder: (_) => d_case_history_screens.CaseHistoryScreen(),
+            ),
           ),
         ),
       ),
@@ -519,10 +563,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'support_list_screen',
-            load: d_support_list_screen.loadLibrary,
-            builder: (_) => d_support_list_screen.SupportListScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'support_list_screen',
+              load: d_support_list_screen.loadLibrary,
+              builder: (_) => d_support_list_screen.SupportListScreen(),
+            ),
           ),
         ),
       ),
@@ -557,10 +605,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'client_badge_screen',
-            load: d_client_badge_screen.loadLibrary,
-            builder: (_) => d_client_badge_screen.ClientBadgeScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'client_badge_screen',
+              load: d_client_badge_screen.loadLibrary,
+              builder: (_) => d_client_badge_screen.ClientBadgeScreen(),
+            ),
           ),
         ),
       ),
@@ -569,11 +621,15 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'referral_screen',
-            load: d_referral_screen.loadLibrary,
-            builder: (_) => d_referral_screen.ReferralScreen(
-              initialCode: state.uri.queryParameters['code'],
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'referral_screen',
+              load: d_referral_screen.loadLibrary,
+              builder: (_) => d_referral_screen.ReferralScreen(
+                initialCode: state.uri.queryParameters['code'],
+              ),
             ),
           ),
         ),
@@ -583,10 +639,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'bid_packs_screen',
-            load: d_bid_packs_screen.loadLibrary,
-            builder: (_) => d_bid_packs_screen.BidPacksScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'bid_packs_screen',
+              load: d_bid_packs_screen.loadLibrary,
+              builder: (_) => d_bid_packs_screen.BidPacksScreen(),
+            ),
           ),
         ),
       ),
@@ -595,10 +655,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'stars_screen',
-            load: d_stars_screen.loadLibrary,
-            builder: (_) => d_stars_screen.StarsScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'stars_screen',
+              load: d_stars_screen.loadLibrary,
+              builder: (_) => d_stars_screen.StarsScreen(),
+            ),
           ),
         ),
         routes: [
@@ -621,10 +685,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'firm_screen',
-            load: d_firm_screen.loadLibrary,
-            builder: (_) => d_firm_screen.FirmScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'firm_screen',
+              load: d_firm_screen.loadLibrary,
+              builder: (_) => d_firm_screen.FirmScreen(),
+            ),
           ),
         ),
       ),
@@ -633,10 +701,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'attorney_stats_screen',
-            load: d_attorney_stats_screen.loadLibrary,
-            builder: (_) => d_attorney_stats_screen.AttorneyStatsScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'attorney_stats_screen',
+              load: d_attorney_stats_screen.loadLibrary,
+              builder: (_) => d_attorney_stats_screen.AttorneyStatsScreen(),
+            ),
           ),
         ),
       ),
@@ -645,10 +717,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'my_promotions_screen',
-            load: d_my_promotions_screen.loadLibrary,
-            builder: (_) => d_my_promotions_screen.MyPromotionsScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'my_promotions_screen',
+              load: d_my_promotions_screen.loadLibrary,
+              builder: (_) => d_my_promotions_screen.MyPromotionsScreen(),
+            ),
           ),
         ),
       ),
@@ -671,10 +747,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'partner_screen',
-            load: d_partner_screen.loadLibrary,
-            builder: (_) => d_partner_screen.PartnerScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'partner_screen',
+              load: d_partner_screen.loadLibrary,
+              builder: (_) => d_partner_screen.PartnerScreen(),
+            ),
           ),
         ),
       ),
@@ -683,10 +763,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'about_screen',
-            load: d_about_screen.loadLibrary,
-            builder: (_) => d_about_screen.AboutScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'about_screen',
+              load: d_about_screen.loadLibrary,
+              builder: (_) => d_about_screen.AboutScreen(),
+            ),
           ),
         ),
       ),
@@ -695,10 +778,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'saved_screen',
-            load: d_saved_screen.loadLibrary,
-            builder: (_) => d_saved_screen.SavedScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'saved_screen',
+              load: d_saved_screen.loadLibrary,
+              builder: (_) => d_saved_screen.SavedScreen(),
+            ),
           ),
         ),
       ),
@@ -707,12 +794,16 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'payments_hub_screen',
-            load: d_payments_hub_screen.loadLibrary,
-            builder: (_) => d_payments_hub_screen.PaymentsHubScreen(
-              initial: d_payments_hub_screen.PaymentsTab.parse(
-                state.uri.queryParameters['tab'],
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'payments_hub_screen',
+              load: d_payments_hub_screen.loadLibrary,
+              builder: (_) => d_payments_hub_screen.PaymentsHubScreen(
+                initial: d_payments_hub_screen.PaymentsTab.parse(
+                  state.uri.queryParameters['tab'],
+                ),
               ),
             ),
           ),
@@ -723,10 +814,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'archive_screen',
-            load: d_archive_screen.loadLibrary,
-            builder: (_) => d_archive_screen.ArchiveScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            query: state.uri.queryParameters,
+            phone: DeferredScreen(
+              id: 'archive_screen',
+              load: d_archive_screen.loadLibrary,
+              builder: (_) => d_archive_screen.ArchiveScreen(),
+            ),
           ),
         ),
       ),
@@ -759,10 +854,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'data_export_screen',
-            load: d_data_export_screen.loadLibrary,
-            builder: (_) => d_data_export_screen.DataExportScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'data_export_screen',
+              load: d_data_export_screen.loadLibrary,
+              builder: (_) => d_data_export_screen.DataExportScreen(),
+            ),
           ),
         ),
       ),
@@ -771,10 +869,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'storage_screen',
-            load: d_storage_screen.loadLibrary,
-            builder: (_) => d_storage_screen.StorageScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'storage_screen',
+              load: d_storage_screen.loadLibrary,
+              builder: (_) => d_storage_screen.StorageScreen(),
+            ),
           ),
         ),
       ),
@@ -798,10 +899,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'blocked_users_screen',
-            load: d_blocked_users_screen.loadLibrary,
-            builder: (_) => d_blocked_users_screen.BlockedUsersScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'blocked_users_screen',
+              load: d_blocked_users_screen.loadLibrary,
+              builder: (_) => d_blocked_users_screen.BlockedUsersScreen(),
+            ),
           ),
         ),
       ),
@@ -819,24 +923,27 @@ GoRouter appRouter(Ref ref) {
           ),
         ),
       ),
-      ...authRoutes(),
+      ...authRoutes(sectionPage: _settingsSection),
       ...onboardingRoutes(),
-      ...accountRoutes(parentNavigatorKey: _rootNavigatorKey),
+      ...accountRoutes(
+        parentNavigatorKey: _rootNavigatorKey,
+        sectionPage: _settingsSection,
+      ),
       // docs/01_FOUNDATION_AUTH.md §12 content links (/case/:id,
       // /lawyer/:username, /post/:id) — core/deeplinks.
       ...deepLinkRoutes(),
       // docs/05 feed: tag pages, follower lists.
       ...socialRoutes(_rootNavigatorKey),
       // docs/05 chats, notifications, notification settings.
-      ...chatRoutes(_rootNavigatorKey),
+      ...chatRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-20: group chats, polls, join links.
       ...groupRoutes(_rootNavigatorKey),
       // docs/06 §1.7: Settings → Подписка, payments, gate paywall.
-      ...subscriptionRoutes(_rootNavigatorKey),
+      ...subscriptionRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-05: payouts, case payments, Stripe return pages.
-      ...casePaymentsRoutes(_rootNavigatorKey),
+      ...casePaymentsRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-20: consultation booking.
-      ...consultationsRoutes(_rootNavigatorKey),
+      ...consultationsRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-20: the deadline calculator.
       ...deadlinesRoutes(_rootNavigatorKey),
       // Owner 2026-10-20: «Вопрос юристу».
@@ -844,13 +951,13 @@ GoRouter appRouter(Ref ref) {
       // Owner 2026-10-05 (plan builder): Settings → «Подписка клиента».
       ...clientPlanRoutes(_rootNavigatorKey),
       // OQ-048: Team, new task, assistant joining.
-      ...teamRoutes(_rootNavigatorKey),
+      ...teamRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-05: the attorney's own trust level.
-      ...trustRoutes(_rootNavigatorKey),
+      ...trustRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-20: stories (24 h) and Telegram-style channels.
       ...storiesRoutes(_rootNavigatorKey),
       ...channelsRoutes(_rootNavigatorKey),
-      ...privacyRoutes(_rootNavigatorKey),
+      ...privacyRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
     ],
   );
 }
@@ -891,3 +998,9 @@ AssistantGate _assistantGate(Ref ref) {
       ? AssistantGate.active
       : AssistantGate.notJoined;
 }
+
+/// Desktop web plan §6.7: a Settings section page is the two-pane Settings
+/// page on a desktop window (wired here so the features do not import the
+/// profile feature).
+Widget _settingsSection(String location, Widget page) =>
+    SettingsSectionPage(location: location, phone: page);

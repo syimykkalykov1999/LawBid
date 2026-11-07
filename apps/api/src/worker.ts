@@ -1,9 +1,10 @@
 // Tracing must be wired before any instrumented module is required.
+import { warmCjkFonts } from './common/pdf-fonts/pdf-fonts';
 import { startTelemetry } from './telemetry/otel';
 
 startTelemetry('worker');
 
-import { installProcessGuards } from './common/process-guards';
+import { installProcessGuards, runEntrypoint } from './common/process-guards';
 
 installProcessGuards();
 
@@ -30,6 +31,7 @@ async function bootstrap(): Promise<void> {
   captureKeyEnv();
   const app = await NestFactory.createApplicationContext(WorkerModule, {
     bufferLogs: true,
+    abortOnError: false, // a start-up error must reach runEntrypoint, not process.abort()
   });
   app.useLogger(app.get(Logger));
   // S3-3: every cipher has read its keys; drop them from process.env.
@@ -40,6 +42,8 @@ async function bootstrap(): Promise<void> {
   );
   // SIGTERM from ECS: close the worker gracefully (in-flight job finishes).
   app.enableShutdownHooks();
+  // CJK PDF fonts (case-history export runs here): background, sha256-checked.
+  void warmCjkFonts();
 }
 
-void bootstrap();
+void runEntrypoint('worker', bootstrap);

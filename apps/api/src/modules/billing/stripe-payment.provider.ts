@@ -1586,6 +1586,7 @@ function mapDispute(d: Stripe.Dispute): ProviderDispute {
     hasEvidence: d.evidence_details?.has_evidence ?? false,
     pastDue: d.evidence_details?.past_due ?? false,
     submissionCount: d.evidence_details?.submission_count ?? 0,
+    chargeRefundable: d.is_charge_refundable,
   };
 }
 

@@ -103,6 +103,15 @@ class UploadQueueDatabase extends _$UploadQueueDatabase {
             ..orderBy([(j) => OrderingTerm.asc(j.seq)]))
           .get();
 
+  /// The jobs of accounts other than [keeping] (null = every job).
+  Future<List<UploadJobRow>> ofOthers({String? keeping}) => (select(uploadJobs)
+        ..where(
+          (j) => keeping == null
+              ? const Constant(true)
+              : j.ownerId.equals(keeping).not(),
+        ))
+      .get();
+
   Future<void> remove(String id) =>
       (delete(uploadJobs)..where((j) => j.id.equals(id))).go();
 
@@ -113,6 +122,11 @@ class UploadQueueDatabase extends _$UploadQueueDatabase {
   Future<void> saveProgress(String id, String json) =>
       (update(uploadJobs)..where((j) => j.id.equals(id)))
           .write(UploadJobsCompanion(progress: Value(json)));
+
+  /// The job's payload replaced (a held draft released); rows changed.
+  Future<int> savePayload(String id, String json) =>
+      (update(uploadJobs)..where((j) => j.id.equals(id)))
+          .write(UploadJobsCompanion(payload: Value(json)));
 
   Future<void> attempted(String id, {String? failedCode}) => customUpdate(
         'UPDATE upload_jobs SET attempts = attempts + 1, failed_code = ? '

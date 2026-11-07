@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { FileText, IdentificationCard, UserFocus } from '@phosphor-icons/react';
+import { FilePdf, FileText, IdentificationCard, UserFocus } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -10,13 +10,16 @@ import { useReason } from '@/components/reason-dialog';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { useToast } from '@/components/ui/toast';
+import { docTitle } from '@/components/verification/document-gallery';
+import { RegistryActions } from '@/components/verification/registry-actions';
 import { RegistryResult } from '@/components/verification/registry-result';
 import { SelfieCaptureNote } from '@/components/verification/selfie-capture-note';
-import { api, ApiError } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
-import { DOC_TYPE, label, LICENSE_STATUS, REJECTION_CODE, REQUEST_STATUS, StatusPill, VERIFICATION_STATUS } from '@/lib/labels';
-import { isViewableImage, linkFreshMs, REVIEW_HINT, reviewJustification, splitDocs, verificationReviewHref } from '@/lib/review-flow';
+import { label, LICENSE_STATUS, REJECTION_CODE, REQUEST_STATUS, StatusPill, VERIFICATION_STATUS } from '@/lib/labels';
+import { isPdf, isViewableDoc, isViewableImage, linkFreshMs, REVIEW_HINT, reviewJustification, splitDocs, verificationReviewHref } from '@/lib/review-flow';
+import { docKey, fetchDocLink, isDocCap, useDocLinks } from '@/lib/verification-doc-links';
 import { formatDateTime } from '@/lib/utils';
 import { Lightbox, type LightboxImage } from './lightbox';
 import { ReviewShell, type ReviewAction } from './review-shell';
@@ -36,32 +39,23 @@ export async function fetchCard(id: string): Promise<Card> {
   return (await api.GET('/admin/verification/requests/{id}', { params: { path: { id } } })).data!.data;
 }
 
-/** A signed link of one document (one audited view; the per-admin hourly cap applies). */
-export const docKey = (id: string) => ['verification-doc-url', id] as const;
-async function fetchDocLink(requestId: string, documentId: string): Promise<DocLink> {
-  const res = await api.POST('/admin/verification/documents/{documentId}/url', {
-    params: { path: { documentId }, header: { 'X-Justification': encodeURIComponent(reviewJustification(requestId)) } },
-  });
-  return res.data!.data;
-}
-
 /** Once the hourly cap answered «too many», the screen stops warming up links. */
 let capHit = false;
-const isCap = (e: unknown) => e instanceof ApiError && e.status === 429;
+const isCap = isDocCap;
 
 /** Warm up one request: its card, then the links and the bytes of its pictures. */
 export async function prefetchRequest(qc: QueryClient, id: string): Promise<void> {
   const card = await qc.fetchQuery({ queryKey: cardKey(id), queryFn: () => fetchCard(id), staleTime: 30_000 });
   if (capHit) return;
   const { id: ids, selfie } = splitDocs(card.documents);
-  for (const d of [...ids, ...selfie].filter(isViewableImage)) {
+  for (const d of [...ids, ...selfie].filter(isViewableDoc)) {
     try {
       const link = await qc.fetchQuery({
         queryKey: docKey(d.id),
-        queryFn: () => fetchDocLink(id, d.id),
+        queryFn: () => fetchDocLink(reviewJustification(id), d.id),
         staleTime: (q) => linkFreshMs((q.state.data as DocLink | undefined)?.expiresAt),
       });
-      if (typeof Image !== 'undefined') new Image().src = link.url;
+      if (typeof Image !== 'undefined' && isViewableImage(d)) new Image().src = link.url;
     } catch (e) {
       if (isCap(e)) capHit = true;
       return;
@@ -238,10 +232,14 @@ export function VerificationReview() {
 
 function VerificationBody({ card: r, name }: { card: Card; name: string }) {
   const docs = useMemo(() => splitDocs(r.documents), [r.documents]);
-  const pictures = useMemo(() => [...docs.id, ...docs.selfie].filter(isViewableImage), [docs]);
+  // Owner 2026-11-04 (R-393): PDFs too — they open in the same lightbox, in a frame.
+  const pictures = useMemo(() => [...docs.id, ...docs.selfie].filter(isViewableDoc), [docs]);
   const [open, setOpen] = useState<number | null>(null);
-  const links = useDocLinks(r.id, pictures);
-  const shown: LightboxImage[] = pictures.map((d) => ({ src: links.urls[d.id] ?? '', alt: docTitle(d) })).filter((x) => x.src);
+  const links = useDocLinks(reviewJustification(r.id), pictures);
+  if (links.capped) capHit = true;
+  const shown: LightboxImage[] = pictures
+    .map((d): LightboxImage => ({ src: links.urls[d.id] ?? '', alt: docTitle(d), kind: isPdf(d) ? 'pdf' : 'image' }))
+    .filter((x) => x.src);
   const openDoc = (d: Doc) => {
     const i = shown.findIndex((x) => x.src === links.urls[d.id]);
     if (i >= 0) setOpen(i);
@@ -252,30 +250,30 @@ function VerificationBody({ card: r, name }: { card: Card; name: string }) {
       {links.capped ? (
         <p className="mb-3 rounded-xl bg-warning-soft px-3 py-2 text-sm text-warning">Лимит просмотров документов на этот час исчерпан — откройте позже.</p>
       ) : null}
-      <div className="grid gap-4 lg:grid-cols-12">
-        <Card className="lg:col-span-5">
+      <div data-testid="verification-grid" className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-12">
+        <Card data-testid="verification-document" className="min-w-0 lg:col-span-7 xl:col-span-5">
           <CardHeader>
             <CardTitle className="inline-flex items-center gap-2">
               <IdentificationCard size={18} /> Документ
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+          <CardContent className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
             {docs.id.length === 0 ? <p className="text-sm text-muted">Документа нет</p> : null}
             {docs.id.map((d) => (
               <Picture key={d.id} doc={d} url={links.urls[d.id]} loading={links.loading} onOpen={() => openDoc(d)} />
             ))}
           </CardContent>
         </Card>
-        <Card className="lg:col-span-3">
+        <Card data-testid="verification-selfie" className="min-w-0 lg:col-span-5 xl:col-span-3">
           <CardHeader>
             <CardTitle className="inline-flex items-center gap-2">
               <UserFocus size={18} /> Селфи
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3">
+          <CardContent className="grid min-w-0 gap-3">
             {docs.selfie.length === 0 ? <p className="text-sm text-muted">Селфи нет</p> : null}
             {docs.selfie.map((d) => (
-              <div key={d.id} className="grid gap-1.5">
+              <div key={d.id} className="grid min-w-0 gap-1.5 break-words">
                 <Picture doc={d} url={links.urls[d.id]} loading={links.loading} onOpen={() => openDoc(d)} />
                 {/* Owner 2026-10-28: how the selfie was taken, right next to it. */}
                 <SelfieCaptureNote capture={d.capture} />
@@ -283,7 +281,7 @@ function VerificationBody({ card: r, name }: { card: Card; name: string }) {
             ))}
           </CardContent>
         </Card>
-        <div className="space-y-4 lg:col-span-4">
+        <div data-testid="verification-side" className="min-w-0 space-y-4 lg:col-span-12 xl:col-span-4 [&>*]:min-w-0">
           <Card>
             <CardHeader>
               <CardTitle>Профиль</CardTitle>
@@ -319,6 +317,8 @@ function VerificationBody({ card: r, name }: { card: Card; name: string }) {
                   ) : null}
                 </div>
               ))}
+              {/* Owner 2026-11-04 (R-400): the registry in one tab and the copy chips. */}
+              <RegistryActions card={r} />
             </CardContent>
           </Card>
           {docs.other.length > 0 ? (
@@ -339,40 +339,14 @@ function VerificationBody({ card: r, name }: { card: Card; name: string }) {
           ) : null}
         </div>
       </div>
-      {open !== null ? <Lightbox images={shown} index={open} onIndex={setOpen} onClose={() => setOpen(null)} /> : null}
+      {open !== null ? <Lightbox images={shown} index={open} onIndex={setOpen} onClose={() => setOpen(null)} lastSlide={<RegistryActions card={r} tone="overlay" />} /> : null}
     </>
   );
 }
 
-/** The signed links of the pictures on screen (cached: warmed-up links are reused, not asked again). */
-function useDocLinks(requestId: string, docs: Doc[]) {
-  const qc = useQueryClient();
-  const q = useQuery({
-    queryKey: ['verification-doc-urls', requestId, docs.map((d) => d.id).join(',')],
-    enabled: docs.length > 0,
-    retry: false,
-    refetchOnWindowFocus: false,
-    staleTime: 60_000,
-    queryFn: async () => {
-      const urls: Record<string, string> = {};
-      for (const d of docs) {
-        const link = await qc.fetchQuery({
-          queryKey: docKey(d.id),
-          queryFn: () => fetchDocLink(requestId, d.id),
-          staleTime: (x) => linkFreshMs((x.state.data as DocLink | undefined)?.expiresAt),
-        });
-        urls[d.id] = link.url;
-      }
-      return urls;
-    },
-  });
-  if (q.error && isCap(q.error)) capHit = true;
-  return { urls: q.data ?? {}, loading: q.isPending && docs.length > 0, capped: !!q.error && isCap(q.error) };
-}
-
 function Picture({ doc, url, loading, onOpen }: { doc: Doc; url: string | undefined; loading: boolean; onOpen: () => void }) {
   const title = docTitle(doc);
-  if (!isViewableImage(doc)) {
+  if (!isViewableDoc(doc)) {
     return (
       <div className="grid h-40 place-items-center rounded-xl bg-surface-2 p-3 text-center text-xs text-muted">
         {title}
@@ -385,23 +359,28 @@ function Picture({ doc, url, loading, onOpen }: { doc: Doc; url: string | undefi
   return (
     <figure>
       <button type="button" onClick={onOpen} className="block w-full cursor-zoom-in overflow-hidden rounded-xl bg-surface-2" aria-label={`Открыть: ${title}`}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- a short signed link, not a static asset */}
-        <img src={url} alt={title} className="mx-auto h-[38vh] min-h-48 w-full object-contain" />
+        {isPdf(doc) ? (
+          <span className="grid h-[38vh] min-h-48 w-full place-items-center text-faint" data-testid="review-pdf-tile">
+            <span className="grid justify-items-center gap-1">
+              <FilePdf size={56} weight="light" />
+              <span className="text-xs font-medium">PDF</span>
+            </span>
+          </span>
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element -- a short signed link, not a static asset */
+          <img src={url} alt={title} className="mx-auto h-[38vh] min-h-48 w-full object-contain" />
+        )}
       </button>
       <figcaption className="mt-1 text-xs text-muted">{title}</figcaption>
     </figure>
   );
 }
 
-function docTitle(d: Doc): string {
-  return `${DOC_TYPE[d.docType] ?? d.docType}${d.side ? ` (${d.side === 'front' ? 'лицевая' : 'оборот'})` : ''}`;
-}
-
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3">
       <span className="text-muted">{k}</span>
-      <span className="text-right">{v}</span>
+      <span className="min-w-0 break-words text-right">{v}</span>
     </div>
   );
 }

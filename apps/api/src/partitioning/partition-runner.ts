@@ -54,6 +54,14 @@ export const PARTITION_TABLES: readonly PartitionSpec[] = [
     key: 'accessed_at',
     label: 'Журнал доступа к данным',
   },
+  // Fastest-growing table after messages (one row per impression / view).
+  // Nothing points at it; its shard_fill trigger moves to the new table in
+  // the swap. Retention deletes by (id, created_at), never by ctid.
+  {
+    table: 'post_view_events',
+    key: 'created_at',
+    label: 'Просмотры постов (по месяцам)',
+  },
 ];
 
 /**
@@ -100,6 +108,7 @@ export const MONTH_MAINTAINED: readonly string[] = [
   'audit_log',
   'auth_events',
   'data_access_log',
+  'post_view_events',
 ];
 
 export function specOf(table: string): PartitionSpec | undefined {
@@ -403,13 +412,19 @@ export class PartitionRunner {
       q(t),
     );
     if (seq.length > 0) reasons.push('есть счётчики (serial/identity)');
-    const trg = await this.db.rows<{ name: string }>(
-      `SELECT tgname AS name FROM pg_trigger
-        WHERE tgrelid = to_regclass($1) AND NOT tgisinternal`,
+    // The table's own triggers (shard_fill, ...) are not a reason to refuse:
+    // the swap re-creates them on the new table (see swap()). A trigger that
+    // is not in the default enabled state would come back enabled, so those
+    // are refused.
+    const offTrg = await this.db.rows<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_trigger
+        WHERE tgrelid = to_regclass($1) AND NOT tgisinternal AND tgenabled <> 'O'`,
       q(t),
     );
-    if (trg.length > 0) {
-      reasons.push(`есть свои триггеры (${trg.map((x) => x.name).join(', ')})`);
+    if ((offTrg[0]?.n ?? 0) > 0) {
+      reasons.push(
+        'есть выключенный или особый триггер (перенос включил бы его)',
+      );
     }
     const idx = await this.db.rows<{ n: number }>(
       `SELECT count(*)::int AS n FROM pg_index i
@@ -1156,14 +1171,16 @@ export class PartitionRunner {
         await tx.run(`SET LOCAL lock_timeout = '3s'`);
         await tx.run(`LOCK TABLE ${q(t)} IN ACCESS EXCLUSIVE MODE`);
         await tx.run(`DROP TRIGGER IF EXISTS ${ident(n.fwdTrg)} ON ${q(t)}`);
-        let trgs: { def: string }[] = [];
+        // The table's own triggers (shard_fill on post_view_events, ...) move
+        // to the new table in BOTH modes; otherwise a month conversion would
+        // silently drop them.
+        const trgs = await tx.rows<{ def: string }>(
+          `SELECT pg_get_triggerdef(oid) AS def FROM pg_trigger
+            WHERE tgrelid = to_regclass($1) AND NOT tgisinternal`,
+          q(t),
+        );
         let kids: { child: string; name: string; def: string }[] = [];
         if (spec.hash) {
-          trgs = await tx.rows<{ def: string }>(
-            `SELECT pg_get_triggerdef(oid) AS def FROM pg_trigger
-              WHERE tgrelid = to_regclass($1) AND NOT tgisinternal`,
-            q(t),
-          );
           kids = await this.inboundKids(tx, t);
           await this.dropKids(tx, kids);
         }
@@ -1181,10 +1198,10 @@ export class PartitionRunner {
           (x) => x === `${n.part}_pk` || x.endsWith('__p'),
           (x) => (x === `${n.part}_pk` ? `${t}_pkey` : x.replace(/__p$/, '')),
         );
+        // The old table's triggers stay on it; the new one gets copies.
+        for (const g of trgs) await tx.run(g.def);
         if (spec.hash) {
-          // The old table's triggers stay on it; the new one gets copies, and
-          // the other tables' foreign keys point at the new table.
-          for (const g of trgs) await tx.run(g.def);
+          // The other tables' foreign keys point at the new table.
           await this.addKids(tx, kids);
           kidsAfter = kids;
         }

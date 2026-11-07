@@ -53,6 +53,12 @@ abstract class QuestionsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Attorney: open questions of my topics, best first (nightly snapshot)
+  @GET('/questions/recommended')
+  Future<QuestionListEnvelope> recommendedForMe({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// A question with its answers
   @GET('/questions/{id}')
   Future<QuestionDetailEnvelope> getQuestion({

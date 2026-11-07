@@ -27,6 +27,7 @@ import {
   closeWorker,
   isStalledFailure,
   workerTuning,
+  outageProof,
 } from '../../common/queues/queue-hardening';
 
 export const HISTORY_EXPORT_QUEUE = 'case-history-export';
@@ -109,7 +110,7 @@ export class CaseHistoryExportRunner
     if (!this.workerEnabled) return;
     this.worker = new Worker(
       HISTORY_EXPORT_QUEUE,
-      (job: Job<ExportJob>) => this.process(job.data),
+      outageProof((job: Job<ExportJob>) => this.process(job.data)),
       {
         ...bullOptions(HISTORY_EXPORT_QUEUE, url, { worker: true }),
         ...workerTuning(HISTORY_EXPORT_QUEUE),
@@ -256,7 +257,12 @@ export class CaseHistoryExportRunner
       user,
       HISTORY_EXPORT_MAX_CASES,
     );
+    const owner = await this.prisma.user.findUnique({
+      where: { id: data.userId },
+      select: { ui_language: true },
+    });
     const pdf = await renderCaseHistoryPdf({
+      lang: owner?.ui_language,
       generatedAt: new Date(),
       cases,
       truncated,

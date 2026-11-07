@@ -1,22 +1,6 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import PDFDocument from 'pdfkit';
+import { applyPdfFonts } from '../../common/pdf-fonts/pdf-fonts';
 import type { CaseHistoryDetailDto } from './dto/case-history.dto';
-
-/** Inter (same face as the app, docs/07), covers Latin + Cyrillic.
- * apps/api/assets/fonts: 3 levels up from src/modules/case-history, 4 from
- * dist/src/modules/case-history. */
-const FONT_PATH = [3, 4]
-  .map((up) =>
-    join(
-      __dirname,
-      ...Array<string>(up).fill('..'),
-      'assets',
-      'fonts',
-      'Inter-Variable.ttf',
-    ),
-  )
-  .find((p) => existsSync(p));
 
 const NAVY = '#0B1B3F';
 const GOLD = '#B8860B';
@@ -33,6 +17,7 @@ function date(iso: string | null): string {
 
 /** docs/04 §12 "Скачать PDF": list of cases + their timelines. */
 export function renderCaseHistoryPdf(input: {
+  lang?: string;
   generatedAt: Date;
   cases: CaseHistoryDetailDto[];
   truncated: boolean;
@@ -44,11 +29,7 @@ export function renderCaseHistoryPdf(input: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    // Without the bundled font pdfkit falls back to Helvetica (Latin only).
-    if (FONT_PATH) {
-      doc.registerFont('Inter', FONT_PATH);
-      doc.font('Inter');
-    }
+    applyPdfFonts(doc, { lang: input.lang });
 
     doc.fillColor(NAVY).fontSize(20).text('LawBid — Case history');
     doc

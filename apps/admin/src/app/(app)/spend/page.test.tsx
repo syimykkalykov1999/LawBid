@@ -66,12 +66,15 @@ const report: SpendReport = {
   total: { monthToDateUsd: 18.25, forecastUsd: 60, marginPercent: 20, keepOnAccountUsd: 72, fixedMonthUsd: 8.25, stripeFeesUsd: 3.4 },
 };
 
+/** R-370: paths whose answer never comes (a slow source). */
+const pending = new Set<string>();
+
 vi.mock('@/lib/api/client', () => ({
   ApiError: class ApiError extends Error {},
   errorText: (e: unknown) => String(e),
   errorDetail: (t: string) => t,
   api: {
-    GET: vi.fn(async (path: string) => ({
+    GET: vi.fn(async (path: string) => pending.has(path) ? new Promise(() => undefined) : ({
       data: {
         data:
           path === '/admin/spend/registry'
@@ -93,7 +96,10 @@ vi.mock('@/lib/live', () => ({ livePoll: () => false }));
 
 import SpendPage from './page';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  pending.clear();
+});
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -136,5 +142,19 @@ describe('«Расходы» page', () => {
     expect(await screen.findByDisplayValue('Apple Developer')).toBeTruthy();
     expect(screen.getByText(/проверено 2026-10-24/)).toBeTruthy();
     expect(screen.getByText('источник').getAttribute('href')).toContain('cloudflare.com');
+  });
+
+  it('R-370: the registry shows while the spend report is still loading', async () => {
+    pending.add('/admin/spend');
+    renderPage();
+    expect(await screen.findByTestId('ladder-details')).toBeTruthy();
+    expect(screen.queryByTestId('spend-total')).toBeNull();
+  });
+
+  it('R-370: the spend total shows while the registry is still loading', async () => {
+    pending.add('/admin/spend/registry');
+    renderPage();
+    expect(await screen.findByTestId('spend-total')).toBeTruthy();
+    expect(screen.queryByTestId('ladder-details')).toBeNull();
   });
 });

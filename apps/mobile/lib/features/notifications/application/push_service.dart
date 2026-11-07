@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app_badge_plus/app_badge_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/web_push_config.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/permissions/permission_primer.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
@@ -17,6 +19,7 @@ import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/groups/application/group_media_outbox.dart';
 import 'package:lawbid/features/notifications/application/data_push_sync_hook.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_registrar.dart';
@@ -104,7 +107,8 @@ class PushService {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       unawaited(_registerVoip());
     }
-    // Web: push only when the build carries the Firebase web app's keys.
+    // Web: push only when the build or the admin carries the Firebase web
+    // app's keys (applied by the bootstrap).
     if (kIsWeb && !WebPushConfig.configured) {
       debugPrint('push: no web keys in this build');
       _startedFor = null;
@@ -121,6 +125,14 @@ class PushService {
     } on Object catch (e) {
       debugPrint('push disabled: $e');
       if (prompt && !kIsWeb) unawaited(_explainThenAsk(null));
+      _startedFor = null;
+      return;
+    }
+    // The web app is already up with other keys (they were changed in the
+    // admin meanwhile): Firebase cannot be re-pointed, so the new ones apply
+    // at the next start of the page, never a token asked with a mix.
+    if (kIsWeb && !WebPushConfig.matches(Firebase.app().options)) {
+      debugPrint('push: web keys changed, applied at the next start');
       _startedFor = null;
       return;
     }
@@ -180,10 +192,14 @@ class PushService {
             }
             if (msg.data['type'] == 'incoming_call' &&
                 msg.data['callId'] is String) {
+              // Owner 2026-11-03: the open app's push rang nothing yet —
+              // show the phone's call screen (once per call; the socket's
+              // ring of the same call is the same screen).
               unawaited(
-                _ref
-                    .read(callControllerProvider.notifier)
-                    .ringFromPush(msg.data['callId'] as String),
+                _ref.read(callControllerProvider.notifier).ringFromPush(
+                      msg.data['callId'] as String,
+                      showSystemUi: true,
+                    ),
               );
               return;
             }
@@ -429,11 +445,65 @@ class PushService {
   void forgetSession() {
     _startedFor = null;
     _voipToken = null;
+    _registrar?.stop();
+    _registrar = null;
   }
+
+  /// Owner 2026-11-05: what the operating system keeps for the account, on any
+  /// way out: the shade, the icon number, a ringing call, the buttons on
+  /// notifications, the phone-book names; when nobody is signed in, also the
+  /// planner's alarms and the Firebase token, so nothing can arrive even when
+  /// the server could not be told.
+  Future<void> clearDeviceTraces({required bool signedOut}) =>
+      clearDeviceTracesWith(
+        chat: chatNotificationsChannel,
+        endCalls: () => _ref.read(systemCallUiProvider).endAll(),
+        zeroBadge: () async {
+          if (kIsWeb) return;
+          if (await AppBadgePlus.isSupported()) {
+            await AppBadgePlus.updateBadge(0);
+          }
+        },
+        cancelReminders: signedOut && TaskReminderScheduler.supported
+            ? () => _ref.read(taskReminderSchedulerProvider).cancelAll()
+            : null,
+        deleteFirebaseToken: signedOut
+            ? () async {
+                if (Firebase.apps.isEmpty) return;
+                await FirebaseMessaging.instance.deleteToken();
+              }
+            : null,
+      );
 
   void dispose() {
     for (final s in _subs) {
       s.cancel();
+    }
+  }
+}
+
+/// The steps of [PushService.clearDeviceTraces]: one that fails never stops the
+/// others.
+Future<void> clearDeviceTracesWith({
+  required ChatNotificationsChannel chat,
+  required Future<void> Function() endCalls,
+  required Future<void> Function() zeroBadge,
+  Future<void> Function()? cancelReminders,
+  Future<void> Function()? deleteFirebaseToken,
+}) async {
+  for (final step in <Future<void> Function()?>[
+    () => chat.setPushActions(apiBase: '', deviceToken: ''),
+    () => chat.setContactNames(const {}),
+    chat.clearAll,
+    endCalls,
+    zeroBadge,
+    cancelReminders,
+    deleteFirebaseToken,
+  ]) {
+    try {
+      await step?.call();
+    } on Object catch (e) {
+      debugPrint('device traces: $e');
     }
   }
 }
@@ -456,6 +526,22 @@ final sessionServicesProvider = Provider<void>((ref) {
     ref.read(pushServiceProvider).forgetSession();
     return;
   }
+  // Web: the admin's push keys arrive with the bootstrap, maybe after the
+  // sign-in; the start runs again once they are here.
+  // Only the push start runs again for it, not this provider (the outbox
+  // and the media drain stay as they are).
+  if (kIsWeb) {
+    ref.listen(
+      featureFlagsControllerProvider
+          .select((s) => WebPushConfig.fingerprintOf(s.appConfig)),
+      (_, __) {
+        WebPushConfig.applyRemote(
+          ref.read(featureFlagsControllerProvider).appConfig,
+        );
+        unawaited(ref.read(pushServiceProvider).start());
+      },
+    );
+  }
   // Owner 2026-10-20: the phone's time zone and the planner's reminder
   // alarms follow the session.
   ref
@@ -467,6 +553,7 @@ final sessionServicesProvider = Provider<void>((ref) {
     // Owner 2026-10-22 (audit #4 §3): queued voice notes, photos, files
     // and stickers left from the last run go out.
     ref.read(chatMediaOutboxProvider).drain();
+    ref.read(groupMediaOutboxProvider).drain();
     ref.read(deliveryAckerProvider);
   });
 });

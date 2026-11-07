@@ -4,20 +4,32 @@ import {
   HttpException,
   type ArgumentsHost,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../errors/error-code.enum';
 import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
-function run(exception: unknown): { status: number; body: unknown } {
+function run(exception: unknown): {
+  status: number;
+  body: unknown;
+  headers: Record<string, string>;
+} {
   const logger = {
     setContext: jest.fn(),
     error: jest.fn(),
     warn: jest.fn(),
   } as unknown as PinoLogger;
   const filter = new AllExceptionsFilter(logger);
-  const out: { status: number; body: unknown } = { status: 0, body: null };
+  const out: {
+    status: number;
+    body: unknown;
+    headers: Record<string, string>;
+  } = { status: 0, body: null, headers: {} };
   const response = {
+    setHeader(k: string, v: string) {
+      out.headers[k] = v;
+    },
     status(code: number) {
       out.status = code;
       return this;
@@ -146,6 +158,21 @@ describe('AllExceptionsFilter (docs/01 §7 error envelope)', () => {
     expect(run(err).status).toBe(500);
   });
 
+  it('maps an unavailable Redis (refused while disconnected, timeout, closed) to 503 SERVER_BUSY with Retry-After', () => {
+    for (const e of [
+      new Error(
+        "Stream isn't writeable and enableOfflineQueue options is false",
+      ),
+      new Error('Command timed out'),
+      new Error('Connection is closed.'),
+    ]) {
+      const { status, body, headers } = run(e);
+      expect(status).toBe(503);
+      expect(body).toMatchObject({ error: { code: 'SERVER_BUSY' } });
+      expect(headers['Retry-After']).toBe('5');
+    }
+  });
+
   it('maps a paused or timed-out partner service to 503 SERVER_BUSY', () => {
     for (const e of [
       new CircuitOpenError('ses'),
@@ -155,5 +182,43 @@ describe('AllExceptionsFilter (docs/01 §7 error envelope)', () => {
       expect(status).toBe(503);
       expect(body).toMatchObject({ error: { code: 'SERVER_BUSY' } });
     }
+  });
+
+  it('maps a full database pool (Prisma P2024, P2028 «unable to start») to 503 SERVER_BUSY with Retry-After', () => {
+    for (const [code, message] of [
+      [
+        'P2028',
+        'Transaction API error: Unable to start a transaction in the given time.',
+      ],
+      [
+        'P2024',
+        'Timed out fetching a new connection from the connection pool.',
+      ],
+    ]) {
+      const e = new Prisma.PrismaClientKnownRequestError(message, {
+        code,
+        clientVersion: 'test',
+      });
+      const { status, body, headers } = run(e);
+      expect(status).toBe(503);
+      expect(body).toMatchObject({ error: { code: 'SERVER_BUSY' } });
+      expect(headers['Retry-After']).toBe('5');
+    }
+  });
+
+  it('a transaction that expired mid-way (P2028) stays a 500: work outside it may have run', () => {
+    const e = new Prisma.PrismaClientKnownRequestError(
+      'Transaction API error: Transaction already closed: A query cannot be executed on an expired transaction.',
+      { code: 'P2028', clientVersion: 'test' },
+    );
+    expect(run(e).status).toBe(500);
+  });
+
+  it('keeps other Prisma errors a 500', () => {
+    const e = new Prisma.PrismaClientKnownRequestError('x', {
+      code: 'P2002',
+      clientVersion: 'test',
+    });
+    expect(run(e).status).toBe(500);
   });
 });

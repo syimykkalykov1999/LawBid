@@ -10,6 +10,7 @@ import { growthError } from '@/components/growth/errors';
 import { fileMime, sha256Hex, sleep } from '@/components/media/media-utils';
 import { api } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
+import { sendToStorage } from '@/lib/storage-upload';
 
 type Mime = components['schemas']['AdminStickerUploadDto']['mime'];
 const MIMES: Mime[] = ['image/png', 'image/webp', 'image/jpeg', 'image/gif'];
@@ -72,12 +73,9 @@ export function GiftUploader({ onAdded }: { onAdded: () => void }) {
         })
       ).data!.data;
       setPhase('upload');
-      const form = new FormData();
-      for (const [k, v] of Object.entries(presigned.upload.fields)) form.append(k, v);
-      form.append('file', file);
       let uploaded: Response;
       try {
-        uploaded = await fetch(presigned.upload.url, { method: 'POST', body: form });
+        uploaded = await sendToStorage(presigned.upload, file);
       } catch {
         throw new Error('Не удалось отправить файл в хранилище (сеть или CORS).');
       }

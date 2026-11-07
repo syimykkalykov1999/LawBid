@@ -14,6 +14,9 @@ import {
   type JobRow,
   type PartitionSpec,
 } from './partition-runner';
+import { assessShardGrowth, type ShardGrowth } from '../sharding/shard-growth';
+import { parseShardDatabaseUrls } from '../sharding/shard-databases';
+import { buildMoveTables } from '../sharding/move/move-plan';
 import { prismaSql, sharedSql, type SqlDb } from './sql';
 
 /** Months kept ahead of today by the daily job. */
@@ -25,6 +28,16 @@ export const MONTHS_AHEAD = 2;
  * the database until someone archives and drops them.
  */
 export const PARTITION_RETENTION_MONTHS: Readonly<Record<string, number>> = {};
+
+/**
+ * Tables with an «Выкл / Вкл / Авто» switch: the three hash tables plus the
+ * monthly `post_view_events` (the other monthly tables are converted by the
+ * migration or by hand).
+ */
+export const MODE_TABLES: readonly PartitionSpec[] = [
+  ...HASH_PARTITIONED,
+  ...PARTITION_TABLES.filter((s) => s.table === 'post_view_events'),
+];
 
 export type PartitionCardState =
   | 'monthly' // partitioned by the migration or by the runner
@@ -93,12 +106,13 @@ export class PartitionService implements OnModuleDestroy {
     return `partition.${table}_mode` as
       | 'partition.messages_mode'
       | 'partition.chat_group_messages_mode'
-      | 'partition.notifications_mode';
+      | 'partition.notifications_mode'
+      | 'partition.post_view_events_mode';
   }
 
-  /** «Выкл / Вкл / Авто» of a HASH table; anything else reads as off. */
+  /** «Выкл / Вкл / Авто» of a switchable table; anything else reads as off. */
   async mode(table: string): Promise<PartitionMode> {
-    if (!HASH_PARTITIONED.some((s) => s.table === table) || !this.settings) {
+    if (!MODE_TABLES.some((s) => s.table === table) || !this.settings) {
       return 'off';
     }
     const v = await this.settings.string(this.modeKey(table));
@@ -118,7 +132,7 @@ export class PartitionService implements OnModuleDestroy {
     mode: PartitionMode,
     adminId: string,
   ): Promise<void> {
-    if (!HASH_PARTITIONED.some((s) => s.table === table)) {
+    if (!MODE_TABLES.some((s) => s.table === table)) {
       throw new Error('Для этой таблицы режима «Авто» нет.');
     }
     if (!this.writer) throw new Error('Настройки недоступны.');
@@ -129,7 +143,7 @@ export class PartitionService implements OnModuleDestroy {
 
   /** After an undo / abort: back to «Выкл» so the table is not converted again. */
   async resetMode(table: string, adminId: string): Promise<void> {
-    if (!HASH_PARTITIONED.some((s) => s.table === table)) return;
+    if (!MODE_TABLES.some((s) => s.table === table)) return;
     if ((await this.mode(table)) !== 'off') {
       await this.setMode(table, 'off', adminId);
     }
@@ -145,14 +159,15 @@ export class PartitionService implements OnModuleDestroy {
     const run = this.runnerRw();
     if ((await run.activeJobs()).length > 0) return [];
     const limit = await this.autoRows();
-    for (const spec of HASH_PARTITIONED) {
+    for (const spec of MODE_TABLES) {
       const mode = await this.mode(spec.table);
       if (mode === 'off') continue;
       const st = await run.stats(spec.table);
       if (!st.exists || st.partitioned) continue;
+      // Cheap check first: a small table in «auto» costs no job query.
+      if (mode === 'auto' && st.rows < limit) continue;
       const job = await run.job(spec.table);
       if (job && job.phase !== 'done') continue;
-      if (mode === 'auto' && st.rows < limit) continue;
       const pre = await run.precheck(spec);
       if (!pre.ok) {
         this.log.warn(`auto ${spec.table}: ${pre.reasons.join('; ')}`);
@@ -212,7 +227,7 @@ export class PartitionService implements OnModuleDestroy {
       const s = { table };
       try {
         const r = await this.prisma.$queryRawUnsafe<{ n: number }[]>(
-          `SELECT lawbid_ensure_month_partitions($1, $2)::int AS n`,
+          `SELECT lawbid_ensure_month_partitions($1::text, $2::int)::int AS n`,
           s.table,
           MONTHS_AHEAD,
         );
@@ -220,7 +235,7 @@ export class PartitionService implements OnModuleDestroy {
         const keep = PARTITION_RETENTION_MONTHS[s.table];
         if (keep && keep > 0) {
           const d = await this.prisma.$queryRawUnsafe<{ n: number }[]>(
-            `SELECT lawbid_detach_old_partitions($1, $2)::int AS n`,
+            `SELECT lawbid_detach_old_partitions($1::text, $2::int)::int AS n`,
             s.table,
             keep,
           );
@@ -306,7 +321,9 @@ export class PartitionService implements OnModuleDestroy {
       partitions,
       runnerConfigured: this.runnerConfigured,
       overThreshold: !st.partitioned && st.rows >= limit,
-      mode: spec.hash ? await this.mode(spec.table) : null,
+      mode: MODE_TABLES.some((m) => m.table === spec.table)
+        ? await this.mode(spec.table)
+        : null,
       autoRows: limit,
     };
     const idle = {
@@ -398,6 +415,49 @@ export class PartitionService implements OnModuleDestroy {
         .filter((r) => r.rows >= limit && !r.partitioned)
         .map(({ table, rows }) => ({ table, rows })),
     };
+  }
+
+  /**
+   * Health signal «time to prepare a second database»: size of the primary and
+   * estimated rows of the sharded-family tables against two admin thresholds.
+   * Three catalog reads (pg_database_size, pg_class estimates, a GROUP BY over
+   * the 256-row shard_map); no COUNT(*), nothing is moved. `autoMove` is
+   * false on purpose (see sharding/shard-growth.ts).
+   */
+  async shardSignal(): Promise<ShardGrowth> {
+    const [gb, rowsLimit] = await Promise.all([
+      this.settings?.number('growth.shard_db_gb') ?? 400,
+      this.settings?.number('growth.shard_rows') ?? 1_000_000_000,
+    ]);
+    const tables = buildMoveTables().map((t) => t.table);
+    const [[size], [est], map] = await Promise.all([
+      this.prisma.$queryRawUnsafe<{ bytes: number }[]>(
+        'SELECT pg_database_size(current_database())::float8 AS bytes',
+      ),
+      this.prisma.$queryRawUnsafe<{ rows: number }[]>(
+        `SELECT COALESCE(sum(CASE WHEN c.relkind = 'p'
+                   THEN (SELECT COALESCE(sum(GREATEST(p.reltuples, 0)), 0) FROM pg_inherits i JOIN pg_class p ON p.oid = i.inhrelid WHERE i.inhparent = c.oid)
+                   ELSE GREATEST(c.reltuples, 0) END), 0)::float8 AS rows
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r','p') AND NOT c.relispartition
+          AND c.relname = ANY($1::text[])`,
+        tables,
+      ),
+      this.prisma.$queryRawUnsafe<{ physical_db: string; n: number }[]>(
+        `SELECT physical_db, count(*)::int AS n FROM shard_map WHERE state = 'active' GROUP BY physical_db`,
+      ),
+    ]);
+    const onPrimary = map.find((m) => m.physical_db === 'primary')?.n ?? 0;
+    return assessShardGrowth({
+      dbBytes: Number(size?.bytes ?? 0),
+      rows: Number(est?.rows ?? 0),
+      thresholdGb: gb,
+      thresholdRows: rowsLimit,
+      targets: Object.keys(
+        parseShardDatabaseUrls(this.config.get<string>('DATABASE_URL_SHARDS')),
+      ),
+      shardsOnPrimary: onPrimary,
+    });
   }
 
   // ------------------------------------------------------------ actions ---

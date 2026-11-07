@@ -39,6 +39,7 @@ api.GroupDto grp(
   bool lastMessage = true,
 }) =>
     api.GroupDto(
+      slowModeS: null,
       callsMuted: false,
       id: id,
       title: title,
@@ -186,6 +187,7 @@ void main() {
 }
 
 api.GroupDto _withMute(api.GroupDto g, DateTime until) => api.GroupDto(
+      slowModeS: null,
       id: g.id,
       title: g.title,
       memberCount: g.memberCount,

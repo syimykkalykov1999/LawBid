@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
+import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
@@ -26,6 +28,15 @@ class MineScreen extends ConsumerWidget {
     final needsVerification = ref.watch(attorneyNeedsVerificationProvider);
 
     final attorney = ref.watch(actsAsAttorneyProvider);
+
+    // Desktop web plan §6.4: list | case on a desktop window (the list
+    // inside the page is this same screen).
+    if (isDesktopWindow(context) &&
+        !DesktopCaseScope.inPage(context) &&
+        !needsVerification &&
+        !ref.watch(isGuestProvider)) {
+      return const DesktopCasesPage();
+    }
 
     return Scaffold(
       backgroundColor: colors.bg,

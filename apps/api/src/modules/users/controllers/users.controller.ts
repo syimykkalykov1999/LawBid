@@ -33,6 +33,7 @@ import {
   DeletionPendingDto,
   IdentifierDto,
   MeDto,
+  RoleSwitchPreviewDto,
 } from '../dto/user-responses.dto';
 import { IdempotencyInterceptor } from '../../../idempotency/idempotency.interceptor';
 import { ContactsService } from '../services/contacts.service';
@@ -42,8 +43,13 @@ import { ContactRequestDto } from '../dto/contact-request.dto';
 import { ContactVerifyDto } from '../dto/contact-verify.dto';
 import { SaveConsentsDto } from '../dto/consents.dto';
 import { SaveOnboardingStepDto } from '../dto/onboarding.dto';
-import { SetRoleDto, UpdateProfileDto } from '../dto/profile.dto';
+import {
+  SetRoleDto,
+  SwitchRoleDto,
+  UpdateProfileDto,
+} from '../dto/profile.dto';
 import { OnboardingService } from '../services/onboarding.service';
+import { RoleSwitchService } from '../services/role-switch.service';
 import { AccountIdentifiersService } from '../services/account-identifiers.service';
 import {
   CurrentUser,
@@ -96,6 +102,7 @@ export class UsersController {
     private readonly reauth: ReauthVerifier,
     private readonly identifiers: AccountIdentifiersService,
     private readonly analytics: AnalyticsService,
+    private readonly roleSwitch: RoleSwitchService,
   ) {}
 
   // --- Onboarding (docs/01_FOUNDATION_AUTH.md §11, stage 1.7) ---
@@ -148,9 +155,76 @@ export class UsersController {
   async setRole(
     @CurrentUser() user: RequestUser,
     @Body() dto: SetRoleDto,
+    @Req() req: Request,
   ): Promise<MeDto> {
-    await this.onboarding.setRole(user.sub, dto.role);
+    // Owner 2026-11-05: an account that switched profiles and is still in
+    // the new profile's onboarding goes back without deleting anything.
+    if (
+      !(await this.roleSwitch.pickDuringOnboarding(
+        user.sub,
+        dto.role,
+        this.meta(req),
+      ))
+    ) {
+      await this.onboarding.setRole(user.sub, dto.role);
+    }
     return this.onboarding.getMe(user.sub);
+  }
+
+  /** Owner 2026-11-05: Settings → Account «Сменить профиль»: can this
+   * account switch now, and what stands in the way. */
+  @Get('role/switch')
+  @ApiOperation({ summary: 'Can this account switch its profile now' })
+  @ApiEnvelopeResponse(RoleSwitchPreviewDto)
+  @ApiErrors({
+    403: [E.ROLE_SWITCH_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+  })
+  async previewRoleSwitch(
+    @CurrentUser() user: RequestUser,
+  ): Promise<RoleSwitchPreviewDto> {
+    await this.roleSwitch.assertEnabled();
+    return this.roleSwitch.preview(user.sub);
+  }
+
+  /** The same account, phone and password: only the active profile
+   * changes (RoleSwitchService). Confirmed with the password or a passkey;
+   * the caller refreshes its token afterwards to get the new role claim. */
+  @Post('role/switch')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Switch between attorney and client profile' })
+  @ApiEnvelopeResponse(MeDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [
+      E.UNAUTHORIZED,
+      E.TOKEN_EXPIRED,
+      E.AUTH_SESSION_REVOKED,
+      E.REAUTH_INVALID,
+    ],
+    403: [E.REAUTH_REQUIRED, E.ROLE_SWITCH_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+    409: [E.ROLE_SWITCH_BLOCKED, E.ROLE_ALREADY_SET],
+    429: [E.RATE_LIMITED],
+  })
+  @ApiHeader({
+    name: REAUTH_HEADER_NAME,
+    required: true,
+    description: 'Single-use reauth token (account password or passkey).',
+  })
+  async switchRole(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SwitchRoleDto,
+    @Req() req: Request & { user?: RequestUser },
+  ): Promise<MeDto> {
+    // The switch goes first: while it is off nothing here exists, and the
+    // reauth token is not spent.
+    await this.roleSwitch.assertEnabled();
+    await this.reauth.assertAndConsume(req);
+    return this.roleSwitch.switchTo(user.sub, dto.role, {
+      ...this.meta(req),
+      sessionChainId: user.sid,
+    });
   }
 
   @Patch('onboarding')

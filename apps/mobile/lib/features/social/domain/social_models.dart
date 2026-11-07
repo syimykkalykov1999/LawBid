@@ -219,6 +219,14 @@ class PostVideo {
   String? playerUrl({required bool web, bool hlsOnly = false}) =>
       !hlsOnly && prefersMp4(web: web) ? fallbackUrl : playbackUrl;
 
+  /// What to warm ahead on a phone. [smart] (flag `video_prefetch_smart`): the
+  /// stream the player will really open; off: the HLS playlist, as before,
+  /// also for a short clip whose player opens the MP4.
+  String? warmUrl({required bool smart}) {
+    if (!ready) return null;
+    return smart ? playerUrl(web: false) : playbackUrl;
+  }
+
   /// True when [playerUrl] is the MP4 copy, not the HLS playlist.
   bool usesMp4({required bool web, bool hlsOnly = false}) =>
       !hlsOnly && prefersMp4(web: web);
@@ -608,13 +616,27 @@ class SavedPost {
 /// docs/05 §7.5 hashtag; [postsCount] only for trending tags.
 @immutable
 class TagInfo {
-  const TagInfo({required this.tag, this.postsCount, this.categoryCode});
+  const TagInfo({
+    required this.tag,
+    this.postsCount,
+    this.categoryCode,
+    this.coverUrl,
+    this.coverPostId,
+  });
 
   final String tag;
   final int? postsCount;
 
   /// The practice category its posts mostly belong to (the topic cover).
   final String? categoryCode;
+
+  /// Owner 2026-11-04 (R-406): a hashtag topic's cover — the photo or video
+  /// frame of its most popular post (the server's nightly snapshot); null
+  /// when the topic has no media posts (the row shows its letter).
+  final String? coverUrl;
+
+  /// The post [coverUrl] comes from.
+  final String? coverPostId;
 }
 
 enum TagSort { top, fresh, video }

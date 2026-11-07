@@ -73,7 +73,13 @@ class SupportingPaneLayout extends StatelessWidget {
     final view = View.maybeOf(context);
     final windowWidth =
         view == null ? 0.0 : view.physicalSize.width / view.devicePixelRatio;
-    if (!isDesktopWindow(context) || windowWidth < paneMinWidth) return main;
+    if (!isDesktopWindow(context)) return main;
+    // Too narrow for the pane: the main content alone, still in its column.
+    if (windowWidth < paneMinWidth) {
+      return mainMaxWidth == null
+          ? main
+          : ContentColumn(maxWidth: mainMaxWidth, child: main);
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

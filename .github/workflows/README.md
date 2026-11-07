@@ -10,7 +10,7 @@ subset of §7.2's eventual PR-check list it covers today.
 | Workflow | Triggers | What it does |
 |---|---|---|
 | `api-ci.yml` | PR / push / merge queue touching `apps/api/**`, root `package(-lock).json`, `scripts/ci/**` | S11-7: five parallel jobs, each with its own digest-pinned Postgres 16 + Redis 7 (+ Mailhog) services: `static` (migrations on a clean and on the previous release's DB, drift, expand/contract check, i18n, ERD, lint, tsc, unit tests with a `coverageThreshold` floor + ratchet note, OpenAPI breaking-change diff, contract, flag-first, audit), `e2e` (3-way matrix, one retry per failed suite, `flaky.json` artifact), `two-db`, `n1` (the PREVIOUS release's e2e smoke suites on the NEW schema, only when migrations change) and the single required check **`API CI`** that needs them all. `cancel-in-progress` for PRs only. |
-| `mobile-ci.yml` | PR/push to `main`/`master` touching `apps/mobile/**` | `analyze-and-test` (macOS runner — see file comment for why): `flutter pub get`, codegen (`build_runner`), `flutter analyze`, blocking hardcoded-string/hardcoded-color scans of `lib/` against a baseline (`apps/mobile/tool/ci/hardcoded_check.py`), `flutter test` (unit/widget/golden). `build-android` (Ubuntu) and `build-ios` (macOS) then each build an unsigned debug build as a build-check only — no signing, no store upload. |
+| `mobile-ci.yml` | PR/push to `main`/`master` touching `apps/mobile/**` | `analyze-and-test` (Ubuntu; the golden files run in `golden-tests` on macOS, only when the app changes): `flutter pub get`, codegen (`build_runner`), `flutter analyze`, blocking hardcoded-string/hardcoded-color scans of `lib/` against a baseline (`apps/mobile/tool/ci/hardcoded_check.py`), `flutter test` (unit/widget/golden). `build-android` (Ubuntu) and `build-ios` (macOS) then each build an unsigned debug build as a build-check only — no signing, no store upload. |
 | `notify-failure.yml` | `workflow_call` (reusable) | S11-6: one "tell the owner" job used by deploy / rollback / web-deploy / self-check / drift / main scans / CI on main: GitHub issue `ci-alert` (one per kind, no spam) + SNS `lawbid-prod-alerts` (secret `AWS_NOTIFY_ROLE`) + chat webhook (secret `ALERT_WEBHOOK_URL`). |
 | `synthetic.yml` | cron every 5 min + manual | S11-5: `scripts/ops/synthetic-check.mjs` against production (health + version, bootstrap, sign-in validation; with `SYNTHETIC_IDENTIFIER/PASSWORD`: login, authenticated call, Socket.IO handshake, logout). Failure notifies. |
 | `ci-housekeeping.yml` | cron weekly + daily + manual | S11-6/8: Monday heartbeat "last green production deploy"; daily cancel of Deploy runs waiting for approval more than 12 h. |
@@ -18,6 +18,7 @@ subset of §7.2's eventual PR-check list it covers today.
 | `dependabot-automerge.yml` | PR by dependabot | S11-11: minor/patch groups merge after the required checks through the queue (variable `DEPENDABOT_AUTOMERGE=true`). |
 | `secret-scan.yml` | PR/push to `main`/`master`, repo-wide | `gitleaks` — diff-only on PRs, full scan on push to a protected branch. |
 | `deploy.yml` | push to `main` touching api/admin/packages, or manual dispatch with an image tag | docs/06 §7.3: build + push `lawbid-api` / `lawbid-admin` images to ECR (amd64 on `ubuntu-latest` and arm64 on `ubuntu-24.04-arm`, both native in parallel, joined into one multi-arch tag by `scripts/deploy/merge-arch-manifests.sh`) → staging (migrations task, rolling deploy, smoke) → `production` environment with required reviewers → backup freshness check → config preflight (new image vs real env + secrets, KMS, Postgres, Redis: `prod-admin-ecs.sh <tag> config`) → migrations task (`migrate deploy` → `run-concurrent` → `verify-schema`: the real DB must match schema.prisma, `SCHEMA_DRIFT_CHECK`) → rolling deploy → smoke. Rollback of a failed rollout is the ECS circuit breaker (infra). Scripts in `scripts/deploy/`. |
+| `infra-validate.yml` | PR touching `infra/**` | `terraform fmt -check` + `init -backend=false` / `validate` for every root module (`infra/envs/*`, `infra/bootstrap*`) (no AWS, no state). Advisory, not a required check (public registry can flake). |
 | `terraform-drift.yml` | cron 03:00 America/Chicago (two UTC lines + hour guard) + manual | P1: read-only `terraform plan -detailed-exitcode` on prod (role `AWS_PLAN_ROLE`), never applies; drift -> one GitHub issue (`infra-drift`) and optional Slack; report has names only, no values. Runbook `docs/runbooks/DEPLOY_SAFETY.md`. |
 | `rollback.yml` | manual dispatch with a previous image tag | One-button rollback of production: checks the tag exists in ECR, rolls api / worker / admin back to it (same `roll-services.sh`), smoke. Skips staging and migrations (expand/contract keeps the old release compatible). Goes through the `production` environment reviewers. |
 | `load-test.yml` | manual dispatch only (`profile`, `confirm_cost`) | Staged AWS load test (docs/runbooks/LOAD_TEST.md): estimate cost (stops above `confirm_cost`) -> `load-test` environment approval -> throw-away tagged stack (`infra/envs/loadtest`) -> seed -> k6 generators on EC2 Spot -> CloudWatch -> report -> `terraform destroy` with `if: always()` -> proof nothing tagged remains. Auto-abort at error rate > 5 % or p95 > 2 s for 60 s. A full run needs a green smoke first. |
@@ -30,7 +31,7 @@ subset of §7.2's eventual PR-check list it covers today.
   `mobile-ci.yml` are **blocking** against a baseline of the findings that
   already existed (`apps/mobile/tool/ci/hardcoded_*.allow`). New ones fail;
   how to fix or allow one is in the header of `tool/ci/hardcoded_check.py`.
-- `npm audit` at high severity in `api-ci.yml` is **blocking** too. An
+- `npm audit` at high severity in `api-ci.yml` and `admin-ci.yml` is **blocking** too (a warning only on a PR that changes no dependency). An
   advisory that cannot be fixed yet goes in `.github/npm-audit-allowlist.json`
   with a GHSA id, a reason and an expiry date (an expired entry fails again).
   See the header of `scripts/ci/npm-audit-gate.mjs`.
@@ -45,9 +46,9 @@ subset of §7.2's eventual PR-check list it covers today.
   --json` (outdated / discontinued packages) to the job summary, as
   information only. It runs on Ubuntu because the OSV action is a Docker
   action (no macOS runners).
-- `analyze-and-test` in `mobile-ci.yml` runs on `macos-latest`, not the
-  usual `ubuntu-latest`, because this repo's golden tests render real
-  embedded fonts and were generated on macOS — see the in-file comment.
+- `analyze-and-test` in `mobile-ci.yml` runs on `ubuntu-latest` (CI audit
+  2026-11-01); only the golden test files, which render real fonts and were
+  generated on macOS, run in the `golden-tests` job on `macos-latest`.
 - Flutter is pinned (S11-11) in ONE place, `apps/mobile/.fvmrc`; every Flutter
   workflow reads it (`jq -r .flutter apps/mobile/.fvmrc`) and passes it as
   `flutter-version`. Bump the file, not the workflows. Dart for the API

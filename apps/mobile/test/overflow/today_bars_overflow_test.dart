@@ -71,7 +71,7 @@ void main() {
     ),
   };
   for (final id in AppThemeId.values) {
-    for (final scale in [1.0, 1.1]) {
+    for (final scale in [1.0, 1.1, 1.3]) {
       for (final e in locales.entries) {
         for (final bar in ['voice mini player', 'invite']) {
           testWidgets('$bar: ${id.name} ${e.key} x$scale', (t) async {

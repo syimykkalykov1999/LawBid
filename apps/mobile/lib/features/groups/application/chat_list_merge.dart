@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
@@ -51,6 +52,157 @@ final class GroupChatEntry extends ChatListEntry {
   DateTime get activityAt => group.lastMessageAt ?? group.updatedAt;
 }
 
+/// R-404 (b) (owner 2026-11-04, Telegram: one person = one row): in «All»
+/// every conversation with the same person — the direct chat and one chat
+/// per case — is ONE row. The row is the direct chat (or, while there is
+/// none, a stand-in built from the newest case chat; a tap on it opens or
+/// starts the direct chat); its preview is the newest message across all
+/// of them, its unread count their sum, its place the newest activity.
+/// The case chats themselves stay under the «Cases» chip and in the case.
+final class PersonChatEntry extends ChatListEntry {
+  PersonChatEntry({
+    required this.counterpartId,
+    required this.direct,
+    required List<Conversation> cases,
+  }) : cases = List.unmodifiable(cases);
+
+  final String counterpartId;
+
+  /// The direct chat, or null while the two have only case chats.
+  final Conversation? direct;
+
+  /// The case chats with this person, newest activity first.
+  final List<Conversation> cases;
+
+  /// The id of the stand-in row for a person without a direct chat yet.
+  static String standInId(String counterpartId) => 'person-$counterpartId';
+
+  /// All the conversations behind the row.
+  List<Conversation> get conversations => [
+        if (direct != null) direct!,
+        ...cases,
+      ];
+
+  /// The row has no direct chat behind it: a tap starts one.
+  bool get standIn => direct == null;
+
+  /// The newest message across all the conversations (and the one whose
+  /// time and preview the row shows).
+  Conversation get newest {
+    Conversation? best;
+    for (final c in conversations) {
+      if (best == null || _activity(c).isAfter(_activity(best))) best = c;
+    }
+    return best!;
+  }
+
+  int get unread {
+    var n = 0;
+    for (final c in conversations) {
+      n += c.unreadCount;
+    }
+    return n;
+  }
+
+  /// The conversation the row is drawn from: the direct chat (else the
+  /// newest case chat without its case) carrying the merged preview and
+  /// unread count.
+  Conversation get row {
+    final base = direct;
+    final top = newest;
+    if (base == null) {
+      final n = top;
+      return Conversation(
+        id: standInId(counterpartId),
+        caseId: null,
+        caseTitle: null,
+        status: ConversationStatus.active,
+        contactsUnlocked: n.contactsUnlocked,
+        counterpart: n.counterpart,
+        unreadCount: unread,
+        updatedAt: n.updatedAt,
+        lastMessage: n.lastMessage,
+        lastMessageAt: n.lastMessageAt,
+        mutedUntil: n.mutedUntil,
+        callsMuted: n.callsMuted,
+        isDirect: true,
+        pinnedAt: pinned ? n.pinnedAt ?? n.updatedAt : null,
+        blocked: n.blocked,
+      );
+    }
+    if (identical(top, base) && unread == base.unreadCount) return base;
+    return base.withActivity(
+      lastMessage: top.lastMessage,
+      lastMessageAt: top.lastMessageAt,
+      unreadCount: unread,
+      updatedAt: top.updatedAt,
+    );
+  }
+
+  @override
+  String get id => direct?.id ?? standInId(counterpartId);
+
+  @override
+  bool get pinned => conversations.any((c) => c.pinned);
+
+  @override
+  DateTime get activityAt => _activity(newest);
+
+  static DateTime _activity(Conversation c) => c.lastMessageAt ?? c.updatedAt;
+}
+
+/// R-404 (b): [chats] with one row per person (see [PersonChatEntry]) —
+/// a person with two or more conversations becomes one row. A chat whose
+/// other side has no user id (a client hidden until the case is accepted)
+/// cannot be grouped and stays its own row; so does a chat whose request
+/// is still pending.
+List<ChatListEntry> groupChatsByPerson(List<Conversation> chats) {
+  final direct = <String, Conversation>{};
+  final cases = <String, List<Conversation>>{};
+  final order = <String>[];
+  final single = <ChatListEntry>[];
+  for (final c in chats) {
+    final uid = c.counterpart.id;
+    if (uid == null || c.request == MessageRequest.pending) {
+      single.add(DirectChatEntry(c));
+      continue;
+    }
+    if (!direct.containsKey(uid) && !cases.containsKey(uid)) order.add(uid);
+    if (c.caseId == null) {
+      // Two direct chats with one person (never today): the newer one wins.
+      final had = direct[uid];
+      if (had == null ||
+          PersonChatEntry._activity(c)
+              .isAfter(PersonChatEntry._activity(had))) {
+        direct[uid] = c;
+      } else {
+        single.add(DirectChatEntry(c));
+      }
+    } else {
+      (cases[uid] ??= []).add(c);
+    }
+  }
+  return [
+    ...single,
+    for (final uid in order)
+      // One conversation with a person is simply its own row (nothing to
+      // merge: its case label, note and keys stay as they are).
+      if (direct[uid] != null && cases[uid] == null)
+        DirectChatEntry(direct[uid]!)
+      else if (direct[uid] == null && cases[uid]!.length == 1)
+        DirectChatEntry(cases[uid]!.single)
+      else
+        PersonChatEntry(
+          counterpartId: uid,
+          direct: direct[uid],
+          cases: [...?cases[uid]]..sort(
+              (a, b) => PersonChatEntry._activity(b)
+                  .compareTo(PersonChatEntry._activity(a)),
+            ),
+        ),
+  ];
+}
+
 /// Whether the group's notifications are muted right now.
 bool isGroupMuted(api.GroupDto g, {DateTime? now}) =>
     g.mutedUntil != null && g.mutedUntil!.isAfter(now ?? DateTime.now());
@@ -65,17 +217,22 @@ int compareChatEntries(ChatListEntry a, ChatListEntry b) {
 
 /// [chats] and [groups] as ONE sorted list. With [query] only the groups
 /// whose title contains it (any case) stay; direct chats are passed as they
-/// are (the server already filtered them).
+/// are (the server already filtered them). [onePerPerson]: R-404 (b), the
+/// «All» view groups the chats by person.
 List<ChatListEntry> mergeChatList(
   List<Conversation> chats,
   List<api.GroupDto> groups, {
   String query = '',
+  bool onePerPerson = false,
 }) {
   final q = query.trim().toLowerCase();
   return [
-    for (final c in chats) DirectChatEntry(c),
+    if (onePerPerson)
+      ...groupChatsByPerson(chats)
+    else
+      for (final c in chats) DirectChatEntry(c),
     for (final g in groups)
-      if (q.isEmpty || g.title.toLowerCase().contains(q)) GroupChatEntry(g),
+      if (textMatches(q, [g.title])) GroupChatEntry(g),
   ]..sort(compareChatEntries);
 }
 
@@ -87,6 +244,7 @@ AsyncValue<PaginatedList<ChatListEntry>> combineChatLists(
   AsyncValue<PaginatedList<api.GroupDto>> groups, {
   String query = '',
   bool withGroups = true,
+  bool onePerPerson = false,
 }) {
   final c = chats.value;
   if (c == null) {
@@ -101,7 +259,12 @@ AsyncValue<PaginatedList<ChatListEntry>> combineChatLists(
   final more = c.hasMore || (g?.hasMore ?? false);
   return AsyncData(
     PaginatedList(
-      items: mergeChatList(c.items, g?.items ?? const [], query: query),
+      items: mergeChatList(
+        c.items,
+        g?.items ?? const [],
+        query: query,
+        onePerPerson: onePerPerson,
+      ),
       nextCursor: more ? 'more' : null,
       isLoadingMore: c.isLoadingMore || (g?.isLoadingMore ?? false),
       loadMoreError: c.loadMoreError ?? g?.loadMoreError,
@@ -109,16 +272,48 @@ AsyncValue<PaginatedList<ChatListEntry>> combineChatLists(
   );
 }
 
+/// R-404 (a): the «All» list's state for the chats screen — while the
+/// live list has nothing yet (its saved page is still being read from the
+/// disk), the copy already in memory, so the first frame has rows.
+AsyncValue<PaginatedList<Conversation>> chatsOrMemory(
+  AsyncValue<PaginatedList<Conversation>> live,
+  CursorPage<Conversation>? memory,
+) {
+  if (live.hasValue || live.hasError || memory == null) return live;
+  return AsyncData(PaginatedList.firstPage(memory));
+}
+
 /// The «All» view of Chats: direct chats + my groups.
 final mergedChatListProvider =
     Provider.autoDispose<AsyncValue<PaginatedList<ChatListEntry>>>(
   (ref) => combineChatLists(
-    ref.watch(conversationsProvider),
+    chatsOrMemory(
+      ref.watch(conversationsProvider),
+      ref.watch(chatListCacheProvider).memory,
+    ),
     ref.watch(groupsProvider),
     // Owner 2026-10-21: groups live in «Channels», not in the chat list.
     withGroups: false,
+    onePerPerson: true,
   ),
 );
+
+/// R-404 (b): the case chats with one person, from the chats list already
+/// in memory (the live «All» list, else its memory copy) — no request. The
+/// direct chat's «Cases with this person (N)» row reads it.
+final caseChatsWithProvider =
+    Provider.autoDispose.family<List<Conversation>, String>((ref, userId) {
+  final live = ref.watch(conversationsProvider).value?.items;
+  final rows = live ?? ref.watch(chatListCacheProvider).memory?.items;
+  if (rows == null) return const [];
+  return [
+    for (final c in rows)
+      if (c.caseId != null && c.counterpart.id == userId) c,
+  ]..sort(
+      (a, b) =>
+          PersonChatEntry._activity(b).compareTo(PersonChatEntry._activity(a)),
+    );
+});
 
 /// The Chats search: server-filtered chats + the loaded groups by title.
 final mergedChatSearchProvider = Provider.autoDispose

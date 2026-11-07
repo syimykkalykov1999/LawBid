@@ -11,12 +11,14 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
+import 'package:lawbid/features/calls/presentation/call_audio_sheet.dart';
 import 'package:lawbid/features/calls/presentation/call_controls.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_pip_window.dart';
@@ -66,7 +68,6 @@ class _CallScreenState extends ConsumerState<CallScreen>
     vsync: this,
     duration: const Duration(milliseconds: 1800),
   );
-  Timer? _closeTimer;
 
   /// UI-03: the two pictures of a 1:1 video call keep one renderer each for
   /// the whole call; a swap moves them between the full screen and the
@@ -81,6 +82,13 @@ class _CallScreenState extends ConsumerState<CallScreen>
       ref.read(callVideoLayoutProvider.notifier);
 
   bool _closing = false;
+  bool _closeScheduled = false;
+
+  void _closeAfterFrame() {
+    if (_closing || _closeScheduled) return;
+    _closeScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _close());
+  }
 
   /// The video call's controls may fade (nothing else needs them now).
   bool _canHide = false;
@@ -271,7 +279,6 @@ class _CallScreenState extends ConsumerState<CallScreen>
   @override
   void dispose() {
     _alive--;
-    _closeTimer?.cancel();
     // A closed (minimised) screen never fades its controls away.
     _layout.stopIdle();
     final visible = _visible;
@@ -282,17 +289,6 @@ class _CallScreenState extends ConsumerState<CallScreen>
 
   void _listen(CallController c) {
     ref
-      ..listen(callControllerProvider.select((x) => x.phase), (_, phase) {
-        _closeTimer?.cancel();
-        if (phase == CallPhase.idle) {
-          _close();
-        } else if (phase == CallPhase.ended) {
-          // The 409 sheet (below) decides when this screen goes.
-          if (ref.read(callControllerProvider).staleCallId != null) return;
-          // «Call ended» stays readable for a moment, then the screen goes.
-          _closeTimer = Timer(const Duration(milliseconds: 1500), _close);
-        }
-      })
       // Telegram: the server holds a call this device does not have.
       ..listen(callControllerProvider.select((x) => x.staleCallId), (_, id) {
         if (id != null && mounted) unawaited(_askEndOther(c));
@@ -327,9 +323,16 @@ class _CallScreenState extends ConsumerState<CallScreen>
     final s = shownWhileClosing(
       live: live,
       last: _lastShown,
-      closing: _closing,
+      // Idle = this screen is on its way out (it pops after this frame).
+      closing: _closing || live.phase == CallPhase.idle,
     );
     if (live.phase != CallPhase.idle) _lastShown = live;
+    // R-037 (owner 2026-10-28, «the slide-down stops halfway»): one clock
+    // for the end — the controller's. It goes idle only once the call is
+    // fully let go and «Call ended» has been read; the screen then pops
+    // after this frame (LiveKit example: `RoomDisconnectedEvent` →
+    // `addPostFrameCallback` → pop). No timer of its own here.
+    if (live.phase == CallPhase.idle) _closeAfterFrame();
     final c = ref.read(callControllerProvider.notifier);
     _listen(c);
     final media = c.media;
@@ -499,7 +502,11 @@ class _CallScreenState extends ConsumerState<CallScreen>
       type: type,
       onMinimize:
           incoming ? null : () => unawaited(Navigator.of(context).maybePop()),
-      onAdd: active ? () => unawaited(showAddToCallPanel(context)) : null,
+      // Owner 2026-11-04 (R-376): no «Add participant» while group calls
+      // are off.
+      onAdd: active && ref.watch(groupCallsEnabledProvider)
+          ? () => unawaited(showAddToCallPanel(context))
+          : null,
       minimizeLabel: t.t('call.minimize'),
       addLabel: t.t('call.addParticipant'),
     );
@@ -518,6 +525,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
         CallVoteStrip(vote: s.call!.vote!, call: s.call!),
     ];
 
+    final audio = ref.watch(callAudioRouterProvider);
     final Widget bottom = incoming
         ? _IncomingButtons(
             video: s.video,
@@ -536,7 +544,15 @@ class _CallScreenState extends ConsumerState<CallScreen>
               onFlip: s.video && s.cameraOn && s.busy
                   ? () => unawaited(c.switchCamera())
                   : null,
-              onSpeaker: s.busy ? () => unawaited(c.toggleSpeaker()) : null,
+              audioRoute: audio.inHeadset ? audio.current?.kind : null,
+              // Owner 2026-11-04 (WhatsApp): with a headset connected the
+              // button lists the outputs; without one it switches the
+              // loudspeaker as before.
+              onSpeaker: s.busy
+                  ? () => c.audioChoice
+                      ? unawaited(showCallAudioSheet(context))
+                      : unawaited(c.toggleSpeaker())
+                  : null,
               // Owner 2026-10-22: switches video on / off mid-call; a
               // channel's video call keeps the plain camera pause.
               onVideo: c.canSwitchVideo
@@ -669,7 +685,10 @@ class _CallScreenState extends ConsumerState<CallScreen>
                       end: 0,
                       bottom: 0,
                       child: _Fade(
-                        hidden: hidden || s.phase == CallPhase.ended,
+                        // R-037: the sheet goes once the call is let go —
+                        // never while native teardown holds the frames.
+                        hidden: hidden ||
+                            (s.phase == CallPhase.ended && !s.releasing),
                         offset: const Offset(0, 0.3),
                         child: bottom,
                       ),
@@ -853,8 +872,10 @@ class _TopBar extends StatelessWidget {
         horizontal: AppSpacing.sm,
         vertical: AppSpacing.xs,
       ),
-      child: SizedBox(
-        height: 52,
+      // At least 52 dp; grows with the phone's font size (the name and the
+      // status are two lines of text).
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
         child: Row(
           children: [
             SizedBox(

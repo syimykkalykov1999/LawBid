@@ -7,7 +7,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart'
-    show callTrace;
+    show callStatsReport, callTrace;
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/application/sfu_rtc.dart';
@@ -165,6 +165,9 @@ class CloudflareSfuCallMedia implements SfuCallMedia {
   final _speaking = ValueNotifier<Set<String>>(const {});
   final _quality = ValueNotifier<LinkQuality>(LinkQuality.good);
   final _tracker = QualityTracker();
+
+  /// R-037: every quality reading, one summary line at the end.
+  final _stats = CallStatsLog();
   Set<String>? _layersNow;
   Timer? _qualityTimer;
   Timer? _levelTimer;
@@ -736,6 +739,7 @@ class CloudflareSfuCallMedia implements SfuCallMedia {
     try {
       final stats = linkStatsFrom(await peer.getStats());
       if (stats == null) return;
+      _stats.add(stats);
       final q = _tracker.add(stats);
       if (_quality.value != q) _quality.value = q;
       final layers = sfuLayersFor(q);
@@ -827,6 +831,8 @@ class CloudflareSfuCallMedia implements SfuCallMedia {
     _pulls.clear();
     _published.clear();
     if (peer != null) await _guard('pc.close', peer.close);
+    final line = _stats.summary('sfu');
+    if (line != null) callStatsReport(line);
   }
 
   static Future<void> _guard(String step, Future<void> Function() run) async {

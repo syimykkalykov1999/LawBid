@@ -8,7 +8,9 @@
 #
 # Safety model: every runner is its own container, ephemeral (one job, then it is
 # destroyed and recreated with a fresh registration token), no bind mounts of the
-# host, no home directory, CPU/RAM limited. Docker for the job's service
+# host, no home directory, CPU/RAM limited. The only state that survives a job is
+# the npm download cache: a named volume per runner mounted at ~/.npm
+# (content-addressed, holds no secrets). Docker for the job's service
 # containers is a private Docker-in-Docker sidecar per runner (privileged
 # sidecar, NOT the host socket). The registration token is requested with `gh`
 # at start and never stored. Workflows send only same-repo PRs and pushes here
@@ -85,6 +87,7 @@ supervise() {
     fi
     docker run --rm --name "lawbid-ci-run-$i" --network "container:lawbid-ci-dind-$i" \
       --cpus "$CPUS" --memory "$MEM" -v "lawbid-ci-work-$i:$WORK" \
+      ${NPMVOL[@]+"${NPMVOL[@]}"} \
       -e DOCKER_HOST=tcp://127.0.0.1:2375 -e ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT= -e RTOK="$tok" -e REPO="$REPO" -e LABELS="$LABELS" -e NAME="lawbid-ci-$i" \
       "$IMG" bash -c 'for _ in $(seq 1 60); do docker version >/dev/null 2>&1 && break; sleep 1; done; docker version >/dev/null 2>&1 || { echo "sidecar docker daemon not reachable at $DOCKER_HOST"; exit 1; };
                       ./config.sh --unattended --ephemeral --replace --url "https://github.com/$REPO" --token "$RTOK" --labels "$LABELS" --name "$NAME" && ./run.sh' \
@@ -98,11 +101,20 @@ supervise() {
 start_one() {
   i="$1"
   docker rm -f "lawbid-ci-dind-$i" "lawbid-ci-run-$i" >/dev/null 2>&1 || true
+  docker volume create "lawbid-ci-npm-$i" >/dev/null
+  # The volume is created root-owned; hand it to the runner user once. If that fails this runner
+  # starts WITHOUT the cache volume (slower npm ci) instead of aborting the whole `up`.
+  NPMVOL=(-v "lawbid-ci-npm-$i:/home/runner/.npm")
+  owner=$(docker run --rm --user root -v "lawbid-ci-npm-$i:/d" "$IMG" stat -c %U /d 2>/dev/null || echo unknown)
+  if [ "$owner" != "runner" ] && ! docker run --rm --user root -v "lawbid-ci-npm-$i:/d" "$IMG" chown -R runner:runner /d; then
+    echo "WARNING: cannot give volume lawbid-ci-npm-$i to the runner user: runner $i starts without the npm cache volume" >&2
+    NPMVOL=()
+  fi
   docker run -d --name "lawbid-ci-dind-$i" --privileged --network "$NET" --restart unless-stopped \
     --cpus "$DIND_CPUS" --memory "$DIND_MEM" -v "lawbid-ci-work-$i:$WORK" \
     -e DOCKER_TLS_CERTDIR= docker:27-dind >/dev/null
   # setsid: the supervisor must outlive the terminal/session that ran `up`.
-  setsid -f bash -c "$(declare -p REPO CPUS MEM LABELS IMG WORK FLAG); $(declare -f supervise); supervise $i" \
+  setsid -f bash -c "$(declare -p REPO CPUS MEM LABELS IMG WORK FLAG NPMVOL); $(declare -f supervise); supervise $i" \
     >>"$LOGDIR/slot-$i.log" 2>&1
 }
 
