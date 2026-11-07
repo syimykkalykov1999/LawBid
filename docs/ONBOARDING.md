@@ -51,7 +51,7 @@ Vendors and exits: [runbooks/VENDORS.md](runbooks/VENDORS.md).
 
 ## 3. Run everything locally
 
-Prerequisites: Node 22 (CI uses 22), npm, Docker, Flutter (stable) for the app.
+Prerequisites: Node 26 (CI uses 26), npm, Docker, Flutter (stable) for the app.
 
 ```sh
 git clone <repo> && cd LawBid
