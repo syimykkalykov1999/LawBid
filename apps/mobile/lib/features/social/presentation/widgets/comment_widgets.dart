@@ -81,10 +81,10 @@ class _CommentTileState extends ConsumerState<CommentTile> {
       if (mounted) {
         final parent = _c.parentId;
         if (parent != null) {
-          if (ref.exists(repliesProvider(parent))) {
+          if (ref.read(repliesProvider(parent).exists)) {
             ref.read(repliesProvider(parent).notifier).replace(_c);
           }
-        } else if (ref.exists(commentsProvider(_c.postId))) {
+        } else if (ref.read(commentsProvider(_c.postId).exists)) {
           ref.read(commentsProvider(_c.postId).notifier).replace(_c);
         }
       }
