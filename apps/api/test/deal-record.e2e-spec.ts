@@ -33,6 +33,13 @@ class FakeS3 {
   resolveBucket(kind: string): Promise<string> {
     return Promise.resolve(this.bucket(kind));
   }
+  // The real service answers these for the R2 public-store switch (off here).
+  isPublicStoreBucket(): boolean {
+    return false;
+  }
+  awsBucket(kind: string): string {
+    return this.bucket(kind);
+  }
   put(bucket: string, key: string, body: Buffer): Promise<void> {
     this.objects.set(`${bucket}/${key}`, Buffer.from(body));
     return Promise.resolve();
