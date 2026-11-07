@@ -751,7 +751,7 @@ abstract final class AppIcons {
   );
   static const IconData radioButtonUncheckedRounded = IconData(
     0xe18a,
-    fontFamily: fillFamily,
+    fontFamily: boldFamily,
   );
   static const IconData rateReviewOutlined = IconData(
     0xe166,

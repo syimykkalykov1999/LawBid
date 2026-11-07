@@ -486,6 +486,13 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
   description!: string;
 
   @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Codes of the topics besides the first: the bid form hides a percent the admin forbids for them (the server still checks).',
+  })
+  extraPracticeCodes?: string[];
+
+  @ApiPropertyOptional({
     type: String,
     nullable: true,
     description:

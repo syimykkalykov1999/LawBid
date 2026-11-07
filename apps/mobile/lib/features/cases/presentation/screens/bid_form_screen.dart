@@ -19,6 +19,7 @@ import 'package:lawbid/features/cases/deals/rich_terms_editor.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_option_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/tools/conflict_banner.dart';
@@ -54,7 +55,9 @@ class BidFormScreen extends ConsumerStatefulWidget {
 }
 
 class _BidFormScreenState extends ConsumerState<BidFormScreen> {
-  FeeType _fee = FeeType.fixed;
+  // Owner 2026-11-05: nothing is picked until the attorney picks; an invite's
+  // amount starts from the client's budget, so it is a fixed fee.
+  late FeeType? _fee = widget.initialAmountCents == null ? null : FeeType.fixed;
   StartAvailability _start = StartAvailability.immediately;
   DateTime? _startDate;
   final _amount = TextEditingController();
@@ -85,7 +88,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       // The draft only fills what the attorney has not touched yet: typed
       // text and the invite's prefilled amount win over it.
       setState(() {
-        if (d.feeType != null && _fee == FeeType.fixed) {
+        if (d.feeType != null && _fee == null) {
           _fee = FeeType.fromJson(d.feeType!);
         }
         if (d.amountCents != null && _amount.text.trim().isEmpty) {
@@ -119,7 +122,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     try {
       await ref.read(teamRepositoryProvider).saveBidDraft(
             widget.caseId,
-            feeType: _fee.json,
+            feeType: _fee!.json,
             amountCents: _fee == FeeType.freeConsultation ||
                     _isPercent ||
                     _amountDollars == null
@@ -153,9 +156,10 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
           .parse(_amount.text);
 
   bool get _amountOk =>
-      _fee == FeeType.freeConsultation ||
+      _fee != null && _fee == FeeType.freeConsultation ||
       (_isPercent && _percentBps != null) ||
-      (!_isPercent &&
+      (_fee != null &&
+          !_isPercent &&
           _amountDollars != null &&
           _amountDollars! > 0 &&
           _amountDollars! <= BidLimits.amountMaxDollars);
@@ -206,7 +210,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       final bid = await ref.read(caseActionsProvider).placeBid(
             widget.caseId,
             BidInput(
-              feeType: _fee,
+              feeType: _fee!,
               amountCents: _fee == FeeType.freeConsultation || _isPercent
                   ? null
                   : _amountDollars! * 100,
@@ -251,6 +255,21 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final free = _fee == FeeType.freeConsultation;
+    // The admin's list of topics without a percent; the server checks it too.
+    final kase = ref.watch(attorneyCaseProvider(widget.caseId)).value;
+    final percentAllowed = kase == null ||
+        !ContingencyRules.of(ref.watch(featureFlagsControllerProvider))
+            .blockedFor([kase.practice.code, ...kase.extraPracticeCodes]);
+    if (!percentAllowed && _isPercent) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _amount.clear();
+            _fee = null;
+          });
+        }
+      });
+    }
     // OQ-049: an assistant sends bids only with the "bids" access the
     // attorney switched on (under their responsibility); else a draft.
     final assistant = ref.watch(isAssistantProvider) &&
@@ -298,18 +317,31 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               ),
             ),
           ],
-          Text(
-            t.t('cases.bidForm.feeType'),
-            style: typography.bodySmall.copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          SegmentedChoice<FeeType>(
+          CaseOptionPicker<FeeType>(
+            label: t.t('cases.bidForm.feeType'),
             value: _fee,
             options: [
-              (FeeType.fixed, t.t('cases.fee.fixed')),
-              (FeeType.hourly, t.t('cases.fee.hourly')),
-              (FeeType.contingency, t.t('cases.fee.percentShort')),
-              (FeeType.freeConsultation, t.t('cases.fee.freeShort')),
+              CaseOption(
+                FeeType.fixed,
+                t.t('cases.fee.fixed'),
+                t.t('cases.pay.fixedHint'),
+              ),
+              CaseOption(
+                FeeType.hourly,
+                t.t('cases.fee.hourly'),
+                t.t('cases.pay.hourlyHint'),
+              ),
+              if (percentAllowed)
+                CaseOption(
+                  FeeType.contingency,
+                  t.t('cases.fee.percent'),
+                  t.t('cases.pay.percentHint'),
+                ),
+              CaseOption(
+                FeeType.freeConsultation,
+                t.t('cases.fee.free'),
+                t.t('cases.pay.freeHint'),
+              ),
             ],
             onChanged: (v) => setState(() {
               if ((v == FeeType.contingency) != _isPercent) _amount.clear();
@@ -319,7 +351,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
           AnimatedSize(
             duration: context.sizeChangeDuration,
             curve: AppMotion.enterCurve,
-            child: free
+            child: free || _fee == null
                 ? const SizedBox(width: double.infinity)
                 : Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.lg),
@@ -337,19 +369,16 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
                           _isPercent ? t.t('cases.bidForm.percentHint') : null,
                       leading: Text(
                         _isPercent ? '%' : r'$',
-                        style: typography.titleMedium
-                            .copyWith(color: colors.goldDark),
+                        style: typography.titleMedium.copyWith(
+                          color: colors.goldDark,
+                        ),
                       ),
                       keyboardType: _isPercent
-                          ? const TextInputType.numberWithOptions(
-                              decimal: true,
-                            )
+                          ? const TextInputType.numberWithOptions(decimal: true)
                           : TextInputType.number,
                       inputFormatters: [
                         if (_isPercent)
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[0-9.,]'),
-                          )
+                          FilteringTextInputFormatter.allow(RegExp('[0-9.,]'))
                         else
                           FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(_isPercent ? 6 : 8),
@@ -377,6 +406,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             RichTermsEditor(
               draft: _rich,
               enabled: !_busy,
+              percentAllowed: percentAllowed,
               onChanged: () => setState(() {}),
             ),
           ],
@@ -394,10 +424,9 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             maxLength: BidLimits.messageMax,
             textCapitalization: TextCapitalization.sentences,
             errorText: _message.text.isNotEmpty && !_messageOk
-                ? t.t(
-                    'cases.bidForm.messageError',
-                    {'min': '${BidLimits.messageMin}'},
-                  )
+                ? t.t('cases.bidForm.messageError', {
+                    'min': '${BidLimits.messageMin}',
+                  })
                 : null,
             onChanged: (_) => setState(() {}),
           ),
