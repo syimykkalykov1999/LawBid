@@ -38,6 +38,15 @@ updates:
     cooldown:
       default-days: 7
       semver-major-days: 14
+    # KNOWN_ERRORS 64: flutter_secure_storage 10+/11 cannot resolve next to our
+    # path copy third_party/flutter_secure_storage_web (needs the platform
+    # interface ^1) nor next to file_picker/share_plus (win32 5 vs 6), so every
+    # group refresh failed with dependency_file_not_resolvable. Majors are taken
+    # by hand together with the web copy.
+    # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference (read 2026-11-07)
+    ignore:
+      - dependency-name: "flutter_secure_storage"
+        update-types: ["version-update:semver-major"]
     groups:
       pub-minor-patch:
         patterns: ["*"]
