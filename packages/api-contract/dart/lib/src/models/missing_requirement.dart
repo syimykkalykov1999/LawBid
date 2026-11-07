@@ -25,6 +25,8 @@ enum MissingRequirement {
   licensedStates('licensed_states'),
   @JsonValue('photo')
   photo('photo'),
+  @JsonValue('practices')
+  practices('practices'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

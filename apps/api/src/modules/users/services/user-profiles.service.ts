@@ -68,6 +68,8 @@ export interface ProfileFacts {
   view: ProfileView | null;
   clientHasState: boolean;
   attorneyHasLicensedStates: boolean;
+  /** Owner 2026-11-05: the attorney picked at least one practice. */
+  attorneyHasPractices: boolean;
 }
 
 type Tx = Prisma.TransactionClient;
@@ -104,6 +106,7 @@ export class UserProfilesService {
       view: null,
       clientHasState: false,
       attorneyHasLicensedStates: false,
+      attorneyHasPractices: false,
     };
     if (role === 'client') {
       const row = await this.prisma.clientProfile.findUnique({
@@ -124,11 +127,17 @@ export class UserProfilesService {
     }
     if (role === 'attorney') {
       const licensedStates = licensedStatesOf(onboardingData);
-      const row = await this.prisma.attorneyProfile.findUnique({
-        where: { user_id: userId },
-      });
+      const [row, practiceCount] = await Promise.all([
+        this.prisma.attorneyProfile.findUnique({
+          where: { user_id: userId },
+        }),
+        this.prisma.attorneyPracticeArea.count({
+          where: { attorney_id: userId },
+        }),
+      ]);
       return {
         ...none,
+        attorneyHasPractices: practiceCount > 0,
         // Owner 2026-10-11: licensed states are entered only on the License
         // step; a saved attorney profile no longer needs them.
         attorneyHasLicensedStates: licensedStates.length > 0 || row !== null,

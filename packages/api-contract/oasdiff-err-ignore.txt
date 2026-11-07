@@ -588,3 +588,10 @@ PUT /admin/verification/registries/{stateCode} added the new `html_page` enum va
 PUT /admin/verification/registries/{stateCode} added the new `state_preset` enum value to the `data/adapter` response property for the response status `200`
 POST /admin/verification/licenses/{licenseId}/recheck removed the success response with the status `200`
 POST /admin/verification/licenses/{licenseId}/registry-check removed the success response with the status `200`
+GET /users/me added the new `practices` enum value to the `data/missing/items/` response property for the response status `200`
+PATCH /users/me added the new `practices` enum value to the `data/missing/items/` response property for the response status `200`
+POST /users/me/role added the new `practices` enum value to the `data/missing/items/` response property for the response status `200`
+POST /users/me/role/switch added the new `practices` enum value to the `data/missing/items/` response property for the response status `200`
+PATCH /users/me/onboarding added the new `practices` enum value to the `data/missing/items/` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `practices` enum value to the `data/missing/items/` response property for the response status `200`
+GET /me/session added the new `practices` enum value to the `data/me/missing/items/` response property for the response status `200`

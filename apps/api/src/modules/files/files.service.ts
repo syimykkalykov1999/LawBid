@@ -48,6 +48,7 @@ import {
   LIGHT_CONFIRM_MIN_BYTES,
   PRESIGN_TTL_SEC,
   PURPOSE_RULES,
+  mayUsePublicStore,
   UPLOAD_INTENT_TTL_SEC,
   newFileKey,
   variantKey,
@@ -210,7 +211,7 @@ export class FilesService {
     const bucket =
       rule.bucket === 'media' &&
       this.storage.isPublicStoreBucket(resolved) &&
-      !dto.supportsPut
+      (!dto.supportsPut || !mayUsePublicStore(dto.purpose))
         ? this.storage.awsBucket('media')
         : resolved;
     if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
@@ -1229,7 +1230,8 @@ export class FilesService {
     const srcPrivate = PURPOSE_RULES[src.purpose].bucket === 'documents';
     const resolved = await this.storage.resolveBucket(rule.bucket);
     const bucket =
-      srcPrivate && this.storage.isPublicStoreBucket(resolved)
+      (srcPrivate || !mayUsePublicStore(purpose)) &&
+      this.storage.isPublicStoreBucket(resolved)
         ? this.storage.awsBucket(rule.bucket)
         : resolved;
     if (!QUOTA_FREE_PURPOSES.includes(purpose)) {
@@ -1316,7 +1318,11 @@ export class FilesService {
   ): Promise<File> {
     const rule = PURPOSE_RULES[purpose];
     const fileId = randomUUID();
-    const bucket = await this.storage.resolveBucket(rule.bucket);
+    const resolved = await this.storage.resolveBucket(rule.bucket);
+    const bucket =
+      !mayUsePublicStore(purpose) && this.storage.isPublicStoreBucket(resolved)
+        ? this.storage.awsBucket(rule.bucket)
+        : resolved;
     await this.costGuard.consume('storage');
     const key =
       demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
