@@ -195058,7 +195058,15 @@
             "type": "string",
             "minLength": 20,
             "maxLength": 4096,
-            "description": "FCM registration token."
+            "description": "FCM address of this device: a registration token, or its Firebase Installation ID when kind is \"fid\"."
+          },
+          "kind": {
+            "enum": [
+              "token",
+              "fid"
+            ],
+            "type": "string",
+            "description": "2026-11-07: \"fid\" = token is a Firebase Installation ID (firebase_messaging 17 register()/onRegistered); default \"token\" (older app versions)."
           },
           "platform": {
             "enum": [
@@ -195093,7 +195101,7 @@
             "type": "string",
             "minLength": 20,
             "maxLength": 4096,
-            "description": "FCM registration token of this device."
+            "description": "FCM address of this device (registration token or Firebase Installation ID)."
           },
           "ids": {
             "maxItems": 100,
@@ -195163,7 +195171,7 @@
             "type": "string",
             "minLength": 10,
             "maxLength": 4096,
-            "description": "FCM registration token of this device (still signed in)."
+            "description": "FCM address of this device (registration token or Firebase Installation ID; still signed in)."
           },
           "action": {
             "enum": [

@@ -151,13 +151,38 @@ class PushService {
           unawaited(_explainThenAsk(m));
         }
       }
-      final token = await m.getToken(
-        vapidKey: kIsWeb ? WebPushConfig.vapidKey : null,
-      );
-      // Not awaited: a failed registration keeps retrying in the background.
-      if (token != null) unawaited(_register(token));
+      if (_usesFid) {
+        // 2026-11-07 (firebase_messaging 17, FCM HTTP v1 `message.fid`):
+        // Android and iPhone register by the Firebase Installation ID, as
+        // https://firebase.google.com/docs/cloud-messaging/flutter/client
+        // shows: listen to onRegistered first, then register() (it also
+        // re-emits the current FID). The deprecated token calls are not
+        // used next to it — that page says not to mix the two. The server
+        // drops this device's old token row when the FID arrives.
+        _subs.add(
+          m.onRegistered.listen(
+            (fid) => unawaited(_register(fid)),
+            onError: (Object e) => debugPrint('push: no FID: $e'),
+          ),
+        );
+        unawaited(
+          m.register().catchError((Object e) {
+            debugPrint('push: register failed: $e');
+          }),
+        );
+      } else {
+        // The browser keeps the registration token for now (the web SDK's
+        // FID registration is not proven here yet); the server sends it
+        // with `message.token`.
+        // ignore: deprecated_member_use
+        final token = await m.getToken(vapidKey: WebPushConfig.vapidKey);
+        // Not awaited: a failed registration keeps retrying in the
+        // background.
+        if (token != null) unawaited(_register(token));
+        // ignore: deprecated_member_use
+        _subs.add(m.onTokenRefresh.listen(_register));
+      }
       _subs
-        ..add(m.onTokenRefresh.listen(_register))
         ..add(FirebaseMessaging.onMessageOpenedApp.listen(_open))
         // A push in the foreground: realtime already updated the screen;
         // just refresh the badge.
@@ -284,14 +309,23 @@ class PushService {
             // Only the 7-day reminder suffers.
           }
         },
-        currentToken: () async => Firebase.apps.isEmpty
+        // An FID comes through onRegistered whenever it changes, so only
+        // the browser's token is asked for again here.
+        currentToken: () async => Firebase.apps.isEmpty || _usesFid
             ? null
+            // ignore: deprecated_member_use
             : FirebaseMessaging.instance.getToken(
-                vapidKey: kIsWeb ? WebPushConfig.vapidKey : null,
+                vapidKey: WebPushConfig.vapidKey,
               ),
       );
 
+  /// 2026-11-07: Android and iPhone register by Firebase Installation ID
+  /// (firebase_messaging 17); the browser by registration token.
+  static bool get _usesFid => !kIsWeb;
+
   Future<void> _register(String token) {
+    // The iPhone reports its armed planner reminders under this address.
+    unawaited(_rememberDeviceId(token));
     // Owner 2026-10-26: «Ответить» / «Прочитано» on a notification answer
     // through this server with this device's token (app closed too).
     if (!kIsWeb) {
@@ -321,6 +355,7 @@ class PushService {
         // Owner 2026-10-26: … and notifications with a person (their
         // round photo: bids, comments, likes, missed calls).
         actorStyle: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
+        fid: _usesFid,
       );
 
   String? _voipToken;
@@ -469,11 +504,32 @@ class PushService {
             : null,
         deleteFirebaseToken: signedOut
             ? () async {
+                await _rememberDeviceId(null);
                 if (Firebase.apps.isEmpty) return;
-                await FirebaseMessaging.instance.deleteToken();
+                if (_usesFid) {
+                  // firebase_messaging 17: unregister() replaces
+                  // deleteToken(); the next start's register() comes back.
+                  await FirebaseMessaging.instance.unregister();
+                } else {
+                  // ignore: deprecated_member_use
+                  await FirebaseMessaging.instance.deleteToken();
+                }
               }
             : null,
       );
+
+  Future<void> _rememberDeviceId(String? id) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (id == null) {
+        await prefs.remove(pushDeviceIdKey);
+      } else {
+        await prefs.setString(pushDeviceIdKey, id);
+      }
+    } on Object {
+      // Only the iPhone's armed-reminder report waits for the next one.
+    }
+  }
 
   void dispose() {
     for (final s in _subs) {

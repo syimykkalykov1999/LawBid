@@ -299,6 +299,11 @@ abstract interface class NotificationsRepository {
     /// Owner 2026-10-26: this app also draws notifications with a person
     /// (bid, comment, like, missed call …) with their round photo.
     bool actorStyle = false,
+
+    /// 2026-11-07: `token` is this app's Firebase Installation ID
+    /// (firebase_messaging 17 `register()`/`onRegistered`), not a legacy
+    /// registration token; the server then sends with `message.fid`.
+    bool fid = false,
   });
   Future<void> deletePushToken(String token);
 
@@ -564,8 +569,10 @@ class ApiNotificationsRepository
     bool localReminders = false,
     bool chatStyle = false,
     bool actorStyle = false,
+    bool fid = false,
   }) async {
-    Future<void> send({required bool withActorStyle}) => guardApiCall(
+    Future<void> send({required bool withActorStyle, required bool asFid}) =>
+        guardApiCall(
           () => _api.registerPushToken(
             body: api.PushTokenDto(
               token: token,
@@ -579,16 +586,22 @@ class ApiNotificationsRepository
               // Owner 2026-10-28: only sent when on — a server from before
               // the field (2026-10-24) refuses unknown fields with a 400.
               actorStyle: withActorStyle ? true : null,
+              // 2026-11-07: only sent for an FID, for the same reason.
+              kind: asFid ? api.PushTokenDtoKind.fid : null,
             ),
           ),
         );
     try {
-      await send(withActorStyle: actorStyle);
+      await send(withActorStyle: actorStyle, asFid: fid);
     } on ApiException catch (e) {
-      // An older server that does not know `actorStyle` yet: register the
-      // token without it (plain notifications) instead of failing forever.
-      if (!actorStyle || e.code != ApiErrorCodes.validationError) rethrow;
-      await send(withActorStyle: false);
+      // An older server that does not know `actorStyle` / `kind` yet:
+      // register without them (plain notifications; an FID stored as a
+      // token still reaches the phone, FCM's `message.token` accepts an FID
+      // during the transition) instead of failing forever.
+      if (!(actorStyle || fid) || e.code != ApiErrorCodes.validationError) {
+        rethrow;
+      }
+      await send(withActorStyle: false, asFid: false);
     }
   }
 

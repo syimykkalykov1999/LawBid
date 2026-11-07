@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/application/push_registrar.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/notifications/application/task_reminder_scheduler.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
@@ -192,7 +192,10 @@ class _ResumeObserver with WidgetsBindingObserver {
 Future<void> _reportArmed(Ref ref, List<ReminderSlot> slots) async {
   if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
   try {
-    final token = await FirebaseMessaging.instance.getToken();
+    // 2026-11-07: the address this iPhone registered for push (its Firebase
+    // Installation ID, push_service.dart), not the deprecated getToken().
+    final token =
+        ref.read(sharedPreferencesProvider).getString(pushDeviceIdKey);
     if (token == null) return;
     // Notifications switched off: no alarm will show, so nothing counts as
     // armed and the push goes out (it may be allowed separately).
