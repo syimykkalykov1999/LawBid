@@ -10,6 +10,7 @@ import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import type Redis from 'ioredis';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { attachCleanAvatar } from './support/clean-avatar';
+import { attachPractice } from './support/attach-practice';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §11 steps 3A/3B + docs/02 §4.C: the
@@ -324,7 +325,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       verificationStatus: 'unverified',
     });
     // docs/03 §4.1 / OQ-012: only the mandatory photo is still missing.
-    expect(saved.body.data.missing).toEqual(['email', 'photo']);
+    expect(saved.body.data.missing).toEqual(['email', 'photo', 'practices']);
 
     const row = await prisma.attorneyProfile.findUniqueOrThrow({
       where: { user_id: first.userId },
@@ -364,6 +365,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       data: { email: 'avery.quill@example.com' },
     });
     await attachCleanAvatar(prisma, first.userId);
+    await attachPractice(prisma, first.userId);
     const done = await api()
       .post('/api/v1/users/me/onboarding/complete')
       .set(first.auth)
@@ -428,7 +430,11 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .set(auth)
       .expect(403);
     expect(res.body.error.code).toBe('ONBOARDING_INCOMPLETE');
-    expect(res.body.error.details.missing).toEqual(['email', 'photo']);
+    expect(res.body.error.details.missing).toEqual([
+      'email',
+      'photo',
+      'practices',
+    ]);
     const row = await prisma.attorneyProfile.findUniqueOrThrow({
       where: { user_id: userId },
     });
@@ -440,6 +446,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       data: { email: 'nolic.ense@example.com' },
     });
     await attachCleanAvatar(prisma, userId);
+    await attachPractice(prisma, userId);
     await api()
       .post('/api/v1/users/me/onboarding/complete')
       .set(auth)
