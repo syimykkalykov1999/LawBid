@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
@@ -14,6 +16,7 @@ import 'package:lawbid/features/team/presentation/task_widgets.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
 import 'package:lawbid/features/team/presentation/team_screen.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 
 import '../../helpers/ux_harness.dart';
 import 'team_fakes.dart';
@@ -51,6 +54,190 @@ void main() {
     await tester.pump();
     await tester.pump();
   }
+
+  /// Opens the task sheet of [title] (the list is on screen).
+  Future<void> openTask(WidgetTester tester, String title) async {
+    await tester.tap(find.text(title));
+    // A single tap waits out the double-tap window.
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+  }
+
+  /// Owner 2026-11-07: edit / cancel the task / delete sit behind «⋯».
+  Future<void> openMore(WidgetTester tester) async {
+    final more = find.byKey(const ValueKey('task-more'));
+    await tester.scrollUntilVisible(
+      more,
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(more);
+    await tester.pumpAndSettle();
+  }
+
+  group('Task sheet buttons (owner mockup 2026-11-07)', () {
+    Future<void> scrollToButtons(WidgetTester tester) async {
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('task-more')),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('own task: «Выполнено» and «⋯» only', (tester) async {
+      repo.active = [makeTask('b1', dueAt: DateTime.now())];
+      await pump(tester, const TasksTab());
+      await openTask(tester, 'Task b1');
+      await scrollToButtons(tester);
+      expect(find.byKey(const ValueKey('task-done')), findsOneWidget);
+      expect(find.byKey(const ValueKey('task-more')), findsOneWidget);
+      expect(find.byKey(const ValueKey('task-take')), findsNothing);
+      expect(find.byKey(const ValueKey('task-not-done')), findsNothing);
+      expect(find.byKey(const ValueKey('task-cancel')), findsNothing);
+      expect(find.byKey(const ValueKey('task-edit')), findsNothing);
+      expect(find.byKey(const ValueKey('task-delete')), findsNothing);
+    });
+
+    testWidgets('«Выполнено» still closes the task', (tester) async {
+      repo.active = [makeTask('b2', dueAt: DateTime.now())];
+      await pump(tester, const TasksTab());
+      await openTask(tester, 'Task b2');
+      await scrollToButtons(tester);
+      await tester.tap(find.byKey(const ValueKey('task-done')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('task-outcome-save')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('status:b2:done:null'));
+    });
+
+    testWidgets('a task given to me: «Взять в работу» comes first',
+        (tester) async {
+      repo.active = [
+        makeTask('b3', dueAt: DateTime.now(), assignedToMe: true),
+      ];
+      await pump(tester, const TasksTab(), assistant: true);
+      await openTask(tester, 'Task b3');
+      await scrollToButtons(tester);
+      expect(find.byKey(const ValueKey('task-take')), findsOneWidget);
+      expect(find.byKey(const ValueKey('task-done')), findsOneWidget);
+      expect(find.byKey(const ValueKey('task-more')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('task-take')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('status:b3:taken:null'));
+    });
+
+    testWidgets('a task given to me and already taken: no «Взять в работу»',
+        (tester) async {
+      repo.active = [
+        makeTask(
+          'b4',
+          dueAt: DateTime.now(),
+          assignedToMe: true,
+          status: TaskStatus.taken,
+        ),
+      ];
+      await pump(tester, const TasksTab(), assistant: true);
+      await openTask(tester, 'Task b4');
+      await scrollToButtons(tester);
+      expect(find.byKey(const ValueKey('task-take')), findsNothing);
+      expect(find.byKey(const ValueKey('task-done')), findsOneWidget);
+    });
+
+    testWidgets('the client (own task) never sees «Взять в работу»',
+        (tester) async {
+      repo.active = [makeTask('b5', dueAt: DateTime.now(), by: null)];
+      await pump(tester, const TasksTab());
+      await openTask(tester, 'Task b5');
+      await scrollToButtons(tester);
+      expect(find.text('Take it'), findsNothing);
+      expect(find.byKey(const ValueKey('task-take')), findsNothing);
+    });
+
+    testWidgets('«⋯» shows edit, cancel the task and delete', (tester) async {
+      repo.active = [makeTask('b6', dueAt: DateTime.now())];
+      await pump(tester, const TasksTab());
+      await openTask(tester, 'Task b6');
+      await openMore(tester);
+      expect(find.byKey(const ValueKey('task-edit')), findsOneWidget);
+      expect(find.byKey(const ValueKey('task-not-done')), findsOneWidget);
+      expect(find.byKey(const ValueKey('task-delete')), findsOneWidget);
+      expect(find.text('Cancel the task'), findsOneWidget);
+    });
+
+    testWidgets('«Отменить задачу» asks the reason and a new date',
+        (tester) async {
+      repo.active = [makeTask('b7', dueAt: DateTime.now())];
+      await pump(tester, const TasksTab());
+      await openTask(tester, 'Task b7');
+      await openMore(tester);
+      await tester.tap(find.byKey(const ValueKey('task-not-done')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('task-outcome')),
+        'Client left',
+      );
+      await tester.tap(find.byKey(const ValueKey('task-outcome-save')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('status:b7:not_done:Client left'));
+      expect(repo.calls.any((c) => c.contains(':cancelled:')), isFalse);
+    });
+
+    testWidgets('«Удалить» asks first, then deletes', (tester) async {
+      repo.active = [makeTask('b8', dueAt: DateTime.now())];
+      await pump(tester, const TasksTab());
+      await openTask(tester, 'Task b8');
+      await openMore(tester);
+      await tester.tap(find.byKey(const ValueKey('task-delete')));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete the task?'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('task-delete-confirm')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('delete:b8'));
+    });
+
+    testWidgets('«Изменить» closes the sheet and opens the editor',
+        (tester) async {
+      repo.active = [makeTask('b9', dueAt: DateTime.now())];
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) => const Scaffold(body: TasksTab()),
+          ),
+          GoRoute(
+            path: TeamRoutes.editTask,
+            builder: (_, __) => const Scaffold(body: Text('editor')),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: uxOverrides(
+            extra: [
+              teamRepositoryProvider.overrideWithValue(repo),
+              seatLimitRepositoryProvider
+                  .overrideWithValue(FakeSeatLimitRepository()),
+            ],
+          ),
+          child: MaterialApp.router(
+            theme: AppTheme.light(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await openTask(tester, 'Task b9');
+      await openMore(tester);
+      await tester.tap(find.byKey(const ValueKey('task-edit')));
+      await tester.pumpAndSettle();
+      expect(find.text('editor'), findsOneWidget);
+      expect(find.byKey(const ValueKey('task-more')), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
 
   group('groupTasksByDay', () {
     test('overdue, today, tomorrow, dates, no date', () {
@@ -169,12 +356,7 @@ void main() {
       // A single tap waits out the double-tap window.
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('task-not-done')),
-        200,
-        scrollable: find.byType(Scrollable).last,
-      );
-      await tester.pumpAndSettle();
+      await openMore(tester);
       await tester.tap(find.byKey(const ValueKey('task-not-done')));
       await tester.pumpAndSettle();
       await tester.enterText(
@@ -215,13 +397,7 @@ void main() {
       await tester.tap(find.text(title));
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
-      // The sheet's list builds lazily: scroll to the actions.
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('task-edit')),
-        200,
-        scrollable: find.byType(Scrollable).last,
-      );
-      await tester.pumpAndSettle();
+      await openMore(tester);
     }
 
     testWidgets('delete asks first, then removes the task', (tester) async {

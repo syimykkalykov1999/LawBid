@@ -466,6 +466,61 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     }
   }
 
+  /// Owner 2026-11-07 (mockup): the «⋯» menu of the task — edit, cancel the
+  /// task (the old «not done»: a reason and a new date) and delete.
+  Future<void> _moreMenu({
+    required bool canEditTask,
+    required bool canCancel,
+  }) async {
+    final t = ref.read(translatorProvider);
+    final choice = await showAppBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (canEditTask)
+                AppListRow(
+                  key: const ValueKey('task-edit'),
+                  icon: AppIcons.editOutlined,
+                  label: t.t('tasks.edit'),
+                  onTap: () => Navigator.of(ctx).pop('edit'),
+                ),
+              if (canCancel)
+                AppListRow(
+                  key: const ValueKey('task-not-done'),
+                  icon: AppIcons.closeRounded,
+                  label: t.t('tasks.cancel'),
+                  onTap: () => Navigator.of(ctx).pop('cancel'),
+                ),
+              if (_task.canDelete)
+                AppListRow(
+                  key: const ValueKey('task-delete'),
+                  icon: AppIcons.deleteOutlineRounded,
+                  label: t.t('tasks.delete'),
+                  destructive: true,
+                  onTap: () => Navigator.of(ctx).pop('delete'),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case 'edit':
+        final task = _task;
+        final router = GoRouter.of(context);
+        Navigator.of(context).pop();
+        await router.push(TeamRoutes.editTask, extra: task);
+      case 'cancel':
+        await _finish(false);
+      case 'delete':
+        await _delete();
+    }
+  }
+
   Future<void> _delete() async {
     final t = ref.read(translatorProvider);
     final ok = await showDialog<bool>(
@@ -839,76 +894,60 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
             ),
             const SizedBox(height: AppSpacing.md),
           ],
-          // Owner 2026-10-20: grouped rows, not one full-width line each.
-          if (active && canComplete)
-            ActionGroup(
-              actions: [
-                if (task.status == TaskStatus.open)
-                  GroupAction(
-                    keyName: 'task-take',
-                    label: t.t('tasks.take'),
-                    isLoading: _busy,
-                    onPressed: () => _set(TaskStatus.taken),
-                  ),
-                GroupAction(
-                  keyName: 'task-done',
-                  label: t.t('tasks.done'),
-                  variant: AppButtonVariant.primary,
-                  isLoading: _busy,
-                  onPressed: () => _finish(true),
-                ),
-                GroupAction(
-                  keyName: 'task-not-done',
-                  label: t.t('tasks.notDone'),
-                  isLoading: _busy,
-                  onPressed: () => _finish(false),
-                ),
-              ],
-            ),
-          // Owner 2026-10-01: every card is editable and deletable — the
-          // owner any; an assistant edits with the tasks duty and deletes
-          // only the tasks they set.
-          if ((task.canEdit &&
+          // Owner 2026-11-07 (mockup): the main buttons — «Взять в работу»
+          // only for a task given to me, «Выполнено» — and one «⋯» with
+          // edit / cancel the task / delete.
+          Builder(
+            builder: (context) {
+              final canEditTask = task.canEdit &&
                   canPlan &&
-                  task.status != TaskStatus.cancelled) ||
-              task.canDelete ||
-              (active && canComplete))
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.sm),
-              child: ActionGroup(
-                actions: [
-                  if (task.canEdit &&
-                      canPlan &&
-                      task.status != TaskStatus.cancelled)
-                    GroupAction(
-                      keyName: 'task-edit',
-                      label: t.t('tasks.edit'),
-                      onPressed: _busy
-                          ? null
-                          : () async {
-                              Navigator.of(context).pop();
-                              await GoRouter.of(context).push(
-                                TeamRoutes.editTask,
-                                extra: task,
-                              );
-                            },
+                  task.status != TaskStatus.cancelled;
+              final canCancel = active && canComplete;
+              final hasMenu = canEditTask || task.canDelete || canCancel;
+              final more = AppButton(
+                key: const ValueKey('task-more'),
+                label: '\u22EF',
+                variant: AppButtonVariant.secondary,
+                onPressed: _busy
+                    ? null
+                    : () => _moreMenu(
+                          canEditTask: canEditTask,
+                          canCancel: canCancel,
+                        ),
+              );
+              if (active && canComplete) {
+                return Row(
+                  children: [
+                    Expanded(
+                      child: ActionGroup(
+                        actions: [
+                          if (task.assignedToMe &&
+                              task.status == TaskStatus.open)
+                            GroupAction(
+                              keyName: 'task-take',
+                              label: t.t('tasks.take'),
+                              isLoading: _busy,
+                              onPressed: () => _set(TaskStatus.taken),
+                            ),
+                          GroupAction(
+                            keyName: 'task-done',
+                            label: t.t('tasks.done'),
+                            variant: AppButtonVariant.primary,
+                            isLoading: _busy,
+                            onPressed: () => _finish(true),
+                          ),
+                        ],
+                      ),
                     ),
-                  if (task.canDelete)
-                    GroupAction(
-                      keyName: 'task-delete',
-                      label: t.t('tasks.delete'),
-                      onPressed: _busy ? null : _delete,
-                    ),
-                  if (active && canComplete)
-                    GroupAction(
-                      keyName: 'task-cancel',
-                      label: t.t('tasks.cancel'),
-                      onPressed:
-                          _busy ? null : () => _set(TaskStatus.cancelled),
-                    ),
-                ],
-              ),
-            ),
+                    const SizedBox(width: AppSpacing.sm),
+                    SizedBox(width: 56, child: more),
+                  ],
+                );
+              }
+              if (!hasMenu) return const SizedBox.shrink();
+              return more;
+            },
+          ),
           // Owner 2026-10-01: a task closed by mistake goes back to work.
           if (!active &&
               canComplete &&
