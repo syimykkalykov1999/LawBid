@@ -78,7 +78,7 @@ export class DomainEvents {
     if (this.cached && now - this.cached.at < SINK_CACHE_MS) {
       return this.cached.sink;
     }
-    let sink: EventsSink = 'off';
+    let sink: EventsSink;
     try {
       const raw = (await this.settings?.string('events.sink')) ?? 'auto';
       if (raw === 'off' || raw === 'db' || raw === 'stream') sink = raw;

@@ -138,7 +138,7 @@ function stripeClient(secretKey: string): TreasuryClient {
         stripe.balance.retrieve(),
         stripe.accounts.retrieveCurrent(),
       ]);
-      let banks: StripeBank[] | null = null;
+      let banks: StripeBank[] | null;
       const listed = account.external_accounts?.data;
       if (listed) {
         banks = listed.map(bankOf);

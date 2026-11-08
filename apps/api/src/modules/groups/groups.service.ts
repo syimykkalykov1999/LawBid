@@ -1624,7 +1624,7 @@ export class GroupsService {
     const release = async (): Promise<void> => {
       await redis.del(key).catch(() => undefined);
     };
-    let left = 0;
+    let left: number;
     try {
       // The key outlives a shortened setting at most; its value, not its
       // TTL, decides.

@@ -108,6 +108,7 @@ export async function unwrapKmsWrappedKeys(
       } catch (err) {
         throw new Error(
           `${name}: kms:Decrypt failed for key "${e.kid}" (${(err as Error).message})`,
+          { cause: err },
         );
       }
       const secret = Buffer.from(plain).toString('utf8');
