@@ -62,7 +62,6 @@ lib/features/cases/presentation/widgets/case_wizard_steps.dart	: (dense ? Colors
 lib/features/cases/presentation/widgets/client_review_sheet.dart	Colors.black,
 lib/features/cases/presentation/widgets/client_review_sheet.dart	backgroundColor: Colors.black54,
 lib/features/cases/presentation/widgets/client_review_sheet.dart	color: Colors.white,
-lib/features/cases/presentation/widgets/my_case_row.dart	onColor: Colors.white,
 lib/features/cases/presentation/widgets/negotiation_timeline.dart	? Colors.transparent
 lib/features/cases/presentation/widgets/pill_tabs.dart	: Colors.white.withValues(alpha: 0.7))
 lib/features/cases/presentation/widgets/pill_tabs.dart	? Colors.white

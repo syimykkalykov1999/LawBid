@@ -12,8 +12,8 @@ import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_option_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pay_tile_grid.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/practice/practice_matches.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
@@ -1096,7 +1096,9 @@ class BudgetStep extends ConsumerStatefulWidget {
   final CaseDraft draft;
   final DraftChange onChange;
 
-  /// Editing a case: «later» is what it has now, not an unmade choice.
+  /// Editing a case. Since the tiles of owner 2026-11-07 «Позже» is an
+  /// ordinary selected tile, so nothing depends on this any more; callers
+  /// still pass it.
   final bool startChosen;
 
   @override
@@ -1107,12 +1109,6 @@ class BudgetStep extends ConsumerStatefulWidget {
 enum _BudgetKind { amount, percent, later }
 
 class _BudgetStepState extends ConsumerState<BudgetStep> {
-  // Owner 2026-11-05: «later» is the default of the case, so what the client
-  // has not picked yet is told apart here; the rules of the draft don't change.
-  late bool _chosen = widget.startChosen ||
-      widget.draft.budgetIsAmount ||
-      widget.draft.budgetIsPercent;
-
   late final _amount = TextEditingController(
     text: widget.draft.budgetDollars?.toString() ?? '',
   );
@@ -1168,38 +1164,41 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
           title: t.t('cases.create.budget.title'),
           subtitle: t.t('cases.create.budget.subtitle'),
         ),
-        CaseOptionPicker<_BudgetKind>(
-          // Owner 2026-11-06: a new case stands on «Уточню позже», list open.
+        // Owner 2026-11-07 (prototype B): three tiles, «Позже» on first sight;
+        // the hint of the chosen one stands under them.
+        PayTileGrid<_BudgetKind>(
+          columns: percentAllowed ? 3 : 2,
           value: kind,
-          startOpen: !_chosen,
-          options: [
-            CaseOption(
-              _BudgetKind.amount,
-              t.t('cases.budget.specify'),
-              t.t('cases.pay.fixedHint'),
+          tiles: [
+            PayTile(
+              value: _BudgetKind.later,
+              name: 'later',
+              icon: AppIcons.hourglassTopRounded,
+              label: t.t('cases.pay.tile.later'),
+              hint: t.t('cases.pay.laterHint'),
+            ),
+            PayTile(
+              value: _BudgetKind.amount,
+              name: 'amount',
+              glyph: r'$',
+              label: t.t('cases.pay.tile.amount'),
+              hint: t.t('cases.pay.fixedHint'),
             ),
             if (percentAllowed)
-              CaseOption(
-                _BudgetKind.percent,
-                t.t('cases.budget.percent'),
-                t.t('cases.pay.budgetPercentHint'),
+              PayTile(
+                value: _BudgetKind.percent,
+                name: 'percent',
+                glyph: '%',
+                label: t.t('cases.pay.tile.percent'),
+                hint: t.t('cases.pay.budgetPercentHint'),
               ),
-            CaseOption(
-              _BudgetKind.later,
-              t.t('cases.budget.clarifyLater'),
-              t.t('cases.pay.laterHint'),
-            ),
           ],
-          onChanged: (v) {
-            if (v == null) return;
-            setState(() => _chosen = true);
-            widget.onChange(
-              (x) => x.copyWith(
-                budgetIsAmount: v == _BudgetKind.amount,
-                budgetIsPercent: v == _BudgetKind.percent,
-              ),
-            );
-          },
+          onChanged: (v) => widget.onChange(
+            (x) => x.copyWith(
+              budgetIsAmount: v == _BudgetKind.amount,
+              budgetIsPercent: v == _BudgetKind.percent,
+            ),
+          ),
         ),
         if (!percentAllowed) ...[
           const SizedBox(height: AppSpacing.xs),
@@ -1210,9 +1209,10 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
           ),
         ],
         const SizedBox(height: AppSpacing.xl),
-        // Owner 2026-10-18: the three choices share one box as tall as the
-        // tallest, so nothing below jumps when switching (they cross-fade).
-        if (_chosen)
+        // Owner 2026-10-18: the choices share one box as tall as the tallest,
+        // so nothing below jumps when switching (they cross-fade). «Позже»
+        // has no field: its hint stands under the tiles.
+        if (kind != _BudgetKind.later)
           _SameHeightSwitch(
             index: kind.index,
             children: [
@@ -1280,30 +1280,6 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
                         : x.copyWith(budgetPercentBps: bps),
                   );
                 },
-              ),
-              Container(
-                key: const ValueKey('later'),
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                // Owner 2026-10-18: the theme's own surface.
-                decoration: BoxDecoration(
-                  color: colors.chip,
-                  borderRadius: BorderRadius.circular(AppRadii.card),
-                  border: Border.all(color: colors.border),
-                ),
-                child: Row(
-                  children: [
-                    AppIcon(AppIcons.forumOutlined, color: colors.iconTint),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Text(
-                        t.t('cases.create.budget.laterHint'),
-                        style: typography.bodySmall.copyWith(
-                          color: colors.text,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),

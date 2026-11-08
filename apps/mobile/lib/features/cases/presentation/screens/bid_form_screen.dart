@@ -15,11 +15,10 @@ import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
 import 'package:lawbid/features/cases/deals/deal_record_data.dart';
-import 'package:lawbid/features/cases/deals/rich_terms_editor.dart';
+import 'package:lawbid/features/cases/deals/pay_block.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_option_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/tools/conflict_banner.dart';
@@ -55,16 +54,17 @@ class BidFormScreen extends ConsumerStatefulWidget {
 }
 
 class _BidFormScreenState extends ConsumerState<BidFormScreen> {
-  // Owner 2026-11-05: nothing is picked until the attorney picks; an invite's
-  // amount starts from the client's budget, so it is a fixed fee.
-  late FeeType? _fee = widget.initialAmountCents == null ? null : FeeType.fixed;
+  // Owner 2026-11-07: ONE «Оплата» block of tiles (prototype), «Сумма» on
+  // first sight; an invite's amount starts from the client's budget, so it is
+  // a fixed fee. Deal record 2026-10-27: the detailed terms ride on the same
+  // tiles (admin switch).
+  final _pay = PayDraft();
+  // The attorney (or an invite) has chosen: a saved draft no longer overrides.
+  late bool _payTouched = widget.initialAmountCents != null;
   StartAvailability _start = StartAvailability.immediately;
   DateTime? _startDate;
-  final _amount = TextEditingController();
   final _message = TextEditingController();
   final _duration = TextEditingController();
-  // Deal record 2026-10-27: rich payment terms (admin switch).
-  final _rich = RichTermsDraft();
   bool _busy = false;
   String? _error;
   String? _sendAs;
@@ -76,7 +76,9 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
   void initState() {
     super.initState();
     final initial = widget.initialAmountCents;
-    if (initial != null && initial > 0) _amount.text = '${initial ~/ 100}';
+    if (initial != null && initial > 0) {
+      _pay.rich.flat.text = '${initial ~/ 100}';
+    }
     _loadDraft();
   }
 
@@ -88,11 +90,11 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       // The draft only fills what the attorney has not touched yet: typed
       // text and the invite's prefilled amount win over it.
       setState(() {
-        if (d.feeType != null && _fee == null) {
-          _fee = FeeType.fromJson(d.feeType!);
+        if (d.feeType != null && !_payTouched) {
+          _pay.select(PayDraft.kindOfFee(FeeType.fromJson(d.feeType!)));
         }
-        if (d.amountCents != null && _amount.text.trim().isEmpty) {
-          _amount.text = '${d.amountCents! ~/ 100}';
+        if (d.amountCents != null && _pay.main.text.trim().isEmpty) {
+          _pay.main.text = '${d.amountCents! ~/ 100}';
         }
         if (d.message != null && _message.text.trim().isEmpty) {
           _message.text = d.message!;
@@ -122,12 +124,8 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     try {
       await ref.read(teamRepositoryProvider).saveBidDraft(
             widget.caseId,
-            feeType: _fee!.json,
-            amountCents: _fee == FeeType.freeConsultation ||
-                    _isPercent ||
-                    _amountDollars == null
-                ? null
-                : _amountDollars! * 100,
+            feeType: _pay.feeType.json,
+            amountCents: _pay.amountCents,
             message: _message.text.trim().isEmpty ? null : _message.text,
             startAvailability: _start.json,
             startDate: _startDate,
@@ -146,23 +144,14 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     }
   }
 
-  int? get _amountDollars => int.tryParse(_amount.text);
+  ContingencyRules get _rules =>
+      ContingencyRules.of(ref.read(featureFlagsControllerProvider));
 
-  /// Owner 2026-10-17: a contingency bid — percent of the recovery.
-  bool get _isPercent => _fee == FeeType.contingency;
-
-  int? get _percentBps =>
-      ContingencyRules.of(ref.read(featureFlagsControllerProvider))
-          .parse(_amount.text);
-
-  bool get _amountOk =>
-      _fee != null && _fee == FeeType.freeConsultation ||
-      (_isPercent && _percentBps != null) ||
-      (_fee != null &&
-          !_isPercent &&
-          _amountDollars != null &&
-          _amountDollars! > 0 &&
-          _amountDollars! <= BidLimits.amountMaxDollars);
+  bool get _amountOk => _pay.ok(
+        rules: _rules,
+        richOn: ref.read(richTermsEnabledProvider),
+        maxDollars: BidLimits.amountMaxDollars,
+      );
 
   bool get _messageOk {
     final n = _message.text.trim().length;
@@ -182,10 +171,9 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
 
   @override
   void dispose() {
-    _amount.dispose();
     _message.dispose();
     _duration.dispose();
-    _rich.dispose();
+    _pay.dispose();
     super.dispose();
   }
 
@@ -207,20 +195,24 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     });
     final t = ref.read(translatorProvider);
     try {
+      // Owner 2026-11-07: the chosen tile builds the same request the two
+      // old blocks did (fee type + amount, and the detailed terms).
+      final richOn = ref.read(richTermsEnabledProvider);
       final bid = await ref.read(caseActionsProvider).placeBid(
             widget.caseId,
             BidInput(
-              feeType: _fee!,
-              amountCents: _fee == FeeType.freeConsultation || _isPercent
-                  ? null
-                  : _amountDollars! * 100,
-              percentBps: _isPercent ? _percentBps : null,
+              feeType: _pay.feeType,
+              amountCents: _pay.amountCents,
+              percentBps: _pay.percentBps(_rules),
               message: _message.text,
               startAvailability: _start,
               startDate: _startDate,
               estimatedDurationDays: int.tryParse(_duration.text),
               sendAsAttorneyId: _sendAs,
-              paymentTerms: _rich.toDto(),
+              paymentTerms: _pay.terms(
+                richOn: richOn,
+                percentAllowed: _percentAllowed(),
+              ),
             ),
           );
       if (!mounted) return;
@@ -248,26 +240,37 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     }
   }
 
+  /// The admin's list of topics without a percent; the server checks it too.
+  bool _percentAllowed({bool watch = false}) {
+    final kase = (watch
+            ? ref.watch(attorneyCaseProvider(widget.caseId))
+            : ref.read(attorneyCaseProvider(widget.caseId)))
+        .value;
+    final flags = watch
+        ? ref.watch(featureFlagsControllerProvider)
+        : ref.read(featureFlagsControllerProvider);
+    return kase == null ||
+        !ContingencyRules.of(flags)
+            .blockedFor([kase.practice.code, ...kase.extraPracticeCodes]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final free = _fee == FeeType.freeConsultation;
     // The admin's list of topics without a percent; the server checks it too.
-    final kase = ref.watch(attorneyCaseProvider(widget.caseId)).value;
-    final percentAllowed = kase == null ||
-        !ContingencyRules.of(ref.watch(featureFlagsControllerProvider))
-            .blockedFor([kase.practice.code, ...kase.extraPracticeCodes]);
-    if (!percentAllowed && _isPercent) {
+    final percentAllowed = _percentAllowed(watch: true);
+    final richOn = ref.watch(richTermsEnabledProvider);
+    // A percent or a mixed tile cannot stand on a topic without a percent,
+    // nor the detailed tiles while their switch is off: back to «Сумма».
+    final gone = (!percentAllowed && _pay.kind == PayKind.percent) ||
+        (!richOn &&
+            (_pay.kind == PayKind.installments || _pay.kind == PayKind.mixed));
+    if (gone) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _amount.clear();
-            _fee = null;
-          });
-        }
+        if (mounted) setState(() => _pay.select(PayKind.flat));
       });
     }
     // OQ-049: an assistant sends bids only with the "bids" access the
@@ -317,99 +320,17 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               ),
             ),
           ],
-          CaseOptionPicker<FeeType>(
-            label: t.t('cases.bidForm.feeType'),
-            value: _fee,
-            options: [
-              CaseOption(
-                FeeType.fixed,
-                t.t('cases.fee.fixed'),
-                t.t('cases.pay.fixedHint'),
-              ),
-              CaseOption(
-                FeeType.hourly,
-                t.t('cases.fee.hourly'),
-                t.t('cases.pay.hourlyHint'),
-              ),
-              if (percentAllowed)
-                CaseOption(
-                  FeeType.contingency,
-                  t.t('cases.fee.percent'),
-                  t.t('cases.pay.percentHint'),
-                ),
-              CaseOption(
-                FeeType.freeConsultation,
-                t.t('cases.fee.free'),
-                t.t('cases.pay.freeHint'),
-              ),
-            ],
-            onChanged: (v) => setState(() {
-              if ((v == FeeType.contingency) != _isPercent) _amount.clear();
-              _fee = v;
-            }),
-          ),
-          AnimatedSize(
-            duration: context.sizeChangeDuration,
-            curve: AppMotion.enterCurve,
-            child: free || _fee == null
-                ? const SizedBox(width: double.infinity)
-                : Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.lg),
-                    child: AppTextField(
-                      controller: _amount,
-                      key: ValueKey(_isPercent),
-                      label: t.t(
-                        _isPercent
-                            ? 'cases.bidForm.percent'
-                            : _fee == FeeType.hourly
-                                ? 'cases.bidForm.rate'
-                                : 'cases.bidForm.amount',
-                      ),
-                      helperText:
-                          _isPercent ? t.t('cases.bidForm.percentHint') : null,
-                      leading: Text(
-                        _isPercent ? '%' : r'$',
-                        style: typography.titleMedium.copyWith(
-                          color: colors.goldDark,
-                        ),
-                      ),
-                      keyboardType: _isPercent
-                          ? const TextInputType.numberWithOptions(decimal: true)
-                          : TextInputType.number,
-                      inputFormatters: [
-                        if (_isPercent)
-                          FilteringTextInputFormatter.allow(RegExp('[0-9.,]'))
-                        else
-                          FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(_isPercent ? 6 : 8),
-                      ],
-                      errorText: _amount.text.isNotEmpty && !_amountOk
-                          ? t.t(
-                              _isPercent
-                                  ? 'cases.bidForm.percentError'
-                                  : 'cases.bidForm.amountError',
-                              {
-                                'max': ContingencyRules.plain(
-                                  ContingencyRules.of(
-                                    ref.watch(featureFlagsControllerProvider),
-                                  ).maxBps,
-                                ),
-                              },
-                            )
-                          : null,
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-          ),
-          if (ref.watch(richTermsEnabledProvider)) ...[
-            const SizedBox(height: AppSpacing.lg),
-            RichTermsEditor(
-              draft: _rich,
-              enabled: !_busy,
-              percentAllowed: percentAllowed,
-              onChanged: () => setState(() {}),
+          PayBlock(
+            draft: _pay,
+            rules: ContingencyRules.of(
+              ref.watch(featureFlagsControllerProvider),
             ),
-          ],
+            richOn: richOn,
+            percentAllowed: percentAllowed,
+            enabled: !_busy,
+            maxDollars: BidLimits.amountMaxDollars,
+            onChanged: () => setState(() => _payTouched = true),
+          ),
           const SizedBox(height: AppSpacing.lg),
           _FirmSender(
             caseId: widget.caseId,
