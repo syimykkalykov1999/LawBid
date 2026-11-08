@@ -3018,4 +3018,89 @@ void main() {
       });
     });
   });
+
+  /// Owner 2026-11-08 (iPhone «Decline» on the locked CallKit screen: the
+  /// decline did not reach the server, the app later rang the same call
+  /// again and the chat's call button took the person back into it).
+  group('owner 2026-11-08: a call declined on this phone never rings again',
+      () {
+    test('declined in the app, then the late socket ring: not rung, told again',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.emit(
+        'call:incoming',
+        _event(_call('d1', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      await h.c.decline();
+      expect(h.repo.declined, ['d1']);
+      h.emit(
+        'call:incoming',
+        _event(_call('d1', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      expect(h.s.phase, isNot(CallPhase.incoming));
+      expect(h.s.busy, isFalse);
+      expect(h.repo.declined, ['d1', 'd1']);
+    });
+
+    test('declined natively while the app slept (loaded mark): not rung',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.c.noteDeclinedHere('D2-UPPER');
+      h.emit(
+        'call:incoming',
+        _event(_call('d2-upper', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      expect(h.s.busy, isFalse);
+      expect(h.systemUi.shown, isEmpty);
+      expect(h.repo.declined, ['d2-upper']);
+      // The push / start-up scan path neither.
+      await h.c.ringFromPush('d2-upper', showSystemUi: true);
+      await _settle();
+      expect(h.s.busy, isFalse);
+      expect(h.systemUi.shown, isEmpty);
+    });
+
+    test('so the chat call button starts a NEW call, not the old one',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.c.noteDeclinedHere('d3');
+      h.emit(
+        'call:incoming',
+        _event(_call('d3', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      h.repo.nextId = 'n3';
+      unawaited(h.c.call('conv', peer: _peer));
+      await _settle();
+      expect(h.s.phase, CallPhase.outgoing);
+      expect(h.s.call?.id, 'n3');
+      await h.c.hangUp();
+    });
+
+    test('the normal path is untouched: another call still rings and answers',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.c.noteDeclinedHere('d4');
+      h.emit(
+        'call:incoming',
+        _event(_call('d5', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.s.call?.id, 'd5');
+      expect(h.repo.declined, isEmpty);
+      await h.c.accept();
+      await _settle();
+      expect(h.repo.accepted, ['d5']);
+      await h.c.hangUp();
+      expect(h.repo.endedIds, contains('d5'));
+    });
+  });
 }

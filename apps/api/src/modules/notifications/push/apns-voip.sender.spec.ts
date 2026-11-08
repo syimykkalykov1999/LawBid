@@ -101,6 +101,50 @@ describe('ApnsVoipSender', () => {
     expect(tokens.remove).toHaveBeenCalledWith('b');
   });
 
+  /** Owner 2026-11-08: an idle connection the network dropped failed the
+   * ring, and the iPhone got the plain alert instead of the call screen. */
+  it('a broken connection is dropped and the ring sent once more; Apple refusals are not retried', async () => {
+    const tokens = {
+      activeDevices: jest.fn().mockResolvedValue([
+        {
+          token: 'a',
+          topic: 't.voip',
+          environment: 'production',
+          sessionId: 's1',
+        },
+      ]),
+      setEnvironment: jest.fn(),
+      remove: jest.fn(),
+    };
+    const sender = new ApnsVoipSender(
+      { get: jest.fn() } as unknown as SecretsService,
+      tokens as unknown as VoipTokensService,
+      logger,
+    );
+    const s = sender as unknown as {
+      providerToken(): Promise<string>;
+      postOnce(): Promise<string>;
+    };
+    s.providerToken = () => Promise.resolve('jwt');
+    const answers = ['broken', 'ok'];
+    let postOnce = jest.fn(() => Promise.resolve(answers.shift() ?? 'ok'));
+    s.postOnce = postOnce;
+    await expect(sender.ringCall('u', call)).resolves.toEqual(['s1']);
+    expect(postOnce).toHaveBeenCalledTimes(2);
+
+    // Broken twice: not rung (the FCM alert is the fallback), no loop.
+    postOnce = jest.fn(() => Promise.resolve('broken'));
+    s.postOnce = postOnce;
+    await expect(sender.ringCall('u', call)).resolves.toEqual([]);
+    expect(postOnce).toHaveBeenCalledTimes(2);
+
+    // Apple said no (e.g. 400 BadTopic): one try only.
+    postOnce = jest.fn(() => Promise.resolve('failed'));
+    s.postOnce = postOnce;
+    await expect(sender.ringCall('u', call)).resolves.toEqual([]);
+    expect(postOnce).toHaveBeenCalledTimes(1);
+  });
+
   /** LC-1 (audit 2026-10-26): a cancelled ring stops a locked iPhone at
    * once — through the VoIP channel, only on the phones it rang, never on
    * the phone that answered. */

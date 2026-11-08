@@ -437,6 +437,10 @@ import flutter_callkit_incoming
       return
     }
     let callId = (p["callId"] as? String) ?? UUID().uuidString
+    // Owner 2026-11-08: the ring ticket is kept by call id — a call the
+    // open app's socket showed first (no ticket in its CallKit data) is
+    // still declined natively (onDecline).
+    rememberTicket(callId, p["pollToken"] as? String)
     // Owner 2026-10-21: the open app's socket may have reported this very
     // call a moment ago — a second report of the same id would end the one
     // being answered. One CallKit call per call id.
@@ -453,7 +457,9 @@ import flutter_callkit_incoming
     let name = (p["callerName"] as? String) ?? "LawBid"
     // LC-1: the stop came before the ring (Apple may reorder): iOS still
     // wants a reported call for this push — report it and end it at once.
-    if wasEndedByPush(callId) {
+    // Owner 2026-11-08: the same for a late / repeated ring of a call the
+    // person already declined here (it rang again with nothing to show).
+    if wasEndedByPush(callId) || Self.declinedHere(callId) {
       reportThenEnd(callkit, callId: callId, name: name, completion: completion)
       return
     }
@@ -556,6 +562,13 @@ import flutter_callkit_incoming
     name: String,
     completion: @escaping () -> Void
   ) {
+    // Owner 2026-11-08 (prod: the decline reached the server with ids it
+    // never made → 404): the plugin reports this end as a «decline», and
+    // with the data of the LAST VoIP-reported call — this one. Marked as
+    // the app's own end, so neither Dart nor onDecline sends it.
+    UserDefaults.standard.set(
+      NSNumber(value: Int64(Date().timeIntervalSince1970 * 1000)),
+      forKey: "flutter.call.appEnded.\(callId.lowercased())")
     let data = flutter_callkit_incoming.Data(
       id: callId,
       nameCaller: name,
@@ -614,17 +627,26 @@ import flutter_callkit_incoming
   /// Owner 2026-11-03 (iPhone «Отклонить» on the lock screen; the Samsung
   /// caller stayed in the call): flutter_callkit_incoming's documented iOS
   /// flow (README, AppDelegate `onDecline`): tell the server here, then
-  /// fulfill the action. A closed iPhone woken by the VoIP push runs only
-  /// the stand-in engine (`callkitPushEntry`, no Dart listener, no
-  /// session), so nobody else can. While the app's own engine runs, its
-  /// Dart side (callkit_bridge.dart) declines with the session — and also
-  /// ends ringing calls itself (answered elsewhere, its own ring timeout),
-  /// which must not turn into «declined» here.
+  /// fulfill the action.
+  ///
+  /// Owner 2026-11-08 (the same bug again on a locked prod iPhone): this
+  /// used to run only while the stand-in engine ran (app closed) and left
+  /// every other case to Dart. A backgrounded app is suspended by iOS as
+  /// soon as the CallKit call ends, so Dart's decline never left the phone:
+  /// the caller rang on and the call stayed open for the callee to walk
+  /// back into. Now it always runs here, as the README does it. Ends the
+  /// app made itself (answered elsewhere, its own ring timer, the in-app
+  /// Decline that tells the server itself) are marked by Dart
+  /// (`call.appEnded.<id>`, callkit_bridge.dart markEndedByApp) and skipped.
+  ///
+  /// Owner 2026-11-08 (after «Decline» on the locked screen the ringtone
+  /// sometimes rang on with no call on screen): the action is fulfilled AT
+  /// ONCE — CallKit stops the ring only then, and holding it for the
+  /// request (up to 8 s + a retry on a sleepy network) left the ringtone
+  /// playing. The request runs on under a background task (Apple's
+  /// CXProvider guidance: fulfill promptly, do the network work aside).
   func onDecline(_ call: Call, _ action: CXEndCallAction) {
-    guard callkitEngine != nil else {
-      action.fulfill()
-      return
-    }
+    action.fulfill()
     // iOS gives a background launch a few seconds; keep it until the
     // request (and its one retry) is done.
     var task: UIBackgroundTaskIdentifier = .invalid
@@ -632,7 +654,6 @@ import flutter_callkit_incoming
       UIApplication.shared.endBackgroundTask(task)
     }
     declineOnServer(call.data, attempt: 1) {
-      action.fulfill()
       UIApplication.shared.endBackgroundTask(task)
     }
   }
@@ -653,12 +674,24 @@ import flutter_callkit_incoming
     // Review #693: the plugin reports its own ring timeout as onTimeOut;
     // should an end come at or after the ring length anyway, it is the
     // timeout (the caller's «no answer»), not a decline.
-    let rangAt = extra["rangAt"] as? Double ?? 0
+    let stored = storedTicket(callId)
+    let rangAt = (extra["rangAt"] as? Double) ?? stored?.at ?? 0
     let rangFor = (Date().timeIntervalSince1970 - rangAt) * 1000
+    let given = (extra["pollToken"] as? String) ?? ""
+    let ticket = given.isEmpty ? (stored?.ticket ?? "") : given
     guard UUID(uuidString: callId) != nil,
       rangAt > 0, rangFor < Double(data.duration),
       !wasEndedByPush(callId),
-      let ticket = extra["pollToken"] as? String, !ticket.isEmpty,
+      !Self.endedByApp(callId)
+    else {
+      done()
+      return
+    }
+    // The person said no here: the app does not ring this call again
+    // when it opens (callkit_bridge.dart declinedHere), even if the
+    // request below never gets through.
+    if attempt == 1 { Self.rememberDeclined(callId) }
+    guard !ticket.isEmpty,
       let api = UserDefaults.standard.string(forKey: AppDelegate.apiKey),
       let url = URL(string: api + "/calls/\(callId)/status/decline")
     else {
@@ -681,6 +714,53 @@ import flutter_callkit_incoming
         }
       }
     }.resume()
+  }
+
+  private static let ticketsKey = "lawbid.voip.tickets"
+
+  /// The ring push's ticket of [callId] and when it rang (10 minutes).
+  private func rememberTicket(_ callId: String, _ ticket: String?) {
+    guard let ticket = ticket, !ticket.isEmpty, !callId.isEmpty else { return }
+    let now = Date().timeIntervalSince1970
+    var all = (UserDefaults.standard.dictionary(forKey: Self.ticketsKey)
+      as? [String: [String: Any]]) ?? [:]
+    all = all.filter { now - (($0.value["at"] as? Double) ?? 0) < 600 }
+    all[callId.lowercased()] = ["t": ticket, "at": now]
+    UserDefaults.standard.set(all, forKey: Self.ticketsKey)
+  }
+
+  private func storedTicket(_ callId: String) -> (ticket: String, at: Double)? {
+    let all = (UserDefaults.standard.dictionary(forKey: Self.ticketsKey)
+      as? [String: [String: Any]]) ?? [:]
+    guard let row = all[callId.lowercased()],
+      let t = row["t"] as? String, let at = row["at"] as? Double
+    else { return nil }
+    return (t, at)
+  }
+
+  /// Dart (shared_preferences keeps its keys in UserDefaults with the
+  /// `flutter.` prefix) marks a CallKit end it makes itself a moment
+  /// before making it: that end is not the person's «Decline».
+  static func endedByApp(_ callId: String, now: Date = Date()) -> Bool {
+    let key = "flutter.call.appEnded.\(callId.lowercased())"
+    guard let at = (UserDefaults.standard.object(forKey: key) as? NSNumber)?.doubleValue
+    else { return false }
+    return now.timeIntervalSince1970 * 1000 - at < 10_000
+  }
+
+  /// Declined on this phone within the last 5 minutes (by Dart or here).
+  static func declinedHere(_ callId: String, now: Date = Date()) -> Bool {
+    let key = "flutter.call.declined.\(callId.lowercased())"
+    guard let at = (UserDefaults.standard.object(forKey: key) as? NSNumber)?.doubleValue
+    else { return false }
+    return now.timeIntervalSince1970 * 1000 - at < 300_000
+  }
+
+  /// Read by Dart (`call.declined.<id>`, milliseconds).
+  private static func rememberDeclined(_ callId: String) {
+    let ms = Int64(Date().timeIntervalSince1970 * 1000)
+    UserDefaults.standard.set(
+      NSNumber(value: ms), forKey: "flutter.call.declined.\(callId.lowercased())")
   }
 
   func onEnd(_ call: Call, _ action: CXEndCallAction) {

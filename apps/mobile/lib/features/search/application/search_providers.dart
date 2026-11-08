@@ -98,11 +98,20 @@ typedef SearchKey = ({String q, SearchFilters filters});
 SearchKey attorneySearchKey(String q) =>
     (q: q, filters: const SearchFilters(role: 'attorney'));
 
+/// How long a search's results stay in memory after its screen let go.
+const kSearchResultsWindow = Duration(minutes: 2);
+
 /// OQ-026 People tab: attorneys and clients in one ranked list.
 class PeopleSearchNotifier extends PagedNotifier<PersonRow> {
   PeopleSearchNotifier(this.key);
 
   final SearchKey key;
+
+  /// Owner 2026-11-08: the same search again within this time (back from a
+  /// profile, a tab switch) shows the rows held, asking nothing; pulling
+  /// down still asks.
+  @override
+  Duration? get keepAliveFor => kSearchResultsWindow;
 
   @override
   Future<CursorPage<PersonRow>> fetch(String? cursor) async {
@@ -135,6 +144,12 @@ class CaseSearchNotifier extends PagedNotifier<FeedCase> {
 
   final SearchKey key;
 
+  /// Owner 2026-11-08: the same search again within this time (back from a
+  /// profile, a tab switch) shows the rows held, asking nothing; pulling
+  /// down still asks.
+  @override
+  Duration? get keepAliveFor => kSearchResultsWindow;
+
   @override
   Future<CursorPage<FeedCase>> fetch(String? cursor) => ref
       .read(searchRepositoryProvider)
@@ -154,6 +169,12 @@ class PostSearchNotifier extends PagedNotifier<Post> {
   PostSearchNotifier(this.key);
 
   final SearchKey key;
+
+  /// Owner 2026-11-08: the same search again within this time (back from a
+  /// profile, a tab switch) shows the rows held, asking nothing; pulling
+  /// down still asks.
+  @override
+  Duration? get keepAliveFor => kSearchResultsWindow;
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) => ref

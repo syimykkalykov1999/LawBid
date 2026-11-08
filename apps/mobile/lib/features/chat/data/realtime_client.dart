@@ -150,6 +150,14 @@ class RealtimeClient {
 
   bool get connected => _socket?.connected ?? false;
 
+  /// Owner 2026-11-08 (no refetch on every open): bumped on every new
+  /// connection. Something kept in step by this socket's events stays
+  /// exact only while the epoch it was synced in is still the current one
+  /// and the socket is up (Telegram: no `getDifference` while the update
+  /// stream has no gap).
+  int get connectionEpoch => _connectionEpoch;
+  int _connectionEpoch = 0;
+
   static String _originOf(String apiBaseUrl) {
     final u = Uri.parse(apiBaseUrl);
     return u.replace(path: '').toString();
@@ -187,6 +195,7 @@ class RealtimeClient {
     _socket = socket;
     socket
       ..onConnect((_) {
+        _connectionEpoch++;
         _policy.onConnected();
         _poller.stop();
         _reauthing = false;
