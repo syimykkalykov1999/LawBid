@@ -581,7 +581,7 @@ export class PersonalDataErasureService implements ErasureRecords {
     const stores = new Map<string, StoreResult>();
     let certificate: ErasureCertificate | null = null;
     for (const r of rows) {
-      let parsed: unknown = null;
+      let parsed: unknown;
       try {
         parsed = r.detail ? JSON.parse(r.detail) : null;
       } catch {

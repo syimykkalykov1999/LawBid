@@ -548,7 +548,7 @@ export class StatusProbesService implements OnModuleDestroy {
     }
     // Owner 2026-10-26: SFU keys set = Cloudflare carries group calls,
     // unless the admin chose our own path (`calls.transport` = own).
-    let selected = true;
+    let selected: boolean;
     try {
       selected = (await this.settings.string('calls.transport')) !== 'own';
     } catch {
@@ -617,7 +617,7 @@ export class StatusProbesService implements OnModuleDestroy {
     if (!base || !f.bucket) {
       return { status: 'grey', detail: { configured: false } };
     }
-    let selected = false;
+    let selected: boolean;
     try {
       selected = (await this.settings.string('media.public_store')) === 'r2';
     } catch {

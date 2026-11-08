@@ -199,7 +199,7 @@ export class LeaseTeamService {
     dto: TeamReleaseDto,
   ): Promise<number> {
     await this.assertMayManage(actor, targetId);
-    let released = 0;
+    let released: number;
     if (dto.kind && dto.itemId) {
       if (!leaseSourceFor(dto.kind)) return 0;
       released = (await this.leases.forceRelease(

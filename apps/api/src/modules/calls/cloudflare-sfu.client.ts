@@ -484,7 +484,7 @@ export class CloudflareSfuClient {
 
 /** `Retry-After` of a 429 as ms (seconds or an HTTP date), else null. */
 function retryAfterMs(res: Response): number | null {
-  let raw: string | null = null;
+  let raw: string | null;
   try {
     raw = res.headers?.get?.('retry-after') ?? null;
   } catch {

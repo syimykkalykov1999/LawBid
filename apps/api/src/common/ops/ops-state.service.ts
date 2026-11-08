@@ -171,7 +171,7 @@ export class OpsStateService implements OnModuleDestroy {
     if (this.economyCache && now - this.economyCache.at < 15_000) {
       return this.economyCache.limited;
     }
-    let limited = false;
+    let limited: boolean;
     try {
       limited = (await this.economy())?.guard === 'limited';
     } catch {

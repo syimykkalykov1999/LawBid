@@ -91,7 +91,9 @@ export async function fetchCloudflareTurn(
     };
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
-      throw new Error(`Cloudflare did not answer in ${timeoutMs} ms`);
+      throw new Error(`Cloudflare did not answer in ${timeoutMs} ms`, {
+        cause: e,
+      });
     }
     throw e;
   } finally {

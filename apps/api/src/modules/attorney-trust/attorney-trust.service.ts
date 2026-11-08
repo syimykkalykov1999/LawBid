@@ -630,7 +630,7 @@ export class AttorneyTrustService {
       };
       const registryName = registryNameOf(row.licenses);
       let nameCheck: NameCheck = NAME_CHECK.unknown;
-      let legalName: string | null = null;
+      let legalName: string | null;
       let representative: string | null = null;
       if (!isCompany) {
         legalName =

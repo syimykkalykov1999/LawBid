@@ -336,7 +336,7 @@ export class MessageSearchIndex {
   private async refresh(): Promise<void> {
     const now = Date.now();
     if (!this.settings || now - this.cached.at < SEARCH_SETTINGS_TTL_MS) return;
-    let prefixes = false;
+    let prefixes: boolean;
     let maxTokens = SEARCH_TOKENS_PER_MESSAGE;
     try {
       prefixes = await this.settings.boolean('chat.search.prefix_tokens');
