@@ -169720,6 +169720,21 @@
           "checkedAt": {
             "type": "string",
             "nullable": true
+          },
+          "csamReportStatus": {
+            "type": "string",
+            "nullable": true,
+            "description": "The latest CyberTipline report of this check: pending | submitted | manual_required | failed (null = none)."
+          },
+          "csamExternalReportId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The NCMEC report id once submitted."
+          },
+          "csamReportError": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why the last report failed (the admin can send it again)."
           }
         },
         "required": [
@@ -169739,7 +169754,10 @@
           "decision",
           "previewUrl",
           "createdAt",
-          "checkedAt"
+          "checkedAt",
+          "csamReportStatus",
+          "csamExternalReportId",
+          "csamReportError"
         ]
       },
       "MediaCheckPageDto": {

@@ -1,6 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
-import { FeatureFlagsService } from '../../../feature-flags/services/feature-flags.service';
+import { FeatureFlagsService } from '../../../feature-flags/feature-flags.public';
 import { StateRegistryService } from '../../services/state-registry.service';
 import type {
   BarLookupInput,
