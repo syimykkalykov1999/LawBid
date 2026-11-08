@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CopyObjectCommand,
   CreateBucketCommand,
   CreateMultipartUploadCommand,
   DeleteObjectsCommand,
@@ -685,6 +686,32 @@ export class S3StorageService implements OnModuleDestroy {
     return Buffer.from(await res.Body.transformToByteArray());
   }
 
+  /**
+   * Security audit 2026-11-08 (M3): server-side copy inside one bucket —
+   * S3 / R2 / MinIO copy the bytes themselves, nothing passes through the
+   * API. Content-Type and Cache-Control are copied with the object
+   * (MetadataDirective COPY, the default). Used by confirm to move a checked
+   * upload to a key no presigned link can write. False when [fromKey] is
+   * not there.
+   */
+  async copy(bucket: string, fromKey: string, toKey: string): Promise<boolean> {
+    await this.refresh();
+    const source = fromKey.split('/').map(encodeURIComponent).join('/');
+    try {
+      await this.clientFor(bucket).send(
+        new CopyObjectCommand({
+          Bucket: bucket,
+          Key: toKey,
+          CopySource: `${bucket}/${source}`,
+        }),
+      );
+      return true;
+    } catch (err) {
+      if (isNotFound(err)) return false;
+      throw err;
+    }
+  }
+
   async put(
     bucket: string,
     key: string,
@@ -792,7 +819,7 @@ export class S3StorageService implements OnModuleDestroy {
   async remove(
     bucket: string,
     keys: string[],
-    opts: { invalidateKeys?: string[] } = {},
+    opts: { invalidateKeys?: string[]; purgeEdge?: boolean } = {},
   ): Promise<void> {
     if (keys.length === 0) return;
     await this.refresh();
@@ -803,8 +830,11 @@ export class S3StorageService implements OnModuleDestroy {
         Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true },
       }),
     );
-    if (this.isPublicStoreBucket(bucket)) await this.purgeEdge(keys);
-    else if (opts.invalidateKeys?.length) {
+    if (this.isPublicStoreBucket(bucket)) {
+      // purgeEdge false: objects never handed out (an upload key after
+      // confirm), so a Cloudflare purge would only cost a request.
+      if (opts.purgeEdge !== false) await this.purgeEdge(keys);
+    } else if (opts.invalidateKeys?.length) {
       await this.queueInvalidation(bucket, opts.invalidateKeys);
     }
   }

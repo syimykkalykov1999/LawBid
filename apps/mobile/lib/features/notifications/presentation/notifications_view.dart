@@ -492,7 +492,9 @@ String notificationText(Translator t, AppNotification n) {
   return text == key ? t.t('notif.list.generic') : text;
 }
 
-IconData _icon(AppNotification n) => switch (n.type) {
+/// The glyph of a notification row: a const Phosphor icon for every type,
+/// the category's glyph for a type the app does not know yet.
+IconData notificationIcon(AppNotification n) => switch (n.type) {
       'post_like' || 'comment_like' => AppIcons.favoriteRounded,
       'post_comment' ||
       'comment_reply' ||
@@ -837,7 +839,7 @@ class _Medallion extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadii.field),
         border: Border.all(color: colors.iconTint),
       ),
-      child: AppIcon(_icon(n), size: 20, color: colors.iconTint),
+      child: AppIcon(notificationIcon(n), size: 20, color: colors.onNavy),
     );
     final actor = n.actor;
     if (actor?.avatarUrl == null) return glyph;
@@ -865,7 +867,8 @@ class _Medallion extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: colors.surface, width: 2),
               ),
-              child: AppIcon(_icon(n), size: 11, color: colors.iconTint),
+              child:
+                  AppIcon(notificationIcon(n), size: 11, color: colors.onNavy),
             ),
           ),
         ],

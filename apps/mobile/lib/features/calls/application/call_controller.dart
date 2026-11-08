@@ -16,6 +16,7 @@ import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/calls/application/call_audio_route.dart';
+import 'package:lawbid/features/calls/application/call_decline_marks.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_media_view.dart';
@@ -920,6 +921,9 @@ class CallController extends Notifier<CallSession> {
   Future<void> decline() async {
     final call = state.call;
     if (call == null || state.phase != CallPhase.incoming) return;
+    // Owner 2026-11-08: a declined call never rings here again.
+    noteDeclinedHere(call.id);
+    unawaited(markDeclinedHere(call.id));
     unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
     _finish(CallStatus.declined);
     try {
@@ -1794,6 +1798,12 @@ class CallController extends Notifier<CallSession> {
       );
       return;
     }
+    // Owner 2026-11-08: the person declined it on this phone already.
+    if (state.call?.id != callId &&
+        (_wasDeclinedHere(callId) || await declinedHere(callId))) {
+      _declineAgain(callId);
+      return;
+    }
     try {
       if (state.call?.id != callId) {
         final call = await _getWithRetry(callId);
@@ -1823,6 +1833,34 @@ class CallController extends Notifier<CallSession> {
       callTrace('ringFromPush $callId failed: $e');
       unawaited(ref.read(systemCallUiProvider).dismiss(callId));
     }
+  }
+
+  /// Owner 2026-11-08: calls the person declined on this phone (the app,
+  /// or natively while it slept — loaded by callkit_bridge.dart).
+  final _declinedHere = <String, DateTime>{};
+
+  /// [callId] was declined on this phone: it is not rung here again.
+  void noteDeclinedHere(String callId) {
+    final now = DateTime.now();
+    _declinedHere
+      ..removeWhere((_, at) => now.difference(at) > kDeclinedMemory)
+      ..[callId.toLowerCase()] = now;
+  }
+
+  bool _wasDeclinedHere(String callId) {
+    final at = _declinedHere[callId.toLowerCase()];
+    return at != null && DateTime.now().difference(at) < kDeclinedMemory;
+  }
+
+  /// A call declined on this phone shows up again (its decline may not
+  /// have reached the server): its system screen goes, the server hears
+  /// the decline once more (idempotent).
+  void _declineAgain(String callId) {
+    callTrace('declined here already: $callId');
+    unawaited(ref.read(systemCallUiProvider).dismiss(callId));
+    unawaited(
+      _repo.decline(callId).then<void>((_) {}, onError: (Object _) {}),
+    );
   }
 
   /// The call rings on this phone: a plain call that is ringing, or a
@@ -2505,6 +2543,12 @@ class CallController extends Notifier<CallSession> {
         final call = CallMappers.fromEvent(data);
         // While in another call the server's sweep marks this one missed.
         if (call == null || state.busy) return;
+        // Owner 2026-11-08: declined on this phone (the system screen of a
+        // locked phone) — told again, never rung again.
+        if (_wasDeclinedHere(call.id)) {
+          _declineAgain(call.id);
+          return;
+        }
         // OQ-048: an assistant rings only with the "calls" duty.
         if (!ref.read(canDoProvider(AssistantDuty.calls))) return;
         _ring(call);

@@ -51,6 +51,7 @@ import {
   mayUsePublicStore,
   UPLOAD_INTENT_TTL_SEC,
   newFileKey,
+  storedKey,
   variantKey,
   avifKey,
   AVIF_PURPOSES,
@@ -76,6 +77,7 @@ import {
 } from './multipart';
 import {
   PENDING_UPLOADS_KEY,
+  leftoverUploadMember,
   multipartKey,
   pendingUploadMember,
 } from './storage/pending-uploads';
@@ -523,12 +525,7 @@ export class FilesService {
     }
 
     const head = await this.storage.head(intent.bucket, intent.key);
-    if (!head) {
-      throw new ConflictException({
-        code: ErrorCode.FILE_NOT_UPLOADED,
-        message: 'Upload the file before confirming it.',
-      });
-    }
+    if (!head) return this.notUploaded(userId, fileId);
     const maxBytes = await this.maxBytes(intent.purpose);
     if (head.size > maxBytes) {
       await this.reject(fileId, intent);
@@ -537,6 +534,15 @@ export class FilesService {
     if (head.size !== intent.size) {
       await this.reject(fileId, intent);
       throw this.checksumMismatch();
+    }
+    // Security audit 2026-11-08 (M3): the presigned link of this upload can
+    // still overwrite intent.key until it expires. Everything below — the
+    // type, the hash, the content check, the scan, every download — uses a
+    // server-side copy at a key no link can write, so bytes swapped in after
+    // the checks never reach anyone. The copy is done by S3 / R2 itself.
+    const key = storedKey(intent.key, randomUUID().slice(0, 8));
+    if (!(await this.storage.copy(intent.bucket, intent.key, key))) {
+      return this.notUploaded(userId, fileId);
     }
     // R-252: a big file is not read into the API's memory here. The start
     // of the file settles its type at once; the checksum and the look inside
@@ -550,17 +556,17 @@ export class FilesService {
     ) {
       const start = await this.storage.readStart(
         intent.bucket,
-        intent.key,
+        key,
         CONFIRM_PREFIX_BYTES,
       );
       if (detectMime(start, intent.mime) !== null) prefix = start;
     }
-    const data = prefix ?? (await this.storage.read(intent.bucket, intent.key));
+    const data = prefix ?? (await this.storage.read(intent.bucket, key));
     let sha256: string | null = null;
     if (!prefix) {
       sha256 = createHash('sha256').update(data).digest('hex');
       if (data.length !== intent.size || sha256 !== intent.sha256) {
-        await this.reject(fileId, intent);
+        await this.reject(fileId, intent, key);
         throw this.checksumMismatch();
       }
     }
@@ -570,7 +576,7 @@ export class FilesService {
       detected !== intent.mime ||
       !(await this.allowedMimes(intent.purpose)).includes(detected)
     ) {
-      await this.reject(fileId, intent);
+      await this.reject(fileId, intent, key);
       throw new BadRequestException({
         code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
         message: 'The file content does not match an allowed type.',
@@ -581,7 +587,7 @@ export class FilesService {
     // allowed document (APK in a .docx, a macro, PDF JavaScript).
     const danger = prefix ? null : dangerousContent(data, detected);
     if (danger) {
-      await this.reject(fileId, intent);
+      await this.reject(fileId, intent, key);
       throw new BadRequestException({
         code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
         message: 'The file contains content that is not allowed.',
@@ -596,7 +602,7 @@ export class FilesService {
           owner_user_id: userId,
           purpose: intent.purpose,
           s3_bucket: intent.bucket,
-          s3_key: intent.key,
+          s3_key: key,
           mime: detected,
           size_bytes: BigInt(head.size),
           // Light confirm: `sha256` is what the phone claimed, unproven until
@@ -608,13 +614,16 @@ export class FilesService {
         },
       });
     } catch (err) {
-      // A concurrent confirm of the same upload won the insert.
+      // A concurrent confirm of the same upload won the insert: its row
+      // points at its own copy, so this one is dropped.
+      await this.dropObjects(fileId, intent.bucket, [key]);
       if (!(
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === 'P2002'
       )) {
         throw err;
       }
+      return this.get(userId, fileId);
     }
     this.heavy?.upload(userId, head.size);
     await this.redis.del(intentKey(fileId));
@@ -622,8 +631,42 @@ export class FilesService {
       PENDING_UPLOADS_KEY,
       pendingUploadMember(fileId, intent.bucket, intent.key),
     );
+    // M3: the uploaded object is no longer needed (it was never handed out,
+    // so there is no edge copy to purge). Whatever its link writes there
+    // before it expires is deleted again by the storage cleanup.
+    await this.dropObjects(fileId, intent.bucket, [intent.key]);
+    await this.redis.zadd(
+      PENDING_UPLOADS_KEY,
+      Date.now() + (PRESIGN_TTL_SEC + 600) * 1000,
+      leftoverUploadMember(fileId, intent.bucket, intent.key),
+    );
     await this.scans.enqueueScan(fileId, userId);
     return this.get(userId, fileId);
+  }
+
+  /** No object at the upload key: a retry of a confirm that already
+   * finished gets its row; otherwise the file was never uploaded. */
+  private async notUploaded(userId: string, fileId: string): Promise<FileDto> {
+    const done = await this.prisma.file.findUnique({ where: { id: fileId } });
+    if (done && done.owner_user_id === userId) return this.toDto(done);
+    throw new ConflictException({
+      code: ErrorCode.FILE_NOT_UPLOADED,
+      message: 'Upload the file before confirming it.',
+    });
+  }
+
+  /** Best effort: a leftover object is only storage, never a wrong answer.
+   * These objects were never handed out, so no edge cache is purged. */
+  private async dropObjects(
+    fileId: string,
+    bucket: string,
+    keys: string[],
+  ): Promise<void> {
+    try {
+      await this.storage.remove(bucket, keys, { purgeEdge: false });
+    } catch (err) {
+      this.logger.error({ err, fileId }, 'Could not delete an upload copy');
+    }
   }
 
   /** Owner-only view (deny by default: someone else's id is a 404). */
@@ -1668,10 +1711,17 @@ export class FilesService {
 
   /** Mismatching upload: delete the object and forget the intent — the
    * client must presign again. */
-  private async reject(fileId: string, intent: UploadIntent): Promise<void> {
+  private async reject(
+    fileId: string,
+    intent: UploadIntent,
+    copyKey?: string,
+  ): Promise<void> {
     await this.redis.del(intentKey(fileId));
     try {
-      await this.storage.remove(intent.bucket, [intent.key]);
+      await this.storage.remove(
+        intent.bucket,
+        copyKey ? [intent.key, copyKey] : [intent.key],
+      );
     } catch (err) {
       this.logger.error({ err, fileId }, 'Could not delete a rejected upload');
     }

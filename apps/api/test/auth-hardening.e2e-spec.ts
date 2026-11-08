@@ -15,6 +15,7 @@ import type {
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { NewDeviceNotifier } from '../src/modules/auth/notifications/new-device-notifier.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { PasswordService } from '../src/modules/auth/services/password.service';
 import type Redis from 'ioredis';
 import { randomUUID } from 'node:crypto';
 
@@ -599,6 +600,61 @@ describe('Auth hardening (e2e)', () => {
         .set('X-Forwarded-For', ipOf(52))
         .send({ channel: 'phone', identifier: phone, code: FIXED_CODE });
       expect(ok.status).toBe(201);
+    });
+
+    it('M1 (2026-11-08): wrong passwords slow one source down before the check; a capped account still opens on a known device', async () => {
+      const phone = '+12025558709';
+      const right = 'M1-right-Pass-42';
+      await otpLogin('phone', phone, 'm1-known-dev');
+      await prisma.user.updateMany({
+        where: { phone_e164: phone },
+        data: { password_hash: await app.get(PasswordService).hash(right) },
+      });
+      const login = (password: string, ip: string, deviceId: string) =>
+        api()
+          .post('/api/v1/auth/password/login')
+          .set('X-Forwarded-For', ip)
+          .send({ identifier: phone, password, deviceInfo: { deviceId } });
+      const opened = (status: number) => [201, 409].includes(status);
+
+      // Five free wrong passwords, the sixth starts the wait.
+      for (let i = 0; i < 6; i += 1) {
+        const res = await login(`wrong-pass-${i}`, ipOf(90), 'm1-other');
+        expect(res.status).toBe(401);
+        expect(res.body.error.code).toBe('AUTH_INVALID_CREDENTIALS');
+      }
+      // Now even the right password from that source waits (generic 429).
+      const slowed = await login(right, ipOf(90), 'm1-other');
+      expect(slowed.status).toBe(429);
+      expect(slowed.body.error.code).toBe('RATE_LIMITED');
+      expect(slowed.body.error.details.retryAfterSeconds).toBeGreaterThan(0);
+      // Another address is not slowed by the attacker's guesses.
+      expect(
+        opened((await login(right, ipOf(91), 'm1-known-dev')).status),
+      ).toBe(true);
+
+      // A guessing storm from many addresses: the account's hourly cap.
+      const idHash = createHash('sha256')
+        .update(phone)
+        .digest('hex')
+        .slice(0, 32);
+      const key = `rl:sliding:pwd-login-fail:id:${idHash}`;
+      const now = Date.now();
+      const seed: (string | number)[] = [];
+      for (let i = 0; i < 60; i += 1) seed.push(now - i, `${now - i}-m1-${i}`);
+      await redis.zadd(key, ...seed);
+      try {
+        // A device that never signed in here is refused, right password too.
+        const capped = await login(right, ipOf(92), 'm1-new-device');
+        expect(capped.status).toBe(429);
+        expect(capped.body.error.code).toBe('RATE_LIMITED');
+        // The owner's own device still signs in.
+        expect(
+          opened((await login(right, ipOf(93), 'm1-known-dev')).status),
+        ).toBe(true);
+      } finally {
+        await redis.del(key);
+      }
     });
 
     it('S14-12 / owner 2026-11-07: no SMS step-up or link code (password only)', async () => {

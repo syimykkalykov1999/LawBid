@@ -478,12 +478,18 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
       });
       expect(done.url).toMatch(/X-Amz-Signature=/);
 
-      const stored = await storage.read(f.bucket, f.key);
+      // M3 (2026-11-08): the file lives at the row's key, a copy of the
+      // upload no presigned link can write.
+      const { s3_key: key } = await prisma.file.findUniqueOrThrow({
+        where: { id: f.fileId },
+      });
+      expect(key).not.toBe(f.key);
+      const stored = await storage.read(f.bucket, key);
       expect(stored.includes('gps-leak-marker')).toBe(false);
       expect((await sharp(stored).metadata()).exif).toBeUndefined();
       expect(done.sizeBytes).toBe(stored.length);
       const variant = await sharp(
-        await storage.read(f.bucket, variantKey(f.key, 256)),
+        await storage.read(f.bucket, variantKey(key, 256)),
       ).metadata();
       expect([variant.width, variant.height]).toEqual([256, 256]);
 
@@ -628,7 +634,10 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
         height: 48,
       });
       expect(done.url).toBeNull(); // verification files are never served to the app
-      expect((await storage.read(f.bucket, f.key)).subarray(0, 3)).toEqual(
+      const { s3_key: key } = await prisma.file.findUniqueOrThrow({
+        where: { id: f.fileId },
+      });
+      expect((await storage.read(f.bucket, key)).subarray(0, 3)).toEqual(
         Buffer.from([0xff, 0xd8, 0xff]),
       );
       const res = await api()
