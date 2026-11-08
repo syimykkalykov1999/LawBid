@@ -99,7 +99,7 @@ class PlanTierCard extends StatelessWidget {
                   border:
                       Border.all(color: colors.gold.withValues(alpha: 0.55)),
                 ),
-                child: AppIcon(icon, size: 19, color: colors.iconTint),
+                child: AppIcon(icon, size: 19, color: colors.onNavy),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
