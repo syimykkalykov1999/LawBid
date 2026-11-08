@@ -116,8 +116,10 @@ describe('QaSnapshotService', () => {
     const s = new QaSnapshotService(prisma as never, redis as never);
     const meta = await run(() => s.rebuild(NOW));
     expect(meta).toMatchObject({ attorneys: 2, questions: 3, cases: 1 });
-    // One TRUNCATE, then the rows in one INSERT (fewer than 1000).
-    expect(prisma.written[0].sql).toContain('TRUNCATE reco_qa_snapshots');
+    // One DELETE (the app role has no TRUNCATE right on prod), then the
+    // rows in one INSERT (fewer than 1000).
+    expect(prisma.written[0].sql).toContain('DELETE FROM reco_qa_snapshots');
+    expect(prisma.written[0].sql).not.toContain('TRUNCATE');
     expect(prisma.written).toHaveLength(2);
     const kinds = prisma.written[1].values[0] as string[];
     expect(kinds).toEqual(

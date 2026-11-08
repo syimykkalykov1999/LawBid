@@ -127,6 +127,24 @@ describe('BootstrapService.build deal-record switches', () => {
   });
 });
 
+describe('BootstrapService.build app-side limits (feature reality 2026-11-08)', () => {
+  it('a stored story length and channel photo limit reach the app', async () => {
+    const r = await build({
+      config: {
+        'stories.max_video_sec': 30,
+        'channels.max_post_media': 4,
+        // Server-only limits stay private.
+        'stories.max_active_per_user': 5,
+        'channels.max_owned': 2,
+      },
+    }).service.build();
+    expect(r.app_config['stories.max_video_sec']).toBe(30);
+    expect(r.app_config['channels.max_post_media']).toBe(4);
+    expect(r.app_config['stories.max_active_per_user']).toBeUndefined();
+    expect(r.app_config['channels.max_owned']).toBeUndefined();
+  });
+});
+
 describe('BootstrapService.build guest browsing (dedup D-12)', () => {
   const guest = async (config: Record<string, unknown>) => {
     const r = await build({ config }).service.build();

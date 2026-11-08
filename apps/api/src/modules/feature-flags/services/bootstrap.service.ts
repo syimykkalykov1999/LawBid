@@ -156,6 +156,11 @@ export const PUBLIC_CONFIG_PREFIXES = [
   'deal_record.',
   'bids.rich_terms_enabled',
   'bids.confirmation_required',
+  // Feature reality audit 2026-11-08: the app reads these two limits
+  // (stories_providers.dart, channel_compose.dart) but they never reached
+  // it, so an admin change was enforced by the server only.
+  'stories.max_video_sec',
+  'channels.max_post_media',
 ] as const;
 
 @Injectable()

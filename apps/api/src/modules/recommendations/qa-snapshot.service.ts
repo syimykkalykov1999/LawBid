@@ -219,7 +219,12 @@ export class QaSnapshotService {
     // transaction, the old snapshot replaced whole.
     await shardContext.runOnPrimary(() =>
       this.prisma.$transaction(async (tx) => {
-        await tx.$executeRaw`TRUNCATE reco_qa_snapshots`;
+        // Not TRUNCATE: production runs as `lawbid_app`, which only has
+        // SELECT/INSERT/UPDATE/DELETE (postgres baseline grants), and the
+        // nightly job failed with «permission denied for table
+        // reco_qa_snapshots» (feature reality audit 2026-11-08). The table
+        // is small: one row per attorney / topic list.
+        await tx.$executeRaw`DELETE FROM reco_qa_snapshots`;
         for (let i = 0; i < rows.length; i += 1000) {
           const chunk = rows.slice(i, i + 1000);
           await tx.$executeRaw`

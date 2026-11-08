@@ -347,6 +347,9 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     key: 'auto_bar_check',
     // Retired 2026-10-05: bar lookups are switched on per state in Admin →
     // Ключи и сервисы → "Реестры адвокатов по штатам"; not read any more.
+    // Feature reality audit 2026-11-08: prod still offered it as an ON
+    // switch that changed nothing, so it now leaves the database.
+    retired: true,
     enabled: false,
     app: true,
     description:
