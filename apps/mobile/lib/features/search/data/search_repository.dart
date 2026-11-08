@@ -270,6 +270,9 @@ class ApiSearchRepository implements SearchRepository {
           '/search/suggest',
           queryParameters: {'q': q},
           cancelToken: cancel,
+          // Owner 2026-11-08: typing «ab», «abc», back to «ab» asked for
+          // «ab» twice; the server keeps suggestions a minute anyway.
+          options: cachedFor(kTypeAheadWindow),
         ))
             .data!,
       ),
@@ -288,6 +291,10 @@ class ApiSearchRepository implements SearchRepository {
   }
 
   final api.SearchClient _search;
+
+  /// How long a type-ahead answer (suggestions, tags) is reused from the
+  /// phone with no request.
+  static const kTypeAheadWindow = Duration(minutes: 1);
 
   @override
   void opened(String q, SearchOpened type, String id) {
@@ -444,8 +451,9 @@ class ApiSearchRepository implements SearchRepository {
   }
 
   @override
-  Future<List<TagInfo>> tags(String q) async =>
-      (await guardApiCall(() => _search.tags(q: q)))
+  Future<List<TagInfo>> tags(String q) async => (await guardApiCall(
+        () => _search.tags(q: q, extras: cacheFor(kTypeAheadWindow)),
+      ))
           .data
           .map(
             (d) => TagInfo(
