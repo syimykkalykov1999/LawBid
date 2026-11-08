@@ -257,6 +257,132 @@ void main() {
       expect(d.ok(rules: _rules, richOn: true), isFalse);
     });
 
+    // Owner 2026-11-07: nothing of the old editor may be lost. Every field the
+    // old editor showed for a type is reachable under the matching tile and
+    // goes out exactly as before.
+    group('every field of the old editor, tile by tile', () {
+      void fillAll(RichTermsDraft r, Set<String> names) {
+        final all = <String, TextEditingController>{
+          'flat': r.flat,
+          'rate': r.rate,
+          'hoursMin': r.hoursMin,
+          'hoursMax': r.hoursMax,
+          'retainer': r.retainer,
+          'installment': r.installment,
+          'count': r.count,
+          'percent': r.percent,
+          'notes': r.notes,
+        };
+        const values = {
+          'flat': '3000',
+          'rate': '250',
+          'hoursMin': '10',
+          'hoursMax': '20',
+          'retainer': '1000',
+          'installment': '500',
+          'count': '4',
+          'percent': '20',
+          'notes': 'Some notes',
+        };
+        for (final n in names) {
+          all[n]!.text = values[n]!;
+        }
+        r.period = api.PaymentTermsDtoInstallmentPeriod.quarterly;
+      }
+
+      final tiles = {
+        PayKind.flat: (
+          api.PaymentTermsDtoType.flat,
+          {'flat', 'notes'},
+        ),
+        PayKind.hourly: (
+          api.PaymentTermsDtoType.hourly,
+          {'rate', 'hoursMin', 'hoursMax', 'retainer', 'notes'},
+        ),
+        PayKind.installments: (
+          api.PaymentTermsDtoType.retainerPlusInstallments,
+          {'retainer', 'installment', 'count', 'notes'},
+        ),
+        PayKind.percent: (
+          api.PaymentTermsDtoType.contingencyPct,
+          {'percent', 'notes'},
+        ),
+        PayKind.mixed: (
+          api.PaymentTermsDtoType.mixed,
+          {
+            'flat',
+            'rate',
+            'hoursMin',
+            'hoursMax',
+            'retainer',
+            'installment',
+            'count',
+            'percent',
+            'notes',
+          },
+        ),
+      };
+      for (final MapEntry(key: kind, value: (type, names)) in tiles.entries) {
+        test('${kind.name}: same terms as the old ${type.name} editor', () {
+          final old = RichTermsDraft()..type = type;
+          fillAll(old, names);
+          final now = PayDraft()..select(kind);
+          fillAll(now.rich, names);
+          expect(
+            _json(now.terms(richOn: true, percentAllowed: true)),
+            old.toDto()!.toJson(),
+          );
+          expect(now.ok(rules: _rules, richOn: true), isTrue);
+        });
+      }
+    });
+
+    test('Почасово with hours and a retainer: hourly + rate, terms as before',
+        () {
+      final now = draft(PayKind.hourly, (d) {
+        d.rich.rate.text = '250';
+        d.rich.hoursMin.text = '10';
+        d.rich.hoursMax.text = '20';
+        d.rich.retainer.text = '1000';
+      });
+      final rich = RichTermsDraft()
+        ..type = api.PaymentTermsDtoType.hourly
+        ..rate.text = '250'
+        ..hoursMin.text = '10'
+        ..hoursMax.text = '20'
+        ..retainer.text = '1000';
+      same(now: now, old: _Old(FeeType.hourly, '250', rich), richOn: true);
+      final terms = now.terms(richOn: true, percentAllowed: true)!;
+      expect(terms.estimatedHoursMin, 10);
+      expect(terms.estimatedHoursMax, 20);
+      expect(terms.retainerCents, 100000);
+    });
+
+    test('Почасово: hours from above hours to stays grey', () {
+      final d = draft(PayKind.hourly, (d) {
+        d.rich.rate.text = '250';
+        d.rich.hoursMin.text = '30';
+        d.rich.hoursMax.text = '20';
+      });
+      expect(d.ok(rules: _rules, richOn: true), isFalse);
+      d.rich.hoursMax.text = '40';
+      expect(d.ok(rules: _rules, richOn: true), isTrue);
+    });
+
+    test('Смешанно: hourly alone is hourly; flat + hours + retainer is fixed',
+        () {
+      final h = draft(PayKind.mixed, (d) => d.rich.rate.text = '250');
+      expect(h.feeType, FeeType.hourly);
+      expect(h.amountCents, 25000);
+      final f = draft(PayKind.mixed, (d) {
+        d.rich.flat.text = '2000';
+        d.rich.rate.text = '250';
+        d.rich.retainer.text = '500';
+      });
+      expect(f.feeType, FeeType.fixed);
+      expect(f.amountCents, 250000);
+    });
+
     test('Сумма keeps the old limits', () {
       final d = draft(PayKind.flat, (d) => d.rich.flat.text = '0');
       expect(d.ok(rules: _rules, richOn: false), isFalse);
@@ -298,8 +424,11 @@ void main() {
         ..rich.rate.text = '200';
       final terms = d.terms(richOn: true, percentAllowed: true)!;
       expect(terms.type, api.PaymentTermsDtoType.hourly);
-      expect(terms.retainerCents, isNull);
+      // The retainer is also a field of «Почасово», so it stays; the
+      // instalments are not, so they are gone.
+      expect(terms.retainerCents, 50000);
       expect(terms.installmentCents, isNull);
+      expect(terms.installmentCount, isNull);
       expect(terms.hourlyRateCents, 20000);
     });
 
@@ -482,6 +611,52 @@ void main() {
       expect(p.amountCents, 25000);
       expect(p.paymentTerms?.type, api.PaymentTermsDtoType.hourly);
       expect(p.paymentTerms?.hourlyRateCents, 25000);
+    });
+
+    testWidgets('Почасово shows rate, hours from/to and an optional retainer',
+        (t) async {
+      final repo = await pump(t);
+      await tapTile(t, 'hourly');
+      expect(key('pay-field-rate'), findsOneWidget);
+      expect(key('pay-field-hoursMin'), findsOneWidget);
+      expect(key('pay-field-hoursMax'), findsOneWidget);
+      expect(find.text(r'Retainer, $ (optional)'), findsOneWidget);
+      expect(find.text('Hours from'), findsOneWidget);
+      await type(t, 'rate', '250');
+      await type(t, 'hoursMin', '10');
+      await type(t, 'hoursMax', '20');
+      await type(t, 'retainer', '1000');
+      await send(t);
+      final p = repo.placed!;
+      expect(p.feeType, FeeType.hourly);
+      expect(p.amountCents, 25000);
+      expect(p.paymentTerms?.type, api.PaymentTermsDtoType.hourly);
+      expect(p.paymentTerms?.hourlyRateCents, 25000);
+      expect(p.paymentTerms?.estimatedHoursMin, 10);
+      expect(p.paymentTerms?.estimatedHoursMax, 20);
+      expect(p.paymentTerms?.retainerCents, 100000);
+    });
+
+    testWidgets('fields show only on their own tiles', (t) async {
+      await pump(t);
+      expect(key('pay-field-hoursMin'), findsNothing);
+      await tapTile(t, 'percent');
+      expect(key('pay-field-hoursMin'), findsNothing);
+      expect(key('pay-field-retainer'), findsNothing);
+      await tapTile(t, 'mixed');
+      for (final f in [
+        'amount',
+        'rate',
+        'hoursMin',
+        'hoursMax',
+        'retainer',
+        'installment',
+        'count',
+        'percent',
+        'notes',
+      ]) {
+        expect(key('pay-field-$f'), findsOneWidget, reason: f);
+      }
     });
 
     testWidgets('Рассрочка sends fixed + terms retainer_plus_installments',

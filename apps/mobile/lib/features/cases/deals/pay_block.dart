@@ -73,14 +73,24 @@ class PayDraft {
 
   List<TextEditingController> _fieldsOf(PayKind k) => switch (k) {
         PayKind.flat => [rich.flat],
-        PayKind.hourly => [rich.rate],
+        PayKind.hourly => [
+            rich.rate,
+            rich.hoursMin,
+            rich.hoursMax,
+            rich.retainer,
+          ],
         PayKind.percent => [rich.percent],
         PayKind.installments => [
             rich.retainer,
             rich.installment,
             rich.count,
           ],
+        // «Смешанно» reaches every field of the old editor's mixed type.
         PayKind.mixed => [
+            rich.flat,
+            rich.rate,
+            rich.hoursMin,
+            rich.hoursMax,
             rich.retainer,
             rich.installment,
             rich.count,
@@ -103,6 +113,8 @@ class PayDraft {
       rich.flat,
       rich.rate,
       rich.percent,
+      rich.hoursMin,
+      rich.hoursMax,
       rich.retainer,
       rich.installment,
       rich.count,
@@ -121,11 +133,13 @@ class PayDraft {
     return v == null || v <= 0 ? null : v;
   }
 
+  /// A retainer plus the instalments (and, in «Смешанно», the flat part).
   int? get _total {
+    final f = kind == PayKind.mixed ? _pos(rich.flat) : null;
     final r = _pos(rich.retainer);
     final i = _pos(rich.installment);
     final n = _pos(rich.count);
-    final sum = (r ?? 0) + (i != null && n != null ? i * n : 0);
+    final sum = (f ?? 0) + (r ?? 0) + (i != null && n != null ? i * n : 0);
     return sum > 0 ? sum : null;
   }
 
@@ -133,7 +147,9 @@ class PayDraft {
   int? get headlineDollars => switch (kind) {
         PayKind.flat => _pos(rich.flat),
         PayKind.hourly => _pos(rich.rate),
-        PayKind.installments || PayKind.mixed => _total,
+        PayKind.installments => _total,
+        // The fixed parts first; else the hourly rate; else only a percent.
+        PayKind.mixed => _total ?? _pos(rich.rate),
         _ => null,
       };
 
@@ -141,8 +157,11 @@ class PayDraft {
         PayKind.flat || PayKind.installments => FeeType.fixed,
         PayKind.hourly => FeeType.hourly,
         PayKind.percent => FeeType.contingency,
-        PayKind.mixed =>
-          headlineDollars != null ? FeeType.fixed : FeeType.contingency,
+        PayKind.mixed => _total != null
+            ? FeeType.fixed
+            : _pos(rich.rate) != null
+                ? FeeType.hourly
+                : FeeType.contingency,
         PayKind.free => FeeType.freeConsultation,
       };
 
@@ -173,8 +192,9 @@ class PayDraft {
       case PayKind.free:
         return true;
       case PayKind.flat:
-      case PayKind.hourly:
         return withinMax && _termsOk(richOn);
+      case PayKind.hourly:
+        return withinMax && _hoursOk && _termsOk(richOn);
       case PayKind.percent:
         return rules.parse(rich.percent.text) != null && _termsOk(richOn);
       case PayKind.installments:
@@ -182,9 +202,18 @@ class PayDraft {
       case PayKind.mixed:
         final pctOk = rules.parse(rich.percent.text) != null;
         if (_hasPercentText && !pctOk) return false;
+        if (!_hoursOk) return false;
         if (h != null) return withinMax;
         return pctOk;
     }
+  }
+
+  /// Hours need a rate, and «from» may not exceed «to» (the API's rules).
+  bool get _hoursOk {
+    final a = _pos(rich.hoursMin);
+    final b = _pos(rich.hoursMax);
+    if ((a != null || b != null) && _pos(rich.rate) == null) return false;
+    return a == null || b == null || a <= b;
   }
 
   bool _termsOk(bool richOn) {
@@ -352,6 +381,41 @@ class PayBlock extends ConsumerWidget {
             onChanged: (_) => onChanged(),
           ),
         );
+    Widget number(String name, TextEditingController c, String label) => gap(
+          AppTextField(
+            key: ValueKey('pay-field-$name'),
+            controller: c,
+            label: label,
+            enabled: enabled,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(5),
+            ],
+            onChanged: (_) => onChanged(),
+          ),
+        );
+    // Owner 2026-11-07: rate, hours from / to (the old editor's fields).
+    Widget hours() => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: number(
+                'hoursMin',
+                draft.rich.hoursMin,
+                t.t('cases.pay.hoursFrom'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: number(
+                'hoursMax',
+                draft.rich.hoursMax,
+                t.t('cases.pay.hoursTo'),
+              ),
+            ),
+          ],
+        );
     Widget installments() => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -446,6 +510,14 @@ class PayBlock extends ConsumerWidget {
                   t.t('cases.bidForm.rate'),
                   errorText: badAmount ? _amountError(t) : null,
                 ),
+              if (kind == PayKind.hourly && richOn) ...[
+                hours(),
+                money(
+                  'retainer',
+                  draft.rich.retainer,
+                  t.t('deal.terms.retainerOptional'),
+                ),
+              ],
               if (kind == PayKind.percent)
                 percent(
                   errorText: badPercent
@@ -456,6 +528,9 @@ class PayBlock extends ConsumerWidget {
                 ),
               if (kind == PayKind.installments) installments(),
               if (kind == PayKind.mixed) ...[
+                money('amount', draft.rich.flat, t.t('cases.bidForm.amount')),
+                money('rate', draft.rich.rate, t.t('cases.bidForm.rate')),
+                hours(),
                 installments(),
                 if (percentAllowed) percent(helper: false),
               ],
