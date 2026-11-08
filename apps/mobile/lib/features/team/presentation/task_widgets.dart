@@ -495,7 +495,7 @@ class TaskKindMedallion extends StatelessWidget {
         border: Border.all(color: colors.gold.withValues(alpha: 0.55)),
       ),
       child:
-          AppIcon(taskKindIcon(kind), size: size * 0.5, color: colors.iconTint),
+          AppIcon(taskKindIcon(kind), size: size * 0.5, color: colors.onNavy),
     );
   }
 }

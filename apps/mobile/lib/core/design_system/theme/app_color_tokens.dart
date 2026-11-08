@@ -258,6 +258,14 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   /// Never gold: gold stays for the client check and rating stars only.
   Color get iconTint => bg.computeLuminance() > 0.5 ? accent : text;
 
+  /// Bug 2026-11-08: the ink of a glyph drawn ON a [navy] tile or medallion
+  /// (notifications, team activity, task kinds, plan tiers). On the light
+  /// theme [iconTint] is the same navy as the tile, so the glyph vanished
+  /// and only a plain navy square showed; there it takes [onAccent] (white,
+  /// the ink of every navy fill on that theme). The other themes keep
+  /// [iconTint] (their light ink), unchanged.
+  Color get onNavy => bg.computeLuminance() > 0.5 ? onAccent : iconTint;
+
   /// Owner 2026-11-04 (R-368): the outline action icons on content cards
   /// (like, comment, repost, share, save) — softer than the near-black
   /// [text] but clearly visible: halfway between the theme's [text] and
