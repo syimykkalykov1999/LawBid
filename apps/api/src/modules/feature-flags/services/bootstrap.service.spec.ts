@@ -53,9 +53,11 @@ function build(
   } = {},
 ) {
   const flags = {
-    getFlags: jest.fn().mockResolvedValue(
-      opts.flags ?? { apple_login: true, video_posts: false },
-    ),
+    getFlags: jest
+      .fn()
+      .mockResolvedValue(
+        opts.flags ?? { apple_login: true, video_posts: false },
+      ),
   } as unknown as FeatureFlagsService;
   const secrets = {
     get: jest.fn((id: string) =>
@@ -190,7 +192,10 @@ describe('BootstrapService.build translation: one control (owner 2026-11-08)', (
 
   it('«Только выбранные» without chats: chats off, every other zone stays on', async () => {
     expect(
-      await zones(true, { 'translate.scope': 'zones', 'translate.chat': false }),
+      await zones(true, {
+        'translate.scope': 'zones',
+        'translate.chat': false,
+      }),
     ).toEqual({ ...all(true), chat: false });
   });
 
