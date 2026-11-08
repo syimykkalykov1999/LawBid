@@ -15,6 +15,7 @@ import { PartnersController } from '../../partners/partners.controller';
 import { LegalController } from '../../legal/legal.controller';
 import { StarsController } from '../../stars/stars.controller';
 import { PromotionsController } from '../../promotions/promotions.controller';
+import { CaseContactsController } from '../../cases/contacts/case-contacts.controller';
 
 /**
  * Owner 2026-10-22 (security audit #3, finding 1): the JwtAuthGuard swaps
@@ -41,6 +42,13 @@ describe('assistant gates (security audit #3)', () => {
 
   it('contacts sync stores the assistant’s own address book', () => {
     expect(meta(ASSISTANT_SELF, ContactsSyncController)).toBe(true);
+  });
+
+  // Security audit 2026-11-08 (BFLA): reading a client's phone/e-mail is a
+  // case duty; an undecorated route would let a duty-less assistant read it
+  // through the attorney's inherited identity.
+  it('client contacts need the "cases" duty', () => {
+    expect(meta(REQUIRES_DUTY, CaseContactsController)).toBe('cases');
   });
 
   it('group chats need the "chats" duty, like direct chats', () => {
