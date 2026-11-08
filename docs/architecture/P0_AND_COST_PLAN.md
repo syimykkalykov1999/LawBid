@@ -80,7 +80,7 @@ Risky lines to fix:
 Replacements (put into `SECURITY_LEGAL.md` section 6 and, if the owner wants a public page, `apps/api/assets/legal/privacy.*.md` section on security):
 - RU: «Файлы и сообщения шифруются при передаче и при хранении. Это не сквозное шифрование: сервер расшифровывает текст сообщений, чтобы доставлять уведомления и искать по переписке. Ключи хранятся в облачном сейфе ключей.»
 - EN: "Files and messages are encrypted in transit and at rest. This is not end-to-end encryption: our servers decrypt message text to deliver notifications and power search. Keys are held in a managed key vault."
-- RU: «Доступ сотрудников LawBid к содержимому дел ограничен: он возможен только по причине, с подтверждением второго человека и записью в журнал.»
+- RU: «Доступ сотрудников LawBid к содержимому дел ограничен: он возможен только по указанной причине, после свежего кода 2FA и с записью в журнал.» (owner 2026-11-08: no second person.)
 - Replace «защита от удаления» with «копии в двух регионах» until Vault Lock is on; replace «круглосуточное наблюдение» with «автоматический мониторинг и оповещения» until paging is live.
 - Store listings: keep as is; do **not** add "secure"/"private" adjectives. Note the App Store Privacy label already says encrypted in transit (`docs/store/RELEASE_CHECKLIST.md:96`).
 **Effort.** 1 ah. **Test.** grep gate in CI for `end-to-end|сквозн` outside docs/architecture. **Rollback.** git revert. **Safe before release: yes** (text only; legal texts are versioned, so bump the version through the existing legal-documents flow if published).
