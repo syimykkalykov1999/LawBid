@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -179,15 +178,14 @@ class StoryPublishJob extends Notifier<StoryPublishState> {
     }
   }
 
-  /// Up to the admin's height first (a smaller upload); the browser build
-  /// uploads the file as picked.
+  /// Up to the admin's height first (a smaller upload), in the browser too
+  /// (owner 2026-11-08: WebCodecs, the original when it cannot).
   Future<XFile> _compressed(
     StoryDraft d,
     void Function(StoryPublishState) set,
     bool Function() alive,
   ) async {
     final file = d.video!;
-    if (kIsWeb) return file;
     final size = d.videoSize;
     final limits = videoLimitsOf(ref.read(featureFlagsControllerProvider));
     final need = size != null &&

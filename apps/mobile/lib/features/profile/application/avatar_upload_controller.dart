@@ -68,6 +68,11 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
 
   @override
   AvatarUploadState build() {
+    // Owner 2026-11-08 (instant like Instagram/Telegram): the picked photo is
+    // the avatar at once and goes up in the background for the whole app
+    // session — leaving the screen or «Сохранить» never stops it. Another
+    // account starts clean.
+    ref.watch(currentUserControllerProvider.select((s) => s.user?.id));
     ref.onDispose(() => _cancellation?.cancel());
     return const AvatarUploadState();
   }
@@ -96,7 +101,6 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
     final bytes = _bytes!;
     final repo = ref.read(avatarUploadRepositoryProvider);
     final cancellation = _cancellation = UploadCancellation();
-    void Function()? releaseKeepAlive;
     state =
         AvatarUploadState(stage: AvatarUploadStage.preparing, preview: bytes);
     try {
@@ -116,22 +120,20 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
         sizeBytes: bytes.length,
         sha256: sha256Hex(bytes),
       );
-      _set(AvatarUploadStage.uploading, 0);
-      await repo.upload(
-        target,
-        bytes,
-        mime,
-        onProgress: (p) => _set(AvatarUploadStage.uploading, p),
-        cancellation: cancellation,
-      );
-      if (cancellation.isCancelled) return;
-      // Owner 2026-11-08 (R2: «Профиль сохранён», old photo stayed): the
-      // bytes are in storage now, so leaving the screen («Сохранить» pops
-      // it) must not drop the check and the attach — that left a clean
-      // file never set as the avatar. Like Telegram, a sent photo is set.
-      releaseKeepAlive = ref.keepAlive().close;
-      _set(AvatarUploadStage.checking, 1);
-      var outcome = await repo.confirm(target.fileId);
+      var outcome = ScanOutcome.clean;
+      if (!target.alreadyStored) {
+        _set(AvatarUploadStage.uploading, 0);
+        await repo.upload(
+          target,
+          bytes,
+          mime,
+          onProgress: (p) => _set(AvatarUploadStage.uploading, p),
+          cancellation: cancellation,
+        );
+        if (cancellation.isCancelled) return;
+        _set(AvatarUploadStage.checking, 1);
+        outcome = await repo.confirm(target.fileId);
+      }
       for (var i = 0; outcome == ScanOutcome.pending && i < maxPolls; i++) {
         await Future<void>.delayed(pollInterval);
         if (cancellation.isCancelled || !ref.mounted) return;
@@ -170,7 +172,6 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
       }
     } finally {
       if (identical(_cancellation, cancellation)) _cancellation = null;
-      releaseKeepAlive?.call();
     }
   }
 
@@ -184,7 +185,8 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
   }
 }
 
+/// Not auto-disposed: the upload outlives the screen (see [build]).
 final avatarUploadControllerProvider =
-    NotifierProvider.autoDispose<AvatarUploadController, AvatarUploadState>(
+    NotifierProvider<AvatarUploadController, AvatarUploadState>(
   AvatarUploadController.new,
 );

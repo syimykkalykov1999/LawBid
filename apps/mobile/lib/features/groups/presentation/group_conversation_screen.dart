@@ -355,7 +355,7 @@ class _GroupConversationScreenState
       }
       // R-251: several files go up together, then the messages in order. With
       // the flag off, one after another as before.
-      await uploadThenSendInOrder(
+      await thread.uploadAndSend(
         items: files,
         atOnce: ref
                 .read(featureFlagsControllerProvider)
@@ -363,7 +363,6 @@ class _GroupConversationScreenState
             ? ClientTuning.uploadsAtOnce
             : 1,
         upload: (f) => chat.uploadAttachment(f.bytes, f.mime),
-        alive: () => mounted,
         send: (i, f, fileId) => thread.sendAttachment(
           fileId: fileId,
           fileName: f.name,

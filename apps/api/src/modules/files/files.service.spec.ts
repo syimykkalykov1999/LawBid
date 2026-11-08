@@ -1066,7 +1066,6 @@ describe('reusing a stored file (R-254, files_reuse_own)', () => {
 
   it.each([
     ['post photos', 'post_image', 'image/jpeg'],
-    ['avatars', 'avatar', 'image/jpeg'],
     ['review photos', 'review_photo', 'image/jpeg'],
   ])(
     '%s go the usual way, to get their moderation',
@@ -1076,6 +1075,69 @@ describe('reusing a stored file (R-254, files_reuse_own)', () => {
       expect(out.existing).toBeUndefined();
     },
   );
+
+  describe('a profile photo picked again (owner 2026-11-08)', () => {
+    const avatarRow = () =>
+      row({
+        purpose: 'avatar',
+        mime: 'image/jpeg',
+        s3_bucket: 'lawbid-media',
+        s3_key: 'avatar/s1/2026/11/mine',
+      });
+    const withVerdict = (
+      t: ReturnType<typeof setup>,
+      verdict: Record<string, unknown> | null,
+    ) => {
+      const create = jest.fn().mockResolvedValue({});
+      Object.assign(t.deps.prisma.mediaModerationCheck, {
+        findUnique: jest.fn().mockResolvedValue(verdict),
+        create,
+      });
+      return create;
+    };
+    const passed = {
+      status: 'clean',
+      decision: null,
+      content_sha256: HASH,
+      csam_status: 'no_match',
+      provider: 'rekognition',
+      labels: [],
+      max_confidence: null,
+      top_label: null,
+      checked_at: new Date('2026-11-08T10:00:00Z'),
+    };
+
+    it('reuses my avatar that passed moderation, with its verdict', async () => {
+      const t = setup([avatarRow()]);
+      const verdicts = withVerdict(t, passed);
+      const out = await t.service.presign(
+        'me',
+        dto({ purpose: 'avatar', mime: 'image/jpeg' }),
+      );
+      expect(out.existing).toBe(true);
+      const made = (t.create.mock.calls[0] as [{ data: Row }])[0].data;
+      expect(made.s3_key).toBe('avatar/s1/2026/11/mine');
+      const copy = (verdicts.mock.calls[0] as [{ data: Row }])[0].data;
+      expect(copy.file_id).toBe(made.id);
+      expect(copy.status).toBe('clean');
+      expect(copy.content_sha256).toBe(HASH);
+    });
+
+    it.each([
+      ['not checked yet', null],
+      ['still pending', { ...passed, status: 'pending' }],
+      ['flagged', { ...passed, status: 'flagged' }],
+    ])('an avatar %s is uploaded and checked again', async (_, verdict) => {
+      const t = setup([avatarRow()]);
+      withVerdict(t, verdict);
+      const out = await t.service.presign(
+        'me',
+        dto({ purpose: 'avatar', mime: 'image/jpeg' }),
+      );
+      expect(out.existing).toBeUndefined();
+      expect(t.create).not.toHaveBeenCalled();
+    });
+  });
 
   it.each([['identity documents', 'verification_document', 'application/pdf']])(
     '%s are never shared',

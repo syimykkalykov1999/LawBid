@@ -24,6 +24,7 @@ import 'package:lawbid/features/consultations/application/consultations_provider
 import 'package:lawbid/features/consultations/presentation/booking_sheet.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
@@ -753,6 +754,13 @@ class _HeaderCard extends ConsumerWidget {
           child: ProfileAvatar(
             size: _avatar,
             url: profile.avatarUrl,
+            // Owner 2026-11-08: my photo just picked, at once (see
+            // AvatarUploadController).
+            preview: profile.isSelf
+                ? ref.watch(
+                    avatarUploadControllerProvider.select((s) => s.preview),
+                  )
+                : null,
             initials: initialsOf(
               profile.firstName,
               profile.lastName,

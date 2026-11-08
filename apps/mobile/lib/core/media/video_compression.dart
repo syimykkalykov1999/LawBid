@@ -7,6 +7,9 @@ import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/media/browser_video_compressor.dart';
+import 'package:lawbid/core/media/browser_video_encoder_stub.dart'
+    if (dart.library.js_interop) 'package:lawbid/core/media/browser_video_encoder_web.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:video_compress/video_compress.dart';
 
@@ -81,11 +84,7 @@ class PluginVideoCompressor implements VideoCompressor {
     required VideoLimits limits,
     void Function(double progress)? onProgress,
   }) async {
-    // The browser: the original goes up and the server transcodes it.
-    // 2026-11-03 search: no maintained MIT/Apache/BSD pure-Dart or WASM
-    // encoder exists (ffmpeg.wasm is LGPL/GPL and needs cross-origin
-    // isolation headers; WebCodecs needs our own muxer glue), so by
-    // Rule #1 nothing is invented here.
+    // The browser uses [BrowserVideoCompressor] (see the provider).
     if (kIsWeb) return null;
     if (keepOriginalForPower(
       lowPower: ClientTuning.lowPower,
@@ -177,5 +176,10 @@ class PluginVideoCompressor implements VideoCompressor {
   }
 }
 
-final videoCompressorProvider =
-    Provider<VideoCompressor>((ref) => PluginVideoCompressor());
+/// The phone's plugin; in the browser, WebCodecs via Mediabunny (owner
+/// 2026-11-08), the original when the browser cannot.
+final videoCompressorProvider = Provider<VideoCompressor>(
+  (ref) => kIsWeb
+      ? BrowserVideoCompressor(createBrowserVideoEncoder())
+      : PluginVideoCompressor(),
+);
