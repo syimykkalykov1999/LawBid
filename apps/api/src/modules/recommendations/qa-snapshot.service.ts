@@ -216,14 +216,14 @@ export class QaSnapshotService {
     rows.push({ kind: 'meta', key: 'last_run', payload: meta });
     // Raw SQL on purpose: the table has no Prisma delegate in the shared
     // local client (schema change without a regenerate on this Mac); one
-    // transaction, the old snapshot replaced whole.
+    // transaction, the old snapshot replaced whole. A plain row delete, not
+    // TRUNCATE: the production role lawbid_app holds SELECT / INSERT /
+    // UPDATE / DELETE only (no TRUNCATE privilege), so the nightly job
+    // failed on prod with 42501 «permission denied for table
+    // reco_qa_snapshots» (05.11-08.11) while CI (superuser) stayed green.
+    // A few thousand rows; inside the same transaction just as atomic.
     await shardContext.runOnPrimary(() =>
       this.prisma.$transaction(async (tx) => {
-        // Not TRUNCATE: production runs as `lawbid_app`, which only has
-        // SELECT/INSERT/UPDATE/DELETE (postgres baseline grants), and the
-        // nightly job failed with «permission denied for table
-        // reco_qa_snapshots» (feature reality audit 2026-11-08). The table
-        // is small: one row per attorney / topic list.
         await tx.$executeRaw`DELETE FROM reco_qa_snapshots`;
         for (let i = 0; i < rows.length; i += 1000) {
           const chunk = rows.slice(i, i + 1000);
