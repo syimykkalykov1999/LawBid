@@ -67,7 +67,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'video_cache_parallel': true,
   'payments_in_app': false,
   'chat_translate': false,
-  'auto_bar_check': false,
+  'auto_bar_check': true,
   'news_posts': false,
   'phone_login': true,
   'demo_code_login': true,

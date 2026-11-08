@@ -19,7 +19,8 @@ export class VerificationProviderSelector {
 
   /** Owner 2026-10-05: the registry is chosen per state in the admin
    * (state_bar_registries) — states without one answer `manual_review`.
-   * The old global flag `auto_bar_check` is no longer read. */
+   * The global flag `auto_bar_check` is the master over all of them
+   * (read inside AutoBarLookupProvider). */
   barLookup(): Promise<AutoBarLookupProvider> {
     return Promise.resolve(this.autoBar);
   }

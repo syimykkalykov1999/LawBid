@@ -85,7 +85,7 @@ Paths are under `apps/api/src` unless they start with `apps/`. «PR» means fixe
 | `rate_limit.message_per_minute` | messages per minute | `common/usage-limits/usage-limits.service.ts:61` ← `modules/chat/chat.service.ts:1089` | direct chats only; group send never counted | — | code | BROKEN (half) → **PR**: group messages counted too |
 | `stories.max_video_sec`, `channels.max_post_media` | limits shown by the app | `apps/mobile/lib/features/stories/application/stories_providers.dart:42`, `apps/mobile/lib/features/channels/application/channel_compose.dart:31` | app reads them, bootstrap never sent them | — | keys absent from prod bootstrap | BROKEN (app side) → **PR**: added to `PUBLIC_CONFIG_PREFIXES` |
 | push (FCM) | pushes | `modules/notifications/push/fcm-push.sender.ts:398` | yes | FCM card | 30 × «fcm send failed 400 INVALID_ARGUMENT» for one user in 24 h, reason not logged | BROKEN for that device, cause unknown → **PR**: FCM's own error text is logged |
-| flag `auto_bar_check` | old licence auto-check | none (`modules/verification/providers/verification-provider.selector.ts:22`) | no | — | prod shows it **ON** in Admin → Флаги | DEAD → **PR**: marked `retired`, leaves the DB at boot |
+| flag `auto_bar_check` | master of automatic bar-licence lookups | `modules/verification/providers/bar-lookup/auto-bar-lookup.provider.ts` (`masterOn`) | was not read since 2026-10-05 | per-state registry enabled | prod shows it **ON** | DEAD → FIXED (#844): read again as the master; off = no registry call, manual review |
 | flag `chat_translate` + `translate.scope` / `translate.<zone>` | translation | `modules/translation/translation.service.ts:74`, `translation-zones.ts:31`, `apps/mobile/lib/features/translation/presentation/translate_block.dart:129` | yes | Google Translate key (not verified) | prod: flag **off**, all `translate.*` **on** | WORKS (off). Admin Config shows the zones as ON while the flag keeps everything off (§5.4) |
 | `push.chat_preview`, `queues.push_rate_*`, `notifications.retention_days` | push text, send rate, cleanup | `modules/notifications/push/push-dispatcher.ts:349,166`, `jobs/handlers/notifications-retention.job.ts:22` | yes | FCM | — | WORKS |
 | chat `chat.edit_window_min`, `delete_for_all_hours`, `max_pins`, `link_preview_*`, `groups.max_members`, `stickers.*`, `rate_limit.forward/chat_save` | chat limits | `modules/chat-actions/chat-actions.service.ts:151,267,414`, `modules/link-preview/link-preview.service.ts:122`, `modules/groups/groups.service.ts:190`, `modules/stickers/stickers.service.ts` | yes | — | — | WORKS |
@@ -144,7 +144,7 @@ through built-up names (`recommendations.service.ts:180`, `domain/case-staleness
 4. `password-auth.service.ts`: `security.attorney_strong_auth` applies only while `passkey_login` is on.
 5. `groups.service.ts`: group messages count against `rate_limit.message_per_minute`.
 6. `fcm-push.sender.ts`: logs FCM's error text, so the INVALID_ARGUMENT cause shows up.
-7. `flag-catalog.ts`: `auto_bar_check` is marked `retired`, so it leaves the admin flags list.
+7. `auto-bar-lookup.provider.ts`: the `auto_bar_check` flag is the master of automatic bar lookups again (off = no registry call, every licence to a verifier); catalog default on; admin text says what it does.
 
 ## 4. After the deploy: proof to collect
 
@@ -152,7 +152,7 @@ through built-up names (`recommendations.service.ts:180`, `domain/case-staleness
 - API log after the deploy: «Demo world ready» (or «replaying a half-applied migration», then ready).
 - Bootstrap shows `stories.max_video_sec` and `channels.max_post_media` once an admin saves them.
 - The next «fcm send failed» line has a `detail` field.
-- Admin → Флаги no longer lists «Автопроверка лицензии (старый переключатель)».
+- Admin → Флаги shows «Автопроверка лицензии адвоката» with the new text; switching it off sends new licences to manual review.
 
 ## 5. Needs owner decision (each would change behaviour beyond wiring)
 
@@ -243,7 +243,7 @@ through built-up names (`recommendations.service.ts:180`, `domain/case-staleness
 | `payments_in_app` | off | `common/feature-flags/locked-flags.ts:8`, `apps/mobile/lib/features/case_payments/application/case_payments_providers.dart:17` | WORKS (locked off) |
 | `chat_translate` | off | `modules/translation/translation.service.ts:74`, `apps/mobile/lib/features/chat/presentation/chat_translation.dart:54` | WORKS (off on prod; master switch for all translation) |
 | `payroll_stripe_payouts` | off | `modules/admin-payroll/payroll-stripe.service.ts:56` | WORKS |
-| `auto_bar_check` | on | — | DEAD → FIXED (#844, retired) |
+| `auto_bar_check` | on | `modules/verification/providers/bar-lookup/auto-bar-lookup.provider.ts` | DEAD → FIXED (#844, wired as the master) |
 | `news_posts` | off | `modules/posts/posts.service.ts:166`, `apps/mobile/lib/features/feed/application/news_flag.dart:8` | WORKS |
 | `phone_login` | on | `apps/mobile/lib/features/auth/presentation/screens/email_screen.dart:83` | WORKS |
 | `demo_code_login` | on | `apps/mobile/lib/features/auth/presentation/screens/welcome_screen.dart:272` | BROKEN → FIXED (#844 demo replay) |

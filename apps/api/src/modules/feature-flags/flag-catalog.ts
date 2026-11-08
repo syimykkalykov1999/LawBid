@@ -345,15 +345,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
   },
   {
     key: 'auto_bar_check',
-    // Retired 2026-10-05: bar lookups are switched on per state in Admin →
-    // Ключи и сервисы → "Реестры адвокатов по штатам"; not read any more.
-    // Feature reality audit 2026-11-08: prod still offered it as an ON
-    // switch that changed nothing, so it now leaves the database.
-    retired: true,
-    enabled: false,
+    // Feature reality audit 2026-11-08 (owner: never remove, make it work):
+    // the master switch of automatic bar lookups. On = each state's
+    // registry (Admin → Ключи и сервисы → «Реестры адвокатов по штатам»)
+    // decides; off = no registry call anywhere, every licence goes to a
+    // verifier by hand. Was stored but not read since 2026-10-05.
+    enabled: true,
     app: true,
     description:
-      'Retired: bar lookups are enabled per state in Admin → Integrations → state registries',
+      'Automatic bar licence lookups (master); each state registry is enabled in Admin → Integrations',
   },
   {
     // Owner 2026-10-06: the News system is switched off (kept in code).
