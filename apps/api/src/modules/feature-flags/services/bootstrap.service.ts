@@ -299,8 +299,9 @@ export class BootstrapService {
 
   /** Owner 2026-10-04/05: a "Translate" button shows only while the
    * translator is on (`chat_translate`), the Google key is saved and its
-   * zone is allowed (Ключи и сервисы → Google Translate). One flag per
-   * zone: `chat_translate` for chats, `translate_<zone>` for the rest. */
+   * zone is allowed (Ключи и сервисы → Google Translate). Owner 2026-11-08
+   * (one control): `chat_translate` = the master (flag and key), and one
+   * `translate_<zone>` per zone, chats included, that follows it. */
   private async withTranslateGate(
     flags: Record<string, boolean>,
     appConfig: Record<string, unknown>,
@@ -308,7 +309,7 @@ export class BootstrapService {
     const on =
       !!flags[TRANSLATE_FLAG] &&
       !!(await this.secrets?.get('google_translate'))?.fields.apiKey;
-    const out = { ...flags };
+    const out = { ...flags, [TRANSLATE_FLAG]: on };
     for (const zone of TRANSLATE_ZONES) {
       out[zoneFlag(zone)] = on && zoneAllowed(appConfig, zone);
     }
