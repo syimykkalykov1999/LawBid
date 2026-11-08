@@ -28,6 +28,10 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import {
+  AttorneyOnly,
+  RequiresDuty,
+} from '../auth/assistant/assistant-context';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
 import { RequireIdempotencyKeyGuard } from '../../idempotency/require-idempotency-key.guard';
 import {
@@ -91,6 +95,9 @@ export class CasePaymentsController {
 
   // ---- attorney: payout account ---------------------------------------------
 
+  // Security audit 2026-11-08 (M4): the attorney's Stripe account is not
+  // an assistant's business (the app never shows it to one).
+  @AttorneyOnly()
   @Get('payout-account')
   @ApiOperation({ summary: 'My Stripe payout account status (attorney)' })
   @ApiEnvelopeResponse(PayoutAccountDto)
@@ -154,6 +161,9 @@ export class CasePaymentsController {
 
   // ---- a case's payments ----------------------------------------------------
 
+  // M4 (2026-11-08): a case's money is case work — the "cases" duty, like
+  // the rest of the case workspace; a duty-less assistant gets 403.
+  @RequiresDuty('cases')
   @Get('cases/:id/payments')
   @ApiOperation({
     summary:
@@ -209,6 +219,7 @@ export class CasePaymentsController {
 
   // ---- payment requests (invoices) -----------------------------------------
 
+  @RequiresDuty('cases')
   @Post('cases/:id/payment-requests')
   @ApiOperation({
     summary:
@@ -229,6 +240,7 @@ export class CasePaymentsController {
     return this.payments.createRequests(user, p.id, dto);
   }
 
+  @RequiresDuty('cases')
   @Get('cases/:id/payment-requests')
   @ApiOperation({ summary: "A case's payment requests, newest first" })
   @ApiEnvelopeResponse(PaymentRequestDto, { isArray: true })
@@ -240,6 +252,7 @@ export class CasePaymentsController {
     return this.payments.listRequests(user, p.id);
   }
 
+  @RequiresDuty('cases')
   @Post('payment-requests/:id/cancel')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Withdraw an open payment request (attorney)' })
@@ -274,6 +287,8 @@ export class CasePaymentsController {
 
   // ---- documents --------------------------------------------------------------
 
+  // M4: the attorney's whole ledger (client names) — the "cases" duty.
+  @RequiresDuty('cases')
   @Get('payments/export.csv')
   @ApiOperation({
     summary:
@@ -297,6 +312,7 @@ export class CasePaymentsController {
       .send(csv);
   }
 
+  @RequiresDuty('cases')
   @Get('payments/:id/receipt.pdf')
   @ApiOperation({ summary: 'PDF receipt of one of my payments (both sides)' })
   @ApiProduces('application/pdf')
@@ -316,6 +332,7 @@ export class CasePaymentsController {
 
   // ---- single payment -------------------------------------------------------
 
+  @RequiresDuty('cases')
   @Get('payments/history')
   @ApiOperation({ summary: 'My case payments, newest first (both sides)' })
   @ApiEnvelopeResponse(CasePaymentDto, { isArray: true })
@@ -327,6 +344,7 @@ export class CasePaymentsController {
     return this.payments.myPayments(user, q);
   }
 
+  @RequiresDuty('cases')
   @Get('payments/summary')
   @ApiOperation({ summary: 'Paid / received this calendar year' })
   @ApiEnvelopeResponse(MyCasePaymentsSummaryDto)
@@ -336,6 +354,7 @@ export class CasePaymentsController {
     return this.payments.mySummary(user);
   }
 
+  @RequiresDuty('cases')
   @Get('payments/:id')
   @ApiOperation({ summary: 'One of my payments' })
   @ApiEnvelopeResponse(CasePaymentDto)

@@ -18,6 +18,7 @@ import {
 } from '../files/storage/file-release.service';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import {
+  AFTER_CONFIRM,
   PENDING_UPLOADS_KEY,
   multipartKey,
 } from '../files/storage/pending-uploads';
@@ -559,8 +560,8 @@ export class StorageCleanupService {
       );
       if (members.length === 0) break;
       const parsed = members.map((m) => {
-        const [id, bucket, key] = m.split('|');
-        return { id, bucket, key };
+        const [id, bucket, key, tag] = m.split('|');
+        return { id, bucket, key, leftover: tag === AFTER_CONFIRM };
       });
       const confirmed = new Set(
         (
@@ -573,16 +574,29 @@ export class StorageCleanupService {
         ).map((f) => f.id),
       );
       const byBucket = new Map<string, string[]>();
+      // M3 (2026-11-08): upload keys of confirmed files (the file lives at
+      // its own copy); never handed out, so no edge purge.
+      const leftovers = new Map<string, string[]>();
       const kept = new Set<string>();
       for (const p of parsed) {
-        if (confirmed.has(p.id) || !p.bucket || !p.key) continue;
+        if (!p.bucket || !p.key) continue;
+        if (p.leftover) {
+          leftovers.set(p.bucket, [...(leftovers.get(p.bucket) ?? []), p.key]);
+          continue;
+        }
+        if (confirmed.has(p.id)) continue;
         await this.abortMultipart(p.id, p.bucket, p.key);
         byBucket.set(p.bucket, [...(byBucket.get(p.bucket) ?? []), p.key]);
       }
       if (this.storage.configured) {
-        for (const [bucket, keys] of byBucket) {
+        const groups = [
+          ...[...byBucket].map(([b, k]) => [b, k, true] as const),
+          ...[...leftovers].map(([b, k]) => [b, k, false] as const),
+        ];
+        for (const [bucket, keys, purgeEdge] of groups) {
           try {
-            await this.storage.remove(bucket, keys);
+            if (purgeEdge) await this.storage.remove(bucket, keys);
+            else await this.storage.remove(bucket, keys, { purgeEdge: false });
             removed += keys.length;
           } catch (err) {
             if (isNoSuchBucket(err)) continue;

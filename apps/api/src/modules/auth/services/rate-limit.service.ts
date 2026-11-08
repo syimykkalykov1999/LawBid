@@ -46,6 +46,23 @@ redis.call('PEXPIRE', KEYS[1], windowMs)
 return {1, limit - count - 1, math.ceil(windowMs / 1000)}
 `;
 
+// Read-only look at a sliding window: entries still inside it and when the
+// oldest leaves (security audit 2026-11-08, M1: checked before the password
+// hash, so a capped account costs no scrypt).
+const SLIDING_PEEK_LUA = `
+local now = tonumber(ARGV[1])
+local windowMs = tonumber(ARGV[2]) * 1000
+local count = redis.call('ZCOUNT', KEYS[1], now - windowMs, '+inf')
+local retryAfter = 0
+if count > 0 then
+  local oldest = redis.call('ZRANGEBYSCORE', KEYS[1], now - windowMs, '+inf', 'WITHSCORES', 'LIMIT', 0, 1)
+  if oldest[2] ~= nil then
+    retryAfter = math.max(1, math.ceil((tonumber(oldest[2]) + windowMs - now) / 1000))
+  end
+end
+return {count, retryAfter}
+`;
+
 /**
  * Bespoke Redis rate limiting for auth-specific limits that the existing
  * global `RedisThrottlerStorageService`/`ThrottlerGuard` (100 req/min per
@@ -105,6 +122,23 @@ export class RateLimitService {
       remaining: result[1],
       retryAfterSeconds: result[2],
     };
+  }
+
+  /** Entries inside a sliding window without adding one; retryAfterSeconds
+   * is when the oldest of them drops out (0 when the window is empty). */
+  async peekSlidingWindow(
+    keyParts: string[],
+    windowSeconds: number,
+  ): Promise<{ count: number; retryAfterSeconds: number }> {
+    const key = this.buildKey('rl:sliding', keyParts);
+    const result = (await this.redis.eval(
+      SLIDING_PEEK_LUA,
+      1,
+      key,
+      Date.now(),
+      windowSeconds,
+    )) as [number, number];
+    return { count: result[0], retryAfterSeconds: result[1] };
   }
 
   /** Current count of a fixed window without consuming it (0 if none). */

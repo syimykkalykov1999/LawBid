@@ -503,7 +503,10 @@ export class AuthController {
   @ApiErrors({ 409: [E.AUTH_OTHER_DEVICE_ACTIVE] })
   @Public()
   // S14-13: a token is asked for only after repeated wrong passwords.
-  @RequireAppCheck({ challenge: 'password' })
+  // Security audit 2026-11-08 (M1): App Check like the other auth routes
+  // (security.app_check.mode; monitor only logs), plus the challenge after
+  // repeated failures.
+  @RequireAppCheck({ challenge: 'password', always: true })
   @Post('password/login')
   async passwordLogin(
     @Body() dto: PasswordLoginDto,

@@ -238,6 +238,53 @@ describe('Storage like Telegram (e2e)', () => {
     expect(await storage.head(bucket, key)).toBeNull();
   });
 
+  // Security audit 2026-11-08 (M3): the presigned link still works for a
+  // few minutes after confirm; what it writes then must never be served.
+  it('an upload link reused after confirm cannot change the stored file', async () => {
+    const a = await user();
+    const bytes = pdf(`benign-${randomUUID()}`);
+    const pre = await presign(a.auth, bytes);
+    expect(pre.status).toBe(201);
+    const p = pre.body.data;
+    await put(p, bytes);
+    await api()
+      .post(`/api/v1/files/${p.fileId}/confirm`)
+      .set(a.auth)
+      .expect(200);
+    const stored = await row(p.fileId);
+    const uploadKey = p.upload.fields.key as string;
+    expect(stored.s3_key).not.toBe(uploadKey);
+    expect(stored.s3_key.startsWith(`${uploadKey}_s`)).toBe(true);
+    expect(await storage.head(stored.s3_bucket, uploadKey)).toBeNull();
+
+    // Same size, other bytes, through the same still-valid link.
+    const evil = Buffer.from(
+      bytes.toString('latin1').replace('benign', 'EVILxx'),
+      'latin1',
+    );
+    expect(evil.length).toBe(bytes.length);
+    await put(p, evil);
+    expect(
+      (await storage.read(stored.s3_bucket, stored.s3_key)).equals(bytes),
+    ).toBe(true);
+
+    // The storage cleanup deletes what the link wrote, the file stays.
+    const members = await redis.zrangebyscore(
+      PENDING_UPLOADS_KEY,
+      '-inf',
+      '+inf',
+    );
+    const leftover = members.find(
+      (m) => m.startsWith(p.fileId) && m.endsWith('|after_confirm'),
+    );
+    expect(leftover).toBeDefined();
+    await redis.zadd(PENDING_UPLOADS_KEY, 1, leftover!);
+    await cleanupNow();
+    expect(await storage.head(stored.s3_bucket, uploadKey)).toBeNull();
+    expect(await storage.head(stored.s3_bucket, stored.s3_key)).not.toBeNull();
+    expect((await row(p.fileId)).deleted_at).toBeNull();
+  });
+
   it('refuses uploads past the personal storage cap', async () => {
     const a = await user();
     await upload(a.auth, pdf(`cap-${randomUUID()}`));

@@ -41,6 +41,12 @@ export interface AppCheckOptions {
    * times; the happy path never needs a token. The kind picks how the
    * account is read from the body. */
   challenge?: 'password' | 'otp';
+  /** Security audit 2026-11-08 (M1): with [challenge], the route ALSO
+   * follows `security.app_check.mode` before any failure, like the other
+   * auth routes (monitor: log only; enforce: a token is needed); failures
+   * then force enforce as before. Without it a [challenge] route is not
+   * looked at until the caller has failed. */
+  always?: boolean;
 }
 
 export const APP_CHECK_KEY = 'app-check:required';
@@ -102,10 +108,14 @@ export class AppCheckGuard implements CanActivate {
     let mode = await this.mode();
     let tsMode = await this.turnstileMode();
     if (options.challenge) {
-      // Only a caller who already failed a few times is asked for proof.
-      if (!(await this.challenged(req, options.challenge))) return true;
-      mode = 'enforce';
-      if (tsMode === 'off') tsMode = 'monitor';
+      // A caller who already failed a few times is asked for proof; the
+      // others pass, unless the route also follows the normal mode.
+      if (await this.challenged(req, options.challenge)) {
+        mode = 'enforce';
+        if (tsMode === 'off') tsMode = 'monitor';
+      } else if (!options.always) {
+        return true;
+      }
     }
     if (mode === 'off' && tsMode === 'off') return true;
     if (this.signedIn(req)) return true;

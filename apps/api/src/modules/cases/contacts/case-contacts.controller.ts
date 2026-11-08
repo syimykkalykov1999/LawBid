@@ -26,6 +26,7 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../../auth/decorators/current-user.decorator';
+import { RequiresDuty } from '../../auth/assistant/assistant-context';
 import { CaseIdParamDto } from '../dto/case-requests.dto';
 import { CaseContactsService } from './case-contacts.service';
 import {
@@ -41,6 +42,12 @@ const E = ErrorCode;
 @ApiTags('cases')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// Security audit 2026-11-08 (BFLA): client phone/e-mail and the
+// "can't reach the client" report are a case duty. Without this an
+// assistant with no duties (or only "calls") inherits the attorney's
+// identity in JwtAuthGuard and reads the client's contacts. Gate the whole
+// controller on the 'cases' duty like the rest of the case workspace.
+@RequiresDuty('cases')
 @Controller()
 export class CaseContactsController {
   constructor(private readonly contacts: CaseContactsService) {}
