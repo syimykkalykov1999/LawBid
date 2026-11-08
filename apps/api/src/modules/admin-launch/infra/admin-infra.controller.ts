@@ -13,6 +13,7 @@ import {
   ApiEnvelopeResponse,
   ApiErrors,
 } from '../../../common/dto/api-docs.decorators';
+import { AdminSummaryService } from '../../../common/admin-summary/admin-summary.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { COST_REGISTRY } from '../../../common/ops/cost-registry';
 import { INFRA_SWITCHES, switchFor } from '../../../common/ops/infra-switches';
@@ -35,6 +36,15 @@ import {
 
 const E = ErrorCode;
 
+/** 2026-11-08: the overview (settings, the last 20 requests, the status
+ * signals, the live switch states) was rebuilt on every open and every
+ * minute's poll of «Расходы» and «Масштаб» (prod: 1.4-1.7 s while the
+ * page's other cards queued on the same 3 connections). Now a shared board
+ * (AdminSummaryService.board), at most 15 s old before a background
+ * rebuild; every button below forgets it so the next read is exact. */
+const OVERVIEW_KEY = 'infra:overview';
+const OVERVIEW_FRESH_MS = 15_000;
+
 /**
  * Owner 2026-10-26: infra switches from the admin. Выкл / Вкл on a
  * Terraform row of «Расходы» / «Масштаб» creates a request; GitHub plans it;
@@ -50,6 +60,7 @@ export class AdminInfraController {
     private readonly infra: InfraChangeService,
     private readonly auth: AdminAuthService,
     private readonly registry: CostRegistryService,
+    private readonly summary: AdminSummaryService,
   ) {}
 
   @Get()
@@ -58,7 +69,16 @@ export class AdminInfraController {
       'Cloud switches: guards, recent requests and «пора включить» suggestions',
   })
   @ApiEnvelopeResponse(InfraOverviewDto)
-  async infraOverview(): Promise<InfraOverviewDto> {
+  infraOverview(): Promise<InfraOverviewDto> {
+    return this.summary.board(
+      OVERVIEW_KEY,
+      () => this.buildOverview(),
+      OVERVIEW_FRESH_MS,
+      (d) => Array.isArray(d?.requests),
+    );
+  }
+
+  private async buildOverview(): Promise<InfraOverviewDto> {
     const now = new Date();
     const [guards, requests, signals, engine] = await Promise.all([
       this.infra.guards(),
@@ -109,7 +129,9 @@ export class AdminInfraController {
     @Body() dto: CreateInfraRequestDto,
   ): Promise<InfraRequestDto> {
     try {
-      return await this.infra.create(admin.id, admin.ip, dto.itemId, dto.to);
+      return await this.changed(
+        this.infra.create(admin.id, admin.ip, dto.itemId, dto.to),
+      );
     } catch (e) {
       infraHttp(e);
     }
@@ -132,7 +154,7 @@ export class AdminInfraController {
   ): Promise<InfraRequestDto> {
     await this.auth.assertStepUp(admin.sessionId);
     try {
-      return await this.infra.confirm(admin.id, admin.ip, id);
+      return await this.changed(this.infra.confirm(admin.id, admin.ip, id));
     } catch (e) {
       infraHttp(e);
     }
@@ -148,7 +170,7 @@ export class AdminInfraController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<InfraRequestDto> {
     try {
-      return await this.infra.cancel(admin.id, admin.ip, id);
+      return await this.changed(this.infra.cancel(admin.id, admin.ip, id));
     } catch (e) {
       infraHttp(e);
     }
@@ -170,9 +192,18 @@ export class AdminInfraController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<InfraRequestDto> {
     try {
-      return await this.infra.rollback(admin.id, admin.ip, id);
+      return await this.changed(this.infra.rollback(admin.id, admin.ip, id));
     } catch (e) {
       infraHttp(e);
+    }
+  }
+
+  /** A request changed: the next overview read is rebuilt, not served. */
+  private async changed<T>(p: Promise<T>): Promise<T> {
+    try {
+      return await p;
+    } finally {
+      await this.summary.drop(OVERVIEW_KEY);
     }
   }
 }
