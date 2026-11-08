@@ -1015,29 +1015,33 @@ export function signCloudFrontUrl(
 
 /** Longest stretch one signed link is reused for (one hour). */
 export const SIGNING_BUCKET_SEC = 60 * 60;
-/** S3 refuses a presigned link valid for more than seven days. */
-const S3_MAX_PRESIGN_SEC = 7 * 24 * 60 * 60;
+/** Links shorter than this are not bucketed at all. */
+const MIN_BUCKETED_TTL_SEC = 60;
 
 /**
  * Owner 2026-11-08 (ETag / 304, «не грузить сервер»): a signed link made
  * from the current second differed in every answer, so a page with private
  * media never matched its ETag and the browser fetched the same picture
  * again. Like CDN token signing with a time bucket, the link is signed from
- * the start of a bucket (the TTL, at most one hour), so every answer inside
- * the bucket carries the same link. The expiry is the bucket end plus the
- * TTL: a link is still valid at least [ttlSec] after it is handed out, and
- * at most twice the TTL (or TTL + one hour).
+ * the start of a bucket of a tenth of its TTL (at most one hour), so every
+ * answer inside the bucket carries the same link. The life stays exactly
+ * [ttlSec] from the bucket start: a link never outlives its TTL (the
+ * security contract of signed links), it is only up to a tenth shorter.
  */
 export function signingWindow(
   ttlSec: number,
   now: number = Date.now(),
 ): { signingDate: Date; expiresIn: number } {
   const ttl = Math.max(1, Math.floor(ttlSec));
-  const bucket = Math.min(SIGNING_BUCKET_SEC, ttl) * 1000;
-  const start = Math.floor(now / bucket) * bucket;
+  // A short link (under a minute: verification documents in tests, one-off
+  // downloads) is signed from the current second, exactly as before.
+  const bucket =
+    (ttl < MIN_BUCKETED_TTL_SEC
+      ? 1
+      : Math.min(SIGNING_BUCKET_SEC, Math.floor(ttl / 10))) * 1000;
   return {
-    signingDate: new Date(start),
-    expiresIn: Math.min(S3_MAX_PRESIGN_SEC, bucket / 1000 + ttl),
+    signingDate: new Date(Math.floor(now / bucket) * bucket),
+    expiresIn: ttl,
   };
 }
 
