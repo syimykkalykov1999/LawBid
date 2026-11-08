@@ -284,6 +284,18 @@ export function newFileKey(input: {
   return `${input.purpose}/s${shard}/${yyyy}/${mm}/${input.fileId}`;
 }
 
+/**
+ * Security audit 2026-11-08 (M3, OWASP File Upload Cheat Sheet: store under
+ * a name the user does not control): where a confirmed upload is kept. The
+ * key the app uploaded to stays writable through its presigned link until
+ * that link expires, so confirm copies the object here (server-side) and
+ * checks, scans and serves only this copy. The random tail keeps two
+ * parallel confirms of one upload apart.
+ */
+export function storedKey(uploadKey: string, nonce: string): string {
+  return `${uploadKey}_s${nonce}`;
+}
+
 /** `<key>_w256` — never `<key>/256`: MinIO forbids an object whose name
  * is a "directory" prefix of another object. */
 export function variantKey(key: string, px: number): string {
