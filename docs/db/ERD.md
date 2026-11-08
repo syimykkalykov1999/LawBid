@@ -1462,7 +1462,7 @@ erDiagram
     DateTime created_at
     Int created_shard
     String reason_code "nullable"
-    BigInt seq UK "nullable"
+    BigInt seq "nullable"
     String prev_hash "nullable"
     String row_hash "nullable"
   }
