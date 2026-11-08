@@ -1082,7 +1082,7 @@ describe('reusing a stored file (R-254, files_reuse_own)', () => {
         purpose: 'avatar',
         mime: 'image/jpeg',
         s3_bucket: 'lawbid-media',
-        s3_key: 'avatar/s1/2026/11/mine',
+        s3_key: 'avatar/me/mine',
       });
     const withVerdict = (
       t: ReturnType<typeof setup>,
@@ -1116,7 +1116,7 @@ describe('reusing a stored file (R-254, files_reuse_own)', () => {
       );
       expect(out.existing).toBe(true);
       const made = (t.create.mock.calls[0] as [{ data: Row }])[0].data;
-      expect(made.s3_key).toBe('avatar/s1/2026/11/mine');
+      expect(made.s3_key).toBe('avatar/me/mine');
       const copy = (verdicts.mock.calls[0] as [{ data: Row }])[0].data;
       expect(copy.file_id).toBe(made.id);
       expect(copy.status).toBe('clean');
