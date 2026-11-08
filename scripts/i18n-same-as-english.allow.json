@@ -27,6 +27,7 @@
   ],
   "perLanguage": {
     "af": [
+      "cases.pay.tile.later",
       "app.softUpdate.later",
       "billing.mOnly",
       "billing.min",
@@ -1344,6 +1345,7 @@
       "boost.stat.ctr"
     ],
     "nl": [
+      "cases.pay.tile.later",
       "account.title",
       "app.softUpdate.later",
       "billing.mOnly",

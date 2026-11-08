@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/deals/deal_record_data.dart';
-import 'package:lawbid/features/cases/deals/rich_terms_editor.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
@@ -46,6 +45,8 @@ class _Repo extends FakeCasesRepository {
   final List<api.BidCaseChangeDto> changes;
   int confirmed = 0;
   api.PaymentTermsDto? sentTerms;
+  FeeType? sentFee;
+  int? sentAmount;
 
   @override
   Future<CaseBid> changeBid(
@@ -57,6 +58,8 @@ class _Repo extends FakeCasesRepository {
     api.PaymentTermsDto? paymentTerms,
   }) async {
     sentTerms = paymentTerms;
+    sentFee = feeType;
+    sentAmount = amountCents;
     return bidNow = _bid();
   }
 
@@ -202,7 +205,8 @@ void main() {
     expect(key('case-withdraw'), findsOneWidget);
   });
 
-  testWidgets('«Поменять бид» opens an empty list', (t) async {
+  testWidgets('«Поменять бид» opens on the tiles with «Сумма» chosen',
+      (t) async {
     await pump(
       t,
       const AttorneyCaseScreen(caseId: 'case-1'),
@@ -212,8 +216,12 @@ void main() {
     await t.tap(key('case-bid-change'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
+    expect(key('pay-tile-flat'), findsOneWidget);
+    expect(key('pay-tile-hourly'), findsOneWidget);
     expect(find.text('One sum for the whole job'), findsOneWidget);
-    expect(key('change-bid-send'), findsNothing);
+    // Nothing is typed yet, so the button is grey.
+    final send = t.widget<AppButton>(key('change-bid-send'));
+    expect(send.isEnabled, isFalse);
   });
 
   testWidgets('«Поменять бид» sends the detailed terms', (t) async {
@@ -237,23 +245,24 @@ void main() {
     await t.tap(key('case-bid-change'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
-    await t.tap(find.text('One sum for the whole job'));
+    await t.tap(key('pay-tile-installments'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
-    await t.enterText(find.byType(EditableText).first, '2000');
-    await t.tap(find.text('A retainer, then scheduled payments'));
-    await t.pump();
-    await t.pump(const Duration(milliseconds: 400));
-    final draft = t.widget<RichTermsEditor>(find.byType(RichTermsEditor)).draft
-      ..retainer.text = '2000'
-      ..installment.text = '1000'
-      ..count.text = '6';
-    expect(draft.type, api.PaymentTermsDtoType.retainerPlusInstallments);
+    await t.enterText(key('pay-field-retainer'), '2000');
+    await t.enterText(key('pay-field-installment'), '1000');
+    await t.enterText(key('pay-field-count'), '6');
     await t.pump();
     await t.ensureVisible(key('change-bid-send'));
     await t.pump();
     await t.tap(key('change-bid-send'));
     await t.pump(const Duration(milliseconds: 100));
+    expect(repo.sentFee, FeeType.fixed);
+    // Headline amount: $2000 + 6 x $1000.
+    expect(repo.sentAmount, 800000);
+    expect(
+      repo.sentTerms?.type,
+      api.PaymentTermsDtoType.retainerPlusInstallments,
+    );
     expect(repo.sentTerms?.retainerCents, 200000);
     expect(repo.sentTerms?.installmentCents, 100000);
     expect(repo.sentTerms?.installmentCount, 6);
