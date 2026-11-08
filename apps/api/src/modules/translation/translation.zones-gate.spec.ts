@@ -45,7 +45,9 @@ async function keys(s: TranslationService): Promise<Record<string, boolean>> {
 }
 
 const every = (v: boolean, except: TranslateZone[] = []) =>
-  Object.fromEntries(TRANSLATE_ZONES.map((z) => [z, except.includes(z) ? !v : v]));
+  Object.fromEntries(
+    TRANSLATE_ZONES.map((z) => [z, except.includes(z) ? !v : v]),
+  );
 
 describe('translation zones on the server', () => {
   it('master off: no zone gets the key, even with every zone allowed', async () => {

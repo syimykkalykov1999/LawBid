@@ -67,7 +67,7 @@ What users feel while it is on (`economy.service.ts:540`, `ops-state.service.ts:
   image-moderation cap runs out, the check is skipped (`media-moderation.service.ts:443`);
 - **API and worker are held at the minimum number of containers** (`economy.service.ts:617`).
 
-Status: **BROKEN by rule**, released by hand for now (needs owner decision, see §5.1). PR #843 rates
+Status: **BROKEN by rule → FIXED in #844** (two brakes, §5.1; owner approved). Until the deploy it was released by hand. PR #843 rates
 the guard's two-way switching as WORKS; the open problem is the rule, not the mechanism. If it trips
 again: Admin → Экономика, raise «Минимальный порог» (`economy.min_threshold_usd`) above the AWS
 forecast divided by 0.9.
@@ -78,7 +78,7 @@ Paths are under `apps/api/src` unless they start with `apps/`. «PR» means fixe
 
 | item | should change | reader (file:line) | read on the real path? | prerequisite on prod | proof on prod | status |
 |---|---|---|---|---|---|---|
-| economy guard (`economy_guard`, `economy.*`) | brake on third-party spend | `common/economy/economy.service.ts:407` | yes, every 5 min | AWS Budgets / Cost Explorer readable | log `economy_guard_on` 06:10, released 19:52 by an admin settings change; AWS forecast $402 | BROKEN by rule (§5.1) |
+| economy guard (`economy_guard`, `economy.*`) | brake on spend (now two brakes) | `common/economy/economy.service.ts:407` | yes, every 5 min | AWS Budgets / Cost Explorer readable | log `economy_guard_on` 06:10, released 19:52 by an admin settings change; AWS forecast $402 | BROKEN by rule → FIXED (#844: two brakes, §5.1) |
 | flag `recommendations_qa_ranking`, `reco.qa.*`, `reco.*.qa*` | Q&A boost in people/case ranking, «рекомендуемые вопросы» | `modules/recommendations/qa-snapshot.service.ts:97,222` | yes, nightly job | DB right TRUNCATE (absent) | worker: «permission denied for table reco_qa_snapshots», 12 times in 7 days | BROKEN → FIXED in #843 (the same one-line fix; #844 carries the identical file so the two merge cleanly) |
 | flag `demo_code_login` (App Store / Google Play reviewer demo) | demo world behind the code | `modules/demo/demo-database.service.ts:275` | yes, at boot | DEMO_DATABASE_URL present | API: «Demo world is not available … type "deal_record_status" already exists» on every boot | BROKEN → **PR**: half-applied migration is replayed past «already exists» |
 | `security.attorney_strong_auth` (on) with flag `passkey_login` (off) | attorney with a passkey must use it | `modules/auth/password-auth.service.ts:201` | yes | passkey sign-in on | prod: `passkey_login=false` | BROKEN (lock-out: password refused, passkey disabled) → **PR**: rule applies only while passkeys are on |
@@ -86,7 +86,7 @@ Paths are under `apps/api/src` unless they start with `apps/`. «PR» means fixe
 | `stories.max_video_sec`, `channels.max_post_media` | limits shown by the app | `apps/mobile/lib/features/stories/application/stories_providers.dart:42`, `apps/mobile/lib/features/channels/application/channel_compose.dart:31` | app reads them, bootstrap never sent them | — | keys absent from prod bootstrap | BROKEN (app side) → **PR**: added to `PUBLIC_CONFIG_PREFIXES` |
 | push (FCM) | pushes | `modules/notifications/push/fcm-push.sender.ts:398` | yes | FCM card | 30 × «fcm send failed 400 INVALID_ARGUMENT» for one user in 24 h, reason not logged | BROKEN for that device, cause unknown → **PR**: FCM's own error text is logged |
 | flag `auto_bar_check` | master of automatic bar-licence lookups | `modules/verification/providers/bar-lookup/auto-bar-lookup.provider.ts` (`masterOn`) | was not read since 2026-10-05 | per-state registry enabled | prod shows it **ON** | DEAD → FIXED (#844): read again as the master; off = no registry call, manual review |
-| flag `chat_translate` + `translate.scope` / `translate.<zone>` | translation | `modules/translation/translation.service.ts:74`, `translation-zones.ts:31`, `apps/mobile/lib/features/translation/presentation/translate_block.dart:129` | yes | Google Translate key (not verified) | prod: flag **off**, all `translate.*` **on** | WORKS (off). Admin Config shows the zones as ON while the flag keeps everything off (§5.4) |
+| flag `chat_translate` + `translate.scope` / `translate.<zone>` | translation (one control since #844) | `modules/translation/translation.service.ts:74`, `translation-zones.ts:31`, `apps/mobile/lib/features/translation/presentation/translate_block.dart:129` | yes | Google Translate key (not verified) | prod: flag **off**, all `translate.*` **on** | WORKS (off). Admin Config shows the zones as ON while the flag keeps everything off (§5.4) |
 | `push.chat_preview`, `queues.push_rate_*`, `notifications.retention_days` | push text, send rate, cleanup | `modules/notifications/push/push-dispatcher.ts:349,166`, `jobs/handlers/notifications-retention.job.ts:22` | yes | FCM | — | WORKS |
 | chat `chat.edit_window_min`, `delete_for_all_hours`, `max_pins`, `link_preview_*`, `groups.max_members`, `stickers.*`, `rate_limit.forward/chat_save` | chat limits | `modules/chat-actions/chat-actions.service.ts:151,267,414`, `modules/link-preview/link-preview.service.ts:122`, `modules/groups/groups.service.ts:190`, `modules/stickers/stickers.service.ts` | yes | — | — | WORKS |
 | `channels.*` | channels | `modules/channels/channels.service.ts` | yes | — | flag `channels` **off** on prod | WORKS (feature hidden) |
@@ -99,7 +99,7 @@ Paths are under `apps/api/src` unless they start with `apps/`. «PR» means fixe
 | `moderation.auto_hide_*`, `weight.*`, `report_abuse.*`, `strikes.*`, `auto.*`, hold queue, restore rules | report handling | `modules/moderation/*.service.ts` | yes | — | — | WORKS |
 | `moderation.image.*` | photo check (Rekognition) | `modules/media-moderation/media-moderation.service.ts:372` | yes | `aws_rekognition` card (not verified) | — | WORKS; skipped when the cap is spent (guard) |
 | `moderation.video.frames_*` | frame-by-frame video check | `modules/media-moderation/media-moderation.service.ts:206` | yes | ffmpeg in the image (`WITH_FFMPEG`, default 0) | not verified | MISSING PREREQUISITE (likely) |
-| `moderation.csam.ncmec_submit_enabled` (default on) | report to NCMEC | `modules/media-moderation/csam.adapters.ts:116` | stub: no secret = manual, with a secret it throws | `ncmec` | — | BROKEN (stub, §5.5) |
+| `moderation.csam.ncmec_submit_enabled` (now default off) | report to NCMEC | `modules/media-moderation/csam.adapters.ts` (NcmecReporter) | yes, on a CSAM finding | `ncmec` card (ESP account) | — | BROKEN (stub) → FIXED (#844: real CyberTipline flow); NOT CONFIGURED until the ESP account exists |
 | `qa.*` safety | Q&A checks | `modules/legal-qa/qa-safety.service.ts` | yes | — | — | WORKS |
 | `search.weight_*`, `ranked_cache_ttl_sec`, `learn_min_users`, `rate_limit.search_*` | search ranking/limits | `modules/search/postgres-search.provider.ts:258`, `search.service.ts:875` | yes | — | — | WORKS |
 | `search.engine`, `engine_kind`, `engine_timeout_ms`, `reindex_*` | OpenSearch | `modules/search/search-switch.provider.ts:98` | only when an engine is set | OPENSEARCH_URL **empty** on prod | admin refuses `engine` without the URL | MISSING PREREQUISITE (Postgres search works) |
@@ -121,7 +121,7 @@ Paths are under `apps/api/src` unless they start with `apps/`. «PR» means fixe
 | `billing.*`, `stripe_ops.*`, `treasury.*` | Stripe upkeep | webhook / job paths | only on Stripe events | Stripe card (not verified) | — | no-op until Stripe is live |
 | `deal_record.enabled`, `bids.rich_terms_enabled`, `bids.confirmation_required` | deal paperwork | `modules/bids/acceptance/bid-acceptance.service.ts:88`, `modules/bids/bids.service.ts:630` | yes | — | on in bootstrap | WORKS |
 | login flags `phone/password/email/apple/google/passkey_login`, `web_client`, `role_switch` | sign-in methods | `modules/auth/services/login-method-policy.service.ts:39` + app `welcome_screen.dart` | yes, API and app | — | bootstrap | WORKS (the app has no Apple/Google buttons at all) |
-| integration card `persona` | ID checks | none (`modules/verification/providers/verification-provider.selector.ts` is always manual) | no | — | — | DEAD card |
+| integration card `persona` | ID checks | none (ID checks manual by owner decision 16.10) | no | — | — | NOT CONFIGURED (honest label in #844; kept) |
 | integration cards twilio, ses, fcm, stripe, turnstile, google_translate, opensearch, state registries, aws_*, google_places, openai_moderation, anthropic, calendars | — | `common/secrets/secrets.service.ts:243` resolve | yes; the card's «Ключ включён» switch is honoured (`:250`) | the card | not verified per card | WORKS |
 | GroupFanoutQueue at boot | group delivery concurrency | `modules/groups/group-fanout.queue.ts` | yes | Redis | API: «group fan-out concurrency not set: Command timed out» × 8 at one boot | transient Redis timeout at start (watch) |
 | OpsGuard | pauses heavy jobs when the DB is slow | `OpsGuardJob` | yes | — | «heavy background jobs paused: database is slow» (985 ms) | WORKS (by design, watch) |
@@ -145,6 +145,10 @@ through built-up names (`recommendations.service.ts:180`, `domain/case-staleness
 5. `groups.service.ts`: group messages count against `rate_limit.message_per_minute`.
 6. `fcm-push.sender.ts`: logs FCM's error text, so the INVALID_ARGUMENT cause shows up.
 7. `auto-bar-lookup.provider.ts`: the `auto_bar_check` flag is the master of automatic bar lookups again (off = no registry call, every licence to a verifier); catalog default on; admin text says what it does.
+8. Translation: one control (master `chat_translate` + `translate_<zone>` for every zone); app gate `FeatureFlagsState.translationOn`.
+9. Economy: two brakes (third-party vs AWS budget), admin shows both and the sum.
+10. NCMEC CyberTipline adapter (report → file → fileinfo → finish, retract on failure), card fields + «Проверить», staff status, switch default off.
+11. Persona card: honest «не подключено» text.
 
 ## 4. After the deploy: proof to collect
 
@@ -154,34 +158,58 @@ through built-up names (`recommendations.service.ts:180`, `domain/case-staleness
 - The next «fcm send failed» line has a `detail` field.
 - Admin → Флаги shows «Автопроверка лицензии адвоката» with the new text; switching it off sends new licences to manual review.
 
-## 5. Needs owner decision (each would change behaviour beyond wiring)
+## 5. Decisions taken (owner 2026-11-08: research, pick, implement, report)
 
-1. **What the economy guard counts.** Recommended: the guard trips on third-party metered spend only
-   (SMS, Bunny video, translation, ID checks, Cloudflare). This matches the guard's own text
-   «расходы на сторонние сервисы» and the defaults' comment «third-party spend». The AWS bill would
-   stay on the report and keep capping the container ceiling.
-
-   How others handle this:
-   - AWS Budgets actions and GCP budget alerts tie a brake to the budget it controls.
-   - Twilio, Bunny and Cloudflare caps are per service.
-   - Nobody pauses user features because the infrastructure bill is fixed.
-
-   Alternative: keep the rule and raise `economy.min_threshold_usd` to about $500 or more.
-2. **Phone change sends an SMS** (Settings → Account → phone), against the rule «SMS только в двух
-   случаях». Recommended: confirm the new phone with the password or passkey and no SMS (how
-   Telegram, WhatsApp and Signal change a number), or switch it off for now. This is a product
-   change, so it was not done.
-3. **App Check stays in monitor.** Every prod verdict is `missing`, so the app sends no App Check
-   token. Check the Firebase App Check registration of the release builds before ever choosing
-   enforce, or phone sign-up and reset would be refused.
-4. **Translation on/off is in two places.** The admin Config page shows `translate.*` as ON while the
-   `chat_translate` flag keeps everything off. Recommended: one switch on the Google Translate card
-   and a note next to the zones (an admin text change, so it needs your yes: UI is frozen).
-5. **NCMEC switch defaults to ON but is a stub.** Recommended: default it to off and label it «не
-   подключено» until a real CyberTipline adapter exists.
-6. **Ranking events and experiments have no producer.** Their admin screens change nothing.
-   Recommended: hide them until they are wired (wiring them is new functionality).
-7. **Persona card** (ID checks are manual by your decision). Recommended: remove the card.
+1. **Economy brake split in two (owner approved), FIXED in #844.**
+   - The third-party brake counts only SMS, Bunny video, translation, ID checks and Cloudflare,
+     against the rule. When over, it limits only those: their caps, new videos, and SMS beyond
+     sign-in and reset.
+   - The AWS brake compares the AWS bill (SES and Rekognition included) with the AWS budget
+     (AWS Budgets limit). When over, it caps only containers and DB/Redis growth.
+   - Both release below 90 %.
+   - «Экономика» shows both totals and the sum.
+   - Tests: a high AWS forecast alone does not pause video or SMS; high third-party spend alone
+     does not cap containers.
+   - Why: AWS Budgets actions, GCP budgets and per-vendor caps all brake only the money they
+     control.
+2. **Changing the phone (Settings → Account) keeps its SMS code to the new number.**
+   - Telegram, WhatsApp and Signal (help pages, 2025–2026) all confirm a new number with a code
+     sent to that number. A login phone switched without proof of ownership is an account-takeover
+     path.
+   - The change is treated as the «registration» case of the SMS rule (a new number joins the
+     account).
+   - It is already capped: 3 per hour and 10 per day per user, 5 per hour per number, CostGuard,
+     and the third-party brake.
+   - No code change.
+3. **App Check stays in «monitor».**
+   - Every prod verdict is `missing`, so the app sends no token.
+   - Switching to «enforce» now would refuse phone sign-up and reset. Firebase and Google
+     recommend monitoring until most requests are verified.
+   - Needed before «enforce»: register the iOS (App Attest / DeviceCheck) and Android (Play
+     Integrity) apps in Firebase App Check, ship that build, and watch the verdicts turn `valid`.
+4. **Translation: one control, FIXED in #844.**
+   - The master is `chat_translate`, which bootstrap now publishes as the master. Every zone
+     (chats, posts and comments, cases and bids, reviews, profiles) has its own
+     `translate_<zone>` that follows it.
+   - Admin texts say the zones obey the master.
+   - Tests: bootstrap (7), server (4), app (6), plus an e2e step.
+5. **NCMEC: real CyberTipline adapter, FIXED in #844.**
+   - Flow: report → file → file details → finish. On failure the report is retracted.
+   - ESP account fields and «Проверить» (`GET /status`) are on the card; the test environment is
+     the default.
+   - Staff see the NCMEC status and report number in Модерация → Медиа.
+   - The switch defaults to off, labelled «не подключено», until the account exists.
+   - Tested against a fake CyberTipline. A live run needs the ESP account (owner, §6).
+6. **Ranking events and experiments** have code that writes nothing.
+   - Kept visible; rows marked DEAD.
+   - Choice: wire them in the next batch, sampled (`ranking.impression_sample_percent`) and off by
+     default (`ranking.events_mode`), so feed pages get no extra DB write until an A/B test starts.
+     This follows how Instagram and TikTok log impressions through a sampled client/event pipeline,
+     not per request.
+7. **Persona card**: kept (never removed). It is labelled «не подключено» with the reason: ID
+   checks are manual by the owner's 16.10 decision, and a saved key is not read.
+8. **`auto_bar_check`**: kept and made to work as the master of automatic licence lookups. It is
+   not retired.
 
 ## 6. Missing prerequisites: exact steps (owner part)
 
@@ -206,7 +234,7 @@ through built-up names (`recommendations.service.ts:180`, `domain/case-staleness
 
 | flag | prod | reader | status |
 |---|---|---|---|
-| `economy_guard` | on | `common/economy/economy.service.ts:218` | WORKS; rule counts the AWS bill (§1, §5.1) |
+| `economy_guard` | on | `common/economy/economy.service.ts:218` | WORKS; rule FIXED (#844: third-party and AWS brakes apart) |
 | `crash_reports` | on | `modules/crash-reports/crash-reports.service.ts:65`, `apps/mobile/lib/core/feature_flags/feature_flags_providers.dart:136` | WORKS (own crash endpoint; Sentry DSN not configured) |
 | `app_events` | on | `modules/analytics/app-events.service.ts:26`, `apps/mobile/lib/core/feature_flags/feature_flags_providers.dart:135` | WORKS |
 | `hide_counts` | on | `apps/mobile/lib/features/social/application/social_providers.dart:1274` | WORKS |
@@ -284,10 +312,10 @@ Cards are resolved at run time by `common/secrets/secrets.service.ts:243`. The c
 | `aws_location`, `google_places` | `modules/addresses/address-providers.ts:76,152` | — | WORKS (code) |
 | `openai_moderation` | `modules/moderation/text-detector.service.ts:42` | `moderation.detect.mode` default off | inert; a missing key would silently allow all text |
 | `anthropic` | `modules/staff-ai/staff-ai-client.service.ts:36` | — | WORKS (code), staff AI only |
-| `photodna`, `ncmec` | `modules/media-moderation/csam.adapters.ts:45,116` | — | NCMEC is a stub (§5.5) |
+| `photodna`, `ncmec` | `modules/media-moderation/csam.adapters.ts`, `common/secrets/ncmec-cybertipline.ts` | — | NCMEC FIXED (#844, real CyberTipline flow); NOT CONFIGURED until the ESP account |
 | `sentry` | `telemetry/sentry.ts:45`, `feature-flags/services/bootstrap.service.ts:334` | no `sentry.mobile_dsn` in prod bootstrap | NOT CONFIGURED (the app and admin have no Sentry; the own crash endpoint works) |
 | `github`, `github_infra`, `pagerduty`, `cockroach_cloud` | `common/ops/launch/*`, `modules/admin-launch/infra/infra-github.client.ts:54`, `modules/admin-ops/system-health.service.ts:547` | — | admin/ops only; see #843 automation |
-| `persona` | none (ID checks are manual by owner decision) | — | DEAD card (§5.7) |
+| `persona` | none (ID checks are manual by owner decision) | — | NOT CONFIGURED (honest label, kept; §5.7) |
 
 ### A. Every app_config setting (668 keys)
 
@@ -590,7 +618,7 @@ Totals: WORKS: 624, by design: 11, NOT CONFIGURED: 9, DEAD: 7, inert: 5, FIXED: 
 | `moderation.auto_hide_score` | `modules/moderation/moderation.service.ts:767`, `modules/moderation/moderation.service.ts:820` | WORKS (code) |  |
 | `moderation.auto_hold_queue_enabled` | `modules/moderation/auto-hold.service.ts:49`, `modules/moderation/auto-hold.service.ts:50` | WORKS (code) |  |
 | `moderation.blocked_terms` | `modules/moderation/rule-based-moderation.hook.ts:39`, `modules/moderation/rule-based-moderation.hook.ts:68` | WORKS (code) |  |
-| `moderation.csam.ncmec_submit_enabled` | `modules/media-moderation/media-moderation.service.ts:931` | BROKEN (stub, §5.5) |  |
+| `moderation.csam.ncmec_submit_enabled` | `modules/media-moderation/csam.adapters.ts` | FIXED (#844, real CyberTipline; off until the ESP account) |  |
 | `moderation.detect.block_at` | `modules/moderation/text-detector.service.ts:142`, `modules/admin-config/config-schema.ts:1450` | WORKS (code) |  |
 | `moderation.detect.categories` | `modules/moderation/text-detector.service.ts:140`, `modules/admin-config/config-schema.ts:1462` | WORKS (code) |  |
 | `moderation.detect.daily_cap` | `modules/moderation/text-detector.service.ts:173`, `common/ops/cost-registry.ts:2002` | WORKS (code) |  |
