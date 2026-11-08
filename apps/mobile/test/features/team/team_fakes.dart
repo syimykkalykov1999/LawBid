@@ -25,6 +25,7 @@ TaskItem makeTask(
   String? caseId,
   String? caseTitle,
   bool canComplete = true,
+  bool assignedToMe = false,
   List<TaskFile> files = const [],
 }) =>
     TaskItem(
@@ -41,6 +42,7 @@ TaskItem makeTask(
       caseId: caseId,
       caseTitle: caseTitle,
       canComplete: canComplete,
+      assignedToMe: assignedToMe,
       id: id,
       kind: kind,
       title: 'Task $id',
