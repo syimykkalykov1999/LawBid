@@ -38,6 +38,10 @@ import type {
 } from './dto/password.dto';
 import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
 import { AuthChallengeService } from './services/auth-challenge.service';
+import {
+  LOGIN_FAILURES_PER_ACCOUNT_HOUR,
+  PasswordLoginThrottle,
+} from './services/password-login-throttle.service';
 import { simulateSend, timedSend } from './uniform-response.util';
 
 const WINDOW_SECONDS = 3600;
@@ -48,8 +52,10 @@ const LOGIN_PER_IP = 40;
  * from another place must never lock the owner of the number out. */
 const LOGIN_PER_IDENTIFIER_AND_IP = 10;
 /** Wrong passwords for one account from anywhere (a guessing storm). Only
- * failures count, so the owner's correct sign-in is never blocked by it. */
-const LOGIN_FAILURES_PER_IDENTIFIER = 60;
+ * failures count. Once reached, PasswordLoginThrottle refuses devices that
+ * never signed in on the account BEFORE the password check (M1, 2026-11-08);
+ * the owner's own devices keep signing in. */
+const LOGIN_FAILURES_PER_IDENTIFIER = LOGIN_FAILURES_PER_ACCOUNT_HOUR;
 /** Reset codes sent per account / IP per hour (the SMS is the paid path). */
 const RESET_REQUEST_PER_IDENTIFIER = 3;
 const RESET_REQUEST_PER_IP = 15;
@@ -101,6 +107,8 @@ export class PasswordAuthService {
     @Optional() private readonly challenge?: AuthChallengeService,
     // 2026-10-25 (S14-2): first guess of a real SMS send's duration.
     @Optional() private readonly config?: ConfigService,
+    // Security audit 2026-11-08 (M1): backoff + account cap before scrypt.
+    @Optional() private readonly throttle?: PasswordLoginThrottle,
   ) {}
 
   private readonly log = new Logger(PasswordAuthService.name);
@@ -116,12 +124,9 @@ export class PasswordAuthService {
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
 
     const idHash = this.rateLimit.hashIdentifier(identifier);
+    const source = meta.ip ?? deviceInfo.deviceId ?? 'x';
     await this.limit(
-      [
-        'pwd-login',
-        'id+src',
-        `${idHash}:${meta.ip ?? deviceInfo.deviceId ?? 'x'}`,
-      ],
+      ['pwd-login', 'id+src', `${idHash}:${source}`],
       LOGIN_PER_IDENTIFIER_AND_IP,
     );
     if (meta.ip) {
@@ -129,6 +134,13 @@ export class PasswordAuthService {
     }
 
     const user = await this.findUser(channel, identifier);
+    // Security audit 2026-11-08 (M1): refused here, before the hash.
+    await this.throttle?.assertMayTry({
+      idHash,
+      source,
+      userId: user?.id,
+      deviceId: deviceInfo.deviceId,
+    });
     // Always verify (against a dummy hash when there is none): the answer
     // and its timing are the same for an unknown account.
     const ok = await this.passwords.verify(
@@ -137,6 +149,7 @@ export class PasswordAuthService {
     );
     if (!user || !ok) {
       await this.challenge?.recordFailure('password', identifier, meta.ip);
+      await this.throttle?.recordFailure(idHash, source);
       await this.limit(
         ['pwd-login-fail', 'id', idHash],
         LOGIN_FAILURES_PER_IDENTIFIER,
@@ -164,6 +177,7 @@ export class PasswordAuthService {
     });
     await this.assertNotDowngraded(user, identifier, deviceInfo, meta);
     await this.challenge?.clear(identifier);
+    await this.throttle?.recordSuccess(idHash, source);
     await this.upgradeHash(user.id, dto.password, user.password_hash);
     return this.signIn(user, `password:${identifier}`, deviceInfo, meta);
   }

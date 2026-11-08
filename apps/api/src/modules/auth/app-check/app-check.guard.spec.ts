@@ -8,6 +8,7 @@ import {
   parseAppCheckMode,
 } from './app-check.guard';
 import type { AppCheckResult } from './app-check.service';
+import { AuthController } from '../auth.controller';
 
 /** Security research #5 (2026-10-22), A4. */
 describe('AppCheckGuard', () => {
@@ -152,6 +153,42 @@ describe('AppCheckGuard', () => {
       ).resolves.toBe(true);
     });
 
+    // Security audit 2026-11-08 (M1): password sign-in also follows the
+    // normal mode, like the other auth routes.
+    it('always: before any failure the route follows the mode (monitor never blocks)', async () => {
+      options = { challenge: 'password', always: true };
+      const body = { identifier: '+14155552680' };
+      mode = 'monitor';
+      result = { verdict: 'missing' };
+      await expect(guard().canActivate(ctx({}, body))).resolves.toBe(true);
+      expect(verify).toHaveBeenCalledTimes(1);
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ metric: 'app_check', mode: 'monitor' }),
+        'app check',
+      );
+      mode = 'off';
+      verify.mockClear();
+      await expect(guard().canActivate(ctx({}, body))).resolves.toBe(true);
+      expect(verify).not.toHaveBeenCalled();
+      mode = 'enforce';
+      await expect(guard().canActivate(ctx({}, body))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      result = { verdict: 'valid' };
+      await expect(
+        guard().canActivate(ctx({ 'x-firebase-appcheck': 'ok' }, body)),
+      ).resolves.toBe(true);
+    });
+
+    it('always + challenged: a token is required even in monitor', async () => {
+      challenged = true;
+      options = { challenge: 'password', always: true };
+      mode = 'monitor';
+      await expect(
+        guard().canActivate(ctx({}, { identifier: '+14155552680' })),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
     it('challenged but no Firebase project: never locks everyone out', async () => {
       challenged = true;
       options = { challenge: 'otp' };
@@ -160,6 +197,18 @@ describe('AppCheckGuard', () => {
         guard().canActivate(ctx({}, { identifier: '+14155552680' })),
       ).resolves.toBe(true);
     });
+  });
+
+  it('M1: password sign-in carries App Check like the other auth routes', () => {
+    expect(
+      Reflect.getMetadata(
+        APP_CHECK_KEY,
+        Object.getOwnPropertyDescriptor(
+          AuthController.prototype,
+          'passwordLogin',
+        )!.value as object,
+      ),
+    ).toEqual({ challenge: 'password', always: true });
   });
 
   it('parses the admin setting and treats anything else as monitor', () => {

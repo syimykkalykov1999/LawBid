@@ -16,6 +16,7 @@ import { LegalController } from '../../legal/legal.controller';
 import { StarsController } from '../../stars/stars.controller';
 import { PromotionsController } from '../../promotions/promotions.controller';
 import { CaseContactsController } from '../../cases/contacts/case-contacts.controller';
+import { CasePaymentsController } from '../../case-payments/case-payments.controller';
 
 /**
  * Owner 2026-10-22 (security audit #3, finding 1): the JwtAuthGuard swaps
@@ -93,6 +94,32 @@ describe('assistant gates (security audit #3)', () => {
       'createPostPromotion',
       'stopPromotion',
     ]);
+  });
+
+  // Security audit 2026-11-08 (M4): a duty-less assistant read the
+  // attorney's payments, ledger CSV, receipts and payout account.
+  it('case payments need the "cases" duty; the payout account is the attorney’s', () => {
+    const duty = (n: string) => meta(REQUIRES_DUTY, CasePaymentsController, n);
+    const caseWork = Object.getOwnPropertyNames(
+      CasePaymentsController.prototype,
+    ).filter((n) => n !== 'constructor' && duty(n) === 'cases');
+    expect(caseWork.sort()).toEqual([
+      'cancelPaymentRequest',
+      'createPaymentRequests',
+      'exportMyCasePayments',
+      'getCasePayment',
+      'getCasePaymentReceipt',
+      'getCasePayments',
+      'getMyCasePaymentsSummary',
+      'listMyCasePayments',
+      'listPaymentRequests',
+    ]);
+    expect(attorneyOnlyHandlers(CasePaymentsController)).toEqual([
+      'getPayoutAccount',
+    ]);
+    // What a client needs to pay stays open to every role.
+    expect(duty('getPaymentSettings')).toBeUndefined();
+    expect(duty('getPaymentQuote')).toBeUndefined();
   });
 
   it('referral, partner terms and DMCA statements are the attorney’s own', () => {
