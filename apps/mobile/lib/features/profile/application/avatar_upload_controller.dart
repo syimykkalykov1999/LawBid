@@ -185,7 +185,8 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
   }
 }
 
-/// Not auto-disposed: the upload outlives the screen (see [build]).
+/// Not auto-disposed: the upload outlives the screen (see
+/// `AvatarUploadController.build`).
 final avatarUploadControllerProvider =
     NotifierProvider<AvatarUploadController, AvatarUploadState>(
   AvatarUploadController.new,

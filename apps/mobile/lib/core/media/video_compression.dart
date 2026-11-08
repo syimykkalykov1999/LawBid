@@ -7,10 +7,10 @@ import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/media/browser_video_compressor.dart';
 import 'package:lawbid/core/media/browser_video_encoder_stub.dart'
     if (dart.library.js_interop) 'package:lawbid/core/media/browser_video_encoder_web.dart';
-import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:video_compress/video_compress.dart';
 
 /// Owner 2026-10-05: a reel is re-encoded on the phone before upload — at

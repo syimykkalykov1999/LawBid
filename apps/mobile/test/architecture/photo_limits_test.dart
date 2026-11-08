@@ -22,9 +22,11 @@ void main() {
       if (f is! File || !f.path.endsWith('.dart')) continue;
       if (allowed.contains(f.path)) continue;
       final src = f.readAsStringSync();
-      for (final call in RegExp(r'ImagePicker\(\)\s*\.\s*pick\w*\(([^;]*?)\);',
-              dotAll: true)
-          .allMatches(src)) {
+      final calls = RegExp(
+        r'ImagePicker\(\)\s*\.\s*pick\w*\(([^;]*?)\);',
+        dotAll: true,
+      );
+      for (final call in calls.allMatches(src)) {
         if (literal.hasMatch(call.group(1)!)) {
           final line = src.substring(0, call.start).split('\n').length;
           offenders.add('${f.path}:$line');
