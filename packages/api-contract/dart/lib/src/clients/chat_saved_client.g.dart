@@ -22,17 +22,17 @@ class _ChatSavedClient implements ChatSavedClient {
 
   @override
   Future<SavedChatItemListEnvelope> listSavedChat({
-    SavedChatTab? tab,
     String? q,
     String? cursor,
+    SavedChatTab? tab = SavedChatTab.all,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'tab': tab?.toJson(),
       r'q': q,
       r'cursor': cursor,
+      r'tab': tab?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

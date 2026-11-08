@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { type ArgumentMetadata, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule } from '@nestjs/swagger';
@@ -220,7 +220,7 @@ export function configureApp(
   void startSentry(app, config, scrubSentryEvent).catch(() => undefined);
 
   app.useGlobalPipes(
-    new ValidationPipe({
+    new HttpValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
@@ -231,6 +231,18 @@ export function configureApp(
 
   if (exposeDocs) {
     SwaggerModule.setup('docs', app, buildOpenApiDocument(app));
+  }
+}
+
+/** NestJS 12 also runs global pipes on WebSocket handlers
+ * (docs.nestjs.com/websockets/pipes); 11 ran them on HTTP routes only. An
+ * HTTP parameter has a string `type` ('body', 'query', 'param', 'custom'),
+ * a WebSocket one a number, so the gateways keep getting their raw socket
+ * and payload, as before the upgrade. */
+export class HttpValidationPipe extends ValidationPipe {
+  override transform(value: unknown, metadata: ArgumentMetadata) {
+    if (typeof metadata.type !== 'string') return Promise.resolve(value);
+    return super.transform(value, metadata);
   }
 }
 

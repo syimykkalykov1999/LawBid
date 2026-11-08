@@ -56,6 +56,7 @@ function setup(
   const call = async (authorization?: string) => {
     const req = { ip: '10.0.0.1', headers: { authorization } };
     const context = {
+      getType: () => 'http',
       switchToHttp: () => ({ getRequest: () => req, getResponse: () => res }),
       getHandler: () => handler,
       getClass: () => Route,

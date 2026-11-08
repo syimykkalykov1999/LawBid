@@ -22,18 +22,18 @@ class _ChatClient implements ChatClient {
 
   @override
   Future<ConversationListEnvelope> listConversations({
+    ConversationFolder? folder = ConversationFolder.all,
     String? cursor,
     String? updatedSince,
-    ConversationFolder? folder,
     String? q,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
+      r'folder': folder?.toJson(),
       r'cursor': cursor,
       r'updatedSince': updatedSince,
-      r'folder': folder?.toJson(),
       r'q': q,
     };
     queryParameters.removeWhere((k, v) => v == null);

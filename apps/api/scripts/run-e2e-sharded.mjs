@@ -85,7 +85,8 @@ const baseArgs = ['jest', '--config', './test/jest-e2e.json', '--forceExit'];
 function runJest(extra, outFile) {
   return spawnSync(jest, [...baseArgs, ...extra, '--json', `--outputFile=${outFile}`, ...rest], {
     stdio: 'inherit',
-    env: process.env,
+    // NestJS 12 is ESM-only: Jest loads it through require(esm) (migration guide).
+    env: { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --experimental-vm-modules`.trim() },
   });
 }
 function failedSuites(file) {
@@ -126,32 +127,46 @@ const quarantineIgnore = quarantine.length
   : [];
 let failed = 0;
 const toRun = only ? [only] : Array.from({ length: shards }, (_, k) => k + 1);
-for (const i of toRun) {
-  console.log(`\n=== e2e shard ${i}/${shards} ===`);
-  const file = join(outDir, `shard-${i}.json`);
-  const r = runJest([`--shard=${i}/${shards}`, ...quarantineIgnore], file);
+// NestJS 12 (ESM-only, loaded by Jest through require(esm)) keeps a larger
+// module graph per finished suite: one process for a whole shard (~70
+// suites) passed the 6 GB heap (exit 134, 2026-11-07). Each shard therefore
+// runs in E2E_SHARD_PARTS fresh processes, the same idea as the shards
+// themselves; shard i is parts (i-1)*P+1 .. i*P of shards*P, so the matrix
+// jobs together still run every suite exactly once.
+const parts = Math.max(1, Number(process.env.E2E_SHARD_PARTS ?? 3));
+const units = toRun.flatMap((i) =>
+  Array.from({ length: parts }, (_, k) => ({
+    i,
+    label: parts > 1 ? `${i}.${k + 1}` : `${i}`,
+    shard: `${(i - 1) * parts + k + 1}/${shards * parts}`,
+  })),
+);
+for (const { i, label, shard } of units) {
+  console.log(`\n=== e2e shard ${i}/${shards}${parts > 1 ? ` (part ${label})` : ''} ===`);
+  const file = join(outDir, `shard-${label}.json`);
+  const r = runJest([`--shard=${shard}`, ...quarantineIgnore], file);
   if (r.status === 0) continue;
   // One retry of just the failed suites (a process that died: the whole shard).
   const bad = failedSuites(file);
   console.warn(
     bad === null
-      ? `\nshard ${i}/${shards} died without a result (exit ${r.status}, signal ${r.signal}): retrying it once`
-      : `\nshard ${i}/${shards}: ${bad.length} suite(s) failed, retrying them once: ${bad.map((b) => b.path).join(', ')}`,
+      ? `\nshard ${label}/${shards} died without a result (exit ${r.status}, signal ${r.signal}): retrying it once`
+      : `\nshard ${label}/${shards}: ${bad.length} suite(s) failed, retrying them once: ${bad.map((b) => b.path).join(', ')}`,
   );
-  const retryFile = join(outDir, `shard-${i}-retry.json`);
+  const retryFile = join(outDir, `shard-${label}-retry.json`);
   const retry =
     bad === null
-      ? runJest([`--shard=${i}/${shards}`, ...quarantineIgnore], retryFile)
+      ? runJest([`--shard=${shard}`, ...quarantineIgnore], retryFile)
       : runJest(['--runTestsByPath', ...bad.map((b) => b.path)], retryFile);
   if (retry.status === 0) {
-    for (const b of bad ?? [{ path: `shard ${i}/${shards} (process died)`, message: `exit ${r.status} signal ${r.signal}` }]) {
+    for (const b of bad ?? [{ path: `shard ${label}/${shards} (process died)`, message: `exit ${r.status} signal ${r.signal}` }]) {
       flaky.push({ shard: i, suite: b.path.replace(/^.*\/test\//, 'test/'), firstFailure: b.message });
     }
     continue;
   }
   failed += 1;
-  summaries.push(summarize(i, retryFile));
-  console.error(`e2e shard ${i}/${shards} failed twice (exit ${retry.status}, signal ${retry.signal})`);
+  summaries.push(summarize(label, retryFile));
+  console.error(`e2e shard ${label}/${shards} failed twice (exit ${retry.status}, signal ${retry.signal})`);
 }
 if (flaky.length) {
   writeFileSync(join(outDir, 'flaky.json'), JSON.stringify({ at: new Date().toISOString(), flaky }, null, 2));
@@ -167,7 +182,7 @@ if (flaky.length) {
 if (failed > 0) {
   console.error('\n=== failed e2e tests (summary) ===');
   for (const s of summaries) console.error(s);
-  console.error(`\n${failed} of ${toRun.length} e2e shards failed`);
+  console.error(`\n${failed} of ${units.length} e2e shard parts failed`);
   process.exit(1);
 }
 console.log(`\nall ${toRun.length} e2e shard(s) passed${flaky.length ? ` (${flaky.length} flaky suite(s) passed on retry)` : ''}`);

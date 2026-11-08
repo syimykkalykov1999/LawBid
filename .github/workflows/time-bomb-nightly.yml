@@ -49,7 +49,7 @@ jobs:
         # reds, e.g. pay-page.service.spec); they are skipped here.
         run: |
           IGN=$(grep -rl useFakeTimers src --include='*.spec.ts' | sed 's#\.#\\.#g' | paste -sd'|')
-          npx jest --setupFiles '<rootDir>/../test/time-shift.setup.js' --testPathIgnorePatterns "$IGN" --maxWorkers=4 --silent
+          NODE_OPTIONS="${NODE_OPTIONS:-} --experimental-vm-modules" npx jest --setupFiles '<rootDir>/../test/time-shift.setup.js' --testPathIgnorePatterns "$IGN" --maxWorkers=4 --silent
 
   notify:
     name: Notify the owner

@@ -95,12 +95,12 @@ abstract class AdminContentClient {
   /// [to] - Created before (exclusive).
   @GET('/admin/content/comments')
   Future<AdminCommentRowListEnvelope> listAdminComments({
+    @Query('thread') AdminCommentThread? thread = AdminCommentThread.post,
     @Query('q') String? q,
     @Query('cursor') String? cursor,
     @Query('authorId') String? authorId,
     @Query('from') DateTime? from,
     @Query('to') DateTime? to,
-    @Query('thread') AdminCommentThread? thread,
     @Extras() Map<String, dynamic>? extras,
   });
 

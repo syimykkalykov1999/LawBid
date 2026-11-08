@@ -66,7 +66,12 @@ for (const batch of batches) {
     ],
     {
       stdio: 'inherit',
-      env: { ...process.env, E2E_TWO_DB: process.env.E2E_TWO_DB || 'all' },
+      env: {
+        ...process.env,
+        E2E_TWO_DB: process.env.E2E_TWO_DB || 'all',
+        // NestJS 12 is ESM-only: Jest loads it through require(esm) (migration guide).
+        NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --experimental-vm-modules`.trim(),
+      },
       cwd: join(import.meta.dirname, '..'),
     },
   );

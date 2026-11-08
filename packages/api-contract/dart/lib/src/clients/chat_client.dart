@@ -50,9 +50,9 @@ abstract class ChatClient {
   /// [q] - Owner 2026-10-18: search my chats — the other person's name (any alphabet, typos, word order) or @username, the case title, or the words of any message. Items then carry matchedMessage.
   @GET('/conversations')
   Future<ConversationListEnvelope> listConversations({
+    @Query('folder') ConversationFolder? folder = ConversationFolder.all,
     @Query('cursor') String? cursor,
     @Query('updatedSince') String? updatedSince,
-    @Query('folder') ConversationFolder? folder,
     @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });

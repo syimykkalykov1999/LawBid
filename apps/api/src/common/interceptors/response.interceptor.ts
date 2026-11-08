@@ -28,6 +28,11 @@ export class ResponseInterceptor<T> implements NestInterceptor<
     context: ExecutionContext,
     next: CallHandler<T>,
   ): Observable<ApiSuccessBody<T>> {
+    // NestJS 12 runs global enhancers on WebSocket handlers too
+    // (docs.nestjs.com/websockets/guards); in 11 they were HTTP-only.
+    if (context.getType() !== 'http') {
+      return next.handle() as unknown as Observable<ApiSuccessBody<T>>;
+    }
     return next.handle().pipe(
       map((payload) => {
         const disclaimer = this.disclaimerOf(context);

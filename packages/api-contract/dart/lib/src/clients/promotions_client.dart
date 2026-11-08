@@ -33,8 +33,8 @@ abstract class PromotionsClient {
   @GET('/promotions/quote')
   Future<PromotionQuoteEnvelope> getPromotionQuote({
     @Query('days') required int days,
+    @Query('target') PromotionTarget? target = PromotionTarget.valueCase,
     @Query('dailyBudgetCents') int? dailyBudgetCents,
-    @Query('target') PromotionTarget? target,
     @Query('video') bool? video,
     @Query('billing') BoostBilling? billing,
     @Extras() Map<String, dynamic>? extras,

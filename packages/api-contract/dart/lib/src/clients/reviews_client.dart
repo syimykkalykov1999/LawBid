@@ -65,9 +65,9 @@ abstract class ReviewsClient {
   @GET('/attorneys/{id}/reviews')
   Future<PublicReviewListEnvelope> list({
     @Path('id') required String id,
+    @Query('sort') ReviewSort? sort = ReviewSort.newest,
     @Query('limit') int? limit = 20,
     @Query('rating') int? rating,
-    @Query('sort') ReviewSort? sort,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });

@@ -8,6 +8,7 @@ function buildContext(
 ) {
   const req = { header: (name: string) => headers[name.toLowerCase()] };
   return {
+    getType: () => 'http',
     switchToHttp: () => ({ getRequest: () => req }),
     getHandler: () => ({}),
     getClass: () => ({}),

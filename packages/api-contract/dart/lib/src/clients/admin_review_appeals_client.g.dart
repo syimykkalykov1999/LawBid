@@ -22,15 +22,15 @@ class _AdminReviewAppealsClient implements AdminReviewAppealsClient {
 
   @override
   Future<AdminReviewAppealListEnvelope> listReviewAppeals({
-    ReviewAppealStatus? status,
     String? cursor,
+    ReviewAppealStatus? status = ReviewAppealStatus.pending,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'status': status?.toJson(),
       r'cursor': cursor,
+      r'status': status?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

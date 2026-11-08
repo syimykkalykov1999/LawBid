@@ -22,12 +22,12 @@ class _QuestionsClient implements QuestionsClient {
 
   @override
   Future<QuestionListEnvelope> listQuestions({
+    QuestionFilter? filter = QuestionFilter.all,
+    QuestionScope? scope = QuestionScope.all,
     int? limit = 20,
     String? q,
     String? practiceAreaId,
     String? stateCode,
-    QuestionFilter? filter,
-    QuestionScope? scope,
     String? cursor,
     DateTime? updatedSince,
     Map<String, dynamic>? extras,
@@ -35,12 +35,12 @@ class _QuestionsClient implements QuestionsClient {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
+      r'filter': filter?.toJson(),
+      r'scope': scope?.toJson(),
       r'limit': limit,
       r'q': q,
       r'practiceAreaId': practiceAreaId,
       r'stateCode': stateCode,
-      r'filter': filter?.toJson(),
-      r'scope': scope?.toJson(),
       r'cursor': cursor,
       r'updatedSince': updatedSince?.toIso8601String(),
     };

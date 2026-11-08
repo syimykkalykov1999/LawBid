@@ -126,10 +126,10 @@ abstract class AdminOutreachClient {
   @POST('/admin/outreach/leads/import')
   Future<OutreachImportReportEnvelope> outreachImportCsv({
     @Part(name: 'file') required MultipartFile file,
-    @Query('mode') OutreachImportMode? mode,
-    @Query('kind') OutreachLeadKind? kind,
     @Query('partnerId') String? partnerId,
     @Query('sourceNote') String? sourceNote,
+    @Query('mode') OutreachImportMode? mode = OutreachImportMode.dryRun,
+    @Query('kind') OutreachLeadKind? kind = OutreachLeadKind.attorney,
     @Extras() Map<String, dynamic>? extras,
   });
 

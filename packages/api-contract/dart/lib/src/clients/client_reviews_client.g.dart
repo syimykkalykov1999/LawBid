@@ -313,16 +313,16 @@ class _ClientReviewsClient implements ClientReviewsClient {
   @override
   Future<ClientReviewListEnvelope> listClientReviews({
     required String id,
+    ClientReviewsSort? sort = ClientReviewsSort.newest,
     int? rating,
-    ClientReviewsSort? sort,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'rating': rating,
       r'sort': sort?.toJson(),
+      r'rating': rating,
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);

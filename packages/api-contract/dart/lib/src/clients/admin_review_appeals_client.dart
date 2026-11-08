@@ -20,8 +20,8 @@ abstract class AdminReviewAppealsClient {
   /// Appeals by status, oldest first
   @GET('/admin/review-appeals')
   Future<AdminReviewAppealListEnvelope> listReviewAppeals({
-    @Query('status') ReviewAppealStatus? status,
     @Query('cursor') String? cursor,
+    @Query('status') ReviewAppealStatus? status = ReviewAppealStatus.pending,
     @Extras() Map<String, dynamic>? extras,
   });
 

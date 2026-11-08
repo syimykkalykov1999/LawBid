@@ -39,6 +39,9 @@ export function headerWantsAvif(value: unknown): boolean {
 @Injectable()
 export class ImageFormatInterceptor implements NestInterceptor {
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
+    // NestJS 12 runs global enhancers on WebSocket handlers too
+    // (docs.nestjs.com/websockets/guards); in 11 they were HTTP-only.
+    if (ctx.getType() !== 'http') return next.handle();
     const req = ctx
       .switchToHttp()
       .getRequest<{ headers?: Record<string, unknown> }>();
