@@ -10,6 +10,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/call_decline_marks.dart';
 import 'package:lawbid/features/calls/application/call_end_port_stub.dart'
     if (dart.library.io) 'package:lawbid/features/calls/application/call_end_port_io.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -42,6 +43,9 @@ class CallkitSystemUi implements SystemCallUi {
     // event: that is not the user hanging up (Android: answering from the
     // heads-up ended the call it had just answered).
     _ignoreEnded(callId);
+    // Owner 2026-11-08: and not for the native decline either (iOS
+    // AppDelegate.onDecline, Android LawbidApplication) — marked first.
+    await markEndedByApp(callId);
     try {
       await FlutterCallkitIncoming.endCall(callId);
     } on Object {
@@ -58,6 +62,11 @@ class CallkitSystemUi implements SystemCallUi {
     // impossible — one call at a time, the server declines the other.
     if (defaultTargetPlatform != TargetPlatform.android) return;
     try {
+      // The plugin ends a call that was not answered as a «decline»: none
+      // of these is the person's (owner 2026-11-08, native decline).
+      for (final c in await FlutterCallkitIncoming.activeCalls()) {
+        await markEndedByApp(c.id);
+      }
       await FlutterCallkitIncoming.endAllCalls();
     } on Object {
       // No plugin.
@@ -247,6 +256,9 @@ Future<void> showLawbidIncoming({
   // Owner 2026-10-28: the call stopped ringing before this (late) ring got
   // here — the native side marked it (CallRinging.kt): never show it.
   if (await ringEndedAlready(callId)) return;
+  // Owner 2026-11-08: declined on this phone already (a late push rang it
+  // again with no call behind it).
+  if (await declinedHere(callId)) return;
   try {
     // Already on screen (iOS: PushKit reported it before the socket did):
     // a second report would replace the call and end the one being answered.
@@ -428,6 +440,8 @@ Future<void> stopLawbidIncoming(String callId, {bool over = false}) async {
     final calls = await FlutterCallkitIncoming.activeCalls();
     final mine = calls.where((c) => c.id == callId);
     if (mine.isEmpty || (!over && mine.any((c) => c.isAccepted))) return;
+    // The call is over elsewhere: not the person's «Decline» (2026-11-08).
+    await markEndedByApp(callId);
     await FlutterCallkitIncoming.endCall(callId);
   } on Object catch (e) {
     debugPrint('callkit unavailable: $e');
@@ -626,6 +640,15 @@ final callkitEventsProvider = Provider<void>((ref) {
             // Our own dismiss (answered elsewhere, replaced by the ongoing
             // call) is reported as a decline too: not the user's choice.
             if (target == null) break;
+            // Owner 2026-11-08 (prod: declines of ids the server never made,
+            // 404): a call this app is not ringing that the app — or the
+            // native side, for a throw-away VoIP report — ended itself is
+            // not declined; the person's own decline of the real call is
+            // sent natively (AppDelegate.onDecline has its true data).
+            if (s.call?.id != target && await endedByApp(target)) break;
+            // Owner 2026-11-08: never rung here again (socket, push, scan).
+            controller.noteDeclinedHere(target);
+            await markDeclinedHere(target);
             if (s.call?.id == target) {
               await controller.decline();
             } else {
@@ -649,6 +672,8 @@ final callkitEventsProvider = Provider<void>((ref) {
   }
   // A call accepted on the lock screen before the app started.
   unawaited(() async {
+    // Owner 2026-11-08: declines made natively while the app slept.
+    await _loadDeclinedHere(ref);
     try {
       // Owner 2026-10-28 (prod log: GET /calls/:id → 401 «Missing bearer
       // token» from a waking phone): not before the session is back.
@@ -671,11 +696,26 @@ final callkitEventsProvider = Provider<void>((ref) {
   final stopEnded = listenCallEnded((id) {
     unawaited(ref.read(callControllerProvider.notifier).remoteEnded(id));
   });
+  // Back to the front: what the native side declined meanwhile.
+  final lifecycle = AppLifecycleListener(
+    onResume: () => unawaited(_loadDeclinedHere(ref)),
+  );
   ref.onDispose(() {
     sub?.cancel();
     stopEnded();
+    lifecycle.dispose();
   });
 });
+
+/// Owner 2026-11-08: the calls declined natively (iOS AppDelegate.onDecline,
+/// Android CallDecline) while the app slept reach the call controller, so
+/// a late `call:incoming` of one of them does not ring again.
+Future<void> _loadDeclinedHere(Ref ref) async {
+  final ids = await declinedHereIds();
+  if (!ref.mounted) return;
+  final controller = ref.read(callControllerProvider.notifier);
+  ids.forEach(controller.noteDeclinedHere);
+}
 
 /// R-373: whenever no call of ours runs — at start, at the end of every
 /// call, each time the app comes back to the front — Android's leftovers

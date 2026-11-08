@@ -3,7 +3,10 @@
 ## flutter_callkit_incoming — MIT
 
 Used in `ios/Runner/AppDelegate.swift` (the VoIP push → CallKit report
-pattern of the package's example AppDelegate), tag v3.1.6, commit
+pattern of the package's example AppDelegate, and its README `onDecline`
+server call), and in `android/.../LawbidApplication.kt` + `CallDecline.kt`
+(the README «MainApplication.kt» `CallkitEventCallback` decline flow),
+tag v3.1.6, commit
 27cd33c1665b7fbc4c8032a7866c929103029592,
 https://github.com/hiennguyen92/flutter_callkit_incoming
 

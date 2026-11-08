@@ -55,8 +55,9 @@ describe('signCloudFrontUrl', () => {
       "filename*=UTF-8''%D0%94%D0%BE%D0%B3%D0%BE%D0%B2%D0%BE%D1%80",
     );
     expect(url.searchParams.get('Key-Pair-Id')).toBe('K2JCJMDEHXQW5F');
-    // Signed from the start of its 60 s bucket, valid for the bucket + TTL.
-    expect(url.searchParams.get('Expires')).toBe(String(1_699_999_980 + 120));
+    // Signed from the start of its 6 s bucket (a tenth of the TTL), for the
+    // TTL: never longer than the TTL from now.
+    expect(url.searchParams.get('Expires')).toBe(String(1_699_999_998 + 60));
     expect(url.searchParams.get('Signature')).toMatch(/^[A-Za-z0-9~_-]+$/);
     expect(url.searchParams.has('X-Amz-Signature')).toBe(false);
   });
@@ -64,14 +65,26 @@ describe('signCloudFrontUrl', () => {
   it('gives the same link all through one time bucket (ETag / 304)', () => {
     const at = (ms: number) =>
       signCloudFrontUrl(cdn, 'chat_voice/u1/f1', 3600, undefined, ms);
-    const hour = 1_699_999_200_000; // a whole hour
-    expect(at(hour + 1_000)).toBe(at(hour + 3_599_000));
-    expect(at(hour + 3_600_000)).not.toBe(at(hour));
-    // Still valid at least the TTL after it was handed out.
-    const late = new URL(at(hour + 3_599_000));
-    expect(Number(late.searchParams.get('Expires'))).toBeGreaterThanOrEqual(
-      (hour + 3_599_000) / 1000 + 3600,
+    const bucket = 1_699_999_200_000; // a whole 6-minute bucket
+    expect(at(bucket + 1_000)).toBe(at(bucket + 359_000));
+    expect(at(bucket + 360_000)).not.toBe(at(bucket));
+    // Never valid longer than the TTL, at most a tenth shorter.
+    const expires = (ms: number) =>
+      Number(new URL(at(ms)).searchParams.get('Expires'));
+    expect(expires(bucket + 359_000)).toBeLessThanOrEqual(
+      (bucket + 359_000) / 1000 + 3600,
     );
+    expect(expires(bucket + 359_000)).toBeGreaterThanOrEqual(
+      (bucket + 359_000) / 1000 + 3600 - 360,
+    );
+  });
+
+  it('a short link keeps its exact life from now (no bucket)', () => {
+    const now = 1_700_000_000_500;
+    const url = new URL(
+      signCloudFrontUrl(cdn, 'verification_document/u1/f1', 2, undefined, now),
+    );
+    expect(url.searchParams.get('Expires')).toBe(String(1_700_000_000 + 2));
   });
 
   it('percent-encodes key segments', () => {
@@ -161,7 +174,7 @@ describe('S3StorageService cache headers and CDN invalidation', () => {
         'chat_voice/u1/f1',
         3600,
       );
-      now.mockReturnValue(hour + 3_500_000);
+      now.mockReturnValue(hour + 355_000);
       const second = await s.signedGetUrl(
         'lawbid-documents',
         'chat_voice/u1/f1',
@@ -170,10 +183,22 @@ describe('S3StorageService cache headers and CDN invalidation', () => {
       expect(second).toBe(first);
       const u = new URL(first);
       expect(u.searchParams.get('X-Amz-Date')).toBe('20231114T220000Z');
-      expect(u.searchParams.get('X-Amz-Expires')).toBe('7200');
+      expect(u.searchParams.get('X-Amz-Expires')).toBe('3600');
     } finally {
       now.mockRestore();
     }
+  });
+
+  it('a short presigned read keeps its exact TTL (verification, exports)', async () => {
+    const s = service({});
+    const url = new URL(
+      await s.signedGetUrl('lawbid-documents', 'verification_document/u1/f', 2),
+    );
+    expect(url.searchParams.get('X-Amz-Expires')).toBe('2');
+    const exp = new URL(
+      await s.signedGetUrl('lawbid-documents', 'exports/x/latest.pdf', 600),
+    );
+    expect(exp.searchParams.get('X-Amz-Expires')).toBe('600');
   });
 
   it('presigned S3 reads of private files ask for a private header', async () => {
