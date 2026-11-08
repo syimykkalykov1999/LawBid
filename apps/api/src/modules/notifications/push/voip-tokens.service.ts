@@ -59,6 +59,15 @@ export class VoipTokensService {
         last_seen_at: new Date(),
       },
     });
+    // One VoIP token per phone (sign-in chain): an older one of the same
+    // chain only doubles every ring (owner 2026-11-08).
+    await this.prisma.voipToken.deleteMany({
+      where: {
+        user_id: userId,
+        token: { not: token },
+        session: { session_chain_id: sessionChainId },
+      },
+    });
     const stale = await this.prisma.voipToken.findMany({
       where: { user_id: userId },
       orderBy: { last_seen_at: 'desc' },
@@ -101,8 +110,21 @@ export class VoipTokensService {
         where: { token: { in: dead } },
       });
     }
+    // Owner 2026-11-08 (prod: a declined iPhone sent declines of ids the
+    // server never made): one phone (sign-in chain) kept an old VoIP token
+    // next to its new one and got TWO ring pushes per call; the second was
+    // reported as a throw-away CallKit call, and the plugin then reported
+    // the person's «Decline» with the throw-away's id. One push per chain:
+    // the newest token (rows come newest first).
+    const seen = new Set<string>();
     return rows
       .filter((r) => r.alive)
+      .filter((r) => {
+        if (!r.chainId) return true;
+        if (seen.has(r.chainId)) return false;
+        seen.add(r.chainId);
+        return true;
+      })
       .map(({ token, topic, environment, sessionId, chainId }) => ({
         token,
         topic,

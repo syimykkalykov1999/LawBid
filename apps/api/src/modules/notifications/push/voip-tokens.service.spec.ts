@@ -69,3 +69,68 @@ describe('VoipTokensService.fcmTokensCoveredBy', () => {
     await expect(svc.fcmTokensCoveredBy(['unknown'])).resolves.toEqual([]);
   });
 });
+
+/**
+ * Owner 2026-11-08 (prod: a declined iPhone sent declines of call ids the
+ * server never made): an old VoIP token of the same phone (sign-in chain)
+ * doubled every ring push; the second push became a throw-away CallKit
+ * call whose id the plugin then reported for the person's «Decline».
+ */
+describe('VoipTokensService: one VoIP push per phone', () => {
+  it('activeDevices keeps only the newest token of each sign-in chain', async () => {
+    const rows = [
+      {
+        token: 'new',
+        topic: 't',
+        environment: 'production',
+        sessionId: 's2',
+        chainId: 'iphone',
+        alive: true,
+      },
+      {
+        token: 'old',
+        topic: 't',
+        environment: 'production',
+        sessionId: 's1',
+        chainId: 'iphone',
+        alive: true,
+      },
+      {
+        token: 'ipad',
+        topic: 't',
+        environment: 'production',
+        sessionId: 's3',
+        chainId: 'ipad',
+        alive: true,
+      },
+    ];
+    const prisma = {
+      $queryRaw: jest.fn(async () => rows),
+      voipToken: { deleteMany: jest.fn() },
+    };
+    const svc = new VoipTokensService(prisma as never);
+    const out = await svc.activeDevices('u');
+    expect(out.map((d) => d.token)).toEqual(['new', 'ipad']);
+  });
+
+  it('register drops the other tokens of the same chain', async () => {
+    const deleteMany = jest.fn(async () => ({ count: 1 }));
+    const prisma = {
+      session: { findFirst: jest.fn(async () => ({ id: 's2' })) },
+      voipToken: {
+        upsert: jest.fn(async () => ({})),
+        deleteMany,
+        findMany: jest.fn(async () => []),
+      },
+    };
+    const svc = new VoipTokensService(prisma as never);
+    await svc.register('u', 'iphone', 'new', 't', 'production');
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: {
+        user_id: 'u',
+        token: { not: 'new' },
+        session: { session_chain_id: 'iphone' },
+      },
+    });
+  });
+});

@@ -36,13 +36,22 @@ class CallPushReceiver : BroadcastReceiver() {
             try {
                 when (action) {
                     CallRinging.PushAction.STOP -> CallRinging.stop(app, callId)
-                    CallRinging.PushAction.WATCH ->
+                    CallRinging.PushAction.WATCH -> {
+                        // Owner 2026-11-08: «Decline» tells the server
+                        // with this ticket (CallDecline, app closed too).
+                        CallDecline.rememberTicket(
+                            app,
+                            callId,
+                            data["pollToken"],
+                            CallRinging.ringMsOf(data),
+                        )
                         CallRinging.watch(
                             app,
                             callId,
                             data["pollToken"],
                             CallRinging.ringMsOf(data),
                         )
+                    }
                     CallRinging.PushAction.NONE -> Unit
                 }
             } catch (e: Exception) {
