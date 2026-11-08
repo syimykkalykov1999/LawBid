@@ -22,10 +22,14 @@ export type TranslateZone = (typeof TRANSLATE_ZONES)[number];
 
 export const zoneKey = (zone: TranslateZone) => `translate.${zone}`;
 
-/** The bootstrap flag the app reads for a zone (`chat_translate` stays
- * the chat one, as older app builds read it). */
-export const zoneFlag = (zone: TranslateZone) =>
-  zone === 'chat' ? 'chat_translate' : `translate_${zone}`;
+/** The bootstrap flag the app reads for a zone. Owner 2026-11-08 (one
+ * control): `chat_translate` in the bootstrap is the master itself (flag on
+ * and the Google key saved), the same for every zone; each zone, chats
+ * included, has its own `translate_<zone>` that follows the master. Before,
+ * `chat_translate` doubled as the chat zone, so «only chosen zones» without
+ * chats switched translation off in posts, cases, reviews and profiles too
+ * (the app gates every zone on `chat_translate`). */
+export const zoneFlag = (zone: TranslateZone) => `translate_${zone}`;
 
 /** Is [zone] allowed by the scope settings (flag and key aside)? */
 export function zoneAllowed(
