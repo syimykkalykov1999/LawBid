@@ -2,7 +2,7 @@ import { imageFormatContext } from './processing/image-format-context';
 import { createHash } from 'node:crypto';
 import { HttpException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
-import type { File } from '@prisma/client';
+import { Prisma, type File } from '@prisma/client';
 import type Redis from 'ioredis';
 import type { PinoLogger } from 'nestjs-pino';
 import { FilesService } from './files.service';
@@ -92,6 +92,9 @@ function make(
         .fn()
         .mockResolvedValue({ url: 'http://s3/b', fields: { key: 'k' } }),
       signedGetUrl: jest.fn().mockResolvedValue('http://signed'),
+      // M3 (2026-11-08): confirm copies the upload to a server-owned key.
+      copy: jest.fn().mockResolvedValue(true),
+      remove: jest.fn().mockResolvedValue(undefined),
       configured: true,
     },
     settings: {
@@ -1189,6 +1192,127 @@ describe('confirm without reading a big file (R-252, files_confirm_light)', () =
     await expect(t.service.confirm('u1', 'f1')).rejects.toBeDefined();
     expect(t.read).toHaveBeenCalledTimes(1);
     expect(t.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('confirm keeps a copy no upload link can write (security audit 2026-11-08, M3)', () => {
+  const pdf = Buffer.concat([
+    Buffer.from('%PDF-1.7\n'),
+    Buffer.alloc(200, 0x20),
+  ]);
+  const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+  const UPLOAD_KEY = 'chat_attachment/s0/2026/11/f1';
+  const setup = (opts: { data?: Buffer; claimed?: string } = {}) => {
+    const { service, deps } = make();
+    const data = opts.data ?? pdf;
+    const intent = {
+      userId: 'u1',
+      purpose: 'chat_attachment',
+      mime: 'application/pdf',
+      size: data.length,
+      sha256: opts.claimed ?? sha(data),
+      bucket: 'lawbid-documents',
+      key: UPLOAD_KEY,
+    };
+    const create = jest.fn().mockResolvedValue({});
+    Object.assign(deps.redis, {
+      get: jest.fn().mockResolvedValue(JSON.stringify(intent)),
+      del: jest.fn().mockResolvedValue(1),
+      zrem: jest.fn().mockResolvedValue(1),
+    });
+    const head = jest
+      .fn<Promise<{ size: number } | null>, unknown[]>()
+      .mockResolvedValue({ size: data.length });
+    const read = jest.fn().mockResolvedValue(data);
+    Object.assign(deps.storage, { head, read });
+    Object.assign(deps.prisma.file, { create });
+    deps.prisma.file.findUnique.mockResolvedValue({
+      id: 'f1',
+      owner_user_id: 'u1',
+      purpose: 'chat_attachment',
+      mime: 'application/pdf',
+      size_bytes: BigInt(data.length),
+      scan_status: 'pending',
+      s3_bucket: 'lawbid-documents',
+      s3_key: `${UPLOAD_KEY}_sabc`,
+      deleted_at: null,
+      created_at: new Date(),
+    });
+    return { service, deps, create, head, read };
+  };
+  const copiedKey = (deps: ReturnType<typeof make>['deps']): string =>
+    (deps.storage.copy.mock.calls[0] as string[])[2];
+
+  it('checks and stores the copy, then drops the upload key', async () => {
+    const { service, deps, create, read } = setup();
+    await service.confirm('u1', 'f1');
+    expect(deps.storage.copy).toHaveBeenCalledWith(
+      'lawbid-documents',
+      UPLOAD_KEY,
+      expect.stringMatching(new RegExp(`^${UPLOAD_KEY}_s[0-9a-f]{8}$`)),
+    );
+    const key = copiedKey(deps);
+    expect(read).toHaveBeenCalledWith('lawbid-documents', key);
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ s3_key: key }),
+    });
+    expect(deps.storage.remove).toHaveBeenCalledWith(
+      'lawbid-documents',
+      [UPLOAD_KEY],
+      { purgeEdge: false },
+    );
+    // What the link may still write there is swept after it expires.
+    expect(deps.redis.zadd).toHaveBeenCalledWith(
+      'files:pending',
+      expect.any(Number),
+      `f1|lawbid-documents|${UPLOAD_KEY}|after_confirm`,
+    );
+    expect(deps.scans.enqueueScan).toHaveBeenCalledWith('f1', 'u1');
+  });
+
+  it('a mismatch deletes the upload and the copy', async () => {
+    const { service, deps, create } = setup({ claimed: 'b'.repeat(64) });
+    expect(await code(service.confirm('u1', 'f1'))).toBe(
+      'FILE_CHECKSUM_MISMATCH',
+    );
+    expect(deps.storage.remove).toHaveBeenCalledWith('lawbid-documents', [
+      UPLOAD_KEY,
+      copiedKey(deps),
+    ]);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('a parallel confirm that lost the insert drops only its own copy', async () => {
+    const { service, deps, create } = setup();
+    create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+    await service.confirm('u1', 'f1');
+    expect(deps.storage.remove).toHaveBeenCalledWith(
+      'lawbid-documents',
+      [copiedKey(deps)],
+      { purgeEdge: false },
+    );
+    expect(deps.scans.enqueueScan).not.toHaveBeenCalled();
+  });
+
+  it('a retry after the upload key is gone gets the finished row', async () => {
+    const { service, deps, head } = setup();
+    head.mockResolvedValue(null);
+    expect(await code(service.confirm('u1', 'f1'))).toBe('resolved');
+    deps.prisma.file.findUnique.mockResolvedValue(null);
+    expect(await code(service.confirm('u1', 'f1'))).toBe('FILE_NOT_UPLOADED');
+  });
+
+  it('the object vanishing before the copy is "not uploaded"', async () => {
+    const { service, deps, create } = setup();
+    deps.storage.copy.mockResolvedValue(false);
+    deps.prisma.file.findUnique.mockResolvedValue(null);
+    expect(await code(service.confirm('u1', 'f1'))).toBe('FILE_NOT_UPLOADED');
+    expect(create).not.toHaveBeenCalled();
   });
 });
 

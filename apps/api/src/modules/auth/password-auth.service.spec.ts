@@ -19,6 +19,7 @@ async function make(
     limited?: boolean;
     otpResult?: 'ok' | 'invalid' | 'expired' | 'locked';
     noPassword?: boolean;
+    throttle?: Record<string, jest.Mock>;
   } = {},
 ) {
   const passwords = new PasswordService();
@@ -77,8 +78,14 @@ async function make(
     loginMethods as never,
     bans as never,
     revocation as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    opts.throttle as never,
   );
   return {
+    passwords,
     service,
     prisma,
     auth,
@@ -151,6 +158,56 @@ describe('PasswordAuthService', () => {
     );
     expect(keys).toContain('id+src');
     expect(keys).not.toContain('id');
+  });
+
+  describe('security audit 2026-11-08 (M1): throttle before the hash', () => {
+    const throttle = (refuse = false) => ({
+      assertMayTry: refuse
+        ? jest.fn().mockRejectedValue(new HttpException('slow down', 429))
+        : jest.fn().mockResolvedValue(undefined),
+      recordFailure: jest.fn().mockResolvedValue(undefined),
+      recordSuccess: jest.fn().mockResolvedValue(undefined),
+    });
+
+    it('a refused try never reaches the password check', async () => {
+      const t = throttle(true);
+      const { service, passwords, auth } = await make({ throttle: t });
+      const verify = jest.spyOn(passwords, 'verify');
+      await expect(
+        service.login(
+          { identifier: '+14155552680', password: 'Demo1234!' },
+          META,
+        ),
+      ).rejects.toBeInstanceOf(HttpException);
+      expect(verify).not.toHaveBeenCalled();
+      expect(auth.finishLogin).not.toHaveBeenCalled();
+      expect(t.assertMayTry).toHaveBeenCalledWith({
+        idHash: 'h(+14155552680)',
+        source: '1.2.3.4',
+        userId: 'u1',
+        deviceId: undefined,
+      });
+    });
+
+    it('a wrong password is counted, the right one clears the source', async () => {
+      const t = throttle();
+      const { service } = await make({ throttle: t });
+      await service
+        .login({ identifier: '+14155552680', password: 'nope-nope' }, META)
+        .catch(() => undefined);
+      expect(t.recordFailure).toHaveBeenCalledWith(
+        'h(+14155552680)',
+        '1.2.3.4',
+      );
+      await service.login(
+        { identifier: '+14155552680', password: 'Demo1234!' },
+        META,
+      );
+      expect(t.recordSuccess).toHaveBeenCalledWith(
+        'h(+14155552680)',
+        '1.2.3.4',
+      );
+    });
   });
 
   it('lower-cases an e-mail identifier', async () => {

@@ -107,7 +107,7 @@ class RequestCard extends StatelessWidget {
                 AppIcon(
                   icon,
                   size: 13,
-                  color: gold ? colors.iconTint : colors.iconTint,
+                  color: gold ? colors.iconTint : colors.onNavy,
                 ),
                 const SizedBox(width: 4),
               ],
@@ -166,7 +166,7 @@ class RequestCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadii.field),
                   border: Border.all(color: colors.iconTint),
                 ),
-                child: AppIcon(kindIcon, color: colors.iconTint, size: 22),
+                child: AppIcon(kindIcon, color: colors.onNavy, size: 22),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -418,7 +418,7 @@ class ActivityRow extends StatelessWidget {
             ),
             child: AppIcon(
               activityIcon(entry.action),
-              color: colors.iconTint,
+              color: colors.onNavy,
               size: 20,
             ),
           ),

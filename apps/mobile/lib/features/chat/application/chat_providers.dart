@@ -22,6 +22,7 @@ import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/chat_counts_refresh.dart';
 import 'package:lawbid/features/chat/application/chat_list_delta.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
+import 'package:lawbid/features/chat/application/chat_sync_ledger.dart';
 import 'package:lawbid/features/chat/application/chat_thread_memory.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
@@ -696,6 +697,25 @@ class DeliveryAcker {
 
 final deliveryAckerProvider = Provider<DeliveryAcker>(DeliveryAcker.new);
 
+/// Owner 2026-11-08: which closed chats are still exact on the phone (see
+/// [ChatSyncLedger]); one per signed-in user, it hears every event.
+final chatSyncLedgerProvider = Provider<ChatSyncLedger>((ref) {
+  ref.watch(currentUserIdProvider);
+  final ledger = ChatSyncLedger(() => ref.read(messageStoreProvider));
+  StreamSubscription<RealtimeEvent>? sub;
+  ref
+    ..listen(
+      realtimeEventsProvider,
+      (_, stream) {
+        sub?.cancel();
+        sub = stream.listen(ledger.onEvent);
+      },
+      fireImmediately: true,
+    )
+    ..onDispose(() => sub?.cancel());
+  return ledger;
+});
+
 // --- One conversation (docs/05 §8.2) -----------------------------------------
 
 /// [ChatThreadState.all] for these lists: the outbox and the voice outbox
@@ -871,6 +891,9 @@ class ChatThread extends Notifier<ChatThreadState> {
     final owner = ref.watch(currentUserIdProvider);
     final realtime = ref.watch(realtimeClientProvider);
     realtime?.join(id);
+    final ledger = ref.read(chatSyncLedgerProvider)..opened(id);
+    _syncedEpoch = null;
+    _pinsLoaded = false;
     // Owner 2026-10-22: the chat is open — its notification goes.
     unawaited(chatNotificationsChannel.clearChat(id));
 
@@ -901,10 +924,32 @@ class ChatThread extends Notifier<ChatThreadState> {
       _readTimer?.cancel();
       _readDone?.complete();
       realtime?.leave(id);
+      // Owner 2026-11-08: closed in step with a live socket — the next open
+      // within the same connection asks the server nothing.
+      final shown = _shown;
+      final epoch = _syncedEpoch;
+      final inStep = realtime != null &&
+          realtime.connected &&
+          epoch == realtime.connectionEpoch &&
+          _pinsLoaded &&
+          shown != null;
+      ledger.closed(
+        id,
+        epoch: inStep ? epoch : null,
+        pins: inStep
+            ? ChatPins(
+                items: shown.pins,
+                editWindowMin: shown.editWindowMin,
+                deleteForAllHours: shown.deleteForAllHours,
+                maxPins: shown.maxPins,
+              )
+            : null,
+      );
     });
     // Owner 2026-10-21: wake up at the next message that runs out.
     final memory = ref.read(chatThreadMemoryProvider);
     listenSelf((prev, next) {
+      _shown = next;
       if (!identical(prev?.messages, next.messages)) {
         _armExpiry();
         // R-404 (c): the newest page stays in memory for the next open.
@@ -1017,6 +1062,7 @@ class ChatThread extends Notifier<ChatThreadState> {
               .read()
               .then((page) => page, onError: (Object _) => null)
           : null;
+      await ref.read(chatSyncLedgerProvider).settled(id);
       final local = await store.page(id);
       if (!ref.mounted) return;
       if (local.isNotEmpty) {
@@ -1034,6 +1080,7 @@ class ChatThread extends Notifier<ChatThreadState> {
           loading: false,
           clearError: true,
         );
+        if (_stillInStep(local.first.id)) return;
         unawaited(_refreshConversation());
         unawaited(_catchUp());
         unawaited(ref.read(outboxSenderProvider).drain());
@@ -1046,6 +1093,7 @@ class ChatThread extends Notifier<ChatThreadState> {
 
   Future<void> _loadPage() async {
     state = state.copyWith(loading: true, clearError: true);
+    final epoch = _liveEpoch;
     try {
       final results = await Future.wait([
         _repo.conversation(id),
@@ -1087,6 +1135,7 @@ class ChatThread extends Notifier<ChatThreadState> {
         clearCursor: page.nextCursor == null,
         loading: false,
       );
+      _syncedEpoch = epoch;
       unawaited(ref.read(outboxSenderProvider).drain());
       unawaited(loadPins());
     } on Object catch (e) {
@@ -1099,6 +1148,7 @@ class ChatThread extends Notifier<ChatThreadState> {
     try {
       final info = await _repo.pins(id);
       if (!ref.mounted) return;
+      _pinsLoaded = true;
       state = state.copyWith(
         pins: info.items,
         editWindowMin: info.editWindowMin,
@@ -1980,6 +2030,77 @@ class ChatThread extends Notifier<ChatThreadState> {
   /// loaded messages, local bubbles and outbox stay.
   Future<void> refreshConversation() => _refreshConversation();
 
+  /// The last state shown (read when the chat closes).
+  ChatThreadState? _shown;
+
+  /// The socket connection the messages on screen were last made exact in
+  /// (a page, a catch-up, or a copy still in step); null = not yet.
+  int? _syncedEpoch;
+
+  /// The pinned messages and rules on screen came from the server (or from
+  /// a copy still in step).
+  bool _pinsLoaded = false;
+
+  /// The current connection when the socket is up, else null (an answer
+  /// read while it is down may miss what arrives before it is back).
+  int? get _liveEpoch {
+    final r = ref.read(realtimeClientProvider);
+    return r != null && r.connected ? r.connectionEpoch : null;
+  }
+
+  /// Owner 2026-11-08 (Telegram: no request while the update stream has no
+  /// gap): the chat was closed in step with this very connection, the
+  /// phone's newest message is the one the live chats list shows for it —
+  /// the copy is exact, nothing is asked. True when it took over.
+  bool _stillInStep(String newestLocalId) {
+    final epoch = _liveEpoch;
+    if (epoch == null) return false;
+    final ledger = ref.read(chatSyncLedgerProvider);
+    final pins = ledger.inStep(id, epoch);
+    if (pins == null) return false;
+    // Only a row a live list keeps in step (not the saved copy of a past
+    // visit) stands in for the conversation header.
+    final row = _liveListRow();
+    if (row == null || row.lastMessage?.id != newestLocalId) {
+      ledger.forget(id);
+      return false;
+    }
+    _syncedEpoch = epoch;
+    _pinsLoaded = true;
+    state = state.copyWith(
+      conversation: _withLiveReceipts(row),
+      pins: pins.items,
+      editWindowMin: pins.editWindowMin,
+      deleteForAllHours: pins.deleteForAllHours,
+      maxPins: pins.maxPins,
+    );
+    unawaited(ref.read(outboxSenderProvider).drain());
+    return true;
+  }
+
+  /// This chat's row in a chats list held in memory right now.
+  Conversation? _liveListRow() {
+    Conversation? find(PaginatedList<Conversation>? list) {
+      if (list == null) return null;
+      for (final c in list.items) {
+        if (c.id == id) return c;
+      }
+      return null;
+    }
+
+    if (ref.read(conversationsProvider.exists)) {
+      final c = find(ref.read(conversationsProvider).value);
+      if (c != null) return c;
+    }
+    for (final folder in ChatListFolder.values) {
+      final p = folderConversationsProvider(folder);
+      if (!ref.read(p.exists)) continue;
+      final c = find(ref.read(p).value);
+      if (c != null) return c;
+    }
+    return null;
+  }
+
   Future<void> _refreshConversation() async {
     try {
       final c = await _repo.conversation(id);
@@ -1999,8 +2120,10 @@ class ChatThread extends Notifier<ChatThreadState> {
   Future<void> _catchUp() async {
     final newest = state.messages.where((m) => !m.isLocal).firstOrNull;
     if (newest == null) return _loadPage();
+    final epoch = _liveEpoch;
     try {
       _merge(await _repo.messagesAfter(id, newest.id));
+      if (ref.mounted) _syncedEpoch = epoch;
     } on ApiException catch (e) {
       if (e.code == ApiErrorCodes.syncTooOld) {
         await _store?.forget(id);

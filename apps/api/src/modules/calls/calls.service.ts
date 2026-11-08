@@ -792,7 +792,8 @@ export class CallsService {
     await this.limits.consume('message', user.sub);
     await this.sweepIfDue();
 
-    const mine = await this.liveCallOf(user.sub);
+    let mine = await this.liveCallOf(user.sub);
+    if (mine) mine = await this.declineRingingForNewCall(user, mine);
     if (mine) {
       // The id lets the app offer "end it there" (Telegram) when this
       // device has no call of its own.
@@ -3180,6 +3181,41 @@ export class CallsService {
       return null;
     }
     return live;
+  }
+
+  /**
+   * Owner 2026-11-08 (iPhone «Decline» on the locked CallKit screen: the
+   * decline never reached the server, the caller rang on, and the chat's
+   * call button then took the iPhone back into that same old call). A
+   * person who starts a call of their own while a 1:1 call still rings
+   * for THEM (not answered, not theirs) has turned it down — like WhatsApp
+   * and Telegram, the ringing call is declined (the caller hears it at
+   * once) and the new call gets its own session. Any other live call
+   * (talking, calling out, a group) stays and is returned.
+   */
+  private async declineRingingForNewCall(
+    user: RequestUser,
+    live: { id: string },
+  ): Promise<{ id: string } | null> {
+    const call = await this.prisma.call.findUnique({ where: { id: live.id } });
+    if (
+      !call ||
+      call.is_group ||
+      call.status !== 'ringing' ||
+      call.callee_id !== user.sub
+    ) {
+      return live;
+    }
+    await this.finish(
+      call,
+      'declined',
+      user.sub,
+      undefined,
+      undefined,
+      user.sid,
+      ['ringing'],
+    );
+    return this.liveCallOf(user.sub);
   }
 
   private async load(user: RequestUser, id: string): Promise<Call> {
