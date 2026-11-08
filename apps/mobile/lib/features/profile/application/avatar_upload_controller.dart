@@ -52,9 +52,19 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
   /// the scan poll.
   UploadCancellation? _cancellation;
 
-  /// Poll cadence / limit while the antivirus scan is pending.
-  static const pollInterval = Duration(seconds: 1);
-  static const maxPolls = 30;
+  /// The running pipeline (null when idle). «Сохранить» on the profile
+  /// editors waits for it, so the photo is attached before the screen goes.
+  Future<void>? _running;
+
+  /// Completes when no photo is on its way (at once when idle). Never
+  /// throws: a failed photo is shown on the field, not by the waiter.
+  Future<void> get settled => _running ?? Future<void>.value();
+
+  /// Poll cadence / limit while the antivirus scan is pending (owner
+  /// 2026-11-08: twice a second, the same 30 s in all; a ~2 s check on R2
+  /// used to show the photo up to a second late).
+  static const pollInterval = Duration(milliseconds: 500);
+  static const maxPolls = 60;
 
   @override
   AvatarUploadState build() {
@@ -65,18 +75,28 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
   Future<void> start(Uint8List bytes) async {
     if (state.busy) return;
     _bytes = bytes;
-    await _run();
+    await _track(_run());
   }
 
   Future<void> retry() async {
     if (state.busy || _bytes == null) return;
-    await _run();
+    await _track(_run());
+  }
+
+  Future<void> _track(Future<void> run) async {
+    _running = run;
+    try {
+      await run;
+    } finally {
+      if (identical(_running, run)) _running = null;
+    }
   }
 
   Future<void> _run() async {
     final bytes = _bytes!;
     final repo = ref.read(avatarUploadRepositoryProvider);
     final cancellation = _cancellation = UploadCancellation();
+    void Function()? releaseKeepAlive;
     state =
         AvatarUploadState(stage: AvatarUploadStage.preparing, preview: bytes);
     try {
@@ -105,6 +125,11 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
         cancellation: cancellation,
       );
       if (cancellation.isCancelled) return;
+      // Owner 2026-11-08 (R2: «Профиль сохранён», old photo stayed): the
+      // bytes are in storage now, so leaving the screen («Сохранить» pops
+      // it) must not drop the check and the attach — that left a clean
+      // file never set as the avatar. Like Telegram, a sent photo is set.
+      releaseKeepAlive = ref.keepAlive().close;
       _set(AvatarUploadStage.checking, 1);
       var outcome = await repo.confirm(target.fileId);
       for (var i = 0; outcome == ScanOutcome.pending && i < maxPolls; i++) {
@@ -145,6 +170,7 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
       }
     } finally {
       if (identical(_cancellation, cancellation)) _cancellation = null;
+      releaseKeepAlive?.call();
     }
   }
 

@@ -55,9 +55,23 @@ describe('signCloudFrontUrl', () => {
       "filename*=UTF-8''%D0%94%D0%BE%D0%B3%D0%BE%D0%B2%D0%BE%D1%80",
     );
     expect(url.searchParams.get('Key-Pair-Id')).toBe('K2JCJMDEHXQW5F');
-    expect(url.searchParams.get('Expires')).toBe(String(1_700_000_000 + 60));
+    // Signed from the start of its 60 s bucket, valid for the bucket + TTL.
+    expect(url.searchParams.get('Expires')).toBe(String(1_699_999_980 + 120));
     expect(url.searchParams.get('Signature')).toMatch(/^[A-Za-z0-9~_-]+$/);
     expect(url.searchParams.has('X-Amz-Signature')).toBe(false);
+  });
+
+  it('gives the same link all through one time bucket (ETag / 304)', () => {
+    const at = (ms: number) =>
+      signCloudFrontUrl(cdn, 'chat_voice/u1/f1', 3600, undefined, ms);
+    const hour = 1_699_999_200_000; // a whole hour
+    expect(at(hour + 1_000)).toBe(at(hour + 3_599_000));
+    expect(at(hour + 3_600_000)).not.toBe(at(hour));
+    // Still valid at least the TTL after it was handed out.
+    const late = new URL(at(hour + 3_599_000));
+    expect(Number(late.searchParams.get('Expires'))).toBeGreaterThanOrEqual(
+      (hour + 3_599_000) / 1000 + 3600,
+    );
   });
 
   it('percent-encodes key segments', () => {
@@ -134,6 +148,32 @@ describe('S3StorageService cache headers and CDN invalidation', () => {
       'min_ttl     = var.documents_edge_min_ttl',
     );
     expect(tf).toMatch(/var\.documents_edge_min_ttl >= 60/);
+  });
+
+  it('presigned S3 reads are the same link within one time bucket', async () => {
+    const s = service({});
+    const hour = 1_699_999_200_000;
+    const now = jest.spyOn(Date, 'now');
+    try {
+      now.mockReturnValue(hour + 5_000);
+      const first = await s.signedGetUrl(
+        'lawbid-documents',
+        'chat_voice/u1/f1',
+        3600,
+      );
+      now.mockReturnValue(hour + 3_500_000);
+      const second = await s.signedGetUrl(
+        'lawbid-documents',
+        'chat_voice/u1/f1',
+        3600,
+      );
+      expect(second).toBe(first);
+      const u = new URL(first);
+      expect(u.searchParams.get('X-Amz-Date')).toBe('20231114T220000Z');
+      expect(u.searchParams.get('X-Amz-Expires')).toBe('7200');
+    } finally {
+      now.mockRestore();
+    }
   });
 
   it('presigned S3 reads of private files ask for a private header', async () => {
