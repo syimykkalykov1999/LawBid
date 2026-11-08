@@ -1328,7 +1328,30 @@ module "backup" {
 variable "partition_role_enabled" {
   type        = bool
   default     = false
-  description = "Give the WORKER (never the api) the secret PARTITION_DATABASE_URL, role lawbid_partition, so that partition.*_mode = auto can convert messages / chat_group_messages / notifications online at partition.auto_rows. Turn on only after scripts/deploy/prod-db-setup.sh has put its value (ECS refuses to start a task whose secret is empty). docs/runbooks/table-partitioning.md."
+  description = "Let partition.*_mode = auto really convert the big tables online (role lawbid_partition). Automation audit 2026-11-08: no manual step any more. Terraform generates the login password into the secret PARTITION_DB_PASSWORD and gives it to the WORKER (never the api) and to the migrate task; the migrate task sets it on the role (prisma/ensure-partition-login.mjs) and the worker builds its connection from DATABASE_URL with that login. Safe to turn on at any time; the infra pipeline turns it on by itself when a table nears partition.auto_rows. docs/runbooks/table-partitioning.md."
+}
+
+# Automation audit 2026-11-08: the partition login no longer needs
+# scripts/deploy/prod-db-setup.sh (which also rotates every other password).
+# The password lives only in Terraform state (encrypted S3) and this secret.
+resource "random_password" "partition" {
+  count   = var.partition_role_enabled ? 1 : 0
+  length  = 40
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "partition_db_password" {
+  count                   = var.partition_role_enabled ? 1 : 0
+  name                    = "${local.name}/PARTITION_DB_PASSWORD"
+  kms_key_id              = module.kms.key_arn
+  recovery_window_in_days = var.ephemeral ? 0 : 30
+  tags                    = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "partition_db_password" {
+  count         = var.partition_role_enabled ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.partition_db_password[0].id
+  secret_string = random_password.partition[0].result
 }
 
 module "secrets" {
@@ -1911,8 +1934,10 @@ module "ecs" {
   }
   secret_arns                      = local.app_secret_arns
   migrator_database_url_secret_arn = module.secrets.arns["MIGRATOR_DATABASE_URL"]
-  # Worker only; empty until scripts/deploy/prod-db-setup.sh has filled it.
-  partition_database_url_secret_arn = var.partition_role_enabled ? module.secrets.arns["PARTITION_DATABASE_URL"] : ""
+  # Worker only (plus the migrate task, which sets it on the role). The old
+  # hand-filled PARTITION_DATABASE_URL secret is no longer injected.
+  partition_database_url_secret_arn = ""
+  partition_db_password_secret_arn  = var.partition_role_enabled ? aws_secretsmanager_secret_version.partition_db_password[0].arn : ""
   alb_resource_label                = "${module.alb.arn_suffix}/${module.alb.api_target_group_arn_suffix}"
   api_max_tasks                     = var.api_max_tasks
   worker_max_tasks                  = var.worker_max_tasks

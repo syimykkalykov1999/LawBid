@@ -60,4 +60,23 @@ describe('SQL safety', () => {
       .map((f) => relative(SRC, f).split(sep).join('/'));
     expect(offenders).toEqual([]);
   });
+
+  it('TRUNCATE only where the connection is not the production app role', () => {
+    // Automation audit 2026-11-08: lawbid_app holds SELECT / INSERT / UPDATE
+    // / DELETE only. A TRUNCATE on its connection fails on prod with 42501
+    // while CI (superuser) stays green: reco.qa-snapshot failed every night
+    // this way. Allowed: the one-off purge tools (migrator role) and the demo
+    // database (its own database, owned by its login).
+    const TRUNCATE_OK = new Set([
+      'cli/purge-test-data.ts',
+      'ops/purge-test-data.db.ts',
+      'modules/demo/demo-database.service.ts',
+    ]);
+    const stmt = /[`'"]\s*TRUNCATE\s/i;
+    const offenders = walk(SRC)
+      .filter((f) => stmt.test(readFileSync(f, 'utf8')))
+      .map((f) => relative(SRC, f).split(sep).join('/'))
+      .filter((f) => !TRUNCATE_OK.has(f));
+    expect(offenders).toEqual([]);
+  });
 });
