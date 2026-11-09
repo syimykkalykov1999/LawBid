@@ -491,7 +491,7 @@ export class EconomyService {
     out.pressure = await this.checkPressure(now).catch((e: unknown) =>
       this.fail('pressure', e),
     );
-    out.capacityCeiling = await this.applyCapacityCeilings(f, cfg).catch(
+    out.capacityCeiling = await this.applyCapacityCeilings(cfg).catch(
       (e: unknown) => this.fail('capacity_ceiling', e),
     );
     return out;
@@ -505,7 +505,6 @@ export class EconomyService {
    * off = hands off (the Terraform ceiling alone stays).
    */
   private async applyCapacityCeilings(
-    f: EconomyFigures,
     cfg: Pick<EconomySettings, 'awsCapUsd'>,
   ): Promise<Record<string, unknown> | null> {
     if (!this.ssm?.available) return null;
@@ -699,10 +698,7 @@ export class EconomyService {
         out.containers = target;
       }
     }
-    out.capacity = await this.applyCapacityCeilings(
-      { awsLimitUsd: 0 } as EconomyFigures,
-      { awsCapUsd: 0 },
-    );
+    out.capacity = await this.applyCapacityCeilings({ awsCapUsd: 0 });
     return out;
   }
 

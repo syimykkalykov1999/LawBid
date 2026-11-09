@@ -36,12 +36,11 @@ function make(
   const run = (f: Fig, cap = f.awsLimitUsd) =>
     (
       svc as unknown as {
-        applyCapacityCeilings: (
-          f: Fig,
-          cfg: { awsCapUsd: number },
-        ) => Promise<Record<string, unknown> | null>;
+        applyCapacityCeilings: (cfg: {
+          awsCapUsd: number;
+        }) => Promise<Record<string, unknown> | null>;
       }
-    ).applyCapacityCeilings(f, { awsCapUsd: cap });
+    ).applyCapacityCeilings({ awsCapUsd: cap });
   return { run, ssm, stored, f: { awsLimitUsd: allowed } };
 }
 
