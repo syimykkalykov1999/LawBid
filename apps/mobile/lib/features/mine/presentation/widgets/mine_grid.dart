@@ -602,6 +602,7 @@ class MineChipsSearchRow extends ConsumerStatefulWidget {
     required this.onChanged,
     this.chips,
     this.action,
+    this.filter,
     this.hintKey = 'mine.search.hint',
     super.key,
   });
@@ -614,6 +615,10 @@ class MineChipsSearchRow extends ConsumerStatefulWidget {
   final MineSearch search;
   final ValueChanged<MineSearch> onChanged;
   final Widget? action;
+
+  /// Owner 2026-11-09: the cases-screen filter button, LEFT of the search
+  /// magnifier (and of the ✕ while the field is open).
+  final Widget? filter;
 
   @override
   ConsumerState<MineChipsSearchRow> createState() => _MineChipsSearchRowState();
@@ -650,6 +655,8 @@ class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
                   )
                 : chips,
           ),
+          // Owner 2026-11-09: the filter icon left of the search icon.
+          if (widget.filter != null) widget.filter!,
           // Owner 2026-10-23: the «?» went away — «Вопросы» is a tab now.
           if (!open)
             AppIconButton(

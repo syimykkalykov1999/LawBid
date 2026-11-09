@@ -3150,7 +3150,7 @@ model MessageEdit {
   @@map("message_edits")
 }
 
-/// A message pinned to the top of a chat (at most 3 per chat).
+/// A message pinned to the top of a chat (at most `chat.max_pins`, 10, per chat).
 model MessagePin {
   message_id      String   @id @db.Uuid
   message         Message  @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)

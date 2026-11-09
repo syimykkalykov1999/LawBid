@@ -12,11 +12,12 @@ import {
 import { OPS_KEYS } from './ops.constants';
 import { triMode } from './tri-mode';
 
-/** Jobs allowed to back off (see cron-idle-backoff.ts for who is not). */
+/** Jobs allowed to back off (see cron-idle-backoff.ts for who is not).
+ * Owner 2026-11-09: never `videos.sweep` — it publishes a reel whose Bunny
+ * webhook did not arrive; backing off made a fresh reel wait 5 minutes. */
 export const IDLE_BACKOFF_JOBS: readonly string[] = [
   CRON_JOBS.searchIndex,
   CRON_JOBS.legalExports,
-  CRON_JOBS.videosSweep,
   CRON_JOBS.consultationsSweep,
 ];
 
