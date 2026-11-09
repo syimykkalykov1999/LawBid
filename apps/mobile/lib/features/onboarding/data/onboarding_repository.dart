@@ -59,8 +59,9 @@ abstract interface class OnboardingRepository {
   /// `POST /auth/reauth` → single-use `reauthToken` (5 min).
   Future<String> reauth({required String identifier, required String code});
 
-  /// `POST /users/me/contacts/request`. [reauthToken] is required only
-  /// when replacing an already-verified contact of this [type].
+  /// `POST /users/me/contacts/request` (e-mail only: a phone is changed
+  /// with [changePhone]). [reauthToken] is required only when replacing an
+  /// already-verified contact of this [type].
   Future<void> requestContactCode({
     required ContactType type,
     required String value,
@@ -72,6 +73,11 @@ abstract interface class OnboardingRepository {
     required String value,
     required String code,
   });
+
+  /// `POST /users/me/phone` — owner rule (sms-two-cases): the phone is
+  /// changed with the password / passkey token, no SMS code. [reauthToken]
+  /// may be null only for a first phone right after sign-in.
+  Future<void> changePhone({required String value, String? reauthToken});
 }
 
 class ApiOnboardingRepository implements OnboardingRepository {
@@ -188,6 +194,10 @@ class ApiOnboardingRepository implements OnboardingRepository {
         value: value,
         code: code,
       );
+
+  @override
+  Future<void> changePhone({required String value, String? reauthToken}) =>
+      _users.changePhone(phone: value, reauthToken: reauthToken);
 
   static api.SaveOnboardingStepDtoCurrentStep _step(OnboardingStepId step) =>
       api.SaveOnboardingStepDtoCurrentStep.fromJson(step.name);

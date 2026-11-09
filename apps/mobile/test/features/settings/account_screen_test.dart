@@ -36,8 +36,8 @@ import '../../helpers/referral_overrides.dart';
 import '../../helpers/stub_auth_repository.dart';
 
 /// Settings → Account (docs/01 §10.3, §11 3A): identifier list with all
-/// screen states, and changing the
-/// phone with reauth + code on the new contact.
+/// screen states, and changing the phone with the password / passkey (owner
+/// rule sms-two-cases: no SMS code).
 class FakeAccountRepository implements AccountRepository {
   FakeAccountRepository(this.onList);
 
@@ -259,8 +259,9 @@ void main() {
     });
   });
 
-  group('change phone: reauth + code on the new contact (§11 3A)', () {
-    testWidgets('identity code to the current phone, then code to the new one',
+  group('change phone: password / passkey, no SMS code (sms-two-cases)', () {
+    testWidgets(
+        '«Забыли пароль?» sends the step-up code to the account e-mail, then the number is saved with no code',
         (tester) async {
       _tallView(tester);
       final onboarding = FakeOnboardingRepository(_client);
@@ -281,27 +282,68 @@ void main() {
       await tester.tap(find.text('Send code'));
       await tester.pumpAndSettle();
       await _useSms(tester); // owner 2026-10-28: password first
-      // Reauth first: the code goes to the CURRENT verified phone.
-      expect(onboarding.calls, ['requestReauthCode:+15551234567']);
+      // The step-up code goes to the account E-MAIL, never by SMS.
+      expect(onboarding.calls, ['requestReauthCode:ann@example.com']);
       expect(find.text("Confirm it's you"), findsOneWidget);
-      expect(find.textContaining('(555) 123-4567'), findsOneWidget);
+      expect(find.textContaining('ann@example.com'), findsOneWidget);
 
       await _enterOtp(tester, '111111');
+      // The new number is saved with the token: no code to the new phone.
       expect(onboarding.calls, [
-        'requestReauthCode:+15551234567',
+        'requestReauthCode:ann@example.com',
         'reauth',
-        'requestContactCode:+12025550199:rt',
+        'changePhone:+12025550199:rt',
       ]);
-      expect(find.text('Enter the code'), findsOneWidget);
-      expect(find.textContaining('(202) 555-0199'), findsOneWidget);
-
-      await _enterOtp(tester, '222222');
-      expect(onboarding.calls.last, 'verifyContact');
+      expect(find.text('Enter the code'), findsNothing);
       expect(find.text('All set'), findsOneWidget);
       expect(
         find.text('Your phone number is verified and saved.'),
         findsOneWidget,
       );
+      await _tearDown(tester);
+    });
+
+    testWidgets(
+        'a phone-only account has no code link: the password or passkey only',
+        (tester) async {
+      _tallView(tester);
+      final phoneOnly = meFixture(
+        role: UserRole.client,
+        consents: true,
+        firstName: 'Ann',
+        lastName: 'Lee',
+        phone: '+15551234567',
+        phoneVerified: true,
+        completed: true,
+      );
+      final onboarding = FakeOnboardingRepository(phoneOnly);
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: phoneOnly,
+        repo: onboarding,
+        extra: [
+          accountRepositoryProvider
+              .overrideWithValue(FakeAccountRepository(() async => const [])),
+          authRepositoryProvider.overrideWithValue(const StubAuthRepository()),
+          stepUpPasskeyProvider.overrideWith((ref) async => false),
+          ...emailFlowsOnOverrides(),
+        ],
+      );
+      await tester.pumpWidget(
+        wrap(
+          const AccountContactFlowScreen(
+            type: ContactType.phone,
+            mode: AccountContactMode.primary,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, '2025550199');
+      await tester.tap(find.text('Send code'));
+      await tester.pumpAndSettle();
+      expect(find.text('Enter your account password.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('step-up-use-code')), findsNothing);
+      expect(onboarding.calls, isEmpty);
       await _tearDown(tester);
     });
 
@@ -363,10 +405,12 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('step-up-password-submit')));
       await tester.pumpAndSettle();
+      // The number is saved with the token: no code, no SMS anywhere.
       expect(onboarding.calls, [
-        'requestContactCode:+12025550199:stub-reauth-token',
+        'changePhone:+12025550199:stub-reauth-token',
       ]);
-      expect(find.text('Enter the code'), findsOneWidget);
+      expect(find.byType(AppOtpField), findsNothing);
+      expect(find.text('All set'), findsOneWidget);
       await _tearDown(tester);
     });
 
@@ -451,6 +495,8 @@ void main() {
       repo: onboarding,
       extra: [
         accountRepositoryProvider.overrideWithValue(repo),
+        authRepositoryProvider.overrideWithValue(const StubAuthRepository()),
+        stepUpPasskeyProvider.overrideWith((ref) async => false),
         ...emailFlowsOnOverrides(),
       ],
     );
@@ -466,17 +512,23 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'ann@example.com');
     await tester.tap(find.text('Send code'));
     await tester.pumpAndSettle();
-    await _useSms(tester); // owner 2026-10-28: password first
+    expect(onboarding.calls, ['requestContactCode:ann@example.com']);
+    expect(find.text("Confirm it's you"), findsOneWidget);
+    // Owner rule (sms-two-cases): no verified e-mail yet, so no step-up code
+    // at all (never an SMS) — the account password confirms it is me.
+    expect(find.byKey(const ValueKey('step-up-use-code')), findsNothing);
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const ValueKey('step-up-password')),
+        matching: find.byType(EditableText),
+      ),
+      'stub-password',
+    );
+    await tester.tap(find.byKey(const ValueKey('step-up-password-submit')));
+    await tester.pumpAndSettle();
     expect(onboarding.calls, [
       'requestContactCode:ann@example.com',
-      'requestReauthCode:+15551234567',
-    ]);
-    expect(find.text("Confirm it's you"), findsOneWidget);
-
-    await _enterOtp(tester, '111111');
-    expect(onboarding.calls.sublist(2), [
-      'reauth',
-      'requestContactCode:ann@example.com:rt',
+      'requestContactCode:ann@example.com:stub-reauth-token',
     ]);
     expect(find.text('Enter the code'), findsOneWidget);
     await _tearDown(tester);

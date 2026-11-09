@@ -319,8 +319,10 @@ describe('Cost guard (e2e)', () => {
   });
 
   // -----------------------------------------------------------------
-  describe('POST /users/me/contacts/request per-user limit', () => {
-    it('allows 3 contact OTPs per hour per user, then 429', async () => {
+  // Owner rule (sms-two-cases): a phone change sends no SMS any more; it is
+  // still capped per user (number-squatting / takeover churn).
+  describe('POST /users/me/phone per-user limit', () => {
+    it('allows 3 phone changes per hour per user, then 429', async () => {
       const phone = '+13125550190';
       await otpRequest(phone).expect(200);
       const login = await api()
@@ -341,18 +343,18 @@ describe('Cost guard (e2e)', () => {
 
       const contactRequest = async (value: string) =>
         api()
-          .post('/api/v1/users/me/contacts/request')
+          .post('/api/v1/users/me/phone')
           .set('Authorization', `Bearer ${accessToken}`)
           .set('X-Reauth-Token', await reauthToken())
           .set('X-Forwarded-For', nextIp())
-          .send({ type: 'phone', value });
+          .send({ phone: value });
 
       for (let i = 0; i < 3; i++) {
         expect((await contactRequest(`+1312555020${i}`)).status).toBe(201);
       }
       const blocked = await contactRequest('+13125550209');
       expect(blocked.status).toBe(429);
-      expect(blocked.body.error.code).toBe('AUTH_OTP_REQUEST_LIMIT');
+      expect(blocked.body.error.code).toBe('RATE_LIMITED');
     });
   });
 });

@@ -366,6 +366,7 @@ export class CallsService {
       relayAnswers: async (ip) =>
         (await this.relayCheck({ host: ip, port: 3478 }, null)).stun.ok,
       now: () => Date.now(),
+      down: () => this.slo?.count('ownTurnDown'),
     }));
   }
 

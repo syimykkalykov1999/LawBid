@@ -10,7 +10,7 @@ import {
   GB,
 } from '../../common/ops/usage/usage-clients';
 import type { SecretsService } from '../../common/secrets/secrets.service';
-import { UsagePollJob, USAGE_SNAPSHOT_KEY } from './usage-poll.job';
+import { UsagePollJob, USAGE_SNAPSHOT_KEY, usageNear } from './usage-poll.job';
 
 const json = (body: unknown, ok = true, status = 200) =>
   Promise.resolve({ ok, status, json: () => Promise.resolve(body) }) as never;
@@ -114,7 +114,10 @@ describe('UsagePollJob', () => {
       info: (obj: Record<string, unknown>) => logs.push({ level: 'info', obj }),
       warn: (obj: Record<string, unknown>) => logs.push({ level: 'warn', obj }),
     } as unknown as PinoLogger;
-    const redis = { set: jest.fn().mockResolvedValue('OK') };
+    const redis = {
+      set: jest.fn().mockResolvedValue('OK'),
+      get: jest.fn().mockResolvedValue(null),
+    };
     const values: Record<string, number> = {
       'usage.cloudflare_egress_warn_gb': 700,
       'usage.cloudflare_egress_crit_gb': 950,
@@ -153,6 +156,55 @@ describe('UsagePollJob', () => {
         },
       }),
     );
+
+  describe('G3: hourly poll only near the limits', () => {
+    const keys = { cloudflare_turn: { accountId: 'a', analyticsToken: 't' } };
+
+    it('far from the limits (or no daily snapshot): nothing is fetched', async () => {
+      const { job, redis } = make(keys);
+      const fetchFn = cf(800);
+      await expect(job.runIfNear(new Date(), fetchFn)).resolves.toEqual({
+        skipped: 'no daily snapshot yet',
+      });
+      redis.get.mockResolvedValue(
+        JSON.stringify({
+          at: 'x',
+          cloudflare: { ok: true, level: 'ok', warnGb: 700, critGb: 950 },
+        }),
+      );
+      await expect(job.runIfNear(new Date(), fetchFn)).resolves.toEqual({
+        skipped: 'far from the limits',
+      });
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(redis.set).not.toHaveBeenCalled();
+    });
+
+    it('at warn: reads again and stores crit within the hour', async () => {
+      const { job, redis } = make(keys);
+      redis.get.mockResolvedValue(
+        JSON.stringify({
+          at: 'x',
+          cloudflare: { ok: true, level: 'warn', warnGb: 700, critGb: 950 },
+        }),
+      );
+      const snap = await job.runIfNear(new Date(), cf(960));
+      expect(snap).toMatchObject({ cloudflare: { level: 'crit' } });
+      expect(redis.set).toHaveBeenCalledWith(
+        USAGE_SNAPSHOT_KEY,
+        expect.stringContaining('"crit"'),
+        'EX',
+        expect.any(Number),
+      );
+    });
+
+    it('usageNear: warn / crit / a failed read', () => {
+      expect(usageNear({ at: 'x' })).toBe(false);
+      expect(
+        usageNear({ at: 'x', bunny: { ok: true, storageLevel: 'crit' } }),
+      ).toBe(true);
+      expect(usageNear({ at: 'x', bunny: { ok: false } })).toBe(true);
+    });
+  });
 
   it('is skipped without keys', async () => {
     const { job, logs } = make({});

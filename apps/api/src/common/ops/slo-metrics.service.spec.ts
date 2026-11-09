@@ -24,6 +24,7 @@ describe('SloMetricsService (owner 2026-10-22, audit #4 §7)', () => {
       pushOk: 3,
       pushFailed: 1,
       turnProviderFailed: 0,
+      ownTurnDown: 0,
       loginOk: 0,
       loginFail: 0,
       msgSent: 0,
