@@ -309,7 +309,7 @@ export class BootstrapService {
     const on =
       !!flags[TRANSLATE_FLAG] &&
       !!(await this.secrets?.get('google_translate'))?.fields.apiKey;
-    const out = { ...flags, [TRANSLATE_FLAG]: on };
+    const out: Record<string, boolean> = { ...flags, [TRANSLATE_FLAG]: on };
     for (const zone of TRANSLATE_ZONES) {
       out[zoneFlag(zone)] = on && zoneAllowed(appConfig, zone);
     }
