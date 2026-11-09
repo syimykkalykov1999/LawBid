@@ -19,6 +19,53 @@ const offAll = () => 'off' as const;
 const MIN = 60_000;
 const H = 3_600_000;
 
+describe('autoWants G4–G6 (2026-11-08)', () => {
+  const ids = (w: AutoWant[]) => w.map((x) => `${x.id}:${x.to}`).sort();
+
+  it('G4: events.sink wants the stream and there is none → on; gone → off (only if auto)', () => {
+    expect(
+      ids(autoWants({ ...calm, eventsStreamWanted: true }, offAll, new Set())),
+    ).toEqual(['aws.events_stream:on']);
+    const onLive = (id: string) => (id === 'aws.events_stream' ? 'on' : 'off');
+    expect(
+      ids(autoWants(calm, onLive, new Set(['aws.events_stream']))),
+    ).toEqual(['aws.events_stream:off']);
+    // switched on by hand: stays
+    expect(autoWants(calm, onLive, new Set())).toEqual([]);
+  });
+
+  it('G5: cache node on Redis memory pressure (Авто) or Вкл; never by Выкл; never off by itself', () => {
+    const tight = { ...calm, pressures: ['redis_memory'] };
+    expect(
+      ids(autoWants({ ...tight, cacheRedisMode: 'auto' }, offAll, new Set())),
+    ).toEqual(['aws.redis_cache:on']);
+    expect(
+      ids(autoWants({ ...calm, cacheRedisMode: 'on' }, offAll, new Set())),
+    ).toEqual(['aws.redis_cache:on']);
+    expect(
+      autoWants({ ...tight, cacheRedisMode: 'off' }, offAll, new Set()),
+    ).toEqual([]);
+    expect(
+      autoWants({ ...tight, cacheNodeLive: true }, offAll, new Set()),
+    ).toEqual([]);
+    const onLive = (id: string) => (id === 'aws.redis_cache' ? 'on' : 'off');
+    expect(autoWants(calm, onLive, new Set(['aws.redis_cache']))).toEqual([]);
+  });
+
+  it('G6: db.replica_provision rules the pipeline replica; the app path wins when it has IAM', () => {
+    const busy = { ...calm, pressures: ['db_cpu'] };
+    expect(ids(autoWants(busy, offAll, new Set()))).toEqual([
+      'aws.rds_replicas:on',
+    ]);
+    expect(
+      autoWants({ ...busy, replicaProvision: 'off' }, offAll, new Set()),
+    ).toEqual([]);
+    expect(
+      autoWants({ ...busy, replicaAppPath: true }, offAll, new Set()),
+    ).toEqual([]);
+  });
+});
+
 describe('autoWants', () => {
   it('nothing when calm', () => {
     expect(autoWants(calm, offAll, new Set())).toEqual([]);
