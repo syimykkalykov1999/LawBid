@@ -113,8 +113,8 @@ function make(stored: Record<string, unknown>, rows: unknown[] = [snapshot()]) {
 describe('StaffRatingReadService', () => {
   const on = { 'staff.rating_enabled': true };
 
-  it('switch off (the default): not found, no query', async () => {
-    const { svc, calls } = make({});
+  it('switch «Выкл» (stored; the default is «Авто» since 2026-11-08): not found, no query', async () => {
+    const { svc, calls } = make({ 'staff.rating_enabled': 'off' });
     await expect(svc.people({ workspace: null }, {})).rejects.toThrow(
       NotFoundException,
     );

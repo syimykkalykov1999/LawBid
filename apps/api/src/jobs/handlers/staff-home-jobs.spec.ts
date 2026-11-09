@@ -13,10 +13,10 @@ const settings = (stored: Record<string, unknown> = {}) =>
   } as unknown as AppSettingsService);
 
 describe('staff.today job (T10)', () => {
-  it('switch off: returns at once, builds nothing', async () => {
+  it('switch off (stored false; the default is ON since 2026-11-08): returns at once, builds nothing', async () => {
     const today = { refresh: jest.fn() };
     const job = new StaffTodayJob(
-      settings(),
+      settings({ 'staff.owner_home_enabled': false }),
       today as unknown as StaffTodayService,
     );
     await expect(job.run()).resolves.toEqual({ skipped: 'off' });
@@ -112,8 +112,11 @@ describe('staff.weekly-digest job (T10)', () => {
     return { job, digest, push };
   };
 
-  it('switch off: nothing is composed or sent', async () => {
-    const { job, digest, push } = build({}, null);
+  it('switch off (stored false; the default is ON since 2026-11-08): nothing is composed or sent', async () => {
+    const { job, digest, push } = build(
+      { 'staff.weekly_digest_enabled': false },
+      null,
+    );
     await expect(job.run()).resolves.toEqual({ skipped: 'off' });
     expect(digest.prepare).not.toHaveBeenCalled();
     expect(push.enqueueOpsAlert).not.toHaveBeenCalled();

@@ -46,6 +46,8 @@ describe('Staff owner home (e2e)', () => {
           'staff.rating_enabled': true,
           'staff.suggestions_enabled': true,
           'staff.worker_progress_enabled': true,
+          // on by default since 2026-11-08; this suite checks the block off
+          'staff.appeals_enabled': false,
           ...extra,
         }),
       ),
@@ -153,7 +155,17 @@ describe('Staff owner home (e2e)', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
-  it('everything off (the default): the owner gets 404 on every new route', async () => {
+  it('everything switched off (stored; since 2026-11-08 the defaults are on): the owner gets 404 on every new route', async () => {
+    jest.spyOn(settings, 'get').mockImplementation(() =>
+      Promise.resolve(
+        resolveStaffSettings({
+          'staff.owner_home_enabled': false,
+          'staff.rating_enabled': 'off',
+          'staff.worker_progress_enabled': false,
+          'staff.weekly_digest_enabled': false,
+        }),
+      ),
+    );
     await api().get('/api/v1/admin/staff/today').set(owner.auth).expect(404);
     await api()
       .get('/api/v1/admin/staff/today/system')
@@ -302,11 +314,14 @@ describe('Staff owner home (e2e)', () => {
     expect((forged.body as { data: { rating: number } }).data.rating).toBe(96);
     // personal progress has its own switch
     jest.restoreAllMocks();
-    jest
-      .spyOn(settings, 'get')
-      .mockImplementation(() =>
-        Promise.resolve(resolveStaffSettings({ 'staff.rating_enabled': true })),
-      );
+    jest.spyOn(settings, 'get').mockImplementation(() =>
+      Promise.resolve(
+        resolveStaffSettings({
+          'staff.rating_enabled': true,
+          'staff.worker_progress_enabled': false,
+        }),
+      ),
+    );
     await api()
       .get('/api/v1/admin/staff/me/progress')
       .set(good.auth)

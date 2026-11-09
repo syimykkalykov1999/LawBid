@@ -13,10 +13,10 @@ const settings = (stored: Record<string, unknown> = {}) =>
 const NOW = new Date('2026-10-27T03:22:00Z');
 
 describe('staff.retaliation-expire (T6)', () => {
-  it('switch off (the default): returns at once, the service is not touched', async () => {
+  it('switch off (stored false; the default is ON since 2026-11-08): returns at once, the service is not touched', async () => {
     const svc = { expire: jest.fn() };
     const job = new StaffRetaliationExpireJob(
-      settings(),
+      settings({ 'staff.appeals_enabled': false }),
       svc as unknown as StaffRetaliationService,
     );
     await expect(job.run(NOW)).resolves.toEqual({ skipped: 'off' });

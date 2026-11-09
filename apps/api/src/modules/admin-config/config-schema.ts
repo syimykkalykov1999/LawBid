@@ -1,6 +1,7 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
 import {
+  STAFF_MODE_AUTO_RULE,
   STAFF_NUMBER_DEFS,
   STAFF_SWITCH_LABELS,
 } from '../../common/app-settings/staff-settings';
@@ -317,13 +318,25 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       max: def.max,
     };
   }
-  // Staff package T1 (2026-10-27): switches (all off) and numbers with
-  // their bounds; Russian label + key, like the realtime timings.
+  // Staff package T1 (2026-10-27): switches and numbers with their bounds;
+  // Russian label + key, like the realtime timings. Owner 2026-11-08 (rule
+  // 5c): the owner's pages default on; rating, piecework and the anomaly
+  // detector are Выкл / Вкл / Авто with «Авто» as the default.
   for (const [key, labelRu] of Object.entries(STAFF_SWITCH_LABELS)) {
+    const defaultValue = APP_SETTINGS[key as keyof typeof APP_SETTINGS];
+    if (key in STAFF_MODE_AUTO_RULE) {
+      out[key] = {
+        type: 'string',
+        defaultValue,
+        description: `${labelRu} (${key}). off = Выкл, on = Вкл, auto = Авто (по умолчанию). ${STAFF_MODE_AUTO_RULE[key as keyof typeof STAFF_MODE_AUTO_RULE]}.`,
+        pattern: /^(off|on|auto)$/,
+      };
+      continue;
+    }
     out[key] = {
       type: 'boolean',
-      defaultValue: false,
-      description: `${labelRu} (${key}). По умолчанию выключено.`,
+      defaultValue,
+      description: `${labelRu} (${key}). По умолчанию ${defaultValue === true ? 'включено' : 'выключено'}.`,
     };
   }
   for (const [key, def] of Object.entries(STAFF_NUMBER_DEFS)) {

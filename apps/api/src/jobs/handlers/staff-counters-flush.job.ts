@@ -17,7 +17,8 @@ export class StaffCountersFlushJob {
   constructor(private readonly staff: StaffSettingsService) {}
 
   async run(): Promise<StaffJobResult> {
-    if (!(await this.staff.isOn('staff.rating_enabled'))) return STAFF_JOB_OFF;
+    if (!(await this.staff.isActive('staff.rating_enabled')))
+      return STAFF_JOB_OFF;
     return STAFF_JOB_STUB;
   }
 }

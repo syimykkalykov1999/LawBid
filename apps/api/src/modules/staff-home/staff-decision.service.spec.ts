@@ -58,7 +58,10 @@ describe('StaffDecisionService (the buttons under a suggestion)', () => {
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
     await expect(
-      build('warn', 'open', {}).svc.decide(owner, 's1', { action: 'apply' }),
+      build('warn', 'open', {
+        'staff.rating_enabled': 'off',
+        'staff.suggestions_enabled': false,
+      }).svc.decide(owner, 's1', { action: 'apply' }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 

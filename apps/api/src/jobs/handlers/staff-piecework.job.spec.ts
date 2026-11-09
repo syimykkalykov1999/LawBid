@@ -30,8 +30,53 @@ const noDb = new Proxy(
 ) as unknown as PrismaService;
 
 describe('staff.piecework job', () => {
-  it('switch off (the default): returns at once, no query, no call out', async () => {
-    const off = settings({});
+  it('«Авто» (the default) without a single active rate, or «Выкл»: returns at once, no query, no call out', async () => {
+    for (const off of [
+      settings({}),
+      settings({ 'staff.piecework_enabled': 'off' }),
+    ]) {
+      const svc = new StaffPieceworkService(
+        noDb,
+        off,
+        new PayrollAccrualsService(noDb),
+        noDb as never,
+      );
+      await expect(new StaffPieceworkJob(off, svc).run()).resolves.toEqual({
+        skipped: 'off',
+      });
+    }
+  });
+
+  it('«Авто» with an active rate: the job runs (owner rule 5c, Авто really acts)', async () => {
+    const auto = new StaffSettingsService(
+      { all: () => Promise.resolve({}) } as unknown as AppSettingsService,
+      {
+        adminProfile: { count: () => Promise.resolve(1) },
+        staffRate: { count: () => Promise.resolve(1) },
+      } as unknown as PrismaService,
+    );
+    expect(await auto.isActive('staff.piecework_enabled')).toBe(true);
+    const computeDay = jest.fn(() =>
+      Promise.resolve({
+        day: 'd',
+        admins: 0,
+        accrued: 0,
+        totalCents: 0,
+        skippedNoPayroll: 0,
+        skippedDisputed: 0,
+        noRating: 0,
+        paidDiffs: [],
+      }),
+    );
+    const out = await new StaffPieceworkJob(auto, {
+      computeDay,
+    } as never).run();
+    expect(computeDay).toHaveBeenCalledTimes(1);
+    expect(out).toMatchObject({ day: 'd', accrued: 0 });
+  });
+
+  it('legacy «switch off» body kept for the stored-false shape', async () => {
+    const off = settings({ 'staff.piecework_enabled': false });
     const svc = new StaffPieceworkService(
       noDb,
       off,

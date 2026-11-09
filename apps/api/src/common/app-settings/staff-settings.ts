@@ -1,17 +1,26 @@
 // Staff package T1 (2026-10-27, docs/architecture/ADMIN_STAFF_PACKAGE_PLAN_2026-10-27.md
 // part D): every switch and number of «Админка и сотрудники» lives in
 // app_config, changed from the admin (Настройки) without a release.
-//  - Switches (`staff.*_enabled`) are ALL OFF: with everything off the
-//    package does nothing (no queries, no jobs, no new screens).
+//  - Switches (`staff.*_enabled`): the ones that change how the staff WORK
+//    (workspaces, desk, leases, presence, masking, AI, …) are OFF until the
+//    owner turns them on one by one (guide «Как включать по порядку»).
+//    Owner 2026-11-08 (rule 5c, «built features work, never hidden»): the
+//    owner's own pages («Сегодня», people and rating, complaints against
+//    heads, piecework rates) are ON by default, and the three that cost
+//    server work or move money are three-state Выкл / Вкл / Авто with
+//    «Авто» as the default (`STAFF_MODE_AUTO_RULE` says what Авто decides
+//    on; common/app-settings/switch-mode.ts is the shared parser).
 //  - Numbers start at the research values (plan D2); the admin may change
 //    them only inside [min, max] (config-schema.ts checks on save, and
 //    StaffSettingsService clamps on read, so a bad stored value cannot
 //    break anything).
 // The typed reader is modules/staff-core/staff-settings.service.ts.
 
+import type { SwitchMode } from './switch-mode';
+
 /** Defaults. A literal object so `AppSettingKey` keeps the exact keys. */
 export const OWNER_STAFF_SETTINGS = {
-  // --- D1 switches (all OFF) ---
+  // --- D1 switches: workflow of the staff (OFF until the owner enables) ---
   'staff.workspaces_enabled': false,
   'staff.desk_enabled': false,
   'staff.lease_enabled': false,
@@ -22,27 +31,27 @@ export const OWNER_STAFF_SETTINGS = {
   'staff.lease_finance_enabled': false,
   'staff.presence_enabled': false,
   'staff.push_offer_enabled': false,
-  'staff.rating_enabled': false,
-  'staff.suggestions_enabled': false,
+  'staff.rating_enabled': 'auto' as SwitchMode,
+  'staff.suggestions_enabled': true,
   'staff.auto_apply_enabled': false,
   'staff.sampling_enabled': false,
   'staff.golden_enabled': false,
   'staff.peer_check_enabled': false,
   'staff.trust_tiers_enabled': false,
   'staff.head_enabled': false,
-  'staff.appeals_enabled': false,
-  'staff.case_appeals_enabled': false,
-  'staff.piecework_enabled': false,
-  'staff.worker_progress_enabled': false,
+  'staff.appeals_enabled': true,
+  'staff.case_appeals_enabled': true,
+  'staff.piecework_enabled': 'auto' as SwitchMode,
+  'staff.worker_progress_enabled': true,
   'staff.masking_enabled': false,
   'staff.watermark_enabled': false,
   'staff.export_block_enabled': false,
   'staff.session_binding_enforce_enabled': false,
-  'staff.anomalies_enabled': false,
-  'staff.owner_home_enabled': false,
+  'staff.anomalies_enabled': 'auto' as SwitchMode,
+  'staff.owner_home_enabled': true,
   'staff.nav_groups_enabled': false,
   'staff.pins_enabled': false,
-  'staff.weekly_digest_enabled': false,
+  'staff.weekly_digest_enabled': true,
   'staff.forecast_enabled': false,
   'staff.ai_enabled': false,
   'staff.ai_qa_enabled': false,
@@ -138,12 +147,39 @@ export const OWNER_STAFF_SETTINGS = {
 };
 
 export type StaffSettingKey = keyof typeof OWNER_STAFF_SETTINGS;
-export type StaffSwitchKey = {
+/** Plain Выкл / Вкл switches (stored boolean). */
+export type StaffBoolKey = {
   [K in StaffSettingKey]: (typeof OWNER_STAFF_SETTINGS)[K] extends boolean
     ? K
     : never;
 }[StaffSettingKey];
+/** Three-state Выкл / Вкл / Авто switches (stored 'off' | 'on' | 'auto';
+ * an old stored boolean still counts: true = on, false = off). */
+export type StaffModeKey = {
+  [K in StaffSettingKey]: (typeof OWNER_STAFF_SETTINGS)[K] extends SwitchMode
+    ? K
+    : never;
+}[StaffSettingKey];
+/** Every switch, two- or three-state (what `isOn()` accepts). */
+export type StaffSwitchKey = StaffBoolKey | StaffModeKey;
 export type StaffNumberKey = Exclude<StaffSettingKey, StaffSwitchKey>;
+
+/**
+ * Owner rule 5c: what «Авто» really decides on, per three-state switch. The
+ * text is shown to the owner next to the buttons and in «Настройки»; the
+ * signal itself is read by StaffSettingsService (one cheap count, cached).
+ */
+export const STAFF_MODE_AUTO_RULE: Readonly<Record<StaffModeKey, string>> = {
+  'staff.rating_enabled':
+    'Авто: ночной рейтинг считается, когда в админке есть хоть один сотрудник кроме владельца; пока его нет — ни одного запроса ночью, страница «Люди и рейтинг» открыта и пуста',
+  'staff.piecework_enabled':
+    'Авто: начисление в «Зарплаты» идёт, когда задана хоть одна ставка на странице «Ставки за решения»; без ставок ночная задача ничего не считает и денег не двигает',
+  'staff.anomalies_enabled':
+    'Авто: детектор работает, когда сотрудников кроме владельца не меньше двух (медиана группы из одного человека ничего не значит); иначе отчёт не строится',
+};
+export const STAFF_MODE_KEYS = Object.keys(
+  STAFF_MODE_AUTO_RULE,
+) as StaffModeKey[];
 
 /** Russian label for the admin (the generic settings editor shows it). */
 export const STAFF_SWITCH_LABELS: Readonly<Record<StaffSwitchKey, string>> = {

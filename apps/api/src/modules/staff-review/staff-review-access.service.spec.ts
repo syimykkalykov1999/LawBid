@@ -28,9 +28,11 @@ const actor = (over: Record<string, unknown> = {}) =>
 describe('StaffReviewAccessService', () => {
   it('off (rating or sampling): everybody gets «not found», nothing is read', async () => {
     for (const stored of [
-      {},
+      { 'staff.rating_enabled': 'off' },
       { 'staff.rating_enabled': true },
-      { 'staff.sampling_enabled': true },
+      // rating «Авто» (the default) is on for the reader; sampling is off
+      { 'staff.sampling_enabled': false },
+      { 'staff.rating_enabled': 'off', 'staff.sampling_enabled': true },
     ]) {
       const { svc, prisma } = make(stored, null);
       await expect(

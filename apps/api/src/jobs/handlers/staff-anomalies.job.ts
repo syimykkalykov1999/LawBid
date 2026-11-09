@@ -23,7 +23,7 @@ export class StaffAnomaliesJob {
   ) {}
 
   async run(now: Date = new Date()): Promise<StaffJobResult> {
-    if (!(await this.staff.isOn('staff.anomalies_enabled')))
+    if (!(await this.staff.isActive('staff.anomalies_enabled')))
       return STAFF_JOB_OFF;
     if (!this.anomalies) return STAFF_JOB_STUB;
     const yesterday = utcDay(new Date(now.getTime() - 86_400_000));

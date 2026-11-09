@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty';
+import { StaffModeSwitch } from '@/components/staff/staff-mode-switch';
 import { Select } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { errorText } from '@/lib/api/client';
@@ -40,11 +41,12 @@ export function PeoplePage() {
         }
       />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
+      {isOwner(me) ? <StaffModeSwitch keys={['staff.rating_enabled', 'staff.anomalies_enabled']} /> : null}
       {missing ? (
         <EmptyState
           icon={Users}
           title="Рейтинг выключен"
-          text="Включите переключатель «Ночной рейтинг и флаги сотрудников» в «Настройки». До этого раздел пустой, остальное работает как раньше."
+          text="Нажмите «Авто» или «Вкл» выше. До этого раздел пустой, остальное работает как раньше."
         />
       ) : (
         <>

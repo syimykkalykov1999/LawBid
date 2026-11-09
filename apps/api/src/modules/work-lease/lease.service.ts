@@ -886,7 +886,7 @@ export class LeaseService implements LeasePort {
         }
       }
     }
-    if (lost.length > 0 && cfg.switches['staff.rating_enabled']) {
+    if (lost.length > 0 && cfg.active['staff.rating_enabled']) {
       await this.prisma.staffQualitySignal
         .createMany({ data: lost.map((s) => ({ ...s, value: 1 })) })
         .catch((e: unknown) => log.warn(`lease_lost signals: ${String(e)}`));

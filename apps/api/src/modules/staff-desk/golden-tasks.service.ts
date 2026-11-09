@@ -37,7 +37,7 @@ export class GoldenTasksService implements LeaseGolden {
   private async enabled(): Promise<boolean> {
     const s = await this.staff.get();
     return (
-      s.switches['staff.rating_enabled'] && s.switches['staff.golden_enabled']
+      s.active['staff.rating_enabled'] && s.switches['staff.golden_enabled']
     );
   }
 

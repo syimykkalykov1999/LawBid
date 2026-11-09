@@ -30,9 +30,11 @@ export class StaffRetentionJob {
 
   async run(now = new Date()): Promise<StaffJobResult> {
     const s = await this.staff.get();
+    // Signals exist only while the rating really runs («Вкл», or «Авто»
+    // with staff): nothing to purge before that.
     if (
       !s.switches['staff.lease_enabled'] &&
-      !s.switches['staff.rating_enabled']
+      !s.active['staff.rating_enabled']
     ) {
       return STAFF_JOB_OFF;
     }

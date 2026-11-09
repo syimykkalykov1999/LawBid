@@ -59,7 +59,7 @@ describe('Staff rating engine (e2e)', () => {
   let accountant: AdminSession;
   const ids = () => [good, poor, newbie, accountant].map((a) => a.userId);
 
-  const setSwitches = (on: Record<string, boolean>) =>
+  const setSwitches = (on: Record<string, boolean | string>) =>
     jest
       .spyOn(settings, 'get')
       .mockImplementation(() => Promise.resolve(resolveStaffSettings(on)));
@@ -158,8 +158,8 @@ describe('Staff rating engine (e2e)', () => {
 
   const api = () => request(base);
 
-  it('rating switch off (the default): the recorder writes nothing, the API does not exist', async () => {
-    setSwitches({});
+  it('rating «Выкл» (stored): the recorder writes nothing, the API does not exist', async () => {
+    setSwitches({ 'staff.rating_enabled': 'off' });
     await recorder.record({
       adminId: good.userId,
       itemKind: 'verification',
@@ -177,6 +177,31 @@ describe('Staff rating engine (e2e)', () => {
       .get('/api/v1/admin/staff/suggestions')
       .set(owner.auth)
       .expect(404);
+    await expect(
+      new StaffDailyStatsJob(
+        settings,
+        null as never,
+        null as never,
+        null as never,
+      ).run(),
+    ).resolves.toEqual({ skipped: 'off' });
+  });
+
+  it('rating «Авто» (the default) without a staff signal: nothing is computed, but the pages answer (empty), never 404', async () => {
+    setSwitches({});
+    await recorder.record({
+      adminId: good.userId,
+      itemKind: 'verification',
+      itemId: randomUUID(),
+      outcome: 'approve',
+    });
+    const today = new Date().toISOString().slice(0, 10);
+    expect(await redis.exists(`staff:ctr:${today}:${good.userId}`)).toBe(0);
+    const res = await api()
+      .get('/api/v1/admin/staff/people')
+      .set(owner.auth)
+      .expect(200);
+    expect(Array.isArray(res.body.data.items)).toBe(true);
     await expect(
       new StaffDailyStatsJob(
         settings,

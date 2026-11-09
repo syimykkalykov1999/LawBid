@@ -233,7 +233,7 @@ export class StaffSecurityService implements StaffSecurityPort {
         message: 'Exports are closed for this workspace.',
       });
     }
-    if (await this.staff.isOn('staff.anomalies_enabled')) {
+    if (await this.staff.isActive('staff.anomalies_enabled')) {
       const card = openedCard(
         req.method,
         path,

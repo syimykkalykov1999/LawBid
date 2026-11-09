@@ -6,10 +6,14 @@
  */
 export {
   OWNER_STAFF_SETTINGS,
+  STAFF_MODE_AUTO_RULE,
+  STAFF_MODE_KEYS,
   STAFF_NUMBER_DEFS,
   STAFF_NUMBER_KEYS,
   STAFF_SWITCH_KEYS,
   STAFF_SWITCH_LABELS,
+  type StaffBoolKey,
+  type StaffModeKey,
   type StaffNumberDef,
   type StaffNumberKey,
   type StaffSettingKey,

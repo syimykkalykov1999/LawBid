@@ -21,7 +21,7 @@ export class StaffPieceworkJob {
   ) {}
 
   async run(now: Date = new Date()): Promise<StaffJobResult> {
-    if (!(await this.staff.isOn('staff.piecework_enabled')))
+    if (!(await this.staff.isActive('staff.piecework_enabled')))
       return STAFF_JOB_OFF;
     const r = await this.piecework.computeDay(yesterdayOf(now));
     return {

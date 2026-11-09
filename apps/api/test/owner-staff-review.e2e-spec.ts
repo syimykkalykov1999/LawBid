@@ -166,7 +166,12 @@ describe('Staff re-check loop (e2e)', () => {
     for (const off of [
       {},
       { 'staff.rating_enabled': true, 'staff.lease_enabled': true },
-      { 'staff.sampling_enabled': true, 'staff.lease_enabled': true },
+      // rating stored off (its default is «Авто» since 2026-11-08)
+      {
+        'staff.rating_enabled': false,
+        'staff.sampling_enabled': true,
+        'staff.lease_enabled': true,
+      },
     ]) {
       stored = off;
       for (const a of [owner, head, senior]) {

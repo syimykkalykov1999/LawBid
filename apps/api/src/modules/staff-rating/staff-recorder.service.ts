@@ -61,7 +61,8 @@ export class StaffRecorderService implements StaffRecorder, StaffSignals {
   async record(event: StaffDecisionEvent): Promise<void> {
     try {
       const s = await this.settings.get();
-      if (!s.switches['staff.rating_enabled']) return;
+      // Counts only while the rating really runs («Вкл», or «Авто» with staff).
+      if (!s.active['staff.rating_enabled']) return;
       if (!UUID_RE.test(event.adminId)) return;
       const fresh = await this.counters.bump(event);
       if (!fresh || !s.switches['staff.sampling_enabled']) return;
@@ -94,7 +95,7 @@ export class StaffRecorderService implements StaffRecorder, StaffSignals {
     itemId: string,
   ): Promise<void> {
     try {
-      if (!(await this.settings.isOn('staff.rating_enabled'))) return;
+      if (!(await this.settings.isActive('staff.rating_enabled'))) return;
       if (!UUID_RE.test(adminId) || !UUID_RE.test(itemId)) return;
       await this.prisma.staffQualitySignal.create({
         data: {
@@ -116,7 +117,7 @@ export class StaffRecorderService implements StaffRecorder, StaffSignals {
     itemId: string,
   ): Promise<void> {
     try {
-      if (!(await this.settings.isOn('staff.rating_enabled'))) return;
+      if (!(await this.settings.isActive('staff.rating_enabled'))) return;
       const action = await this.prisma.moderationAction.findUnique({
         where: { id: actionId },
         select: { admin_id: true },

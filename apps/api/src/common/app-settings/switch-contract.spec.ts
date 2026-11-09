@@ -57,6 +57,12 @@ describe('switch contract: defaults (a)', () => {
     ['auth.additional_identifiers_enabled', false],
     ['today.sentry_enabled', false],
     ['scale.db_split_enabled', false],
+    // Owner 2026-11-08 (rule 5c): the owner's staff pages work out of the box.
+    ['staff.owner_home_enabled', true],
+    ['staff.appeals_enabled', true],
+    ['staff.rating_enabled', 'auto'],
+    ['staff.piecework_enabled', 'auto'],
+    ['staff.anomalies_enabled', 'auto'],
   ];
   it.each(table)('%s defaults to %p with nothing stored', async (key, want) => {
     expect(APP_SETTINGS[key]).toBe(want);

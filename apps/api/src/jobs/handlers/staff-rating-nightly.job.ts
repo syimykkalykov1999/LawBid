@@ -6,8 +6,9 @@ import { STAFF_JOB_OFF, type StaffJobResult } from './staff-job-gate';
 /**
  * Staff package (plan B5): cron job `staff.rating-nightly` (40 1 * * * UTC, lane cron-heavy).
  * Rating, flags, suggestions (samples / golden tasks are made by staff.daily-stats).
- * Owner of this file: T5 (staff-rating). While staff.rating_enabled is off
- * (the default) it returns at once without touching the database. The
+ * Owner of this file: T5 (staff-rating). While staff.rating_enabled is not
+ * active («Выкл», or «Авто» without a single staff member besides the
+ * owner) it returns at once without touching the database. The
  * snapshot of a date is written as absolute values, so a re-run changes
  * nothing; suggestions need staff.suggestions_enabled and are rows for a
  * human — only the warning may be auto-applied (staff.auto_apply_enabled).
@@ -20,7 +21,8 @@ export class StaffRatingNightlyJob {
   ) {}
 
   async run(now: Date = new Date()): Promise<StaffJobResult> {
-    if (!(await this.staff.isOn('staff.rating_enabled'))) return STAFF_JOB_OFF;
+    if (!(await this.staff.isActive('staff.rating_enabled')))
+      return STAFF_JOB_OFF;
     return this.rating.runNightly(now);
   }
 }

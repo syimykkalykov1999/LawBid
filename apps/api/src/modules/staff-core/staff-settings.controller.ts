@@ -23,7 +23,10 @@ export class StaffSettingsController {
     summary: 'Staff package switches and numbers (all off by default)',
   })
   @ApiEnvelopeResponse(StaffSettingsDto)
-  getStaffSettings(): Promise<StaffSettingsDto> {
-    return this.staff.get();
+  async getStaffSettings(): Promise<StaffSettingsDto> {
+    // Exactly the contract shape: a three-state switch shows as «on» for the
+    // reader unless it stands on «Выкл» (its position lives in /admin/config).
+    const { switches, numbers } = await this.staff.get();
+    return { switches, numbers };
   }
 }

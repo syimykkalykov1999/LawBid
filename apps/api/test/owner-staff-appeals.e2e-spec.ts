@@ -99,7 +99,8 @@ describe('Staff appeals + retaliation guard (e2e)', () => {
       data: { first_name: 'Anna', last_name: 'Secret' },
     });
 
-    // ---- switch off: the feature does not exist --------------------------
+    // ---- switch off (stored; on by default since 2026-11-08): the feature does not exist
+    await setting('staff.appeals_enabled', false);
     await api()
       .post('/api/v1/admin/workspace/appeals')
       .set(worker.auth)

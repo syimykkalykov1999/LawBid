@@ -10,6 +10,16 @@ const settings = (stored: Record<string, unknown>) =>
     all: () => Promise.resolve(stored),
   } as unknown as AppSettingsService);
 
+/** Every block stored off (since 2026-11-08 the defaults are on / «Авто»). */
+const ALL_OFF = {
+  'staff.owner_home_enabled': false,
+  'staff.appeals_enabled': false,
+  'staff.rating_enabled': 'off',
+  'staff.suggestions_enabled': false,
+  'staff.anomalies_enabled': 'off',
+  'staff.piecework_enabled': 'off',
+};
+
 const ALL_ON = {
   'staff.owner_home_enabled': true,
   'staff.appeals_enabled': true,
@@ -60,8 +70,8 @@ const build = (stored: Record<string, unknown>, rows: unknown[] = []) => {
 };
 
 describe('StaffTodayService (the owner «Сегодня»)', () => {
-  it('every block off: no query at all, every block null', async () => {
-    const { svc, queryRaw } = build({});
+  it('every block off (stored): no query at all, every block null', async () => {
+    const { svc, queryRaw } = build(ALL_OFF);
     const t = await svc.build();
     expect(queryRaw).not.toHaveBeenCalled();
     expect(t).toMatchObject({
@@ -200,7 +210,10 @@ describe('StaffTodayService (the owner «Сегодня»)', () => {
   });
 
   it('the suggestions block needs rating AND suggestions on', async () => {
-    const { svc, queryRaw } = build({ 'staff.suggestions_enabled': true });
+    const { svc, queryRaw } = build({
+      ...ALL_OFF,
+      'staff.suggestions_enabled': true,
+    });
     const t = await svc.build();
     expect(t.suggestions).toBeNull();
     expect(queryRaw).not.toHaveBeenCalled();

@@ -121,8 +121,11 @@ describe('StaffRatingService.runNightly (fixtures)', () => {
     expect(text).toContain('ON CONFLICT (admin_id, snapshot_date) DO UPDATE');
   });
 
-  it('suggestions off (the default): the snapshot only', async () => {
-    const { svc, prisma } = make({ 'staff.rating_enabled': true });
+  it('suggestions off (stored false; the default is on since 2026-11-08): the snapshot only', async () => {
+    const { svc, prisma } = make({
+      'staff.rating_enabled': true,
+      'staff.suggestions_enabled': false,
+    });
     const r = await svc.runNightly(NOW);
     expect(r.suggestions).toBe(0);
     expect(prisma.staffSuggestion.createMany).not.toHaveBeenCalled();

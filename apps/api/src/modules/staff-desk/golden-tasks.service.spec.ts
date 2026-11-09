@@ -10,7 +10,16 @@ function make(switches: Sw, row: Record<string, unknown> | null = null) {
     },
     staffQualitySignal: { create: jest.fn().mockResolvedValue({}) },
   };
-  const staff = { get: jest.fn().mockResolvedValue({ switches, numbers: {} }) };
+  // Golden tasks need the rating to really run (`active`), not only to exist.
+  const staff = {
+    get: jest.fn().mockResolvedValue({
+      switches,
+      active: {
+        'staff.rating_enabled': switches['staff.rating_enabled'] === true,
+      },
+      numbers: {},
+    }),
+  };
   const svc = new GoldenTasksService(prisma as never, staff as never);
   return { svc, prisma };
 }

@@ -47,7 +47,7 @@ export class StaffSamplingService {
   async drainQueue(now: Date = new Date()): Promise<number> {
     const s = await this.settings.get();
     if (
-      !s.switches['staff.rating_enabled'] ||
+      !s.active['staff.rating_enabled'] ||
       !s.switches['staff.sampling_enabled']
     ) {
       return 0;
@@ -126,7 +126,7 @@ export class StaffSamplingService {
   ): Promise<number> {
     const s = await this.settings.get();
     if (
-      !s.switches['staff.rating_enabled'] ||
+      !s.active['staff.rating_enabled'] ||
       !s.switches['staff.golden_enabled']
     ) {
       return 0;

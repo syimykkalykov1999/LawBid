@@ -27,7 +27,8 @@ export class StaffDailyStatsJob {
   ) {}
 
   async run(now: Date = new Date()): Promise<StaffJobResult> {
-    if (!(await this.staff.isOn('staff.rating_enabled'))) return STAFF_JOB_OFF;
+    if (!(await this.staff.isActive('staff.rating_enabled')))
+      return STAFF_JOB_OFF;
     const day = new Date(now.getTime() - DAY_MS).toISOString().slice(0, 10);
     const { rows, counters } = await this.stats.computeDay(day);
     const samples = await this.sampling.drainQueue(now);
@@ -38,7 +39,7 @@ export class StaffDailyStatsJob {
           .map((r) => [r.adminId, { decided: r.decided, role: r.role! }]),
       ),
     );
-    const anomalies = (await this.staff.isOn('staff.anomalies_enabled'))
+    const anomalies = (await this.staff.isActive('staff.anomalies_enabled'))
       ? await this.anomalies.detect(day, rows, counters)
       : 0;
     return { day, people: rows.length, samples, golden, anomalies };

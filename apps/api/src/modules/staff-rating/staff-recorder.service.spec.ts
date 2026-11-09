@@ -45,8 +45,19 @@ const event = (o: object = {}) => ({
 });
 
 describe('StaffRecorderService', () => {
-  it('switch off (the default): no Redis command, no query', async () => {
-    const { redis, rec } = make({});
+  it('switch «Выкл», or «Авто» (the default) without staff: no Redis command, no query', async () => {
+    for (const stored of [{ 'staff.rating_enabled': 'off' }, {}]) {
+      const { redis, rec } = make(stored);
+      await rec.record(event());
+      await rec.signal(ADMIN, 'reopened', 'support_ticket', ITEM);
+      await rec.signalForModerationAction(ITEM, 'overturned', 'report', ITEM);
+      expect(redis.commands).toBe(0);
+      expect(redis.hashes.size).toBe(0);
+    }
+  });
+
+  it('legacy shape: stored false', async () => {
+    const { redis, rec } = make({ 'staff.rating_enabled': false });
     await rec.record(event());
     await rec.signal(ADMIN, 'reopened', 'support_ticket', ITEM);
     await rec.signalForModerationAction(ITEM, 'overturned', 'report', ITEM);

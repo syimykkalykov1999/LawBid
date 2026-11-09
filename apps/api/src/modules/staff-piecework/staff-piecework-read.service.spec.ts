@@ -85,7 +85,8 @@ function make(on = true) {
   const svc = new StaffPieceworkReadService(
     prisma as unknown as PrismaService,
     new StaffSettingsService({
-      all: () => Promise.resolve(on ? { 'staff.piecework_enabled': true } : {}),
+      all: () =>
+        Promise.resolve({ 'staff.piecework_enabled': on ? true : 'off' }),
     } as unknown as AppSettingsService),
   );
   return { svc, stat };

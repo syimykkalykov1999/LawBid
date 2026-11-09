@@ -7,6 +7,7 @@ import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { Badge, Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
+import { StaffModeSwitch } from '@/components/staff/staff-mode-switch';
 import { Field, Input, Select } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
@@ -252,10 +253,11 @@ export function RatesPage() {
         subtitle="Сколько платим за одно решение. Сумма за день = решения × ставка × коэффициент качества (1,10 / 1,00 / 0,90 / 0,75) и попадает в «Зарплаты» как начисление."
       />
       <ErrorNote text={rates.error ? errorText(rates.error) : month.error ? errorText(month.error) : null} />
+      {owner ? <StaffModeSwitch keys={['staff.piecework_enabled']} /> : null}
       {rates.isPending ? (
         <Skeleton className="h-40 w-full" />
       ) : missing ? (
-        <EmptyState icon={Coins} title="Оплата за решения выключена" text="Включите переключатель «Сдельная оплата в «Зарплаты»» в «Настройки». До этого ставки не нужны." />
+        <EmptyState icon={Coins} title="Оплата за решения выключена" text="Нажмите «Авто» или «Вкл» выше. До этого ставки не нужны." />
       ) : (
         <div className="space-y-4">
           <NewRate />
