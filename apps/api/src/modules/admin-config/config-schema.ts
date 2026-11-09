@@ -978,6 +978,37 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Hours (America/Chicago) when a cloud change may be applied, "HH:MM-HH:MM", e.g. 01:00-06:00; empty = any time.',
     pattern: /^$|^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/,
   };
+  // Automation audit 2026-11-08: «Авто» of the cloud items really acts.
+  out['infra.auto_mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'auto = cloud items switch on by themselves when their signal holds and off when it is gone (plan + apply + message to the on-call admins); off = proposals only.',
+    pattern: /^(off|auto)$/,
+  };
+  out['infra.auto_on_minutes'] = {
+    type: 'integer',
+    defaultValue: 30,
+    description: 'Minutes a signal must hold before an item is switched on.',
+    min: 10,
+    max: 1440,
+  };
+  out['infra.auto_off_hours'] = {
+    type: 'integer',
+    defaultValue: 72,
+    description:
+      'Hours without the signal before an item the automation switched on is switched off again.',
+    min: 6,
+    max: 720,
+  };
+  out['infra.auto_max_usd_month'] = {
+    type: 'integer',
+    defaultValue: 100,
+    description:
+      'An automatic switch-on that may cost more than this a month is not made (stays a proposal).',
+    min: 0,
+    max: 5000,
+  };
   // Owner 2026-10-27: admin «Продвижение» (static SEO pages + channel list).
   // Switched on the «Продвижение» page; the generator reads them from GET
   // /public/seo-settings (no stored row = the repository variable decides).

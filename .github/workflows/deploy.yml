@@ -443,9 +443,16 @@ jobs:
         continue-on-error: true
         run: |
           if [ -n "${LAST_GOOD_TAG:-}" ] && [ "$LAST_GOOD_TAG" != "$IMAGE_TAG" ]; then
-            aws ssm put-parameter --name "/lawbid-prod/deploy/previous_good_tag" --type String --overwrite --value "$LAST_GOOD_TAG" >/dev/null
+            aws ssm put-parameter --name "/lawbid-prod/deploy/previous_good_tag" --type String --overwrite --value "$LAST_GOOD_TAG" >/dev/null 2>&1 || true
           fi
-          aws ssm put-parameter --name "/lawbid-prod/deploy/last_good_tag" --type String --overwrite --value "$IMAGE_TAG" >/dev/null
+          # Automation audit 2026-11-08: this failed silently from 28.10 on (the
+          # role lacked ssm:PutParameter: infra/bootstrap not re-applied), so
+          # Rollback's default target stayed two weeks old. Say it loudly.
+          if ! aws ssm put-parameter --name "/lawbid-prod/deploy/last_good_tag" --type String --overwrite --value "$IMAGE_TAG" >/dev/null 2>ssm.err; then
+            echo "::error::last_good_tag NOT written: $(head -c 300 ssm.err). Rollback would go to ${LAST_GOOD_TAG:-nothing}. Owner: terraform apply in infra/bootstrap (docs/dev/AUTOMATION_AUDIT_2026-11-08.md)."
+            echo "❌ last_good_tag NOT written (rollback target stays ${LAST_GOOD_TAG:-none})" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
           echo "last_good_tag = $IMAGE_TAG (was ${LAST_GOOD_TAG:-none})" | tee -a "$GITHUB_STEP_SUMMARY"
 
   notify:

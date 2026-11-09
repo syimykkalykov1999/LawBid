@@ -546,6 +546,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     final cancellation = UploadCancellation();
     _cancellations[id] = cancellation;
     final polling = ref.read(scanPollingProvider);
+    void Function()? releaseKeepAlive;
     try {
       var fileId = initial.fileId;
       fileId ??= await _files.presignAndUpload(
@@ -560,6 +561,11 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
         },
       );
       if (cancellation.isCancelled) return;
+      // Owner 2026-11-08 (every upload finishes): the file is in storage, so
+      // leaving the wizard no longer drops the check and the attach — the
+      // document used to stay an orphan, never on the request. «Отмена» on
+      // the row still stops it.
+      releaseKeepAlive ??= ref.keepAlive().close;
       _patch(
         id,
         (t) => t.copyWith(
@@ -604,6 +610,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
       if (identical(_cancellations[id], cancellation)) {
         _cancellations.remove(id);
       }
+      releaseKeepAlive?.call();
     }
   }
 

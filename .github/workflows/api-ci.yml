@@ -227,7 +227,7 @@ jobs:
       - name: Online DDL rules and the concurrent-migration folder
         # docs/architecture/ONLINE_DDL.md: new migrations must not lock big tables.
         working-directory: apps/api
-        run: node --test scripts/online-ddl.test.mjs
+        run: node --test scripts/online-ddl.test.mjs scripts/ensure-partition-login.test.mjs
 
       - name: Migrations are expand/contract and online-DDL safe (rolling deploy + rollback safe)
         # Squawk judges only the migration folders THIS change adds: on a PR the
@@ -750,10 +750,109 @@ jobs:
 
   # One stable required check for the ruleset / merge queue.
 
+  perf-user:
+    # Owner 2026-11-08: as people and data grow, the app and the web must not
+    # slow down. The hot user-facing endpoints (feed, chats, messages, groups,
+    # notifications, search, cases, bids, contacts, calls, uploads) on a small
+    # seeded database (25 000 people, ~1.3 M rows, ~7 min to seed) with every
+    # plan EXPLAINed at 10 M and 100 M people (statistics ×400 / ×4000,
+    # rolled back). Fails on p95 > 300 ms (uncached median too), a sequential
+    # scan of a big table, a plan cost that grows with the data, or N+1
+    # (test/perf-user.e2e-spec.ts, docs/perf/USER_API_PERF_GUARD_2026-11-08.md).
+    # The quarter seed keeps the job inside the other API jobs' time (the
+    # full seed took 27 min on CI, run 42539509162), so the deploy gate
+    # (require-green.sh '^API ') does not wait longer for it; the 100 000-
+    # people run with real timings is the local one in that doc.
+    name: API perf guard (user endpoints at 10M/100M rows)
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 40 # ~13 min: npm ci 1 + migrate 0.1 + seed ~7 + suite ~4 (API CI ~17)
+    services:
+      postgres:
+        image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: lawbid
+          POSTGRES_DB: lawbid_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U root -d lawbid_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
+        ports:
+          - 6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Point the job at its service containers (random host ports)
+        env:
+          PG_PORT: ${{ job.services.postgres.ports['5432'] }}
+          REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
+        run: scripts/ci/service-env.sh
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.12.1"
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
+      - name: Restore the npm cache (self-hosted, read-only)
+        uses: ./.github/actions/npm-cache-restore
+
+      - name: Install dependencies (root workspace, hoisted)
+        run: npm ci
+
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: Migrate a clean database
+        working-directory: apps/api
+        run: npx prisma migrate deploy && node prisma/run-concurrent.mjs
+
+      - name: psql (seed generators)
+        run: command -v psql || (sudo apt-get update -q && sudo apt-get install -yq postgresql-client)
+
+      # 0.25, not smaller: at 10 000 people (x0.1) the per-attorney spreads
+      # are too thin for the planner and 100M-row plans differ from the
+      # 100 000-people run (false alarms on the case feed, 2026-11-09).
+      - name: Seed 25 000 people (repo generators x0.25, deterministic)
+        env:
+          PERF_SEED_SCALE: "0.25"
+        run: apps/api/scripts/perf-user-seed.sh "$DATABASE_URL"
+
+      - name: Hot endpoints - p95, plans at 10M/100M rows, N+1
+        working-directory: apps/api
+        env:
+          PERF_USER: "1"
+          E2E_DATABASE_URL: ${{ env.DATABASE_URL }}
+          PERF_OUT: ${{ runner.temp }}/perf-user.json
+          # 25 000 seeded people x400 / x4000 = 10 M / 100 M people
+          PERF_INFLATE: "400,4000"
+          # NestJS 12 packages are ESM only (KNOWN_ERRORS 66): jest needs the flag.
+          NODE_OPTIONS: --experimental-vm-modules
+        run: npx jest --config test/jest-perf-user.json --forceExit
+
+      - name: Upload the perf result
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: perf-user
+          path: ${{ runner.temp }}/perf-user.json
+          if-no-files-found: ignore
+
   api-ci:
     name: API CI
     if: ${{ always() }}
-    needs: [static, e2e, two-db, n1]
+    needs: [static, e2e, two-db, n1, perf-user]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

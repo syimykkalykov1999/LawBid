@@ -908,35 +908,10 @@ void main() {
     });
 
     test(
-        'leaving the screen cancels the in-flight upload and stops the pipeline',
-        () async {
-      final repo = FakeAvatarRepo(me: attorneyMe())..holdUpload = true;
-      final c = ProviderContainer(
-        overrides: [avatarUploadRepositoryProvider.overrideWithValue(repo)],
-      );
-      addTearDown(c.dispose);
-      final sub = c.listen(avatarUploadControllerProvider, (_, __) {});
-      final run = c.read(avatarUploadControllerProvider.notifier).start(jpeg);
-      await pumpEventQueue();
-      expect(
-        c.read(avatarUploadControllerProvider).stage,
-        AvatarUploadStage.uploading,
-      );
-      expect(repo.lastCancellation?.isCancelled, isFalse);
-
-      sub.close(); // autoDispose → ref.onDispose cancels
-      await run;
-
-      expect(repo.lastCancellation?.isCancelled, isTrue);
-      expect(repo.steps, ['presign:image/jpeg:8', 'upload']);
-    });
-
-    test(
-        'R2 2026-11-08: leaving the screen after the upload still attaches '
-        'the photo («Профиль сохранён», old avatar stayed)', () async {
-      const newUrl = 'https://media.test/avatar/new';
+        'owner 2026-11-08: leaving the screen during the upload never stops '
+        'it — the photo is still attached', () async {
       final hold = Completer<ScanOutcome>();
-      final repo = FakeAvatarRepo(me: attorneyMe(avatarUrl: newUrl))
+      final repo = FakeAvatarRepo(me: attorneyMe(avatarUrl: 'https://cdn/n'))
         ..holdConfirm = hold;
       final c = ProviderContainer(
         overrides: [
@@ -946,28 +921,22 @@ void main() {
         ],
       );
       addTearDown(c.dispose);
-      final screen = c.listen(currentUserControllerProvider, (_, __) {});
-      addTearDown(screen.close);
       final sub = c.listen(avatarUploadControllerProvider, (_, __) {});
       final run = c.read(avatarUploadControllerProvider.notifier).start(jpeg);
       await pumpEventQueue();
-      expect(
-        c.read(avatarUploadControllerProvider).stage,
-        AvatarUploadStage.checking,
-      );
+      sub.close(); // the editor is gone while the photo goes up
 
-      sub.close(); // «Сохранить» popped the editor while the scan ran
       await pumpEventQueue();
+      expect(repo.lastCancellation?.isCancelled, isFalse);
+      // The picked photo stays the avatar meanwhile, everywhere it is read.
+      expect(c.read(avatarUploadControllerProvider).preview, jpeg);
       hold.complete(ScanOutcome.clean);
       await run;
-
       expect(repo.steps.last, 'attach:f1');
-      expect(c.read(currentUserControllerProvider).user?.avatarUrl, newUrl);
     });
 
-    test('settled waits for the photo on its way, at once when idle', () async {
-      final hold = Completer<ScanOutcome>();
-      final repo = FakeAvatarRepo(me: attorneyMe())..holdConfirm = hold;
+    test('the same photo again is not uploaded or checked again', () async {
+      final repo = FakeAvatarRepo(me: attorneyMe())..alreadyStored = true;
       final c = ProviderContainer(
         overrides: [
           avatarUploadRepositoryProvider.overrideWithValue(repo),
@@ -976,20 +945,8 @@ void main() {
         ],
       );
       addTearDown(c.dispose);
-      final sub = c.listen(avatarUploadControllerProvider, (_, __) {});
-      addTearDown(sub.close);
-      final notifier = c.read(avatarUploadControllerProvider.notifier);
-      await notifier.settled; // idle: completes at once
-      unawaited(notifier.start(jpeg));
-      await pumpEventQueue();
-      var settled = false;
-      unawaited(notifier.settled.then((_) => settled = true));
-      await pumpEventQueue();
-      expect(settled, isFalse);
-      hold.complete(ScanOutcome.clean);
-      await pumpEventQueue();
-      expect(settled, isTrue);
-      expect(repo.steps.last, 'attach:f1');
+      await c.read(avatarUploadControllerProvider.notifier).start(jpeg);
+      expect(repo.steps, ['presign:image/jpeg:8', 'attach:f1']);
     });
 
     test('rejects non-images before any network call', () async {

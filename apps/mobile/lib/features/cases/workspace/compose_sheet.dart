@@ -13,6 +13,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart'
@@ -271,10 +272,12 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
   Future<void> _attachPhoto({required bool sample}) async {
     final room = 20 - _files.length - _kept.length;
     if (room <= 0) return;
+    // Owner 2026-11-08: the admin's «Фото» size and quality, as elsewhere.
+    final photo = photoLimitsOf(ref.read(featureFlagsControllerProvider));
     final picked = await ImagePicker().pickMultiImage(
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 85,
+      maxWidth: photo.maxPx,
+      maxHeight: photo.maxPx,
+      imageQuality: photo.quality,
       limit: room > 1 ? room : null,
     );
     final add = <PickedCaseFile>[

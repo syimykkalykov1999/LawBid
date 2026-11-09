@@ -106,6 +106,40 @@ describe('decideHa: removing copies', () => {
   });
 });
 
+describe('decideHa: busy database or Redis (automation audit 2026-11-08)', () => {
+  it('adds the copies when the database is busy, whatever the online count', () => {
+    expect(
+      decideHa({ ...quiet, pressure: { db: true, redis: false } }),
+    ).toEqual(['db_multi_az_on', 'redis_replica_up']);
+    expect(wantedHa({ ...quiet, pressure: { db: false, redis: true } })).toBe(
+      'up',
+    );
+  });
+
+  it('never removes the copies while busy, and is inert when off', () => {
+    const busy: HaFacts = {
+      ...quiet,
+      ...full,
+      pressure: { db: true, redis: false },
+    };
+    expect(decideHa(busy)).toEqual([]);
+    expect(decideHa({ ...busy, mode: 'off' })).toEqual([]);
+  });
+
+  it('does not wait 24 h after a removal: an overload beats one flip', () => {
+    expect(
+      decideHa({
+        ...quiet,
+        pressure: { db: true, redis: true },
+        last: {
+          db: { dir: 'down', atMs: NOW - 3600_000 },
+          redis: { dir: 'down', atMs: NOW - 3600_000 },
+        },
+      }),
+    ).toEqual(['db_multi_az_on', 'redis_replica_up']);
+  });
+});
+
 describe('decideHa: hysteresis', () => {
   it('the opposite direction waits 24 h after the last step', () => {
     const q: HaFacts = { ...quiet, ...full };

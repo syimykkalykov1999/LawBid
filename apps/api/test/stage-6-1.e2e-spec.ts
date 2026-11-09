@@ -110,6 +110,28 @@ describe('Stage 6.1 — base security + migration (e2e)', () => {
     expect(get.headers['access-control-expose-headers']).toMatch(/ETag/i);
   });
 
+  it('CORS preflight allows the App Check and Turnstile headers (2026-11-08)', async () => {
+    const pre = await request(baseUrl)
+      .options('/api/v1/auth/otp/request')
+      .set('Origin', 'https://lawbid.dev')
+      .set('Access-Control-Request-Method', 'POST')
+      .set(
+        'Access-Control-Request-Headers',
+        'content-type,x-firebase-appcheck,x-firebase-appcheck-status,x-turnstile-token',
+      );
+    const allowed = String(pre.headers['access-control-allow-headers'] ?? '')
+      .toLowerCase()
+      .split(',')
+      .map((h) => h.trim());
+    expect(allowed).toEqual(
+      expect.arrayContaining([
+        'x-firebase-appcheck',
+        'x-firebase-appcheck-status',
+        'x-turnstile-token',
+      ]),
+    );
+  });
+
   it('logs never contain phones, emails or tokens (pino redact + serializer)', () => {
     const lines: string[] = [];
     const sink = new Writable({

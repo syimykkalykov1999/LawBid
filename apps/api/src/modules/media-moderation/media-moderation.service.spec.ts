@@ -54,6 +54,8 @@ function harness(opts: {
     sha256: 'a'.repeat(64),
     s3_bucket: opts.bucket ?? 'media',
     s3_key: 'k',
+    mime: 'image/jpeg',
+    created_at: new Date('2026-11-08T06:10:00Z'),
   };
   const prisma: Record<string, unknown> = {
     file: { findUnique: jest.fn(() => Promise.resolve(file)) },
@@ -342,6 +344,22 @@ describe('MediaModerationService.checkFile', () => {
       check_id: 'c1',
       status: 'manual_required',
     });
+  });
+
+  it('owner 2026-11-08: the report carries the preserved file and its upload time', async () => {
+    const h = harness({ csam: 'match', postIds: ['p1'] });
+    await h.svc.checkFile('f1');
+    const input = (h.reporter.submit.mock.calls as unknown[][])[0][0] as {
+      evidence: { bytes: Buffer; fileName: string; sha256: string | null }[];
+      incidentAt: Date;
+      ownerUserId: string;
+    };
+    expect(input.ownerUserId).toBe('u1');
+    expect(input.evidence).toHaveLength(1);
+    expect(input.evidence[0].fileName).toBe('evidence-c1.jpg');
+    expect(input.evidence[0].sha256).toBe('a'.repeat(64));
+    expect(Buffer.isBuffer(input.evidence[0].bytes)).toBe(true);
+    expect(input.incidentAt.toISOString()).toBe('2026-11-08T06:10:00.000Z');
   });
 });
 
