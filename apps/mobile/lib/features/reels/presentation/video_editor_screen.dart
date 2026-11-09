@@ -9,7 +9,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart'
     show ImagePicker, ImageSource, XFile;
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/media/video_frames.dart';
@@ -197,11 +199,14 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen>
 
   Future<void> _pickCover() async {
     final t = ref.read(translatorProvider);
+    // Owner 2026-11-08: the reel cover follows the admin's «Фото» size and
+    // quality like every other photo.
+    final photo = photoLimitsOf(ref.read(featureFlagsControllerProvider));
     final x = await ImagePicker().pickImage(
       source: ImageSource.gallery,
-      maxWidth: 1440,
-      maxHeight: 1440,
-      imageQuality: 80,
+      maxWidth: photo.maxPx,
+      maxHeight: photo.maxPx,
+      imageQuality: photo.quality,
     );
     if (x == null || !mounted) return;
     final bytes = await x.readAsBytes();

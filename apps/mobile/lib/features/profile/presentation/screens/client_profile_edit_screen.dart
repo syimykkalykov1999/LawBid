@@ -13,7 +13,6 @@ import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
-import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_edit_screen.dart';
@@ -208,13 +207,6 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
       UsernameStatus.reserved,
     }.contains(_usernameStatus)) {
       return;
-    }
-    // Owner 2026-11-08: a photo still on its way is finished (attached)
-    // before the screen closes; the button keeps its spinner meanwhile.
-    if (ref.read(avatarUploadControllerProvider).busy) {
-      setState(() => _saving = true);
-      await ref.read(avatarUploadControllerProvider.notifier).settled;
-      if (!mounted) return;
     }
     setState(() => _saving = true);
     // Audit C17: the providers are refreshed from here even when the screen

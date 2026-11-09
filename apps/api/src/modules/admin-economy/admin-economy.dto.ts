@@ -79,8 +79,34 @@ export class EconomyFiguresDto {
   lines!: SpendLineDto[];
   @ApiProperty()
   monthToDateUsd!: number;
-  @ApiProperty({ description: 'Projected third-party spend for the month.' })
+  @ApiProperty({
+    description:
+      'Projected spend for the month, both brakes together (third-party + AWS).',
+  })
   projectedUsd!: number;
+  @ApiProperty({
+    description:
+      'Third-party brake: metered external services (SMS, Bunny video, translation, ID checks, Cloudflare) spent so far this month.',
+  })
+  thirdPartyMonthToDateUsd!: number;
+  @ApiProperty({
+    description:
+      'Third-party brake: projected for the month; compared with allowedUsd.',
+  })
+  thirdPartyProjectedUsd!: number;
+  @ApiProperty({
+    description: 'AWS brake: the AWS bill (SES, Rekognition included) so far.',
+  })
+  awsMonthToDateUsd!: number;
+  @ApiProperty({
+    description: 'AWS brake: projected AWS bill; compared with awsLimitUsd.',
+  })
+  awsProjectedUsd!: number;
+  @ApiProperty({
+    description:
+      'The AWS budget (AWS Budgets); allowedUsd when it cannot be read.',
+  })
+  awsLimitUsd!: number;
 }
 
 export class ContainerReportDto {

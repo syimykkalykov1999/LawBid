@@ -40,7 +40,8 @@ class ChatTranslations extends Notifier<Map<String, String>> {
   String? cached(String id) => _cache[id];
 }
 
-/// Whether the menu of [m] offers translation: flag on, someone else's
+/// Whether the menu of [m] offers translation: the master and the chat zone
+/// on (FeatureFlagsState.translationOn), someone else's
 /// plain text.
 bool canTranslateChatMessage(
   WidgetRef ref,
@@ -51,7 +52,7 @@ bool canTranslateChatMessage(
     !m.revoked &&
     m.kind == MessageKind.text &&
     m.body.trim().isNotEmpty &&
-    ref.read(featureFlagsControllerProvider).isEnabled('chat_translate');
+    ref.read(featureFlagsControllerProvider).translationOn('translate_chat');
 
 /// Translates [m] on the phone (ML Kit, free); the paid server only when the
 /// phone has no model for the pair. A second call shows the original.

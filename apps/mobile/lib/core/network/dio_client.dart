@@ -59,7 +59,12 @@ final dioProvider = Provider<Dio>((ref) {
   // Security research #5 (2026-10-22), B1: `X-Firebase-AppCheck` on the
   // costly anonymous auth routes only (docs/runbooks/APP_CHECK.md).
   dio.interceptors.add(
-    AppCheckInterceptor(token: ref.read(appCheckTokenProvider)),
+    AppCheckInterceptor(
+      token: ref.read(appCheckTokenProvider),
+      // Phones only: on the web an extra header means a CORS preflight,
+      // and the web's reason is known (the build's reCAPTCHA key).
+      status: kIsWeb ? null : ref.read(appCheckStatusProvider),
+    ),
   );
   // 2026-10-24 (abuse batch D, item 4): the website's Cloudflare Turnstile
   // token on the same routes. Web only: the phones are not touched.

@@ -197,6 +197,12 @@ export function configureApp(
         'If-None-Match',
         // Owner 2026-10-25 (S17-6): the web app asks for AVIF photo twins.
         'X-Image-Formats',
+        // 2026-11-08: the anti-bot proofs on the costly auth routes
+        // (docs/runbooks/APP_CHECK.md). Without them a browser's preflight
+        // fails, so the web could not sign up the moment it sent a token.
+        'X-Firebase-AppCheck',
+        'X-Firebase-AppCheck-Status',
+        'X-Turnstile-Token',
       ],
       // ... and reads the tag from `ETag`, which a cross-origin page may
       // not see unless it is exposed.

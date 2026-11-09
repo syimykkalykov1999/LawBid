@@ -10,6 +10,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
+import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
@@ -845,6 +846,29 @@ class GroupThread extends Notifier<GroupThreadState> {
         fileName: fileName,
       ),
     );
+  }
+
+  /// Owner 2026-11-08 (every upload finishes): files read into memory (flag
+  /// `group_files_from_disk` off) go up and out as messages even when the
+  /// group screen is closed meanwhile — the thread is kept alive until the
+  /// last message left, instead of the screen stopping at `mounted`.
+  Future<void> uploadAndSend<T>({
+    required List<T> items,
+    required int atOnce,
+    required Future<String> Function(T item) upload,
+    required Future<void> Function(int index, T item, String fileId) send,
+  }) async {
+    final release = ref.keepAlive().close;
+    try {
+      await uploadThenSendInOrder<T, String>(
+        items: items,
+        atOnce: atOnce,
+        upload: upload,
+        send: send,
+      );
+    } finally {
+      release();
+    }
   }
 
   /// R-255 (flag `group_files_from_disk`): a picked file goes through the

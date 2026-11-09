@@ -1584,9 +1584,11 @@ export const OWNER_LEGAL_QA_SAFETY_SETTINGS = {
   /** A user's new sticker image waits for the media scan before others see
    * it (off = published at once, as before). */
   'stickers.scan_uploads': true,
-  /** The NCMEC CyberTipline API call for a CSAM report. Off = reports are
-   * opened and logged as «file by hand» without calling the API. */
-  'moderation.csam.ncmec_submit_enabled': true,
+  /** The NCMEC CyberTipline API call for a CSAM report (report → files →
+   * finish, csam.adapters.ts NcmecReporter). Off = reports are opened and
+   * logged as «file by hand» without calling the API. Owner 2026-11-08:
+   * off until the ESP account is on the NCMEC card («не подключено»). */
+  'moderation.csam.ncmec_submit_enabled': false,
 };
 
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';

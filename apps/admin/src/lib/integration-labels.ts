@@ -142,7 +142,7 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
   ncmec: {
     label: 'NCMEC CyberTipline (отчёты)',
     description:
-      'Аккаунт провайдера (ESP) в NCMEC CyberTipline. Без него отчёты ждут в Модерация → Медиа с пометкой «подать вручную».',
+      'Аккаунт провайдера (ESP) в NCMEC CyberTipline. Заполнен и включена отправка (Настройки → moderation.csam.ncmec_submit_enabled) — отчёт о находке с файлом уходит в CyberTipline сам (отчёт → файл → завершение), сначала в режиме test. Не заполнен — «не подключено»: отчёты ждут в Модерация → Медиа с пометкой «подать вручную».',
   },
   cockroach_cloud: {
     label: 'Хостинг базы данных (проверка бэкапов)',
@@ -380,6 +380,9 @@ const FIELD_EN: Record<string, string> = {
   'ncmec.username': 'Username',
   'ncmec.password': 'Password',
   'ncmec.environment': 'Environment',
+  'ncmec.reporterEmail': 'Reporter e-mail',
+  'ncmec.reporterFirstName': 'Reporter first name',
+  'ncmec.reporterLastName': 'Reporter last name',
   'cockroach_cloud.apiKey': 'API key',
   'cockroach_cloud.clusterId': 'Cluster ID',
 };
@@ -488,6 +491,7 @@ export const FIELD_ENV: Record<string, string> = {
   'ncmec.username': 'NCMEC_USERNAME',
   'ncmec.password': 'NCMEC_PASSWORD',
   'ncmec.environment': 'NCMEC_ENVIRONMENT',
+  'ncmec.reporterEmail': 'NCMEC_REPORTER_EMAIL',
 };
 
 export function fieldLabel(provider: string, name: string, fallback: string): string {
