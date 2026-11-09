@@ -8,18 +8,19 @@ Checked 09.11.2026 (read-only, `aws sesv2`):
 | Earlier request | exists: support case **179099293700409** (Transactional, https://lawbid.dev). AWS shows no decision on it |
 | Sender | `SES_FROM_ADDRESS = no-reply@lawbid.dev` (API task env), region us-east-1 |
 | Domain identity `lawbid.dev` | **verified**, DKIM **SUCCESS** (Easy DKIM, signing on) |
-| Custom MAIL FROM `mail.lawbid.dev` | **FAILED**: the MX and SPF records are missing in Cloudflare. Mail still goes out, with the amazonses.com return path. DMARC passes on DKIM |
+| Custom MAIL FROM `mail.lawbid.dev` | SES still says **FAILED**, but the records ARE in public DNS (Cloudflare DoH, 09.11: MX `10 feedback-smtp.us-east-1.amazonses.com`, TXT `v=spf1 include:amazonses.com -all`). The FAILED is from SES's check before they were added. Until SES re-checks, mail goes out with the amazonses.com return path; DMARC still passes on DKIM |
 | Bounces and complaints | SES account-level suppression list is **on** for BOUNCE and COMPLAINT. A hard bounce or a spam complaint stops further mail to that address automatically. CloudWatch alarms: `lawbid-prod-ses-bounce-rate` (4 %), `lawbid-prod-ses-complaint-rate` (0.1 %), `lawbid-prod-ses-send-volume`. Opt-outs from notification mail are kept by the app (`ComplianceEmailProvider` stop-list, `List-Unsubscribe` header) |
 | App webhook `POST /api/v1/webhooks/ses` | built, **not connected**: no SNS topic or event destination exists yet. It is not needed for the request; suppression works inside SES |
 
 Since 09.11 the admin «Здоровье» card «Почта (Amazon SES)» says **«SES: песочница — письма не уходят»** after the first refused send, and turns green after the first delivered one.
 
-## 1. Cloudflare: fix MAIL FROM (5 minutes, before the request)
-Cloudflare → lawbid.dev → DNS → Records → **Add record**, twice:
-1. Type **MX**, Name `mail`, Mail server `feedback-smtp.us-east-1.amazonses.com`, Priority `10` → Save.
-2. Type **TXT**, Name `mail`, Content `v=spf1 include:amazonses.com -all` → Save.
-
-Within about 15 minutes AWS shows SES → Identities → lawbid.dev → «Custom MAIL FROM domain» = **Successful**.
+## 1. SES: re-check MAIL FROM (2 minutes; the DNS records already exist)
+AWS Console (us-east-1) → Amazon SES → **Identities** → `lawbid.dev` → tab **Custom MAIL FROM domain** →
+**Edit** → leave `mail.lawbid.dev` and «Use default MAIL FROM domain» as they are → **Save changes**.
+Saving makes SES check the records again. Within about 15 minutes the status becomes **Successful**.
+(SES also re-checks by itself, more slowly.) Only if it stays failed: Cloudflare → lawbid.dev → DNS
+→ check that `mail` has the MX `feedback-smtp.us-east-1.amazonses.com` (priority 10) and the TXT
+`v=spf1 include:amazonses.com -all`, both **DNS only** (grey cloud).
 
 ## 2. AWS: look at the earlier request
 AWS Console (us-east-1) → **Support** → **Your support cases** → case **179099293700409**.
