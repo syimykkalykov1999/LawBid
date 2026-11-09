@@ -207,6 +207,8 @@ export const CRON_JOBS = {
   statusWatchdog: 'ops.status-watchdog',
   /** Batch C items 11 and 16: daily Cloudflare Realtime and Bunny usage. */
   usagePoll: 'ops.usage-poll',
+  /** G3 (2026-11-08): the same vendor reads hourly, only near the limits. */
+  usagePollNear: 'ops.usage-poll-near',
   /** AWS spend vs the monthly budget; scale to the minimum at 100 %. */
   opsCostCheck: 'ops.cost-check',
   /** Newest database backup (provider API) is fresh. */
@@ -363,6 +365,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.statusWatchdog, pattern: '* * * * *' },
   // 06:25 UTC daily (the providers' stats lag by hours).
   { name: CRON_JOBS.usagePoll, pattern: '25 6 * * *' },
+  // G3: hourly, a no-op unless the daily one saw warn / crit.
+  { name: CRON_JOBS.usagePollNear, pattern: '40 * * * *' },
   { name: CRON_JOBS.opsCostCheck, pattern: '7 * * * *' },
   // Daily: the RDS restorable time moves by the minute, a day is plenty.
   { name: CRON_JOBS.opsBackupCheck, pattern: '12 5 * * *' },
@@ -447,6 +451,11 @@ export const FAST_JOBS: readonly CronJobName[] = [
 
 export const HEAVY_JOBS: readonly CronJobName[] = [
   CRON_JOBS.feedReco,
+  // 08.11 (G8): these three are in the «heavy» pause list (HEAVY_CRON_JOBS)
+  // yet ran on the one-at-a-time `cron` lane next to the 1–5 minute sweeps.
+  CRON_JOBS.trendingTags,
+  CRON_JOBS.chatSearchBackfill,
+  CRON_JOBS.dbBloat,
   CRON_JOBS.messagesReencrypt,
   CRON_JOBS.countersReconcile,
   CRON_JOBS.ratingReconcile,

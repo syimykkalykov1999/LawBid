@@ -34,6 +34,10 @@ abstract interface class VerificationRepository {
   /// the guided selfie camera opens; the selfie attach sends it back.
   Future<SelfieCaptureTicket> startSelfieCapture(String requestId);
 
+  /// Owner 2026-11-08: Persona's hosted ID + selfie page for this request
+  /// (only while [VerificationOverview.identityProvider] is persona).
+  Future<Uri> startIdentityCheck(String requestId);
+
   /// R-146: a one-time «continue on your phone» code (QR + short link,
   /// 10 minutes) bound to this request.
   Future<SelfieHandoff> createHandoff(String requestId);
