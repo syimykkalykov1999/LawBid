@@ -40,8 +40,9 @@ class FirebaseAppCheckClient {
 
   /// Web: the reCAPTCHA Enterprise site key of the web app (Firebase →
   /// App Check → the web app). Empty = App Check off on the web.
-  static const webRecaptchaKey =
-      String.fromEnvironment('FIREBASE_WEB_RECAPTCHA_KEY');
+  static const webRecaptchaKey = String.fromEnvironment(
+    'FIREBASE_WEB_RECAPTCHA_KEY',
+  );
 
   /// How long a request waits for a token before going without one.
   static const tokenTimeout = Duration(seconds: 5);
@@ -56,15 +57,24 @@ class FirebaseAppCheckClient {
   bool get activated => _activated;
   bool _activated = false;
 
+  /// Why the last [token] call came back empty (null after a token was
+  /// got). Sent as `X-Firebase-AppCheck-Status` so the server log shows
+  /// which step fails on real phones (2026-11-08: every prod verdict was
+  /// `missing` with no way to tell why).
+  String? get status => _status;
+  String? _status;
+
   Future<bool> _activate() async {
     try {
       // App Check starts at launch, before the bootstrap: build keys only.
       if (kIsWeb && !WebPushConfig.configuredAtBuild) {
         debugPrint('app check: no Firebase web keys in this build');
+        _status = 'off: no-firebase-web-keys';
         return false;
       }
       if (kIsWeb && webRecaptchaKey.isEmpty && !debugProviders) {
         debugPrint('app check: no FIREBASE_WEB_RECAPTCHA_KEY in this build');
+        _status = 'off: no-recaptcha-key';
         return false;
       }
       if (Firebase.apps.isEmpty) {
@@ -98,6 +108,7 @@ class FirebaseAppCheckClient {
       // No google-services.json / GoogleService-Info.plist in this build,
       // or the native SDK refused: the app works, just without the header.
       debugPrint('app check: off ($e)');
+      _status = appCheckStatus('off', e);
       return false;
     }
   }
@@ -117,14 +128,47 @@ class FirebaseAppCheckClient {
       final t = await FirebaseAppCheck.instance
           .getToken(forceRefresh)
           .timeout(tokenTimeout);
-      return (t == null || t.isEmpty) ? null : t;
+      if (t == null || t.isEmpty) {
+        _status = 'error: empty-token';
+        return null;
+      }
+      _status = null;
+      return t;
     } on Object catch (e) {
       debugPrint('app check: no token ($e)');
+      _status = appCheckStatus('error', e);
       return null;
     }
   }
 }
 
+/// One short ASCII line for the `X-Firebase-AppCheck-Status` header: the
+/// step ([stage]: `off` = activation, `error` = token) and the error's
+/// code / message, never more than 120 characters and nothing a header
+/// cannot carry. No token, key or personal data is in these errors.
+String appCheckStatus(String stage, Object error) {
+  final String detail;
+  if (error is FirebaseException) {
+    detail = '${error.code} ${error.message ?? ''}';
+  } else if (error is TimeoutException) {
+    detail = 'timeout';
+  } else {
+    detail = error.toString();
+  }
+  final clean = detail
+      .replaceAll(RegExp(r'[^\x20-\x7E]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  final line = '$stage: $clean';
+  return line.length <= 120 ? line : line.substring(0, 120);
+}
+
 /// Overridable in tests; the app uses the Firebase client.
-final appCheckTokenProvider =
-    Provider<AppCheckToken>((ref) => FirebaseAppCheckClient.instance.token);
+final appCheckTokenProvider = Provider<AppCheckToken>(
+  (ref) => FirebaseAppCheckClient.instance.token,
+);
+
+/// Why there is no token right now (see [FirebaseAppCheckClient.status]).
+final appCheckStatusProvider = Provider<String? Function()>(
+  (ref) => () => FirebaseAppCheckClient.instance.status,
+);

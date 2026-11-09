@@ -115,6 +115,26 @@ export class MediaCheckDto {
   previewUrl!: string | null;
   @ApiProperty() createdAt!: string;
   @ApiProperty({ type: String, nullable: true }) checkedAt!: string | null;
+  // Owner 2026-11-08: staff see where the NCMEC report stands.
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'The latest CyberTipline report of this check: pending | submitted | manual_required | failed (null = none).',
+  })
+  csamReportStatus!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'The NCMEC report id once submitted.',
+  })
+  csamExternalReportId!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Why the last report failed (the admin can send it again).',
+  })
+  csamReportError!: string | null;
 }
 
 export class MediaCheckPageDto {

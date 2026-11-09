@@ -29,11 +29,16 @@ class TranslatableText extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Owner 2026-11-08 (one control): a zone switched off in the admin
+    // («Только выбранные») hides «Перевести» there, on-phone path included;
+    // the other zones keep it.
+    final zoneOn =
+        ref.watch(featureFlagsControllerProvider).translationOn(kind.flag);
     return TranslateBlock(
       text: text,
-      enabled: enabled,
+      enabled: enabled && zoneOn,
       identity: id,
-      serverOn: ref.watch(featureFlagsControllerProvider).isEnabled(kind.flag),
+      serverOn: zoneOn,
       server: (target) => ref
           .read(contentTranslationRepositoryProvider)
           .translate(kind, id, target),

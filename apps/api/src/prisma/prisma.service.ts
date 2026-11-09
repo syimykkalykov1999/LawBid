@@ -4,7 +4,8 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { queryTap } from './query-tap';
 import { demoContext } from '../common/demo/demo-context';
 import { withPoolerRouting } from './pooler-url';
 import {
@@ -150,7 +151,17 @@ export class PrismaService
     const datasourceUrl = withPoolDefaults(
       withPoolerRouting(process.env.DATABASE_URL),
     );
-    super(datasourceUrl ? { datasourceUrl } : undefined);
+    super({
+      ...(datasourceUrl ? { datasourceUrl } : {}),
+      ...queryTap.clientOptions(),
+    });
+    if (queryTap.enabled()) {
+      (
+        this as unknown as {
+          $on(event: 'query', cb: (e: Prisma.QueryEvent) => void): void;
+        }
+      ).$on('query', (e) => queryTap.emit(e));
+    }
     // WARNING: do not add instance fields to this class. The constructor
     // returns a proxy, so per-instance state set here is lost for every
     // consumer; only prototype methods survive. State lives in the

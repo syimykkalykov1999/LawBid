@@ -763,13 +763,17 @@ export const GUIDES: Record<string, ProviderGuide> = {
     ],
     links: [{ label: 'NCMEC CyberTipline', url: 'https://report.cybertip.org/' }],
     enable: [
-      'Заполните NCMEC_USERNAME и NCMEC_PASSWORD (режим NCMEC_ENVIRONMENT: test или production) → «Сохранить» → «Проверить» → «Включить».',
-      'Пока полей нет, отчёты ждут в Модерация → Медиа с пометкой «подать вручную». Начните с test, затем переключите на production.',
+      'Заполните NCMEC_USERNAME, NCMEC_PASSWORD и e-mail для связи (режим NCMEC_ENVIRONMENT: test или production) → «Сохранить» → «Проверить» (сверяет вход в CyberTipline) → «Включить».',
+      'Затем включите отправку: Настройки → «Отправка отчёта о CSAM в NCMEC CyberTipline». С этого момента находка уходит в NCMEC сама: отчёт, файл-доказательство, завершение; номер отчёта NCMEC виден в Модерация → Медиа.',
+      'Пока полей нет («не подключено»), отчёты ждут в Модерация → Медиа с пометкой «подать вручную». Начните с test, затем переключите на production.',
     ],
     fields: {
       username: { how: 'Логин ESP из письма NCMEC.' },
       password: { how: 'Пароль ESP из письма NCMEC.' },
       environment: { how: 'test (пробный) или production (боевой). Пусто = test.', example: 'test' },
+      reporterEmail: { how: 'E-mail человека, с которым NCMEC свяжется по отчёту (обязателен в каждом отчёте).', example: 'safety@lawbid.dev' },
+      reporterFirstName: { how: 'Имя этого человека (необязательно).' },
+      reporterLastName: { how: 'Фамилия (необязательно).' },
     },
   },
 };

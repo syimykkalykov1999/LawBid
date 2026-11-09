@@ -169720,6 +169720,21 @@
           "checkedAt": {
             "type": "string",
             "nullable": true
+          },
+          "csamReportStatus": {
+            "type": "string",
+            "nullable": true,
+            "description": "The latest CyberTipline report of this check: pending | submitted | manual_required | failed (null = none)."
+          },
+          "csamExternalReportId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The NCMEC report id once submitted."
+          },
+          "csamReportError": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why the last report failed (the admin can send it again)."
           }
         },
         "required": [
@@ -169739,7 +169754,10 @@
           "decision",
           "previewUrl",
           "createdAt",
-          "checkedAt"
+          "checkedAt",
+          "csamReportStatus",
+          "csamExternalReportId",
+          "csamReportError"
         ]
       },
       "MediaCheckPageDto": {
@@ -177882,7 +177900,27 @@
           },
           "projectedUsd": {
             "type": "number",
-            "description": "Projected third-party spend for the month."
+            "description": "Projected spend for the month, both brakes together (third-party + AWS)."
+          },
+          "thirdPartyMonthToDateUsd": {
+            "type": "number",
+            "description": "Third-party brake: metered external services (SMS, Bunny video, translation, ID checks, Cloudflare) spent so far this month."
+          },
+          "thirdPartyProjectedUsd": {
+            "type": "number",
+            "description": "Third-party brake: projected for the month; compared with allowedUsd."
+          },
+          "awsMonthToDateUsd": {
+            "type": "number",
+            "description": "AWS brake: the AWS bill (SES, Rekognition included) so far."
+          },
+          "awsProjectedUsd": {
+            "type": "number",
+            "description": "AWS brake: projected AWS bill; compared with awsLimitUsd."
+          },
+          "awsLimitUsd": {
+            "type": "number",
+            "description": "The AWS budget (AWS Budgets); allowedUsd when it cannot be read."
           }
         },
         "required": [
@@ -177891,7 +177929,12 @@
           "allowedUsd",
           "lines",
           "monthToDateUsd",
-          "projectedUsd"
+          "projectedUsd",
+          "thirdPartyMonthToDateUsd",
+          "thirdPartyProjectedUsd",
+          "awsMonthToDateUsd",
+          "awsProjectedUsd",
+          "awsLimitUsd"
         ]
       },
       "EconomySettingsDto": {

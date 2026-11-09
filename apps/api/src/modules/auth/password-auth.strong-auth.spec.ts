@@ -12,6 +12,7 @@ async function make(opts: {
   passkeys: number;
   switchOn?: boolean;
   withSettings?: boolean;
+  passkeyLogin?: boolean;
 }) {
   const passwords = new PasswordService();
   const hash = await passwords.hash('Demo1234!');
@@ -40,7 +41,9 @@ async function make(opts: {
   const loginMethods = {
     assertEnabled: jest.fn().mockResolvedValue(undefined),
     assertPlatformAllowed: jest.fn().mockResolvedValue(undefined),
-    isEnabled: jest.fn().mockResolvedValue(true),
+    isEnabled: jest.fn((m: string) =>
+      Promise.resolve(m === 'passkey' ? (opts.passkeyLogin ?? true) : true),
+    ),
   };
   const settings = {
     boolean: jest.fn().mockResolvedValue(opts.switchOn ?? true),
@@ -90,6 +93,18 @@ describe('security.attorney_strong_auth (security & legal pass 2026-10-24)', () 
       ForbiddenException,
     );
     expect(auth.finishLogin).not.toHaveBeenCalled();
+  });
+
+  it('passkey sign-in switched off (flag passkey_login): the password works again', async () => {
+    // Prod 2026-11-08: passkey_login=false, so an attorney with a passkey
+    // had no way in at all while the switch demanded the passkey.
+    const { service, auth } = await make({
+      role: 'attorney',
+      passkeys: 1,
+      passkeyLogin: false,
+    });
+    await expect(service.login(LOGIN, META)).resolves.toEqual(TOKENS);
+    expect(auth.finishLogin).toHaveBeenCalled();
   });
 
   it('lets an attorney without a passkey sign in as before', async () => {
