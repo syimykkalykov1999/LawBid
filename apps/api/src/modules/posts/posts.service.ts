@@ -979,13 +979,14 @@ export class PostsService {
     const asset = await this.prisma.videoAsset.findUnique({
       where: { id: post.video_asset_id },
     });
-    if (
-      !asset ||
-      (asset.status !== 'awaiting_upload' && asset.status !== 'processing')
-    ) {
-      return post;
-    }
-    const next = await this.videos.refresh(asset).catch(() => asset);
+    if (!asset) return post;
+    // Prod 2026-11-09: a ready video next to a `processing` post (the
+    // phone's own poll marked it ready) publishes too; a failure is told
+    // to the author once, by the status listener (PostVideosService).
+    const next =
+      asset.status === 'awaiting_upload' || asset.status === 'processing'
+        ? await this.videos.refresh(asset).catch(() => asset)
+        : asset;
     if (next.status === 'ready') {
       const { count } = await this.prisma.post.updateMany({
         where: { id: post.id, status: 'processing' },
@@ -995,9 +996,6 @@ export class PostsService {
       return (
         (await this.prisma.post.findUnique({ where: { id: post.id } })) ?? post
       );
-    }
-    if (next.status === 'failed' || next.status === 'rejected') {
-      await this.notifyVideoFailed(post, next.failure_reason);
     }
     return post;
   }
