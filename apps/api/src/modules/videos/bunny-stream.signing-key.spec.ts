@@ -9,11 +9,11 @@ import { BunnyStreamClient, type BunnyKeys } from './bunny-stream.client';
 const base: BunnyKeys = {
   libraryId: '12345',
   cdnHostname: 'vz.b-cdn.net',
-  apiKey: 'api-key-0123456789abcdefgh',
+  apiKey: 'test-library-api-key-value',
   tokenAuthKey: 'token-auth-key-0123',
   webhookToken: 'tok_abcdefghijklmnopqrstuvwxyz',
 };
-const RO = 'ro-key-0123456789abcdefghij';
+const RO = 'test-readonly-key-value-x';
 
 function client() {
   return new BunnyStreamClient({} as never);
@@ -30,24 +30,24 @@ describe('BunnyStreamClient.webhookSigningKey (audit L10)', () => {
     const f = okFetch({ ReadOnlyApiKey: RO });
     await expect(
       client().webhookSigningKey(
-        { ...base, webhookSigningKey: 'saved-0123456789abcdefgh' },
+        { ...base, webhookSigningKey: 'test-saved-readonly-key-value' },
         f,
       ),
-    ).resolves.toBe('saved-0123456789abcdefgh');
+    ).resolves.toBe('test-saved-readonly-key-value');
     expect(f).not.toHaveBeenCalled();
   });
 
   it('reads ReadOnlyApiKey with the account key, once an hour', async () => {
     const f = okFetch({ ReadOnlyApiKey: RO });
     const c = client();
-    const k = { ...base, accountApiKey: 'acct-0123456789abcdefghij' };
+    const k = { ...base, accountApiKey: 'test-account-api-key-value' };
     await expect(c.webhookSigningKey(k, f)).resolves.toBe(RO);
     await expect(c.webhookSigningKey(k, f)).resolves.toBe(RO);
     expect(f).toHaveBeenCalledTimes(1);
     const [url, init] = f.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.bunny.net/videolibrary/12345');
     expect((init.headers as Record<string, string>).AccessKey).toBe(
-      'acct-0123456789abcdefghij',
+      'test-account-api-key-value',
     );
   });
 
@@ -60,7 +60,7 @@ describe('BunnyStreamClient.webhookSigningKey (audit L10)', () => {
     ) as unknown as typeof fetch;
     await expect(
       client().webhookSigningKey(
-        { ...base, accountApiKey: 'acct-0123456789abcdefghij' },
+        { ...base, accountApiKey: 'test-account-api-key-value' },
         broken,
       ),
     ).resolves.toBeUndefined();

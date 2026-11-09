@@ -152,7 +152,7 @@ describe('BunnyWebhookController', () => {
   describe('signing key read from Bunny with the account API key', () => {
     it('a URL-token-only call is refused, a signed one passes', async () => {
       const { ctrl, onWebhook } = setup(
-        keys({ accountApiKey: 'acct-0123456789abcdefghij' }),
+        keys({ accountApiKey: 'test-account-api-key-value' }),
         SIGNING_KEY,
       );
       await expect(
