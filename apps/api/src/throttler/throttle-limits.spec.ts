@@ -3,6 +3,7 @@ import {
   ADMIN_THROTTLE_MAX,
   ADMIN_THROTTLE_MIN,
   adminThrottleLimit,
+  throttleIgnoreUserAgents,
   userThrottleLimit,
 } from './throttle-limits';
 
@@ -23,5 +24,20 @@ describe('throttle limits', () => {
   it('ADMIN_THROTTLE_LIMIT overrides the setting', () => {
     expect(adminThrottleLimit(150, '900')).toBe(900);
     expect(adminThrottleLimit(150, '0')).toBe(150);
+  });
+
+  it('THROTTLE_IGNORE_USER_AGENT exempts exactly that User-Agent, nothing else', () => {
+    expect(throttleIgnoreUserAgents(undefined)).toEqual([]);
+    expect(throttleIgnoreUserAgents('  ')).toEqual([]);
+    const [re, ...rest] = throttleIgnoreUserAgents(
+      'lawbid-perf-guard/1.0 (run 42)',
+    );
+    expect(rest).toEqual([]);
+    expect(re.test('lawbid-perf-guard/1.0 (run 42)')).toBe(true);
+    // a prefix, a suffix or a regex-looking lookalike is not the same agent
+    expect(re.test('lawbid-perf-guard/1.0 (run 42) extra')).toBe(false);
+    expect(re.test('x lawbid-perf-guard/1.0 (run 42)')).toBe(false);
+    expect(re.test('lawbid-perf-guard/1X0 (run 42)')).toBe(false);
+    expect(re.test('Mozilla/5.0')).toBe(false);
   });
 });
