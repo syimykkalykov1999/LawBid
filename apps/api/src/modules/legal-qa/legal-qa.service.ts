@@ -31,6 +31,12 @@ import {
 } from '../search/search.provider';
 import { NotificationsService } from '../notifications/notifications.service';
 import { QaSafetyService } from './qa-safety.service';
+import { AutoHoldService } from '../moderation/auto-hold.service';
+import {
+  CONTENT_MODERATION_HOOK,
+  type ContentModerationHook,
+} from '../moderation/content-moderation.hook';
+import { screenContent } from '../moderation/content-screen';
 import {
   type AnswerDto,
   type AskQuestionDto,
@@ -93,6 +99,12 @@ export class LegalQaService {
     private readonly safety: QaSafetyService,
     // R-401: the nightly Q&A ranking snapshot (recommended questions).
     @Optional() private readonly qaSnapshot?: QaSnapshotService,
+    // Feature reality audit 2026-11-08: the admin's moderation rules
+    // (blocked / hold words, links, repeats, AI text check) as for posts.
+    @Optional()
+    @Inject(CONTENT_MODERATION_HOOK)
+    private readonly moderationHook?: ContentModerationHook,
+    @Optional() private readonly autoHold?: AutoHoldService,
   ) {}
 
   // --- questions ------------------------------------------------------------
@@ -245,10 +257,18 @@ export class LegalQaService {
       dto.title,
       dto.body,
     );
+    const verdict = await screenContent(
+      this.moderationHook,
+      `${dto.title}\n${dto.body}`,
+      { kind: 'question', authorId: user.sub },
+    );
     await this.limits.consume('question_create', user.sub);
     const row = await this.prisma.legalQuestion.create({
       data: {
         author_id: user.sub,
+        // A held question waits hidden for a moderator; attorneys are not
+        // alerted until it is restored.
+        ...(verdict === 'hold' ? { status: 'hidden' as const } : {}),
         practice_area_id: dto.practiceAreaId ?? null,
         state_code: dto.stateCode ?? null,
         title: maskContactInfo(screened.texts[0]).text,
@@ -259,7 +279,20 @@ export class LegalQaService {
       },
       include: QUESTION_INCLUDE,
     });
-    this.later(() => this.alertAttorneys(row));
+    await this.moderationHook?.record?.(`${dto.title}\n${dto.body}`, {
+      kind: 'question',
+      authorId: user.sub,
+    });
+    if (verdict === 'hold') {
+      await this.autoHold?.queue({
+        targetType: 'legal_question',
+        targetId: row.id,
+        authorId: user.sub,
+        rule: 'rules',
+      });
+    } else {
+      this.later(() => this.alertAttorneys(row));
+    }
     const [dtoOut] = await this.presentQuestions([row], user);
     return screened.warnings.length > 0
       ? { ...dtoOut, privacyWarnings: screened.warnings }
@@ -327,10 +360,14 @@ export class LegalQaService {
       body,
       true,
     );
+    const verdict = await screenContent(this.moderationHook, body, {
+      kind: 'answer',
+      authorId: user.sub,
+    });
     await this.limits.consume('answer_create', user.sub);
     await this.limits.consume('answer_create_daily', user.sub);
     const text = maskContactInfo(screened.texts[0]).text;
-    const hold = screened.hold;
+    const hold = screened.hold || verdict === 'hold';
     const safety = {
       safety_flags: screened.flags,
       content_hash: screened.hash,
@@ -390,6 +427,18 @@ export class LegalQaService {
       UPDATE legal_answers
       SET authored_by_user_id = ${qaActor(user)?.authoredBy ?? null}::UUID
       WHERE id = ${row.id}::UUID`;
+    await this.moderationHook?.record?.(body, {
+      kind: 'answer',
+      authorId: user.sub,
+    });
+    if (verdict === 'hold' && row.status === 'hidden') {
+      await this.autoHold?.queue({
+        targetType: 'legal_answer',
+        targetId: row.id,
+        authorId: user.sub,
+        rule: 'rules',
+      });
+    }
     if (announce) {
       await this.notifications.emit({
         type: 'legal_answer_update',

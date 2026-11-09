@@ -91,6 +91,11 @@ export class StarterCatalogService implements OnApplicationBootstrap {
     const dir = this.dir();
     if (!dir) return none('no catalog files');
     if (!(await this.storage.ready())) return none('no file storage');
+    // Owner 2026-11-08: public images never go to AWS while the switch is
+    // r2; the catalog waits for R2 (the next start tries again).
+    if ((await this.storage.publicStoreState()) === 'r2_unavailable') {
+      return none('public storage not ready');
+    }
     const catalog = JSON.parse(
       readFileSync(join(dir, 'catalog.json'), 'utf8'),
     ) as Catalog;
