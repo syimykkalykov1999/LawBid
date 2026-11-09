@@ -95,6 +95,11 @@
     "reason": "Restores HINCRBY on the single pending hash."
   },
   {
+    "file": "modules/experiments/ranking-events.service.ts",
+    "kind": "multi",
+    "reason": "HSET + EXPIRE of ONE key (rk:pos:<user>, the places a person was served): one slot."
+  },
+  {
     "file": "modules/feed/feed-reco.job.ts",
     "kind": "multi",
     "reason": "Snapshot key and the current-pointer key are both ck('reco', ...): one slot."
@@ -138,6 +143,11 @@
     "file": "modules/recommendations/qa-snapshot.service.ts",
     "kind": "pipeline-raw",
     "reason": "R-401 nightly Q&A snapshot: every key carries the {qa} hash tag (QA_REDIS_PREFIX), so the DEL/HSET/EXPIRE pipeline stays in one cluster slot."
+  },
+  {
+    "file": "modules/recommendations/recommendations.service.ts",
+    "kind": "multi",
+    "reason": "DEL + HSET + EXPIRE of ONE key (reco:f:<kind>:<viewer>, the formula features of a ranked list): one slot."
   },
   {
     "file": "modules/staff-security/staff-card-watch.ts",

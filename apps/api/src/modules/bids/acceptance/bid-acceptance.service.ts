@@ -32,6 +32,7 @@ import type { BidDto } from '../dto/bid-responses.dto';
 import { disclosedFieldsOf } from './contact-disclosure.util';
 import { touchClientActive } from '../../cases/cases.public';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import { RankingEventsService } from '../../experiments/ranking-events.service';
 
 /** docs/04 §7 step 8: why the losing bids were rejected. */
 export const REJECT_REASON_ANOTHER_BID = 'another_bid_accepted';
@@ -79,6 +80,7 @@ export class BidAcceptanceService {
     private readonly trust: AttorneyTrustService,
     @Optional() private readonly referrals?: ReferralsService,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
 
   /** Deal record 2026-10-27: while `deal_record.enabled` the plain accept
@@ -136,6 +138,16 @@ export class BidAcceptanceService {
     chat: ChatChange[],
   ): Promise<void> {
     this.chat.publish(chat);
+    // Owner 2026-11-08: «отклик → принят» of the A/B report, counted on the
+    // attorney whose bid won (the result is the accepted bid row).
+    const attorneyId = (result as { attorney_id?: unknown }).attorney_id;
+    if (typeof attorneyId === 'string') {
+      void this.rankingEvents?.logUserAction('accept', {
+        userId: attorneyId,
+        surface: 'case_feed',
+        itemId: result.case_id,
+      });
+    }
     // OQ-054: accepting is the client's own action on the case.
     if (by === 'client') {
       await touchClientActive(this.prisma, result.case_id, actorId);

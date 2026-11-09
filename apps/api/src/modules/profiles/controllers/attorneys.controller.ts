@@ -1,4 +1,5 @@
 import {
+  Optional,
   Body,
   Controller,
   Get,
@@ -9,6 +10,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { RankingEventsService } from '../../experiments/ranking-events.service';
 import { AnonymousCache } from '../../../common/cache/http-cache';
 import { OptionalAuth } from '../../auth/decorators/optional-auth.decorator';
 import type { Request, Response } from 'express';
@@ -66,6 +68,8 @@ export class AttorneysController {
   constructor(
     private readonly profiles: AttorneyProfilesService,
     private readonly practices: PracticeAreasService,
+    // Owner 2026-11-08: opening a suggested profile is a click on its place.
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
 
   @AssistantAllowed()
@@ -184,6 +188,10 @@ export class AttorneysController {
     // queries, no body).
     const tag = await this.profiles.publicEtag(username, user.sub);
     if (tag && notModified(req, res, tag)) return undefined;
-    return this.profiles.getPublic(username, user.sub);
+    const profile = await this.profiles.getPublic(username, user.sub);
+    if (user?.sub && profile?.id) {
+      void this.rankingEvents?.logClicks(user.sub, [profile.id]);
+    }
+    return profile;
   }
 }

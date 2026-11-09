@@ -11,6 +11,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
+import { RankingEventsService } from '../experiments/ranking-events.service';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -106,6 +107,8 @@ export class ReportsService {
     // Owner 2026-10-27: a reporter whose reports were found unfounded can
     // be paused (DSA Art. 23 style).
     @Optional() private readonly reporters?: ReporterReputationService,
+    // Owner 2026-11-08: the «жалобы на 1000 показов» guardrail of A/B tests.
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
 
   async create(userId: string, dto: CreateReportDto): Promise<void> {
@@ -138,6 +141,11 @@ export class ReportsService {
         reason: dto.reason,
         note: dto.note ?? null,
       },
+    });
+    void this.rankingEvents?.logUserAction('report', {
+      userId,
+      surface: String(dto.targetType),
+      itemId: dto.targetId,
     });
     // docs/06 §3.3: the third distinct reporter hides the object.
     await this.moderation.autoHideIfThreshold(dto.targetType, dto.targetId);

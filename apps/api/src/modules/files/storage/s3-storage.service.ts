@@ -293,7 +293,7 @@ export class S3StorageService implements OnModuleDestroy {
         if (notReady && last?.notReady !== notReady) {
           this.logger.warn(
             { alert: 'r2_fallback_to_aws', notReady },
-            'R2 is selected but not ready: new public media stays on AWS',
+            'R2 is selected but not ready: new public media waits (never AWS)',
           );
         }
         this.r2Check = { at: Date.now(), notReady };
@@ -405,6 +405,24 @@ export class S3StorageService implements OnModuleDestroy {
   /** New public media goes to R2 now (switch on and R2 proven to work). */
   get publicStoreActive(): boolean {
     return this.r2Proven;
+  }
+
+  /**
+   * Owner 2026-11-08: where new PUBLIC media may go. With the switch on it
+   * is R2 or nowhere — never the AWS media bucket: an R2 that is not ready
+   * answers `r2_unavailable`, the upload waits and is retried by the app's
+   * queue, and the health card / `r2_fallback_to_aws` alert says why.
+   * Private kinds never ask this (always AWS).
+   */
+  async publicStoreState(): Promise<'aws' | 'r2' | 'r2_unavailable'> {
+    await this.refresh();
+    if (!this.r2Selected) return 'aws';
+    await this.ensureR2Checked();
+    return this.publicStore &&
+      this.r2Proven &&
+      this.isPublicStoreBucket(this.publicStore.bucket)
+      ? 'r2'
+      : 'r2_unavailable';
   }
 
   /** True when storage keys are present (loads them first). */

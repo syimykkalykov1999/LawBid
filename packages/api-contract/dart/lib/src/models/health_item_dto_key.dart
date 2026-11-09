@@ -48,6 +48,8 @@ enum HealthItemDtoKey {
   realtime('realtime'),
   @JsonValue('breakers')
   breakers('breakers'),
+  @JsonValue('email')
+  email('email'),
   @JsonValue('cloudflare_usage')
   cloudflareUsage('cloudflare_usage'),
   @JsonValue('bunny_usage')

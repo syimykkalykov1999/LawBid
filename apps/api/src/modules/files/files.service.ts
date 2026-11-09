@@ -224,11 +224,27 @@ export class FilesService {
     // 503 if S3 is off. Owner 2026-10-24: public media goes to R2 (a
     // presigned PUT) only when the switch is on AND this app can do a PUT;
     // an older app keeps getting the AWS POST. Private kinds: AWS always.
+    // Owner 2026-11-08: with `media.public_store` = r2, public media goes to
+    // R2 or waits — it never lands in AWS (an app that cannot PUT is asked
+    // to update).
+    if (mayUsePublicStore(dto.purpose)) {
+      const store = await this.storage.publicStoreState();
+      if (store === 'r2_unavailable') throw this.publicStoreDown();
+      if (store === 'r2' && !dto.supportsPut) {
+        throw new HttpException(
+          {
+            code: ErrorCode.APP_UPDATE_REQUIRED,
+            message: 'Update the app to upload photos.',
+          },
+          426,
+        );
+      }
+    }
     const resolved = await this.storage.resolveBucket(rule.bucket);
     const bucket =
       rule.bucket === 'media' &&
       this.storage.isPublicStoreBucket(resolved) &&
-      (!dto.supportsPut || !mayUsePublicStore(dto.purpose))
+      !mayUsePublicStore(dto.purpose)
         ? this.storage.awsBucket('media')
         : resolved;
     if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
@@ -743,6 +759,23 @@ export class FilesService {
       );
     }
     return answer;
+  }
+
+  /** Owner 2026-11-08: R2 is selected but not ready — a temporary 503 the
+   * app's queue retries (after `retryAfterSeconds`), never an AWS upload. */
+  private publicStoreDown(): HttpException {
+    this.logger.warn(
+      { alert: 'r2_public_upload_waiting' },
+      'Public upload refused while R2 is not ready (media.public_store = r2)',
+    );
+    return new HttpException(
+      {
+        code: ErrorCode.FILE_STORAGE_UNAVAILABLE,
+        message: 'Photo storage is busy. Try again shortly.',
+        details: { retryAfterSeconds: 30 },
+      },
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
   }
 
   /** No object at the upload key: a retry of a confirm that already
@@ -1372,6 +1405,13 @@ export class FilesService {
     // Owner 2026-10-24: bytes of a PRIVATE file (documents bucket) are never
     // copied to R2, even when the new purpose is a public one.
     const srcPrivate = PURPOSE_RULES[src.purpose].bucket === 'documents';
+    if (
+      !srcPrivate &&
+      mayUsePublicStore(purpose) &&
+      (await this.storage.publicStoreState()) === 'r2_unavailable'
+    ) {
+      throw this.publicStoreDown();
+    }
     const resolved = await this.storage.resolveBucket(rule.bucket);
     const bucket =
       (srcPrivate || !mayUsePublicStore(purpose)) &&
@@ -1462,6 +1502,12 @@ export class FilesService {
   ): Promise<File> {
     const rule = PURPOSE_RULES[purpose];
     const fileId = randomUUID();
+    if (
+      mayUsePublicStore(purpose) &&
+      (await this.storage.publicStoreState()) === 'r2_unavailable'
+    ) {
+      throw this.publicStoreDown();
+    }
     const resolved = await this.storage.resolveBucket(rule.bucket);
     const bucket =
       !mayUsePublicStore(purpose) && this.storage.isPublicStoreBucket(resolved)
