@@ -19,7 +19,17 @@ export interface BunnyKeys {
   /** Bunny's Read-Only API key: verifies `X-BunnyStream-Signature`
    * (audit #4). Optional — without it the URL token is the fallback. */
   webhookSigningKey?: string;
+  /** Bunny's ACCOUNT API key (usage poll). Audit 2026-11-08 (L10): with it
+   * the library's Read-Only key is read from Bunny itself, so webhooks are
+   * signature-checked even when nobody pasted that key in the admin. */
+  accountApiKey?: string;
 }
+
+/** How long the Read-Only key read from Bunny is reused; a failed read is
+ * retried after the shorter time. */
+const SIGNING_KEY_TTL_MS = 60 * 60_000;
+const SIGNING_KEY_RETRY_MS = 5 * 60_000;
+const CORE_API = 'https://api.bunny.net';
 
 /** Bunny's video object (only the fields we read). Status: 0 created,
  * 1 uploaded, 2 processing, 3 transcoding, 4 finished, 5 error,
@@ -100,6 +110,11 @@ export class BunnyStreamClient {
     ) {
       return null;
     }
+    const accountApiKey = (
+      f.accountApiKey ??
+      this.config?.get<string>('BUNNY_ACCOUNT_API_KEY') ??
+      ''
+    ).trim();
     return {
       libraryId: f.libraryId,
       cdnHostname: f.cdnHostname,
@@ -107,7 +122,58 @@ export class BunnyStreamClient {
       tokenAuthKey: f.tokenAuthKey,
       webhookToken: f.webhookToken,
       ...(f.readOnlyApiKey ? { webhookSigningKey: f.readOnlyApiKey } : {}),
+      ...(accountApiKey ? { accountApiKey } : {}),
     };
+  }
+
+  private signingKeyCache?: {
+    id: string;
+    key: string | null;
+    until: number;
+  };
+
+  /**
+   * Security audit 2026-11-08 (L10): the key that verifies
+   * `X-BunnyStream-Signature`. The admin-saved Read-Only key first;
+   * otherwise, when the account API key is known, the library's
+   * `ReadOnlyApiKey` from Bunny's Core API (`GET /videolibrary/{id}`, the
+   * same call the usage poll makes), kept for an hour. Undefined only when
+   * neither is available — then the URL token stays the fallback.
+   */
+  async webhookSigningKey(
+    k: BunnyKeys,
+    fetchFn: typeof fetch = fetch,
+  ): Promise<string | undefined> {
+    if (k.webhookSigningKey) return k.webhookSigningKey;
+    if (!k.accountApiKey || !/^\d{1,12}$/.test(k.libraryId)) return undefined;
+    const id = `${k.libraryId}:${k.accountApiKey.slice(-6)}`;
+    const now = Date.now();
+    const hit = this.signingKeyCache;
+    if (hit && hit.id === id && hit.until > now) return hit.key ?? undefined;
+    let key: string | null = null;
+    try {
+      const res = await fetchFn(`${CORE_API}/videolibrary/${k.libraryId}`, {
+        headers: { AccessKey: k.accountApiKey, accept: 'application/json' },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (res.ok) {
+        const lib = (await res.json()) as { ReadOnlyApiKey?: unknown };
+        if (
+          typeof lib.ReadOnlyApiKey === 'string' &&
+          /^[\w-]{20,}$/.test(lib.ReadOnlyApiKey)
+        ) {
+          key = lib.ReadOnlyApiKey;
+        }
+      }
+    } catch {
+      // Bunny unreachable: the URL token stays the check for a while.
+    }
+    this.signingKeyCache = {
+      id,
+      key,
+      until: now + (key ? SIGNING_KEY_TTL_MS : SIGNING_KEY_RETRY_MS),
+    };
+    return key ?? undefined;
   }
 
   /** [thumbnailTimeMs]: Bunny takes the cover frame at this moment

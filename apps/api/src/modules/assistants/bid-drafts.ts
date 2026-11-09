@@ -130,6 +130,15 @@ export class BidDraftsService {
     caseId: string,
     dto: BidDraftBodyDto,
   ): Promise<BidDraftDto> {
+    // Live attack pass 2026-11-08: a client (or any non-attorney) saved
+    // "bid drafts" on other people's cases. Only an attorney (or the
+    // assistant working as one) has a bid to prepare.
+    if (user.role !== 'attorney') {
+      throw new NotFoundException({
+        code: ErrorCode.CASE_NOT_FOUND,
+        message: 'Case not found.',
+      });
+    }
     const kase = await this.prisma.case.findUnique({
       where: { id: caseId },
       select: { id: true, status: true, deleted_at: true },

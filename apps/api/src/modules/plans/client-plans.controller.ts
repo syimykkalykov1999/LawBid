@@ -29,6 +29,7 @@ import {
 } from './client-plans.dto';
 import { PortalSessionDto } from '../billing/billing.dto';
 import { ClientPlansService } from './client-plans.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -40,6 +41,7 @@ const E = ErrorCode;
 export class ClientPlansController {
   constructor(private readonly plans: ClientPlansService) {}
 
+  @AttorneyOnly()
   @Get('me')
   @ApiOperation({
     summary: "The client's plan, entitlements and the plans for sale",
@@ -53,6 +55,7 @@ export class ClientPlansController {
   // Security research #5 (2026-10-22), A11: card testing — a stolen-card
   // script creating checkouts in a loop (each attempt costs a Stripe fee).
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @AttorneyOnly()
   @Post('checkout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Stripe's hosted page for a client plan" })
@@ -71,6 +74,7 @@ export class ClientPlansController {
     return this.plans.checkout(user, dto.planCode, apiBaseOf(req));
   }
 
+  @AttorneyOnly()
   @Post('checkout/complete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -85,6 +89,7 @@ export class ClientPlansController {
     return this.plans.completeCheckout(user, dto.sessionId);
   }
 
+  @AttorneyOnly()
   @Post('portal-session')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -102,6 +107,7 @@ export class ClientPlansController {
     return this.plans.portalSession(user);
   }
 
+  @AttorneyOnly()
   @Post('cancel')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -113,6 +119,7 @@ export class ClientPlansController {
     return this.plans.setCancel(user, true);
   }
 
+  @AttorneyOnly()
   @Post('resume')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Keep the plan (undo a cancel)' })

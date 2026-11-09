@@ -46,6 +46,10 @@ import {
   UpdateStorySettingsDto,
 } from './stories.dto';
 import { StoriesService, type StoryPage } from './stories.service';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -57,6 +61,7 @@ const E = ErrorCode;
 export class StoriesController {
   constructor(private readonly stories: StoriesService) {}
 
+  @AssistantAllowed()
   @Get('tray')
   @ApiOperation({ summary: 'Story bubbles: me first, then people I follow' })
   @ApiEnvelopeResponse(StoryTrayItemDto, { isArray: true })
@@ -65,6 +70,7 @@ export class StoriesController {
     return this.stories.tray(user);
   }
 
+  @AttorneyOnly()
   @Get('archive')
   @ApiOperation({ summary: 'My expired stories, newest first' })
   @ApiEnvelopeResponse(StoryDto, { isArray: true })
@@ -75,6 +81,7 @@ export class StoriesController {
     return this.stories.archive(user, q.cursor, q.limit);
   }
 
+  @AttorneyOnly()
   @Get('settings')
   @ApiOperation({ summary: 'My story privacy' })
   @ApiEnvelopeResponse(StorySettingsDto)
@@ -82,6 +89,7 @@ export class StoriesController {
     return this.stories.getSettings(user);
   }
 
+  @AttorneyOnly()
   @Patch('settings')
   @ApiOperation({ summary: 'Change my story privacy' })
   @ApiEnvelopeResponse(StorySettingsDto)
@@ -92,6 +100,7 @@ export class StoriesController {
     return this.stories.updateSettings(user, dto);
   }
 
+  @AttorneyOnly()
   @Get('hidden')
   @ApiOperation({ summary: 'People my stories are hidden from' })
   @ApiEnvelopeResponse(UserBriefDto, { isArray: true })
@@ -99,6 +108,7 @@ export class StoriesController {
     return this.stories.hiddenFrom(user);
   }
 
+  @AttorneyOnly()
   @Put('hidden/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Hide my stories from a person' })
@@ -110,6 +120,7 @@ export class StoriesController {
     return this.stories.hide(user, p.userId);
   }
 
+  @AttorneyOnly()
   @Delete('hidden/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Show my stories to a person again' })
@@ -120,6 +131,7 @@ export class StoriesController {
     return this.stories.unhide(user, p.userId);
   }
 
+  @AttorneyOnly()
   @Post('video-uploads')
   @ApiOperation({ summary: 'Start a direct upload of a story video (≤ 15 s)' })
   @ApiEnvelopeResponse(VideoUploadDto, { status: 201 })
@@ -138,6 +150,7 @@ export class StoriesController {
     return this.stories.createVideoUpload(user, dto);
   }
 
+  @AttorneyOnly()
   @Post()
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
@@ -158,6 +171,7 @@ export class StoriesController {
     return this.stories.create(user, dto);
   }
 
+  @AssistantAllowed()
   @Get('users/:userId')
   @ApiOperation({ summary: "A person's live stories I may see" })
   @ApiEnvelopeResponse(StoryDto, { isArray: true })
@@ -168,6 +182,7 @@ export class StoriesController {
     return this.stories.ofUser(user, p.userId);
   }
 
+  @AttorneyOnly()
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my story' })
@@ -179,6 +194,7 @@ export class StoriesController {
     return this.stories.remove(user, p.id);
   }
 
+  @AssistantAllowed()
   @Post(':id/view')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Mark a story as seen' })
@@ -190,6 +206,7 @@ export class StoriesController {
     return this.stories.view(user, p.id);
   }
 
+  @AttorneyOnly()
   @Get(':id/viewers')
   @ApiOperation({ summary: 'Who saw my story (author only)' })
   @ApiEnvelopeResponse(StoryViewerDto, { isArray: true })

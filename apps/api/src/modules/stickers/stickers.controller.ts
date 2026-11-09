@@ -43,6 +43,10 @@ import {
   UpdateStickerPackDto,
 } from './stickers.dto';
 import { StickersService } from './stickers.service';
+import {
+  AssistantAllowed,
+  RequiresDuty,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const FEATURED_ETAG_BUCKET_MS = 300_000;
@@ -58,6 +62,7 @@ export class StickersController {
   // Owner 2026-10-22 (client economy plan, package D): reference data —
   // the browser (web build, admin) may keep it and revalidate in the
   // background; `private` because the answer is per person.
+  @AssistantAllowed()
   @Get()
   @Header('Cache-Control', 'private, max-age=60, stale-while-revalidate=3600')
   @ApiOperation({
@@ -70,6 +75,7 @@ export class StickersController {
     return this.stickers.library(user.sub);
   }
 
+  @AssistantAllowed()
   @Get('featured')
   @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @ApiOperation({ summary: 'Official packs, most installed first' })
@@ -91,6 +97,7 @@ export class StickersController {
     return this.stickers.featured(user.sub);
   }
 
+  @RequiresDuty('chats')
   @Put('order')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Order of my packs in the picker' })
@@ -101,6 +108,7 @@ export class StickersController {
     return this.stickers.reorder(user.sub, dto.packIds);
   }
 
+  @RequiresDuty('chats')
   @Post('packs')
   @ApiOperation({ summary: 'Create my sticker pack (installed at once)' })
   @ApiEnvelopeResponse(StickerPackDto, { status: 201 })
@@ -112,6 +120,7 @@ export class StickersController {
     return this.stickers.create(user.sub, dto.title);
   }
 
+  @AssistantAllowed()
   @Get('packs/:ref')
   @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @ApiOperation({ summary: 'A pack by id or short name' })
@@ -124,6 +133,7 @@ export class StickersController {
     return this.stickers.get(user.sub, p.ref);
   }
 
+  @RequiresDuty('chats')
   @Patch('packs/:ref')
   @ApiOperation({ summary: 'Rename my pack' })
   @ApiEnvelopeResponse(StickerPackDto)
@@ -136,6 +146,7 @@ export class StickersController {
     return this.stickers.rename(user.sub, p.ref, dto.title);
   }
 
+  @RequiresDuty('chats')
   @Delete('packs/:ref')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my pack' })
@@ -147,6 +158,7 @@ export class StickersController {
     return this.stickers.remove(user.sub, p.ref);
   }
 
+  @RequiresDuty('chats')
   @Post('packs/:ref/stickers')
   @ApiOperation({ summary: 'Add my image to my pack' })
   @ApiEnvelopeResponse(StickerDto, { status: 201 })
@@ -166,6 +178,7 @@ export class StickersController {
 
   // Owner 2026-10-28 (legal safety, App Store 1.2): report a user's pack -
   // the same queue and auto-hide threshold as POST /reports.
+  @RequiresDuty('chats')
   @Post('packs/:ref/report')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Report a sticker pack (inappropriate, abuse ...)' })
@@ -182,6 +195,7 @@ export class StickersController {
     return this.stickers.report(user.sub, p.ref, dto);
   }
 
+  @RequiresDuty('chats')
   @Post('packs/:ref/install')
   @ApiOperation({ summary: 'Add a pack to my stickers' })
   @ApiEnvelopeResponse(StickerPackDto)
@@ -193,6 +207,7 @@ export class StickersController {
     return this.stickers.install(user.sub, p.ref);
   }
 
+  @RequiresDuty('chats')
   @Delete('packs/:ref/install')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove a pack from my stickers' })
@@ -204,6 +219,7 @@ export class StickersController {
     return this.stickers.uninstall(user.sub, p.ref);
   }
 
+  @RequiresDuty('chats')
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a sticker from my pack' })

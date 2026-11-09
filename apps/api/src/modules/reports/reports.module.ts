@@ -44,6 +44,7 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
+import { AssistantAllowed } from '../auth/assistant/assistant-context';
 
 /** docs/05 §12.1 targets reported from file 05 screens. */
 const REPORTABLE: ReportTargetType[] = [
@@ -156,6 +157,7 @@ export class ReportsService {
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
+  @AssistantAllowed()
   @Post()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

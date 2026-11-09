@@ -12,6 +12,7 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { ContentTranslationService } from './content-translation.service';
 import { ContentTranslationDto, TranslateContentDto } from './translation.dto';
+import { AssistantAllowed } from '../auth/assistant/assistant-context';
 
 /** Owner 2026-10-05: «Перевести» on posts, comments, cases, bids, reviews
  * and bios (chat messages keep their own endpoint). */
@@ -22,6 +23,7 @@ import { ContentTranslationDto, TranslateContentDto } from './translation.dto';
 export class TranslationController {
   constructor(private readonly content: ContentTranslationService) {}
 
+  @AssistantAllowed()
   @Post()
   @HttpCode(200)
   @ApiOperation({

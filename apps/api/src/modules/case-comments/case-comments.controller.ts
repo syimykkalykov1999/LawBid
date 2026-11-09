@@ -34,7 +34,10 @@ import {
   type CaseCommentPage,
 } from './case-comments.dto';
 import { CaseCommentsService } from './case-comments.service';
-import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import {
+  AttorneyOnly,
+  RequiresDuty,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -46,6 +49,7 @@ const E = ErrorCode;
 export class CaseCommentsController {
   constructor(private readonly comments: CaseCommentsService) {}
 
+  @RequiresDuty('cases')
   @Get('cases/:id/comments')
   @ApiOperation({ summary: 'Top-level comments of a case, newest first' })
   @ApiEnvelopeResponse(CaseCommentDto, { isArray: true })
@@ -58,6 +62,7 @@ export class CaseCommentsController {
     return this.comments.list(user, p.id, q.cursor);
   }
 
+  @RequiresDuty('cases')
   @Post('cases/:id/share')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Count a completed share of a case (OQ-037)' })
@@ -66,6 +71,7 @@ export class CaseCommentsController {
     return this.comments.shareCase(p.id);
   }
 
+  @RequiresDuty('cases')
   @Get('case-comments/:id/replies')
   @ApiOperation({ summary: 'Replies of a case comment' })
   @ApiEnvelopeResponse(CaseCommentDto, { isArray: true })
@@ -132,6 +138,7 @@ export class CaseCommentsController {
     return this.comments.remove(user, p.id);
   }
 
+  @RequiresDuty('cases')
   @Post('case-comments/:id/like')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Like a case comment (idempotent)' })
@@ -143,6 +150,7 @@ export class CaseCommentsController {
     return this.comments.like(user, p.id);
   }
 
+  @RequiresDuty('cases')
   @Delete('case-comments/:id/like')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove a case comment like (idempotent)' })

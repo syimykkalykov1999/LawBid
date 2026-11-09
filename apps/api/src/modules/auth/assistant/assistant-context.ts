@@ -11,9 +11,19 @@ export const ATTORNEY_ONLY = 'lawbid:attorneyOnly';
 export const AttorneyOnly = (unlessDuty?: string) =>
   SetMetadata(ATTORNEY_ONLY, unlessDuty ?? true);
 
-/** Routes that need one of the assistant's duties. */
+/** Routes that need one of the assistant's duties. Several duties mean
+ * "any one of them" (a bid is seen with "cases", "bids" or "bid_drafts"). */
 export const REQUIRES_DUTY = 'lawbid:requiresDuty';
-export const RequiresDuty = (duty: string) => SetMetadata(REQUIRES_DUTY, duty);
+export const RequiresDuty = (duty: string, ...orDuties: string[]) =>
+  SetMetadata(REQUIRES_DUTY, orDuties.length ? [duty, ...orDuties] : duty);
+
+/** Security audit 2026-11-08 (L2): the guard is deny-by-default for an
+ * assistant working in the attorney's account — a route the assistant may
+ * use without a duty says so with this marker (public reads, the app's
+ * start-up calls, or a service that checks the duties itself). A route with
+ * no marker at all answers ASSISTANT_NOT_ALLOWED to an assistant. */
+export const ASSISTANT_ALLOWED = 'lawbid:assistantAllowed';
+export const AssistantAllowed = () => SetMetadata(ASSISTANT_ALLOWED, true);
 
 /** Routes an assistant uses as themself (joining a team, own session):
  * the guard does not swap in the attorney. */

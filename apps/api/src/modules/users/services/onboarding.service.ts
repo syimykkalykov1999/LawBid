@@ -337,6 +337,15 @@ export class OnboardingService {
         },
       });
       if (!user) throw locked();
+      // Security audit 2026-11-08 (L7): «assistant» is given only by an
+      // attorney's invite code (AssistantCodeService). Picking it here is
+      // refused; an assistant who already has it may still send it again.
+      if (role === 'assistant' && user.role !== 'assistant') {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: "An assistant joins with the attorney's invite code.",
+        });
+      }
       if (user.role === null) {
         await tx.user.update({ where: { id: userId }, data: { role } });
         return;

@@ -29,10 +29,15 @@ function sign(raw: Buffer, key = SIGNING_KEY): string {
   return createHmac('sha256', key).update(raw).digest('hex');
 }
 
-function setup(k: BunnyKeys | null) {
+function setup(k: BunnyKeys | null, fetchedSigningKey?: string) {
   const onWebhook = jest.fn().mockResolvedValue(undefined);
   const ctrl = new BunnyWebhookController(
-    { keys: jest.fn().mockResolvedValue(k) } as unknown as BunnyStreamClient,
+    {
+      keys: jest.fn().mockResolvedValue(k),
+      webhookSigningKey: jest.fn((kk: BunnyKeys) =>
+        Promise.resolve(kk.webhookSigningKey ?? fetchedSigningKey),
+      ),
+    } as unknown as BunnyStreamClient,
     { onWebhook } as unknown as PostVideosService,
   );
   const warn = jest
@@ -140,5 +145,23 @@ describe('BunnyWebhookController', () => {
     const { ctrl, onWebhook } = setup(keys());
     await ctrl.bunnyWebhook(TOKEN, {}, undefined, { VideoGuid: 'nope' });
     expect(onWebhook).not.toHaveBeenCalled();
+  });
+  // Security audit 2026-11-08 (L10): with the account API key saved, the
+  // Read-Only key comes from Bunny and the leaked URL token alone no longer
+  // passes.
+  describe('signing key read from Bunny with the account API key', () => {
+    it('a URL-token-only call is refused, a signed one passes', async () => {
+      const { ctrl, onWebhook } = setup(
+        keys({ accountApiKey: 'acct-0123456789abcdefghij' }),
+        SIGNING_KEY,
+      );
+      await expect(
+        ctrl.bunnyWebhook(TOKEN, { rawBody: raw }, undefined, body),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(
+        ctrl.bunnySigned({ rawBody: raw }, sign(raw), body),
+      ).resolves.toEqual({ received: true });
+      expect(onWebhook).toHaveBeenCalledTimes(1);
+    });
   });
 });

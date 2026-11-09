@@ -22,7 +22,11 @@ import {
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
-import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+  RequiresDuty,
+} from '../auth/assistant/assistant-context';
 import {
   CurrentUser,
   type RequestUser,
@@ -83,6 +87,7 @@ export class ConsultationsController {
     return this.consultations.updateSettings(user, dto);
   }
 
+  @AssistantAllowed()
   @Get('slots')
   @ApiOperation({ summary: 'Free slots of an attorney for the next days' })
   @ApiEnvelopeResponse(ConsultationSlotsDto)
@@ -98,6 +103,7 @@ export class ConsultationsController {
     return this.consultations.slots(user, query);
   }
 
+  @RequiresDuty('tasks')
   @Get()
   @ApiOperation({ summary: 'My consultations (both roles)' })
   @ApiEnvelopeResponse(ConsultationDto, { isArray: true })
@@ -109,6 +115,7 @@ export class ConsultationsController {
     return this.consultations.list(user, query);
   }
 
+  @AttorneyOnly()
   @Post()
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Book a slot (client)' })
@@ -125,6 +132,7 @@ export class ConsultationsController {
     return this.consultations.create(user, dto);
   }
 
+  @RequiresDuty('tasks')
   @Get(':id')
   @ApiOperation({ summary: 'One consultation' })
   @ApiEnvelopeResponse(ConsultationDto)
@@ -165,6 +173,7 @@ export class ConsultationsController {
     return this.consultations.decline(user, p.id, dto.reason);
   }
 
+  @RequiresDuty('tasks')
   @Post(':id/cancel')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Cancel (either side)' })
@@ -179,6 +188,7 @@ export class ConsultationsController {
     return this.consultations.cancel(user, p.id, dto.reason);
   }
 
+  @RequiresDuty('tasks')
   @Post(':id/reschedule')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Move to another free slot (either side)' })

@@ -39,6 +39,10 @@ import {
 } from './report-abuse.dto';
 import { ReporterReputationService } from './reporter-reputation.service';
 import { StrikesService } from './strikes.service';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -55,6 +59,7 @@ export class MyStandingController {
     private readonly appeals: AutoAppealsService,
   ) {}
 
+  @AssistantAllowed()
   @Get('standing')
   @ApiOperation({
     summary:
@@ -70,6 +75,7 @@ export class MyStandingController {
     return { strikes, reporting, autoActions };
   }
 
+  @AttorneyOnly()
   @Post('reporting-appeal')
   @ApiOperation({ summary: 'Appeal a warning or pause of my reports' })
   @ApiEnvelopeResponse(ReportingStatusDto)
@@ -81,6 +87,7 @@ export class MyStandingController {
     return this.reporters.appeal(user.sub, dto.message);
   }
 
+  @AttorneyOnly()
   @Post('auto-actions/:id/appeal')
   @ApiOperation({ summary: 'Appeal an automatic moderation decision' })
   @ApiEnvelopeResponse(AutoActionDto)
