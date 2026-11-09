@@ -32,6 +32,7 @@ import { AutoHoldService } from '../moderation/auto-hold.service';
 import {
   CSAM_HASH_MATCHER,
   CSAM_REPORTER,
+  type CsamEvidence,
   type CsamHashMatcher,
   type CsamReporter,
 } from './csam.adapters';
@@ -775,6 +776,14 @@ export class MediaModerationService {
       },
       orderBy: { created_at: 'desc' },
       take: limit + 1,
+      // Owner 2026-11-08: staff see where the latest NCMEC report stands.
+      include: {
+        csam_reports: {
+          orderBy: { created_at: 'desc' },
+          take: 1,
+          select: { status: true, external_report_id: true, error: true },
+        },
+      },
     });
     const items = rows.slice(0, limit);
     return {
@@ -892,6 +901,41 @@ export class MediaModerationService {
     return this.openCsamReport(check, adminId, {});
   }
 
+  /** The preserved upload for the CyberTipline report (owner 2026-11-08):
+   * the stored bytes of a file check; a video goes by its ids in the text.
+   * Read only here, never logged; a read failure sends the report without
+   * the file (NCMEC still gets the account and the time). */
+  private async csamEvidence(check: MediaModerationCheck): Promise<{
+    evidence: CsamEvidence[];
+    incidentAt: Date;
+  }> {
+    if (!check.file_id) return { evidence: [], incidentAt: check.created_at };
+    const file = await this.prisma.file.findUnique({
+      where: { id: check.file_id },
+    });
+    if (!file) return { evidence: [], incidentAt: check.created_at };
+    try {
+      const bytes = await this.storage.read(file.s3_bucket, file.s3_key);
+      return {
+        incidentAt: file.created_at,
+        evidence: [
+          {
+            bytes,
+            fileName: `evidence-${check.id}.${evidenceExt(file.mime)}`,
+            uploadedAt: file.created_at,
+            sha256: file.sha256,
+          },
+        ],
+      };
+    } catch (err) {
+      this.logger.warn(
+        { checkId: check.id, err: String(err) },
+        'CSAM evidence could not be read; the report goes without the file',
+      );
+      return { evidence: [], incidentAt: file.created_at };
+    }
+  }
+
   private async openCsamReport(
     check: MediaModerationCheck,
     adminId: string | null,
@@ -936,6 +980,7 @@ export class MediaModerationService {
       );
     }
     try {
+      const { evidence, incidentAt } = await this.csamEvidence(check);
       const r = await this.reporter.submit({
         reportId: report.id,
         checkId: check.id,
@@ -946,6 +991,8 @@ export class MediaModerationService {
           fileId: check.file_id,
           videoAssetId: check.video_asset_id,
         },
+        incidentAt,
+        evidence,
       });
       return await finish(
         {
@@ -969,6 +1016,12 @@ export class MediaModerationService {
       );
     }
   }
+}
+
+/** The file extension NCMEC sees for a preserved upload. */
+function evidenceExt(mime: string): string {
+  const sub = mime.split('/')[1]?.split(/[+;]/)[0] ?? '';
+  return /^[a-z0-9]{2,5}$/.test(sub) ? (sub === 'jpeg' ? 'jpg' : sub) : 'bin';
 }
 
 /** One line of the append-only trail kept on a CSAM report. */

@@ -1,4 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { PinoLogger } from 'nestjs-pino';
+import {
+  buildFileDetailsXml,
+  buildReportXml,
+  NcmecClient,
+  ncmecCredentials,
+} from '../../common/secrets/ncmec-cybertipline';
 import { SecretsService } from '../../common/secrets/secrets.service';
 
 /**
@@ -74,12 +81,26 @@ export class PhotoDnaMatcher implements CsamHashMatcher {
   }
 }
 
+/** One file attached to the report (the preserved evidence). */
+export interface CsamEvidence {
+  bytes: Buffer;
+  fileName: string;
+  uploadedAt: Date | null;
+  sha256: string | null;
+}
+
 export interface CsamReportInput {
   reportId: string;
   checkId: string;
   ownerUserId: string;
   /** Where the content was (purpose + ids), never the image itself. */
   context: Record<string, unknown>;
+  /** When the content reached us (the incident time; default now). */
+  incidentAt?: Date;
+  /** The uploader's @username, when there is one. */
+  screenName?: string | null;
+  /** The files to attach (none for a video: its ids go in the text). */
+  evidence?: CsamEvidence[];
 }
 
 export interface CsamReportResult {
@@ -97,27 +118,100 @@ export interface CsamReporter {
 export const CSAM_REPORTER = Symbol('CSAM_REPORTER');
 
 /**
- * NCMEC CyberTipline reporting API adapter — a documented stub. The real
- * API (XML over HTTPS, test and production endpoints, an ESP account
- * issued by NCMEC) needs the account first; until it exists every report
- * is `manual_required`: the admin sees it in Модерация → Медиа and the
- * owner files it on report.cybertip.org within the legal deadline
- * (docs/SECURITY_TODO.md). With the account configured the call is still
- * not wired: it throws, so nobody believes a report went out when it did
- * not.
+ * NCMEC CyberTipline reporting API (common/secrets/ncmec-cybertipline.ts:
+ * submit → upload each file → fileinfo → finish). The ESP account is the
+ * admin card «NCMEC CyberTipline» (Ключи и сервисы, «Проверить» = GET
+ * /status); environment `test` until the owner switches it to
+ * `production`. Without the card every report is `manual_required`: it
+ * waits in Модерация → Медиа and is filed by hand on report.cybertip.org
+ * (docs/SECURITY_TODO.md). A failure after the report was opened retracts
+ * it (no half report at NCMEC) and throws, so the report shows `failed`
+ * with the reason and the admin can send it again.
  */
 @Injectable()
-export class NcmecReporterStub implements CsamReporter {
+export class NcmecReporter implements CsamReporter {
   readonly name = 'ncmec';
 
-  constructor(private readonly secrets: SecretsService) {}
+  /** Tests point this at a fake CyberTipline. */
+  fetchImpl: typeof fetch = (...a) => fetch(...a);
+
+  constructor(
+    private readonly secrets: SecretsService,
+    @Optional() private readonly logger?: PinoLogger,
+  ) {
+    this.logger?.setContext(NcmecReporter.name);
+  }
 
   async submit(input: CsamReportInput): Promise<CsamReportResult> {
-    if (!(await this.secrets.has('ncmec'))) {
-      return { status: 'manual_required' };
+    const fields = (await this.secrets.get('ncmec'))?.fields ?? {};
+    const creds = ncmecCredentials(fields);
+    if (!creds) return { status: 'manual_required' };
+    if (!fields.reporterEmail) {
+      throw new Error(
+        'NCMEC card has no reporter e-mail (Ключи и сервисы → NCMEC CyberTipline); file this report by hand',
+      );
     }
-    throw new Error(
-      `NCMEC API submission is not implemented yet (report ${input.reportId}); file it by hand — docs/SECURITY_TODO.md`,
+    const client = new NcmecClient(creds, this.fetchImpl);
+    const ctx = input.context;
+    const xml = buildReportXml({
+      incidentAt: input.incidentAt ?? new Date(),
+      reporter: {
+        email: fields.reporterEmail,
+        firstName: fields.reporterFirstName,
+        lastName: fields.reporterLastName,
+      },
+      reportedUser: {
+        espIdentifier: input.ownerUserId,
+        screenName: input.screenName ?? null,
+      },
+      additionalInfo: [
+        `LawBid report ${input.reportId}, moderation check ${input.checkId}`,
+        typeof ctx.purpose === 'string' ? `content type: ${ctx.purpose}` : null,
+        typeof ctx.videoAssetId === 'string'
+          ? `video asset ${ctx.videoAssetId}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join('; '),
+    });
+    const ncmecId = await client.submit(xml);
+    try {
+      for (const ev of input.evidence ?? []) {
+        const { fileId } = await client.upload(ncmecId, ev.bytes, ev.fileName);
+        await client.fileInfo(
+          buildFileDetailsXml({
+            reportId: ncmecId,
+            fileId,
+            originalFileName: ev.fileName,
+            uploadedAt: ev.uploadedAt,
+            sha256: ev.sha256,
+          }),
+        );
+      }
+      await client.finish(ncmecId);
+    } catch (err) {
+      await client
+        .retract(ncmecId)
+        .catch((e: unknown) =>
+          this.logger?.warn(
+            { reportId: input.reportId, err: String(e) },
+            'NCMEC retract failed (NCMEC drops an unfinished report in 24 h)',
+          ),
+        );
+      throw err;
+    }
+    this.logger?.info(
+      {
+        reportId: input.reportId,
+        ncmecReportId: ncmecId,
+        files: input.evidence?.length ?? 0,
+        environment: creds.environment,
+      },
+      'CSAM report filed with NCMEC',
     );
+    return { status: 'submitted', externalReportId: ncmecId };
   }
 }
+
+/** The name the module used while the adapter was a stub. */
+export const NcmecReporterStub = NcmecReporter;

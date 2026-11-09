@@ -19,6 +19,7 @@ import {
 } from '../turnstile/turnstile.service';
 import {
   APP_CHECK_HEADER,
+  APP_CHECK_STATUS_HEADER,
   AppCheckService,
   type AppCheckVerdict,
 } from './app-check.service';
@@ -155,6 +156,14 @@ export class AppCheckGuard implements CanActivate {
         reason: result.reason,
         free,
         consume,
+        // 2026-11-08: which app sent it and, without a token, why the
+        // device had none (every prod verdict was `missing`, cause unseen).
+        platform: shortHeader(req, 'x-platform', 16),
+        appVersion: shortHeader(req, 'x-app-version', 32),
+        clientStatus:
+          result.verdict === 'missing'
+            ? shortHeader(req, APP_CHECK_STATUS_HEADER, 120)
+            : undefined,
       },
       'app check',
     );
@@ -296,6 +305,19 @@ export class AppCheckGuard implements CanActivate {
       return false;
     }
   }
+}
+
+/** A client header for the log: printable ASCII only, at most [max]
+ * characters, undefined when absent. Never used for a decision. */
+function shortHeader(
+  req: Request,
+  name: string,
+  max: number,
+): string | undefined {
+  const raw = req.header(name);
+  if (typeof raw !== 'string') return undefined;
+  const clean = raw.replace(/[^\x20-\x7e]/g, '').trim();
+  return clean.length > 0 ? clean.slice(0, max) : undefined;
 }
 
 /** The account a sign-in attempt is about, written the way the services

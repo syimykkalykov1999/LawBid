@@ -6,9 +6,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart'
     show showAppDatePicker;
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart'
     show ActionSheetItem, showActionSheet;
 import 'package:lawbid/features/cases/tools/billing_logic.dart';
@@ -358,11 +360,13 @@ class _ExpenseSheetState extends ConsumerState<_ExpenseSheet> {
   }
 
   Future<void> _photo() async {
+    // Owner 2026-11-08: the admin's «Фото» size and quality, as elsewhere.
+    final photo = photoLimitsOf(ref.read(featureFlagsControllerProvider));
     final f = await ImagePicker().pickImage(
       source: ImageSource.gallery,
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 85,
+      maxWidth: photo.maxPx,
+      maxHeight: photo.maxPx,
+      imageQuality: photo.quality,
     );
     if (f == null) return;
     final bytes = await f.readAsBytes();

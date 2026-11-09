@@ -20,6 +20,9 @@ class _ScriptedUploads implements FileUploadRepository {
   final FakeVerificationBackend inner;
   int failUploads = 0;
   int pendingPolls = 0;
+
+  /// When set, `confirm` waits for it (the server still checks the file).
+  Completer<void>? confirmGate;
   int uploads = 0;
   int polls = 0;
 
@@ -47,8 +50,11 @@ class _ScriptedUploads implements FileUploadRepository {
   }
 
   @override
-  Future<ScanState> confirm(String fileId) async =>
-      pendingPolls > 0 ? ScanState.pending : inner.confirm(fileId);
+  Future<ScanState> confirm(String fileId) async {
+    final gate = confirmGate;
+    if (gate != null) await gate.future;
+    return pendingPolls > 0 ? ScanState.pending : inner.confirm(fileId);
+  }
 
   @override
   Future<ScanState> scanStatus(String fileId) async {
@@ -274,6 +280,40 @@ void main() {
     await settle();
     expect(uploads.uploads, 1, reason: 'the stored file is reused');
     expect(now().uploads, isEmpty);
+  });
+
+  test(
+      'leaving the wizard after the upload still checks and attaches the '
+      'file (owner 2026-11-08)', () async {
+    backend.request = draft();
+    final c = ProviderContainer(
+      overrides: [
+        verificationRepositoryProvider.overrideWithValue(backend),
+        fileUploadRepositoryProvider.overrideWithValue(uploads),
+        scanPollingProvider.overrideWithValue(
+          const ScanPolling(interval: Duration(milliseconds: 1), maxPolls: 3),
+        ),
+      ],
+    );
+    addTearDown(c.dispose);
+    final screen = c.listen(verificationWizardProvider, (_, __) {});
+    await c.read(verificationWizardProvider.future);
+    final gate = uploads.confirmGate = Completer<void>();
+    c
+        .read(verificationWizardProvider.notifier)
+        .upload(const DocSlot.barLicense('AL'), _file());
+    await settle();
+    expect(
+      c.read(verificationWizardProvider).requireValue.uploads.single.phase,
+      UploadPhase.scanning,
+    );
+
+    screen.close(); // the wizard is left while the server checks the file
+    await settle();
+    gate.complete();
+    await settle();
+
+    expect(backend.attached, contains(const DocSlot.barLicense('AL')));
   });
 
   test('failed storage upload → retry uploads again', () async {

@@ -17,6 +17,11 @@ class EconomyFiguresDto {
     required this.lines,
     required this.monthToDateUsd,
     required this.projectedUsd,
+    required this.thirdPartyMonthToDateUsd,
+    required this.thirdPartyProjectedUsd,
+    required this.awsMonthToDateUsd,
+    required this.awsProjectedUsd,
+    required this.awsLimitUsd,
   });
 
   factory EconomyFiguresDto.fromJson(Map<String, Object?> json) =>
@@ -30,8 +35,23 @@ class EconomyFiguresDto {
   final List<SpendLineDto> lines;
   final num monthToDateUsd;
 
-  /// Projected third-party spend for the month.
+  /// Projected spend for the month, both brakes together (third-party + AWS).
   final num projectedUsd;
+
+  /// Third-party brake: metered external services (SMS, Bunny video, translation, ID checks, Cloudflare) spent so far this month.
+  final num thirdPartyMonthToDateUsd;
+
+  /// Third-party brake: projected for the month; compared with allowedUsd.
+  final num thirdPartyProjectedUsd;
+
+  /// AWS brake: the AWS bill (SES, Rekognition included) so far.
+  final num awsMonthToDateUsd;
+
+  /// AWS brake: projected AWS bill; compared with awsLimitUsd.
+  final num awsProjectedUsd;
+
+  /// The AWS budget (AWS Budgets); allowedUsd when it cannot be read.
+  final num awsLimitUsd;
 
   Map<String, Object?> toJson() => _$EconomyFiguresDtoToJson(this);
 }
