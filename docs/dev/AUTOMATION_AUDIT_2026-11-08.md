@@ -180,6 +180,8 @@ owner step named; **PREPARE+TAP** = deliberately not fully automatic (reason giv
 - **G2.** `hidden.autoscale_lambdas` switch writes only the DB Lambda's SSM mode, not Redis.
 - **G3.** Bunny / Cloudflare hard-stops ride on the DAILY usage poll (up to 24 h late); poll hourly
   when above the warning level.
+- **Done 2026-11-08 (branch `claude/automation-gaps` from main): G1, G2, G3, G8, G9. Branch
+  `claude/automation-gaps-pipeline` (on top of this one): G4, G5, G6, G10.**
 - **G4.** `events.sink=auto` flips without `EVENTS_STREAM_NAME`: add `events_stream_enabled` to the
   pipeline with the same hysteresis.
 - **G5.** `cache.redis_mode=auto` without `redis_cache_node`: same.
