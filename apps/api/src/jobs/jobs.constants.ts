@@ -451,6 +451,11 @@ export const FAST_JOBS: readonly CronJobName[] = [
 
 export const HEAVY_JOBS: readonly CronJobName[] = [
   CRON_JOBS.feedReco,
+  // 08.11 (G8): these three are in the «heavy» pause list (HEAVY_CRON_JOBS)
+  // yet ran on the one-at-a-time `cron` lane next to the 1–5 minute sweeps.
+  CRON_JOBS.trendingTags,
+  CRON_JOBS.chatSearchBackfill,
+  CRON_JOBS.dbBloat,
   CRON_JOBS.messagesReencrypt,
   CRON_JOBS.countersReconcile,
   CRON_JOBS.ratingReconcile,
