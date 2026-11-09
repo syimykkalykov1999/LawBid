@@ -8,8 +8,9 @@
 #
 #   apps/api/scripts/perf-user-seed.sh "$DATABASE_URL"
 #
-# PERF_SEED_SCALE=S multiplies every generator by S (loadtest/local-docker/scale_sql.py;
-# S=1 is ~1.5 GB on disk, mind the 8 GB free-disk rule on the Mac).
+# PERF_SEED_SCALE=S multiplies every generator by S, a fraction shrinks it (CI: 0.25;
+# loadtest/local-docker/scale_sql.py;
+# S=1 is ~3.5 GB on disk and 10 min, S=0.25 ~1 GB; mind the 8 GB free-disk rule on the Mac).
 # The admin generator's 200 000 audit rows are skipped: no user screen reads
 # them, and the append-only audit trigger makes them the slowest part.
 set -euo pipefail

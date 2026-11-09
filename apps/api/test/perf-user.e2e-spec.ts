@@ -68,7 +68,14 @@ if (RUN) {
   // (infra/modules/ecs), so their SQL never mixes with the requests'.
   process.env.JOBS_ENABLED = 'false';
 }
-const ROUNDS = Number(process.env.PERF_ROUNDS ?? 20);
+// 40 warm calls: p95 is then the 2nd slowest, not the single slowest (one
+// garbage-collection pause on a shared CI runner is not a slow endpoint).
+const ROUNDS = Number(process.env.PERF_ROUNDS ?? 40);
+/** Uncached calls per endpoint (every app cache in Redis emptied before
+ * each): what a page costs when its cache entry expired or was never
+ * built. The median of them must stay under PERF_COLD_BUDGET_MS. */
+const COLD_ROUNDS = Number(process.env.PERF_COLD_ROUNDS ?? 3);
+const COLD_BUDGET_MS = Number(process.env.PERF_COLD_BUDGET_MS ?? 300);
 const BUDGET_MS = Number(process.env.PERF_BUDGET_MS ?? 300);
 const N1_MAX = Number(process.env.PERF_N1_MAX ?? 5);
 const COST_MAX = Number(process.env.PERF_COST_MAX ?? 100_000);
@@ -112,6 +119,8 @@ interface Fx {
   client: string;
   attorney: string;
   attorneyUsername: string;
+  /** An attorney with a v4-shaped id (the /attorneys/:id routes validate it). */
+  author: string;
   conversation: string;
   post: string;
   comment: string;
@@ -139,9 +148,13 @@ async function fixtures(db: PrismaClient): Promise<Fx> {
   const conv = await one(`
     SELECT c.id::text, c.attorney_id::text, c.client_id::text, ap.username
     FROM conversations c JOIN attorney_profiles ap ON ap.user_id = c.attorney_id
-    WHERE c.id::text ${V4} AND c.attorney_id::text ${V4} AND c.last_message_id IS NOT NULL
+    WHERE c.id::text ${V4} AND c.last_message_id IS NOT NULL
       AND EXISTS (SELECT 1 FROM calls k WHERE k.conversation_id = c.id)
     ORDER BY c.id LIMIT 1`);
+  const author = await one(`
+    SELECT ap.user_id::text FROM attorney_profiles ap
+    WHERE ap.user_id::text ${V4} AND EXISTS (SELECT 1 FROM posts p WHERE p.author_id = ap.user_id)
+    ORDER BY ap.user_id LIMIT 1`);
   const post = await one(`
     SELECT p.id::text FROM posts p WHERE p.id::text ${V4} AND p.deleted_at IS NULL
       AND EXISTS (SELECT 1 FROM comments c WHERE c.post_id = p.id)
@@ -167,6 +180,7 @@ async function fixtures(db: PrismaClient): Promise<Fx> {
     client: kase.client_id,
     attorney: conv.attorney_id,
     attorneyUsername: conv.username,
+    author: author.user_id,
     conversation: conv.id,
     post: post.id,
     comment: comment.id,
@@ -204,17 +218,17 @@ function endpoints(f: Fx): Endpoint[] {
     },
     {
       label: 'attorney posts',
-      path: `/attorneys/${f.attorney}/posts`,
+      path: `/attorneys/${f.author}/posts`,
       as: 'client',
     },
     {
       label: 'attorney reviews summary',
-      path: `/attorneys/${f.attorney}/reviews/summary`,
+      path: `/attorneys/${f.author}/reviews/summary`,
       as: 'client',
     },
     {
       label: 'attorney followers',
-      path: `/attorneys/${f.attorney}/followers`,
+      path: `/attorneys/${f.author}/followers`,
       as: 'client',
     },
     // posts and comments
@@ -335,6 +349,8 @@ interface Result {
   path: string;
   status: number;
   cold: number;
+  /** The slowest statements of the slowest uncached call (ms, SQL). */
+  coldSql: string[];
   p50: number;
   p95: number;
   max: number;
@@ -441,6 +457,12 @@ interface Result {
       else background.add(q.query);
     });
     await new Promise((r) => setTimeout(r, 3000));
+    // Warm the process itself (module code, the Prisma engine, the pool):
+    // "uncached" means no app cache, not a process that just started.
+    for (let k = 0; k < 5; k++) {
+      await request(base).get('/api/v1/users/me').set(actors.client);
+      await request(base).get('/api/v1/feed').set(actors.client);
+    }
 
     const results: Result[] = [];
     // statement text -> first params seen, and the endpoints that sent it
@@ -458,11 +480,15 @@ interface Result {
         { params: string; rounds: Set<number>; prelude: TappedQuery[] }
       >();
       let status = 0;
-      let cold = 0;
+      const colds: number[] = [];
+      let coldSql: string[] = [];
       let maxQueries = 0;
       const problems: string[] = [];
       const n1 = new Map<string, number[]>();
-      for (let i = 0; i <= ROUNDS; i++) {
+      const total = COLD_ROUNDS + ROUNDS;
+      for (let i = 0; i < total; i++) {
+        const isCold = i < COLD_ROUNDS;
+        if (isCold) await redis.flushdb();
         const seen: TappedQuery[] = [];
         sink = seen;
         const t0 = process.hrtime.bigint();
@@ -478,8 +504,17 @@ interface Result {
         await new Promise((r) => setImmediate(r));
         sink = null;
         status = res.status;
-        if (i === 0) cold = ms;
-        else times.push(ms);
+        if (isCold) {
+          if (ms > Math.max(0, ...colds))
+            coldSql = [...seen]
+              .sort((a, b) => b.durationMs - a.durationMs)
+              .slice(0, 3)
+              .map(
+                (q) =>
+                  `${q.durationMs} ms ${q.query.replace(/\s+/g, ' ').slice(0, 140)}`,
+              );
+          colds.push(ms);
+        } else times.push(ms);
         const mine = seen.filter((q) => !background.has(q.query));
         maxQueries = Math.max(maxQueries, mine.length);
         const repeats = new Map<string, number>();
@@ -506,7 +541,7 @@ interface Result {
         for (const [sql, n] of repeats) {
           if (n > N1_MAX) n1.set(sql, [...(n1.get(sql) ?? []), n]);
         }
-        if (status >= 300 && i === 0) {
+        if (status >= 300 && i === COLD_ROUNDS) {
           problems.push(
             `status ${status}: ${JSON.stringify(res.body).slice(0, 200)}`,
           );
@@ -516,7 +551,8 @@ interface Result {
       // when two or more calls did; one stray statement in one warm call is
       // a background job (billing snapshot, outbox) sharing the client.
       for (const [sql, r] of rounds) {
-        if (!r.rounds.has(0) && r.rounds.size < 2) continue;
+        if (![...r.rounds].some((k) => k < COLD_ROUNDS) && r.rounds.size < 2)
+          continue;
         const s = statements.get(sql);
         if (s) s.labels.add(ep.label);
         else
@@ -534,6 +570,11 @@ interface Result {
             `N+1: one statement ${Math.max(...ns)}× in one request: ${sql.replace(/\s+/g, ' ').slice(0, 160)}`,
           );
       }
+      const cold = pct(colds, 0.5);
+      if (cold > COLD_BUDGET_MS)
+        problems.push(
+          `uncached ${cold.toFixed(1)} ms > ${COLD_BUDGET_MS} ms (slowest SQL: ${coldSql.join(' | ')})`,
+        );
       const p95 = pct(times, 0.95);
       if (p95 > BUDGET_MS)
         problems.push(`p95 ${p95.toFixed(1)} ms > ${BUDGET_MS} ms`);
@@ -542,6 +583,7 @@ interface Result {
         path: ep.path,
         status,
         cold,
+        coldSql,
         p50: pct(times, 0.5),
         p95,
         max: Math.max(...times),
@@ -646,7 +688,7 @@ interface Result {
 
     const f1 = (n: number) => n.toFixed(1);
     const rows = [
-      '| endpoint | status | cold ms | p50 | p95 | max | SQL/req | problems |',
+      '| endpoint | status | uncached ms | p50 | p95 | max | SQL/req | problems |',
       '|---|---|---|---|---|---|---|---|',
       ...results.map(
         (r) =>

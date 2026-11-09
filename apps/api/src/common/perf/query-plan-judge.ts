@@ -10,8 +10,8 @@
  * from the last ANALYZE. Multiplying `reltuples` by F (pages unchanged) makes
  * every row estimate F times bigger; a non-partial index takes the table's
  * row count, a partial one its own `reltuples` (also multiplied). Column
- * statistics with an absolute distinct count (`stadistinct > 0`) above 1 000
- * are id-like (they grow with the table) and are multiplied too; small
+ * statistics with an absolute distinct count (`stadistinct > 0`) above
+ * [ID_LIKE_DISTINCT] are id-like (they grow with the table) and are multiplied too; small
  * absolute counts (status, kind) and fractions (`< 0`) already scale.
  * Superuser only; run inside a transaction that is rolled back.
  */
@@ -22,6 +22,14 @@ export interface PlanNode {
   'Plan Rows'?: number;
   Plans?: PlanNode[];
 }
+
+/**
+ * An absolute distinct count above this is id-like (authors, chats, groups:
+ * grows with the data) and is inflated with the table; at or below it a
+ * column is a kind (status, state, topic). 100: the seed has 40 topics and
+ * 45 states, and the CI seed (25 000 people) has ~2 500 attorneys.
+ */
+export const ID_LIKE_DISTINCT = 100;
 
 /** Tables smaller than this after ANALYZE (config, states) are not inflated. */
 export const INFLATE_MIN_ROWS = 1000;
@@ -37,7 +45,7 @@ export function inflateStatisticsSql(factor: number): string[] {
     `UPDATE pg_class c SET reltuples = c.reltuples * ${f} FROM pg_index i
      WHERE c.oid = i.indexrelid AND c.reltuples > 0 AND i.indrelid IN (${tables})`,
     `UPDATE pg_statistic s SET stadistinct = s.stadistinct * ${f}
-     WHERE s.stadistinct > 1000 AND s.starelid IN (${tables})`,
+     WHERE s.stadistinct > ${ID_LIKE_DISTINCT} AND s.starelid IN (${tables})`,
     `UPDATE pg_class c SET reltuples = c.reltuples * ${f} WHERE c.oid IN (${tables})`,
   ];
 }
