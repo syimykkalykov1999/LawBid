@@ -2000,6 +2000,41 @@ void main() {
       expect(h.proximity.listening, isFalse);
     });
 
+    // iOS: the plugin turns proximity monitoring on only while a listener
+    // exists. A call answered on the lock screen while the app was killed
+    // comes in through callkit_bridge → ringFromPush(accept: true): the
+    // listener must start there too, before the sound's route is known.
+    test('answered on the lock screen (CallKit, app killed): held', () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      expect(h.container.read(callAudioRouterProvider).current, isNull);
+      await h.c.ringFromPush('c11', accept: true);
+      await _settle();
+      expect(h.s.phase, isNot(CallPhase.incoming));
+      expect(h.s.busy, isTrue);
+      expect(h.proximity.calls, ['arm', 'listen']);
+      expect(h.proximity.lockHeld, isTrue);
+      await h.c.hangUp();
+      await _settle();
+      expect(h.proximity.listening, isFalse);
+    });
+
+    test('answered on the lock screen with AirPods on: not held', () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.audio.list = [
+        FakeCallAudioDevices.phoneOut,
+        FakeCallAudioDevices.speakerOut,
+        FakeCallAudioDevices.btOut,
+      ];
+      await h.c.ringFromPush('c12', accept: true);
+      await _settle();
+      expect(h.container.read(callAudioRouterProvider).inHeadset, isTrue);
+      expect(h.proximity.lockHeld, isFalse);
+      expect(h.proximity.listening, isFalse);
+      await h.c.hangUp();
+    });
+
     test('an incoming call still ringing does not hold it', () async {
       final h = _Harness();
       addTearDown(h.dispose);
