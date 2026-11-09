@@ -6,11 +6,22 @@ import {
   startPdf,
   stamp,
 } from '../cases/cases.public';
+import QRCode from 'qrcode';
 import sharp from 'sharp';
 import { describePaymentTerms } from '../bids/bids.public';
+import {
+  DEAL_RECORD_DEFAULT_LABELS,
+  localLang,
+  type DealRecordLabel,
+  type DealRecordLocalTexts,
+  type SignedConsent,
+} from './deal-record-texts';
 import type { DealRecordSnapshot, SnapshotOffer } from './deal-record.snapshot';
 
-/** One side's signature as printed (full on the last page, initials in the footer). */
+/** How the signer's sign-in identity was verified (case_signatures.auth_method). */
+export type SignerAuthMethod = 'phone' | 'email' | 'phone_email';
+
+/** One side's signature as printed (full on the page, initials in the footer). */
 export interface RecordSignature {
   role: 'client' | 'attorney';
   name: string;
@@ -18,6 +29,14 @@ export interface RecordSignature {
   image: Buffer | null;
   signedAt: Date;
   ip: string | null;
+  /** v2 (owner 2026-11-08): the same audit rows for both signers; a gap
+   * prints «—», nothing is ever filled in. */
+  device?: string | null;
+  authMethod?: SignerAuthMethod | null;
+  /** The signer's app language at signing. */
+  lang?: string | null;
+  /** The three consent lines shown above «Confirm», as shown. */
+  consents?: SignedConsent[] | null;
 }
 
 export interface RenderDealRecordInput {
@@ -32,11 +51,22 @@ export interface RenderDealRecordInput {
   generatedAt: Date;
   /** The English title (admin text; default "Deal record — LawBid"). */
   title?: string;
+  /** v2: the English headings (admin texts); defaults when absent. */
+  labels?: Partial<Record<DealRecordLabel, string>>;
+  /** v2: each party's language before they sign (users.ui_language); a
+   * signature's own `lang` wins. English / unset = English only. */
+  partyLangs?: Partial<Record<'client' | 'attorney', string | null>>;
+  /** v2: the texts in each party's language (DealRecordTexts.local). */
+  local?: Record<string, DealRecordLocalTexts>;
+  /** v2: the authenticity-check page the QR opens (deal-record.verify.ts). */
+  verifyUrl?: string;
 }
 
-const FOOTER_HEIGHT = 92;
-const BOTTOM_MARGIN = FOOTER_HEIGHT + 18;
 const BORDER = '#B9C0CF';
+const LIGHT = '#7A8396';
+/** v2 (owner mockup 2026-11-08): signature boxes 50 high (was 86). */
+export const SIGNATURE_BOX_HEIGHT = 50;
+const QR_SIZE = 62;
 
 const ROLE_LABEL = { client: 'Client', attorney: 'Attorney' } as const;
 const FEE_LABEL = {
@@ -104,11 +134,71 @@ export const footerStamp = (
 ): string =>
   `Record ${code} · ${generatedAt.toISOString().slice(0, 10)} · Page ${page} of ${total}`;
 
+/** The QR modules of `text` (qrcode, MIT): true = dark. */
+export function qrModules(text: string): boolean[][] {
+  const { modules } = QRCode.create(text, { errorCorrectionLevel: 'M' });
+  const rows: boolean[][] = [];
+  for (let r = 0; r < modules.size; r++) {
+    const row: boolean[] = [];
+    for (let c = 0; c < modules.size; c++) row.push(!!modules.get(r, c));
+    rows.push(row);
+  }
+  return rows;
+}
+
+/** Draws the QR as vector squares (one rect per dark run of a row). */
+function drawQr(
+  doc: PDFKit.PDFDocument,
+  text: string,
+  x: number,
+  y: number,
+  size: number,
+): void {
+  const m = qrModules(text);
+  const cell = size / m.length;
+  doc.save();
+  doc.fillColor('#000000');
+  for (let r = 0; r < m.length; r++) {
+    let c = 0;
+    while (c < m.length) {
+      if (!m[r][c]) {
+        c++;
+        continue;
+      }
+      const from = c;
+      while (c < m.length && m[r][c]) c++;
+      doc.rect(x + from * cell, y + r * cell, (c - from) * cell, cell);
+    }
+  }
+  doc.fill();
+  doc.restore();
+}
+
+/** The languages printed next to English, in party order (client first). */
+export function documentLanguages(input: {
+  signatures: readonly Pick<RecordSignature, 'role' | 'lang'>[];
+  partyLangs?: RenderDealRecordInput['partyLangs'];
+  local?: RenderDealRecordInput['local'];
+}): string[] {
+  const out: string[] = [];
+  for (const role of ['client', 'attorney'] as const) {
+    const sig = input.signatures.find((z) => z.role === role);
+    const lang = localLang(sig?.lang ?? input.partyLangs?.[role]);
+    if (lang && input.local?.[lang] && !out.includes(lang)) out.push(lang);
+  }
+  return out;
+}
+
 /**
- * Deal record 2026-10-27 (plan §3): the document. One pass writes the body
- * with pages buffered; a second pass puts the footer (admin text, record
- * code, date, initials once both signed, "Page N of M") on every page.
- * Everything printed comes from the snapshot — no translation, no edits.
+ * Deal record 2026-10-27 (plan §3), v2 2026-11-08 (owner, mockup
+ * docs/dev/owner_review/deal_record_onepage.pdf): the document. One pass
+ * writes the body with pages buffered; a second pass puts the footer
+ * (admin text, record code, date, initials once both signed, "Page N of
+ * M") on every page. The recorded data comes from the snapshot verbatim;
+ * every sentence and heading is printed in English and then in each
+ * signer's language (admin-editable texts). A realistic record fits one
+ * page: 50-high signature boxes, «Important» right under the signatures,
+ * the QR of the authenticity check in the header.
  */
 export async function renderDealRecordPdf(
   input: RenderDealRecordInput,
@@ -124,8 +214,22 @@ export async function renderDealRecordPdf(
       image: z.image ? await flattenPng(z.image) : z.image,
     })),
   );
-  return renderFlattened({ ...input, signatures });
+  // One page is the goal (owner 2026-11-08): the same layout at up to three
+  // type scales; the fewest pages wins, then the largest type. Blocks never
+  // split (keep-together below), so a long record is two whole pages.
+  let best: { pdf: Buffer; pages: number } | null = null;
+  for (const scale of TYPE_SCALES) {
+    const out = await renderFlattened({ ...input, signatures }, scale);
+    if (!best || out.pages < best.pages) best = out;
+    if (out.pages === 1) break;
+  }
+  return best!.pdf;
 }
+
+/** Type scales tried in order (the smallest line stays ~6 pt). */
+const TYPE_SCALES = [1, 0.93, 0.86] as const;
+/** Side margins (pt): narrower than the other LawBid PDFs to fit one page. */
+const SIDE_MARGIN = 44;
 
 async function flattenPng(png: Buffer): Promise<Buffer | null> {
   try {
@@ -138,46 +242,142 @@ async function flattenPng(png: Buffer): Promise<Buffer | null> {
   }
 }
 
-function renderFlattened(input: RenderDealRecordInput): Promise<Buffer> {
+const AUTH_PARTS: Record<SignerAuthMethod, ('phone' | 'email')[]> = {
+  phone: ['phone'],
+  email: ['email'],
+  phone_email: ['phone', 'email'],
+};
+
+/** Distinct non-empty texts, the first one kept first. */
+const distinct = (xs: readonly (string | null | undefined)[]): string[] => {
+  const out: string[] = [];
+  for (const x of xs) {
+    const t = x?.trim();
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out;
+};
+
+async function renderFlattened(
+  input: RenderDealRecordInput,
+  scale: number,
+): Promise<{ pdf: Buffer; pages: number }> {
   const { snapshot: s, signatures } = input;
   const title = input.title ?? 'Deal record — LawBid';
+  const L: Record<DealRecordLabel, string> = {
+    ...DEAL_RECORD_DEFAULT_LABELS,
+    ...input.labels,
+  };
+  const langs = documentLanguages(input);
+  const locals = langs.map((l) => input.local![l]);
+  /** A heading in English, then in each document language: `Case · Дело`. */
+  const both = (k: DealRecordLabel): string =>
+    distinct([L[k], ...locals.map((t) => t.labels[k])]).join(' · ');
   const { doc, done } = startPdf({
     title,
     bufferPages: true,
-    bottomMargin: BOTTOM_MARGIN,
     creationDate: input.generatedAt,
+    lang: langs[0],
   });
-  const left = doc.page.margins.left;
-  const width = doc.page.width - left - doc.page.margins.right;
+  if (scale !== 1) {
+    const setSize = doc.fontSize.bind(doc);
+    doc.fontSize = (size: number) => setSize(size * scale);
+  }
+  const left = SIDE_MARGIN;
+  const width = doc.page.width - 2 * SIDE_MARGIN;
   const sealed = signatures.length >= 2;
+  const maxY = () => doc.page.height - doc.page.margins.bottom;
+  /** Keep-together: a block that does not fit starts on a new page. */
+  const keep = (height: number) => {
+    if (doc.y + height > maxY() && doc.y > doc.page.margins.top + 1) {
+      doc.addPage();
+    }
+  };
+  const h = (text: string, size: number, w: number) =>
+    doc.fontSize(size).heightOfString(text, { width: w });
 
-  // ---- header ---------------------------------------------------------
-  doc.fillColor(NAVY).fontSize(20).text(title, left, 54, { width });
-  doc.moveDown(0.4);
+  // ---- footer band: measured first, reserved on every page -----------
+  // English on every page; the translations are printed once, after
+  // «Important» (the band stays small, the page count low).
+  const footerTexts = [s.texts.footer];
+  const localFooters = distinct(locals.map((t) => t.footer)).filter(
+    (t) => t !== s.texts.footer.trim(),
+  );
+  doc.fontSize(6.5);
+  const footerTextH = Math.ceil(
+    footerTexts.reduce((h, t) => h + doc.heightOfString(t, { width }) + 2, 0),
+  );
+  const footerH = footerTextH + 34;
+  const bottom = footerH + 10;
+  doc.page.margins.bottom = bottom;
+  const opts = doc as unknown as {
+    options: { margins?: Record<string, number> };
+  };
+  opts.options.margins = {
+    ...(opts.options.margins ?? {}),
+    bottom,
+    left: SIDE_MARGIN,
+    right: SIDE_MARGIN,
+  };
+  doc.page.margins.left = SIDE_MARGIN;
+  doc.page.margins.right = SIDE_MARGIN;
+
+  // ---- header (QR of the authenticity check top right) -------------
+  const top = 40;
+  const qrW = input.verifyUrl ? QR_SIZE + 14 : 0;
+  const textW = width - qrW;
+  let headerBottom = top;
+  if (input.verifyUrl) {
+    const qx = left + width - QR_SIZE;
+    drawQr(doc, input.verifyUrl, qx, top, QR_SIZE);
+    doc
+      .fillColor(LIGHT)
+      .fontSize(5.8)
+      .text(both('scan'), qx - 16, top + QR_SIZE + 3, {
+        width: QR_SIZE + 16,
+        align: 'center',
+      });
+    headerBottom = doc.y;
+  }
+  doc.fillColor(NAVY).fontSize(18).text(title, left, top, { width: textW });
+  for (const t of distinct(locals.map((x) => x.title))) {
+    if (t === title) continue;
+    doc.fillColor(MUTED).fontSize(10).text(t, left, doc.y, { width: textW });
+  }
+  doc.moveDown(0.3);
   doc
     .fillColor(MUTED)
-    .fontSize(9.5)
-    .text(s.texts.notContract, left, doc.y, { width });
-  doc.moveDown(1);
+    .fontSize(8.3)
+    .text(s.texts.notContract, left, doc.y, { width: textW });
+  for (const t of distinct(locals.map((x) => x.notContract))) {
+    if (t === s.texts.notContract) continue;
+    doc
+      .fillColor(LIGHT)
+      .fontSize(7.8)
+      .text(t, left, doc.y + 1, { width: textW });
+  }
+  doc.y = Math.max(doc.y, headerBottom) + 6;
 
   // ---- summary table --------------------------------------------------
-  const row = (k: string, v: string) => {
+  const row = (k: DealRecordLabel, v: string) => {
     const y = doc.y;
     doc
       .fillColor(MUTED)
-      .fontSize(8.5)
-      .text(k, left, y + 2, { width: 110 });
+      .fontSize(7.3)
+      .text(both(k), left, y + 1.5, { width: 112 });
+    const labelBottom = doc.y;
     doc
       .fillColor(NAVY)
-      .fontSize(10)
+      .fontSize(9)
       .text(v, left + 118, y, { width: width - 118 });
+    const bottomY = Math.max(labelBottom, doc.y);
     doc
-      .moveTo(left, doc.y + 4)
-      .lineTo(left + width, doc.y + 4)
+      .moveTo(left, bottomY + 3)
+      .lineTo(left + width, bottomY + 3)
       .strokeColor(BORDER)
       .lineWidth(0.5)
       .stroke();
-    doc.y += 8;
+    doc.y = bottomY + 6;
   };
   const party = (p: {
     fullName: string;
@@ -190,10 +390,10 @@ function renderFlattened(input: RenderDealRecordInput): Promise<Buffer> {
   const bar = [s.attorney.barState, s.attorney.barNumber]
     .filter((x): x is string => !!x)
     .join(' bar #');
-  row('Case', s.case.title);
-  row('Client', party(s.client));
+  row('case', s.case.title);
+  row('client', party(s.client));
   row(
-    'Attorney',
+    'attorney',
     [party(s.attorney), bar || null, s.attorney.firmName]
       .filter((x): x is string => !!x)
       .join(' · '),
@@ -202,162 +402,241 @@ function renderFlattened(input: RenderDealRecordInput): Promise<Buffer> {
     headlineTerms(s.terms),
     ...(s.terms.paymentTerms ? describePaymentTerms(s.terms.paymentTerms) : []),
   ];
-  row('Payment terms', termLines.join('\n'));
+  row('paymentTerms', termLines.join('\n'));
   row(
-    'Accepted',
+    'accepted',
     `${stamp(new Date(s.acceptedAt))} · by the ${ROLE_LABEL[s.acceptedBy].toLowerCase()} in the LawBid app`,
   );
   row(
-    'Record code',
+    'recordCode',
     `${input.recordCode} (SHA-256 of the recorded data: ${input.snapshotSha256})`,
   );
-  doc.moveDown(0.8);
+  doc.moveDown(0.5);
 
   // ---- history, verbatim ---------------------------------------------
   doc
     .fillColor(NAVY)
-    .fontSize(13)
-    .text('Offer history', left, doc.y, { width });
+    .fontSize(11)
+    .text(both('history'), left, doc.y, { width });
   doc
     .fillColor(MUTED)
-    .fontSize(8.5)
+    .fontSize(7.5)
     .text(
       'Every offer and counter-offer exactly as written in the app, with the time it was sent (UTC).',
       left,
-      doc.y + 2,
+      doc.y + 1,
       { width },
     );
-  doc.moveDown(0.6);
+  doc.moveDown(0.3);
   for (const g of groupByDay(s.history)) {
+    keep(h(g.day, 8.5, width) + 30);
     doc
       .fillColor(GOLD)
-      .fontSize(9.5)
-      .text(g.day, left, doc.y + 4, { width });
+      .fontSize(8.5)
+      .text(g.day, left, doc.y + 3, { width });
     doc
-      .moveTo(left, doc.y + 2)
-      .lineTo(left + width, doc.y + 2)
+      .moveTo(left, doc.y + 1)
+      .lineTo(left + width, doc.y + 1)
       .strokeColor(BORDER)
       .lineWidth(0.5)
       .stroke();
-    doc.y += 6;
+    doc.y += 4;
     for (const o of g.offers) {
+      keep(
+        h(
+          `${timeOf(o.createdAt)} · ${offerHeadline(o, s.acceptedBy)}`,
+          8.8,
+          width,
+        ) +
+          (o.paymentTerms
+            ? h(describePaymentTerms(o.paymentTerms).join('\n'), 8, width - 12)
+            : 0) +
+          (o.message && o.message.trim() !== ''
+            ? h(o.message, 8.5, width - 12)
+            : 0) +
+          6,
+      );
       doc
         .fillColor(NAVY)
-        .fontSize(10)
+        .fontSize(8.8)
         .text(
           `${timeOf(o.createdAt)} · ${offerHeadline(o, s.acceptedBy)}`,
           left,
           doc.y,
-          {
-            width,
-          },
+          { width },
         );
       if (o.paymentTerms) {
         doc
           .fillColor(MUTED)
-          .fontSize(9)
+          .fontSize(8)
           .text(
             describePaymentTerms(o.paymentTerms).join('\n'),
             left + 12,
             doc.y + 1,
-            {
-              width: width - 12,
-            },
+            { width: width - 12 },
           );
       }
       if (o.message && o.message.trim() !== '') {
         doc
           .fillColor(NAVY)
-          .fontSize(9.5)
-          .text(o.message, left + 12, doc.y + 2, { width: width - 12 });
+          .fontSize(8.5)
+          .text(o.message, left + 12, doc.y + 1, { width: width - 12 });
       }
-      doc.moveDown(0.7);
+      doc.moveDown(0.35);
     }
   }
 
-  // ---- signatures (last page) ----------------------------------------
-  doc.moveDown(0.6);
-  const boxH = 86;
-  const needed = 18 + 14 + boxH + 30;
-  if (doc.y + needed > doc.page.height - doc.page.margins.bottom) doc.addPage();
-  doc.fillColor(NAVY).fontSize(13).text('Signatures', left, doc.y, { width });
-  doc.moveDown(0.5);
+  // ---- signatures: equal audit rows + consents for both sides -------
+  doc.moveDown(0.3);
+  const boxH = SIGNATURE_BOX_HEIGHT;
   const colW = (width - 16) / 2;
-  const top = doc.y;
+  const authText = (m: SignerAuthMethod | null | undefined): string =>
+    m ? AUTH_PARTS[m].map((p) => both(p)).join(', ') : '—';
+  /** The lines under a signature box: [text, colour, indent]. */
+  const auditLines = (sig: RecordSignature): [string, string, number][] => {
+    const out: [string, string, number][] = [
+      [`${sig.name} · ${stamp(sig.signedAt)}`, NAVY, 0],
+      [`IP: ${sig.ip ?? '—'}`, MUTED, 0],
+      [`${both('device')}: ${sig.device ?? '—'}`, MUTED, 0],
+      [`${both('verifiedBy')}: ${authText(sig.authMethod)}`, MUTED, 0],
+    ];
+    if (sig.consents && sig.consents.length > 0) {
+      out.push([`${both('confirmed')} · ${stamp(sig.signedAt)}`, GOLD, 0]);
+      for (const c of sig.consents) {
+        out.push([`✓ ${c.en}`, NAVY, 0]);
+        if (c.local && c.local !== c.en) out.push([c.local, LIGHT, 8]);
+      }
+    } else {
+      out.push([`${both('confirmed')}: —`, GOLD, 0]);
+    }
+    return out;
+  };
+  const LINE_SIZE = 6.9;
+  const columnH = Math.max(
+    0,
+    ...signatures.map((z) =>
+      auditLines(z).reduce(
+        (a, [t, , ind]) => a + h(t, LINE_SIZE, colW - ind),
+        3,
+      ),
+    ),
+  );
+  const noteH = h(sealed ? SEALED_NOTE : UNSIGNED_NOTE, 7, width);
+  const hasTerms = !!s.texts.terms && s.texts.terms.trim() !== '';
+  const localTerms = hasTerms
+    ? distinct(locals.map((x) => x.terms)).filter(
+        (t) => t !== s.texts.terms!.trim(),
+      )
+    : [];
+  const importantH = hasTerms
+    ? h(both('important'), 10, width) +
+      h(s.texts.terms!, 7.4, width) +
+      [...localTerms, ...localFooters].reduce(
+        (a, t) => a + h(t, 7.4, width) + 2,
+        14,
+      )
+    : 0;
+  // Signatures (heading, boxes, audit rows, consents, note) and
+  // «Important» right under them are one block: never split, and a record
+  // that needs two pages carries the whole block to page two.
+  keep(
+    h(both('signatures'), 11, width) +
+      16 +
+      boxH +
+      columnH +
+      noteH +
+      8 +
+      importantH,
+  );
+  doc
+    .fillColor(NAVY)
+    .fontSize(11)
+    .text(both('signatures'), left, doc.y, { width });
+  doc.moveDown(0.25);
+  const sigTop = doc.y;
+  let sigBottom = sigTop + 12 + boxH;
   for (const role of ['client', 'attorney'] as const) {
     const x = role === 'client' ? left : left + colW + 16;
     const sig = signatures.find((z) => z.role === role);
     doc
       .fillColor(GOLD)
-      .fontSize(9)
-      .text(ROLE_LABEL[role], x, top, { width: colW });
-    const boxTop = top + 14;
+      .fontSize(8)
+      .text(both(role), x, sigTop, { width: colW, lineBreak: false });
+    const boxTop = sigTop + 12;
     doc.rect(x, boxTop, colW, boxH).strokeColor(BORDER).lineWidth(0.8).stroke();
-    if (sig) {
-      let drawn = false;
-      if (sig.image) {
-        try {
-          doc.image(sig.image, x + 10, boxTop + 8, {
-            fit: [colW - 20, boxH - 16],
-            align: 'center',
-            valign: 'center',
-          });
-          drawn = true;
-        } catch {
-          drawn = false;
-        }
-      }
-      if (!drawn) {
-        doc
-          .fillColor(NAVY)
-          .fontSize(20)
-          .text(sig.name, x + 10, boxTop + 30, {
-            width: colW - 20,
-            height: 30,
-            ellipsis: true,
-          });
-      }
+    if (!sig) {
       doc
         .fillColor(MUTED)
         .fontSize(8.5)
-        .text(
-          `${sig.name} · ${stamp(sig.signedAt)}${sig.ip ? ` · IP ${sig.ip}` : ''}`,
-          x,
-          boxTop + boxH + 4,
-          { width: colW },
-        );
-    } else {
-      doc
-        .fillColor(MUTED)
-        .fontSize(9)
-        .text('Not signed yet', x + 10, boxTop + boxH / 2 - 5, {
+        .text(both('notSigned'), x + 10, boxTop + boxH / 2 - 5, {
           width: colW - 20,
         });
+      continue;
     }
+    let drawn = false;
+    if (sig.image) {
+      try {
+        doc.image(sig.image, x + 8, boxTop + 5, {
+          fit: [colW - 16, boxH - 10],
+          align: 'center',
+          valign: 'center',
+        });
+        drawn = true;
+      } catch {
+        drawn = false;
+      }
+    }
+    if (!drawn) {
+      doc
+        .fillColor(NAVY)
+        .fontSize(18)
+        .text(sig.name, x + 10, boxTop + 15, {
+          width: colW - 20,
+          height: 24,
+          ellipsis: true,
+        });
+    }
+    doc.y = boxTop + boxH + 3;
+    for (const [text, color, indent] of auditLines(sig)) {
+      doc
+        .fillColor(color)
+        .fontSize(LINE_SIZE)
+        .text(text, x + indent, doc.y, { width: colW - indent });
+    }
+    sigBottom = Math.max(sigBottom, doc.y);
   }
-  doc.y = top + 14 + boxH + 30;
+  doc.y = sigBottom + 5;
   doc
     .fillColor(MUTED)
-    .fontSize(8)
-    .text(
-      sealed
-        ? 'Both parties drew their signature in the LawBid app. The SHA-256 of this sealed file is kept by the platform and shown in the app (a file cannot contain its own hash).'
-        : 'The record is sealed once both parties have signed in the app; the signatures then appear here.',
-      left,
-      doc.y,
-      { width },
-    );
+    .fontSize(7)
+    .text(sealed ? SEALED_NOTE : UNSIGNED_NOTE, left, doc.y, { width });
 
-  // ---- disclaimers (R-392, admin «Запись о сделке») -----------------
-  // The whole admin text, never cut (the footer band below is short).
-  if (s.texts.terms && s.texts.terms.trim() !== '') {
-    doc.moveDown(1);
-    doc.fillColor(NAVY).fontSize(11).text('Important', left, doc.y, { width });
-    doc.moveDown(0.3);
+  // ---- disclaimers (R-392, admin «Запись о сделке»), right under ----
+  // The whole admin text, never cut, in English and each language.
+  if (hasTerms && s.texts.terms) {
+    doc.moveDown(0.5);
     doc
       .fillColor(NAVY)
-      .fontSize(8.5)
+      .fontSize(10)
+      .text(both('important'), left, doc.y, { width });
+    doc.moveDown(0.15);
+    doc
+      .fillColor(NAVY)
+      .fontSize(7.4)
       .text(s.texts.terms, left, doc.y, { width });
+    for (const t of localTerms) {
+      doc
+        .fillColor(MUTED)
+        .fontSize(7.4)
+        .text(t, left, doc.y + 2, { width });
+    }
+  }
+  // The page footer's admin text in each signer's language, once.
+  for (const t of localFooters) {
+    doc
+      .fillColor(MUTED)
+      .fontSize(7.4)
+      .text(t, left, doc.y + 2, { width });
   }
 
   // ---- footers, second pass ------------------------------------------
@@ -372,25 +651,25 @@ function renderFlattened(input: RenderDealRecordInput): Promise<Buffer> {
     doc.switchToPage(i);
     const saved = doc.page.margins.bottom;
     doc.page.margins.bottom = 0; // the footer sits inside the reserved band
-    const fy = doc.page.height - FOOTER_HEIGHT - 6;
+    const fy = doc.page.height - footerH;
     doc
       .moveTo(left, fy)
       .lineTo(left + width, fy)
       .strokeColor(BORDER)
       .lineWidth(0.5)
       .stroke();
-    doc
-      .fillColor(MUTED)
-      .fontSize(7.5)
-      .text(s.texts.footer, left, fy + 6, {
-        width,
-        height: 44,
-        ellipsis: true,
-      });
-    const stampY = doc.page.height - 28;
+    doc.y = fy + 5;
+    footerTexts.forEach((t, n) => {
+      doc
+        .fillColor(n === 0 ? MUTED : LIGHT)
+        .fontSize(6.5)
+        .text(t, left, doc.y, { width });
+      doc.y += 2;
+    });
+    const stampY = doc.page.height - 24;
     doc
       .fillColor(NAVY)
-      .fontSize(8)
+      .fontSize(7.5)
       .text(
         footerStamp(input.recordCode, input.generatedAt, i + 1, total),
         left,
@@ -404,8 +683,8 @@ function renderFlattened(input: RenderDealRecordInput): Promise<Buffer> {
     for (const z of initials) {
       ix -= 66;
       try {
-        doc.image(z.image, ix, stampY - 14, {
-          fit: [60, 22],
+        doc.image(z.image, ix, stampY - 10, {
+          fit: [60, 18],
           align: 'right',
           valign: 'center',
         });
@@ -416,5 +695,10 @@ function renderFlattened(input: RenderDealRecordInput): Promise<Buffer> {
     doc.page.margins.bottom = saved;
   }
   doc.end();
-  return done;
+  return { pdf: await done, pages: total - range.start };
 }
+
+const SEALED_NOTE =
+  'Both parties drew their signature in the LawBid app. The SHA-256 of this sealed file is kept by the platform and shown in the app and on the page the QR code opens (a file cannot contain its own hash).';
+const UNSIGNED_NOTE =
+  'The record is sealed once both parties have signed in the app; the signatures then appear here.';

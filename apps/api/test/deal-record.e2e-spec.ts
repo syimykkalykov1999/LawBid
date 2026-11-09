@@ -452,6 +452,42 @@ describe('Deal record (e2e, 2026-10-27)', () => {
       expect(req.final_file_id).toBe(sealed.sealedFileId);
       expect(req.final_sha256).toBe(sealed.sealedSha256);
       expect(req.signatures).toHaveLength(2);
+      // v2 (owner 2026-11-08): the same audit data for both signers.
+      for (const z of req.signatures) {
+        expect(z.lang).toBeTruthy();
+        expect(z.consents).toEqual([
+          expect.objectContaining({ key: 'deal_record.consent.not_contract' }),
+          expect.objectContaining({ key: 'deal_record.consent.platform' }),
+          expect.objectContaining({ key: 'deal_record.consent.accurate' }),
+        ]);
+        expect(['phone', 'email', 'phone_email', null]).toContain(
+          z.auth_method,
+        );
+      }
+      // The QR's public page: masked names, the sealed fingerprint, no
+      // sign-in; a fingerprint in the link is checked on the server.
+      const page = await api().get(`/api/v1/deal-records/${rec.id}/verify`);
+      expect(page.status).toBe(200);
+      expect(page.headers['content-type']).toMatch(/text\/html/);
+      expect(page.text).toContain(sealed.sealedSha256);
+      expect(page.text).toContain('Anna P.');
+      expect(page.text).not.toContain('Petrova');
+      expect(page.text).not.toContain(rec.history[0].message);
+      const ok = await api().get(
+        `/api/v1/deal-records/${rec.id}/verify?sha256=${sealed.sealedSha256}`,
+      );
+      expect(ok.text).toContain('Authentic');
+      const bad = await api().get(
+        `/api/v1/deal-records/${rec.id}/verify?sha256=${'0'.repeat(64)}`,
+      );
+      expect(bad.text).toContain('Changed');
+      expect(
+        (
+          await api().get(
+            '/api/v1/deal-records/00000000-0000-4000-8000-000000000000/verify',
+          )
+        ).status,
+      ).toBe(404);
       // Both PDFs are case files now; the journal has the chain.
       expect(await prisma.casePhoto.count({ where: { case_id: caseId } })).toBe(
         2,

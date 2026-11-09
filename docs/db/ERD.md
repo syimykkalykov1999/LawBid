@@ -3210,6 +3210,10 @@ erDiagram
     String ip "nullable"
     String user_agent "nullable"
     DateTime signed_at
+    String device "nullable"
+    String auth_method "nullable"
+    String lang "nullable"
+    Json consents "nullable"
     Int shard_id
   }
   form_templates {
