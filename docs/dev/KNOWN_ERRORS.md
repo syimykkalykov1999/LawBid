@@ -37,6 +37,8 @@
 - **Поднял лимит в DTO, забыл CHECK в базе и старые e2e (09.11, #884).** `PinPostDto` 6→10, но `posts_pin_slot_range` в базе оставался 1..6, а e2e `owner-pin-six` и `owner-chat-actions` проверяли старые лимиты. Перед сменой лимита: `grep -rn "<поле>" apps/api/prisma/migrations apps/api/test` — CHECK расширять миграцией (NOT VALID + отдельный VALIDATE), e2e с числом лимита обновлять в том же PR.
 - **Общий хук сортировки в базовом классе ломает чужие списки (09.11, #884).** `arrange` по `order` в `SyncedListNotifier` начал пересортировывать каналы/группы (channels_select/channels_sync тесты). Новое поведение класть в mixin своей фичи (`CaseListSync`), не в общий базовый класс.
 
+- **Экономия на фоновой задаче остановила рилсы (09.11).** `videos.sweep` стоял в списке «реже при простое» (ops.cron_idle_backoff, 25.10): если вебхук Bunny не дошёл, новый рилс ждал до 5 минут. Задачи, от которых зависит то, что видит пользователь (публикация видео, доставка), в «реже при простое» не класть.
+
 ## B. Деплой и прод
 12. **Сайт 503 с 24.10:** CloudFront function опубликована со старым кодом (`cf.kvs(имя)` вместо ID хранилища). После любого Terraform apply проверять `curl -s -o /dev/null -w "%{http_code}" https://lawbid.dev/` = 200 и `aws cloudfront test-function` на LIVE-стадии.
 13. **Terraform apply оборвался на сохранении state:** короткий `aws login` истёк в конце apply → state ушёл в errored.tfstate. Перед apply обновлять вход; при обрыве — `terraform state push errored.tfstate`, а не повторный apply.
