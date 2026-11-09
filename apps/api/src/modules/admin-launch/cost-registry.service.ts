@@ -124,13 +124,12 @@ const EDITABLE: CostEntry['control']['type'][] = ['app-setting', 'ssm-mode'];
  * «Расходы → Реестр» rebuilt the registry live — the spend snapshot, an SSM
  * read per autoscaler, the infra requests and the status signals (prod 7 d:
  * p50 1.3 s, max 1.6 s). Now it is a shared admin summary, the same pattern
- * as «Масштаб» (R-369): younger than FRESH it is served as is; up to
- * MAX_STALE it is served at once while ONE refresh runs; only a cold cache
- * waits. A switch change replaces the copy at once (setMode), and the copy
+ * as «Масштаб» (R-369): younger than FRESH it is served as is; an older
+ * copy (any age since 2026-11-08, AdminSummaryService.board) is served at
+ * once while ONE refresh runs; only a never-built registry waits. A switch change replaces the copy at once (setMode), and the copy
  * is kept warm every minute while an admin is active. */
 const REPORT_KEY = 'spend:registry';
 const REPORT_FRESH_MS = 60_000;
-const REPORT_MAX_STALE_MS = 15 * 60_000;
 /** An SSM read that hangs shows «AWS не ответил», never a stuck page. */
 const SSM_READ_MS = 3_000;
 
@@ -166,16 +165,12 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
   /** GET path: the shared summary (see REPORT_* above). */
   async cachedReport(): Promise<RegistryReport> {
     if (!this.summary) return this.build(new Date());
-    const compute = () => this.build(new Date());
-    const hit = await this.summary.peek<RegistryReport>(REPORT_KEY);
-    const age = hit ? Date.now() - Date.parse(hit.computedAt) : Infinity;
-    if (hit?.data?.rows && age < REPORT_MAX_STALE_MS) {
-      if (age > REPORT_FRESH_MS) {
-        void this.summary.refresh(REPORT_KEY, compute).catch(() => undefined);
-      }
-      return hit.data;
-    }
-    return (await this.summary.refresh(REPORT_KEY, compute, true)).data;
+    return this.summary.board<RegistryReport>(
+      REPORT_KEY,
+      () => this.build(new Date()),
+      REPORT_FRESH_MS,
+      (d) => !!d?.rows,
+    );
   }
 
   /** search.engine (for the «пора включить OpenSearch» suggestion). */
