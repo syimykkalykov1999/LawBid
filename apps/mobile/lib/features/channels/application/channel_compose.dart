@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -295,7 +294,7 @@ class ChannelCompose extends Notifier<ChannelComposeState> {
   }
 
   Future<XFile> _compressed(ChannelVideoDraft v) async {
-    if (kIsWeb) return v.file;
+    // Owner 2026-11-08: the browser re-encodes too (WebCodecs).
     final limits = videoLimitsOf(ref.read(featureFlagsControllerProvider));
     final need = needsVideoCompression(
       shortSide: v.shortSide,
