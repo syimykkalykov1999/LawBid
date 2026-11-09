@@ -102,13 +102,14 @@ jobs:
   # stand: postgres + redis services, migrated schema, the API from this commit,
   # one admin signed in (apps/api/scripts/lhci-admin.ts), the admin built and
   # started like production. Desktop, CPU x4, budgets in apps/admin/lighthouserc.cjs.
-  # NON-blocking for now (continue-on-error): it records the numbers (summary +
-  # artifact); the budgets flip to errors once the baseline is known.
+  # NON-blocking for now: every stand / Lighthouse step is `continue-on-error`
+  # at STEP level (a job-level flag still reports the check red to the deploy
+  # gate), so the job records the numbers (summary + artifact) and stays green;
+  # the budgets flip to errors once the baseline is known.
   lighthouse:
     name: Admin Lighthouse (3 heavy pages, CPU x4, with API)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: true
     services:
       postgres:
         image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
@@ -151,7 +152,12 @@ jobs:
         working-directory: apps/api
         run: npx prisma generate && npx prisma migrate deploy && node prisma/run-concurrent.mjs
       - name: Build and start the API (test env, this commit)
+        id: api
+        continue-on-error: true
         working-directory: apps/api
+        env:
+          # nest build needs the same heap as the other API jobs (KNOWN_ERRORS 23 / N-1).
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           set -eu
           npm run build
@@ -164,6 +170,9 @@ jobs:
           for _ in $(seq 1 60); do curl -fsS http://localhost:3000/health/live >/dev/null 2>&1 && break; sleep 2; done
           curl -fsS http://localhost:3000/health/live >/dev/null || { echo "::error::the API did not start"; tail -50 "$RUNNER_TEMP/api.log"; exit 1; }
       - name: One admin signed in (token for the Lighthouse cookie)
+        if: steps.api.outcome == 'success'
+        id: admin_token
+        continue-on-error: true
         working-directory: apps/api
         run: |
           set -eu
@@ -173,6 +182,13 @@ jobs:
           echo "::add-mask::$TOKEN"
           echo "LHCI_ADMIN_TOKEN=$TOKEN" >> "$GITHUB_ENV"
       - name: Generate API types, build and start the admin
+        if: steps.admin_token.outcome == 'success'
+        id: admin
+        continue-on-error: true
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+          API_BASE_URL: http://localhost:3000/api/v1
+          COOKIE_SECURE: "false"
         run: |
           set -eu
           npm run generate --workspace apps/admin
@@ -180,10 +196,9 @@ jobs:
           (cd apps/admin && nohup npm start > "$RUNNER_TEMP/admin.log" 2>&1 &)
           for _ in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:3001/login && break; sleep 2; done
           curl -fsS -o /dev/null http://localhost:3001/login || { echo "::error::the admin did not start"; tail -50 "$RUNNER_TEMP/admin.log"; exit 1; }
-        env:
-          API_BASE_URL: http://localhost:3000/api/v1
-          COOKIE_SECURE: "false"
       - name: Lighthouse (3 runs per page, median)
+        if: steps.admin.outcome == 'success'
+        continue-on-error: true
         working-directory: apps/admin
         env:
           LHCI_ADMIN_URL: http://localhost:3001
@@ -194,6 +209,7 @@ jobs:
         run: |
           {
             echo "## Admin Lighthouse (desktop, CPU x4)"
+            echo "stand: api=${{ steps.api.outcome }} token=${{ steps.admin_token.outcome }} admin=${{ steps.admin.outcome }} (non-blocking first runs)"
             echo "| page | performance | accessibility | LCP ms | TBT ms | CLS |"
             echo "|---|---|---|---|---|---|"
             for f in .lighthouseci/lhr-*.json; do
