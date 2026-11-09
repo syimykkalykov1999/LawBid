@@ -104,4 +104,35 @@ describe('FcmPushSender FID target', () => {
       'legacy-registration-token',
     ]);
   });
+
+  it('G8: any other INVALID_ARGUMENT is not retried, counted once and logged with FCM text', async () => {
+    answer = {
+      ok: false,
+      status: 400,
+      json: () =>
+        Promise.resolve({
+          error: {
+            status: 'INVALID_ARGUMENT',
+            message: "Invalid value at 'message.data[0].value'",
+          },
+        }),
+    };
+    const { sender, tokens } = build();
+    const slo = { count: jest.fn() };
+    (sender as unknown as { slo: typeof slo }).slo = slo;
+    const logger = (sender as unknown as { logger: { warn: jest.Mock } })
+      .logger;
+    await expect(sender.send(message, 'n:3')).resolves.toBeUndefined();
+    expect(tokens.remove).not.toHaveBeenCalled();
+    expect(slo.count).toHaveBeenCalledTimes(2); // once per device, no retry
+    expect(slo.count).toHaveBeenCalledWith('pushFailed');
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'INVALID_ARGUMENT',
+        fcmMessage: "Invalid value at 'message.data[0].value'",
+        bytes: expect.any(Number),
+      }),
+      'fcm send rejected (not retried)',
+    );
+  });
 });

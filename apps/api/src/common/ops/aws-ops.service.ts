@@ -146,22 +146,19 @@ export class AwsOpsService {
   /**
    * 'min': autoscaling may not add tasks (bill stays at the floor);
    * 'normal': the ceiling the economy job last applied (else the
-   * Terraform maximum). The floor never changes, so the app keeps
-   * answering either way.
+   * Terraform maximum). The floor itself is never written here (G1,
+   * 2026-11-08): it belongs to Terraform (`api_min_tasks`) and its night
+   * schedule, so the app keeps answering either way.
    */
   async setScale(mode: 'min' | 'normal'): Promise<void> {
     if (!this.available) throw new Error('not on AWS');
-    const min = this.minTasks;
     const applied = mode === 'normal' ? await this.state?.ceiling() : null;
     for (const s of this.services()) {
       const kind: TaskKind =
         s.service === this.env('OPS_API_SERVICE') ? 'api' : 'worker';
       const normal = Math.min(s.normalMax, applied?.[kind] ?? s.normalMax);
-      await this.registerMax(
-        s.service,
-        min,
-        mode === 'min' ? min : Math.max(min, normal),
-      );
+      // 'min' = the ceiling drops to whatever the floor is right now.
+      await this.registerMax(s.service, mode === 'min' ? 0 : normal);
     }
   }
 
@@ -169,7 +166,6 @@ export class AwsOpsService {
    * Terraform maximum). */
   async setCeilings(c: Record<TaskKind, number>): Promise<void> {
     if (!this.available) throw new Error('not on AWS');
-    const min = this.minTasks;
     const api = this.env('OPS_API_SERVICE');
     const worker = this.env('OPS_WORKER_SERVICE');
     const pairs: [string | undefined, TaskKind][] = [
@@ -178,22 +174,42 @@ export class AwsOpsService {
     ];
     for (const [service, kind] of pairs) {
       if (!service) continue;
-      const max = Math.max(min, Math.min(c[kind], this.hardCap(kind)));
-      await this.registerMax(service, min, max);
+      await this.registerMax(service, Math.min(c[kind], this.hardCap(kind)));
     }
   }
 
-  private async registerMax(
-    service: string,
-    min: number,
-    max: number,
-  ): Promise<void> {
+  /**
+   * G1 (automation audit 2026-11-08): changes ONLY the ceiling. Before,
+   * every 5-minute economy tick also wrote MinCapacity = OPS_MIN_TASKS,
+   * which undid the daytime floor (`api_min_tasks`) and the night / morning
+   * scheduled actions within 5 minutes. Application Auto Scaling keeps the
+   * current MinCapacity when the field is left out of
+   * RegisterScalableTarget for a target that is already registered; the
+   * ceiling is kept at or above the live floor (the call fails otherwise).
+   * A target that is not registered yet gets both, floor = OPS_MIN_TASKS.
+   */
+  private async registerMax(service: string, wanted: number): Promise<void> {
+    const resourceId = `service/${this.cluster}/${service}`;
+    const res = await this.scalingClient().send(
+      new DescribeScalableTargetsCommand({
+        ServiceNamespace: 'ecs',
+        ScalableDimension: 'ecs:service:DesiredCount',
+        ResourceIds: [resourceId],
+      }),
+    );
+    const live = (res.ScalableTargets ?? []).find(
+      (t) => t.ResourceId === resourceId,
+    );
+    const floor =
+      typeof live?.MinCapacity === 'number' ? live.MinCapacity : undefined;
+    const max = Math.max(floor ?? this.minTasks, wanted);
+    if (floor !== undefined && live?.MaxCapacity === max) return;
     await this.scalingClient().send(
       new RegisterScalableTargetCommand({
         ServiceNamespace: 'ecs',
         ScalableDimension: 'ecs:service:DesiredCount',
-        ResourceId: `service/${this.cluster}/${service}`,
-        MinCapacity: min,
+        ResourceId: resourceId,
+        ...(floor === undefined ? { MinCapacity: this.minTasks } : {}),
         MaxCapacity: max,
       }),
     );

@@ -29,6 +29,7 @@ import {
   totalAtUsers,
   type CostEntry,
   type CostState,
+  ssmTargets,
 } from '../../common/ops/cost-registry';
 import {
   SSM_MODE_BY_STATE,
@@ -182,10 +183,19 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** The Lambda switches of [target] that exist on this stand. */
+  private ssmLive(target: 'db' | 'redis' | 'both'): ('db' | 'redis')[] {
+    return ssmTargets(target).filter((t) => !!this.ssm.modeParam(t));
+  }
+
   private controlKey(e: CostEntry): string {
     const c = e.control;
     if (c.type === 'app-setting') return c.key;
-    if (c.type === 'ssm-mode') return `SSM: ${c.target}-autoscale/mode`;
+    if (c.type === 'ssm-mode') {
+      return ssmTargets(c.target)
+        .map((t) => `SSM: ${t}-autoscale/mode`)
+        .join(' + ');
+    }
     if (c.type === 'tfvars') return c.vars.join(', ');
     return c.reason;
   }
@@ -200,7 +210,7 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
       return 'Меняется строкой в terraform.tfvars; шаги ниже.';
     }
     if (c.type === 'fixed') return c.reason;
-    if (c.type === 'ssm-mode' && !this.ssm.modeParam(c.target)) {
+    if (c.type === 'ssm-mode' && !this.ssmLive(c.target).length) {
       return 'Автомасштаб не создан в AWS (на этом стенде его нет).';
     }
     if (e.states.length < 2) {
@@ -225,17 +235,30 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
     }
     if (c.type === 'ssm-mode') {
       try {
-        const mode = await withTimeout('ssm.getMode', SSM_READ_MS, () =>
-          this.ssm.getMode(c.target),
+        const modes = await Promise.all(
+          this.ssmLive(c.target).map((t) =>
+            withTimeout('ssm.getMode', SSM_READ_MS, () => this.ssm.getMode(t)),
+          ),
         );
-        if (mode === null) {
+        if (modes.length === 0 || modes.some((m) => m === null)) {
           return {
             state: null,
             known: false,
             note: 'Переключатель в AWS не найден.',
           };
         }
-        return { state: SSM_STATE_BY_MODE[mode], known: true, note: null };
+        const states = new Set(
+          modes.map((m) => SSM_STATE_BY_MODE[m as NonNullable<typeof m>]),
+        );
+        if (states.size > 1) {
+          // G2: the two Lambdas disagree (one was switched on its own row).
+          return {
+            state: null,
+            known: false,
+            note: 'База и Redis сейчас в разных положениях; выберите одно, чтобы выровнять.',
+          };
+        }
+        return { state: [...states][0], known: true, note: null };
       } catch {
         return {
           state: null,
@@ -477,13 +500,17 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
     if (c.type !== 'ssm-mode') {
       throw new RegistryModeError('not_editable', 'Not a switch.');
     }
-    if (!this.ssm.modeParam(c.target)) {
+    const targets = this.ssmLive(c.target);
+    if (!targets.length) {
       throw new RegistryModeError(
         'not_on_aws',
         'The autoscaler is not on AWS.',
       );
     }
-    await this.ssm.setMode(c.target, SSM_MODE_BY_STATE[state]);
+    // G2: every Lambda the row stands for (both for the «Запуски» row).
+    for (const t of targets) {
+      await this.ssm.setMode(t, SSM_MODE_BY_STATE[state]);
+    }
     await this.audit.record({
       adminId,
       action: 'ops.cost_registry_mode',
@@ -494,7 +521,7 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
         state: before.state,
         mode: before.state ? STATE_LABEL[before.state] : null,
       },
-      after: { id, state, mode: SSM_MODE_BY_STATE[state] },
+      after: { id, state, mode: SSM_MODE_BY_STATE[state], targets },
       ip: ip ?? undefined,
     });
     return { id, state };
