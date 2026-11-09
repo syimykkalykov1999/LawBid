@@ -68,3 +68,27 @@ jobs:
           bash scripts/ci/require-ecr.test.sh
           bash scripts/ci/check-dart-defines.test.sh
           bash scripts/ci/select-xcode.test.sh
+          bash scripts/ci/mobile-web-parity.test.sh
+          bash scripts/deploy/web-size-budget.test.sh
+          node --test scripts/ci/migration-role-check.test.mjs
+
+      # OPEN_ITEMS_SWEEP 2026-11-09 C-c9: the docs name the DB user migrations
+      # really run under (infra/postgres/migration-role.txt); drift fails here.
+      - name: Docs name the real migration DB user
+        run: node scripts/ci/migration-role-check.mjs
+
+      # Owner rule 2026-11-03 «правка в приложении = правка в вебе» (B-c15):
+      # a PR touching apps/mobile/lib/{features,core} must say what the web
+      # does (the owner's table or a «## Веб» section) or carry label web-n/a.
+      - name: App change = web change (PR body table or label web-n/a)
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BODY: ${{ github.event.pull_request.body }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+        run: |
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" --jq '.[].filename' > "$RUNNER_TEMP/files"
+          printf '%s\n' "$BODY" > "$RUNNER_TEMP/body"
+          tr ' ' '\n' <<< "$LABELS" > "$RUNNER_TEMP/labels"
+          scripts/ci/mobile-web-parity.sh "$RUNNER_TEMP/files" "$RUNNER_TEMP/body" "$RUNNER_TEMP/labels"

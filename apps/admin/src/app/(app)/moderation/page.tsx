@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MotionRow } from "@/components/legacy/fade-in";
+import { VirtualRows } from "@/components/ui/virtual-rows";
 import { MoreButton } from "@/components/legacy/more-button";
 import { ErrorNote, PageHeader } from "@/components/page-header";
 import { buttonVariants } from "@/components/ui/button";
@@ -132,12 +133,14 @@ export default function ModerationQueuePage() {
                   : `Нет жалоб со статусом «${REPORT_STATUS[status]}».`}
               </TableEmpty>
             ) : (
-              rows.map((r, i) => {
+              <VirtualRows rows={rows} colSpan={6}>
+                {(r, i, vp) => {
                 const href = `/moderation/${r.targetType}/${r.targetId}`;
                 return (
                   <MotionRow
                     key={`${r.targetType}:${r.targetId}`}
                     i={i}
+                    {...vp}
                     className="cursor-pointer"
                     onClick={() => router.push(href)}
                   >
@@ -223,7 +226,8 @@ export default function ModerationQueuePage() {
                     </Td>
                   </MotionRow>
                 );
-              })
+              }}
+              </VirtualRows>
             )}
           </tbody>
         </Table>

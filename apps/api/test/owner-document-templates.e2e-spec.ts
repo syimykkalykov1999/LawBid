@@ -8,6 +8,8 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { EntitlementsService } from '../src/modules/plans/entitlements.service';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { adminSession, type AdminSession } from './support/admin-login';
 
 /**
@@ -322,5 +324,114 @@ describe('Document templates (e2e, owner 2026-10-05)', () => {
       data: { enabled: true },
     });
     await app.get(FeatureFlagsService).invalidate();
+  });
+
+  describe('big template in resumable parts (admin speed gaps 2026-11-09, D-c4)', () => {
+    const setFlag = async (enabled: boolean) => {
+      await prisma.featureFlag.upsert({
+        where: { key: 'files_multipart' },
+        create: { key: 'files_multipart', enabled },
+        update: { enabled },
+      });
+      await app.get(FeatureFlagsService).invalidate();
+    };
+    // Templates are capped at 10 MB by default (`files.document_template_max_size_mb`,
+    // an admin setting); parts start at 16 MiB, so the test raises the cap.
+    const setMaxMb = async (value: number) => {
+      await prisma.appConfig.upsert({
+        where: { key: 'files.document_template_max_size_mb' },
+        create: { key: 'files.document_template_max_size_mb', value },
+        update: { value },
+      });
+      await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+    };
+    afterAll(async () => {
+      await setFlag(false);
+      await setMaxMb(10);
+    });
+
+    it('plan → PUT parts → complete → confirm, under the admin session; a small file is refused', async () => {
+      await setFlag(true);
+      await setMaxMb(64);
+      // 20 MiB = 3 parts (8 + 8 + 4 MiB); a PDF header so the type check passes.
+      const big = Buffer.alloc(20 * 1024 * 1024, 0x20);
+      PDF.copy(big, 0);
+      const sha256 = createHash('sha256').update(big).digest('hex');
+      const presigned = await api()
+        .post('/api/v1/admin/document-templates/uploads')
+        .set(admin.auth)
+        .send({ mime: 'application/pdf', sizeBytes: big.length, sha256 })
+        .expect(201);
+      const fileId = (presigned.body.data as { fileId: string }).fileId;
+
+      const plan = await api()
+        .post(`/api/v1/admin/document-templates/uploads/${fileId}/multipart`)
+        .set(admin.auth)
+        .expect(200);
+      const first = plan.body.data as {
+        partSizeBytes: number;
+        partCount: number;
+        uploadedParts: number[];
+        parts: { partNumber: number; url: string }[];
+      };
+      expect(first.partCount).toBe(3);
+      expect(first.uploadedParts).toEqual([]);
+      expect(first.parts.map((p) => p.partNumber)).toEqual([1, 2, 3]);
+
+      // The browser sends part 1, loses the connection, asks for the plan again.
+      const slice = (n: number) =>
+        big.subarray(
+          (n - 1) * first.partSizeBytes,
+          Math.min(n * first.partSizeBytes, big.length),
+        );
+      const put = async (p: { partNumber: number; url: string }) => {
+        const r = await fetch(p.url, {
+          method: 'PUT',
+          body: new Uint8Array(slice(p.partNumber)),
+        });
+        expect(r.status).toBeLessThan(300);
+      };
+      await put(first.parts[0]);
+      const again = (
+        await api()
+          .post(`/api/v1/admin/document-templates/uploads/${fileId}/multipart`)
+          .set(admin.auth)
+          .expect(200)
+      ).body.data as typeof first;
+      expect(again.uploadedParts).toEqual([1]);
+      expect(again.parts.map((p) => p.partNumber)).toEqual([2, 3]);
+      for (const p of again.parts) await put(p);
+
+      const done = await api()
+        .post(
+          `/api/v1/admin/document-templates/uploads/${fileId}/multipart/complete`,
+        )
+        .set(admin.auth)
+        .expect(200);
+      expect((done.body.data as { sizeBytes: number }).sizeBytes).toBe(
+        big.length,
+      );
+      await api()
+        .post(`/api/v1/admin/document-templates/uploads/${fileId}/confirm`)
+        .set(admin.auth)
+        .expect(200);
+
+      // A small file never gets a plan: the admin sends it in one request.
+      const small = await api()
+        .post('/api/v1/admin/document-templates/uploads')
+        .set(admin.auth)
+        .send({
+          mime: 'application/pdf',
+          sizeBytes: PDF.length,
+          sha256: createHash('sha256').update(PDF).digest('hex'),
+        })
+        .expect(201);
+      await api()
+        .post(
+          `/api/v1/admin/document-templates/uploads/${(small.body.data as { fileId: string }).fileId}/multipart`,
+        )
+        .set(admin.auth)
+        .expect(400);
+    });
   });
 });

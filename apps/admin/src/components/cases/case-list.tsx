@@ -17,6 +17,7 @@ import { EmptyState } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { VirtualRows } from '@/components/ui/virtual-rows';
 import { Tabs } from '@/components/ui/tabs';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
@@ -194,8 +195,9 @@ export function CaseList() {
             {list.isPending ? (
               <TableEmpty colSpan={canWrite ? 7 : 6} loading />
             ) : (
-              rows.map((c) => (
-                <tr key={c.id} className="cursor-pointer" onClick={() => router.push(`/cases/${c.id}`)}>
+              <VirtualRows rows={rows} colSpan={canWrite ? 7 : 6}>
+                {(c, _i, vp) => (
+                <tr key={c.id} {...vp} className="cursor-pointer" onClick={() => router.push(`/cases/${c.id}`)}>
                   {canWrite ? (
                     <Td>
                       <RowSelectBox selected={sel.selected} id={c.id} onToggle={sel.toggle} />
@@ -229,7 +231,8 @@ export function CaseList() {
                   <Td className="text-right tabular-nums">{c.bidsCount}</Td>
                   <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(c.lastActivityAt)}</Td>
                 </tr>
-              ))
+                )}
+              </VirtualRows>
             )}
           </tbody>
         </Table>

@@ -1,6 +1,7 @@
 # docs/06 §6.1 / §6.3 — ECS Fargate: one image, three services (`api`,
 # `worker`, `admin`), a one-off `migrate` task definition (`prisma migrate
-# deploy` under the lawbid_migrator connection, run by the deploy
+# deploy` under the MIGRATOR_DATABASE_URL connection (lawbid_admin today;
+# lawbid_migrator is planned — infra/postgres/migration-role.txt), run by the deploy
 # pipeline before the prod rollout), CPU-target autoscaling (60 %, min 2
 # tasks in 2 AZs; plus requests per task for the api and waiting jobs per
 # task for the worker), deployment circuit breaker with rollback, secrets
@@ -696,7 +697,8 @@ resource "aws_ecs_task_definition" "admin" {
   tags = var.tags
 }
 
-# `prisma migrate deploy` under the lawbid_migrator role (docs/02 §6.3,
+# `prisma migrate deploy` under the MIGRATOR_DATABASE_URL user (lawbid_admin;
+# the lawbid_migrator role is planned, not in use — docs/02 §6.3,
 # docs/06 §7.3): run by the pipeline with `aws ecs run-task` before the
 # prod rollout; never part of a long-running service.
 resource "aws_ecs_task_definition" "migrate" {

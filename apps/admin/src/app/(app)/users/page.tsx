@@ -18,6 +18,7 @@ import {
 } from '@/components/bulk/bulk-controls';
 import { CsvButton } from '@/components/csv-button';
 import { MotionRow } from '@/components/legacy/fade-in';
+import { VirtualRows } from '@/components/ui/virtual-rows';
 import { MoreButton } from '@/components/legacy/more-button';
 import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
@@ -239,8 +240,9 @@ export default function UsersPage() {
           ) : rows.length === 0 ? (
             <TableEmpty colSpan={canWrite ? 6 : 5}>Никого не нашли. Измените запрос или фильтры.</TableEmpty>
           ) : (
-            rows.map((u, i) => (
-              <MotionRow key={u.id} i={i} className="cursor-pointer" onClick={() => router.push(`/users/${u.id}`)}>
+            <VirtualRows rows={rows} colSpan={canWrite ? 6 : 5}>
+              {(u, i, vp) => (
+              <MotionRow key={u.id} i={i} {...vp} className="cursor-pointer" onClick={() => router.push(`/users/${u.id}`)}>
                 {canWrite ? (
                   <Td>
                     <RowSelectBox selected={sel.selected} id={u.id} onToggle={(id) => {
@@ -280,7 +282,8 @@ export default function UsersPage() {
                 </Td>
                 <Td className="whitespace-nowrap text-muted">{formatDateTime(u.createdAt)}</Td>
               </MotionRow>
-            ))
+              )}
+            </VirtualRows>
           )}
         </tbody>
       </Table>
