@@ -1379,9 +1379,20 @@ export class AuthService {
         message: 'Adding another sign-in method is not available.',
       });
     }
+    // Owner rule (memory sms-two-cases): an SMS code only at registration and
+    // «Забыл пароль». A phone as an extra sign-in method would need one, so
+    // it is never linked here; the account phone is changed with the
+    // password on POST /users/me/phone.
+    if (dto.provider === 'phone') {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message:
+          'A phone is not added as a sign-in method; change it with your password.',
+      });
+    }
     let providerUid: string;
 
-    if (dto.provider === 'phone' || dto.provider === 'email') {
+    if (dto.provider === 'email') {
       if (!dto.identifier || !dto.code) {
         throw new UnauthorizedException({
           code: ErrorCode.AUTH_OTP_INVALID,
