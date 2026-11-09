@@ -71,13 +71,17 @@ export class InfraGithubClient {
     }
   }
 
-  /** The 1-hour installation token, narrowed to actions:write on one repo. */
-  private async installationToken(c: {
-    repo: string;
-    appId: string;
-    installationId: string;
-    privateKey: string;
-  }): Promise<string> {
+  /** The 1-hour installation token, narrowed to [permissions] (default
+   * actions:write) on one repo. */
+  private async installationToken(
+    c: {
+      repo: string;
+      appId: string;
+      installationId: string;
+      privateKey: string;
+    },
+    permissions: Record<string, 'read' | 'write'> = { actions: 'write' },
+  ): Promise<string> {
     const now = Math.floor(Date.now() / 1000);
     const appJwt = await new SignJWT({})
       .setProtectedHeader({ alg: 'RS256' })
@@ -92,7 +96,7 @@ export class InfraGithubClient {
         headers: this.headers(appJwt),
         body: JSON.stringify({
           repositories: [c.repo.split('/')[1]],
-          permissions: { actions: 'write' },
+          permissions,
         }),
         signal: AbortSignal.timeout(10_000),
       },
@@ -175,6 +179,10 @@ export class InfraGithubClient {
    */
   async verifyCaller(
     authorization: string | undefined,
+    workflow: { file: string; audience: string } = {
+      file: INFRA_WORKFLOW_FILE,
+      audience: INFRA_OIDC_AUDIENCE,
+    },
   ): Promise<WorkflowCaller> {
     const token = /^Bearer\s+(\S+)$/i.exec(authorization ?? '')?.[1];
     if (!token) throw new InfraAuthError('no token');
@@ -185,18 +193,122 @@ export class InfraGithubClient {
       payload = (
         await jwtVerify(token, this.jwks, {
           issuer: GITHUB_OIDC_ISSUER,
-          audience: INFRA_OIDC_AUDIENCE,
+          audience: workflow.audience,
         })
       ).payload;
     } catch {
       throw new InfraAuthError('bad token');
     }
-    return callerFromClaims(payload, c.repo);
+    return callerFromClaims(payload, c.repo, workflow.file);
+  }
+
+  /**
+   * 09.11 (AI assistant): opens an issue with [labels] on the App's repo.
+   * The App needs Issues: read and write. Returns its number and link.
+   */
+  async createIssue(input: {
+    title: string;
+    body: string;
+    labels: string[];
+  }): Promise<{ number: number; url: string; repo: string }> {
+    const c = await this.creds();
+    if (!c) throw new Error('GitHub App is not configured');
+    const token = await this.installationToken(c, { issues: 'write' });
+    const res = await fetch(`${GH_API}/repos/${c.repo}/issues`, {
+      method: 'POST',
+      headers: this.headers(token),
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.status !== 201) {
+      throw new Error(`GitHub did not open the issue (HTTP ${res.status})`);
+    }
+    const body = (await res.json()) as { number?: number; html_url?: string };
+    if (typeof body.number !== 'number' || !body.html_url) {
+      throw new Error('GitHub sent no issue number');
+    }
+    return { number: body.number, url: body.html_url, repo: c.repo };
+  }
+
+  /**
+   * The newest issues with [label] and, for each, the pull requests that
+   * mention it (GitHub search «#<n> in:body»). Read-only token (issues +
+   * pull requests: read). At most [limit] issues, one search call each.
+   */
+  async issuesWithPulls(
+    label: string,
+    limit = 20,
+  ): Promise<
+    {
+      number: number;
+      title: string;
+      state: string;
+      url: string;
+      createdAt: string;
+      pulls: { number: number; url: string; state: string; merged: boolean }[];
+    }[]
+  > {
+    const c = await this.creds();
+    if (!c) throw new Error('GitHub App is not configured');
+    const token = await this.installationToken(c, {
+      issues: 'read',
+      pull_requests: 'read',
+    });
+    const res = await fetch(
+      `${GH_API}/repos/${c.repo}/issues?labels=${encodeURIComponent(label)}&state=all&per_page=${limit}`,
+      { headers: this.headers(token), signal: AbortSignal.timeout(10_000) },
+    );
+    if (!res.ok)
+      throw new Error(`GitHub issues list failed (HTTP ${res.status})`);
+    const rows = (await res.json()) as {
+      number: number;
+      title: string;
+      state: string;
+      html_url: string;
+      created_at: string;
+      pull_request?: unknown;
+    }[];
+    const out = [];
+    for (const r of rows.filter((x) => !x.pull_request)) {
+      const q = `repo:${c.repo} is:pr "#${r.number}" in:body`;
+      const s = await fetch(
+        `${GH_API}/search/issues?q=${encodeURIComponent(q)}&per_page=5`,
+        { headers: this.headers(token), signal: AbortSignal.timeout(10_000) },
+      );
+      const found = s.ok
+        ? ((await s.json()) as {
+            items?: {
+              number: number;
+              html_url: string;
+              state: string;
+              pull_request?: { merged_at?: string | null };
+            }[];
+          })
+        : { items: [] };
+      out.push({
+        number: r.number,
+        title: r.title,
+        state: r.state,
+        url: r.html_url,
+        createdAt: r.created_at,
+        pulls: (found.items ?? []).map((p) => ({
+          number: p.number,
+          url: p.html_url,
+          state: p.state,
+          merged: !!p.pull_request?.merged_at,
+        })),
+      });
+    }
+    return out;
   }
 }
 
 /** Pure check of the OIDC claims (exported for tests). */
-export function callerFromClaims(p: JWTPayload, repo: string): WorkflowCaller {
+export function callerFromClaims(
+  p: JWTPayload,
+  repo: string,
+  workflowFile: string = INFRA_WORKFLOW_FILE,
+): WorkflowCaller {
   const str = (v: unknown): string =>
     typeof v === 'string' || typeof v === 'number' ? String(v) : '';
   const r = repo.toLowerCase();
@@ -204,7 +316,7 @@ export function callerFromClaims(p: JWTPayload, repo: string): WorkflowCaller {
   const wf = str(p.job_workflow_ref ?? p.workflow_ref).toLowerCase();
   if (repository !== r) throw new InfraAuthError('wrong repository');
   if (p.ref !== 'refs/heads/main') throw new InfraAuthError('not main');
-  if (wf !== `${r}/.github/workflows/${INFRA_WORKFLOW_FILE}@refs/heads/main`) {
+  if (wf !== `${r}/.github/workflows/${workflowFile}@refs/heads/main`) {
     throw new InfraAuthError('wrong workflow');
   }
   const runId = str(p.run_id);

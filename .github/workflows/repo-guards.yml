@@ -67,4 +67,5 @@ jobs:
           bash scripts/deploy/current-tag.test.sh
           bash scripts/ci/require-ecr.test.sh
           bash scripts/ci/check-dart-defines.test.sh
+          bash scripts/ai-assistant/path-guard.test.sh
           bash scripts/ci/select-xcode.test.sh

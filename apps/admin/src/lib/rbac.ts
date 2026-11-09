@@ -327,6 +327,8 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/scale', label: 'Масштаб', icon: 'gauge', area: 'super', ownerOnly: true, hint: 'серверы, база, Redis, поиск: сколько сейчас, докуда растут, тревоги' },
       // Owner 2026-10-25: what users see on status.lawbid.dev; post / close an incident.
       { href: '/status-page', label: 'Страница статуса', icon: 'megaphone', area: 'super', ownerOnly: true, hint: 'сообщить пользователям о сбое или работах' },
+      // 09.11.2026: tasks for the AI assistant (GitHub workflow), their PRs and what each run cost.
+      { href: '/ai-assistant', label: 'Задача для ИИ', icon: 'bug', area: 'super', ownerOnly: true, hint: 'дать ИИ-помощнику задачу: он чинит, пишет тесты и открывает PR' },
       // Owner 2026-10-23: the manual for what to switch on as the platform grows (owner only).
       { href: '/growth-plan', label: 'План роста', icon: 'rocket-launch', area: 'super', ownerOnly: true, hint: 'что включать, когда людей становится больше: по шагам' },
       { href: '/integrations', label: 'Ключи и сервисы', icon: 'key', area: 'super', ownerOnly: true, hint: 'API-ключи, ротация' },

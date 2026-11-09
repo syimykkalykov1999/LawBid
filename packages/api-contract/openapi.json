@@ -79733,6 +79733,180 @@
         ]
       }
     },
+    "/admin/ai-assistant": {
+      "get": {
+        "operationId": "getAiAssistant",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiAssistantStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI assistant: switch, money, tasks and runs",
+        "tags": [
+          "admin-ai-assistant"
+        ]
+      }
+    },
+    "/admin/ai-assistant/tasks": {
+      "post": {
+        "operationId": "createAiTask",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAiTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiTaskCreatedEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI assistant: open a task (GitHub issue)",
+        "tags": [
+          "admin-ai-assistant"
+        ]
+      }
+    },
     "/admin/promotion": {
       "get": {
         "operationId": "promotionOverview",
@@ -177223,6 +177397,231 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ShardMoveDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AiTaskPullDto": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "number"
+          },
+          "url": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ]
+          },
+          "merged": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "number",
+          "url",
+          "state",
+          "merged"
+        ]
+      },
+      "AiTaskDto": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ]
+          },
+          "url": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pulls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiTaskPullDto"
+            }
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "state",
+          "url",
+          "createdAt",
+          "pulls"
+        ]
+      },
+      "AiRunDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "task",
+              "schedule"
+            ]
+          },
+          "issueNumber": {
+            "type": "number",
+            "nullable": true
+          },
+          "runUrl": {
+            "type": "string"
+          },
+          "costUsd": {
+            "type": "number"
+          },
+          "conclusion": {
+            "type": "string"
+          },
+          "prUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "at",
+          "kind",
+          "issueNumber",
+          "runUrl",
+          "costUsd",
+          "conclusion",
+          "prUrl"
+        ]
+      },
+      "AiAssistantStatusDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "ai.assistant_mode: off | on | auto"
+          },
+          "connected": {
+            "type": "boolean",
+            "description": "The GitHub App (github_infra) is saved."
+          },
+          "allowed": {
+            "type": "boolean",
+            "description": "A run may start now."
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why not, in words."
+          },
+          "monthUsd": {
+            "type": "number"
+          },
+          "maxUsd": {
+            "type": "number"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiTaskDto"
+            }
+          },
+          "tasksError": {
+            "type": "string",
+            "nullable": true
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiRunDto"
+            }
+          }
+        },
+        "required": [
+          "mode",
+          "connected",
+          "allowed",
+          "reason",
+          "monthUsd",
+          "maxUsd",
+          "tasks",
+          "tasksError",
+          "runs"
+        ]
+      },
+      "AiAssistantStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiAssistantStatusDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AiTaskCreatedDto": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "number"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "url"
+        ]
+      },
+      "CreateAiTaskDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 200
+          },
+          "details": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "title",
+          "details"
+        ]
+      },
+      "AiTaskCreatedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiTaskCreatedDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

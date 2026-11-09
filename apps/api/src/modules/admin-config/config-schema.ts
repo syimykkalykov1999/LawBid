@@ -551,6 +551,15 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   };
   // 2026-11-02: HA copies and the replica auto-create (typos must not act).
   out['ha.mode'] = { ...out['ha.mode'], pattern: /^(off|on|auto)$/ };
+  out['ai.assistant_mode'] = {
+    ...out['ai.assistant_mode'],
+    pattern: /^(off|on|auto)$/,
+  };
+  out['ai.monthly_max_usd'] = {
+    ...out['ai.monthly_max_usd'],
+    min: 0,
+    max: 1000,
+  };
   out['db.replica_provision'] = {
     ...out['db.replica_provision'],
     pattern: /^(off|auto)$/,
