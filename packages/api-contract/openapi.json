@@ -10757,6 +10757,123 @@
         ]
       }
     },
+    "/verification/requests/{id}/identity-check": {
+      "post": {
+        "operationId": "startIdentityCheck",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityCheckLinkEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_SUSPENDED, FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VERIFICATION_INVALID_STATUS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: IDENTITY_PROVIDER_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner 2026-11-08: Persona's hosted ID + selfie check for this editable request (only while the Persona card is set up); resumes the open inquiry or creates one",
+        "tags": [
+          "verification"
+        ]
+      }
+    },
     "/verification/handoff": {
       "post": {
         "operationId": "createVerificationHandoff",
@@ -134476,6 +134593,7 @@
           "I18N_LANGUAGE_NOT_FOUND",
           "I18N_IMPORT_INVALID",
           "PROVIDER_BUDGET_EXCEEDED",
+          "IDENTITY_PROVIDER_UNAVAILABLE",
           "PHONE_COUNTRY_NOT_SUPPORTED",
           "REVIEW_CASE_NOT_CLOSED",
           "REVIEW_NO_ACCEPTED_BID",
@@ -139209,6 +139327,10 @@
             "items": {
               "$ref": "#/components/schemas/OwnVerificationDocumentDto"
             }
+          },
+          "identityCheckStarted": {
+            "type": "boolean",
+            "description": "Owner 2026-11-08: the identity check of this request was started in Persona's hosted flow (it then replaces the ID + selfie uploads)."
           }
         },
         "required": [
@@ -139224,6 +139346,14 @@
           "licenses",
           "documents"
         ]
+      },
+      "IdentityProviderKind": {
+        "type": "string",
+        "enum": [
+          "manual",
+          "persona"
+        ],
+        "description": "Owner 2026-11-08: `manual` = upload the ID + selfie for staff (default, as before); `persona` = only while the admin's Persona card has a key, template and webhook secret and is switched on: the app opens Persona's hosted flow (POST /verification/requests/{id}/identity-check) instead."
       },
       "VerificationOverviewDto": {
         "type": "object",
@@ -139252,6 +139382,14 @@
           "barDocumentRequired": {
             "type": "boolean",
             "description": "A photo of the bar card is required per license (setting verification.require_bar_document, off by default)."
+          },
+          "identityProvider": {
+            "description": "Owner 2026-11-08: `manual` = upload the ID + selfie for staff (default, as before); `persona` = only while the admin's Persona card has a key, template and webhook secret and is switched on: the app opens Persona's hosted flow (POST /verification/requests/{id}/identity-check) instead.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IdentityProviderKind"
+              }
+            ]
           },
           "barAttemptsRetryAfterSeconds": {
             "type": "integer",
@@ -139510,6 +139648,37 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/SelfieCaptureTokenDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "IdentityCheckLinkDto": {
+        "type": "object",
+        "properties": {
+          "inquiryId": {
+            "type": "string",
+            "description": "Persona inquiry id (inq_…)."
+          },
+          "url": {
+            "type": "string",
+            "description": "Persona's hosted verification page; open it in the in-app browser."
+          }
+        },
+        "required": [
+          "inquiryId",
+          "url"
+        ]
+      },
+      "IdentityCheckLinkEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/IdentityCheckLinkDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

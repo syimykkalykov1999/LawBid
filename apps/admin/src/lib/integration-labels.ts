@@ -63,7 +63,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     description:
       'Отдельный поиск для людей, дел, постов и вопросов юристу. Работает только когда в Настройках «search.engine» = shadow или engine; если движок не отвечает или медленный, поиск сам идёт через Postgres. По умолчанию выключен.',
   },
-  persona: { label: 'Persona (проверка личности)', description: 'Проверка личности адвокатов.' },
+  persona: {
+    label: 'Persona (проверка личности)',
+    description:
+      'Проверка документа и селфи адвоката через Persona. Пока ключа нет или карточка выключена — проверка ручная, как сейчас. С ключом, шаблоном и секретом вебхука приложение открывает страницу Persona, результат приходит сам; сотрудник всё равно может одобрить или отклонить в «Проверке».',
+  },
   google_signin: { label: 'Вход через Google', description: 'OAuth-идентификаторы приложений iOS, Android и веба.' },
   apple_signin: { label: 'Вход через Apple', description: 'Вход через Apple на iPhone (bundle id приложений).' },
   google_calendar: {
@@ -201,6 +205,7 @@ const FIELD_BY_NAME: Record<string, string> = {
 };
 
 const FIELD_BY_PROVIDER: Record<string, string> = {
+  'persona.templateId': 'ID шаблона проверки (Government ID + Selfie)',
   'cloudflare_r2.accountId': 'ID аккаунта Cloudflare',
   'cloudflare_r2.accessKeyId': 'ID ключа доступа R2',
   'cloudflare_r2.secretAccessKey': 'Секретный ключ доступа R2',
@@ -329,6 +334,8 @@ const FIELD_EN: Record<string, string> = {
   'turn.secret': 'static-auth-secret',
   'turn.stunUrls': 'STUN URLs',
   'persona.apiKey': 'API Key',
+  'persona.templateId': 'Inquiry Template ID',
+  'persona.webhookSecret': 'Webhook secret',
   'google_signin.clientIds': 'Client ID',
   'apple_signin.bundleIds': 'Bundle ID',
   'apple_signin.teamId': 'Team ID',
@@ -454,6 +461,8 @@ export const FIELD_ENV: Record<string, string> = {
   'opensearch.password': 'OPENSEARCH_PASSWORD',
   'opensearch.prefix': 'OPENSEARCH_PREFIX',
   'persona.apiKey': 'PERSONA_API_KEY',
+  'persona.templateId': 'PERSONA_TEMPLATE_ID',
+  'persona.webhookSecret': 'PERSONA_WEBHOOK_SECRET',
   'google_signin.clientIds': 'GOOGLE_CLIENT_IDS',
   'apple_signin.bundleIds': 'APPLE_BUNDLE_IDS',
   'apple_signin.teamId': 'APPLE_TEAM_ID',

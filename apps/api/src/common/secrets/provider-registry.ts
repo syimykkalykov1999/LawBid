@@ -740,7 +740,10 @@ export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'persona',
     label: 'Persona (ID checks)',
-    description: 'Identity verification of attorneys.',
+    // Owner 2026-11-08: «пусть пока будет ручной; подключу ключ — должен
+    // работать». No key / card off = manual review as before.
+    description:
+      'Проверка документа и селфи юриста через Persona. Пока ключа нет (или карточка выключена) — проверка ручная, как сейчас. С ключом, шаблоном и секретом вебхука приложение открывает страницу Persona, а результат приходит по вебхуку https://<API>/api/v1/webhooks/persona. Сотрудник всё равно может одобрить или отклонить в «Проверке».',
     fields: [
       {
         name: 'apiKey',
@@ -749,6 +752,27 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: true,
         pattern: /^persona_(sandbox|production)_[\w-]+$/,
         env: 'PERSONA_API_KEY',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'templateId',
+        label: 'Inquiry template ID (Government ID + Selfie)',
+        secret: false,
+        required: true,
+        pattern: /^itmpl_[A-Za-z0-9]+$/,
+        patternHint: 'itmpl_…',
+        env: 'PERSONA_TEMPLATE_ID',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'webhookSecret',
+        label: 'Webhook secret (Persona → Webhooks)',
+        secret: true,
+        required: true,
+        pattern: /^\S{16,200}$/,
+        patternHint: 'wbhsec_…',
+        env: 'PERSONA_WEBHOOK_SECRET',
+        normalize: cleanPasted,
       },
     ],
     test: (f) =>

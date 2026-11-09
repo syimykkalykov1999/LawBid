@@ -128,6 +128,15 @@ class VerificationRepositoryImpl implements VerificationRepository {
   }
 
   @override
+  Future<Uri> startIdentityCheck(String requestId) async {
+    final link = (await guardApiCall(
+      () => _client.startIdentityCheck(id: requestId),
+    ))
+        .data;
+    return Uri.parse(link.url);
+  }
+
+  @override
   Future<SelfieHandoff> createHandoff(String requestId) async {
     final h = (await guardApiCall(
       () => _client.createVerificationHandoff(
