@@ -84,7 +84,7 @@ Paths are under `apps/api/src` unless they start with `apps/`. «PR» means fixe
 | `security.attorney_strong_auth` (on) with flag `passkey_login` (off) | attorney with a passkey must use it | `modules/auth/password-auth.service.ts:201` | yes | passkey sign-in on | prod: `passkey_login=false` | BROKEN (lock-out: password refused, passkey disabled) → **PR**: rule applies only while passkeys are on |
 | `rate_limit.message_per_minute` | messages per minute | `common/usage-limits/usage-limits.service.ts:61` ← `modules/chat/chat.service.ts:1089` | direct chats only; group send never counted | — | code | BROKEN (half) → **PR**: group messages counted too |
 | `stories.max_video_sec`, `channels.max_post_media` | limits shown by the app | `apps/mobile/lib/features/stories/application/stories_providers.dart:42`, `apps/mobile/lib/features/channels/application/channel_compose.dart:31` | app reads them, bootstrap never sent them | — | keys absent from prod bootstrap | BROKEN (app side) → **PR**: added to `PUBLIC_CONFIG_PREFIXES` |
-| push (FCM) | pushes | `modules/notifications/push/fcm-push.sender.ts:398` | yes | FCM card | 30 × «fcm send failed 400 INVALID_ARGUMENT» for one user in 24 h, reason not logged | BROKEN for that device, cause unknown → **PR**: FCM's own error text is logged |
+| push (FCM) | pushes | `modules/notifications/push/fcm-push.sender.ts:398` | yes | FCM card | 30 × «fcm send failed 400 INVALID_ARGUMENT» for one user in 24 h, reason not logged | BROKEN for that device → FIXED in #851 (not retried, FCM message logged) |
 | flag `auto_bar_check` | master of automatic bar-licence lookups | `modules/verification/providers/bar-lookup/auto-bar-lookup.provider.ts` (`masterOn`) | was not read since 2026-10-05 | per-state registry enabled | prod shows it **ON** | DEAD → FIXED (#844): read again as the master; off = no registry call, manual review |
 | flag `chat_translate` + `translate.scope` / `translate.<zone>` | translation (one control since #844) | `modules/translation/translation.service.ts:74`, `translation-zones.ts:31`, `apps/mobile/lib/features/translation/presentation/translate_block.dart:129` | yes | Google Translate key (not verified) | prod: flag **off**, all `translate.*` **on** | WORKS (off). Admin Config shows the zones as ON while the flag keeps everything off (§5.4) |
 | `push.chat_preview`, `queues.push_rate_*`, `notifications.retention_days` | push text, send rate, cleanup | `modules/notifications/push/push-dispatcher.ts:349,166`, `jobs/handlers/notifications-retention.job.ts:22` | yes | FCM | — | WORKS |
@@ -107,7 +107,7 @@ Paths are under `apps/api/src` unless they start with `apps/`. «PR» means fixe
 | `ranking.events_mode`, `ranking.impression_sample_percent` | ranking event log | `modules/experiments/ranking-events.service.ts:97` | `logImpression`/`logAction` have no caller | — | — | DEAD (§5.6) |
 | `experiments.*` | A/B tests | `modules/experiments/*` | `ExperimentsService.variant` has no caller | — | — | DEAD for users (§5.6) |
 | `sms.*` registration/reset caps, anti-pumping, `security.otp_per_identifier_per_day` | SMS limits | `modules/auth/auth.service.ts:1541,1564,1584`, `modules/auth/password-auth.service.ts:308`, `common/cost-guard/sms-abuse-guard.service.ts:156` | yes | Twilio (SMS_PROVIDER=twilio) | — | WORKS |
-| owner rule «SMS только регистрация и «Забыл пароль»» | — | `modules/users/services/contacts.service.ts:115` | phone change in Settings sends an SMS (purpose `contact`) | — | — | BROKEN vs rule (§5.2) |
+| owner rule «SMS только регистрация и «Забыл пароль»» | — | `modules/users/services/contacts.service.ts:115` | phone change in Settings sends an SMS (purpose `contact`) | — | — | BROKEN vs rule → FIXED in #850 (password/passkey re-auth, no SMS) |
 | `compliance.sms.disclosure_*` | consent text | `modules/compliance/sms-compliance.service.ts:63` | the app shows a fixed string (`apps/mobile/lib/features/auth/presentation/screens/phone_screen.dart:238`) | — | — | DEAD |
 | `compliance.sms.marketing_enabled`, quiet hours | non-code SMS | `modules/compliance/sms-compliance.service.ts:278` | no caller | — | — | DEAD (harmless: no such SMS exists) |
 | `security.app_check.mode` | App Check | `modules/auth/app-check/app-check.guard.ts:267` | yes | app must send a token | prod: monitor; every verdict `missing` | WORKS as monitor; do **not** switch to enforce (§5.3) |
@@ -121,7 +121,7 @@ Paths are under `apps/api/src` unless they start with `apps/`. «PR» means fixe
 | `billing.*`, `stripe_ops.*`, `treasury.*` | Stripe upkeep | webhook / job paths | only on Stripe events | Stripe card (not verified) | — | no-op until Stripe is live |
 | `deal_record.enabled`, `bids.rich_terms_enabled`, `bids.confirmation_required` | deal paperwork | `modules/bids/acceptance/bid-acceptance.service.ts:88`, `modules/bids/bids.service.ts:630` | yes | — | on in bootstrap | WORKS |
 | login flags `phone/password/email/apple/google/passkey_login`, `web_client`, `role_switch` | sign-in methods | `modules/auth/services/login-method-policy.service.ts:39` + app `welcome_screen.dart` | yes, API and app | — | bootstrap | WORKS (the app has no Apple/Google buttons at all) |
-| integration card `persona` | ID checks | none (ID checks manual by owner decision 16.10) | no | — | — | NOT CONFIGURED (honest label in #844; kept) |
+| integration card `persona` | ID checks | none on main | no | Persona card | — | DEAD → FIXED in #849 (Persona behind the card, manual stays default) |
 | integration cards twilio, ses, fcm, stripe, turnstile, google_translate, opensearch, state registries, aws_*, google_places, openai_moderation, anthropic, calendars | — | `common/secrets/secrets.service.ts:243` resolve | yes; the card's «Ключ включён» switch is honoured (`:250`) | the card | not verified per card | WORKS |
 | GroupFanoutQueue at boot | group delivery concurrency | `modules/groups/group-fanout.queue.ts` | yes | Redis | API: «group fan-out concurrency not set: Command timed out» × 8 at one boot | transient Redis timeout at start (watch) |
 | OpsGuard | pauses heavy jobs when the DB is slow | `OpsGuardJob` | yes | — | «heavy background jobs paused: database is slow» (985 ms) | WORKS (by design, watch) |
@@ -143,12 +143,11 @@ through built-up names (`recommendations.service.ts:180`, `domain/case-staleness
 3. `bootstrap.service.ts`: sends `stories.max_video_sec` and `channels.max_post_media` to the app.
 4. `password-auth.service.ts`: `security.attorney_strong_auth` applies only while `passkey_login` is on.
 5. `groups.service.ts`: group messages count against `rate_limit.message_per_minute`.
-6. `fcm-push.sender.ts`: logs FCM's error text, so the INVALID_ARGUMENT cause shows up.
+6. FCM INVALID_ARGUMENT: owned by PR #851 (automation gaps: not retried, FCM message logged); #844 leaves the sender as on main.
 7. `auto-bar-lookup.provider.ts`: the `auto_bar_check` flag is the master of automatic bar lookups again (off = no registry call, every licence to a verifier); catalog default on; admin text says what it does.
 8. Translation: one control (master `chat_translate` + `translate_<zone>` for every zone); app gate `FeatureFlagsState.translationOn`.
 9. Economy: two brakes (third-party vs AWS budget), admin shows both and the sum.
 10. NCMEC CyberTipline adapter (report → file → fileinfo → finish, retract on failure), card fields + «Проверить», staff status, switch default off.
-11. Persona card: honest «не подключено» text.
 
 ## 4. After the deploy: proof to collect
 
@@ -172,15 +171,7 @@ through built-up names (`recommendations.service.ts:180`, `domain/case-staleness
      does not cap containers.
    - Why: AWS Budgets actions, GCP budgets and per-vendor caps all brake only the money they
      control.
-2. **Changing the phone (Settings → Account) keeps its SMS code to the new number.**
-   - Telegram, WhatsApp and Signal (help pages, 2025–2026) all confirm a new number with a code
-     sent to that number. A login phone switched without proof of ownership is an account-takeover
-     path.
-   - The change is treated as the «registration» case of the SMS rule (a new number joins the
-     account).
-   - It is already capped: 3 per hour and 10 per day per user, 5 per hour per number, CostGuard,
-     and the third-party brake.
-   - No code change.
+2. **Changing the phone sends no SMS.** This follows the owner's standing rule: SMS only at registration and «Забыл пароль». The change is confirmed by password or passkey re-auth. PR #850 (claude/sms-two-cases-only2) does it, including a guard test that no other route sends SMS. #844 does not touch that code.
 3. **App Check stays in «monitor».**
    - Every prod verdict is `missing`, so the app sends no token.
    - Switching to «enforce» now would refuse phone sign-up and reset. Firebase and Google
@@ -206,8 +197,8 @@ through built-up names (`recommendations.service.ts:180`, `domain/case-staleness
      default (`ranking.events_mode`), so feed pages get no extra DB write until an A/B test starts.
      This follows how Instagram and TikTok log impressions through a sampled client/event pipeline,
      not per request.
-7. **Persona card**: kept (never removed). It is labelled «не подключено» with the reason: ID
-   checks are manual by the owner's 16.10 decision, and a saved key is not read.
+7. **Persona card**: kept (never removed). PR #849 (claude/persona-id-checks) makes it work. ID checks
+   stay manual by default and switch to Persona when the card is filled. #844 does not touch it.
 8. **`auto_bar_check`**: kept and made to work as the master of automatic licence lookups. It is
    not retired.
 
@@ -315,7 +306,7 @@ Cards are resolved at run time by `common/secrets/secrets.service.ts:243`. The c
 | `photodna`, `ncmec` | `modules/media-moderation/csam.adapters.ts`, `common/secrets/ncmec-cybertipline.ts` | — | NCMEC FIXED (#844, real CyberTipline flow); NOT CONFIGURED until the ESP account |
 | `sentry` | `telemetry/sentry.ts:45`, `feature-flags/services/bootstrap.service.ts:334` | no `sentry.mobile_dsn` in prod bootstrap | NOT CONFIGURED (the app and admin have no Sentry; the own crash endpoint works) |
 | `github`, `github_infra`, `pagerduty`, `cockroach_cloud` | `common/ops/launch/*`, `modules/admin-launch/infra/infra-github.client.ts:54`, `modules/admin-ops/system-health.service.ts:547` | — | admin/ops only; see #843 automation |
-| `persona` | none (ID checks are manual by owner decision) | — | NOT CONFIGURED (honest label, kept; §5.7) |
+| `persona` | none on main | — | FIXED in #849 |
 
 ### A. Every app_config setting (668 keys)
 

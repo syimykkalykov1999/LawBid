@@ -398,16 +398,7 @@ export class FcmPushSender implements PushSender {
       }
       this.slo?.count('pushFailed');
       this.logger.warn(
-        {
-          userId: message.userId,
-          status: res.status,
-          code,
-          // Feature reality audit 2026-11-08: prod logged 30 «400
-          // INVALID_ARGUMENT» for one user with no reason; FCM's own text
-          // names the bad field («Invalid value at 'message.…'»). A token
-          // error never gets here (dropped above), so no token is logged.
-          detail: (body.error?.message ?? '').slice(0, 300) || undefined,
-        },
+        { userId: message.userId, status: res.status, code },
         'fcm send failed',
       );
     };

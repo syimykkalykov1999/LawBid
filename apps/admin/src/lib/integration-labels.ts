@@ -63,11 +63,7 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     description:
       'Отдельный поиск для людей, дел, постов и вопросов юристу. Работает только когда в Настройках «search.engine» = shadow или engine; если движок не отвечает или медленный, поиск сам идёт через Postgres. По умолчанию выключен.',
   },
-  persona: {
-    label: 'Persona (проверка личности)',
-    description:
-      'Не подключено: по решению владельца (16.10) личность адвоката проверяет сотрудник вручную, платные сервисы проверки не используются. Ключ можно сохранить, но сервер его пока не читает.',
-  },
+  persona: { label: 'Persona (проверка личности)', description: 'Проверка личности адвокатов.' },
   google_signin: { label: 'Вход через Google', description: 'OAuth-идентификаторы приложений iOS, Android и веба.' },
   apple_signin: { label: 'Вход через Apple', description: 'Вход через Apple на iPhone (bundle id приложений).' },
   google_calendar: {

@@ -741,8 +741,7 @@ export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'persona',
     label: 'Persona (ID checks)',
-    description:
-      'Identity verification of attorneys. Not connected: by the owner decision of 2026-10-16 ID checks are manual (a verifier looks at the document); a saved key is not read yet.',
+    description: 'Identity verification of attorneys.',
     fields: [
       {
         name: 'apiKey',
