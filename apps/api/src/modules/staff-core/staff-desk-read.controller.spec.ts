@@ -8,11 +8,12 @@ import {
 } from './staff-desk-read.controller';
 import { resolveStaffSettings } from './staff-settings.service';
 import type { StaffSettingsService } from './staff-settings.service';
+import { staffAllOff } from './staff-settings.test-support';
 
 const me = { id: 'a1' } as AdminActor;
 
 function build(stored: Record<string, unknown> = {}, rows: unknown[] = []) {
-  const settings = resolveStaffSettings(stored);
+  const settings = resolveStaffSettings(staffAllOff(stored));
   const findMany = jest.fn(() => Promise.resolve(rows));
   const staff = {
     get: jest.fn(() => Promise.resolve(settings)),
@@ -27,22 +28,13 @@ function build(stored: Record<string, unknown> = {}, rows: unknown[] = []) {
 }
 
 describe('worker desk reads (staff package T8)', () => {
-  it('desk-settings: workflow switches off by default (rating/own-progress on since 2026-11-08), only the whitelist is shown', async () => {
+  it('desk-settings: everything stored off, only the whitelist is shown', async () => {
     const { ctl } = build();
     const r = await ctl.deskSettings();
     expect(Object.keys(r.switches).sort()).toEqual(
       [...DESK_SWITCH_KEYS].sort(),
     );
-    const defaultOn = [
-      'staff.rating_enabled',
-      'staff.worker_progress_enabled',
-      'staff.appeals_enabled',
-      'staff.case_appeals_enabled',
-      'staff.piecework_enabled',
-    ];
-    for (const [k, v] of Object.entries(r.switches)) {
-      expect(v).toBe(defaultOn.includes(k));
-    }
+    expect(Object.values(r.switches).every((v) => v === false)).toBe(true);
     expect(Object.keys(r.numbers).sort()).toEqual([...DESK_NUMBER_KEYS].sort());
     expect(r.numbers['staff.lease.ttl_verification_min']).toBe(20);
     // nothing about rates, rating thresholds or heads' scores leaks to a worker

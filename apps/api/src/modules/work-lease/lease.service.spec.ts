@@ -14,10 +14,11 @@ import type {
   PresenceReading,
   StaffPresenceService,
 } from './staff-presence.service';
+import { staffAllOff } from '../staff-core/staff-settings.test-support';
 
 const settings = (stored: Record<string, unknown> = {}) =>
   new StaffSettingsService({
-    all: () => Promise.resolve(stored),
+    all: () => Promise.resolve(staffAllOff(stored)),
   } as unknown as AppSettingsService);
 
 /** A database that fails the test if anything touches it. */

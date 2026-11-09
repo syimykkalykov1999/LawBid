@@ -4,6 +4,7 @@ import {
   parseSwitchMode,
   type SwitchMode,
 } from '../../common/app-settings/switch-mode';
+import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   OWNER_STAFF_SETTINGS,
@@ -25,9 +26,18 @@ export interface StaffAutoSignals {
   staff: number;
   /** Piecework rates valid right now. */
   activeRates: number;
+  /** The Anthropic key is configured («Ключи и сервисы» or env). */
+  aiKey: boolean;
 }
 
-export const NO_SIGNALS: StaffAutoSignals = { staff: 0, activeRates: 0 };
+export const NO_SIGNALS: StaffAutoSignals = {
+  staff: 0,
+  activeRates: 0,
+  aiKey: false,
+};
+
+/** Secret provider / field the staff AI client reads (staff-ai-client.service.ts). */
+const AI_SECRET = { provider: 'anthropic', field: 'apiKey' } as const;
 
 export interface StaffSettings {
   /**
@@ -89,6 +99,7 @@ export class StaffSettingsService {
   constructor(
     private readonly settings: AppSettingsService,
     @Optional() private readonly prisma?: PrismaService,
+    @Optional() private readonly secrets?: SecretsService,
   ) {}
 
   async get(): Promise<StaffSettings> {
@@ -127,23 +138,36 @@ export class StaffSettingsService {
 
   /** The «Авто» facts; without a database (unit tests) nothing holds. */
   private async signals(): Promise<StaffAutoSignals> {
-    if (!this.prisma) return NO_SIGNALS;
-    try {
-      const [staff, activeRates] = await Promise.all([
-        this.prisma.adminProfile.count({
-          where: { admin_role: { not: 'super_admin' } },
-        }),
-        this.prisma.staffRate.count({
-          where: {
-            OR: [{ valid_to: null }, { valid_to: { gt: new Date() } }],
-          },
-        }),
-      ]);
-      return { staff, activeRates };
-    } catch {
-      // A failed count never turns a page off: Авто simply does not run.
-      return NO_SIGNALS;
+    const out: StaffAutoSignals = { ...NO_SIGNALS };
+    // A failed read never turns a page off: that Авто simply does not run.
+    if (this.prisma) {
+      try {
+        const [staff, activeRates] = await Promise.all([
+          this.prisma.adminProfile.count({
+            where: { admin_role: { not: 'super_admin' } },
+          }),
+          this.prisma.staffRate.count({
+            where: {
+              OR: [{ valid_to: null }, { valid_to: { gt: new Date() } }],
+            },
+          }),
+        ]);
+        out.staff = staff;
+        out.activeRates = activeRates;
+      } catch {
+        /* counts stay 0 */
+      }
     }
+    if (this.secrets) {
+      try {
+        out.aiKey = await this.secrets.has(AI_SECRET.provider, [
+          AI_SECRET.field,
+        ]);
+      } catch {
+        /* no key */
+      }
+    }
+    return out;
   }
 }
 
@@ -159,6 +183,11 @@ export function staffAutoSignalHolds(
       return s.activeRates >= 1;
     case 'staff.anomalies_enabled':
       return s.staff >= 2;
+    case 'staff.lease_enabled':
+    case 'staff.presence_enabled':
+      return s.staff >= 1;
+    case 'staff.ai_enabled':
+      return s.aiKey;
     default:
       return false;
   }
@@ -187,6 +216,9 @@ export function resolveStaffSettings(
     switches[k] =
       v === undefined ? OWNER_STAFF_SETTINGS[k] === true : v === true;
   }
+  // The AI master «exists» only when it may really call (key present or
+  // «Вкл»): there is no page behind it, only spending.
+  switches['staff.ai_enabled'] = active['staff.ai_enabled'];
   for (const k of AI_SUB) switches[k] &&= switches['staff.ai_enabled'];
   for (const k of LEASE_SUB) switches[k] &&= switches['staff.lease_enabled'];
   const numbers = {} as Record<StaffNumberKey, number>;

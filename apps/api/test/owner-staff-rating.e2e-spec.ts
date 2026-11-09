@@ -24,6 +24,7 @@ import { StaffRecorderService } from '../src/modules/staff-rating/staff-recorder
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { adminSession, type AdminSession } from './support/admin-login';
+import { staffAllOff } from '../src/modules/staff-core/staff-settings.test-support';
 
 /**
  * Staff package T5 (rating / KPI engine): decisions → Redis counters →
@@ -62,7 +63,9 @@ describe('Staff rating engine (e2e)', () => {
   const setSwitches = (on: Record<string, boolean | string>) =>
     jest
       .spyOn(settings, 'get')
-      .mockImplementation(() => Promise.resolve(resolveStaffSettings(on)));
+      .mockImplementation(() =>
+        Promise.resolve(resolveStaffSettings(staffAllOff(on))),
+      );
 
   async function decide(a: AdminSession, n: number, handleMs = 40_000) {
     for (let i = 0; i < n; i++) {
@@ -188,7 +191,7 @@ describe('Staff rating engine (e2e)', () => {
   });
 
   it('rating «Авто» (the default) without a staff signal: nothing is computed, but the pages answer (empty), never 404', async () => {
-    setSwitches({});
+    setSwitches({ 'staff.rating_enabled': 'auto' });
     await recorder.record({
       adminId: good.userId,
       itemKind: 'verification',

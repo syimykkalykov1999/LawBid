@@ -61,6 +61,15 @@ export async function adminSession(
                 create: {
                   admin_role: role,
                   permissions: permissions ?? defaultPermissionsForRole(role),
+                  // Same mapping as the T2 backfill (staff.workspaces_enabled
+                  // is on by default since 2026-11-09): the owner's own
+                  // workspace, money people in finance, everyone else mass.
+                  workspace:
+                    role === 'super_admin'
+                      ? 'owner'
+                      : role === 'finance'
+                        ? 'finance'
+                        : 'mass',
                 },
               },
             }

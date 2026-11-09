@@ -10,6 +10,7 @@ import { SupportDeskService } from '../src/modules/support/support-desk.service'
 import { RewardsService } from '../src/modules/rewards/rewards.service';
 import { periodOf } from '../src/modules/rewards/rewards.rules';
 import { adminSession, type AdminSession } from './support/admin-login';
+import { storeStaffSwitches } from './support/staff-switches';
 
 /**
  * Owner 2026-10-05:
@@ -28,6 +29,7 @@ jest.setTimeout(120_000);
 describe('Support 24/7, rewards, workspace (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let restoreStaff: () => Promise<void> = async () => undefined;
   let tokens: TokenService;
   let desk: SupportDeskService;
   let base = '';
@@ -59,6 +61,13 @@ describe('Support 24/7, rewards, workspace (e2e)', () => {
     const { port } = (app.getHttpServer() as Server).address() as AddressInfo;
     base = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
+    // Legacy support routing («next» without leases / workspaces): the
+    // staff package is on by default since 2026-11-09, so store it off here.
+    restoreStaff = await storeStaffSwitches(app, {
+      'staff.workspaces_enabled': false,
+      'staff.lease_enabled': 'off',
+      'staff.presence_enabled': 'off',
+    });
     tokens = app.get(TokenService);
     desk = app.get(SupportDeskService);
     owner = await adminSession(base, prisma, 'super_admin');
@@ -75,6 +84,7 @@ describe('Support 24/7, rewards, workspace (e2e)', () => {
   });
 
   afterAll(async () => {
+    await restoreStaff();
     await api()
       .put('/api/v1/admin/support/settings')
       .set(owner.auth)

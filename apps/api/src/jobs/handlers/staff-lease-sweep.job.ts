@@ -19,7 +19,8 @@ export class StaffLeaseSweepJob {
   ) {}
 
   async run(): Promise<StaffJobResult> {
-    if (!(await this.staff.isOn('staff.lease_enabled'))) return STAFF_JOB_OFF;
+    if (!(await this.staff.isActive('staff.lease_enabled')))
+      return STAFF_JOB_OFF;
     return this.leases.sweep();
   }
 }

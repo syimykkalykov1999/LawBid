@@ -10,6 +10,8 @@ import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { STAFF_AI_FETCH } from '../src/modules/staff-ai/staff-ai-client.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { adminSession, type AdminSession } from './support/admin-login';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 
 /**
  * Staff package T12 (AI mode, OFF by default): the desk hint and the
@@ -84,6 +86,11 @@ describe('Staff AI mode routes (e2e)', () => {
   });
 
   afterAll(async () => {
+    // Leave the lease default («Авто») to the next suite of the shard.
+    await prisma.appConfig.deleteMany({
+      where: { key: 'staff.lease_enabled' },
+    });
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
     await app.close();
   });
 
@@ -91,8 +98,14 @@ describe('Staff AI mode routes (e2e)', () => {
 
   /** Flips a switch through the owner's settings editor (step-up only if asked). */
   async function setSwitch(owner: AdminSession, key: string, value: boolean) {
+    // Three-state switches (off/on/auto since 2026-11-09) take strings.
+    const threeState = ['staff.ai_enabled', 'staff.lease_enabled'];
+    const stored = threeState.includes(key) ? (value ? 'on' : 'off') : value;
     const put = () =>
-      api().put(`/api/v1/admin/config/${key}`).set(owner.auth).send({ value });
+      api()
+        .put(`/api/v1/admin/config/${key}`)
+        .set(owner.auth)
+        .send({ value: stored });
     const first = await put();
     if (first.status === 403) {
       await api()
@@ -157,6 +170,9 @@ describe('Staff AI mode routes (e2e)', () => {
     });
     await setSwitch(owner, 'staff.ai_enabled', true);
     await setSwitch(owner, 'staff.ai_hint_enabled', true);
+    // The hint without leases (lease routing is «Авто» by default and would
+    // ask for a held lease): this test covers the plain path.
+    await setSwitch(owner, 'staff.lease_enabled', false);
 
     const path = `/api/v1/admin/desk/ai/hint/support_ticket/${ticket.id}`;
     // Not the moderator's queue kind (and the desk area is not theirs yet): 404, nothing called.

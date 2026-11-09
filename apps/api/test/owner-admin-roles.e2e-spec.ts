@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { adminSession, type AdminSession } from './support/admin-login';
+import { storeStaffSwitches } from './support/staff-switches';
 
 /**
  * Owner 2026-10-16: roles for other admins — presets, grantable money /
@@ -19,6 +20,7 @@ jest.setTimeout(120_000);
 describe('Admin roles, presets and invite links (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let restoreStaff: () => Promise<void> = async () => undefined;
   let base = '';
   const tag = randomUUID().slice(0, 8);
 
@@ -40,9 +42,16 @@ describe('Admin roles, presets and invite links (e2e)', () => {
     const { port } = (app.getHttpServer() as Server).address() as AddressInfo;
     base = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
+    // This suite is about roles and presets WITHOUT the workspace ceiling
+    // (staff.workspaces_enabled is on by default since 2026-11-09).
+    restoreStaff = await storeStaffSwitches(app, {
+      'staff.workspaces_enabled': false,
+      'staff.head_enabled': false,
+    });
   });
 
   afterAll(async () => {
+    await restoreStaff();
     await app.close();
   });
 

@@ -15,6 +15,7 @@ import {
   adminStepUp,
   type AdminSession,
 } from './support/admin-login';
+import { staffAllOff } from '../src/modules/staff-core/staff-settings.test-support';
 
 /**
  * Staff package T10: «Сегодня» (one snapshot, owner only), the worker's OWN
@@ -41,15 +42,17 @@ describe('Staff owner home (e2e)', () => {
   const on = (extra: Record<string, boolean> = {}) =>
     jest.spyOn(settings, 'get').mockImplementation(() =>
       Promise.resolve(
-        resolveStaffSettings({
-          'staff.owner_home_enabled': true,
-          'staff.rating_enabled': true,
-          'staff.suggestions_enabled': true,
-          'staff.worker_progress_enabled': true,
-          // on by default since 2026-11-08; this suite checks the block off
-          'staff.appeals_enabled': false,
-          ...extra,
-        }),
+        resolveStaffSettings(
+          staffAllOff({
+            'staff.owner_home_enabled': true,
+            'staff.rating_enabled': true,
+            'staff.suggestions_enabled': true,
+            'staff.worker_progress_enabled': true,
+            // on by default since 2026-11-08; this suite checks the block off
+            'staff.appeals_enabled': false,
+            ...extra,
+          }),
+        ),
       ),
     );
 
@@ -158,12 +161,14 @@ describe('Staff owner home (e2e)', () => {
   it('everything switched off (stored; since 2026-11-08 the defaults are on): the owner gets 404 on every new route', async () => {
     jest.spyOn(settings, 'get').mockImplementation(() =>
       Promise.resolve(
-        resolveStaffSettings({
-          'staff.owner_home_enabled': false,
-          'staff.rating_enabled': 'off',
-          'staff.worker_progress_enabled': false,
-          'staff.weekly_digest_enabled': false,
-        }),
+        resolveStaffSettings(
+          staffAllOff({
+            'staff.owner_home_enabled': false,
+            'staff.rating_enabled': 'off',
+            'staff.worker_progress_enabled': false,
+            'staff.weekly_digest_enabled': false,
+          }),
+        ),
       ),
     );
     await api().get('/api/v1/admin/staff/today').set(owner.auth).expect(404);
@@ -316,10 +321,12 @@ describe('Staff owner home (e2e)', () => {
     jest.restoreAllMocks();
     jest.spyOn(settings, 'get').mockImplementation(() =>
       Promise.resolve(
-        resolveStaffSettings({
-          'staff.rating_enabled': true,
-          'staff.worker_progress_enabled': false,
-        }),
+        resolveStaffSettings(
+          staffAllOff({
+            'staff.rating_enabled': true,
+            'staff.worker_progress_enabled': false,
+          }),
+        ),
       ),
     );
     await api()

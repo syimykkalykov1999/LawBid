@@ -21,6 +21,9 @@ import { adminSession, type AdminSession } from './support/admin-login';
 jest.setTimeout(180_000);
 
 const SWITCHES = [
+  // Data protection is tested without the workspace scoping (on by default
+  // since 2026-11-09): otherwise a foreign section answers 404 before 403.
+  'staff.workspaces_enabled',
   'staff.masking_enabled',
   'staff.export_block_enabled',
   'staff.session_binding_enforce_enabled',

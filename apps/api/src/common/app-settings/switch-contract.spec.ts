@@ -63,6 +63,11 @@ describe('switch contract: defaults (a)', () => {
     ['staff.rating_enabled', 'auto'],
     ['staff.piecework_enabled', 'auto'],
     ['staff.anomalies_enabled', 'auto'],
+    ['staff.lease_enabled', 'auto'],
+    ['staff.presence_enabled', 'auto'],
+    ['staff.ai_enabled', 'auto'],
+    ['staff.desk_enabled', true],
+    ['staff.auto_apply_enabled', false],
   ];
   it.each(table)('%s defaults to %p with nothing stored', async (key, want) => {
     expect(APP_SETTINGS[key]).toBe(want);

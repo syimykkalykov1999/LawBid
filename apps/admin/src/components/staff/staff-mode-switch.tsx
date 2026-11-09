@@ -13,7 +13,14 @@ const MODES: readonly StaffMode[] = ['off', 'on', 'auto'];
 const MODE_LABEL: Record<StaffMode, string> = { off: 'Выкл', on: 'Вкл', auto: 'Авто' };
 
 /** The three-state staff switches (owner rule 5c) and what «Авто» decides on. */
-export const STAFF_MODE_KEYS = ['staff.rating_enabled', 'staff.piecework_enabled', 'staff.anomalies_enabled'] as const;
+export const STAFF_MODE_KEYS = [
+  'staff.rating_enabled',
+  'staff.piecework_enabled',
+  'staff.anomalies_enabled',
+  'staff.lease_enabled',
+  'staff.presence_enabled',
+  'staff.ai_enabled',
+] as const;
 export type StaffModeKey = (typeof STAFF_MODE_KEYS)[number];
 
 export const STAFF_MODE_TEXT: Record<StaffModeKey, { label: string; auto: string }> = {
@@ -28,6 +35,18 @@ export const STAFF_MODE_TEXT: Record<StaffModeKey, { label: string; auto: string
   'staff.anomalies_enabled': {
     label: 'Детектор аномалий',
     auto: 'Авто: работает, когда сотрудников кроме владельца не меньше двух.',
+  },
+  'staff.lease_enabled': {
+    label: 'Раздача «Следующий»',
+    auto: 'Авто: раздача включена, ежеминутная уборка просроченных закреплений идёт, когда есть сотрудники кроме владельца.',
+  },
+  'staff.presence_enabled': {
+    label: 'Статусы «на связи»',
+    auto: 'Авто: сигналы принимаются, когда есть сотрудники кроме владельца.',
+  },
+  'staff.ai_enabled': {
+    label: 'Режим ИИ',
+    auto: 'Авто: работает, когда в «Ключи и сервисы» задан ключ Anthropic; без ключа ни одного вызова.',
   },
 };
 

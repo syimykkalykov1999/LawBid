@@ -5,6 +5,7 @@ import {
   validateConfigValue,
 } from '../admin-config/config-schema';
 import { StaffSettingsController } from './staff-settings.controller';
+import type { SecretsService } from '../../common/secrets/secrets.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import {
   OWNER_STAFF_SETTINGS,
@@ -20,19 +21,13 @@ import {
   staffAutoSignalHolds,
 } from './staff-settings.service';
 
-/** The six owner pages / rows that default ON (owner 2026-11-08, rule 5c). */
-const DEFAULT_ON = [
-  'staff.owner_home_enabled',
-  'staff.suggestions_enabled',
-  'staff.appeals_enabled',
-  'staff.case_appeals_enabled',
-  'staff.weekly_digest_enabled',
-  'staff.worker_progress_enabled',
-] as const;
+/** The one switch that stays OFF: the automatic warning (owner 2026-11-09). */
+const DEFAULT_OFF = ['staff.auto_apply_enabled'] as const;
+const SIGNALS = { staff: 0, activeRates: 0, aiKey: false };
 
 const service = (
   stored: Record<string, unknown> = {},
-  counts: { staff?: number; rates?: number } | null = null,
+  counts: { staff?: number; rates?: number; aiKey?: boolean } | null = null,
 ) => {
   const all = jest.fn(() => Promise.resolve(stored));
   const prisma = counts
@@ -43,22 +38,32 @@ const service = (
         staffRate: { count: jest.fn(() => Promise.resolve(counts.rates ?? 0)) },
       } as unknown as PrismaService)
     : undefined;
+  const secrets = counts
+    ? ({
+        has: jest.fn(() => Promise.resolve(counts.aiKey === true)),
+      } as unknown as SecretsService)
+    : undefined;
   return {
     all,
     prisma,
+    secrets,
     svc: new StaffSettingsService(
       { all } as unknown as AppSettingsService,
       prisma,
+      secrets,
     ),
   };
 };
 
 describe('staff settings (staff package T1, plan part D)', () => {
-  it('has every D1 switch; workflow switches are off, the owner pages are on, three are «Авто» (owner 2026-11-08)', async () => {
+  it('has every D1 switch; all on or «Авто» except the automatic warning (owner rule 5c, 2026-11-08/09)', async () => {
     expect(STAFF_SWITCH_KEYS).toHaveLength(36);
-    expect(STAFF_MODE_KEYS.sort()).toEqual([
+    expect([...STAFF_MODE_KEYS].sort()).toEqual([
+      'staff.ai_enabled',
       'staff.anomalies_enabled',
+      'staff.lease_enabled',
       'staff.piecework_enabled',
+      'staff.presence_enabled',
       'staff.rating_enabled',
     ]);
     const { svc } = service();
@@ -67,22 +72,23 @@ describe('staff settings (staff package T1, plan part D)', () => {
       expect(k).toMatch(/^staff\.[a-z_]+_enabled$/);
       if ((STAFF_MODE_KEYS as readonly string[]).includes(k)) {
         expect(APP_SETTINGS[k]).toBe('auto');
-        // «Авто» never hides the page: the read side sees the switch as on.
-        expect(s.switches[k]).toBe(true);
-      } else if ((DEFAULT_ON as readonly string[]).includes(k)) {
-        expect(APP_SETTINGS[k]).toBe(true);
-        expect(s.switches[k]).toBe(true);
-      } else {
+        // «Авто» never hides a page: the read side sees the switch as on —
+        // except the AI master, which is spending only (needs the key).
+        expect(s.switches[k]).toBe(k !== 'staff.ai_enabled');
+      } else if ((DEFAULT_OFF as readonly string[]).includes(k)) {
         expect(APP_SETTINGS[k]).toBe(false);
         expect(s.switches[k]).toBe(false);
+      } else if (k.startsWith('staff.ai_')) {
+        // AI sub-switches: on, but count only under an active master.
+        expect(APP_SETTINGS[k]).toBe(true);
+        expect(s.switches[k]).toBe(false);
+      } else {
+        expect(APP_SETTINGS[k]).toBe(true);
+        expect(s.switches[k]).toBe(true);
       }
     }
-    expect(s.modes).toEqual({
-      'staff.rating_enabled': 'auto',
-      'staff.piecework_enabled': 'auto',
-      'staff.anomalies_enabled': 'auto',
-    });
-    // Without a database (no signal) «Авто» does not run anything.
+    for (const k of STAFF_MODE_KEYS) expect(s.modes[k]).toBe('auto');
+    // Without a database and a key (no signal) «Авто» does not run anything.
     expect(Object.values(s.active).every((v) => v === false)).toBe(true);
   });
 
@@ -99,7 +105,7 @@ describe('staff settings (staff package T1, plan part D)', () => {
     it('«Выкл» (off or an old stored false) hides the page and stops the job', () => {
       const s = resolveStaffSettings(
         { 'staff.rating_enabled': 'off', 'staff.piecework_enabled': false },
-        { staff: 5, activeRates: 3 },
+        { ...SIGNALS, staff: 5, activeRates: 3 },
       );
       expect(s.modes['staff.rating_enabled']).toBe('off');
       expect(s.switches['staff.rating_enabled']).toBe(false);
@@ -125,21 +131,37 @@ describe('staff settings (staff package T1, plan part D)', () => {
       expect(none.switches['staff.rating_enabled']).toBe(true);
       expect(none.active['staff.rating_enabled']).toBe(false);
 
-      const one = resolveStaffSettings({}, { staff: 1, activeRates: 0 });
+      const one = resolveStaffSettings(
+        {},
+        { ...SIGNALS, staff: 1, activeRates: 0 },
+      );
       expect(one.active['staff.rating_enabled']).toBe(true);
       expect(one.active['staff.anomalies_enabled']).toBe(false);
       expect(one.active['staff.piecework_enabled']).toBe(false);
 
-      const team = resolveStaffSettings({}, { staff: 2, activeRates: 1 });
+      const team = resolveStaffSettings(
+        {},
+        { staff: 2, activeRates: 1, aiKey: false },
+      );
       expect(team.active).toEqual({
         'staff.rating_enabled': true,
         'staff.piecework_enabled': true,
         'staff.anomalies_enabled': true,
+        'staff.lease_enabled': true,
+        'staff.presence_enabled': true,
+        'staff.ai_enabled': false,
       });
+      // AI: the key is the signal; «Вкл» without a key still means «exists»
+      // for the switch (the client then reports «not configured»).
+      const keyed = resolveStaffSettings({}, { ...SIGNALS, aiKey: true });
+      expect(keyed.active['staff.ai_enabled']).toBe(true);
+      expect(keyed.switches['staff.ai_enabled']).toBe(true);
+      expect(keyed.switches['staff.ai_qa_enabled']).toBe(true);
+      expect(one.switches['staff.ai_qa_enabled']).toBe(false);
       expect(
         staffAutoSignalHolds('staff.piecework_enabled', {
+          ...SIGNALS,
           staff: 9,
-          activeRates: 0,
         }),
       ).toBe(false);
     });
@@ -151,11 +173,12 @@ describe('staff settings (staff package T1, plan part D)', () => {
     });
 
     it('the service counts staff and active rates only while something stands on «Авто», and a failed count means «does not run», never «hidden»', async () => {
-      const auto = service({}, { staff: 2, rates: 1 });
+      const auto = service({}, { staff: 2, rates: 1, aiKey: true });
       const s = await auto.svc.get();
       expect(s.active['staff.rating_enabled']).toBe(true);
       expect(s.active['staff.piecework_enabled']).toBe(true);
       expect(await auto.svc.isActive('staff.anomalies_enabled')).toBe(true);
+      expect(await auto.svc.isActive('staff.ai_enabled')).toBe(true);
       expect(await auto.svc.isOn('staff.rating_enabled')).toBe(true);
 
       const fixed = service(
@@ -163,8 +186,11 @@ describe('staff settings (staff package T1, plan part D)', () => {
           'staff.rating_enabled': 'on',
           'staff.piecework_enabled': 'off',
           'staff.anomalies_enabled': 'off',
+          'staff.lease_enabled': 'on',
+          'staff.presence_enabled': 'on',
+          'staff.ai_enabled': 'off',
         },
-        { staff: 2, rates: 1 },
+        { staff: 2, rates: 1, aiKey: true },
       );
       await fixed.svc.get();
       expect(
@@ -247,6 +273,7 @@ describe('staff settings (staff package T1, plan part D)', () => {
     const subOnly = resolveStaffSettings({
       'staff.ai_qa_enabled': true,
       'staff.ai_hint_enabled': true,
+      'staff.lease_enabled': 'off',
       'staff.lease_support_enabled': true,
     });
     expect(subOnly.switches['staff.ai_qa_enabled']).toBe(false);
@@ -259,7 +286,14 @@ describe('staff settings (staff package T1, plan part D)', () => {
       'staff.lease_support_enabled': true,
     });
     expect(withMaster.switches['staff.ai_qa_enabled']).toBe(true);
-    expect(withMaster.switches['staff.ai_summary_enabled']).toBe(false);
+    // on by default since 2026-11-09; a stored false switches it off
+    expect(withMaster.switches['staff.ai_summary_enabled']).toBe(true);
+    expect(
+      resolveStaffSettings({
+        'staff.ai_enabled': true,
+        'staff.ai_summary_enabled': false,
+      }).switches['staff.ai_summary_enabled'],
+    ).toBe(false);
     expect(withMaster.switches['staff.lease_support_enabled']).toBe(true);
   });
 
@@ -295,12 +329,14 @@ describe('staff settings (staff package T1, plan part D)', () => {
     }
   });
 
-  it('GET admin/staff/settings returns the resolved switches (owner pages on, workflow off) and numbers', async () => {
+  it('GET admin/staff/settings returns the resolved switches (on; AI off without a key; auto-warning off) and numbers', async () => {
     const { svc } = service();
     const out = await new StaffSettingsController(svc).getStaffSettings();
     expect(out.switches['staff.owner_home_enabled']).toBe(true);
     expect(out.switches['staff.rating_enabled']).toBe(true);
-    expect(out.switches['staff.desk_enabled']).toBe(false);
+    expect(out.switches['staff.desk_enabled']).toBe(true);
+    expect(out.switches['staff.ai_enabled']).toBe(false);
+    expect(out.switches['staff.auto_apply_enabled']).toBe(false);
     expect(out.numbers['staff.rating.window_days']).toBe(30);
   });
 });

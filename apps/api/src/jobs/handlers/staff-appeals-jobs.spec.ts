@@ -43,10 +43,10 @@ describe('staff.retaliation-expire (T6)', () => {
 });
 
 describe('staff.head-score (T6)', () => {
-  it('switch off (the default): returns at once', async () => {
+  it('switch off (stored false; on by default since 2026-11-09): returns at once', async () => {
     const svc = { run: jest.fn() };
     const job = new StaffHeadScoreJob(
-      settings(),
+      settings({ 'staff.head_enabled': false }),
       svc as unknown as StaffHeadScoreService,
     );
     await expect(job.run(NOW)).resolves.toEqual({ skipped: 'off' });

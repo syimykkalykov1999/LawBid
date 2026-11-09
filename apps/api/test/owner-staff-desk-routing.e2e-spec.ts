@@ -11,6 +11,7 @@ import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { STAFF_RECORDER } from '../src/modules/staff-core/staff-recorder.port';
 import { SupportService } from '../src/modules/support/support.service';
 import { adminSession, type AdminSession } from './support/admin-login';
+import { staffAllOff } from '../src/modules/staff-core/staff-settings.test-support';
 
 /**
  * Staff package T4 (queues on the routing engine): a decision made on a card
@@ -65,7 +66,9 @@ describe('Staff desk routing (e2e)', () => {
     base = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
     const real = app.get(AppSettingsService);
-    jest.spyOn(real, 'all').mockImplementation(() => Promise.resolve(stored));
+    jest
+      .spyOn(real, 'all')
+      .mockImplementation(() => Promise.resolve(staffAllOff(stored)));
     const realBool = real.boolean.bind(real);
     jest
       .spyOn(real, 'boolean')

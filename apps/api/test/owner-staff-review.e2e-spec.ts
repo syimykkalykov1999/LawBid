@@ -8,6 +8,7 @@ import { AppSettingsService } from '../src/common/app-settings/app-settings.serv
 import { StaffSamplingService } from '../src/modules/staff-rating/staff-sampling.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { adminSession, type AdminSession } from './support/admin-login';
+import { staffAllOff } from '../src/modules/staff-core/staff-settings.test-support';
 
 /**
  * Staff package T9 (re-check loop): leased samples (two reviewers never get
@@ -89,7 +90,9 @@ describe('Staff re-check loop (e2e)', () => {
     prisma = app.get(PrismaService);
     sampling = app.get(StaffSamplingService);
     const real = app.get(AppSettingsService);
-    jest.spyOn(real, 'all').mockImplementation(() => Promise.resolve(stored));
+    jest
+      .spyOn(real, 'all')
+      .mockImplementation(() => Promise.resolve(staffAllOff(stored)));
     const realBool = real.boolean.bind(real);
     jest
       .spyOn(real, 'boolean')

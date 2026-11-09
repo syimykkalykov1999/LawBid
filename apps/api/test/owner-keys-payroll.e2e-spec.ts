@@ -18,6 +18,7 @@ import {
   adminStepUp,
   type AdminSession,
 } from './support/admin-login';
+import { storeStaffSwitches } from './support/staff-switches';
 
 /**
  * Owner 2026-10-05:
@@ -33,6 +34,7 @@ jest.setTimeout(120_000);
 describe('Key sets + payroll (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let restoreStaff: () => Promise<void> = async () => undefined;
   let secrets: SecretsService;
   let flags: FeatureFlagsService;
   let base = '';
@@ -56,6 +58,12 @@ describe('Key sets + payroll (e2e)', () => {
     const { port } = (app.getHttpServer() as Server).address() as AddressInfo;
     base = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
+    // Legacy rights model (no workspace scoping): staff.workspaces_enabled
+    // is on by default since 2026-11-09, so this suite stores it off.
+    restoreStaff = await storeStaffSwitches(app, {
+      'staff.workspaces_enabled': false,
+      'staff.head_enabled': false,
+    });
     secrets = app.get(SecretsService);
     flags = app.get(FeatureFlagsService);
     // Payroll's Stripe part must use the dev stand-in, never real keys.
@@ -65,6 +73,7 @@ describe('Key sets + payroll (e2e)', () => {
   });
 
   afterAll(async () => {
+    await restoreStaff();
     await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
   });
 

@@ -46,7 +46,10 @@ const event = (o: object = {}) => ({
 
 describe('StaffRecorderService', () => {
   it('switch «Выкл», or «Авто» (the default) without staff: no Redis command, no query', async () => {
-    for (const stored of [{ 'staff.rating_enabled': 'off' }, {}]) {
+    for (const stored of [
+      { 'staff.rating_enabled': 'off' },
+      { 'staff.rating_enabled': 'auto' },
+    ]) {
       const { redis, rec } = make(stored);
       await rec.record(event());
       await rec.signal(ADMIN, 'reopened', 'support_ticket', ITEM);

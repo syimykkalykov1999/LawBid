@@ -13,6 +13,7 @@ import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { LeaseService } from '../src/modules/work-lease/lease.service';
 import { StaffPresenceService } from '../src/modules/work-lease/staff-presence.service';
 import { adminSession, type AdminSession } from './support/admin-login';
+import { staffAllOff } from '../src/modules/staff-core/staff-settings.test-support';
 
 /**
  * Staff package T3 (routing engine): «Следующий» for support, verification,
@@ -77,7 +78,9 @@ describe('Staff work leases (e2e)', () => {
     presence = app.get(StaffPresenceService);
     // The staff switches come from this object (default: nothing stored = all off).
     const real = app.get(AppSettingsService);
-    jest.spyOn(real, 'all').mockImplementation(() => Promise.resolve(stored));
+    jest
+      .spyOn(real, 'all')
+      .mockImplementation(() => Promise.resolve(staffAllOff(stored)));
     // …and the guard reads single switches (workspaces / head) through boolean().
     const realBool = real.boolean.bind(real);
     jest

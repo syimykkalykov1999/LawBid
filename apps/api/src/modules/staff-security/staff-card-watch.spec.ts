@@ -3,6 +3,7 @@ import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { StaffAnomalyService } from './staff-anomaly.service';
 import { StaffCardWatch } from './staff-card-watch';
 import { utcDay } from './staff-security.util';
+import { staffAllOff } from '../staff-core/staff-settings.test-support';
 
 function fake(stored: Record<string, unknown> = {}, lease: unknown = null) {
   const counters = new Map<string, number>();
@@ -45,7 +46,7 @@ function fake(stored: Record<string, unknown> = {}, lease: unknown = null) {
   };
   const workLease = { findFirst: jest.fn(() => Promise.resolve(lease)) };
   const staff = new StaffSettingsService({
-    all: () => Promise.resolve(stored),
+    all: () => Promise.resolve(staffAllOff(stored)),
   } as unknown as AppSettingsService);
   const watch = new StaffCardWatch(
     redis as never,

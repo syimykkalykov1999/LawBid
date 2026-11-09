@@ -1,15 +1,14 @@
 // Staff package T1 (2026-10-27, docs/architecture/ADMIN_STAFF_PACKAGE_PLAN_2026-10-27.md
 // part D): every switch and number of «Админка и сотрудники» lives in
 // app_config, changed from the admin (Настройки) without a release.
-//  - Switches (`staff.*_enabled`): the ones that change how the staff WORK
-//    (workspaces, desk, leases, presence, masking, AI, …) are OFF until the
-//    owner turns them on one by one (guide «Как включать по порядку»).
-//    Owner 2026-11-08 (rule 5c, «built features work, never hidden»): the
-//    owner's own pages («Сегодня», people and rating, complaints against
-//    heads, piecework rates) are ON by default, and the three that cost
-//    server work or move money are three-state Выкл / Вкл / Авто with
-//    «Авто» as the default (`STAFF_MODE_AUTO_RULE` says what Авто decides
-//    on; common/app-settings/switch-mode.ts is the shared parser).
+//  - Switches (`staff.*_enabled`). Owner 2026-11-08/09 (rule 5c, «built
+//    features work, never hidden»): every switch is ON by default; the ones
+//    that cost server work, need data or spend money are three-state
+//    Выкл / Вкл / Авто with «Авто» as the default (`STAFF_MODE_AUTO_RULE`
+//    says what Авто decides on; common/app-settings/switch-mode.ts is the
+//    shared parser). The single exception is `staff.auto_apply_enabled`
+//    (the only automatic action against a person): OFF until the owner
+//    trusts the rating.
 //  - Numbers start at the research values (plan D2); the admin may change
 //    them only inside [min, max] (config-schema.ts checks on save, and
 //    StaffSettingsService clamps on read, so a bad stored value cannot
@@ -20,43 +19,43 @@ import type { SwitchMode } from './switch-mode';
 
 /** Defaults. A literal object so `AppSettingKey` keeps the exact keys. */
 export const OWNER_STAFF_SETTINGS = {
-  // --- D1 switches: workflow of the staff (OFF until the owner enables) ---
-  'staff.workspaces_enabled': false,
-  'staff.desk_enabled': false,
-  'staff.lease_enabled': false,
-  'staff.lease_support_enabled': false,
-  'staff.lease_verification_enabled': false,
-  'staff.lease_report_enabled': false,
-  'staff.lease_appeal_enabled': false,
-  'staff.lease_finance_enabled': false,
-  'staff.presence_enabled': false,
-  'staff.push_offer_enabled': false,
+  // --- D1 switches (all on / Авто, except the auto-warning) ---
+  'staff.workspaces_enabled': true,
+  'staff.desk_enabled': true,
+  'staff.lease_enabled': 'auto' as SwitchMode,
+  'staff.lease_support_enabled': true,
+  'staff.lease_verification_enabled': true,
+  'staff.lease_report_enabled': true,
+  'staff.lease_appeal_enabled': true,
+  'staff.lease_finance_enabled': true,
+  'staff.presence_enabled': 'auto' as SwitchMode,
+  'staff.push_offer_enabled': true,
   'staff.rating_enabled': 'auto' as SwitchMode,
   'staff.suggestions_enabled': true,
   'staff.auto_apply_enabled': false,
-  'staff.sampling_enabled': false,
-  'staff.golden_enabled': false,
-  'staff.peer_check_enabled': false,
-  'staff.trust_tiers_enabled': false,
-  'staff.head_enabled': false,
+  'staff.sampling_enabled': true,
+  'staff.golden_enabled': true,
+  'staff.peer_check_enabled': true,
+  'staff.trust_tiers_enabled': true,
+  'staff.head_enabled': true,
   'staff.appeals_enabled': true,
   'staff.case_appeals_enabled': true,
   'staff.piecework_enabled': 'auto' as SwitchMode,
   'staff.worker_progress_enabled': true,
-  'staff.masking_enabled': false,
-  'staff.watermark_enabled': false,
-  'staff.export_block_enabled': false,
-  'staff.session_binding_enforce_enabled': false,
+  'staff.masking_enabled': true,
+  'staff.watermark_enabled': true,
+  'staff.export_block_enabled': true,
+  'staff.session_binding_enforce_enabled': true,
   'staff.anomalies_enabled': 'auto' as SwitchMode,
   'staff.owner_home_enabled': true,
-  'staff.nav_groups_enabled': false,
-  'staff.pins_enabled': false,
+  'staff.nav_groups_enabled': true,
+  'staff.pins_enabled': true,
   'staff.weekly_digest_enabled': true,
-  'staff.forecast_enabled': false,
-  'staff.ai_enabled': false,
-  'staff.ai_qa_enabled': false,
-  'staff.ai_hint_enabled': false,
-  'staff.ai_summary_enabled': false,
+  'staff.forecast_enabled': true,
+  'staff.ai_enabled': 'auto' as SwitchMode,
+  'staff.ai_qa_enabled': true,
+  'staff.ai_hint_enabled': true,
+  'staff.ai_summary_enabled': true,
   // --- D2 numbers: rating and quality ---
   'staff.rating.window_days': 30,
   'staff.rating.min_decisions': 30,
@@ -176,6 +175,12 @@ export const STAFF_MODE_AUTO_RULE: Readonly<Record<StaffModeKey, string>> = {
     'Авто: начисление в «Зарплаты» идёт, когда задана хоть одна ставка на странице «Ставки за решения»; без ставок ночная задача ничего не считает и денег не двигает',
   'staff.anomalies_enabled':
     'Авто: детектор работает, когда сотрудников кроме владельца не меньше двух (медиана группы из одного человека ничего не значит); иначе отчёт не строится',
+  'staff.lease_enabled':
+    'Авто: раздача «Следующий» с закреплением включена, а её ежеминутная уборка просроченных закреплений идёт, когда в админке есть хоть один сотрудник кроме владельца; без сотрудников — ни одного запроса',
+  'staff.presence_enabled':
+    'Авто: статусы «на связи / отошёл» принимаются, когда есть хоть один сотрудник кроме владельца; без сотрудников сигналы не принимаются и ничего не хранится',
+  'staff.ai_enabled':
+    'Авто: режим ИИ работает (и тратит деньги в пределах потолка staff.ai.monthly_cents), когда в «Ключи и сервисы» задан ключ Anthropic; без ключа — ни одного вызова ИИ',
 };
 export const STAFF_MODE_KEYS = Object.keys(
   STAFF_MODE_AUTO_RULE,
