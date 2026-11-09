@@ -17,6 +17,11 @@ interface Opts {
   /** AWS Budgets actual spend so far this month (null = unreadable). */
   awsActual?: number | null;
   awsForecast?: number | null;
+  /** The AWS budget (AWS Budgets limit), default $200. */
+  awsBudget?: number;
+  /** Owner 2026-11-08: a fresh Twilio reading with this month forecast,
+   * the simplest third-party spend. */
+  thirdPartyForecast?: number;
   smsMonth?: number;
   idCheckMonth?: number;
   /** Vendor readings from the spend snapshot (S9-1). */
@@ -31,6 +36,17 @@ interface Opts {
   mode?: 'auto' | 'manual';
   /** R-369: the shared admin summary (absent = no cache). */
   summary?: AdminSummaryService;
+}
+
+/** A fresh Twilio reading: [forecast] for the month, half spent. */
+function twilio(forecast: number) {
+  return {
+    id: 'twilio',
+    status: 'ok',
+    monthToDateUsd: forecast / 2,
+    forecastUsd: forecast,
+    updatedAt: NOW.toISOString(),
+  };
 }
 
 function setup(o: Opts = {}) {
@@ -74,7 +90,7 @@ function setup(o: Opts = {}) {
         : {
             actualUsd: o.awsActual,
             forecastUsd: o.awsForecast ?? null,
-            limitUsd: 200,
+            limitUsd: o.awsBudget ?? 200,
             checkedAt: NOW.toISOString(),
           },
     ),
@@ -205,7 +221,14 @@ function setup(o: Opts = {}) {
     put: jest.fn(async () => undefined),
   };
   const spend = {
-    report: jest.fn(async () => ({ vendors: o.vendors ?? [] })),
+    report: jest.fn(async () => ({
+      vendors: [
+        ...(o.vendors ?? []),
+        ...(o.thirdPartyForecast === undefined
+          ? []
+          : [twilio(o.thirdPartyForecast)]),
+      ],
+    })),
   };
 
   const svc = new EconomyService(
@@ -379,10 +402,11 @@ describe('EconomyService.tick', () => {
     expect(t.logger.warn).not.toHaveBeenCalled();
   });
 
-  it('switches the guard on above the rule: floors caps, scales to min, alerts', async () => {
+  it('switches the guard on above the rule: floors caps, alerts, never caps containers', async () => {
     const t = setup({
-      awsActual: 150,
-      awsForecast: 400,
+      awsActual: 50,
+      awsForecast: 100,
+      thirdPartyForecast: 400,
       stored: { 'budget.sms.daily_max': 900 },
     });
     await t.svc.tick(NOW);
@@ -393,8 +417,9 @@ describe('EconomyService.tick', () => {
       before: 900,
       set: 100,
     });
-    expect(t.aws.setScale).toHaveBeenCalledWith('min');
-    expect(t.scale()).toMatchObject({ mode: 'min', source: 'economy' });
+    // Owner 2026-11-08: high third-party spend alone never caps containers.
+    expect(t.aws.setScale).not.toHaveBeenCalledWith('min');
+    expect(t.scale()).toBeNull();
     expect(t.events.map((e) => e.kind)).toContain('guard_on');
     expect(t.logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ alert: 'economy_guard_on' }),
@@ -404,8 +429,9 @@ describe('EconomyService.tick', () => {
 
   it('never raises a provider the owner switched off (cap 0)', async () => {
     const t = setup({
-      awsActual: 150,
-      awsForecast: 400,
+      awsActual: 50,
+      awsForecast: 100,
+      thirdPartyForecast: 400,
       stored: { 'budget.video.daily_max': 0 },
     });
     await t.svc.tick(NOW);
@@ -413,7 +439,11 @@ describe('EconomyService.tick', () => {
   });
 
   it('is idempotent: a second tick over the line changes nothing more', async () => {
-    const t = setup({ awsActual: 150, awsForecast: 400 });
+    const t = setup({
+      awsActual: 50,
+      awsForecast: 100,
+      thirdPartyForecast: 400,
+    });
     await t.svc.tick(NOW);
     t.aws.setScale.mockClear();
     t.ops.pushEconomyEvent.mockClear();
@@ -424,62 +454,57 @@ describe('EconomyService.tick', () => {
 
   it('releases below 90 % of the allowance and restores the caps', async () => {
     const t = setup({
-      awsActual: 150,
-      awsForecast: 400,
+      awsActual: 50,
+      awsForecast: 100,
+      thirdPartyForecast: 400,
       stored: { 'budget.sms.daily_max': 900 },
     });
     await t.svc.tick(NOW);
-    // Spend drops: new setup values via the cost mock.
-    t.ops.cost.mockResolvedValue({
-      actualUsd: 60,
-      forecastUsd: 100,
-      limitUsd: 200,
-      checkedAt: NOW.toISOString(),
-    });
+    // Third-party spend drops.
+    t.spend.report.mockResolvedValue({ vendors: [twilio(60)] });
     await t.svc.tick(NOW);
     expect(t.state()?.guard).toBe('ok');
     expect(t.stored['budget.sms.daily_max']).toBe(900);
     expect(t.events.map((e) => e.kind)).toEqual(
       expect.arrayContaining(['guard_on', 'guard_off']),
     );
-    // The ceiling is the rule's again, not the minimum.
+    // The container ceiling followed the AWS budget all along.
     expect(t.aws.setCeilings).toHaveBeenCalled();
-    expect(t.scale()).toMatchObject({ mode: 'normal', source: 'economy' });
+    expect(t.aws.setScale).not.toHaveBeenCalled();
   });
 
   it('keeps hysteresis: still limited between 90 % and 100 %', async () => {
-    const t = setup({ awsActual: 150, awsForecast: 400 });
-    await t.svc.tick(NOW);
-    t.ops.cost.mockResolvedValue({
-      actualUsd: 100,
-      forecastUsd: 145, // 96 % of $150
-      limitUsd: 200,
-      checkedAt: NOW.toISOString(),
+    const t = setup({
+      awsActual: 50,
+      awsForecast: 100,
+      thirdPartyForecast: 400,
     });
+    await t.svc.tick(NOW);
+    t.spend.report.mockResolvedValue({ vendors: [twilio(145)] }); // 96 % of $150
     await t.svc.tick(NOW);
     expect(t.state()?.guard).toBe('limited');
   });
 
   it('does not overwrite a cap an admin edited during the guard', async () => {
     const t = setup({
-      awsActual: 150,
-      awsForecast: 400,
+      awsActual: 50,
+      awsForecast: 100,
+      thirdPartyForecast: 400,
       stored: { 'budget.sms.daily_max': 900 },
     });
     await t.svc.tick(NOW);
     t.stored['budget.sms.daily_max'] = 250; // the admin's edit
-    t.ops.cost.mockResolvedValue({
-      actualUsd: 60,
-      forecastUsd: 100,
-      limitUsd: 200,
-      checkedAt: NOW.toISOString(),
-    });
+    t.spend.report.mockResolvedValue({ vendors: [twilio(60)] });
     await t.svc.tick(NOW);
     expect(t.stored['budget.sms.daily_max']).toBe(250);
   });
 
   it('flag off: releases a running guard and acts no more', async () => {
-    const on = setup({ awsActual: 150, awsForecast: 400 });
+    const on = setup({
+      awsActual: 50,
+      awsForecast: 100,
+      thirdPartyForecast: 400,
+    });
     await on.svc.tick(NOW);
     // Same instance, flag now off.
     (on.svc as unknown as { flags: { isEnabled: jest.Mock } }).flags.isEnabled =
@@ -500,11 +525,12 @@ describe('EconomyService.tick', () => {
     expect(t.aws.setScale).not.toHaveBeenCalled();
   });
 
-  it('auto ceiling: rises only gradually, up to what the rule pays', async () => {
+  it('auto ceiling: rises only gradually, up to what the AWS budget pays', async () => {
     const t = setup({
       revenueCents: 10_000_000, // $100k → allowed $50k
       awsActual: 50,
       awsForecast: 100,
+      awsBudget: 50_000,
     });
     await t.svc.tick(NOW);
     // First application takes the target (cap 50 / 20)…
@@ -517,6 +543,7 @@ describe('EconomyService.tick', () => {
       revenueCents: 10_000_000,
       awsActual: 50,
       awsForecast: 100,
+      awsBudget: 50_000,
     });
     await t.ops.setCeiling({
       api: 4,
@@ -536,7 +563,12 @@ describe('EconomyService.tick', () => {
   });
 
   it('off AWS (local Mac, CI) it only evaluates, never touches ECS', async () => {
-    const t = setup({ onAws: false, awsActual: 150, awsForecast: 400 });
+    const t = setup({
+      onAws: false,
+      awsActual: 50,
+      awsForecast: 100,
+      thirdPartyForecast: 400,
+    });
     await t.svc.tick(NOW);
     expect(t.state()?.guard).toBe('limited');
     expect(t.aws.setScale).not.toHaveBeenCalled();
@@ -556,6 +588,107 @@ describe('EconomyService.tick', () => {
     expect(t.logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ alert: 'capacity_pressure', kind: 'db_cpu' }),
       expect.any(String),
+    );
+  });
+});
+
+describe('EconomyService: two brakes, each braking only what it controls (owner 2026-11-08)', () => {
+  it('figures: third-party, AWS and the combined total apart', async () => {
+    const f = await setup({
+      awsActual: 80,
+      awsForecast: 160,
+      awsBudget: 450,
+      thirdPartyForecast: 40,
+    }).svc.figures(NOW);
+    expect(f.awsProjectedUsd).toBe(160);
+    expect(f.awsLimitUsd).toBe(450);
+    expect(f.thirdPartyProjectedUsd).toBeCloseTo(40, 1);
+    expect(f.projectedUsd).toBeCloseTo(200, 1);
+    expect(f.allowedUsd).toBe(150);
+  });
+
+  it('a high AWS forecast alone never pauses video uploads or SMS', async () => {
+    const t = setup({
+      awsActual: 150,
+      awsForecast: 441,
+      awsBudget: 200,
+      stored: { 'budget.sms.daily_max': 900, 'budget.video.daily_max': 900 },
+    });
+    await t.svc.tick(NOW);
+    expect(t.state()?.guard ?? 'ok').toBe('ok');
+    expect(t.stored['budget.sms.daily_max']).toBe(900);
+    expect(t.stored['budget.video.daily_max']).toBe(900);
+    expect(t.events.map((e) => e.kind)).not.toContain('guard_on');
+    // …it caps AWS only: containers at the minimum, with its own text.
+    expect(t.aws.setScale).toHaveBeenCalledWith('min');
+    expect(t.scale()).toMatchObject({ mode: 'min', source: 'economy' });
+    const ceiling = t.events.find((e) => e.kind === 'ceiling');
+    expect(ceiling?.text).toContain('Счёт AWS');
+    expect(ceiling?.text).toContain('Видео и SMS этот тормоз не трогает');
+  });
+
+  it('high third-party spend alone never caps containers', async () => {
+    const t = setup({
+      awsActual: 50,
+      awsForecast: 100,
+      awsBudget: 450,
+      thirdPartyForecast: 400,
+    });
+    await t.svc.tick(NOW);
+    expect(t.state()?.guard).toBe('limited');
+    expect(t.aws.setScale).not.toHaveBeenCalled();
+    expect(t.aws.setCeilings).toHaveBeenCalled();
+    const on = t.events.find((e) => e.kind === 'guard_on');
+    expect(on?.text).toContain('сторонние платные сервисы');
+    expect(on?.text).toContain(
+      'Серверы, база и Redis AWS этот тормоз не трогает',
+    );
+  });
+
+  it('the AWS brake keeps hysteresis: held between 90 % and 100 % of the budget, released below', async () => {
+    const t = setup({ awsActual: 150, awsForecast: 441, awsBudget: 450 });
+    t.ops.cost.mockResolvedValue({
+      actualUsd: 150,
+      forecastUsd: 460,
+      limitUsd: 450,
+      checkedAt: NOW.toISOString(),
+    });
+    await t.svc.tick(NOW);
+    expect(t.scale()).toMatchObject({ mode: 'min', source: 'economy' });
+    t.ops.cost.mockResolvedValue({
+      actualUsd: 150,
+      forecastUsd: 430, // 96 % of $450
+      limitUsd: 450,
+      checkedAt: NOW.toISOString(),
+    });
+    await t.svc.tick(NOW);
+    expect(t.scale()).toMatchObject({ mode: 'min', source: 'economy' });
+    t.ops.cost.mockResolvedValue({
+      actualUsd: 150,
+      forecastUsd: 300,
+      limitUsd: 450,
+      checkedAt: NOW.toISOString(),
+    });
+    await t.svc.tick(NOW);
+    expect(t.scale()).toMatchObject({ mode: 'normal', source: 'economy' });
+  });
+
+  it('DB / Redis money ceilings follow the AWS budget, not the third-party allowance', async () => {
+    const t = setup({ awsActual: 50, awsForecast: 100, awsBudget: 450 });
+    const ssm = {
+      available: true,
+      maxClassParam: jest.fn((target: string) => `/p/${target}`),
+      get: jest.fn(async () => null),
+      put: jest.fn(async () => undefined),
+    };
+    (t.svc as unknown as { ssm: unknown }).ssm = ssm;
+    (
+      t.svc as unknown as { settingsSvc: { string: jest.Mock } }
+    ).settingsSvc.string = jest.fn(async () => 'auto');
+    await t.svc.tick(NOW);
+    expect(t.logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ awsLimitUsd: 450 }),
+      'autoscale money ceiling updated',
     );
   });
 });
