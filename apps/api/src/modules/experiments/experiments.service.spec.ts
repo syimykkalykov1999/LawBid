@@ -95,4 +95,63 @@ describe('ExperimentsService', () => {
     expect(inside / 5000).toBeGreaterThan(0.08);
     expect(inside / 5000).toBeLessThan(0.12);
   });
+
+  // Owner 2026-11-08: the ranking code asks by surface, not by key.
+  describe('assignSurface / assignAll', () => {
+    const withWeights = (over: Record<string, unknown> = {}) =>
+      running({
+        surface: 'case_feed',
+        variants: [
+          { key: 'control', weight: 50 },
+          { key: 'new_formula', weight: 50, weights: { urgency: 0.9 } },
+        ],
+        ...over,
+      });
+
+    it('finds the running test of the surface and carries the variant weights', async () => {
+      const { svc } = build([withWeights()]);
+      const seen = new Set<string>();
+      for (let i = 0; i < 40; i++) {
+        const a = await svc.assignSurface(`u${i}`, 'case_feed');
+        expect(a?.experimentKey).toBe('case_feed_v2');
+        seen.add(a!.variant);
+        if (a!.variant === 'new_formula') {
+          expect(a!.weights).toEqual({ urgency: 0.9 });
+        } else {
+          expect(a!.weights).toBeUndefined();
+        }
+        // Stable for the same unit.
+        expect((await svc.assignSurface(`u${i}`, 'case_feed'))?.variant).toBe(
+          a!.variant,
+        );
+      }
+      expect(seen).toEqual(new Set(['control', 'new_formula']));
+      expect(await svc.assignSurface('u1', 'people')).toBeNull();
+    });
+
+    it('an action tag (expose: false) records no exposure', async () => {
+      const { svc, createMany } = build([withWeights()]);
+      const tags = await svc.assignAll('user-9', { expose: false });
+      expect(tags).toHaveLength(1);
+      await svc.flushExposures();
+      expect(createMany).not.toHaveBeenCalled();
+      await svc.assignSurface('user-9', 'case_feed');
+      await svc.flushExposures();
+      expect(createMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('control never applies weights, whatever is stored', async () => {
+      const { svc } = build([
+        withWeights({
+          variants: [
+            { key: 'control', weight: 100, weights: { urgency: 1 } },
+            { key: 'x', weight: 0 },
+          ],
+        }),
+      ]);
+      const a = await svc.assignSurface('u1', 'case_feed');
+      expect(a?.variant).toBe('control');
+      expect(a?.weights).toBeUndefined();
+    });
+  });
 });

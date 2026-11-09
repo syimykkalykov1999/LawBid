@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/keep_alive_for.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/features/cases/workspace/case_files_outbox.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
     show socialRepositoryProvider;
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -143,20 +144,31 @@ class CaseWorkspaceActions {
     return out;
   }
 
+  /// Owner 2026-11-08 (instant, the app's own queue): an update with files
+  /// is a job of the persistent upload queue — it returns as soon as it is
+  /// queued, the files go up after the sheet is gone (and after a restart),
+  /// and the update is written once (the job id is its Idempotency-Key).
+  /// A text-only update is written at once, as before.
   Future<void> addUpdate(
     String caseId,
     String body,
     List<PickedCaseFile> files,
   ) async {
-    final uploaded = await _upload(files);
+    if (files.isNotEmpty) {
+      await _ref.read(caseFilesOutboxProvider).submit(caseId, body, files);
+      return;
+    }
     await guardApiCall(
       () => _c.addCaseUpdate(
         id: caseId,
-        body: api.CreateCaseUpdateDto(body: body, files: uploaded),
+        body: api.CreateCaseUpdateDto(body: body, files: const []),
       ),
     );
     _refresh(caseId);
   }
+
+  /// What shows the case's workspace reads again.
+  void refresh(String caseId) => _refresh(caseId);
 
   Future<void> markUpdatesSeen(String caseId) async {
     // Owner 2026-11-05: the case screen shows no «new» number any more, so
