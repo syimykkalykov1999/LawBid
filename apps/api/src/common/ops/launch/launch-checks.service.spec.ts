@@ -163,9 +163,11 @@ describe('LaunchChecksService', () => {
       obsolete: true,
       limitUsd: 50,
     };
-    expect(
-      (await item(make({ budgets: [row(1), old] }).svc, 'old_budget')).status,
-    ).toBe('red');
+    const red = await item(make({ budgets: [row(1), old] }).svc, 'old_budget');
+    expect(red.status).toBe('red');
+    // Owner 2026-11-08: the owner deletes it alone with his 2FA code.
+    expect(red.hint).toContain('2FA');
+    expect(red.hint).not.toMatch(/втор/i);
     expect(
       (await item(make({ budgets: [row(1)] }).svc, 'old_budget')).status,
     ).toBe('green');

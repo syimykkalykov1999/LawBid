@@ -75,6 +75,7 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   turn_second_enabled: bool('turn_second_enabled'),
   livekit_enabled: bool('livekit_enabled'),
   db_pooler_enabled: bool('db_pooler_enabled'),
+  partition_role_enabled: bool('partition_role_enabled'),
   security_hub_enabled: bool('security_hub_enabled'),
   inspector_enabled: bool('inspector_enabled'),
   config_enabled: bool('config_enabled'),
@@ -216,6 +217,15 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
       on: { db_pooler_enabled: true },
     },
     impact: 'Серверы API перезапускаются по очереди (без перерыва).',
+  },
+  {
+    id: 'aws.partition_role',
+    values: {
+      off: { partition_role_enabled: false },
+      on: { partition_role_enabled: true },
+    },
+    impact:
+      'Без перерыва: фоновые серверы перезапускаются по очереди и получают вход для деления больших таблиц.',
   },
   {
     id: 'aws.security_hub',

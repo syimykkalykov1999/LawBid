@@ -18,6 +18,7 @@ import { assessShardGrowth, type ShardGrowth } from '../sharding/shard-growth';
 import { parseShardDatabaseUrls } from '../sharding/shard-databases';
 import { buildMoveTables } from '../sharding/move/move-plan';
 import { prismaSql, sharedSql, type SqlDb } from './sql';
+import { partitionDatabaseUrl } from './partition-url';
 
 /** Months kept ahead of today by the daily job. */
 export const MONTHS_AHEAD = 2;
@@ -38,6 +39,14 @@ export const MODE_TABLES: readonly PartitionSpec[] = [
   ...HASH_PARTITIONED,
   ...PARTITION_TABLES.filter((s) => s.table === 'post_view_events'),
 ];
+
+/** Append-only security journals: the runner's role never owns them (the
+ * owner of audit_log could switch its tamper-evident chain off). */
+const SECURITY_JOURNALS: ReadonlySet<string> = new Set([
+  'audit_log',
+  'auth_events',
+  'data_access_log',
+]);
 
 export type PartitionCardState =
   | 'monthly' // partitioned by the migration or by the runner
@@ -181,8 +190,7 @@ export class PartitionService implements OnModuleDestroy {
   }
 
   private url(): string | undefined {
-    const v = this.config.get<string>('PARTITION_DATABASE_URL');
-    return v && v.length > 0 ? v : undefined;
+    return partitionDatabaseUrl((k) => this.config.get<string>(k));
   }
 
   get runnerConfigured(): boolean {
@@ -193,7 +201,7 @@ export class PartitionService implements OnModuleDestroy {
     const url = this.url();
     if (!url) {
       throw new Error(
-        'Не настроен PARTITION_DATABASE_URL (роль-владелец таблиц). См. docs/runbooks/table-partitioning.md.',
+        'Не настроен вход роли lawbid_partition (PARTITION_DB_PASSWORD или PARTITION_DATABASE_URL). Включается сам: docs/runbooks/table-partitioning.md.',
       );
     }
     this.rw ??= prismaSql(url);
@@ -377,6 +385,14 @@ export class PartitionService implements OnModuleDestroy {
     const pre = await read
       .precheck(spec)
       .catch((e: Error) => ({ ok: false, reasons: [e.message] }));
+    // Automation audit 2026-11-08: the runner can only convert a table its
+    // tables role owns (20261112110000 / 20261120090000). Say so instead of
+    // offering a «Запустить» that fails with «must be owner».
+    const owner = await this.ownerProblem(spec.table);
+    if (owner) {
+      pre.ok = false;
+      pre.reasons = [...pre.reasons, owner];
+    }
     return {
       ...base,
       ...idle,
@@ -384,6 +400,30 @@ export class PartitionService implements OnModuleDestroy {
       blockedBy: pre.reasons,
       canStart: pre.ok && this.runnerConfigured,
     };
+  }
+
+  /** Why the runner may not convert [table] (null = it may). Checked only
+   * where the tables role exists (production); dev / CI own everything. */
+  private async ownerProblem(table: string): Promise<string | null> {
+    try {
+      const r = await this.prisma.$queryRawUnsafe<
+        { owner: string | null; role: boolean }[]
+      >(
+        `SELECT pg_get_userbyid(c.relowner) AS owner,
+                EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lawbid_partition_tables') AS role
+           FROM pg_class c WHERE c.oid = to_regclass($1)`,
+        `public."${table}"`,
+      );
+      const row = r[0];
+      if (!row || !row.role || row.owner === 'lawbid_partition_tables') {
+        return null;
+      }
+      return SECURITY_JOURNALS.has(table)
+        ? 'журнал безопасности: роль деления намеренно им не владеет, делится только миграцией (docs/runbooks/table-partitioning.md)'
+        : 'роль деления не владеет таблицей (миграция не смогла сменить владельца)';
+    } catch {
+      return null;
+    }
   }
 
   /** Health signal: tables over 50 million rows that are not partitioned. */
