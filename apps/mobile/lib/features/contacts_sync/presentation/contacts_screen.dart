@@ -15,6 +15,7 @@ import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_background_sync.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_picker.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/presentation/calls_tab.dart';
@@ -156,7 +157,11 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
             children: [
               const _KeepPage(child: ChatsTab()),
               _KeepPage(
-                child: kIsWeb
+                // B-c2 (c): a browser with the Contact Picker (Chrome on
+                // Android) gets the phone's tab; the others say it is an
+                // app feature, as before.
+                child: kIsWeb &&
+                        !(ref.watch(contactsPickerProvider)?.supported ?? false)
                     ? AppEmptyState(
                         icon: AppIcons.contactPhoneOutlined,
                         message: t.t('phoneContacts.webOnly'),

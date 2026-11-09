@@ -6,6 +6,7 @@ import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_maintenance.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/chat_media_providers.dart';
+import 'package:lawbid/core/cache/web_storage.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
@@ -34,6 +35,8 @@ final cacheMaintenanceProvider = Provider<CacheMaintenance>((ref) {
   );
   return CacheMaintenance(
     db: ref.watch(cacheDatabaseProvider),
+    // B-c2 (e): on the site, its own Cache Storage and the browser's quota.
+    web: WebCaches.forPlatform(),
     pages: ref.watch(socialLocalDatabaseProvider),
     limits: () => ref.read(cacheLimitsProvider),
     http: ref.watch(httpCacheInterceptorProvider),
