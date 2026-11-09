@@ -1,4 +1,5 @@
 import {
+  Inject,
   Optional,
   ConflictException,
   ForbiddenException,
@@ -10,6 +11,12 @@ import {
 import { Prisma, type Review } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ModerationService } from '../moderation/moderation.service';
+import { AutoHoldService } from '../moderation/auto-hold.service';
+import {
+  CONTENT_MODERATION_HOOK,
+  type ContentModerationHook,
+} from '../moderation/content-moderation.hook';
+import { screenContent } from '../moderation/content-screen';
 import { FilesService } from '../files/files.service';
 import { assertUploadCount } from '../files/upload-limits';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -96,7 +103,32 @@ export class ReviewsService {
     @Optional() private readonly outbox?: CrossFamilyOutbox,
     // Replica seam: the public summary may be a few seconds old.
     @Optional() private readonly read?: PrismaReadService,
+    // Feature reality audit 2026-11-08: the admin's moderation rules hold
+    // review texts as they hold posts.
+    @Optional()
+    @Inject(CONTENT_MODERATION_HOOK)
+    private readonly moderationHook?: ContentModerationHook,
+    @Optional() private readonly autoHold?: AutoHoldService,
   ) {}
+
+  /** A held review waits hidden in the moderators' queue. */
+  private async afterSave(
+    authorId: string,
+    reviewId: string,
+    text: string | null,
+    held: boolean,
+  ): Promise<void> {
+    if (text) {
+      await this.moderationHook?.record?.(text, { kind: 'review', authorId });
+    }
+    if (!held) return;
+    await this.autoHold?.queue({
+      targetType: 'review',
+      targetId: reviewId,
+      authorId,
+      rule: 'rules',
+    });
+  }
 
   /**
    * withTxRetry plus `recalc(attorneyId)`: the rating recalculation of
@@ -165,6 +197,12 @@ export class ReviewsService {
       });
     }
     const windowDays = await this.settings.number('review.edit_window_days');
+    const reviewText = dto.body ?? null;
+    const held =
+      (await screenContent(this.moderationHook, reviewText, {
+        kind: 'review',
+        authorId: user.sub,
+      })) === 'hold';
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     try {
       const review = await this.ratingTx(async (tx, recalc) => {
@@ -208,6 +246,7 @@ export class ReviewsService {
           rating: dto.rating,
           body: dto.body ?? null,
           photo_ids: photoIds,
+          ...(held ? { status: 'hidden' as const } : {}),
         };
         if (existing) {
           await tx.reviewHelpfulVote.deleteMany({
@@ -220,7 +259,7 @@ export class ReviewsService {
                 where: { id: existing.id },
                 data: {
                   ...fields,
-                  status: 'published',
+                  status: held ? 'hidden' : 'published',
                   edited_at: null,
                   reply: null,
                   reply_at: null,
@@ -238,24 +277,26 @@ export class ReviewsService {
               }),
         );
         await recalc(bid.attorney_id);
-        await this.notifications.emit(
-          {
-            type: 'review_received',
-            recipientId: bid.attorney_id,
-            payload: {
-              reviewId: created.id,
-              caseId,
-              rating: created.rating,
-              authorDisplayName: reviewerDisplayName(
-                created.client.first_name,
-                created.client.last_name,
-              ),
+        if (!held)
+          await this.notifications.emit(
+            {
+              type: 'review_received',
+              recipientId: bid.attorney_id,
+              payload: {
+                reviewId: created.id,
+                caseId,
+                rating: created.rating,
+                authorDisplayName: reviewerDisplayName(
+                  created.client.first_name,
+                  created.client.last_name,
+                ),
+              },
             },
-          },
-          tx,
-        );
+            tx,
+          );
         return created;
       });
+      await this.afterSave(user.sub, review.id, reviewText, held);
       return this.own(review, windowDays);
     } catch (error) {
       // A concurrent submission with a different Idempotency-Key lost the
@@ -701,8 +742,15 @@ export class ReviewsService {
     if (caseIds.length === 0) throw notWorkedTogether();
     await this.assertCanWrite(user.sub, attorneyId);
     const body = dto.body?.length ? dto.body : null;
+    const reviewText = body;
+    const held =
+      (await screenContent(this.moderationHook, body, {
+        kind: 'review',
+        authorId: user.sub,
+      })) === 'hold';
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     const windowDays = await this.settings.number('review.edit_window_days');
+    let edited = false;
     try {
       const review = await this.ratingTx(async (tx, recalc) => {
         // One counted review per client and attorney: edit it in place.
@@ -716,7 +764,9 @@ export class ReviewsService {
           select: { id: true },
         });
         if (mine) {
-          const edited = await this.withClient(
+          // An edit keeps its status (CONTENT C-3); only «block» refuses it.
+          edited = true;
+          const editedRow = await this.withClient(
             await tx.review.update({
               where: { id: mine.id },
               data: {
@@ -728,7 +778,7 @@ export class ReviewsService {
             }),
           );
           await recalc(attorneyId);
-          return edited;
+          return editedRow;
         }
         // A case whose review its author deleted is reused (UQ
         // reviews.case_id); one moderation removed stays removed.
@@ -753,7 +803,12 @@ export class ReviewsService {
           }
         }
         if (!caseId) throw alreadyExists();
-        const fields = { rating: dto.rating, body, photo_ids: photoIds };
+        const fields = {
+          rating: dto.rating,
+          body,
+          photo_ids: photoIds,
+          ...(held ? { status: 'hidden' as const } : {}),
+        };
         if (revive) {
           await tx.reviewHelpfulVote.deleteMany({
             where: { review_id: revive },
@@ -765,7 +820,7 @@ export class ReviewsService {
                 where: { id: revive },
                 data: {
                   ...fields,
-                  status: 'published',
+                  status: held ? 'hidden' : 'published',
                   edited_at: null,
                   reply: null,
                   reply_at: null,
@@ -783,24 +838,28 @@ export class ReviewsService {
               }),
         );
         await recalc(attorneyId);
-        await this.notifications.emit(
-          {
-            type: 'review_received',
-            recipientId: attorneyId,
-            payload: {
-              reviewId: row.id,
-              caseId,
-              rating: row.rating,
-              authorDisplayName: reviewerDisplayName(
-                row.client.first_name,
-                row.client.last_name,
-              ),
+        if (!held)
+          await this.notifications.emit(
+            {
+              type: 'review_received',
+              recipientId: attorneyId,
+              payload: {
+                reviewId: row.id,
+                caseId,
+                rating: row.rating,
+                authorDisplayName: reviewerDisplayName(
+                  row.client.first_name,
+                  row.client.last_name,
+                ),
+              },
             },
-          },
-          tx,
-        );
+            tx,
+          );
         return row;
       });
+      if (!edited) {
+        await this.afterSave(user.sub, review.id, reviewText, held);
+      }
       return this.own(review, windowDays);
     } catch (error) {
       if (isUniqueViolation(error)) throw alreadyExists();
