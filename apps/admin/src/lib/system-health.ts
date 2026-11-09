@@ -420,6 +420,27 @@ export function word(item: HealthItem): Worded {
           : undefined,
       };
     }
+    case "email":
+      return {
+        title: "Почта (Amazon SES)",
+        line:
+          s === "grey"
+            ? "С последнего запуска писем ещё не отправляли."
+            : s === "green"
+              ? "Последнее письмо ушло."
+              : typeof d.text === "string"
+                ? d.text
+                : "SES: письмо не ушло",
+        todo:
+          d.problem === "sandbox"
+            ? "Аккаунт SES в песочнице: письма уходят только на проверенные адреса. Запросите выход из песочницы (docs/runbooks/SES_PRODUCTION.md)."
+            : d.problem === "no_permission"
+              ? "У сервера нет права ses:SendEmail. Напишите Claude «SES права»."
+              : s === "yellow"
+                ? "Если повторяется — проверьте статус SES и журнал API («SES»)."
+                : undefined,
+        runbook: "SES_PRODUCTION.md",
+      };
     case "cloudflare_usage":
       return {
         title: "Звонки: трафик Cloudflare за месяц",
