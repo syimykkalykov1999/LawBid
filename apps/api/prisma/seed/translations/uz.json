@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Yozish uchun mikrofon tugmasini bosib turing",
   "chat.voice.label": "Ovozli xabar",
   "chat.voice.noMic": "Mikrofonga ruxsat yo‘q. Telefon sozlamalarida ruxsat bering.",
+  "chat.voice.noMicWeb": "Mikrofonga ruxsat yoʻq. Uni brauzerdagi sayt sozlamalarida yoqing.",
   "chat.voice.pause": "To‘xtatib turish",
   "chat.voice.pauseRec": "Yozuvni to‘xtatib turish",
   "chat.voice.play": "Ijro etish",

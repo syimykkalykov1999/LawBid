@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "A rögzítéshez tartsa nyomva a mikrofon gombot",
   "chat.voice.label": "Hangüzenet",
   "chat.voice.noMic": "Nincs hozzáférés a mikrofonhoz. Engedélyezze a telefon beállításaiban.",
+  "chat.voice.noMicWeb": "Nincs hozzáférés a mikrofonhoz. Engedélyezd a böngésző webhelybeállításaiban.",
   "chat.voice.pause": "Szünet",
   "chat.voice.pauseRec": "Felvétel szüneteltetése",
   "chat.voice.play": "Lejátszás",

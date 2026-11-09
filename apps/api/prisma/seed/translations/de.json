@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Mikrofon-Taste gedrückt halten, um aufzunehmen",
   "chat.voice.label": "Sprachnachricht",
   "chat.voice.noMic": "Kein Zugriff auf das Mikrofon. Erlauben Sie ihn in den Einstellungen Ihres Telefons.",
+  "chat.voice.noMicWeb": "Kein Zugriff auf das Mikrofon. Erlaube ihn in den Website-Einstellungen deines Browsers.",
   "chat.voice.pause": "Pause",
   "chat.voice.pauseRec": "Aufnahme pausieren",
   "chat.voice.play": "Abspielen",

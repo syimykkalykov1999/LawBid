@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "החזיקו את כפתור המיקרופון כדי להקליט",
   "chat.voice.label": "הודעה קולית",
   "chat.voice.noMic": "אין גישה למיקרופון. אפשרו אותה בהגדרות הטלפון.",
+  "chat.voice.noMicWeb": "אין גישה למיקרופון. אפשרו אותה בהגדרות האתר בדפדפן.",
   "chat.voice.pause": "השהיה",
   "chat.voice.pauseRec": "השהיית ההקלטה",
   "chat.voice.play": "הפעלה",

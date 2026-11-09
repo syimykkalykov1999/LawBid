@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "マイクボタンを長押しして録音",
   "chat.voice.label": "ボイスメッセージ",
   "chat.voice.noMic": "マイクへのアクセスがありません。端末の設定で許可してください。",
+  "chat.voice.noMicWeb": "マイクにアクセスできません。ブラウザのサイト設定で許可してください。",
   "chat.voice.pause": "一時停止",
   "chat.voice.pauseRec": "録音を一時停止",
   "chat.voice.play": "再生",

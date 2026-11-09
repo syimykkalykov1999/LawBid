@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Kaydetmek için mikrofon düğmesini basılı tutun",
   "chat.voice.label": "Sesli mesaj",
   "chat.voice.noMic": "Mikrofon erişimi yok. Telefon ayarlarından izin verin.",
+  "chat.voice.noMicWeb": "Mikrofon erişimi yok. Tarayıcınızın site ayarlarından izin verin.",
   "chat.voice.pause": "Duraklat",
   "chat.voice.pauseRec": "Kaydı duraklat",
   "chat.voice.play": "Oynat",

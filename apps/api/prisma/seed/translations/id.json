@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Tahan tombol mikrofon untuk merekam",
   "chat.voice.label": "Pesan suara",
   "chat.voice.noMic": "Tidak ada akses mikrofon. Izinkan di pengaturan ponsel Anda.",
+  "chat.voice.noMicWeb": "Tidak ada akses mikrofon. Izinkan di setelan situs pada browser Anda.",
   "chat.voice.pause": "Jeda",
   "chat.voice.pauseRec": "Jeda rekaman",
   "chat.voice.play": "Putar",

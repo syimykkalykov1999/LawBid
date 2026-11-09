@@ -227,15 +227,18 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
           );
         });
         final minHeight = MediaQuery.sizeOf(context).height * 0.5;
+        // [slivers]: the tabs whose builder gives a sliver (A16).
         Widget tabs(
           int page,
           List<String> names,
+          Set<int> slivers,
           List<WidgetBuilder> builders,
         ) =>
             CaseSubTabs(
               key: ValueKey('case-tabs-$page'),
               labels: names,
               builders: builders,
+              sliverTabs: slivers,
               index: _inner[page],
               minHeight: minHeight,
               onChanged: (i) => setState(() => _inner[page] = i),
@@ -244,7 +247,9 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
         final overview = tabs(0, [
           t.t('cases.detail.title'),
           t.t('cases.tab.activity'),
-        ], [
+        ], const {
+          1,
+        }, [
           (_) => Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -268,22 +273,28 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
           (_) => CaseHistoryTab(
                 caseId: widget.caseId,
                 isAttorney: widget.isAttorney,
+                asSliver: true,
               ),
         ]);
         final files = tabs(1, [
           t.t('cases.tab.docs'),
           t.t('cases.files.photos'),
-        ], [
-          (_) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SigningTab(
-                    caseId: widget.caseId,
-                    isAttorney: widget.isAttorney,
+        ], const {
+          0,
+          1,
+        }, [
+          (_) => SliverMainAxisGroup(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: SigningTab(
+                      caseId: widget.caseId,
+                      isAttorney: widget.isAttorney,
+                    ),
                   ),
                   FilesTab(
                     caseId: widget.caseId,
                     isAttorney: widget.isAttorney,
+                    asSliver: true,
                   ),
                 ],
               ),
@@ -291,15 +302,19 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
                 caseId: widget.caseId,
                 isAttorney: widget.isAttorney,
                 photos: true,
+                asSliver: true,
               ),
         ]);
         final work = tabs(2, [
           t.t('cases.tab.tasks'),
           t.t('cases.tab.time'),
-        ], [
+        ], const {
+          0,
+        }, [
           (_) => TasksTab(
                 caseId: widget.caseId,
                 isAttorney: widget.isAttorney,
+                asSliver: true,
               ),
           (_) => BillingTab(
                 key: _billing,
@@ -410,6 +425,7 @@ class FilesTab extends ConsumerStatefulWidget {
     required this.caseId,
     required this.isAttorney,
     this.photos = false,
+    this.asSliver = false,
     super.key,
   });
 
@@ -418,6 +434,10 @@ class FilesTab extends ConsumerStatefulWidget {
 
   /// Owner 2026-11-05: the Photos tab (photos and videos); else the documents.
   final bool photos;
+
+  /// App audit 2026-10-26 A16: a sliver for [CaseSubTabs] — the rows are
+  /// built only as they scroll in; the same rows and look.
+  final bool asSliver;
 
   @override
   ConsumerState<FilesTab> createState() => _FilesTabState();
@@ -432,14 +452,22 @@ class _FilesTabState extends ConsumerState<FilesTab> {
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final value = ref.watch(caseFilesProvider(widget.caseId));
+    Widget box(Widget child) =>
+        widget.asSliver ? SliverToBoxAdapter(child: child) : child;
     return value.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.all(AppSpacing.lg),
-        child: AppSkeleton(height: 120),
+      loading: () => box(
+        const Padding(
+          padding: EdgeInsets.all(AppSpacing.lg),
+          child: AppSkeleton(height: 120),
+        ),
       ),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Text(errorText(t, e)),
+      error: (e, _) => box(
+        WorkspaceErrorNotice(
+          error: e,
+          t: t,
+          busy: value.isLoading,
+          onRetry: () => ref.invalidate(caseFilesProvider(widget.caseId)),
+        ),
       ),
       data: (every) {
         bool media(api.WorkspaceFileDto f) =>
@@ -455,40 +483,42 @@ class _FilesTabState extends ConsumerState<FilesTab> {
           3 => all.where((f) => f.sample).toList(),
           _ => all,
         };
+        final rows = [
+          FilterRow(
+            labels: [
+              t.t('cases.files.all'),
+              t.t('cases.files.fromTasks'),
+              t.t('cases.files.fromUpdates'),
+              if (all.any((f) => f.sample)) t.t('cases.files.samples'),
+            ],
+            index: _filter,
+            onChanged: (i) => setState(() => _filter = i),
+          ),
+          if (shown.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text(
+                t.t('cases.files.empty'),
+                style: TextStyle(color: colors.textSecondary),
+              ),
+            ),
+          for (final f in shown)
+            _FileRow(
+              file: f,
+              t: t,
+              formats: formats,
+              // Owner 2026-11-05: a thumbnail opens the viewer, with a swipe
+              // through every photo on the list.
+              gallery: [
+                for (final g in shown)
+                  if (g.mime.startsWith('image/')) g.url,
+              ],
+            ),
+        ];
+        if (widget.asSliver) return SliverList.list(children: rows);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            FilterRow(
-              labels: [
-                t.t('cases.files.all'),
-                t.t('cases.files.fromTasks'),
-                t.t('cases.files.fromUpdates'),
-                if (all.any((f) => f.sample)) t.t('cases.files.samples'),
-              ],
-              index: _filter,
-              onChanged: (i) => setState(() => _filter = i),
-            ),
-            if (shown.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Text(
-                  t.t('cases.files.empty'),
-                  style: TextStyle(color: colors.textSecondary),
-                ),
-              ),
-            for (final f in shown)
-              _FileRow(
-                file: f,
-                t: t,
-                formats: formats,
-                // Owner 2026-11-05: a thumbnail opens the viewer, with a swipe
-                // through every photo on the list.
-                gallery: [
-                  for (final g in shown)
-                    if (g.mime.startsWith('image/')) g.url,
-                ],
-              ),
-          ],
+          children: rows,
         );
       },
     );
@@ -680,6 +710,42 @@ String readOnlyReasonKey(WidgetRef ref, {bool tasks = false}) => tasks &&
     ? 'cases.workspace.noTasksDuty'
     : 'cases.workspace.readOnly';
 
+/// App audit 2026-10-26 A9 / A16: a case tab or the task sheet whose read
+/// failed — the error and the usual Retry (the same notice as the client's
+/// contacts card), never a bare line of text or an endless skeleton.
+class WorkspaceErrorNotice extends StatelessWidget {
+  const WorkspaceErrorNotice({
+    required this.error,
+    required this.t,
+    required this.onRetry,
+    this.busy = false,
+    super.key,
+  });
+
+  final Object error;
+  final Translator t;
+  final VoidCallback onRetry;
+
+  /// The read is running again (Retry shows its spinner).
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: NoticeCard(
+          icon: AppIcons.errorOutlineRounded,
+          message: errorText(t, error),
+          action: AppButton(
+            label: t.t('error.retry'),
+            height: AppSizes.touchTarget,
+            variant: AppButtonVariant.secondary,
+            isLoading: busy,
+            onPressed: onRetry,
+          ),
+        ),
+      );
+}
+
 /// A grey line with a lock: the workspace only shows.
 class WorkspaceReadOnlyNote extends StatelessWidget {
   const WorkspaceReadOnlyNote({
@@ -771,11 +837,16 @@ class CaseHistoryTab extends ConsumerWidget {
   const CaseHistoryTab({
     required this.caseId,
     required this.isAttorney,
+    this.asSliver = false,
     super.key,
   });
 
   final String caseId;
   final bool isAttorney;
+
+  /// App audit 2026-10-26 A16: a sliver for [CaseSubTabs] — hundreds of
+  /// entries are built only as they scroll in; the same rows and look.
+  final bool asSliver;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -785,19 +856,32 @@ class CaseHistoryTab extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final updates = ref.watch(caseUpdatesProvider(caseId));
     final activity = ref.watch(caseActivityProvider(caseId));
+    Widget box(Widget child) =>
+        asSliver ? SliverToBoxAdapter(child: child) : child;
     final error = updates.error ?? activity.error;
     if (error != null) {
-      return Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Text(errorText(t, error)),
+      return box(
+        WorkspaceErrorNotice(
+          error: error,
+          t: t,
+          busy: updates.isLoading || activity.isLoading,
+          onRetry: () {
+            if (updates.hasError) ref.invalidate(caseUpdatesProvider(caseId));
+            if (activity.hasError) {
+              ref.invalidate(caseActivityProvider(caseId));
+            }
+          },
+        ),
       );
     }
     final u = updates.value;
     final a = activity.value;
     if (u == null || a == null) {
-      return const Padding(
-        padding: EdgeInsets.all(AppSpacing.lg),
-        child: AppSkeleton(height: 120),
+      return box(
+        const Padding(
+          padding: EdgeInsets.all(AppSpacing.lg),
+          child: AppSkeleton(height: 120),
+        ),
       );
     }
     final items = mergeCaseHistory(u, a);
@@ -863,6 +947,7 @@ class CaseHistoryTab extends ConsumerWidget {
         ),
       );
     }
+    if (asSliver) return SliverList.list(children: out);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: out,

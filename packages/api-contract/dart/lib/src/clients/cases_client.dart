@@ -381,6 +381,13 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Accepted attorney only: PDF with the client contacts, the accepted terms and up to 9 case photos
+  @GET('/cases/{id}/attorney-brief.pdf')
+  Future<void> getAttorneyBrief({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Either side "Done" / «Закрыть кейс»: in_progress → pending_completion; the other side confirms, keeps it open or disputes (docs/04 §10.1, R-392)
   @POST('/cases/{id}/complete')
   Future<CaseEnvelope> completeCase({

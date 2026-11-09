@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Bamba inkinobho yemakrofoni ukuze urekhode",
   "chat.voice.label": "Umlayezo wezwi",
   "chat.voice.noMic": "Akukho ukufinyelela kumakrofoni. Kuvumele ezilungiselelweni zefoni yakho.",
+  "chat.voice.noMicWeb": "Akukho ukufinyelela kumakrofoni. Kuvumele kuzilungiselelo zesayithi zesiphequluli sakho.",
   "chat.voice.pause": "Misa kancane",
   "chat.voice.pauseRec": "Misa ukuqopha",
   "chat.voice.play": "Dlala",

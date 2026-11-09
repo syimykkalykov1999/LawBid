@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Eutsi sakatuta mikrofono-botoiari grabatzeko",
   "chat.voice.label": "Ahots-mezua",
   "chat.voice.noMic": "Mikrofonorako sarbiderik ez. Baimendu telefonoaren ezarpenetan.",
+  "chat.voice.noMicWeb": "Ez dago mikrofonorako sarbiderik. Baimendu nabigatzailearen gunearen ezarpenetan.",
   "chat.voice.pause": "Pausatu",
   "chat.voice.pauseRec": "Pausatu grabazioa",
   "chat.voice.play": "Erreproduzitu",

@@ -51,14 +51,23 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
   /// [catalog] is `languageCatalogProvider`'s current value when it has
   /// one — see [build] below for the cached fallback used meanwhile
   /// (owner request was "search + list", not a loading state).
-  List<LanguageCatalogEntry> _filtered(List<LanguageCatalogEntry> catalog) {
+  List<LanguageCatalogEntry> _filtered(
+    List<LanguageCatalogEntry> catalog,
+    String uiCode,
+  ) {
     if (_query.trim().isEmpty) return catalog;
     // Owner 2026-10-18: any case / accents / alphabet, a small typo.
     return catalog
         .where(
           (entry) => textMatches(
             _query,
-            [entry.nativeName, entry.englishName, entry.code],
+            [
+              entry.nativeName,
+              entry.englishName,
+              entry.code,
+              // Sweep C-c6: «испанский» finds Español in a Russian app.
+              languageNameIn(uiCode, entry.code) ?? '',
+            ],
           ),
         )
         .toList();
@@ -78,7 +87,7 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
     // an empty list.
     final catalog = ref.watch(languageCatalogProvider).value ??
         mergeLanguageCatalog(ref.watch(activeLanguagesControllerProvider));
-    final results = _filtered(catalog);
+    final results = _filtered(catalog, currentLanguage.code);
 
     // Owner 2026-09-29: the sheet can be dragged all the way to the top.
     // The sheet rises above the keyboard so the list is never under it.
@@ -144,6 +153,10 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
                                 entry.appLanguage == currentLanguage;
                             final row = _LanguageRow(
                               entry: entry,
+                              uiName: languageNameIn(
+                                currentLanguage.code,
+                                entry.code,
+                              ),
                               isCurrent: isCurrent,
                               comingSoonLabel: t.t('lang.picker.comingSoon'),
                               onTap: entry.isEnabled
@@ -178,12 +191,16 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
 class _LanguageRow extends StatelessWidget {
   const _LanguageRow({
     required this.entry,
+    required this.uiName,
     required this.isCurrent,
     required this.comingSoonLabel,
     required this.onTap,
   });
 
   final LanguageCatalogEntry entry;
+
+  /// Sweep C-c6: the language's name in the app's language (CLDR).
+  final String? uiName;
   final bool isCurrent;
   final String comingSoonLabel;
   final VoidCallback? onTap;
@@ -197,10 +214,10 @@ class _LanguageRow extends StatelessWidget {
       opacity: enabled ? 1.0 : 0.45,
       child: AppPickerRow(
         title: entry.nativeName,
-        subtitle: entry.englishName,
+        subtitle: uiName ?? entry.englishName,
         selected: isCurrent,
         onTap: onTap,
-        semanticLabel: '${entry.nativeName}, ${entry.englishName}',
+        semanticLabel: '${entry.nativeName}, ${uiName ?? entry.englishName}',
         trailing: enabled
             ? Text(
                 entry.code.toUpperCase(),

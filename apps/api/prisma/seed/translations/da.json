@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Hold mikrofonknappen nede for at optage",
   "chat.voice.label": "Talebesked",
   "chat.voice.noMic": "Ingen adgang til mikrofonen. Giv adgang i telefonens indstillinger.",
+  "chat.voice.noMicWeb": "Ingen adgang til mikrofonen. Tillad den i browserens webstedsindstillinger.",
   "chat.voice.pause": "Pause",
   "chat.voice.pauseRec": "Sæt optagelse på pause",
   "chat.voice.play": "Afspil",

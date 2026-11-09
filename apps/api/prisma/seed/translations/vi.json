@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Nhấn giữ nút micro để ghi âm",
   "chat.voice.label": "Tin nhắn thoại",
   "chat.voice.noMic": "Không có quyền truy cập micro. Hãy cho phép trong cài đặt điện thoại.",
+  "chat.voice.noMicWeb": "Không có quyền truy cập micrô. Hãy cho phép trong cài đặt trang web của trình duyệt.",
   "chat.voice.pause": "Tạm dừng",
   "chat.voice.pauseRec": "Tạm dừng ghi âm",
   "chat.voice.play": "Phát",

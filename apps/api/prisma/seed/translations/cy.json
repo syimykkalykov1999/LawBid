@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Daliwch y botwm meicroffon i recordio",
   "chat.voice.label": "Neges llais",
   "chat.voice.noMic": "Dim mynediad i'r meicroffon. Caniatewch ef yng ngosodiadau eich ffôn.",
+  "chat.voice.noMicWeb": "Dim mynediad i'r meicroffon. Caniatewch ef yng ngosodiadau gwefan eich porwr.",
   "chat.voice.pause": "Oedi",
   "chat.voice.pauseRec": "Oedi recordio",
   "chat.voice.play": "Chwarae",

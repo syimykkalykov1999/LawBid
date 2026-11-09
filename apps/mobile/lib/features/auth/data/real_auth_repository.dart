@@ -315,6 +315,9 @@ class RealAuthRepository implements AuthRepository {
       case ApiErrorCodes.rateLimited:
         final retryAfter = e.details?['retryAfterSeconds'];
         return OtpVerifyResult.rateLimited(retryAfter is int ? retryAfter : 60);
+      case ApiErrorCodes.accountSuspended:
+      case ApiErrorCodes.accountDeleted:
+        return const OtpVerifyResult.unavailable();
       default:
         return const OtpVerifyResult.networkError();
     }
@@ -392,6 +395,9 @@ class RealAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> clearAfterDeletion() => _session.clear();
+
+  @override
   Future<AccountDeletionResult> deleteAccount({
     required String reauthToken,
   }) async {
@@ -400,9 +406,8 @@ class RealAuthRepository implements AuthRepository {
       // docs/01_FOUNDATION_AUTH.md §10.7 + AccountDeletionService
       // (apps/api): the server revokes every session for this account,
       // including the caller's own, as part of a successful deletion
-      // request — clear local session state now, there will be no further
-      // authenticated call to piggyback this on.
-      await _session.clear();
+      // request. Sweep C-c13 D8: the local session is cleared by
+      // [clearAfterDeletion] once the «deleted» screen has been seen.
       return const AccountDeletionResult.success();
     } on ApiException catch (e) {
       switch (e.code) {

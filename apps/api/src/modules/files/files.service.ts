@@ -1431,9 +1431,12 @@ export class FilesService {
     purpose: FilePurpose,
     data: Buffer,
     mime: FileMime,
+    /** Sweep A-c1: a fixed (name-based) id makes the file one per subject —
+     * a second store of the same id fails on the primary key. */
+    fixedId?: string,
   ): Promise<File> {
     const rule = PURPOSE_RULES[purpose];
-    const fileId = randomUUID();
+    const fileId = fixedId ?? randomUUID();
     const resolved = await this.storage.resolveBucket(rule.bucket);
     const bucket =
       !mayUsePublicStore(purpose) && this.storage.isPublicStoreBucket(resolved)

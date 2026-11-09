@@ -238,6 +238,8 @@ const file06Ru = <String, String>{
   'chat.voice.duringCall': 'Нельзя во время звонка',
   'chat.voice.noMic':
       'Нет доступа к микрофону. Разрешите его в настройках телефона.',
+  'chat.voice.noMicWeb':
+      'Нет доступа к микрофону. Разрешите его в настройках сайта в браузере.',
   // --- Подписка (docs/06 §1.7 п.1–2) ---
   'subscription.title': 'Подписка',
   'subscription.plan.badge': 'LawBid для адвокатов',
@@ -774,6 +776,8 @@ const file06En = <String, String>{
   'chat.voice.stop': 'Stop playback',
   'chat.voice.duringCall': 'Not available during a call',
   'chat.voice.noMic': 'No microphone access. Allow it in your phone settings.',
+  'chat.voice.noMicWeb':
+      "No microphone access. Allow it in your browser's site settings.",
   // --- Subscription (docs/06 §1.7 items 1–2) ---
   'subscription.title': 'Subscription',
   'subscription.plan.badge': 'LawBid for attorneys',

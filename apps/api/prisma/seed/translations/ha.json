@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Riƙe maɓallin makirufo don yin rikodi",
   "chat.voice.label": "Saƙon murya",
   "chat.voice.noMic": "Babu damar shiga makirufo. Ba da izini a saitunan wayarku.",
+  "chat.voice.noMicWeb": "Babu damar amfani da makirufo. Ba da izini a saitunan shafi na burauzarka.",
   "chat.voice.pause": "Dakata",
   "chat.voice.pauseRec": "Dakatar da rikodi",
   "chat.voice.play": "Kunna",

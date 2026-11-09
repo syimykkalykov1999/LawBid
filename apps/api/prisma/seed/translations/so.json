@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Hay badhanka makarafoonka si aad u duubto",
   "chat.voice.label": "Fariin cod ah",
   "chat.voice.noMic": "Marin makarafoon ma jiro. Ka oggolow dejinta taleefankaaga.",
+  "chat.voice.noMicWeb": "Ma jiro gelitaanka makarafoonka. U oggolow dejinta goobta ee biraawsarkaaga.",
   "chat.voice.pause": "Hakad",
   "chat.voice.pauseRec": "Haki duubista",
   "chat.voice.play": "Ciyaar",

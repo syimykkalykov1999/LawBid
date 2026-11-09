@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Kenbe bouton mikwo a pou anrejistre",
   "chat.voice.label": "Mesaj vokal",
   "chat.voice.noMic": "Pa gen aksè nan mikwofòn. Pèmèt li nan paramèt telefòn ou.",
+  "chat.voice.noMicWeb": "Pa gen aksè nan mikwo a. Pèmèt li nan paramèt sit la nan navigatè w.",
   "chat.voice.pause": "Poze",
   "chat.voice.pauseRec": "Mete anrejistreman an poz",
   "chat.voice.play": "Jwe",

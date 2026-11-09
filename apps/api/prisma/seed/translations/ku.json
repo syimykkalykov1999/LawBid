@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Ji bo tomarkirinê bişkoka mîkrofonê bigirin",
   "chat.voice.label": "Peyama dengî",
   "chat.voice.noMic": "Gihîştina mîkrofonê tune. Di mîhengên têlefona xwe de destûr bidin.",
+  "chat.voice.noMicWeb": "Gihîştina mîkrofonê tune ye. Di mîhengên malperê yên gerokê de destûr bide.",
   "chat.voice.pause": "Rawestîne",
   "chat.voice.pauseRec": "Tomarkirinê rawestîne",
   "chat.voice.play": "Bilîze",

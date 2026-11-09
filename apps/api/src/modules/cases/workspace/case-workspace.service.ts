@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
@@ -11,6 +12,7 @@ import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { FilesService } from '../../files/files.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { caseNotFound } from '../domain/case-state-machine';
+import { AttorneyBriefService } from '../brief/attorney-brief.service';
 import type {
   BoardCaseTaskDto,
   CaseActivityDto,
@@ -68,6 +70,7 @@ export class CaseWorkspaceService {
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
     private readonly notifications: NotificationsService,
+    @Optional() private readonly briefs?: AttorneyBriefService,
   ) {}
 
   /** Audit 2026-10-19: what one side adds reaches the other side (the bell
@@ -155,7 +158,51 @@ export class CaseWorkspaceService {
     caseId: string,
   ): Promise<WorkspaceFileDto[]> {
     const s = await this.side(user, caseId);
-    return this.withViewCounts(user.sub, await this.filesOf(caseId, s));
+    const files = await this.withViewCounts(
+      user.sub,
+      await this.filesOf(caseId, s),
+    );
+    if (s.role === 'attorney') {
+      const brief = await this.briefFile(caseId);
+      if (brief) files.push(brief);
+    }
+    return files;
+  }
+
+  /** Sweep A-c1 (owner A-044): the attorney-only case brief, last in the
+   * attorney's Files; never in the client's list. A failure to make it
+   * never breaks the tab (the next open tries again). */
+  private async briefFile(caseId: string): Promise<WorkspaceFileDto | null> {
+    let id: string | null;
+    try {
+      id = (await this.briefs?.ensure(caseId)) ?? null;
+    } catch {
+      return null;
+    }
+    if (!id) return null;
+    const [u] = await this.files.casePhotoUrls([id]);
+    if (!u) return null;
+    const row = await this.prisma.file.findUnique({
+      where: { id },
+      select: { created_at: true },
+    });
+    return {
+      fileId: id,
+      url: u.url,
+      previewUrl: u.previewUrl,
+      mime: u.mime,
+      sizeBytes: u.sizeBytes,
+      description:
+        'Case brief: client contacts, accepted terms and case photos (only you see it)',
+      source: 'case',
+      sourceTitle: null,
+      sourceId: null,
+      sourceItemId: null,
+      sample: false,
+      addedByRole: 'attorney',
+      addedAt: (row?.created_at ?? new Date()).toISOString(),
+      viewCount: null,
+    };
   }
 
   /** Owner 2026-10-24: the "viewed N times" badge - two indexed queries for

@@ -53,6 +53,13 @@ import { BadgesService } from '../notifications/badges.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import {
+  DETAIL_MEMBERS,
+  MEMBERS_PAGE_DEFAULT,
+  decodeMemberCursor,
+  encodeMemberCursor,
+  memberPage,
+} from './group-members.page';
+import {
   GroupFanoutQueue,
   broadcastAudiences,
   type GroupFanoutJob,
@@ -83,6 +90,7 @@ import {
   type GroupPersonDto,
   type GroupMessageDto,
   type GroupMessagePage,
+  type GroupMemberPage,
   type GroupPage,
   type GroupAdminRight,
   type GroupRoleName,
@@ -368,11 +376,11 @@ export class GroupsService {
 
   private async detail(userId: string, id: string): Promise<GroupDetailDto> {
     const { group, me } = await this.requireMember(userId, id);
-    const [[dto], members] = await Promise.all([
+    // Sweep B-c1: never every member at once — the first 100 (a small
+    // group: everyone, sorted by name as before), the rest page by page.
+    const [[dto], first] = await Promise.all([
       this.presenter.groups([{ group, me }], userId),
-      this.prisma.chatGroupMember.findMany({
-        where: { group_id: id, left_at: null },
-      }),
+      memberPage(this.prisma, id, DETAIL_MEMBERS, null),
     ]);
     // Owner 2026-10-21: whom I invited and who has not answered yet.
     const pending =
@@ -388,11 +396,31 @@ export class GroupsService {
     );
     return {
       ...dto,
-      members: await this.presenter.members(members),
+      members: await this.presenter.members(first.rows, {
+        keepOrder: first.next !== null,
+      }),
+      membersNextCursor: first.next ? encodeMemberCursor(first.next) : null,
       invited: pending.flatMap((x) => {
         const p = people.get(x.invitee_id);
         return p ? [p] : [];
       }),
+    };
+  }
+
+  /** GET /groups/:id/members — sweep B-c1: members page by page (owner,
+   * admins, then by join time; keyset like messages). */
+  async memberList(
+    user: RequestUser,
+    id: string,
+    cursor?: string,
+    limit = MEMBERS_PAGE_DEFAULT,
+  ): Promise<GroupMemberPage> {
+    await this.requireMember(user.sub, id);
+    const after = cursor ? decodeMemberCursor(cursor) : null;
+    const page = await memberPage(this.prisma, id, limit, after);
+    return {
+      items: await this.presenter.members(page.rows, { keepOrder: true }),
+      nextCursor: page.next ? encodeMemberCursor(page.next) : null,
     };
   }
 
