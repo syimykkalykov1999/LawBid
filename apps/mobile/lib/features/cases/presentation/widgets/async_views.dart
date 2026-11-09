@@ -44,6 +44,15 @@ class CasesErrorView extends StatelessWidget {
     if (e is ApiException && e.guest && e.code == ApiErrorCodes.unauthorized) {
       return GuestGateView(message: errorText(t, error));
     }
+    // Security audit 2026-11-08 (L2): an assistant without the duty for
+    // this list — a calm notice, not an error with a Retry that can only
+    // fail again.
+    if (e is ApiException && e.code == ApiErrorCodes.assistantNotAllowed) {
+      return AppEmptyState(
+        icon: AppIcons.lockOutlineRounded,
+        message: errorText(t, error),
+      );
+    }
     return AppErrorState(
       message: errorText(t, error),
       retryLabel: t.t('error.retry'),

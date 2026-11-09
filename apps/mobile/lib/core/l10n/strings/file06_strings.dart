@@ -464,7 +464,7 @@ const file06Ru = <String, String>{
   'client.tab.reviews': 'Отзывы',
   'client.reviews.private': 'Отзывы адвокатов видят только адвокаты и вы.',
   'client.reviews.empty': 'Пока нет отзывов адвокатов.',
-  'client.posts.empty': 'Пока нет постов.',
+  'client.posts.empty': 'Фото пока нет.',
   'client.counter.posts': 'Посты',
   'client.counter.followers': 'Подписчики',
   'client.counter.following': 'Подписки',
@@ -1003,7 +1003,7 @@ const file06En = <String, String>{
   'client.reviews.private':
       "Attorneys' reviews are visible to attorneys and to you only.",
   'client.reviews.empty': 'No reviews from attorneys yet.',
-  'client.posts.empty': 'No posts yet.',
+  'client.posts.empty': 'No photos yet.',
   'client.counter.posts': 'Posts',
   'client.counter.followers': 'Followers',
   'client.counter.following': 'Following',
