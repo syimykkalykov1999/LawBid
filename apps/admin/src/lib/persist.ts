@@ -4,7 +4,7 @@ import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persi
 import type { Query } from '@tanstack/react-query';
 import type { Persister } from '@tanstack/react-query-persist-client';
 import { del, get, set } from 'idb-keyval';
-import { queryClassOf } from '@/lib/query-client';
+import { PERSISTED_GC_MS, queryClassOf } from '@/lib/query-client';
 
 /**
  * Speed matrix 2026-11-09 (§3 #4, «кэш админки живёт только в памяти»): the
@@ -22,7 +22,8 @@ import { queryClassOf } from '@/lib/query-client';
  * (clearPersistedQueries) and whenever PERSIST_BUSTER changes.
  */
 export const PERSIST_KEY = 'lawbid-admin-queries';
-export const PERSIST_MAX_AGE_MS = 24 * 60 * 60_000;
+/** The same day the persisted classes keep in memory (query-client.ts). */
+export const PERSIST_MAX_AGE_MS = PERSISTED_GC_MS;
 /** Bump when stored data would no longer match what the pages expect. */
 export const PERSIST_BUSTER = '2026-11-09';
 /** Writes are coalesced: at most one IndexedDB write per second. */
