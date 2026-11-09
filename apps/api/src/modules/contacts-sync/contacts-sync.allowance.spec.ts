@@ -19,7 +19,8 @@ const nums = (n: number, from = 0) =>
 function make(opts: { book?: string[]; bookDayTakenOn?: string } = {}) {
   const book = new Set(opts.book ?? []);
   const kv = new Map<string, string>();
-  if (opts.bookDayTakenOn) kv.set('contacts:book-day:u:me', opts.bookDayTakenOn);
+  if (opts.bookDayTakenOn)
+    kv.set('contacts:book-day:u:me', opts.bookDayTakenOn);
   const sets = new Map<string, Set<string>>();
   const redis = {
     del: jest.fn().mockResolvedValue(1),
@@ -36,7 +37,9 @@ function make(opts: { book?: string[]; bookDayTakenOn?: string } = {}) {
       items.forEach((i) => set.add(i));
       return Promise.resolve(1);
     }),
-    pfcount: jest.fn((key: string) => Promise.resolve(sets.get(key)?.size ?? 0)),
+    pfcount: jest.fn((key: string) =>
+      Promise.resolve(sets.get(key)?.size ?? 0),
+    ),
   };
   const prisma = {
     user: { findMany: jest.fn().mockResolvedValue([]) },
@@ -52,7 +55,9 @@ function make(opts: { book?: string[]; bookDayTakenOn?: string } = {}) {
         (a: { where: { OR: { phone_hash: { in: string[] } }[] } }) =>
           Promise.resolve(
             [...book]
-              .filter((h) => a.where.OR.some((o) => o.phone_hash.in.includes(h)))
+              .filter((h) =>
+                a.where.OR.some((o) => o.phone_hash.in.includes(h)),
+              )
               .map((h) => ({ phone_hash: h })),
           ),
       ),

@@ -143,6 +143,10 @@ export interface PostImageLinks {
   blurhash: string | null;
 }
 
+/** Owner 2026-11-08: a confirm at least this slow writes where its time
+ * went (`files_confirm_slow`: head, copy, read, db, enqueue in ms). */
+const CONFIRM_SLOW_MS = 500;
+
 @Injectable()
 export class FilesService {
   constructor(
@@ -309,10 +313,14 @@ export class FilesService {
     allowed: readonly string[],
   ): Promise<PresignedFileDto | null> {
     const profile = DEDUP_PROFILE[dto.purpose];
+    // Owner 2026-11-08: a profile photo picked again (the same bytes) is not
+    // uploaded and checked a second time. Other moderated pictures still go
+    // the usual way; a reused avatar needs a passed verdict (below).
+    const moderated = isModeratedPurpose(dto.purpose);
     if (
       !dto.acceptsExisting ||
       !profile ||
-      isModeratedPurpose(dto.purpose) ||
+      (moderated && dto.purpose !== 'avatar') ||
       !(await this.flags.isEnabled('files_reuse_own', true)) ||
       !(await this.settings.boolean('storage.dedup'))
     ) {
@@ -339,6 +347,24 @@ export class FilesService {
     ) {
       return null;
     }
+    // A moderated picture is reused only with a finished, passed verdict of
+    // the same bytes; the copy carries that verdict, so a later take-down of
+    // the picture finds it as well. Anything else is uploaded and checked.
+    const verdict = moderated
+      ? await this.prisma.mediaModerationCheck.findUnique({
+          where: { file_id: own.id },
+        })
+      : null;
+    if (
+      moderated &&
+      !(
+        verdict &&
+        (verdict.status === 'clean' || verdict.decision === 'approved') &&
+        verdict.content_sha256 !== null
+      )
+    ) {
+      return null;
+    }
     const fileId = randomUUID();
     await this.prisma.file.create({
       data: {
@@ -357,6 +383,24 @@ export class FilesService {
         scan_status: 'clean',
       },
     });
+    if (verdict) {
+      await this.prisma.mediaModerationCheck.create({
+        data: {
+          file_id: fileId,
+          owner_user_id: userId,
+          purpose: dto.purpose,
+          content_sha256: verdict.content_sha256,
+          status: verdict.status,
+          csam_status: verdict.csam_status,
+          provider: verdict.provider,
+          labels: verdict.labels ?? [],
+          max_confidence: verdict.max_confidence,
+          top_label: verdict.top_label,
+          decision: verdict.decision,
+          checked_at: verdict.checked_at,
+        },
+      });
+    }
     return {
       fileId,
       upload: { url: '', fields: {} },
@@ -524,7 +568,14 @@ export class FilesService {
       return this.get(userId, fileId);
     }
 
+    // Owner 2026-11-08 (R2 speed): where a slow confirm spends its time.
+    const started = Date.now();
+    const laps: Record<string, number> = {};
+    const lap = (name: string) => {
+      laps[name] = Date.now() - started;
+    };
     const head = await this.storage.head(intent.bucket, intent.key);
+    lap('head');
     if (!head) return this.notUploaded(userId, fileId);
     const maxBytes = await this.maxBytes(intent.purpose);
     if (head.size > maxBytes) {
@@ -544,6 +595,7 @@ export class FilesService {
     if (!(await this.storage.copy(intent.bucket, intent.key, key))) {
       return this.notUploaded(userId, fileId);
     }
+    lap('copy');
     // R-252: a big file is not read into the API's memory here. The start
     // of the file settles its type at once; the checksum and the look inside
     // the container move to the scan worker, which holds the file anyway. The
@@ -562,6 +614,7 @@ export class FilesService {
       if (detectMime(start, intent.mime) !== null) prefix = start;
     }
     const data = prefix ?? (await this.storage.read(intent.bucket, key));
+    lap('read');
     let sha256: string | null = null;
     if (!prefix) {
       sha256 = createHash('sha256').update(data).digest('hex');
@@ -634,14 +687,34 @@ export class FilesService {
     // M3: the uploaded object is no longer needed (it was never handed out,
     // so there is no edge copy to purge). Whatever its link writes there
     // before it expires is deleted again by the storage cleanup.
-    await this.dropObjects(fileId, intent.bucket, [intent.key]);
+    // Owner 2026-11-08: that cleanup also covers a failed delete, so the
+    // answer does not wait for one more trip to R2.
+    lap('db');
     await this.redis.zadd(
       PENDING_UPLOADS_KEY,
       Date.now() + (PRESIGN_TTL_SEC + 600) * 1000,
       leftoverUploadMember(fileId, intent.bucket, intent.key),
     );
+    void this.dropObjects(fileId, intent.bucket, [intent.key]);
     await this.scans.enqueueScan(fileId, userId);
-    return this.get(userId, fileId);
+    lap('enqueue');
+    const answer = await this.get(userId, fileId);
+    const totalMs = Date.now() - started;
+    if (totalMs >= CONFIRM_SLOW_MS) {
+      this.logger.warn(
+        {
+          metric: 'files_confirm_slow',
+          fileId,
+          purpose: intent.purpose,
+          store: this.storage.isPublicStoreBucket(intent.bucket) ? 'r2' : 'aws',
+          sizeBytes: head.size,
+          totalMs,
+          laps,
+        },
+        'slow file confirm',
+      );
+    }
+    return answer;
   }
 
   /** No object at the upload key: a retry of a confirm that already

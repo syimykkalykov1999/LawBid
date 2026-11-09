@@ -66,3 +66,7 @@ b97e386773b684945bf2b2594f5413cc82297754:apps/api/src/modules/videos/bunny-strea
 b97e386773b684945bf2b2594f5413cc82297754:apps/api/src/modules/videos/bunny-stream.signing-key.spec.ts:generic-api-key:33
 b97e386773b684945bf2b2594f5413cc82297754:apps/api/src/modules/videos/bunny-stream.signing-key.spec.ts:generic-api-key:43
 b97e386773b684945bf2b2594f5413cc82297754:apps/api/src/modules/videos/bunny-stream.signing-key.spec.ts:generic-api-key:63
+# Owner 2026-11-08 (PR #845): a test object path of the avatar-reuse spec in
+# commit f664e10 ("avatar/s1/2026/11/mine"), not a secret; replaced by
+# "avatar/me/mine" in the next commit.
+f664e10bea6316ed309c03b4d6dd573523bd63e3:apps/api/src/modules/files/files.service.spec.ts:generic-api-key:1085

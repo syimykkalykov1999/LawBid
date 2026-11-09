@@ -65,7 +65,7 @@ function ctx(name: keyof Routes) {
   };
   const context = {
     getType: () => 'http',
-    getHandler: () => Routes.prototype[name],
+    getHandler: (): unknown => Reflect.get(Routes.prototype, name),
     getClass: () => Routes,
     switchToHttp: () => ({ getRequest: () => req }),
   } as unknown as ExecutionContext;
@@ -112,9 +112,10 @@ describe('JwtAuthGuard: assistant deny-by-default (audit 2026-11-08 L2)', () => 
   });
 
   it('several duties mean any one of them', async () => {
-    await expect(run('assistant', ['bid_drafts'], 'bidRead')).resolves.toEqual(
-      { ok: true, sub: ATTORNEY },
-    );
+    await expect(run('assistant', ['bid_drafts'], 'bidRead')).resolves.toEqual({
+      ok: true,
+      sub: ATTORNEY,
+    });
     await expect(run('assistant', ['calls'], 'bidRead')).rejects.toBeInstanceOf(
       ForbiddenException,
     );

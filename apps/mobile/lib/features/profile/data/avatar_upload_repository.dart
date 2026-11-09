@@ -25,6 +25,7 @@ class PresignedUpload {
     required this.fields,
     this.method = 'POST',
     this.headers = const {},
+    this.alreadyStored = false,
   });
   final String fileId;
   final String url;
@@ -33,6 +34,10 @@ class PresignedUpload {
   /// `POST` (multipart) or `PUT` (raw body, Cloudflare R2).
   final String method;
   final Map<String, String> headers;
+
+  /// Owner 2026-11-08 (R-254): the same photo was stored and cleared before;
+  /// nothing is uploaded or checked again, the file is ready.
+  final bool alreadyStored;
 }
 
 enum ScanOutcome { pending, clean, rejected }
@@ -92,6 +97,7 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
       mime: mime,
       sizeBytes: sizeBytes,
       sha256: sha256,
+      acceptsExisting: true,
     );
     return PresignedUpload(
       fileId: t.fileId,
@@ -99,6 +105,7 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
       fields: t.fields,
       method: t.method,
       headers: t.headers,
+      alreadyStored: t.alreadyStored,
     );
   }
 
@@ -112,6 +119,11 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
   }) async {
     if (cancellation?.isCancelled ?? false) {
       throw const UploadCancelledException();
+    }
+    // Already in storage (and cleared): every caller may go on to confirm.
+    if (target.alreadyStored) {
+      onProgress?.call(1);
+      return;
     }
     final token = CancelToken();
     cancellation?.onCancel(token.cancel);

@@ -25,9 +25,9 @@ function service() {
   };
   const settings = { number: (k: string) => Promise.resolve(values[k]) };
   const s = new PasswordService(settings as never);
-  const slot = (
-    s as unknown as { withSlot: Slot }
-  ).withSlot.bind(s) as Slot;
+  const inner = s as unknown as { withSlot: Slot };
+  const slot: Slot = <T>(work: () => Promise<T>, lane?: Lane) =>
+    inner.withSlot(work, lane);
   return slot;
 }
 
@@ -37,13 +37,16 @@ describe('PasswordService hash queue lanes (audit 2026-11-08 L1)', () => {
     const gate = deferred();
     const busy = slot(() => gate.promise, 'high');
     await flush();
-    const lows = [slot(async () => 'l1', 'low'), slot(async () => 'l2', 'low')];
+    const lows = [
+      slot(() => Promise.resolve('l1'), 'low'),
+      slot(() => Promise.resolve('l2'), 'low'),
+    ];
     await flush();
-    await expect(slot(async () => 'l3', 'low')).rejects.toBeInstanceOf(
-      HttpException,
-    );
+    await expect(
+      slot(() => Promise.resolve('l3'), 'low'),
+    ).rejects.toBeInstanceOf(HttpException);
     // The real account still gets in line.
-    const high = slot(async () => 'h1', 'high');
+    const high = slot(() => Promise.resolve('h1'), 'high');
     gate.resolve();
     await busy;
     await expect(Promise.all([high, ...lows])).resolves.toEqual([
@@ -59,9 +62,9 @@ describe('PasswordService hash queue lanes (audit 2026-11-08 L1)', () => {
     const order: string[] = [];
     const busy = slot(() => gate.promise, 'high');
     await flush();
-    const low = slot(async () => void order.push('low'), 'low');
+    const low = slot(() => Promise.resolve(void order.push('low')), 'low');
     await flush();
-    const high = slot(async () => void order.push('high'), 'high');
+    const high = slot(() => Promise.resolve(void order.push('high')), 'high');
     await flush();
     gate.resolve();
     await Promise.all([busy, low, high]);

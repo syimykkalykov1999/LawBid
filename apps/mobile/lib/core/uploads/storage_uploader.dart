@@ -262,6 +262,11 @@ class StorageUploader {
   /// data, a weak phone or after a failure. A file body streams each part
   /// from disk, so this does not grow the phone's memory.
   static const partsAtOnce = 4;
+
+  /// Whole files a screen sends at once, app-wide (`client.uploads_at_once`,
+  /// lowered on a weak network like the parts).
+  static final AdaptiveLimiter filesAtOnce =
+      AdaptiveLimiter(() => ClientTuning.uploadsAtOnce);
   final Duration scanPoll;
   final int scanMaxPolls;
 
@@ -641,25 +646,38 @@ class StorageUploader {
   }) async {
     // A big file goes in resumable parts when the server offers it (and the
     // caller did not pick its own transport, e.g. the background queue).
-    final resumed = transport == null &&
-        _partsGate == null &&
-        await putResumable(
-          target.fileId,
+    Future<void> send() async {
+      final resumed = transport == null &&
+          _partsGate == null &&
+          await putResumable(
+            target.fileId,
+            body,
+            onProgress: onProgress,
+            cancel: cancel,
+          );
+      if (!resumed) {
+        await put(
+          target,
           body,
+          mime: mime,
+          filename: filename,
           onProgress: onProgress,
           cancel: cancel,
+          transport: transport,
+          taskId: taskId,
         );
-    if (!resumed) {
-      await put(
-        target,
-        body,
-        mime: mime,
-        filename: filename,
-        onProgress: onProgress,
-        cancel: cancel,
-        transport: transport,
-        taskId: taskId,
-      );
+      }
+    }
+
+    // Owner 2026-11-08: files a screen sends (post and review photos, case
+    // and support files) travel at most `client.uploads_at_once` at a time,
+    // app-wide; the rest wait their turn. Queue jobs have their own limit.
+    // Only the bytes hold a place, the server's check does not.
+    if (transport == null && taskId == null) {
+      filesAtOnce.restoreIfIdle();
+      await filesAtOnce.run(send);
+    } else {
+      await send();
     }
     await waitClean(
       target.fileId,
