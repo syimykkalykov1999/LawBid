@@ -151,9 +151,9 @@ describe('Cases sorted by stage (e2e, owner 2026-11-09)', () => {
     });
   }
 
-  const ids = (r: request.Response) =>
+  const ids = (r: request.Response): string[] =>
     (r.body.data as { id?: string; caseId?: string }[]).map(
-      (x) => x.id ?? x.caseId,
+      (x) => x.id ?? x.caseId ?? '',
     );
 
   it('the client’s «Active»: most advanced first, newest activity inside a stage', async () => {

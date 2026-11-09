@@ -34,6 +34,9 @@
 
 - **API static, Unit tests: «Redis Cluster guard › has a written cluster reason for every multi-key Redis call» (09.11, #858).** Новый `.multi()` / `mget` / `del(a, b)` / SCAN в `apps/api/src` без строки в `src/redis/redis-cluster-scan.allowlist.json`. Прогон только «своих» модулей это не ловит: тест лежит в `src/redis`. Лечение: запись `{file, kind, reason}` (почему это один слот: один ключ или общий `{тег}`), порядок по file. Перед пушем любого кода с Redis: `npx jest src/redis src/architecture`.
 
+- **Поднял лимит в DTO, забыл CHECK в базе и старые e2e (09.11, #884).** `PinPostDto` 6→10, но `posts_pin_slot_range` в базе оставался 1..6, а e2e `owner-pin-six` и `owner-chat-actions` проверяли старые лимиты. Перед сменой лимита: `grep -rn "<поле>" apps/api/prisma/migrations apps/api/test` — CHECK расширять миграцией (NOT VALID + отдельный VALIDATE), e2e с числом лимита обновлять в том же PR.
+- **Общий хук сортировки в базовом классе ломает чужие списки (09.11, #884).** `arrange` по `order` в `SyncedListNotifier` начал пересортировывать каналы/группы (channels_select/channels_sync тесты). Новое поведение класть в mixin своей фичи (`CaseListSync`), не в общий базовый класс.
+
 ## B. Деплой и прод
 12. **Сайт 503 с 24.10:** CloudFront function опубликована со старым кодом (`cf.kvs(имя)` вместо ID хранилища). После любого Terraform apply проверять `curl -s -o /dev/null -w "%{http_code}" https://lawbid.dev/` = 200 и `aws cloudfront test-function` на LIVE-стадии.
 13. **Terraform apply оборвался на сохранении state:** короткий `aws login` истёк в конце apply → state ушёл в errored.tfstate. Перед apply обновлять вход; при обрыве — `terraform state push errored.tfstate`, а не повторный apply.

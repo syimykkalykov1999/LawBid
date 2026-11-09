@@ -92,6 +92,18 @@ mixin CaseListSync<T> on SyncedListNotifier<T> {
   @override
   DateTime? updatedAtOf(T item) => null;
 
+  /// Owner 2026-11-09: every page of a case list (the live one, the
+  /// phone's copy, a next page) is shown in [order] — the copy and the
+  /// rows agree with the server even when the copy was saved under the
+  /// older date order. Only the case lists: other synced lists keep the
+  /// server's page order as before.
+  @override
+  List<T> arrange(List<T> items) {
+    final sort = order;
+    if (sort == null) return items;
+    return [...items]..sort(sort);
+  }
+
   /// Call from [build] before `super.build()`.
   void listenForChanges() {
     final sub = ref.watch(realtimeEventsProvider).listen((e) {

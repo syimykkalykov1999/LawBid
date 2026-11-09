@@ -59,16 +59,6 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
   /// rows stay where they were, new rows go on top).
   int Function(T a, T b)? get order => null;
 
-  /// Owner 2026-11-09: every page (the live one, the phone's copy, a next
-  /// page) is shown in [order] — so the copy and the rows agree with the
-  /// server even when the copy was saved under an older order.
-  @override
-  List<T> arrange(List<T> items) {
-    final sort = order;
-    if (sort == null) return items;
-    return [...items]..sort(sort);
-  }
-
   /// False for a list the server cannot send deltas for (a text search):
   /// a catch-up is then the first page again.
   bool get catchesUp => true;
