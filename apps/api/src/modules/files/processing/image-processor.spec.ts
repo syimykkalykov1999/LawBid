@@ -63,6 +63,42 @@ describe('ImageProcessor', () => {
     expect(out.variants.get(1080)?.height).toBe(1080);
   });
 
+  // Owner 2026-11-09 («фото обрабатываются долго»): a size that gives the
+  // same pixels as a bigger one is encoded once (a 1000 px photo has the
+  // same main and 1080 picture), and the sizes are made at once.
+  it('post photo no wider than 1080: main and the 1080 variant are one encode', async () => {
+    const src = await sharp({
+      create: { width: 1000, height: 750, channels: 3, background: '#335577' },
+    })
+      .jpeg()
+      .toBuffer();
+    const out = await processor.process({
+      data: src,
+      mime: 'image/jpeg',
+      avatar: false,
+      postImage: true,
+      format: 'webp',
+    });
+    expect([out.main?.width, out.main?.height]).toEqual([1000, 750]);
+    expect(out.variants.get(1080)!.data).toBe(out.main!.data);
+    expect(out.variants.get(320)!.width).toBe(320);
+  });
+
+  it('avatar smaller than 256: the variant is the main encode', async () => {
+    const src = await sharp({
+      create: { width: 200, height: 300, channels: 3, background: '#335577' },
+    })
+      .png()
+      .toBuffer();
+    const out = await processor.process({
+      data: src,
+      mime: 'image/png',
+      avatar: true,
+    });
+    expect([out.main?.width, out.main?.height]).toEqual([200, 200]);
+    expect(out.variants.get(256)!.data).toBe(out.main!.data);
+  });
+
   it('storage.image_format webp: photo, variants and avatar come out as WebP', async () => {
     const src = await jpegWithExif(3000, 2000);
     const photo = await processor.process({

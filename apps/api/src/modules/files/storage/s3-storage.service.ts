@@ -687,6 +687,30 @@ export class S3StorageService implements OnModuleDestroy {
   }
 
   /**
+   * Owner 2026-11-09 (photo publish speed): at most [bytes] of an object in
+   * ONE request (a ranged GET; S3 / R2 answer the whole object when it is
+   * shorter), null when it is not there. `confirm` reads a small upload with
+   * it instead of HEAD + copy + GET, and [bytes] keeps a longer object than
+   * the link allowed from ever being held whole.
+   */
+  async readUpTo(
+    bucket: string,
+    key: string,
+    bytes: number,
+  ): Promise<Buffer | null> {
+    try {
+      return await this.readStart(bucket, key, bytes);
+    } catch (err) {
+      if (isNotFound(err)) return null;
+      // An empty object has no byte 0 to start a range at.
+      if ((err as { name?: string })?.name === 'InvalidRange') {
+        return Buffer.alloc(0);
+      }
+      throw err;
+    }
+  }
+
+  /**
    * Security audit 2026-11-08 (M3): server-side copy inside one bucket —
    * S3 / R2 / MinIO copy the bytes themselves, nothing passes through the
    * API. Content-Type and Cache-Control are copied with the object

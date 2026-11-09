@@ -144,7 +144,7 @@ export interface PostImageLinks {
 }
 
 /** Owner 2026-11-08: a confirm at least this slow writes where its time
- * went (`files_confirm_slow`: head, copy, read, db, enqueue in ms). */
+ * went (`files_confirm_slow`: head, copy, read, put, db, enqueue in ms). */
 const CONFIRM_SLOW_MS = 500;
 
 @Injectable()
@@ -574,47 +574,77 @@ export class FilesService {
     const lap = (name: string) => {
       laps[name] = Date.now() - started;
     };
-    const head = await this.storage.head(intent.bucket, intent.key);
-    lap('head');
-    if (!head) return this.notUploaded(userId, fileId);
+    // Owner 2026-11-09 («фото обрабатываются долго»): a file under the light
+    // threshold is read whole anyway, so the HEAD and the server-side copy
+    // (≈0.6 s on R2, measured on prod) are skipped: ONE ranged GET of the
+    // upload (never more than the size the link allowed, plus one byte to see
+    // a longer object), the checks below on those bytes, then a PUT of
+    // exactly the checked bytes to the server key (M3 holds: what is stored
+    // is what was checked, nothing a link can still write is ever read
+    // again). Flag `files_confirm_direct`; off = HEAD + copy as before.
     const maxBytes = await this.maxBytes(intent.purpose);
-    if (head.size > maxBytes) {
-      await this.reject(fileId, intent);
-      throw this.tooLarge(maxBytes);
-    }
-    if (head.size !== intent.size) {
-      await this.reject(fileId, intent);
-      throw this.checksumMismatch();
-    }
-    // Security audit 2026-11-08 (M3): the presigned link of this upload can
-    // still overwrite intent.key until it expires. Everything below — the
-    // type, the hash, the content check, the scan, every download — uses a
-    // server-side copy at a key no link can write, so bytes swapped in after
-    // the checks never reach anyone. The copy is done by S3 / R2 itself.
+    const direct =
+      intent.size < LIGHT_CONFIRM_MIN_BYTES &&
+      (await this.flags.isEnabled('files_confirm_direct', true));
     const key = storedKey(intent.key, randomUUID().slice(0, 8));
-    if (!(await this.storage.copy(intent.bucket, intent.key, key))) {
-      return this.notUploaded(userId, fileId);
-    }
-    lap('copy');
-    // R-252: a big file is not read into the API's memory here. The start
-    // of the file settles its type at once; the checksum and the look inside
-    // the container move to the scan worker, which holds the file anyway. The
-    // file stays `pending`, and only `clean` files can be attached. A start
-    // the prefix cannot settle goes the full way.
+    let size: number;
     let prefix: Buffer | null = null;
-    if (
-      head.size >= LIGHT_CONFIRM_MIN_BYTES &&
-      (await this.flags.isEnabled('files_confirm_light', true))
-    ) {
-      const start = await this.storage.readStart(
+    let data: Buffer;
+    if (direct) {
+      const got = await this.storage.readUpTo(
         intent.bucket,
-        key,
-        CONFIRM_PREFIX_BYTES,
+        intent.key,
+        Math.min(intent.size, maxBytes) + 1,
       );
-      if (detectMime(start, intent.mime) !== null) prefix = start;
+      lap('read');
+      if (!got) return this.notUploaded(userId, fileId);
+      size = got.length;
+      if (size > maxBytes) {
+        await this.reject(fileId, intent);
+        throw this.tooLarge(maxBytes);
+      }
+      data = got;
+    } else {
+      const head = await this.storage.head(intent.bucket, intent.key);
+      lap('head');
+      if (!head) return this.notUploaded(userId, fileId);
+      size = head.size;
+      if (head.size > maxBytes) {
+        await this.reject(fileId, intent);
+        throw this.tooLarge(maxBytes);
+      }
+      if (head.size !== intent.size) {
+        await this.reject(fileId, intent);
+        throw this.checksumMismatch();
+      }
+      // Security audit 2026-11-08 (M3): the presigned link of this upload
+      // can still overwrite intent.key until it expires. Everything below —
+      // the type, the hash, the content check, the scan, every download —
+      // uses a server-side copy at a key no link can write, so bytes swapped
+      // in after the checks never reach anyone. The copy is done by S3 / R2.
+      if (!(await this.storage.copy(intent.bucket, intent.key, key))) {
+        return this.notUploaded(userId, fileId);
+      }
+      lap('copy');
+      // R-252: a big file is not read into the API's memory here. The start
+      // of the file settles its type at once; the checksum and the look
+      // inside the container move to the scan worker, which holds the file
+      // anyway. The file stays `pending`, and only `clean` files can be
+      // attached. A start the prefix cannot settle goes the full way.
+      if (
+        head.size >= LIGHT_CONFIRM_MIN_BYTES &&
+        (await this.flags.isEnabled('files_confirm_light', true))
+      ) {
+        const start = await this.storage.readStart(
+          intent.bucket,
+          key,
+          CONFIRM_PREFIX_BYTES,
+        );
+        if (detectMime(start, intent.mime) !== null) prefix = start;
+      }
+      data = prefix ?? (await this.storage.read(intent.bucket, key));
+      lap('read');
     }
-    const data = prefix ?? (await this.storage.read(intent.bucket, key));
-    lap('read');
     let sha256: string | null = null;
     if (!prefix) {
       sha256 = createHash('sha256').update(data).digest('hex');
@@ -647,6 +677,11 @@ export class FilesService {
         details: { declared: intent.mime, detected, reason: danger },
       });
     }
+    if (direct) {
+      // The checked bytes, and only they, go to the key no link can write.
+      await this.storage.put(intent.bucket, key, data, detected);
+      lap('put');
+    }
 
     try {
       await this.prisma.file.create({
@@ -657,7 +692,7 @@ export class FilesService {
           s3_bucket: intent.bucket,
           s3_key: key,
           mime: detected,
-          size_bytes: BigInt(head.size),
+          size_bytes: BigInt(size),
           // Light confirm: `sha256` is what the phone claimed, unproven until
           // the worker checks it. An empty `source_sha256` is what tells the
           // worker so, and it keeps the row out of the storage dedup: a false
@@ -678,7 +713,7 @@ export class FilesService {
       }
       return this.get(userId, fileId);
     }
-    this.heavy?.upload(userId, head.size);
+    this.heavy?.upload(userId, size);
     await this.redis.del(intentKey(fileId));
     await this.redis.zrem(
       PENDING_UPLOADS_KEY,
@@ -707,7 +742,8 @@ export class FilesService {
           fileId,
           purpose: intent.purpose,
           store: this.storage.isPublicStoreBucket(intent.bucket) ? 'r2' : 'aws',
-          sizeBytes: head.size,
+          sizeBytes: size,
+          path: direct ? 'direct' : 'copy',
           totalMs,
           laps,
         },

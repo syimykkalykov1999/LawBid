@@ -128,6 +128,39 @@ function assertPixels(width: number, height: number): void {
   }
 }
 
+/**
+ * Owner 2026-11-09 («фото обрабатываются долго»): every size of one picture
+ * is encoded at once (Promise.all over sharp pipelines that share the
+ * decoded pixels), and a size whose output is the same as another's — a
+ * 1000 px photo is 1000 px as «main» and as «1080» — is encoded only once
+ * and shares its bytes. [outSide] is the long side a size really comes out
+ * at (never upscaled).
+ */
+async function sizesAtOnce(
+  mainPx: number,
+  variantPx: readonly number[],
+  outSide: (px: number) => number,
+  make: (px: number) => Promise<ProcessedImage>,
+): Promise<{ main: ProcessedImage; variants: Map<number, ProcessedImage> }> {
+  const bySide = new Map<number, Promise<ProcessedImage>>();
+  const once = (px: number): Promise<ProcessedImage> => {
+    const side = outSide(px);
+    let job = bySide.get(side);
+    if (!job) {
+      job = make(px);
+      bySide.set(side, job);
+    }
+    return job;
+  };
+  const [main, ...rest] = await Promise.all([
+    once(mainPx),
+    ...variantPx.map(once),
+  ]);
+  const variants = new Map<number, ProcessedImage>();
+  variantPx.forEach((px, i) => variants.set(px, rest[i]));
+  return { main, variants };
+}
+
 @Injectable()
 export class ImageProcessor {
   async process(input: {
@@ -158,11 +191,14 @@ export class ImageProcessor {
         .rotate()
         .raw()
         .toBuffer({ resolveWithObject: true });
-      const main = await this.square(oriented, AVATAR_MAIN_PX, format, q);
-      const variants = new Map<number, ProcessedImage>();
-      for (const px of AVATAR_VARIANT_PX) {
-        variants.set(px, await this.square(oriented, px, format, q));
-      }
+      const side = (px: number) =>
+        Math.min(px, oriented.info.width, oriented.info.height);
+      const { main, variants } = await sizesAtOnce(
+        AVATAR_MAIN_PX,
+        AVATAR_VARIANT_PX,
+        side,
+        (px) => this.square(oriented, px, format, q),
+      );
       return { main, variants, width: main.width, height: main.height };
     }
 
@@ -171,11 +207,13 @@ export class ImageProcessor {
         .rotate()
         .raw()
         .toBuffer({ resolveWithObject: true });
-      const main = await this.fitted(oriented, POST_IMAGE_MAIN_PX, format, q);
-      const variants = new Map<number, ProcessedImage>();
-      for (const px of POST_IMAGE_VARIANT_PX) {
-        variants.set(px, await this.fitted(oriented, px, format, q));
-      }
+      const long = Math.max(oriented.info.width, oriented.info.height);
+      const { main, variants } = await sizesAtOnce(
+        POST_IMAGE_MAIN_PX,
+        POST_IMAGE_VARIANT_PX,
+        (px) => Math.min(px, long),
+        (px) => this.fitted(oriented, px, format, q),
+      );
       return { main, variants, width: main.width, height: main.height };
     }
 
@@ -274,7 +312,17 @@ export class ImageProcessor {
     format: ImageFormat,
     q: ImageQuality,
   ): Promise<ProcessedImage> {
+    // Owner 2026-11-09: the AVIF twin is encoded at the same time as the
+    // WebP/JPEG (sharp's clone() of one pipeline, as in its README).
     const avifPipe = q.avif ? img.clone() : null;
+    const avifOut =
+      avifPipe && q.avif
+        ? avifPipe
+            .avif({ quality: q.avif.quality, effort: q.avif.effort })
+            .toBuffer({ resolveWithObject: true })
+        : null;
+    // Never left unobserved while the main encode is awaited.
+    avifOut?.catch(() => undefined);
     const out =
       format === 'webp'
         ? await img
@@ -289,10 +337,8 @@ export class ImageProcessor {
       width: out.info.width,
       height: out.info.height,
     };
-    if (avifPipe && q.avif) {
-      const a = await avifPipe
-        .avif({ quality: q.avif.quality, effort: q.avif.effort })
-        .toBuffer({ resolveWithObject: true });
+    if (avifOut) {
+      const a = await avifOut;
       // Never keep an AVIF that is not smaller than what it twins.
       if (a.data.length < out.data.length) {
         result.avif = {
