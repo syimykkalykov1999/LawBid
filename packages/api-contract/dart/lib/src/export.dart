@@ -1535,6 +1535,7 @@ export 'models/post_status_incident_dto.dart';
 export 'models/search_index_verify_dto.dart';
 export 'models/search_index_generation_dto.dart';
 export 'models/search_index_entity_dto.dart';
+export 'models/search_auto_step_dto.dart';
 export 'models/search_index_status_dto.dart';
 export 'models/search_index_status_envelope.dart';
 export 'models/start_search_reindex_dto.dart';

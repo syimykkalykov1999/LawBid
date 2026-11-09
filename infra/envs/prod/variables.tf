@@ -273,6 +273,12 @@ variable "create_anomaly_monitor" {
   default     = true
   description = "false when the AWS account already has a service-level Cost Anomaly monitor (one allowed per account)."
 }
+# Automation audit 2026-11-08: generated phone-book pepper (see the stack).
+variable "contacts_pepper_enabled" {
+  type    = bool
+  default = false
+}
+
 # Automation audit 2026-11-08: the stack had this switch, prod never passed
 # it, so partition.*_mode = auto could not be made to work from tfvars.
 # true = Terraform generates the lawbid_partition login (PARTITION_DB_PASSWORD)

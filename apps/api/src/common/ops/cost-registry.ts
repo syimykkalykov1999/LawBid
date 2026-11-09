@@ -470,6 +470,31 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ],
   },
   {
+    id: 'aws.redis_cache',
+    name: 'Отдельный Redis для кэша',
+    purpose:
+      'Кэш уходит из основного Redis (очереди, чаты) в свой узел, когда основному тесно по памяти.',
+    kind: 'aws',
+    control: tf(['redis_cache_node'], {
+      off: 'redis_cache_node = false',
+      on: 'redis_cache_node = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      'cache.t4g.micro ≈ $0,016 в час (≈ $12 в месяц)',
+      U.cache,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(12, 25) },
+    ifOnUsd: R(12, 25),
+    needed: 'later',
+    neededNote:
+      'G5 (2026-11-08): включается само (cache.redis_mode = Авто), когда основному Redis долго не хватает памяти. Само не выключается: без него память снова кончится.',
+    alarm: null,
+  },
+  {
     id: 'aws.redis_autoscale',
     name: 'Автомасштаб размера Redis',
     purpose:

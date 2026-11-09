@@ -107,3 +107,21 @@ export function sizeWord(bytes: number): string {
 export function swapLabel(s: SearchIndexStatus): string {
   return s.nextSwap === 'write' ? 'Переключить запись' : 'Переключить чтение';
 }
+
+/** One step search «Авто» took by itself (infra-auto searchPass), in words. */
+export function autoStepWord(step: string): string {
+  switch (step) {
+    case 'search:set_mode:shadow':
+      return 'движок подключён, сверка';
+    case 'search:start_reindex':
+      return 'начата сборка индекса';
+    case 'search:swap':
+      return 'индекс проверен и переключён';
+    case 'search:set_mode:engine':
+      return 'поиск отвечает движок';
+    case 'search:set_mode:postgres':
+      return 'поиск вернулся в базу';
+    default:
+      return step;
+  }
+}
