@@ -333,6 +333,9 @@ describe('BootstrapService.build', () => {
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
       'client.video_prefetch_ahead': 3,
       'client.video_prefetch_cellular': 1,
+      // FR D-c2: the SMS consent wording version, always sent; the text
+      // only once the admin stored one.
+      'compliance.sms.disclosure_version': 'sms-v1',
     });
     expect(result.languages).toEqual([EN]);
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });

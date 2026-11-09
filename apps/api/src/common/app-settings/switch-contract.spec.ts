@@ -96,9 +96,7 @@ describe('case_fanout.enabled', () => {
     expect((await loadFanoutSettings(legacyOff, true)).enabled).toBe(false);
     const legacyOn = settingsWith({ 'case_fanout.enabled': true });
     expect((await loadFanoutSettings(legacyOn, false)).enabled).toBe(true);
-    expect((await loadFanoutSettings(settingsWith())).autoMaxWaiting).toBe(
-      500,
-    );
+    expect((await loadFanoutSettings(settingsWith())).autoMaxWaiting).toBe(500);
   });
   it('follows the switch and clamps its ceilings', async () => {
     const on = await loadFanoutSettings(

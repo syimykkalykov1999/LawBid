@@ -175,21 +175,32 @@ export class CaseFanoutService
    * one wave to everyone right away. Costs one Redis call (LLEN) and only
    * when the mode is `auto`.
    */
+  /** How long the Авто probe waits for the queue's answer (a disconnected
+   * Redis makes BullMQ queue the command instead of failing). */
+  private autoProbeMs = 1_500;
+
   async wavesAuto(): Promise<boolean> {
     const mode = this.settings
       ? await readSwitchMode(this.settings, 'case_fanout.enabled')
       : parseSwitchMode(APP_SETTINGS['case_fanout.enabled']);
     if (mode !== 'auto' || !this.queue) return false;
     try {
-      const client = await this.queue.client;
-      if (client.status !== 'ready') return false;
       const max = Math.max(
         0,
         this.settings
           ? await this.settings.number('case_fanout.auto_max_waiting')
           : APP_SETTINGS['case_fanout.auto_max_waiting'],
       );
-      const waiting = await this.queue.getWaitingCount();
+      let timer: NodeJS.Timeout | undefined;
+      const waiting = await Promise.race([
+        this.queue.getWaitingCount(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('queue probe timed out')),
+            this.autoProbeMs,
+          );
+        }),
+      ]).finally(() => clearTimeout(timer));
       if (waiting > max) {
         this.logger.warn(
           { metric: 'case_fanout_auto_fallback', waiting, max },

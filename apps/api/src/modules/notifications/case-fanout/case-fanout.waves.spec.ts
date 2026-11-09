@@ -31,11 +31,11 @@ interface World {
     /** cases.alert_generation (C-1 / M-2 re-alerts). */
     generation: number;
     urgent: boolean;
-    /** The Авто signal of `case_fanout.enabled`: the fake queue's Redis
-     * status, waiting count and a read error. */
-    redisStatus: string;
+    /** The Авто signal of `case_fanout.enabled`: the fake queue's waiting
+     * count, a read error, or a hang (ms) longer than the probe. */
     waiting: number;
     queueError?: string;
+    queueHangMs?: number;
   };
   overrides: Record<string, unknown>;
   logs: Record<string, unknown>[];
@@ -59,7 +59,6 @@ function world(
     alertsTotal: {},
     generation: 0,
     urgent: false,
-    redisStatus: 'ready',
     waiting: 0,
   };
   const newcomers = opts.newcomers ?? 0;
@@ -183,15 +182,16 @@ function world(
     ) => {
       jobs.push({ job, delay: o.delay, jobId: o.jobId });
     },
-    // the Авто signal: a connected Redis and the waiting count
-    get client() {
-      return Promise.resolve({ status: state.redisStatus });
-    },
-    getWaitingCount: async () => {
-      if (state.queueError) throw new Error(state.queueError);
-      return state.waiting;
-    },
+    // the Авто signal: the waiting count, answered in time
+    getWaitingCount: () =>
+      new Promise<number>((resolve, reject) => {
+        if (state.queueError) reject(new Error(state.queueError));
+        else if (state.queueHangMs)
+          setTimeout(() => resolve(state.waiting), state.queueHangMs);
+        else resolve(state.waiting);
+      }),
   };
+  (svc as unknown as { autoProbeMs: number }).autoProbeMs = 20;
   if (withQueue) {
     (svc as unknown as { queue: unknown }).queue = queue;
   }
@@ -483,14 +483,18 @@ describe('case fan-out waves', () => {
       expect(w.jobs).toHaveLength(0);
     });
 
-    it('Redis not connected, a queue error or no queue: one wave at once', async () => {
+    it('a queue that does not answer in time, a queue error or no queue: one wave at once', async () => {
       const down = world(6, { 'case_fanout.enabled': 'auto' });
-      down.state.redisStatus = 'reconnecting';
+      down.state.queueHangMs = 200;
       expect(await down.svc.wavesAuto()).toBe(false);
       const err = world(6, { 'case_fanout.enabled': 'auto' });
       err.state.queueError = 'ECONNRESET';
       expect(await err.svc.wavesAuto()).toBe(false);
-      const none = world(6, { 'case_fanout.enabled': 'auto' }, { withQueue: false });
+      const none = world(
+        6,
+        { 'case_fanout.enabled': 'auto' },
+        { withQueue: false },
+      );
       expect(await none.svc.wavesAuto()).toBe(false);
       expect(await none.svc.start(CASE)).toBe(6);
     });

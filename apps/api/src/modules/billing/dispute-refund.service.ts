@@ -134,7 +134,10 @@ export class DisputeRefundService {
    * as the bank inquiry; one row per payment (`cancel:<payment>`), so a
    * repeated cancel / resume / cancel never pays twice.
    */
-  async onFirstChargeCancel(userId: string, now = new Date()): Promise<boolean> {
+  async onFirstChargeCancel(
+    userId: string,
+    now = new Date(),
+  ): Promise<boolean> {
     if (!(await this.enabled())) return false;
     const windowDays = await this.settings.number(
       'billing.first_charge_refund_days',
@@ -188,7 +191,11 @@ export class DisputeRefundService {
     });
     const cents = first.amount_cents - (taken._sum.amount_cents ?? 0);
     if (cents <= 0) return false;
-    const row = await this.reserve(firstChargeCancelRef(first.id), first, cents);
+    const row = await this.reserve(
+      firstChargeCancelRef(first.id),
+      first,
+      cents,
+    );
     if (!row) return true;
     if (row.status === 'review') {
       await this.hold(row, null);

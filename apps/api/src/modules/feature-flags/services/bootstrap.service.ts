@@ -358,7 +358,9 @@ export class BootstrapService {
   ): Record<string, string> {
     const text = (key: string): string | undefined => {
       const v = appConfig[key];
-      return typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined;
+      return typeof v === 'string' && v.trim().length > 0
+        ? v.trim()
+        : undefined;
     };
     const version = text('compliance.sms.disclosure_version');
     const out: Record<string, string> = {

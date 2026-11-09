@@ -28,7 +28,8 @@ void main() {
     expect(s.configText(kSmsDisclosureVersionConfig), 'sms-v2');
   });
 
-  test('the keys match the server (bootstrap.service.ts smsDisclosureKeys)', () {
+  test('the keys match the server (bootstrap.service.ts smsDisclosureKeys)',
+      () {
     expect(kSmsDisclosureTextConfig, 'compliance.sms.disclosure_text');
     expect(kSmsDisclosureVersionConfig, 'compliance.sms.disclosure_version');
   });
