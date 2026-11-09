@@ -100,6 +100,13 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
     path: [GROWTH_CONTAINER, 'opensearch_enabled'],
     spec: { type: 'boolean' },
   },
+  // G4 (2026-11-08): the Kinesis stream the `events.sink = auto` switch needs.
+  'growth.events_stream_enabled': {
+    path: [GROWTH_CONTAINER, 'events_stream_enabled'],
+    spec: { type: 'boolean' },
+  },
+  // G5 (2026-11-08): the separate cache Redis `cache.redis_mode = auto` uses.
+  redis_cache_node: bool('redis_cache_node'),
 };
 
 export type InfraTarget = 'off' | 'on';
@@ -209,6 +216,24 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     },
     impact:
       'Без перерыва: движок создаётся 15–30 минут; поиск переключается отдельно настройкой search.engine.',
+  },
+  {
+    id: 'aws.events_stream',
+    values: {
+      off: { 'growth.events_stream_enabled': false },
+      on: { 'growth.events_stream_enabled': true },
+    },
+    impact:
+      'Без перерыва: поток создаётся за минуту, серверы перезапускаются по очереди и начинают отправлять в него события; события в таблице остаются.',
+  },
+  {
+    id: 'aws.redis_cache',
+    values: {
+      off: { redis_cache_node: false },
+      on: { redis_cache_node: true },
+    },
+    impact:
+      'Без перерыва: узел кэша создаётся 10–15 минут, серверы перезапускаются по очереди; до этого кэш живёт в основном Redis.',
   },
   {
     id: 'aws.pgbouncer',

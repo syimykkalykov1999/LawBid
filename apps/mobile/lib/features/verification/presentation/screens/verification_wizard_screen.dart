@@ -15,6 +15,7 @@ import 'package:lawbid/features/verification/application/verification_wizard_con
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
+import 'package:lawbid/features/verification/presentation/identity_check_page.dart';
 import 'package:lawbid/features/verification/presentation/widgets/license_sheet.dart';
 import 'package:lawbid/features/verification/presentation/widgets/phone_handoff_panel.dart';
 import 'package:lawbid/features/verification/presentation/widgets/wizard_stepper.dart';
@@ -60,6 +61,24 @@ class _VerificationWizardScreenState
 
   void _toast(Object error) {
     if (mounted) showAppSnackBar(context, errorText(_t, error));
+  }
+
+  /// Owner 2026-11-08: Persona's page for the ID + selfie. When the server
+  /// cannot start it, the controller has already switched this wizard back
+  /// to the manual upload, so nothing more happens here.
+  Future<void> _startIdentityCheck() async {
+    final Uri? url;
+    try {
+      url = await _c.startIdentityCheck();
+    } on Object catch (e) {
+      _toast(e);
+      return;
+    }
+    if (url == null || !mounted) return;
+    setState(() => _stepError = null);
+    if (!await openIdentityCheckPage(url) && mounted) {
+      showAppSnackBar(context, _t.t('error.default.message'));
+    }
   }
 
   Future<bool> _confirm(String title, String body, String action) async {
@@ -217,6 +236,8 @@ class _VerificationWizardScreenState
         if (!r.licensesReady(barDocumentRequired: s.barDocumentRequired)) {
           return _t.t('verification.licenses.needDocs');
         }
+      case WizardStep.identity when s.usesPersona:
+        if (!r.identityCheckStarted) return _t.t('verification.missing.id');
       case WizardStep.identity:
         final front =
             r.docsFor(DocSlot.identity(s.idType, DocSide.front)).isNotEmpty;
@@ -397,6 +418,7 @@ class _VerificationWizardScreenState
       removeLicense: _removeLicense,
       editLicense: (l) => _editLicense(s, l),
       selectIdType: _c.selectIdType,
+      startIdentityCheck: _startIdentityCheck,
       goTo: (step) {
         setState(() => _stepError = null);
         _c.goTo(step);

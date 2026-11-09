@@ -313,6 +313,10 @@ export const OWNER_MEDIA_SETTINGS = {
   // differences; engine = the search engine, Postgres on error / timeout.
   // See docs/architecture/SEARCH_READY.md.
   'search.engine': 'postgres',
+  /** «Авто» for search.engine (2026-11-08): auto = follows the search engine
+   * domain (shadow → reindex → engine; postgres when it is off), manual =
+   * the admin sets search.engine by hand. infra-auto search-engine-auto.logic.ts */
+  'search.engine_follow': 'auto',
   /** Review R-26: the nightly ledger check. off | on (whole ledger every
    * night) | auto (last N days nightly, whole ledger weekly). */
   'ledger.reconcile_mode': 'auto',
@@ -1449,6 +1453,10 @@ export const OWNER_FEED_SETTINGS = {
    * started with (a pinned copy, 15 min), not a list rebuilt mid-scroll
    * (posts skipped or repeated). Off = the old behaviour. */
   'reco.pin_paging_enabled': true,
+  /** Owner 2026-11-08: the reels feed is ordered for the viewer by the
+   * posts formula (`reco.post.*`, hot / topics / followed / fresh, watched
+   * lower). Off = newest first, as before. */
+  'reco.reels_ranked': true,
 };
 
 // Owner 2026-10-13: who may ADD files, documents and extra photos to a post

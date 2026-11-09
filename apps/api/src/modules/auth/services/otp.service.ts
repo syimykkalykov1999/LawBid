@@ -4,6 +4,7 @@ import {
   OTP_LOCKOUT_SCHEDULE_SECONDS,
 } from '../otp-limits';
 import {
+  BadRequestException,
   HttpException,
   HttpStatus,
   Inject,
@@ -50,6 +51,15 @@ export type OtpChannel = 'phone' | 'email';
 // code asked for one flow can neither be spent by another nor burn another
 // flow's attempts.
 export type OtpPurpose = 'login' | 'contact' | 'reset' | 'reauth' | 'link';
+
+/** Owner rule (memory sms-two-cases, 2026-11-07/08): an SMS code goes out in
+ * exactly two cases — registration of a new number (`login` through
+ * POST /auth/otp/request, sent only for an unregistered number) and
+ * «Забыл пароль» (`reset`). A step-up, a new sign-in method or a phone
+ * change is confirmed with the password / passkey, never by SMS. Checked
+ * here, in the only place that calls the SMS provider, so no future caller
+ * can slip a third case in (sms-two-cases.guard.spec.ts pins the callers). */
+export const SMS_OTP_PURPOSES: readonly OtpPurpose[] = ['login', 'reset'];
 
 /** Extra scoping of one code (S14-8 / S14-12). */
 export interface OtpScope {
@@ -219,6 +229,13 @@ export class OtpService {
     // login and contact OTPs alike, whatever the provider (mock included,
     // so dev/e2e exercise the same path production does).
     if (channel === 'phone') {
+      if (!SMS_OTP_PURPOSES.includes(purpose)) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message:
+            'An SMS code is only for registration and a forgotten password.',
+        });
+      }
       await this.assertSmsDestinationAllowed(identifier);
       // Owner 2026-10-16 (economy guard): while third-party spend is above
       // the rule, SMS goes only to sign-in / registration and password

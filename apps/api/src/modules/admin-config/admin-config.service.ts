@@ -278,6 +278,27 @@ export class AdminConfigService {
     }
     if (key !== 'search.engine' || value === 'postgres') return;
     const f = (await this.secrets?.get('opensearch'))?.fields ?? {};
+    // Feature reality audit 2026-11-08: with the serverless kind chosen the
+    // engine lives at the serverless address, so that one must exist.
+    const kind = (
+      await this.prisma.appConfig.findUnique({
+        where: { key: 'search.engine_kind' },
+      })
+    )?.value;
+    if (kind === 'serverless') {
+      const surl = (
+        f.serverless_url ??
+        this.config.get<string>('OPENSEARCH_SERVERLESS_URL') ??
+        ''
+      ).trim();
+      if (surl) return;
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message:
+          'The search engine kind is serverless but OpenSearch Serverless is not configured (OPENSEARCH_SERVERLESS_URL).',
+        details: { field: 'value', missing: ['OPENSEARCH_SERVERLESS_URL'] },
+      });
+    }
     const url = (
       f.url ??
       this.config.get<string>('OPENSEARCH_URL') ??
@@ -293,6 +314,23 @@ export class AdminConfigService {
   }
 
   /** Owner 2026-10-22: livekit cannot be switched on without its keys. */
+  /** Feature reality audit 2026-11-08: the AI text check («shadow» /
+   * «enforce») without its key silently allowed every text while the admin
+   * showed it on. Refused until the key is saved, like the search engine. */
+  private async assertTextDetectorReady(
+    key: string,
+    value: unknown,
+  ): Promise<void> {
+    if (key !== 'moderation.detect.mode' || value === 'off') return;
+    if (await this.secrets?.has('openai_moderation')) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message:
+        'The AI text check has no key: save the OpenAI moderation key in Integrations first.',
+      details: { field: 'value', missing: ['openai_moderation'] },
+    });
+  }
+
   private async assertLivekitReady(key: string, value: unknown): Promise<void> {
     const needs = key === 'calls.video_provider' && value === 'livekit';
     if (!needs) return;
@@ -387,6 +425,7 @@ export class AdminConfigService {
     await this.assertCloudflareTransportReady(key, value);
     await this.assertR2Ready(key, value);
     await this.assertSearchEngineReady(key, value);
+    await this.assertTextDetectorReady(key, value);
     const json = value as Prisma.InputJsonValue;
     const row = await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({ where: { key } });

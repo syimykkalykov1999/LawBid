@@ -92,6 +92,8 @@ locals {
     pushFailed    = "SloPushFailed"
     # Cloudflare TURN gave no login after a retry (own alarm below, not an SLO ratio).
     turnProviderFailed = "SloTurnProviderFailed"
+    # G8 (2026-11-08): our own coturn is needed but silent (own alarm below).
+    ownTurnDown = "SloOwnTurnDown"
     # S12-3 journey SLIs (apps/api/src/common/ops/route-metrics.service.ts counts them from the
     # request path; chat send is counted at the send handler).
     loginOk    = "SloLoginOk"
@@ -344,6 +346,28 @@ resource "aws_cloudwatch_metric_alarm" "turn_provider_failed" {
   threshold           = 5
   statistic           = "Sum"
   metric_name         = "SloTurnProviderFailed"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+# G8 (2026-11-08): our own coturn (the BACKUP of Cloudflare) is needed —
+# Cloudflare is failing, or the admin switch is «Вкл» — but does not answer on
+# 3478 for about ten minutes. The API counts it only while the box is needed,
+# so a box switched off on purpose (calls.own_turn.mode = off) never alarms.
+# Replaces the Route 53 health alarm, which in on-demand mode cannot exist.
+resource "aws_cloudwatch_metric_alarm" "own_turn_down" {
+  alarm_name          = "${var.name}-own-turn-down"
+  alarm_description   = "LawBid: Наш запасной сервер звонков (TURN) нужен — Cloudflare не работает или в админке «Вкл» — но не отвечает около 10 минут. Что делать: админка → Система → Состояние системы → Звонки; EC2 lawbid-prod-turn: Session Manager → sudo systemctl restart coturn. Инструкция: ${var.runbook_base_url}/TURN.md (EN: own TURN needed but not answering on 3478.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  datapoints_to_alarm = 2
+  period              = 300
+  threshold           = 3
+  statistic           = "Sum"
+  metric_name         = "SloOwnTurnDown"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
   alarm_actions       = local.ops

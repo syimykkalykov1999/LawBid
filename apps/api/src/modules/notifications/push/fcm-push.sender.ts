@@ -175,6 +175,7 @@ export class FcmPushSender implements PushSender {
       );
       if (claimed === null) return;
       let res: Response;
+      let bytes: number;
       try {
         const body = JSON.stringify({
           message: message.callEnd
@@ -324,6 +325,7 @@ export class FcmPushSender implements PushSender {
                 },
               },
         });
+        bytes = body.length;
         // S8-3: FCM rides one HTTP/2 connection (undici allowH2); a session
         // the peer closed while idle dies on first use - repeat once.
         const send = (): Promise<Response> =>
@@ -388,6 +390,26 @@ export class FcmPushSender implements PushSender {
         await this.tokens.remove(device);
         return;
       }
+      if (code === 'INVALID_ARGUMENT') {
+        // G8 (2026-11-08): FCM says «do not retry without correcting the
+        // problem» for any other INVALID_ARGUMENT — the same payload fails
+        // the same way. On prod one user's pushes were retried until the
+        // job gave up (30 failures in 30 min) and every retry counted again,
+        // which alone fired the push SLO alarm. Counted once, kept claimed
+        // (no retry), logged WITH FCM's text so the cause can be fixed.
+        this.slo?.count('pushFailed');
+        this.logger.warn(
+          {
+            userId: message.userId,
+            status: res.status,
+            code,
+            fcmMessage: (body.error?.message ?? '').slice(0, 200),
+            bytes,
+          },
+          'fcm send rejected (not retried)',
+        );
+        return;
+      }
       await this.redis.del(`${sentKey}:${device}`);
       temporary++;
       if (res.status === 429) {
@@ -398,7 +420,12 @@ export class FcmPushSender implements PushSender {
       }
       this.slo?.count('pushFailed');
       this.logger.warn(
-        { userId: message.userId, status: res.status, code },
+        {
+          userId: message.userId,
+          status: res.status,
+          code,
+          fcmMessage: (body.error?.message ?? '').slice(0, 200),
+        },
         'fcm send failed',
       );
     };

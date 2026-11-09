@@ -286,13 +286,13 @@ void main() {
     await repo.requestReauthCode(channel: 'email', identifier: 'a@b.co');
     final token = await repo.reauth(identifier: 'a@b.co', code: '123456');
     await repo.requestContactCode(
-      type: ContactType.phone,
-      value: '+15551234567',
+      type: ContactType.email,
+      value: 'new@b.co',
       reauthToken: token,
     );
     await repo.verifyContact(
-      type: ContactType.phone,
-      value: '+15551234567',
+      type: ContactType.email,
+      value: 'new@b.co',
       code: '654321',
     );
 
@@ -313,11 +313,36 @@ void main() {
     expect(adapter.requests[2].headers['X-Reauth-Token'], 'rt-1');
     expect(
       bodyOf(adapter.requests[2]),
-      {'type': 'phone', 'value': '+15551234567'},
+      {'type': 'email', 'value': 'new@b.co'},
     );
     expect(
       bodyOf(adapter.requests[3]),
-      {'type': 'phone', 'value': '+15551234567', 'code': '654321'},
+      {'type': 'email', 'value': 'new@b.co', 'code': '654321'},
+    );
+  });
+
+  test(
+      'owner rule sms-two-cases: the phone is changed with the reauth token on POST /users/me/phone (no SMS code)',
+      () async {
+    adapter.handler = (o) async => ok({'verified': true});
+    await repo.changePhone(value: '+15551234567', reauthToken: 'rt-1');
+    await repo.changePhone(value: '+15551234568');
+    expect(adapter.requests.map((r) => r.path), [
+      '/users/me/phone',
+      '/users/me/phone',
+    ]);
+    expect(adapter.requests.map((r) => r.method), ['POST', 'POST']);
+    expect(adapter.requests[0].headers['X-Reauth-Token'], 'rt-1');
+    expect(adapter.requests[0].headers['Idempotency-Key'], 'k');
+    expect(bodyOf(adapter.requests[0]), {'phone': '+15551234567'});
+    expect(adapter.requests[1].headers.containsKey('X-Reauth-Token'), isFalse);
+    expect(bodyOf(adapter.requests[1]), {'phone': '+15551234568'});
+    // Nothing went to the code endpoints.
+    expect(
+      adapter.requests.where(
+        (r) => r.path.contains('/contacts/') || r.path.contains('/otp/'),
+      ),
+      isEmpty,
     );
   });
 
