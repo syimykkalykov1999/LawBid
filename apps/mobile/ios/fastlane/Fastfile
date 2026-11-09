@@ -6,6 +6,46 @@
 # `testflight_upload` lanes below are for running the same release by hand.
 default_platform(:ios)
 
+# Store release in GitHub Actions (owner 2026-11-09, .github/workflows/store-release.yml).
+def asc_api_key
+  missing = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_CONTENT].select { |v| ENV[v].to_s.empty? }
+  UI.user_error!("App Store Connect API key secrets missing: #{missing.join(', ')} (environment `release`, docs/runbooks/mobile-testers-ci.md)") unless missing.empty?
+  app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_content: ENV.fetch("ASC_KEY_CONTENT"),
+    is_key_content_base64: true,
+  )
+end
+
+# Release notes in every language: fastlane/metadata/<locale>/release_notes.txt, beside the
+# 42-locale listing. en-US is written from RELEASE_NOTES when it is missing; a locale without
+# its own file gets the en-US text (App Store requires "What's New" in every listed language).
+def ensure_release_notes!
+  root = File.expand_path("metadata", __dir__)
+  en = File.join(root, "en-US", "release_notes.txt")
+  unless File.exist?(en)
+    notes = ENV["RELEASE_NOTES"].to_s.strip
+    File.write(en, (notes.empty? ? "Improvements and fixes." : notes)[0, 4000])
+  end
+  text = File.read(en)
+  Dir[File.join(root, "*")].select { |d| File.directory?(d) && File.exist?(File.join(d, "name.txt")) }.each do |d|
+    f = File.join(d, "release_notes.txt")
+    File.write(f, text) unless File.exist?(f)
+  end
+end
+
+# The version in phased release (the one live or waiting for its 7-day ramp).
+def phased_release_of_live_version
+  app = Spaceship::ConnectAPI::App.find(CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier))
+  UI.user_error!("app not found in App Store Connect") if app.nil?
+  version = app.get_live_app_store_version
+  UI.user_error!("no live App Store version") if version.nil?
+  phased = version.fetch_app_store_version_phased_release
+  UI.user_error!("version #{version.version_string} has no phased release") if phased.nil?
+  [version, phased]
+end
+
 platform :ios do
   desc "Build the prod IPA (release, scheme prod). Env: BUILD_NUMBER (optional; unset = automatic), DART_DEFINES_FILE"
   lane :build do |options|
@@ -68,6 +108,52 @@ platform :ios do
       submit_for_review: true, automatic_release: true, phased_release: true,
       force: true,
     )
+  end
+
+  # --- store-release.yml: beta -> release (phased) -> rollout 100, guard + halt ----------------
+  desc "beta: build the prod IPA and upload it to TestFlight (alias of `testflight_upload`). " \
+       "In GitHub Actions the Mobile release workflow builds and uploads (cloud-managed signing)."
+  lane :beta do
+    testflight_upload
+  end
+
+  desc "release: submit the newest TestFlight build for review with the release notes of every " \
+       "language and a 7-day phased release (1-2-5-10-20-50-100 %), released automatically after review."
+  lane :release do
+    api_key = asc_api_key
+    ensure_release_notes!
+    deliver(
+      api_key: api_key,
+      metadata_path: "./fastlane/metadata",
+      skip_binary_upload: true, skip_screenshots: true,
+      skip_metadata: false, skip_app_version_update: false,
+      submit_for_review: true, automatic_release: true, phased_release: true,
+      run_precheck_before_submit: false,
+      submission_information: { add_id_info_uses_idfa: false },
+      force: true,
+    )
+  end
+
+  desc "rollout: percent:100 releases the phased version to everyone now; percent:50 resumes a paused ramp " \
+       "(Apple sets the daily steps itself: 1-2-5-10-20-50-100 %)."
+  lane :rollout do |options|
+    asc_api_key
+    percent = (options[:percent] || "100").to_s
+    version, phased = phased_release_of_live_version
+    case percent
+    when "100" then phased.complete
+    when "50" then phased.resume
+    else UI.user_error!("percent must be 50 (resume) or 100 (everyone)")
+    end
+    UI.success("#{version.version_string}: phased release #{percent == '100' ? 'completed' : 'resumed'}")
+  end
+
+  desc "halt: pause the phased release (up to 30 days); users who have it keep it."
+  lane :halt do
+    asc_api_key
+    version, phased = phased_release_of_live_version
+    phased.pause
+    UI.success("#{version.version_string}: phased release paused")
   end
 
   desc "Upload the store listing in every language (fastlane/metadata/<locale>/*.txt). " \

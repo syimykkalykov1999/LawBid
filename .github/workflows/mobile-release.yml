@@ -22,6 +22,14 @@ name: Mobile release
 on:
   push:
     tags: ["v*.*.*"]
+  # Store release (.github/workflows/store-release.yml, action=beta) calls this same
+  # build + signing + upload, so the signing steps exist once.
+  workflow_call:
+    inputs:
+      upload: { type: boolean, default: false }
+      flavor: { type: string, default: prod }
+      stage: { type: string, default: internal }
+      rollout: { type: string, default: "0.05" }
   workflow_dispatch:
     inputs:
       upload:
