@@ -115,6 +115,64 @@ final casesLocalDatabaseProvider = Provider<CasesLocalDatabase>((ref) {
   return db;
 });
 
+// --- Owner 2026-11-09: the order of the stage lists -------------------------
+
+int _desc(DateTime a, DateTime b) => b.compareTo(a);
+
+/// The order the server gives «My cases» (apps/api `listMine`): «Active»
+/// by stage — the most advanced first, the newest activity first inside a
+/// stage, the id last — or by the case's date when the «Дата» filter says
+/// so; the other tabs keep their date order. Null = no re-sort needed
+/// (the server's order as is).
+int Function(CaseSummary, CaseSummary)? caseSummaryOrder(
+  MyCasesFilter filter,
+  MineSearch search,
+) {
+  final sort = search.sort == CasesSort.stage && filter != MyCasesFilter.active
+      ? CasesSort.newest
+      : search.sort;
+  return switch (sort) {
+    CasesSort.stage => (a, b) {
+        final byStage = caseStageOf(b.status, b.bidsCount)
+            .compareTo(caseStageOf(a.status, a.bidsCount));
+        if (byStage != 0) return byStage;
+        final byTime = _desc(a.lastActivityAt, b.lastActivityAt);
+        return byTime != 0 ? byTime : b.id.compareTo(a.id);
+      },
+    CasesSort.newest => (a, b) {
+        final byTime = _desc(a.createdAt, b.createdAt);
+        return byTime != 0 ? byTime : b.id.compareTo(a.id);
+      },
+    CasesSort.oldest => (a, b) {
+        final byTime = a.createdAt.compareTo(b.createdAt);
+        return byTime != 0 ? byTime : a.id.compareTo(b.id);
+      },
+  };
+}
+
+/// The same for the attorney's work (apps/api `myWork`): «Active» by
+/// stage (wrapping up, then in progress; the newest case activity first);
+/// a date order comes from the server as is (null).
+int Function(WorkItem, WorkItem)? workItemOrder(
+  WorkFilter filter,
+  MineSearch search,
+) {
+  if (filter != WorkFilter.active || search.sort != CasesSort.stage) {
+    return null;
+  }
+  DateTime at(WorkItem w) =>
+      w.lastActivityAt ??
+      w.acceptedAt ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+  return (a, b) {
+    final byStage =
+        caseStageOf(b.status, 0).compareTo(caseStageOf(a.status, 0));
+    if (byStage != 0) return byStage;
+    final byTime = _desc(at(a), at(b));
+    return byTime != 0 ? byTime : b.caseId.compareTo(a.caseId);
+  };
+}
+
 // --- Client: "Мои кейсы" (docs/04 §11.1) ------------------------------------
 
 class MyCasesNotifier extends SyncedListNotifier<CaseSummary>
@@ -128,6 +186,10 @@ class MyCasesNotifier extends SyncedListNotifier<CaseSummary>
 
   @override
   bool get catchesUp => ref.read(casesSyncProvider) != null;
+
+  @override
+  int Function(CaseSummary, CaseSummary)? get order =>
+      caseSummaryOrder(filter, const MineSearch());
 
   @override
   Future<PaginatedList<CaseSummary>> build() {
@@ -512,6 +574,10 @@ class MyWorkNotifier extends SyncedListNotifier<WorkItem>
   bool get catchesUp => ref.read(casesSyncProvider) != null;
 
   @override
+  int Function(WorkItem, WorkItem)? get order =>
+      workItemOrder(filter, const MineSearch());
+
+  @override
   Future<PaginatedList<WorkItem>> build() {
     listenForChanges();
     return super.build();
@@ -588,6 +654,10 @@ class MineCasesNotifier extends SyncedListNotifier<CaseSummary>
   @override
   bool get catchesUp =>
       key.search.isEmpty && ref.read(casesSyncProvider) != null;
+
+  @override
+  int Function(CaseSummary, CaseSummary)? get order =>
+      caseSummaryOrder(key.filter, key.search);
 
   @override
   Future<PaginatedList<CaseSummary>> build() {
@@ -726,6 +796,10 @@ class MineWorkNotifier extends SyncedListNotifier<WorkItem>
   @override
   bool get catchesUp =>
       key.search.isEmpty && ref.read(casesSyncProvider) != null;
+
+  @override
+  int Function(WorkItem, WorkItem)? get order =>
+      workItemOrder(key.filter, key.search);
 
   @override
   Future<PaginatedList<WorkItem>> build() {

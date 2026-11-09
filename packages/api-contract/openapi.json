@@ -36008,6 +36008,39 @@
             }
           },
           {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
+            }
+          },
+          {
             "name": "filter",
             "required": false,
             "in": "query",
@@ -36527,6 +36560,39 @@
             "schema": {
               "example": "IL",
               "type": "string"
+            }
+          },
+          {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
             }
           },
           {
@@ -40211,6 +40277,39 @@
             }
           },
           {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -40368,6 +40467,39 @@
             "schema": {
               "example": "IL",
               "type": "string"
+            }
+          },
+          {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
             }
           },
           {
@@ -150186,7 +150318,7 @@
           "pinSlot": {
             "type": "integer",
             "nullable": true,
-            "description": "Owner 2026-10-12: 1..6 (was 1..3 until 2026-10-28) when pinned to the\ntop of the author's list."
+            "description": "Owner 2026-10-12: 1..10 (1..3, then 1..6 until 2026-11-09) when pinned to the\ntop of the author's list."
           },
           "promotionId": {
             "type": "string",
@@ -150455,7 +150587,7 @@
           "slot": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 6
+            "maximum": 10
           }
         },
         "required": [
@@ -154635,6 +154767,14 @@
           "canMakeNotUrgent"
         ]
       },
+      "CaseListSort": {
+        "type": "string",
+        "enum": [
+          "stage",
+          "newest",
+          "oldest"
+        ]
+      },
       "CaseSummaryListEnvelope": {
         "type": "object",
         "properties": {
@@ -157312,6 +157452,11 @@
           "closedAt": {
             "type": "string",
             "nullable": true
+          },
+          "lastActivityAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-11-09: the case's last activity — the order inside a\nstage of «Active» (the app re-sorts its rows by it). Optional: an\nolder server does not send it."
           },
           "coverUrl": {
             "type": "string",

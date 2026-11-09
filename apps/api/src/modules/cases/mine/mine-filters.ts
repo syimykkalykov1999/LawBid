@@ -4,12 +4,25 @@ import { nameKeys, nameMatchSql } from '../../../common/search/name-match.sql';
 import { Transform } from 'class-transformer';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import {
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
   IsOptional,
   IsString,
   Length,
   Matches,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
+import {
+  CASE_LIST_SORTS,
+  parseStages,
+  stagesWhere,
+  type CaseListSort,
+  type CaseStage,
+} from '../case-stages';
 
 /** Owner 2026-09-30: "Mine" lists grow long — search by title and filter
  * by qualification (a category includes its subcategories) and state. */
@@ -37,10 +50,58 @@ export class MineFilterFields {
   @IsString()
   @Length(2, 2)
   state?: string;
+
+  /** Owner 2026-11-09: the «По этапам» filter — stages 0..4 of the app's
+   * scale (0 published, 1 bids, 2 in progress, 3 wrapping up, 4 done),
+   * comma-separated or repeated. */
+  @ApiPropertyOptional({
+    type: [Number],
+    description:
+      'Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.',
+    example: [0, 1],
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => parseStages(value))
+  @IsArray()
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(4, { each: true })
+  stages?: CaseStage[];
+
+  /** Owner 2026-11-09: «Ждёт меня» — the cases whose next move is mine
+   * (a client: bids to choose from, a completion to confirm). */
+  @ApiPropertyOptional({
+    description:
+      'Only the cases waiting for me (client: open with bids, or pending completion).',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' || value === true
+      ? true
+      : value === 'false' || value === false
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  awaiting?: boolean;
+
+  /** Owner 2026-11-09: the order of a stage list — `stage` (most advanced
+   * first, then the newest activity; the default of «Active»), `newest`
+   * or `oldest` by the case's date. */
+  @ApiPropertyOptional({ enum: CASE_LIST_SORTS, enumName: 'CaseListSort' })
+  @IsOptional()
+  @IsIn(CASE_LIST_SORTS)
+  sort?: CaseListSort;
 }
 
 export function hasMineFilter(f: MineFilterFields): boolean {
-  return !!(f.q || f.practice || f.state);
+  return !!(
+    f.q ||
+    f.practice ||
+    f.state ||
+    (f.stages && f.stages.length > 0) ||
+    f.awaiting
+  );
 }
 
 /**
@@ -58,44 +119,53 @@ export function mineCaseWhere(
   extraHits: Map<string, string[]> = new Map(),
 ): Prisma.CaseWhereInput {
   const words = (f.q ?? '').split(/\s+/).filter((w) => w.length > 0);
+  // Owner 2026-11-09: «По этапам» and «Ждёт меня» (the client's turn: bids
+  // to choose from, or a completion to confirm) narrow the rest (AND).
+  const narrow: Prisma.CaseWhereInput[] = [
+    ...(f.stages && f.stages.length > 0 ? [stagesWhere(f.stages)] : []),
+    ...(f.awaiting ? [AWAITING_ME_WHERE] : []),
+  ];
   return {
-    ...(words.length
+    ...(words.length || narrow.length
       ? {
-          AND: words.map((w) => {
-            const ids = topicIds.get(w) ?? [];
-            const hits = extraHits.get(w) ?? [];
-            const ci = { contains: w, mode: 'insensitive' as const };
-            return {
-              OR: [
-                ...(hits.length ? [{ id: { in: hits } }] : []),
-                { title: ci },
-                { description: ci },
-                { city: ci },
-                { practice_area: { name_en: ci } },
-                { practice_area: { parent: { name_en: ci } } },
-                { states: { some: { state: { name: ci } } } },
-                ...(w.length === 2
-                  ? [
-                      {
-                        states: {
-                          some: { state_code: w.toUpperCase() },
+          AND: [
+            ...narrow,
+            ...words.map((w) => {
+              const ids = topicIds.get(w) ?? [];
+              const hits = extraHits.get(w) ?? [];
+              const ci = { contains: w, mode: 'insensitive' as const };
+              return {
+                OR: [
+                  ...(hits.length ? [{ id: { in: hits } }] : []),
+                  { title: ci },
+                  { description: ci },
+                  { city: ci },
+                  { practice_area: { name_en: ci } },
+                  { practice_area: { parent: { name_en: ci } } },
+                  { states: { some: { state: { name: ci } } } },
+                  ...(w.length === 2
+                    ? [
+                        {
+                          states: {
+                            some: { state_code: w.toUpperCase() },
+                          },
                         },
-                      },
-                    ]
-                  : []),
-                ...(ids.length
-                  ? [
-                      { practice_area_id: { in: ids } },
-                      {
-                        extra_practices: {
-                          some: { practice_area_id: { in: ids } },
+                      ]
+                    : []),
+                  ...(ids.length
+                    ? [
+                        { practice_area_id: { in: ids } },
+                        {
+                          extra_practices: {
+                            some: { practice_area_id: { in: ids } },
+                          },
                         },
-                      },
-                    ]
-                  : []),
-              ],
-            };
-          }),
+                      ]
+                    : []),
+                ],
+              };
+            }),
+          ],
         }
       : {}),
     ...(f.practice
@@ -113,6 +183,13 @@ export function mineCaseWhere(
       : {}),
   };
 }
+
+const AWAITING_ME_WHERE: Prisma.CaseWhereInput = {
+  OR: [
+    { status: 'open', bids_count: { gt: 0 } },
+    { status: 'pending_completion' },
+  ],
+};
 
 function escapeLike(s: string): string {
   return s.replace(/[\\%_]/g, (c) => `\\${c}`);

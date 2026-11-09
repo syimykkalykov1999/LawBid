@@ -28,6 +28,9 @@
 
 - **`resumable_download_pieces_test`: «an expired link» иногда падает (05.11, #755).** Запрос, отменённый в первой попытке, доходил до тестового сервера уже после очистки списка. Порядок запросов при параллельной работе в тестах не проверять; проверять наличие.
 
+- **`dart format` до `flutter pub get` (09.11, ветка cases-sort-pins).** Без `.dart_tool` форматтер не видит `formatter: trailing_commas: preserve` из analysis_options.yaml, снимает запятые и переписывает целые файлы (15 файлов, +3600 строк). В свежем worktree сначала `flutter pub get` и `dart run build_runner build`, потом `dart format` только своих файлов; `flutter analyze` без codegen показывает тысячи ложных ошибок.
+- **swagger_parser нумерует безымянные enum по порядку (09.11).** Новый query-параметр `enum` без `enumName` сдвигает `Sort` → `Sort2` → `Sort3` во всём Dart-клиенте и ломает приложение. Каждому новому enum в `@ApiPropertyOptional` давать `enumName`.
+
 ## B. Деплой и прод
 12. **Сайт 503 с 24.10:** CloudFront function опубликована со старым кодом (`cf.kvs(имя)` вместо ID хранилища). После любого Terraform apply проверять `curl -s -o /dev/null -w "%{http_code}" https://lawbid.dev/` = 200 и `aws cloudfront test-function` на LIVE-стадии.
 13. **Terraform apply оборвался на сохранении state:** короткий `aws login` истёк в конце apply → state ушёл в errored.tfstate. Перед apply обновлять вход; при обрыве — `terraform state push errored.tfstate`, а не повторный apply.

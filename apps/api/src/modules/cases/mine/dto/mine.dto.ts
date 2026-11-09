@@ -197,6 +197,12 @@ export class WorkItemDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   closedAt!: string | null;
 
+  /** Owner 2026-11-09: the case's last activity — the order inside a
+   * stage of «Active» (the app re-sorts its rows by it). Optional: an
+   * older server does not send it. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  lastActivityAt?: string | null;
+
   /** Owner 2026-09-30: the case's first photo (the hired attorney sees
    * them), else null — the app shows the qualification's art. */
   @ApiPropertyOptional({ type: String, nullable: true })

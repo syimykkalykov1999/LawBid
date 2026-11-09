@@ -1061,8 +1061,9 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
 export const OWNER_CHAT_ACTION_SETTINGS = {
   'chat.edit_window_min': 15,
   'chat.delete_for_all_hours': 48,
-  /** Pinned messages per chat (WhatsApp: 3). */
-  'chat.max_pins': 3,
+  /** Pinned messages per chat. Owner 2026-11-09: 10 (Telegram pins
+   * without a cap, WhatsApp stops at 3; the owner wants ten everywhere). */
+  'chat.max_pins': 10,
   /** Owner 2026-10-22: link cards under messages. Kill switch + domains
    * (and their subdomains) that are never fetched. */
   /** Owner 2026-10-22: calls. Group calls up to this many people (peer to
