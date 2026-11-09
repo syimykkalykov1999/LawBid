@@ -16,8 +16,6 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
     show routeSubscriptionError;
-import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
-    show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_close_block.dart';

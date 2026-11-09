@@ -782,6 +782,7 @@ class WorkItem {
     this.coverUrl,
     this.coverBlurhash,
     this.percentBps,
+    this.lastActivityAt,
   });
 
   /// Owner 2026-09-30: the first photo (the Mine grid) when this viewer
@@ -790,6 +791,10 @@ class WorkItem {
 
   /// R-248: BlurHash of [coverUrl], drawn while it loads (null = none).
   final String? coverBlurhash;
+
+  /// Owner 2026-11-09: the case's last activity — the order inside a
+  /// stage of «Active» (null from an older server: the accepted date).
+  final DateTime? lastActivityAt;
 
   final String caseId;
   final String bidId;
@@ -989,40 +994,112 @@ class HistoryExport {
 /// (both) stays for the profile grid and search.
 enum MyCasesFilter { active, open, inProgress, archived, closed, completed }
 
-/// Owner 2026-09-30: search and filters of the "Mine" lists.
+/// Owner 2026-10-15: the five stages of a case, each tied to a real case
+/// status: 1 published (open, no bids) · 2 bids (open, at least one bid) ·
+/// 3 in progress · 4 wrapping up (pending completion / disputed) ·
+/// 5 completed (closed, archived). Returned 0-based (0..4); the server's
+/// `stages` filter and sort use the same numbers (apps/api case-stages.ts).
+int caseStageOf(CaseStatus status, int bids) => switch (status) {
+      CaseStatus.open => bids > 0 ? 1 : 0,
+      CaseStatus.inProgress => 2,
+      CaseStatus.pendingCompletion || CaseStatus.disputed => 3,
+      _ => 4,
+    };
+
+/// Owner 2026-11-09: the order of a stage list. [stage] — the most
+/// advanced case first, the newest activity first inside a stage (the
+/// default of «Active»); [newest] / [oldest] — by the case's date.
+enum CasesSort { stage, newest, oldest }
+
+/// Owner 2026-09-30: search and filters of the "Mine" lists. Owner
+/// 2026-11-09: plus the stage filters of the cases screen — [stages]
+/// (0..4, «По этапам»; «Новые» = {0}, «В работе» = {2}, «Открыт» =
+/// {0, 1}), [awaiting] («Ждёт меня») and the [sort] («Дата»).
 @immutable
 class MineSearch {
-  const MineSearch({this.q = '', this.practice, this.state});
+  const MineSearch({
+    this.q = '',
+    this.practice,
+    this.state,
+    this.stages = const {},
+    this.awaiting = false,
+    this.sort = CasesSort.stage,
+  });
 
   final String q;
   final String? practice;
   final String? state;
 
-  bool get isEmpty => q.trim().isEmpty && practice == null && state == null;
+  /// The picked stages (0..4), empty = every stage.
+  final Set<int> stages;
+
+  /// Only the cases whose next move is mine.
+  final bool awaiting;
+
+  /// The order of the list ([CasesSort.stage] = the default, not a filter).
+  final CasesSort sort;
+
+  bool get isEmpty =>
+      q.trim().isEmpty &&
+      practice == null &&
+      state == null &&
+      stages.isEmpty &&
+      !awaiting;
 
   /// How many filters (not the text) are on — the filter button's badge.
   int get filterCount => (practice == null ? 0 : 1) + (state == null ? 0 : 1);
+
+  /// Owner 2026-11-09: how many of the cases-screen filters are on (the
+  /// badge of the filter icon left of the search): the stage pick, «Ждёт
+  /// меня», a date order other than the default.
+  int get listFilterCount =>
+      (stages.isEmpty ? 0 : 1) +
+      (awaiting ? 1 : 0) +
+      (sort == CasesSort.stage ? 0 : 1);
+
+  /// The same filters with the cases-screen ones off (what a reset does).
+  MineSearch get withoutListFilters =>
+      MineSearch(q: q, practice: practice, state: state);
 
   MineSearch copyWith({
     String? q,
     String? Function()? practice,
     String? Function()? state,
+    Set<int>? stages,
+    bool? awaiting,
+    CasesSort? sort,
   }) =>
       MineSearch(
         q: q ?? this.q,
         practice: practice == null ? this.practice : practice(),
         state: state == null ? this.state : state(),
+        stages: stages ?? this.stages,
+        awaiting: awaiting ?? this.awaiting,
+        sort: sort ?? this.sort,
       );
+
+  /// The stages as the server takes them: sorted, unique.
+  List<int> get stageList => stages.toList()..sort();
 
   @override
   bool operator ==(Object other) =>
       other is MineSearch &&
       other.q == q &&
       other.practice == practice &&
-      other.state == state;
+      other.state == state &&
+      setEquals(other.stages, stages) &&
+      other.awaiting == awaiting &&
+      other.sort == sort;
 
   @override
-  int get hashCode => Object.hash(q, practice, state);
+  int get hashCode => Object.hash(
+        q,
+        practice,
+        state,
+        Object.hashAllUnordered(stages),
+        awaiting,
+        sort,
+      );
 }
 
 /// Sort of a case's bid list (docs/04 §5.2).

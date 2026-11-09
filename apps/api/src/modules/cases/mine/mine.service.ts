@@ -25,6 +25,16 @@ import {
 } from '../../../common/pagination/cursor.util';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { parseUpdatedSince, syncedAt } from '../../../common/sync/sync.util';
+import {
+  CASE_STAGES,
+  CASE_STAGE_WHERE,
+  caseStageOf,
+  decodeStageCursor,
+  encodeStageCursor,
+  pageByStages,
+  stagesWhere,
+  type CaseListSort,
+} from '../case-stages';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { SubscriptionAccessService } from '../../subscriptions/subscription-access.service';
 import { CaseBidsService } from '../case-bids/case-bids.service';
@@ -265,71 +275,149 @@ export class MineService {
     // accepted bids whose row or case changed since; rows outside this tab
     // (the case closed / reopened) come back as deletedIds.
     const since = parseUpdatedSince(updatedSince);
-    const c = cursor && !since ? decodeCursor(cursor) : undefined;
+    // Owner 2026-11-09: «Active» sorts by stage (wrapping up, then in
+    // progress; the newest case activity first inside a stage); «Done»
+    // keeps its order. The «Дата» filter picks newest / oldest.
+    const sort: CaseListSort =
+      search.sort ?? (filter === 'active' ? 'stage' : 'newest');
     // From the attorney's accepted bids — index bids(attorney_id, status,
     // updated_at) — rather than scanning cases (load review, file 04).
-    const [bids, active] = await Promise.all([
-      this.prisma.bid.findMany({
-        where: {
-          attorney_id: user.sub,
-          status: 'accepted',
-          accepted_for_case: since
-            ? { isNot: null }
-            : {
-                status: { in: WORK_STATUSES[filter] },
-                // Owner 2026-10-18: also by the client's name / @username
-                // (when the attorney sees names) and accent-insensitively.
-                ...(await mineWhere(this.prisma, search, {
-                  attorneyId: user.sub,
-                  withClient: search.q
-                    ? await this.subscriptions.isActive(user.sub)
-                    : false,
-                })),
-              },
-          ...(since
-            ? {
-                OR: [
-                  { updated_at: { gte: since } },
-                  { accepted_for_case: { updated_at: { gte: since } } },
-                ],
-              }
-            : {}),
-          ...(c
-            ? {
-                OR: [
-                  { updated_at: { lt: c.createdAt } },
-                  { updated_at: c.createdAt, id: { lt: c.id } },
-                ],
-              }
-            : {}),
-        },
-        orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
-        take: since ? 500 : limit + 1,
+    const caseWhere: Prisma.CaseWhereInput = since
+      ? {}
+      : {
+          status: { in: WORK_STATUSES[filter] },
+          // Owner 2026-10-18: also by the client's name / @username
+          // (when the attorney sees names) and accent-insensitively.
+          ...(await mineWhere(this.prisma, search, {
+            attorneyId: user.sub,
+            withClient: search.q
+              ? await this.subscriptions.isActive(user.sub)
+              : false,
+          })),
+        };
+    const base: Prisma.BidWhereInput = {
+      attorney_id: user.sub,
+      status: 'accepted',
+      accepted_for_case: since ? { isNot: null } : caseWhere,
+      ...(since
+        ? {
+            OR: [
+              { updated_at: { gte: since } },
+              { accepted_for_case: { updated_at: { gte: since } } },
+            ],
+          }
+        : {}),
+    };
+    const select = {
+      id: true,
+      fee_type: true,
+      amount_cents: true,
+      percent_bps: true,
+      decided_at: true,
+      updated_at: true,
+      accepted_for_case: {
         select: {
           id: true,
-          fee_type: true,
-          amount_cents: true,
-          percent_bps: true,
-          decided_at: true,
+          title: true,
+          status: true,
           updated_at: true,
-          accepted_for_case: {
-            select: {
-              id: true,
-              title: true,
-              status: true,
-              updated_at: true,
-              auto_close_at: true,
-              closed_at: true,
-              primary_state_code: true,
-              states: { select: { is_primary: true } },
-              practice_area: {
-                select: { name_en: true, i18n_key: true, code: true },
-              },
-              client_id: true,
-            },
+          last_activity_at: true,
+          auto_close_at: true,
+          closed_at: true,
+          primary_state_code: true,
+          states: { select: { is_primary: true } },
+          practice_area: {
+            select: { name_en: true, i18n_key: true, code: true },
           },
+          client_id: true,
         },
-      }),
+      },
+    } satisfies Prisma.BidSelect;
+    type Row = Prisma.BidGetPayload<{ select: typeof select }>;
+    const byDate = async (): Promise<{ rows: Row[]; hasMore: boolean }> => {
+      const c = cursor && !since ? decodeCursor(cursor) : undefined;
+      const dir = sort === 'oldest' ? 'asc' : 'desc';
+      const beyond = sort === 'oldest' ? 'gt' : 'lt';
+      const rows = await this.prisma.bid.findMany({
+        where: {
+          ...base,
+          ...(c
+            ? {
+                AND: [
+                  {
+                    OR: [
+                      { updated_at: { [beyond]: c.createdAt } },
+                      { updated_at: c.createdAt, id: { [beyond]: c.id } },
+                    ],
+                  },
+                ],
+              }
+            : {}),
+        },
+        orderBy: since
+          ? [{ updated_at: 'desc' }, { id: 'desc' }]
+          : [{ updated_at: dir }, { id: dir }],
+        take: since ? 500 : limit + 1,
+        select,
+      });
+      return { rows, hasMore: !since && rows.length > limit };
+    };
+    const byStage = async (): Promise<{ rows: Row[]; hasMore: boolean }> => {
+      const c = cursor ? decodeStageCursor(cursor) : undefined;
+      if (cursor && !c) decodeCursor(cursor);
+      const stages = [...CASE_STAGES]
+        .reverse()
+        .filter((st) => !search.stages?.length || search.stages.includes(st));
+      const { items, hasMore } = await pageByStages<Row>({
+        stages,
+        cursor: c,
+        limit,
+        fetch: (stage, after, take) =>
+          this.prisma.bid.findMany({
+            where: {
+              AND: [
+                base,
+                { accepted_for_case: CASE_STAGE_WHERE[stage] },
+                ...(after
+                  ? [
+                      {
+                        OR: [
+                          {
+                            accepted_for_case: {
+                              last_activity_at: { lt: after.createdAt },
+                            },
+                          },
+                          {
+                            accepted_for_case: {
+                              last_activity_at: after.createdAt,
+                            },
+                            id: { lt: after.id },
+                          },
+                        ],
+                      },
+                    ]
+                  : []),
+              ],
+            },
+            orderBy: [
+              { accepted_for_case: { last_activity_at: 'desc' } },
+              { id: 'desc' },
+            ],
+            take,
+            select,
+          }),
+        hasAny: async (rest) =>
+          (await this.prisma.bid.findFirst({
+            where: {
+              AND: [base, { accepted_for_case: stagesWhere(rest) }],
+            },
+            select: { id: true },
+          })) !== null,
+      });
+      return { rows: items, hasMore };
+    };
+    const [{ rows: bids, hasMore }, active] = await Promise.all([
+      since || sort !== 'stage' ? byDate() : byStage(),
       this.subscriptions.isActive(user.sub),
     ]);
     const inTab = (b: (typeof bids)[number]) =>
@@ -339,6 +427,7 @@ export class MineService {
       );
     const page = since ? bids.filter(inTab) : bids.slice(0, limit);
     const last = page[page.length - 1];
+    const lastCase = last?.accepted_for_case;
     const covers = await this.photos.coverUrls(
       page.flatMap((b) =>
         b.accepted_for_case ? [b.accepted_for_case.id] : [],
@@ -408,14 +497,21 @@ export class MineService {
             autoCloseAt: k.auto_close_at?.toISOString() ?? null,
             acceptedAt: b.decided_at?.toISOString() ?? null,
             closedAt: k.closed_at?.toISOString() ?? null,
+            lastActivityAt: k.last_activity_at.toISOString(),
             coverUrl: covers.get(k.id)?.url ?? null,
             coverBlurhash: covers.get(k.id)?.blurhash ?? null,
           },
         ];
       }),
       nextCursor:
-        !since && bids.length > limit && last
-          ? encodeCursor({ createdAt: last.updated_at, id: last.id })
+        !since && hasMore && last
+          ? sort === 'stage' && lastCase
+            ? encodeStageCursor({
+                rank: caseStageOf(lastCase.status, 0),
+                createdAt: lastCase.last_activity_at,
+                id: last.id,
+              })
+            : encodeCursor({ createdAt: last.updated_at, id: last.id })
           : null,
     };
   }
