@@ -41,6 +41,13 @@ export function OverflowTabs({ items, active, label, className }: { items: Overf
   const [open, setOpen] = useState(false);
   const sig = items.map((t) => `${t.href}:${t.label}:${t.count ?? 0}`).join('|');
 
+  // The ResizeObserver delivers its first entry right after the layout-effect
+  // measure, and every commit re-measures: keep the same array when nothing
+  // changed so React bails out instead of re-rendering the shell (Lighthouse
+  // 2026-11-09 showed these as «Cascading Update» on every page load).
+  const keep = (next: string[]) =>
+    setShown((prev) => (prev && prev.length === next.length && prev.every((h, i) => h === next[i]) ? prev : next));
+
   const measure = useCallback(() => {
     const row = box.current;
     const r = ruler.current;
@@ -49,7 +56,7 @@ export function OverflowTabs({ items, active, label, className }: { items: Overf
     const hrefs = els.map((e) => e.dataset.tab!);
     const widths = els.map((e) => e.offsetWidth);
     const avail = row.clientWidth - PAD;
-    if (widths.reduce((a, w) => a + w + GAP, -GAP) <= avail) return setShown(hrefs);
+    if (widths.reduce((a, w) => a + w + GAP, -GAP) <= avail) return keep(hrefs);
     const room = avail - (r.querySelector<HTMLElement>('[data-more]')?.offsetWidth ?? 0) - GAP;
     const pick: number[] = [];
     let used = -GAP;
@@ -63,7 +70,7 @@ export function OverflowTabs({ items, active, label, className }: { items: Overf
       while (pick.length && used + GAP + widths[at]! > room) used -= GAP + widths[pick.pop()!]!;
       pick.push(at);
     }
-    setShown(pick.map((i) => hrefs[i]!));
+    keep(pick.map((i) => hrefs[i]!));
   }, [active]);
 
   useLayoutEffect(() => {

@@ -6,9 +6,8 @@
 // The admin's session is the httpOnly cookie `lawbid_admin` = the admin JWT
 // that apps/api/scripts/lhci-admin.ts prints (LHCI_ADMIN_TOKEN).
 //
-// Budgets (assert): the first run is NON-blocking (continue-on-error in the
-// workflow) and only records the numbers; the levels below are "warn" so the
-// job stays green while the baseline settles, then flip to "error".
+// Budgets (assert): Total Blocking Time is an error (fails the job); the other
+// levels are "warn" while their baseline settles, then flip to "error".
 const token = process.env.LHCI_ADMIN_TOKEN ?? '';
 const base = process.env.LHCI_ADMIN_URL ?? 'http://localhost:3001';
 
@@ -16,7 +15,9 @@ module.exports = {
   ci: {
     collect: {
       url: [`${base}/users`, `${base}/audit-log`, `${base}/cases`],
-      numberOfRuns: 3,
+      // 5 runs, median: with 3 the cold first run (1418 ms TBT on 2026-11-09)
+      // moved the median by tens of ms.
+      numberOfRuns: 5,
       settings: {
         preset: 'desktop',
         formFactor: 'desktop',
@@ -33,7 +34,8 @@ module.exports = {
         'categories:performance': ['warn', { minScore: 0.8 }],
         'categories:accessibility': ['warn', { minScore: 0.9 }],
         'largest-contentful-paint': ['warn', { maxNumericValue: 2500 }],
-        'total-blocking-time': ['warn', { maxNumericValue: 300 }],
+        // Owner 2026-11-09: the main-thread budget is enforced (error).
+        'total-blocking-time': ['error', { maxNumericValue: 300 }],
         'cumulative-layout-shift': ['warn', { maxNumericValue: 0.1 }],
         'resource-summary:script:size': ['warn', { maxNumericValue: 600 * 1024 }],
       },

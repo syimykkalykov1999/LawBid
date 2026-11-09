@@ -102,10 +102,9 @@ jobs:
   # stand: postgres + redis services, migrated schema, the API from this commit,
   # one admin signed in (apps/api/scripts/lhci-admin.ts), the admin built and
   # started like production. Desktop, CPU x4, budgets in apps/admin/lighthouserc.cjs.
-  # NON-blocking for now: every stand / Lighthouse step is `continue-on-error`
-  # at STEP level (a job-level flag still reports the check red to the deploy
-  # gate), so the job records the numbers (summary + artifact) and stays green;
-  # the budgets flip to errors once the baseline is known.
+  # The stand steps are `continue-on-error` at STEP level (a job-level flag
+  # still reports the check red to the deploy gate): an infra hiccup skips the
+  # measurement. The Lighthouse step itself blocks on the TBT budget (error).
   lighthouse:
     name: Admin Lighthouse (3 heavy pages, CPU x4, with API)
     runs-on: ubuntu-latest
@@ -202,9 +201,13 @@ jobs:
           (cd apps/admin && nohup npm start > "$RUNNER_TEMP/admin.log" 2>&1 &)
           for _ in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:3001/login && break; sleep 2; done
           curl -fsS -o /dev/null http://localhost:3001/login || { echo "::error::the admin did not start"; tail -50 "$RUNNER_TEMP/admin.log"; exit 1; }
-      - name: Lighthouse (3 runs per page, median)
+          # Warm-up: the first request of each route loads its server chunk; the
+          # measured runs must not include that one-off cost.
+          for p in users audit-log cases; do curl -fsS -o /dev/null -H "Cookie: lawbid_admin=$LHCI_ADMIN_TOKEN" "http://localhost:3001/$p" || true; done
+      # Blocking: the Total Blocking Time budget is an error (lighthouserc.cjs);
+      # the stand steps above stay non-blocking (an infra hiccup skips this).
+      - name: Lighthouse (5 runs per page, median)
         if: steps.admin.outcome == 'success'
-        continue-on-error: true
         working-directory: apps/admin
         env:
           LHCI_ADMIN_URL: http://localhost:3001
@@ -222,13 +225,15 @@ jobs:
               [ -f "$f" ] || continue
               jq -r '"| \(.finalDisplayedUrl | sub("https?://[^/]+"; "")) | \((.categories.performance.score*100)|round) | \((.categories.accessibility.score*100)|round) | \(.audits["largest-contentful-paint"].numericValue|round) | \(.audits["total-blocking-time"].numericValue|round) | \(.audits["cumulative-layout-shift"].numericValue*1000|round/1000) |"' "$f"
             done
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload the Lighthouse reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: admin-lighthouse
           path: apps/admin/.lighthouseci
+          # the folder starts with a dot: upload-artifact v4+ skips it otherwise
+          include-hidden-files: true
           if-no-files-found: ignore
 
   # S11-6: a failure on main / on a schedule reaches the owner (notify-failure.yml).
