@@ -1843,11 +1843,24 @@ export const OWNER_COST_REGISTRY_SETTINGS = {
  * - `infra.daily_cap`: at most this many change requests per 24 hours.
  * - `infra.quiet_hours`: "HH:MM-HH:MM" (America/Chicago) when an apply may
  *   start; empty = any time.
+ * Automation audit 2026-11-08 (owner: «Авто» must really act, both ways):
+ * - `infra.auto_mode`: auto = the API itself switches a cloud item ON when
+ *   its signal held for `infra.auto_on_minutes` and OFF (only what it turned
+ *   on) after `infra.auto_off_hours` without the signal; plan, apply and a
+ *   message to the on-call admins follow by themselves (no 2FA tap: nobody
+ *   pressed anything). off = signals stay proposals on «Масштаб».
+ * - `infra.auto_max_usd_month`: an automatic switch-on that may cost more a
+ *   month than this, or any switch-on while the AWS month is at 90 % of the
+ *   budget, is not made (the money ceiling); it stays a proposal.
  */
 export const OWNER_INFRA_SETTINGS = {
   'infra.dry_run': true,
   'infra.daily_cap': 3,
   'infra.quiet_hours': '',
+  'infra.auto_mode': 'auto',
+  'infra.auto_on_minutes': 30,
+  'infra.auto_off_hours': 72,
+  'infra.auto_max_usd_month': 100,
 };
 
 /**

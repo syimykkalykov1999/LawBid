@@ -1435,6 +1435,27 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: null,
   },
   {
+    id: 'aws.partition_role',
+    name: 'Вход для деления больших таблиц (роль lawbid_partition)',
+    purpose:
+      'Даёт фоновым серверам право переделать большую таблицу на куски по месяцам или хешу без остановки.',
+    kind: 'aws',
+    control: tf(['partition_role_enabled'], {
+      off: 'partition_role_enabled = false',
+      on: 'partition_role_enabled = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price('unit', '≈ $0,40 в месяц (один секрет)', U.sm, false),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 1),
+    needed: 'later',
+    neededNote:
+      'Включается сам, когда таблица приближается к порогу «Авто» деления (partition.auto_rows).',
+    alarm: null,
+  },
+  {
     id: 'aws.security_hub',
     name: 'Проверки безопасности (Security Hub)',
     purpose: 'Каждые 12 часов сверяет аккаунт со стандартами CIS и AWS.',
