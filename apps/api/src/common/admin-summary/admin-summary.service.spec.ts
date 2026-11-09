@@ -192,3 +192,75 @@ describe('AdminSummaryService.keepWarm (R-370)', () => {
     await expect(svc.dropFamily('c')).resolves.toBeUndefined();
   });
 });
+
+describe('AdminSummaryService.board (2026-11-08: boards never rebuild inside the request)', () => {
+  const age = (
+    redis: ReturnType<typeof fakeRedis>,
+    key: string,
+    ms: number,
+  ) => {
+    const k = `adm:sum:${key}`;
+    const v = JSON.parse(redis.store.get(k)!) as { computedAt: string };
+    v.computedAt = new Date(Date.now() - ms).toISOString();
+    redis.store.set(k, JSON.stringify(v));
+  };
+
+  it('the first ever read waits; concurrent first readers share one build', async () => {
+    const svc = new AdminSummaryService(fakeRedis() as never);
+    const compute = jest.fn(() => Promise.resolve({ items: [1] }));
+    const [a, b] = await Promise.all([
+      svc.board('b', compute, 15_000),
+      svc.board('b', compute, 15_000),
+    ]);
+    expect(a).toEqual({ items: [1] });
+    expect(b).toEqual({ items: [1] });
+    expect(compute).toHaveBeenCalledTimes(1);
+  });
+
+  it('a fresh copy is served without any build', async () => {
+    const svc = new AdminSummaryService(fakeRedis() as never);
+    const compute = jest.fn(() => Promise.resolve({ items: [1] }));
+    await svc.board('b', compute, 15_000);
+    await svc.board('b', compute, 15_000);
+    expect(compute).toHaveBeenCalledTimes(1);
+  });
+
+  it('a copy of ANY age is served at once while one build runs behind it', async () => {
+    const redis = fakeRedis();
+    const svc = new AdminSummaryService(redis as never);
+    await svc.board('b', () => Promise.resolve({ items: ['old'] }), 15_000);
+    age(redis, 'b', 20 * 3600_000); // 20 hours: the owner comes back next day
+    const slow = jest.fn(
+      () => new Promise<{ items: string[] }>(() => undefined),
+    );
+    const started = Date.now();
+    const r = await svc.board('b', slow, 15_000);
+    expect(Date.now() - started).toBeLessThan(200);
+    expect(r).toEqual({ items: ['old'] });
+    expect(slow).toHaveBeenCalledTimes(1); // the background build
+  });
+
+  it('a copy that fails [valid] counts as missing', async () => {
+    const redis = fakeRedis();
+    const svc = new AdminSummaryService(redis as never);
+    await svc.put('b', { nope: true });
+    const compute = jest.fn(() => Promise.resolve({ items: [2] }));
+    const r = await svc.board<{ items?: number[] }>(
+      'b',
+      compute,
+      15_000,
+      (d) => !!d?.items,
+    );
+    expect(r).toEqual({ items: [2] });
+    expect(compute).toHaveBeenCalledTimes(1);
+  });
+
+  it('drop() makes the next read build again', async () => {
+    const svc = new AdminSummaryService(fakeRedis() as never);
+    const compute = jest.fn(() => Promise.resolve({ items: [1] }));
+    await svc.board('b', compute, 15_000);
+    await svc.drop('b');
+    await svc.board('b', compute, 15_000);
+    expect(compute).toHaveBeenCalledTimes(2);
+  });
+});
