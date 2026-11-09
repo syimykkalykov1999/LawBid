@@ -752,6 +752,7 @@ export 'models/contact_code_sent_envelope.dart';
 export 'models/contact_verified_dto.dart';
 export 'models/contact_verify_dto.dart';
 export 'models/contact_verified_envelope.dart';
+export 'models/change_phone_dto.dart';
 export 'models/consents_saved_dto.dart';
 export 'models/consent_item_dto.dart';
 export 'models/save_consents_dto.dart';

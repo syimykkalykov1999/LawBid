@@ -1,5 +1,6 @@
 import { OTP_LIMIT_WINDOW_SECONDS } from '../../auth/otp-limits';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -74,13 +75,23 @@ export class ContactsService {
       : user?.email_verified_at != null;
   }
 
+  /** contacts/request|verify are for an e-mail only (owner rule
+   * sms-two-cases); checked before the reauth step so a phone never gets
+   * as far as a code. */
+  assertCodeContact(type: 'phone' | 'email'): void {
+    if (type === 'phone') throw phoneByPassword();
+  }
+
   async requestVerification(
     userId: string,
     type: 'phone' | 'email',
     value: string,
   ): Promise<void> {
+    // Owner rule (sms-two-cases): no SMS code for a phone change — the
+    // number is changed with the password / passkey (changePhone).
+    if (type === 'phone') throw phoneByPassword();
     // Admin «Вход и письма по почте» off: the code could not be delivered.
-    if (type === 'email') await assertEmailFlowsOn(this.flags);
+    await assertEmailFlowsOn(this.flags);
     const normalized = this.normalize(type, value);
 
     if (type === 'email') {
@@ -175,6 +186,7 @@ export class ContactsService {
     /** The session making the change: it stays signed in. */
     keepSessionId?: string,
   ): Promise<void> {
+    if (type === 'phone') throw phoneByPassword();
     const normalized = this.normalize(type, value);
     const result = await this.otp.verifyOtp(type, normalized, code, 'contact');
 
@@ -207,6 +219,65 @@ export class ContactsService {
       });
     }
 
+    await this.commit(userId, type, normalized, keepSessionId);
+  }
+
+  /**
+   * POST /users/me/phone — owner rule (memory sms-two-cases): the phone of
+   * an account is set or changed WITHOUT an SMS code; the caller has just
+   * confirmed it is them with the account password or a passkey (a
+   * single-use X-Reauth-Token, checked by the controller). Same as WhatsApp
+   * «Change number» minus the SMS: the old number stops signing in, every
+   * other session ends, and the account is told on every device and by
+   * e-mail (commit). The new number must be a supported mobile (like
+   * sign-up) and not belong to another account.
+   */
+  async changePhone(
+    userId: string,
+    value: string,
+    keepSessionId?: string,
+  ): Promise<void> {
+    const normalized = this.normalize('phone', value);
+    // The same destination rule sign-up uses (nothing is sent).
+    await this.otp.assertSmsDestinationAllowed(normalized);
+    const perHour = await this.rateLimit.consumeFixedWindow(
+      ['phone-change', 'user', userId, 'h'],
+      this.config.getOrThrow<number>('CONTACT_OTP_LIMIT_PER_USER_PER_HOUR'),
+      OTP_LIMIT_WINDOW_SECONDS,
+    );
+    const perDay = perHour.allowed
+      ? await this.rateLimit.consumeFixedWindow(
+          ['phone-change', 'user', userId, 'd'],
+          this.config.getOrThrow<number>('CONTACT_OTP_LIMIT_PER_USER_PER_DAY'),
+          86_400,
+        )
+      : perHour;
+    if (!perHour.allowed || !perDay.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'Too many phone changes. Try again later.',
+          details: {
+            retryAfterSeconds: Math.max(
+              perHour.retryAfterSeconds,
+              perDay.retryAfterSeconds,
+            ),
+          },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    await this.commit(userId, 'phone', normalized, keepSessionId);
+  }
+
+  /** Links the confirmed contact, replaces the previous one, ends other
+   * sessions and tells the user (shared by verify and changePhone). */
+  private async commit(
+    userId: string,
+    type: 'phone' | 'email',
+    normalized: string,
+    keepSessionId?: string,
+  ): Promise<void> {
     const linkResult = await this.identity.linkIdentifier(
       userId,
       type,
@@ -298,4 +369,14 @@ export class ContactsService {
   private normalize(type: 'phone' | 'email', value: string): string {
     return type === 'email' ? value.trim().toLowerCase() : value.trim();
   }
+}
+
+/** contacts/request|verify with type=phone: the phone is changed with the
+ * password on POST /users/me/phone, never with an SMS code. */
+function phoneByPassword(): BadRequestException {
+  return new BadRequestException({
+    code: ErrorCode.VALIDATION_ERROR,
+    message:
+      'The phone is changed with your password (POST /users/me/phone), not an SMS code.',
+  });
 }
