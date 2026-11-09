@@ -208,7 +208,7 @@ jobs:
         working-directory: apps/admin
         env:
           LHCI_ADMIN_URL: http://localhost:3001
-        run: npx --yes @lhci/cli@0.16.0 autorun --config=lighthouserc.cjs
+        run: npx --yes @lhci/cli@0.15.1 autorun --config=lighthouserc.cjs
       - name: Numbers into the job summary
         if: always()
         working-directory: apps/admin

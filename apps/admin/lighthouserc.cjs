@@ -1,4 +1,5 @@
-// Lighthouse CI for the admin (OPEN_ITEMS_SWEEP 2026-11-09 B-c11; @lhci/cli,
+// Lighthouse CI for the admin (OPEN_ITEMS_SWEEP 2026-11-09 B-c11; @lhci/cli 0.15.1 —
+// 0.16.0 is younger than the 7-day npm cooldown (.npmrc min-release-age) —
 // Apache-2.0). Three heavy pages against the CI API stand (admin-ci.yml job
 // `lighthouse`): the users list, the audit journal, the cases desk. Desktop
 // form factor with the CPU slowed 4x (a weak laptop), three runs, median.
