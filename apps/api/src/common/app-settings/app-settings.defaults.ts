@@ -1687,8 +1687,9 @@ export const OWNER_CASE_TOOLS_SETTINGS = {
  *   app sends it) | enforce (a NEW account without a valid 18+ attestation
  *   is refused with 403 AGE_ATTESTATION_REQUIRED; turn on only after the app
  *   shows the checkbox and sends `ageAttestation`).
- * - `compliance.sms.marketing_enabled`: master switch for any text that is
- *   not a sign-in code. A code is always allowed.
+ * - `compliance.sms.marketing_enabled`: consent bookkeeping for texts that
+ *   are not a code; since audit 2026-11-08 (L8) no such text is ever sent
+ *   (owner rule: SMS only at registration and «Забыл пароль»).
  * - quiet hours: no non-code text before `quiet_end_hour` or from
  *   `quiet_start_hour` in the person's local time (TCPA 8:00-21:00); unknown
  *   time zone = the strictest US-wide window.

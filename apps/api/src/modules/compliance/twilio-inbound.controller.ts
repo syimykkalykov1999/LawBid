@@ -34,9 +34,9 @@ export function webhookUrlOf(req: {
  * 2026-10-25 (TCPA): Twilio's "A message comes in" webhook for the sender
  * (Messaging Service or number): `POST /api/v1/webhooks/twilio/sms`.
  * STOP-like words (and Twilio's own `OptOutType`) land in our suppression
- * list and revoke the recorded consent; START lifts it; HELP gets our text
- * only when compliance.sms.reply_to_help is on (Twilio's Advanced Opt-Out
- * already answers STOP/HELP, so by default we answer with an empty TwiML).
+ * list and revoke the recorded consent; START lifts it. We always answer
+ * with an empty TwiML (audit 2026-11-08 L8: no SMS outside registration and
+ * «Забыл пароль»); Twilio's Advanced Opt-Out answers STOP/HELP itself.
  * The X-Twilio-Signature is checked with the account's auth token; a bad
  * or missing signature, or no keys, is a plain 404.
  */
