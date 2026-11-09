@@ -1,5 +1,6 @@
 import type { ConfigService } from '@nestjs/config';
 import { SystemHealthService } from './system-health.service';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 
 jest.mock('bullmq', () => ({
   Queue: jest.fn().mockImplementation((name: string) => ({
@@ -303,10 +304,13 @@ describe('SystemHealthService.cachedReport', () => {
             : null,
         ),
       ),
-      refresh: jest.fn((_k: string, compute: () => Promise<unknown>) =>
-        compute().then((data) => ({ data, computedAt: 'now' })),
+      refresh: jest.fn((...a: [string, () => Promise<unknown>, boolean?]) =>
+        a[1]().then((data) => ({ data, computedAt: 'now' })),
       ),
       put: jest.fn(() => Promise.resolve()),
+      // The real stale-while-revalidate rule over the mocked store.
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      board: AdminSummaryService.prototype.board,
     };
     const build = jest.fn(() =>
       Promise.resolve({ overall: 'green', generatedAt: 'x', items: [] }),
@@ -345,10 +349,15 @@ describe('SystemHealthService.cachedReport', () => {
     expect(build).toHaveBeenCalledTimes(1); // the background refresh
   });
 
-  it('a copy older than 15 minutes waits for a new report', async () => {
-    const { s, build } = svc({ age: 16 * 60_000, data: old('red') });
-    expect((await s.cachedReport()).overall).toBe('green');
-    expect(build).toHaveBeenCalledTimes(1);
+  it('2026-11-08: a copy of any age opens at once, one refresh runs behind it', async () => {
+    const { s, build, summary } = svc({
+      age: 16 * 60 * 60_000,
+      data: old('red'),
+    });
+    expect((await s.cachedReport()).overall).toBe('red');
+    expect(summary.refresh).toHaveBeenCalledTimes(1);
+    expect(summary.refresh.mock.calls[0][2]).toBeUndefined(); // not waited on
+    expect(build).toHaveBeenCalledTimes(1); // the background refresh
   });
 
   it('treats a malformed entry as a miss', async () => {

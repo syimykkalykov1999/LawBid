@@ -4,8 +4,14 @@ import 'package:lawbid/core/startup/app_session.dart';
 import 'package:lawbid/features/support/data/support_repository.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 
+/// Owner 2026-11-08: the storage upload goes through the bare
+/// [storageDioProvider] like every other upload; with the API client the
+/// bearer token reached the storage host and S3 refuses such a POST.
 final supportRepositoryProvider = Provider<SupportRepository>(
-  (ref) => SupportRepository(ref.watch(dioProvider)),
+  (ref) => SupportRepository(
+    ref.watch(dioProvider),
+    storageDio: ref.watch(storageDioProvider),
+  ),
 );
 
 /// My tickets, newest activity first (the list screen and its unread dot).

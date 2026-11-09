@@ -270,4 +270,102 @@ describe('Cancel before answer + token-only ring status (e2e)', () => {
       .send({})
       .expect(200);
   });
+
+  // Owner 2026-11-08 (iPhone «Decline» on the locked CallKit screen; the
+  // caller rang on, and the chat's call button then took the iPhone back
+  // into that same old call).
+  it('after a decline the callee cannot re-enter the call; their call button starts a NEW call', async () => {
+    const c = await chat();
+    const started = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.attorney.auth)
+      .expect(201);
+    const oldId = started.body.data.id as string;
+    await declineByTicket(
+      oldId,
+      signCallPoll(key, { c: oldId, u: c.client.id }),
+    ).expect(200);
+    // The declined session is closed: no answering it afterwards.
+    await api()
+      .post(`/api/v1/calls/${oldId}/accept`)
+      .set(c.client.auth)
+      .expect(409);
+    const again = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.client.auth)
+      .expect(201);
+    expect(again.body.data.id).not.toBe(oldId);
+    expect(again.body.data.status).toBe('ringing');
+    await api()
+      .post(`/api/v1/calls/${again.body.data.id}/end`)
+      .set(c.client.auth)
+      .send({})
+      .expect(200);
+  });
+
+  it('the decline got lost: the callee calling back declines the ringing call (the caller hears it) and rings a new one', async () => {
+    const c = await chat();
+    const realtime = app.get(RealtimePublisher);
+    const spy = jest.spyOn(realtime, 'toUsers');
+    const started = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.attorney.auth)
+      .expect(201);
+    const oldId = started.body.data.id as string;
+    // No decline reached the server: the client presses «call» in the chat.
+    const back = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.client.auth)
+      .expect(201);
+    const newId = back.body.data.id as string;
+    expect(newId).not.toBe(oldId);
+    expect(back.body.data.status).toBe('ringing');
+    const old = await prisma.call.findUniqueOrThrow({ where: { id: oldId } });
+    expect(old.status).toBe('declined');
+    expect(
+      spy.mock.calls.some(
+        ([users, event, payload]) =>
+          event === 'call:ended' &&
+          users.includes(c.attorney.id) &&
+          (payload as { call?: { id?: string } }).call?.id === oldId,
+      ),
+    ).toBe(true);
+    spy.mockRestore();
+    await api()
+      .post(`/api/v1/calls/${newId}/end`)
+      .set(c.client.auth)
+      .send({})
+      .expect(200);
+  });
+
+  it('a call the person is making or talking in still blocks a second one (409)', async () => {
+    const c = await chat();
+    const started = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.attorney.auth)
+      .expect(201);
+    const callId = started.body.data.id as string;
+    // The CALLER pressing «call» again: their own outgoing call stays.
+    const dup = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.attorney.auth)
+      .expect(409);
+    expect(dup.body.error.code).toBe('CALL_IN_PROGRESS');
+    // Answered: the callee pressing «call» does not end the conversation.
+    await api()
+      .post(`/api/v1/calls/${callId}/accept`)
+      .set(c.client.auth)
+      .expect(200);
+    await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.client.auth)
+      .expect(409);
+    const row = await prisma.call.findUniqueOrThrow({ where: { id: callId } });
+    expect(row.status).toBe('active');
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(c.attorney.auth)
+      .send({})
+      .expect(200);
+  });
 });

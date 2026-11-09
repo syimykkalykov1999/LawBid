@@ -19,6 +19,8 @@ const HOSTS: Record<ApnsEnvironment, string> = {
 /** Apple accepts a provider token for up to an hour; renew before. */
 const JWT_TTL_MS = 40 * 60 * 1000;
 const APNS_TIMEOUT_MS = 8000;
+/** node-apn's default heartBeat (60 s). */
+const APNS_HEARTBEAT_MS = 60_000;
 /** LC-1: which iPhones a call rang by VoIP, kept a little longer than any
  * ring (CallKit 45 s, server 65 s) so «stop ringing» reaches exactly them. */
 const RANG_TTL_SEC = 180;
@@ -274,23 +276,65 @@ export class ApnsVoipSender {
     return this.post(env, voipRequest(device, call, auth));
   }
 
-  private post(
+  /**
+   * Owner 2026-11-08 (an unlocked iPhone with the app in the background got
+   * only the plain «Incoming call» alert, no call screen): the one HTTP/2
+   * connection to Apple is kept between calls, and an idle connection the
+   * network dropped (Apple, the NAT gateway's idle timeout) failed the next
+   * ring — the VoIP push counted as not sent, so the FCM alert went out
+   * instead. As node-apn (@parse/node-apn, MIT: `heartBeat` pings and a
+   * reconnect on a broken connection) does: a transport failure drops the
+   * connection and the push is sent once more on a fresh one. Apple's
+   * refusals (4xx) are answers, not retried.
+   */
+  private async post(
     env: ApnsEnvironment,
     request: { headers: Record<string, string>; body: string },
   ): Promise<SendOutcome> {
+    const first = await this.postOnce(env, request);
+    if (first !== 'broken') return first;
+    this.logger.warn({ env }, 'apns connection broken, retrying once');
+    const second = await this.postOnce(env, request);
+    return second === 'broken' ? 'failed' : second;
+  }
+
+  private dropSession(env: ApnsEnvironment, s?: ClientHttp2Session): void {
+    const open = this.sessions.get(env);
+    if (s && open !== s) return;
+    this.sessions.delete(env);
+    try {
+      open?.destroy();
+    } catch {
+      // Already gone.
+    }
+  }
+
+  private postOnce(
+    env: ApnsEnvironment,
+    request: { headers: Record<string, string>; body: string },
+  ): Promise<SendOutcome | 'broken'> {
     return new Promise((resolve) => {
       let session: ClientHttp2Session;
       try {
         session = this.session(env);
       } catch {
-        resolve('failed');
+        this.dropSession(env);
+        resolve('broken');
         return;
       }
       const { headers, body } = request;
-      const req = session.request(headers);
+      let req: ReturnType<ClientHttp2Session['request']>;
+      try {
+        req = session.request(headers);
+      } catch {
+        this.dropSession(env, session);
+        resolve('broken');
+        return;
+      }
       req.setTimeout(APNS_TIMEOUT_MS, () => {
         req.close();
-        resolve('failed');
+        this.dropSession(env, session);
+        resolve('broken');
       });
       let status = 0;
       let text = '';
@@ -316,7 +360,10 @@ export class ApnsVoipSender {
         this.logger.warn({ status, reason, env }, 'apns voip push refused');
         resolve('failed');
       });
-      req.on('error', () => resolve('failed'));
+      req.on('error', () => {
+        this.dropSession(env, session);
+        resolve('broken');
+      });
       req.end(body);
     });
   }
@@ -325,8 +372,23 @@ export class ApnsVoipSender {
     const open = this.sessions.get(env);
     if (open && !open.closed && !open.destroyed) return open;
     const s = connect(HOSTS[env]);
-    s.on('error', () => this.sessions.delete(env));
-    s.on('close', () => this.sessions.delete(env));
+    // node-apn's heartBeat: a PING now and then finds a dead idle
+    // connection before a ring has to.
+    const beat = setInterval(() => {
+      try {
+        s.ping((err) => {
+          if (err) this.dropSession(env, s);
+        });
+      } catch {
+        this.dropSession(env, s);
+      }
+    }, APNS_HEARTBEAT_MS);
+    beat.unref();
+    s.on('error', () => this.dropSession(env, s));
+    s.on('close', () => {
+      clearInterval(beat);
+      if (this.sessions.get(env) === s) this.sessions.delete(env);
+    });
     // Don't keep the process alive just for an idle connection.
     s.unref();
     this.sessions.set(env, s);
