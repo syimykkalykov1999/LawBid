@@ -176803,6 +176803,26 @@
           "indexes"
         ]
       },
+      "SearchAutoStepDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "step": {
+            "type": "string",
+            "description": "search:set_mode:shadow | search:start_reindex | search:swap | search:set_mode:engine | search:set_mode:postgres"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "step",
+          "reason"
+        ]
+      },
       "SearchIndexStatusDto": {
         "type": "object",
         "properties": {
@@ -176906,6 +176926,13 @@
             "items": {
               "$ref": "#/components/schemas/SearchIndexEntityDto"
             }
+          },
+          "autoSteps": {
+            "description": "The last steps «Авто» took by itself, newest first (up to 5).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchAutoStepDto"
+            }
           }
         },
         "required": [
@@ -176927,7 +176954,8 @@
           "canStart",
           "canSwap",
           "canRollback",
-          "entities"
+          "entities",
+          "autoSteps"
         ]
       },
       "SearchIndexStatusEnvelope": {

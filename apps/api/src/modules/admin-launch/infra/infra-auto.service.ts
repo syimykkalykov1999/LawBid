@@ -40,6 +40,7 @@ import {
 import { InfraChangeService } from './infra-change.service';
 import { writeSystemSetting } from '../../../common/app-settings/app-settings.writer';
 import {
+  SEARCH_AUTO_LOG_KEY,
   SEARCH_REINDEX_PORT,
   type SearchReindexPort,
 } from '../../../common/search/search-reindex.port';
@@ -54,7 +55,7 @@ import {
 
 const SEARCH_SEEN_KEY = 'ops:infra-auto:search-seen';
 /** The last automatic search steps (newest first), for «Масштаб». */
-export const SEARCH_LOG_KEY = 'ops:infra-auto:search-log';
+export const SEARCH_LOG_KEY = SEARCH_AUTO_LOG_KEY;
 
 const CHECK_MS = 10 * 60_000;
 const LOCK_KEY = 'ops:infra-auto:lock';
