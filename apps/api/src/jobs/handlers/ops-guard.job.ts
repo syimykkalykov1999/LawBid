@@ -16,7 +16,7 @@ import { PrismaService } from '../../prisma/prisma.service';
  *   on its own (ops.auto_pause_heavy_jobs, default on).
  * - `ops.cost-check` (hourly): reads this month's AWS spend from the
  *   budget; at 100 % caps autoscaling at the minimum until the next month
- *   (ops.auto_scale_down_on_budget, default on) and gives it back when the
+ *   (ops.auto_scale_down_on_budget, default off since 2026-11-09) and gives it back when the
  *   new month starts.
  * - `ops.backup-check` (daily): reads the newest restorable time of the RDS
  *   database; older than ops.backup_max_age_hours → alert.
