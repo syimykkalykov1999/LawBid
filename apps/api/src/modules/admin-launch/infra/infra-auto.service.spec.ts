@@ -56,7 +56,11 @@ function make(
   };
   const settings = {
     string: jest.fn(async (k: string) =>
-      k === 'infra.auto_mode' ? (o.autoMode ?? 'auto') : 'off',
+      k === 'infra.auto_mode'
+        ? (o.autoMode ?? 'auto')
+        : k === 'db.replica_provision'
+          ? 'auto'
+          : 'off',
     ),
     number: jest.fn(async (k: string) =>
       k === 'infra.auto_on_minutes'
