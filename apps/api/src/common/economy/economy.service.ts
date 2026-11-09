@@ -68,13 +68,12 @@ const PRESSURE_ALERT_TTL_SEC = 6 * 3600;
  * every open of `GET /admin/economy` asked AWS (ECS, Auto Scaling, Budgets)
  * and the spend snapshot one after another, with no time limit. The report
  * is now a shared admin summary (AdminSummaryService, the same pattern as
- * «Здоровье системы»): younger than FRESH it is served as is; up to
- * MAX_STALE it is served at once while ONE refresh runs in the background;
- * only a cold cache waits. Every outside call has its own time limit and
+ * «Здоровье системы»): younger than FRESH it is served as is; an older
+ * copy is served at once while ONE refresh runs in the background (2026-11-08:
+ * any age, AdminSummaryService.board); only a never-built report waits. Every outside call has its own time limit and
  * falls back to «н/д» (null) instead of holding the whole answer. */
 const REPORT_KEY = 'economy:report';
 const REPORT_FRESH_MS = 60_000;
-const REPORT_MAX_STALE_MS = 15 * 60_000;
 const OUTSIDE_CALL_MS = 3_000;
 
 /** [p] or null after [ms] / on failure: one slow source never blocks the card. */
@@ -802,16 +801,12 @@ export class EconomyService {
   /** GET path: the shared summary (see REPORT_* above). */
   async cachedReport(): Promise<EconomyReport> {
     if (!this.summary) return this.build(new Date());
-    const compute = () => this.build(new Date());
-    const hit = await this.summary.peek<EconomyReport>(REPORT_KEY);
-    const age = hit ? Date.now() - Date.parse(hit.computedAt) : Infinity;
-    if (hit?.data?.capacity && age < REPORT_MAX_STALE_MS) {
-      if (age > REPORT_FRESH_MS) {
-        void this.summary.refresh(REPORT_KEY, compute).catch(() => undefined);
-      }
-      return hit.data;
-    }
-    return (await this.summary.refresh(REPORT_KEY, compute, true)).data;
+    return this.summary.board<EconomyReport>(
+      REPORT_KEY,
+      () => this.build(new Date()),
+      REPORT_FRESH_MS,
+      (d) => !!d?.capacity,
+    );
   }
 
   /** Always computed now (after a button); the result also replaces the

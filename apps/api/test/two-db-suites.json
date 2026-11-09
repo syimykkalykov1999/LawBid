@@ -1,6 +1,7 @@
 {
   "_doc": "Shard-ready step 5. \"run\": suites that must be green with E2E_TWO_DB=all (every shard on a second database, cross-family FKs dropped). \"knownLimitations\": suites that pass on one database but cannot pass on two yet; they are NOT failures, they are the to-do list of plan steps 6-8. \"environmentOnly\": fail on one database too when the local .env lacks Stripe / DB roles / MailHog; unrelated to sharding.",
   "run": [
+    "admin-boards-cache",
     "admin-integrations",
     "app",
     "auth",

@@ -281,11 +281,32 @@ export class AwsBudgetsAdminService {
     }));
   }
 
+  /** 2026-11-08: stale-while-revalidate. A copy older than 2 minutes is
+   * still returned at once and ONE DescribeBudgets runs behind it (AWS
+   * recounts budgets a few times a day); before, every open of «Масштаб»
+   * after a 2-minute pause waited for AWS inside the request (prod: 1.6-1.9 s).
+   * [fresh] (after a change) always asks AWS now. */
   async list(fresh = false): Promise<BudgetRow[]> {
     if (!this.available) return [];
-    if (!fresh && this.cache && Date.now() - this.cache.at < 120_000) {
+    if (!fresh && this.cache) {
+      if (!(Date.now() - this.cache.at < 120_000)) {
+        void this.reload().catch(() => undefined);
+      }
       return this.cache.rows;
     }
+    return fresh ? this.load() : this.reload();
+  }
+
+  private reloading?: Promise<BudgetRow[]>;
+
+  /** One DescribeBudgets at a time, shared by every waiting caller. */
+  private reload(): Promise<BudgetRow[]> {
+    return (this.reloading ??= this.load().finally(() => {
+      this.reloading = undefined;
+    }));
+  }
+
+  private async load(): Promise<BudgetRow[]> {
     const num = (v?: { Amount?: string }) =>
       v?.Amount !== undefined && Number.isFinite(Number(v.Amount))
         ? Number(v.Amount)
