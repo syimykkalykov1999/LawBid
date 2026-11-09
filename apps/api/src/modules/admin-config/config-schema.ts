@@ -553,7 +553,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['ha.mode'] = { ...out['ha.mode'], pattern: /^(off|on|auto)$/ };
   out['ai.assistant_mode'] = {
     ...out['ai.assistant_mode'],
-    pattern: /^(off|on)$/,
+    pattern: /^(off|on|auto)$/,
   };
   out['ai.monthly_max_usd'] = {
     ...out['ai.monthly_max_usd'],

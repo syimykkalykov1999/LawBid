@@ -26,7 +26,7 @@ class AiAssistantStatusDto {
   factory AiAssistantStatusDto.fromJson(Map<String, Object?> json) =>
       _$AiAssistantStatusDtoFromJson(json);
 
-  /// ai.assistant_mode: off | on
+  /// ai.assistant_mode: off | on | auto
   final String mode;
 
   /// The GitHub App (github_infra) is saved.

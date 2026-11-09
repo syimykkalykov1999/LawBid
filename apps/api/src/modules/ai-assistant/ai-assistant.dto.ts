@@ -28,7 +28,8 @@ export class AiRunDto {
 }
 
 export class AiAssistantStatusDto {
-  @ApiProperty({ description: 'ai.assistant_mode: off | on' }) mode!: string;
+  @ApiProperty({ description: 'ai.assistant_mode: off | on | auto' })
+  mode!: string;
   @ApiProperty({ description: 'The GitHub App (github_infra) is saved.' })
   connected!: boolean;
   @ApiProperty({ description: 'A run may start now.' }) allowed!: boolean;

@@ -14,6 +14,9 @@ import { taskLine } from '@/lib/ai-assistant';
 import { formatDateTime } from '@/lib/utils';
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
+type Mode = 'off' | 'on' | 'auto';
+const MODES: readonly Mode[] = ['off', 'on', 'auto'];
+const MODE_LABEL: Record<Mode, string> = { off: 'Выкл', on: 'Вкл', auto: 'Авто' };
 
 /**
  * 09.11.2026: «Задача для ИИ». The owner writes a task; it becomes a GitHub
@@ -29,7 +32,8 @@ export default function AiAssistantPage() {
   });
   const [title, setTitle] = useState('');
   const [details, setDetails] = useState('');
-  const [stepUp, setStepUp] = useState(false);
+  // What waits for a fresh 2FA code: the task, or a switch position.
+  const [stepUp, setStepUp] = useState<null | { kind: 'task' } | { kind: 'mode'; mode: Mode }>(null);
 
   const create = useMutation({
     mutationFn: async () =>
@@ -41,7 +45,21 @@ export default function AiAssistantPage() {
       toast.success(`Задача #${d.number} создана`);
     },
     onError: (e) => {
-      if (e instanceof ApiError && e.code === 'ADMIN_STEP_UP_REQUIRED') setStepUp(true);
+      if (e instanceof ApiError && e.code === 'ADMIN_STEP_UP_REQUIRED') setStepUp({ kind: 'task' });
+      else toast.error(e);
+    },
+  });
+
+  // Owner rule 5c: Выкл / Вкл / Авто (default Авто), the same buttons as «Масштаб».
+  const setMode = useMutation({
+    mutationFn: async (mode: Mode) =>
+      api.PUT('/admin/config/{key}', { params: { path: { key: 'ai.assistant_mode' } }, body: { value: mode } as never }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['ai-assistant'] });
+      toast.success('Сохранено');
+    },
+    onError: (e, mode) => {
+      if (e instanceof ApiError && e.code === 'ADMIN_STEP_UP_REQUIRED') setStepUp({ kind: 'mode', mode });
       else toast.error(e);
     },
   });
@@ -65,9 +83,18 @@ export default function AiAssistantPage() {
             </Card>
           ) : null}
           <Card className="mb-6 flex flex-wrap items-center gap-3 p-4 text-sm">
-            <Badge tone={d.mode === 'on' ? 'success' : 'neutral'} dot>
-              {d.mode === 'on' ? 'Включён' : 'Выключен'}
-            </Badge>
+            <span className="text-xs text-muted">Помощник:</span>
+            {MODES.map((m) => (
+              <Button
+                key={m}
+                variant={d.mode === m ? 'gold' : 'outline'}
+                size="sm"
+                disabled={d.mode === m || setMode.isPending}
+                onClick={() => setMode.mutate(m)}
+              >
+                {MODE_LABEL[m]}
+              </Button>
+            ))}
             <Badge tone={d.connected ? 'success' : 'danger'} dot>
               {d.connected ? 'GitHub подключён' : 'GitHub не подключён'}
             </Badge>
@@ -90,7 +117,7 @@ export default function AiAssistantPage() {
             <div>
               <Button
                 loading={create.isPending}
-                disabled={!d.connected || d.mode !== 'on' || title.trim().length < 5 || details.trim().length < 10}
+                disabled={!d.connected || d.mode === 'off' || title.trim().length < 5 || details.trim().length < 10}
                 onClick={() => create.mutate()}
               >
                 Отдать ИИ
@@ -156,12 +183,18 @@ export default function AiAssistantPage() {
         </>
       )}
       <StepUpDialog
-        open={stepUp}
-        description="Задача попадёт в открытый репозиторий GitHub. Подтвердите, что это вы."
-        onCancel={() => setStepUp(false)}
+        open={stepUp !== null}
+        description={
+          stepUp?.kind === 'mode'
+            ? 'Меняется, тратит ли ИИ-помощник деньги. Подтвердите, что это вы.'
+            : 'Задача попадёт в открытый репозиторий GitHub. Подтвердите, что это вы.'
+        }
+        onCancel={() => setStepUp(null)}
         onDone={() => {
-          setStepUp(false);
-          create.mutate();
+          const s = stepUp;
+          setStepUp(null);
+          if (s?.kind === 'mode') setMode.mutate(s.mode);
+          else if (s) create.mutate();
         }}
       />
     </>

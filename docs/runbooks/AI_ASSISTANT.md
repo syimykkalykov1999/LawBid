@@ -25,13 +25,17 @@
      forbidden path;
   3. branch protection on `main` (step 5 below), so a PR still needs a human review and green CI;
   4. the workflow token's permissions, which cannot read secrets or deploy.
-- **Off by default, two switches:**
-  - repository variable `AI_ASSISTANT_ENABLED`;
-  - admin setting `ai.assistant_mode` (`off` / `on`).
+- **Switch Выкл / Вкл / Авто, default «Авто»** (owner rule 5c): admin setting `ai.assistant_mode`,
+  with the same three buttons on the «Задача для ИИ» page.
+  - **Авто:** runs by itself as soon as it is connected (GitHub App saved, `ANTHROPIC_API_KEY` and
+    `AI_ASSISTANT_ENABLED` in GitHub). It pauses by itself when this month's reported cost reaches
+    **`ai.monthly_max_usd`** (default $30; row «ИИ-помощник разработки» in «Расходы») and resumes
+    on the 1st of the next month.
+  - **Вкл:** the same. The ceiling still holds, so it is never over budget.
+  - **Выкл:** never runs.
 
-  Before every run the workflow asks the API («gate», GitHub OIDC, no shared secret). The API says
-  no while the setting is off, while the GitHub App is not saved, or when this month's reported
-  cost reached **`ai.monthly_max_usd`** (default $30; row «ИИ-помощник разработки» in «Расходы»).
+  Before every run the workflow asks the API («gate», GitHub OIDC, no shared secret). Without
+  `AI_ASSISTANT_ENABLED` the workflow does not start at all.
 - **Action log:** the «Задача для ИИ» page shows each task, its PR, and each run with its cost and
   journal link. The admin action is in the audit log (`ai.task_create`).
 
@@ -55,9 +59,10 @@
 5. **Branch protection** (if not set yet): GitHub → Settings → Branches → **Add rule** for
    `main` → tick **Require a pull request before merging** (1 approval) and **Require status
    checks to pass** → Save.
-6. **Admin:** Настройки → `ai.assistant_mode` = `on`, `ai.monthly_max_usd` = your ceiling →
-   save with the 2FA code. The «Задача для ИИ» page must then show «Включён» and «GitHub
+6. **Nothing to switch on.** The switch is already «Авто», so the assistant starts by itself after
+   steps 1–4. Optional: change the ceiling in Admin → Настройки → `ai.monthly_max_usd`
+   (default $30) with the 2FA code. The «Задача для ИИ» page shows «Авто» highlighted and «GitHub
    подключён».
 
-To turn it off: `ai.assistant_mode` = `off` (the next run refuses), or delete the variable
-`AI_ASSISTANT_ENABLED` (the workflow does not start at all).
+To stop it: press «Выкл» on the «Задача для ИИ» page (the next run refuses), or delete the
+variable `AI_ASSISTANT_ENABLED` (the workflow does not start at all).

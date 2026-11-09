@@ -5,9 +5,10 @@
 #     through the GitHub App, or a maintainer labels one by hand);
 #   - every 2 hours: a look at Sentry, open alarms and the support load
 #     (digest from the API, no personal data), issues + at most one fix PR.
-# Off until BOTH switches are on: repository variable AI_ASSISTANT_ENABLED
-# = true AND admin «Настройки» ai.assistant_mode = on (the API answers
-# «gate» before every run, with the monthly money ceiling ai.monthly_max_usd).
+# Runs only with the repository variable AI_ASSISTANT_ENABLED = true; then
+# the admin switch ai.assistant_mode (Выкл / Вкл / Авто, default Авто) and the
+# monthly money ceiling ai.monthly_max_usd decide (the API answers «gate»
+# before every run; Авто pauses itself at the ceiling until next month).
 # Rules for the assistant: .github/ai-assistant/POLICY.md. It never merges;
 # a branch that touches a forbidden path gets its PR closed (path guard).
 # Owner steps: docs/runbooks/AI_ASSISTANT.md.

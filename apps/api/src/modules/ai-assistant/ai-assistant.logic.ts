@@ -19,13 +19,19 @@ export type AiRunKind = 'task' | 'schedule';
 export type AiRefusal = 'off' | 'not_connected' | 'budget';
 
 export const AI_REFUSAL_TEXT: Record<AiRefusal, string> = {
-  off: 'ИИ-помощник выключен (Настройки → ai.assistant_mode).',
+  off: 'ИИ-помощник выключен (ai.assistant_mode = Выкл).',
   not_connected:
     'Не подключено: нет GitHub-приложения в «Ключи и сервисы» (github_infra).',
   budget: 'Потолок расходов на ИИ за месяц исчерпан (ai.monthly_max_usd).',
 };
 
-/** Pure: may a run start now? */
+/**
+ * Pure: may a run start now? Owner rule 5c: Выкл / Вкл / Авто, default Авто.
+ * Авто = runs as soon as it is connected and under the month's ceiling,
+ * pauses itself at the ceiling and resumes with the next month's key. Вкл =
+ * the same (the ceiling still holds: never over budget). Выкл = never. Any
+ * unknown value counts as Выкл (a typo never spends money).
+ */
 export function aiGate(i: {
   mode: string;
   connected: boolean;
@@ -33,7 +39,8 @@ export function aiGate(i: {
   maxUsd: number;
 }): { allowed: boolean; reason: AiRefusal | null; leftUsd: number } {
   const leftUsd = Math.max(0, Math.round((i.maxUsd - i.monthUsd) * 100) / 100);
-  if (i.mode.trim().toLowerCase() !== 'on') {
+  const mode = i.mode.trim().toLowerCase();
+  if (mode !== 'on' && mode !== 'auto') {
     return { allowed: false, reason: 'off', leftUsd };
   }
   if (!i.connected) return { allowed: false, reason: 'not_connected', leftUsd };

@@ -177519,7 +177519,7 @@
         "properties": {
           "mode": {
             "type": "string",
-            "description": "ai.assistant_mode: off | on"
+            "description": "ai.assistant_mode: off | on | auto"
           },
           "connected": {
             "type": "boolean",

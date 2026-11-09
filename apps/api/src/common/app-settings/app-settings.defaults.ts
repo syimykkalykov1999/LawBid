@@ -1264,12 +1264,14 @@ export const OWNER_STORAGE_SETTINGS = {
   'ha.mode': 'auto',
   'ha.provision_online_users': 200,
   'ha.release_days': 7,
-  // 09.11.2026 (owner): «Задача для ИИ» (docs/runbooks/AI_ASSISTANT.md). OFF
-  // by default: the GitHub workflow asks the API before every run and does
-  // nothing while this is off. on = admin tasks + the 2-hourly check of
-  // Sentry, alarms and support load. ai.monthly_max_usd: no run starts once
-  // this month's runs (as they report them) reached it; 0 = no runs.
-  'ai.assistant_mode': 'off',
+  // 09.11.2026 (owner): «Задача для ИИ» (docs/runbooks/AI_ASSISTANT.md).
+  // Owner rule 5c: off | on | auto, default auto. The GitHub workflow asks
+  // the API before every run: auto / on run (admin tasks + the 2-hourly
+  // check of Sentry, alarms and support load) once the GitHub App is saved,
+  // and pause by themselves at ai.monthly_max_usd until the next month;
+  // off never runs. Without ANTHROPIC_API_KEY / AI_ASSISTANT_ENABLED in
+  // GitHub the workflow does not start at all. 0 = no runs.
+  'ai.assistant_mode': 'auto',
   'ai.monthly_max_usd': 30,
   'db.health_table_size_gb': 20,
   'db.health_dead_ratio_percent': 20,

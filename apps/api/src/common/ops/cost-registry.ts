@@ -2056,10 +2056,10 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     control: {
       type: 'app-setting',
       key: 'ai.assistant_mode',
-      map: { off: 'off', on: 'on' },
+      map: { off: 'off', on: 'on', auto: 'auto' },
     },
-    states: ['off', 'on'],
-    defaultState: 'off',
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
     ceiling: setCeil(
       'ai.monthly_max_usd',
       'Потолок расходов ИИ-помощника в месяц, $ (новый запуск не начнётся, когда он набран)',
@@ -2074,7 +2074,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ifOnUsd: R(5, 30),
     needed: 'later',
     neededNote:
-      'Выключено, пока нет ключа ANTHROPIC_API_KEY в GitHub и GitHub-приложения; запуски считают свою стоимость и останавливаются на потолке.',
+      'Авто: работает само, как только есть GitHub-приложение и ключ ANTHROPIC_API_KEY в GitHub; на потолке месяца встаёт само и продолжает со следующего месяца.',
     alarm: 'потолок расходов ИИ-помощника (ai.monthly_max_usd)',
   },
   {

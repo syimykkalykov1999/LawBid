@@ -12,7 +12,15 @@ describe('AI assistant logic (09.11.2026)', () => {
   it('runs only when switched on, connected and under the money ceiling', () => {
     expect(aiGate(on)).toEqual({ allowed: true, reason: null, leftUsd: 26 });
     expect(aiGate({ ...on, mode: 'off' }).reason).toBe('off');
-    expect(aiGate({ ...on, mode: 'auto' }).reason).toBe('off');
+    // Owner rule 5c: Авто acts by itself (same gate as Вкл), unknown = off
+    expect(aiGate({ ...on, mode: 'auto' })).toEqual({
+      allowed: true,
+      reason: null,
+      leftUsd: 26,
+    });
+    expect(aiGate({ ...on, mode: 'Auto ' }).allowed).toBe(true);
+    expect(aiGate({ ...on, mode: 'aut' }).reason).toBe('off');
+    expect(aiGate({ ...on, mode: 'auto', monthUsd: 31 }).reason).toBe('budget');
     expect(aiGate({ ...on, connected: false }).reason).toBe('not_connected');
     expect(aiGate({ ...on, monthUsd: 30 })).toEqual({
       allowed: false,
