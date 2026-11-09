@@ -75,6 +75,13 @@ export function Sidebar({
                   {isActive ? (
                     <m.span
                       layoutId={mobile ? 'nav-active-m' : 'nav-active'}
+                      // Re-measure only when the marker can move (another
+                      // section, collapse): without it motion snapshots the
+                      // layout on every re-render of the sidebar — counters,
+                      // the admin profile, each page load (Lighthouse
+                      // 2026-11-09). Prop documented in motion-dom typings,
+                      // checked in framer-motion MeasureLayout.
+                      layoutDependency={`${g.key}:${narrow}`}
                       className="absolute inset-0 rounded-xl border border-line bg-surface shadow-card"
                       transition={{ type: 'spring', stiffness: 480, damping: 38 }}
                     >

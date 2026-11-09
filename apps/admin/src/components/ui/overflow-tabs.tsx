@@ -77,9 +77,23 @@ export function OverflowTabs({ items, active, label, className }: { items: Overf
     measure();
     const row = box.current;
     if (!row) return;
-    const ro = new ResizeObserver(measure);
+    // The row resizes many times while a page loads (fonts, the sidebar's
+    // width spring, counters arriving): one measure per animation frame at
+    // most — each measure reads offsetWidth of every tab, a forced layout
+    // (Lighthouse 2026-11-09: this function was a top JS item on load).
+    let frame = 0;
+    const ro = new ResizeObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        measure();
+      });
+    });
     ro.observe(row);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, [measure, sig]);
 
   useEffect(() => setOpen(false), [pathname]);
