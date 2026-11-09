@@ -472,6 +472,9 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
     if (attorneys.length === 0 || !this.storage?.configured) return;
     let bucket: string;
     try {
+      // Owner 2026-11-08: public avatars never go to AWS while the switch is
+      // r2; with R2 not ready the demo simply keeps its initials.
+      if ((await this.storage.publicStoreState()) === 'r2_unavailable') return;
       bucket = await this.storage.resolveBucket('media');
     } catch {
       return;
