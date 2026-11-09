@@ -167,8 +167,10 @@ jobs:
           export DATABASE_URL="${DATABASE_URL}" REDIS_URL="${REDIS_URL}" PORT=3000
           export ADMIN_LOGIN_LIMIT_PER_IP_PER_HOUR=1000
           nohup node dist/src/main.js > "$RUNNER_TEMP/api.log" 2>&1 &
-          for _ in $(seq 1 60); do curl -fsS http://localhost:3000/health/live >/dev/null 2>&1 && break; sleep 2; done
-          curl -fsS http://localhost:3000/health/live >/dev/null || { echo "::error::the API did not start"; tail -50 "$RUNNER_TEMP/api.log"; exit 1; }
+          # A cold runner boots the API in 2–4 min (run 42658592498 was still
+          # mapping routes at 120 s): wait up to 6 min, then show warn/error lines only.
+          for _ in $(seq 1 180); do curl -fsS http://localhost:3000/health/live >/dev/null 2>&1 && break; sleep 2; done
+          curl -fsS http://localhost:3000/health/live >/dev/null || { echo "::error::the API did not start in 6 min"; grep -v '"level":30' "$RUNNER_TEMP/api.log" | tail -40; exit 1; }
       - name: One admin signed in (token for the Lighthouse cookie)
         if: steps.api.outcome == 'success'
         id: admin_token
