@@ -40,6 +40,9 @@ class _Chats implements ChatRepository {
   }) async =>
       CursorPage(
         items: [
+          // One person in two chats: only the newest is listed.
+          _conv('d1', 'Dup Person', person: 'dup', at: DateTime(2026, 3)),
+          _conv('d2', 'Dup Person', person: 'dup', at: DateTime(2026, 5)),
           _conv('c1', 'Anna Petrova'),
           _conv('c2', 'Closed Case', status: ConversationStatus.closed),
         ],
@@ -88,6 +91,8 @@ Conversation _conv(
   String id,
   String name, {
   ConversationStatus status = ConversationStatus.active,
+  String? person,
+  DateTime? at,
 }) =>
     Conversation(
       id: id,
@@ -97,13 +102,13 @@ Conversation _conv(
       isDirect: true,
       contactsUnlocked: true,
       counterpart: Counterpart(
-        id: 'u-$id',
+        id: person ?? 'u-$id',
         displayName: name,
         isAttorney: false,
         verified: false,
       ),
       unreadCount: 0,
-      updatedAt: DateTime(2026),
+      updatedAt: at ?? DateTime(2026),
     );
 
 ChatMessage _msg(
@@ -219,6 +224,20 @@ void main() {
       chats.batches.single.sources,
       const [ForwardSource.message('early'), ForwardSource.message('late')],
     );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 6));
+  });
+
+  testWidgets('one person in several chats is one row: the newest',
+      (tester) async {
+    await pump(tester, _Chats());
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('forward-conversation-d2')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('forward-conversation-d1')), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 6));
   });
