@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_cases_grid.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_social_profile.dart';
@@ -125,6 +126,10 @@ class _ClientBody extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final avatarUrl = ref
         .watch(currentUserControllerProvider.select((s) => s.user?.avatarUrl));
+    // Owner 2026-11-08: the photo just picked is shown at once, while it
+    // still goes up (and if that failed, until the retry).
+    final picked =
+        ref.watch(avatarUploadControllerProvider.select((s) => s.preview));
     final showReviewEntry = !ref.watch(appEnvironmentProvider).isProd;
     final name = profile.fullName;
 
@@ -141,6 +146,7 @@ class _ClientBody extends ConsumerWidget {
             child: ProfileAvatar(
               size: AppSizes.profileAvatar,
               url: avatarUrl,
+              preview: picked,
               initials: initialsOf(
                 profile.firstName,
                 profile.lastName,
