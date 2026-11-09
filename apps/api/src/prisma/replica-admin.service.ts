@@ -144,6 +144,11 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
    * make it flap.
    */
   async autoCheck(): Promise<ReplicaAutoAction> {
+    // G6 (2026-11-08): without the IAM toggle (prod today) this path is
+    // idle on purpose: the same `db.replica_provision = auto` is carried
+    // out by the infra automation (admin-launch/infra/infra-auto.logic.ts,
+    // row aws.rds_replicas) through Terraform, on by CPU and off again after
+    // the cool-down; the two never act together.
     if (!this.available) return 'none';
     const mode = (
       (await this.settings?.string('db.replica_provision').catch(() => null)) ??
