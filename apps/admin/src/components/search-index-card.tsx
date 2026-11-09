@@ -10,7 +10,8 @@ import { Dialog } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, api } from '@/lib/api/client';
 import { livePoll } from '@/lib/live';
-import { ENTITY_RU, phaseWord, roleWord, sizeWord, swapLabel, type SearchIndexStatus } from '@/lib/search-index';
+import { autoStepWord, ENTITY_RU, phaseWord, roleWord, sizeWord, swapLabel, type SearchIndexStatus } from '@/lib/search-index';
+import { formatDateTime } from '@/lib/utils';
 
 type Act = 'start' | 'swap' | 'rollback';
 
@@ -99,6 +100,20 @@ export function SearchIndexCard() {
                 )}
               </tbody>
             </table>
+          </div>
+        ) : null}
+
+        {s?.autoSteps?.length ? (
+          <div className="text-xs text-muted">
+            <div className="mb-1">Последние шаги «Авто»:</div>
+            <ul className="flex flex-col gap-0.5">
+              {s.autoSteps.map((x) => (
+                <li key={`${x.at}-${x.step}`}>
+                  {formatDateTime(x.at)} · {autoStepWord(x.step)}
+                  {x.reason ? ` — ${x.reason}` : ''}
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 
