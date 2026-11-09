@@ -15,6 +15,7 @@ import {
   ApiErrors,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AppSettingsWriter } from '../../common/app-settings/app-settings.writer';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import { OpsStateService } from '../../common/ops/ops-state.service';
@@ -57,6 +58,15 @@ import { SystemHealthService } from './system-health.service';
 
 const E = ErrorCode;
 
+/** 2026-11-08: «Масштаб» → partitions card. The report reads the catalog
+ * table by table (stats, partitions, precheck): 1.7-2.4 s on prod once the
+ * page's other cards queue on the same 3 connections. It is a shared board
+ * now (AdminSummaryService.board): served at once, rebuilt in the
+ * background at most every 30 s (the card polls once a minute); every
+ * button below stores the report it just rebuilt. */
+const PARTITIONS_KEY = 'ops:partitions';
+const PARTITIONS_FRESH_MS = 30_000;
+
 /**
  * Owner 2026-10-05: Система → «Здоровье системы» (super_admin only). The
  * traffic lights, the automatic-reaction switches and the few buttons an
@@ -84,7 +94,15 @@ export class AdminOpsController {
     private readonly queues: QueueAdminService,
     private readonly probes: StatusProbesService,
     private readonly qaSnapshot: QaSnapshotService,
+    private readonly summary: AdminSummaryService,
   ) {}
+
+  /** Rebuilds the partitions card now and shares it (after a button). */
+  private async freshPartitions(): Promise<PartitionCardDto[]> {
+    const report = await this.partitions.report();
+    await this.summary.put(PARTITIONS_KEY, report);
+    return report;
+  }
 
   // Owner 2026-10-26 (calls failover): Integrations -> «Связь для звонков».
   @Get('calls-path')
@@ -150,7 +168,12 @@ export class AdminOpsController {
   @ApiOperation({ summary: 'Tables and their monthly partitioning state' })
   @ApiEnvelopeResponse(PartitionCardDto, { isArray: true })
   getPartitions(): Promise<PartitionCardDto[]> {
-    return this.partitions.report();
+    return this.summary.board(
+      PARTITIONS_KEY,
+      () => this.partitions.report(),
+      PARTITIONS_FRESH_MS,
+      Array.isArray,
+    );
   }
 
   @Post('partitions/:table/start')
@@ -170,7 +193,7 @@ export class AdminOpsController {
     await this.auth.assertStepUp(admin.sessionId);
     await this.partitions.start(p.table, admin.id);
     await this.log(admin, 'ops.partition_start', { table: p.table });
-    return this.partitions.report();
+    return this.freshPartitions();
   }
 
   @Post('partitions/:table/undo')
@@ -189,7 +212,7 @@ export class AdminOpsController {
     // Undone on purpose: «Авто» / «Вкл» must not convert it again.
     await this.partitions.resetMode(p.table, admin.id);
     await this.log(admin, 'ops.partition_undo', { table: p.table });
-    return this.partitions.report();
+    return this.freshPartitions();
   }
 
   @Post('partitions/:table/finalize')
@@ -208,7 +231,7 @@ export class AdminOpsController {
     await this.auth.assertStepUp(admin.sessionId);
     await this.partitions.finalize(p.table);
     await this.log(admin, 'ops.partition_finalize', { table: p.table });
-    return this.partitions.report();
+    return this.freshPartitions();
   }
 
   @Post('partitions/:table/pause')
@@ -227,7 +250,7 @@ export class AdminOpsController {
       table: p.table,
       paused: dto.paused,
     });
-    return this.partitions.report();
+    return this.freshPartitions();
   }
 
   @Post('partitions/:table/retry')
@@ -242,7 +265,7 @@ export class AdminOpsController {
     await this.auth.assertStepUp(admin.sessionId);
     await this.partitions.retry(p.table);
     await this.log(admin, 'ops.partition_retry', { table: p.table });
-    return this.partitions.report();
+    return this.freshPartitions();
   }
 
   @Post('partitions/:table/mode')
@@ -260,7 +283,7 @@ export class AdminOpsController {
   ): Promise<PartitionCardDto[]> {
     await this.auth.assertStepUp(admin.sessionId);
     await this.partitions.setMode(p.table, dto.mode, admin.id);
-    return this.partitions.report();
+    return this.freshPartitions();
   }
 
   @Post('partitions/:table/abort')
@@ -279,7 +302,7 @@ export class AdminOpsController {
     await this.partitions.abort(p.table);
     await this.partitions.resetMode(p.table, admin.id);
     await this.log(admin, 'ops.partition_abort', { table: p.table });
-    return this.partitions.report();
+    return this.freshPartitions();
   }
 
   @Get()

@@ -186,10 +186,18 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     }
     if (bytes == null || !mounted) return;
     setState(() => _photoBusy = true);
+    // Owner 2026-11-08 (same as the profile photo): a photo that reached
+    // storage is set on the group even when this screen was left meanwhile;
+    // the repository is taken now, the screen's ref is gone by then.
+    final groups = ref.read(groupRepositoryProvider);
     try {
       final fileId = await uploadGroupPhoto(ref, bytes);
-      if (!mounted) return;
-      final error = await _update(api.UpdateGroupDto(avatarFileId: fileId));
+      final change = api.UpdateGroupDto(avatarFileId: fileId);
+      if (!mounted) {
+        await groups.update(_id, change);
+        return;
+      }
+      final error = await _update(change);
       if (error != null) _toast(error);
     } on Object catch (e) {
       _toast(errorText(t, e));

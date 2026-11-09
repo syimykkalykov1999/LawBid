@@ -2,6 +2,7 @@
 import { Prisma } from '@prisma/client';
 import { InfraChangeService, InfraRequestError } from './infra-change.service';
 import { callerFromClaims, InfraAuthError } from './infra-github.client';
+import { SYSTEM_ACTOR_ID } from './infra-auto.logic';
 
 /**
  * Owner 2026-10-26: the request → plan → 2FA confirm → apply flow end to
@@ -194,6 +195,63 @@ describe('InfraChangeService', () => {
       'ops.infra_rollback',
       'ops.infra_confirm',
     ]);
+  });
+
+  it('an automatic request is real and its safe plan is applied without a tap (audit 2026-11-08)', async () => {
+    // dry_run on for the admin buttons; the automation still acts.
+    const { svc, audit } = make({ dryRun: true });
+    const r = await svc.create(
+      SYSTEM_ACTOR_ID,
+      null,
+      'aws.opensearch',
+      'on',
+      null,
+      {
+        auto: true,
+      },
+    );
+    expect(r.dryRun).toBe(false);
+    await svc.jobStart(r.id, RUN);
+    const planned = await svc.planReady(r.id, RUN, PLAN);
+    expect(planned.status).toBe('confirmed');
+    expect((await svc.decision(r.id, RUN)).decision).toBe('apply');
+    // No admin, so no audit row with a fake admin id (the request row is the log).
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('an automatic plan that removes more than it should waits for the owner', async () => {
+    const { svc } = make();
+    const r = await svc.create(
+      SYSTEM_ACTOR_ID,
+      null,
+      'aws.opensearch',
+      'on',
+      null,
+      {
+        auto: true,
+      },
+    );
+    await svc.jobStart(r.id, RUN);
+    const planned = await svc.planReady(r.id, RUN, {
+      ...PLAN,
+      destroy: 1,
+      resources: [
+        ...PLAN.resources,
+        {
+          address: 'module.stack.aws_cloudwatch_metric_alarm.x',
+          action: 'delete',
+        },
+      ],
+    });
+    expect(planned.status).toBe('planned');
+  });
+
+  it('the auto flag of an admin is ignored (only the system acts without 2FA)', async () => {
+    const { svc } = make({ dryRun: true });
+    const r = await svc.create('admin-1', null, 'aws.opensearch', 'on', null, {
+      auto: true,
+    });
+    expect(r.dryRun).toBe(true);
   });
 
   it('only one request at a time; a second one is refused', async () => {

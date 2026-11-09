@@ -948,6 +948,7 @@ export class S3StorageService implements OnModuleDestroy {
     if (this.privateCdn && bucket === buckets.documents) {
       return signCloudFrontUrl(this.privateCdn, key, ttl, downloadName);
     }
+    const window = signingWindow(ttl);
     return getSignedUrl(
       client,
       new GetObjectCommand({
@@ -960,7 +961,7 @@ export class S3StorageService implements OnModuleDestroy {
           ? { ResponseContentDisposition: contentDisposition(downloadName) }
           : {}),
       }),
-      { expiresIn: ttl },
+      { expiresIn: window.expiresIn, signingDate: window.signingDate },
     );
   }
 
@@ -1031,12 +1032,47 @@ export function signCloudFrontUrl(
     );
   }
   const url = `https://${cdn.domain}/${path}?${params.toString()}`;
+  const window = signingWindow(ttlSec, now);
   return cloudFrontSignedUrl({
     url,
     keyPairId: cdn.keyPairId,
     privateKey: cdn.privateKey,
-    dateLessThan: new Date(now + ttlSec * 1000).toISOString(),
+    dateLessThan: new Date(
+      window.signingDate.getTime() + window.expiresIn * 1000,
+    ).toISOString(),
   });
+}
+
+/** Longest stretch one signed link is reused for (one hour). */
+export const SIGNING_BUCKET_SEC = 60 * 60;
+/** Links shorter than this are not bucketed at all. */
+const MIN_BUCKETED_TTL_SEC = 60;
+
+/**
+ * Owner 2026-11-08 (ETag / 304, «не грузить сервер»): a signed link made
+ * from the current second differed in every answer, so a page with private
+ * media never matched its ETag and the browser fetched the same picture
+ * again. Like CDN token signing with a time bucket, the link is signed from
+ * the start of a bucket of a tenth of its TTL (at most one hour), so every
+ * answer inside the bucket carries the same link. The life stays exactly
+ * [ttlSec] from the bucket start: a link never outlives its TTL (the
+ * security contract of signed links), it is only up to a tenth shorter.
+ */
+export function signingWindow(
+  ttlSec: number,
+  now: number = Date.now(),
+): { signingDate: Date; expiresIn: number } {
+  const ttl = Math.max(1, Math.floor(ttlSec));
+  // A short link (under a minute: verification documents in tests, one-off
+  // downloads) is signed from the current second, exactly as before.
+  const bucket =
+    (ttl < MIN_BUCKETED_TTL_SEC
+      ? 1
+      : Math.min(SIGNING_BUCKET_SEC, Math.floor(ttl / 10))) * 1000;
+  return {
+    signingDate: new Date(Math.floor(now / bucket) * bucket),
+    expiresIn: ttl,
+  };
 }
 
 /** RFC 6266 attachment header: an ASCII fallback plus the UTF-8 name. */

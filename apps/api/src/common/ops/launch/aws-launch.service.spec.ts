@@ -236,6 +236,25 @@ describe('AwsBudgetsAdminService guards', () => {
     ]);
   });
 
+  it('2026-11-08: an old copy is returned at once, one DescribeBudgets runs behind it', async () => {
+    const { svc, send } = make();
+    await svc.list();
+    expect(send).toHaveBeenCalledTimes(1);
+    const c = (svc as unknown as { cache: { at: number } }).cache;
+    c.at = Date.now() - 10 * 60_000; // ten minutes old
+    let release!: () => void;
+    send.mockImplementationOnce(
+      () => new Promise((r) => (release = () => r({ Budgets: [] }))) as never,
+    );
+    const rows = await svc.list(); // does not wait for AWS
+    expect(rows).toHaveLength(2);
+    await svc.list(); // a second open shares the one running refresh
+    expect(send).toHaveBeenCalledTimes(2);
+    release();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(await svc.list()).toEqual([]); // the refreshed copy
+  });
+
   it('changes only the prod limit and keeps the rest of the budget', async () => {
     const { svc, send } = make();
     await svc.setLimit('lawbid-prod-monthly', 300);

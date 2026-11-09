@@ -500,6 +500,9 @@ class FakeAvatarRepo implements AvatarUploadRepository {
   bool holdUpload = false;
   UploadCancellation? lastCancellation;
 
+  /// When set, `confirm` waits for it (the server's scan still running).
+  Completer<ScanOutcome>? holdConfirm;
+
   @override
   Future<PresignedUpload> presign({
     required String mime,
@@ -544,7 +547,8 @@ class FakeAvatarRepo implements AvatarUploadRepository {
   @override
   Future<ScanOutcome> confirm(String fileId) async {
     steps.add('confirm');
-    return ScanOutcome.clean;
+    final hold = holdConfirm;
+    return hold == null ? ScanOutcome.clean : hold.future;
   }
 
   @override
