@@ -282,6 +282,38 @@ class _VerificationClient implements VerificationClient {
   }
 
   @override
+  Future<IdentityCheckLinkEnvelope> startIdentityCheck({
+    required String id,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<IdentityCheckLinkEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/verification/requests/${id}/identity-check',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late IdentityCheckLinkEnvelope _value;
+    try {
+      _value = IdentityCheckLinkEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<VerificationHandoffEnvelope> createVerificationHandoff({
     required CreateHandoffDto body,
     Map<String, dynamic>? extras,
