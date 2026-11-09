@@ -41,6 +41,7 @@ import { ConsentsService } from '../services/consents.service';
 import { AccountDeletionService } from '../services/account-deletion.service';
 import { ContactRequestDto } from '../dto/contact-request.dto';
 import { ContactVerifyDto } from '../dto/contact-verify.dto';
+import { ChangePhoneDto } from '../dto/change-phone.dto';
 import { SaveConsentsDto } from '../dto/consents.dto';
 import { SaveOnboardingStepDto } from '../dto/onboarding.dto';
 import {
@@ -291,6 +292,7 @@ export class UsersController {
     @Body() dto: ContactRequestDto,
     @Req() req: Request & { user?: RequestUser },
   ): Promise<ContactCodeSentDto> {
+    this.contacts.assertCodeContact(dto.type);
     await this.reauth.assertRecentAuthentication(req);
     await this.contacts.requestVerification(user.sub, dto.type, dto.value);
     return { sent: true };
@@ -314,6 +316,7 @@ export class UsersController {
     @CurrentUser() user: RequestUser,
     @Body() dto: ContactVerifyDto,
   ): Promise<ContactVerifiedDto> {
+    this.contacts.assertCodeContact(dto.type);
     await this.contacts.verify(
       user.sub,
       dto.type,
@@ -321,6 +324,49 @@ export class UsersController {
       dto.code,
       user.sid,
     );
+    return { verified: true };
+  }
+
+  /** Owner rule (memory sms-two-cases): an SMS code goes out only at
+   * registration and «Забыл пароль», so the phone is set or changed with
+   * the account password or a passkey: `POST /auth/reauth`
+   * (`method: password`) or `POST /auth/passkeys/reauth` → single-use
+   * X-Reauth-Token → this route. Replacing a verified phone always needs
+   * that token; adding the first phone also accepts a sign-in made on this
+   * session minutes ago (onboarding). No code, no SMS. */
+  @Post('phone')
+  @UseInterceptors(IdempotencyInterceptor)
+  @ApiEnvelopeResponse(ContactVerifiedDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR, E.PHONE_COUNTRY_NOT_SUPPORTED],
+    401: [
+      E.UNAUTHORIZED,
+      E.TOKEN_EXPIRED,
+      E.AUTH_SESSION_REVOKED,
+      E.REAUTH_INVALID,
+    ],
+    403: [E.REAUTH_REQUIRED],
+    409: [E.CONTACT_ALREADY_EXISTS, E.IDEMPOTENCY_KEY_CONFLICT],
+    429: [E.RATE_LIMITED],
+  })
+  @ApiHeader({
+    name: REAUTH_HEADER_NAME,
+    required: false,
+    description:
+      'Single-use token from POST /auth/reauth (password) or /auth/passkeys/reauth; required to replace a verified phone, and to add the first one unless this session signed in within the last 10 minutes.',
+  })
+  @IdempotencyKeyHeader
+  async changePhone(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: ChangePhoneDto,
+    @Req() req: Request & { user?: RequestUser },
+  ): Promise<ContactVerifiedDto> {
+    if (await this.contacts.hasVerified(user.sub, 'phone')) {
+      await this.reauth.assertAndConsume(req);
+    } else {
+      await this.reauth.assertRecentAuthentication(req);
+    }
+    await this.contacts.changePhone(user.sub, dto.phone, user.sid);
     return { verified: true };
   }
 

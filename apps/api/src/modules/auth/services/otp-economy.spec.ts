@@ -1,6 +1,6 @@
-import { HttpException } from '@nestjs/common';
+import { BadRequestException, HttpException } from '@nestjs/common';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
-import { OtpService } from './otp.service';
+import { OtpService, SMS_OTP_PURPOSES } from './otp.service';
 
 function setup(limited: boolean) {
   const config = {
@@ -34,22 +34,6 @@ function setup(limited: boolean) {
 const PHONE = '+14155552680';
 
 describe('OtpService SMS under the economy guard', () => {
-  it.each(['contact'] as const)(
-    'refuses a %s SMS while limited and sends nothing',
-    async (purpose) => {
-      const { service, sms, costGuard } = setup(true);
-      const err = await service
-        .requestOtp('phone', PHONE, purpose)
-        .catch((e: unknown) => e);
-      expect(err).toBeInstanceOf(HttpException);
-      expect((err as HttpException).getResponse()).toMatchObject({
-        code: ErrorCode.PROVIDER_BUDGET_EXCEEDED,
-      });
-      expect(sms.send).not.toHaveBeenCalled();
-      expect(costGuard.consume).not.toHaveBeenCalled();
-    },
-  );
-
   it.each(['login', 'reset'] as const)(
     'still sends the %s SMS while limited',
     async (purpose) => {
@@ -58,12 +42,34 @@ describe('OtpService SMS under the economy guard', () => {
       expect(sms.send).toHaveBeenCalledTimes(1);
     },
   );
+});
 
-  it('sends a contact SMS normally when not limited', async () => {
-    const { service, sms } = setup(false);
-    await service.requestOtp('phone', PHONE, 'contact');
-    expect(sms.send).toHaveBeenCalledTimes(1);
+// Owner rule (memory sms-two-cases): an SMS code only at registration
+// (`login`) and «Забыл пароль» (`reset`) — whatever the economy state.
+describe('OtpService sends an SMS for registration and reset only', () => {
+  it('pins the two purposes', () => {
+    expect([...SMS_OTP_PURPOSES]).toEqual(['login', 'reset']);
   });
+
+  it.each(
+    (['contact', 'reauth', 'link'] as const).flatMap((p) =>
+      [false, true].map((limited) => [p, limited] as const),
+    ),
+  )(
+    'refuses a %s SMS (economy limited: %s), sends and spends nothing',
+    async (purpose, limited) => {
+      const { service, sms, costGuard } = setup(limited);
+      const err = await service
+        .requestOtp('phone', PHONE, purpose)
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as HttpException).getResponse()).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+      });
+      expect(sms.send).not.toHaveBeenCalled();
+      expect(costGuard.consume).not.toHaveBeenCalled();
+    },
+  );
 });
 
 // 2026-10-24 (abuse batch B, item 10): the SMS-pumping guard in the OTP path.

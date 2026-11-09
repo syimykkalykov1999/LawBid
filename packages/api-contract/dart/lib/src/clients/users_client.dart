@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/app_session_envelope.dart';
+import '../models/change_phone_dto.dart';
 import '../models/consents_saved_envelope.dart';
 import '../models/contact_code_sent_envelope.dart';
 import '../models/contact_request_dto.dart';
@@ -104,6 +105,22 @@ abstract class UsersClient {
   @POST('/users/me/contacts/verify')
   Future<ContactVerifiedEnvelope> verifyContact({
     @Body() required ContactVerifyDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner rule (memory sms-two-cases): an SMS code goes out only at.
+  /// registration and «Забыл пароль», so the phone is set or changed with.
+  /// the account password or a passkey: `POST /auth/reauth`.
+  /// (`method: password`) or `POST /auth/passkeys/reauth` → single-use.
+  /// X-Reauth-Token → this route. Replacing a verified phone always needs.
+  /// that token; adding the first phone also accepts a sign-in made on this.
+  /// session minutes ago (onboarding). No code, no SMS.
+  ///
+  /// [xReauthToken] - Single-use token from POST /auth/reauth (password) or /auth/passkeys/reauth; required to replace a verified phone, and to add the first one unless this session signed in within the last 10 minutes.
+  @POST('/users/me/phone')
+  Future<ContactVerifiedEnvelope> changePhone({
+    @Body() required ChangePhoneDto body,
+    @Header('X-Reauth-Token') String? xReauthToken,
     @Extras() Map<String, dynamic>? extras,
   });
 
