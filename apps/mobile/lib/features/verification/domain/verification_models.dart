@@ -145,10 +145,15 @@ class VerificationRequest {
     this.rejectionReason,
     this.submittedAt,
     this.reviewedAt,
+    this.identityCheckStarted = false,
   });
 
   final String id;
   final RequestStatus status;
+
+  /// Owner 2026-11-08: the ID + selfie check of this request was started in
+  /// Persona's hosted flow (replaces the uploads while Persona is on).
+  final bool identityCheckStarted;
   final String? applicantComment;
 
   /// The verifier's message of `needs_more_info`.
@@ -218,6 +223,10 @@ class VerificationRequest {
   bool get selfieComplete => docsFor(const DocSlot.selfie()).isNotEmpty;
 }
 
+/// Owner 2026-11-08: manual = ID + selfie uploads for staff (default);
+/// persona = Persona's hosted flow opened from the identity step.
+enum IdentityProvider { manual, persona }
+
 /// `GET /verification/me` (status screen, docs/03 §8.6).
 class VerificationOverview {
   const VerificationOverview({
@@ -228,9 +237,15 @@ class VerificationOverview {
     this.request,
     this.barDocumentRequired = true,
     this.barAttemptsRetryAfterSeconds = 0,
+    this.identityProvider = IdentityProvider.manual,
   });
 
   final VerificationStatus status;
+
+  /// Owner 2026-11-08: who checks the ID + selfie. `persona` only when the
+  /// server says the admin's Persona card is set up; otherwise (and with an
+  /// older server) the manual upload exactly as before.
+  final IdentityProvider identityProvider;
   final VerificationRequest? request;
 
   /// Off by default (owner 2026-10-04); on for a verified attorney

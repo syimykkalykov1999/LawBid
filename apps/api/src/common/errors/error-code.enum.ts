@@ -93,6 +93,11 @@ export enum ErrorCode {
   // identity checks, ...) is exhausted, or the guard can't verify the
   // budget (Redis down -> fail closed). Retry later.
   PROVIDER_BUDGET_EXCEEDED = 'PROVIDER_BUDGET_EXCEEDED',
+  // 503: owner 2026-11-08 — the automatic identity check (Persona) cannot
+  // start now (daily id_check cap used up or Persona not answering);
+  // details.reason = budget_exceeded | provider_error. The app falls back
+  // to the manual ID + selfie upload.
+  IDENTITY_PROVIDER_UNAVAILABLE = 'IDENTITY_PROVIDER_UNAVAILABLE',
   // 400: SMS destination outside sms.allowed_country_codes (US-only
   // product; docs/01_FOUNDATION_AUTH.md §10.6 "блок подозрительных
   // префиксов стран") or a premium/toll-free/shared-cost number type.

@@ -403,14 +403,25 @@ export const GUIDES: Record<string, ProviderGuide> = {
   },
 
   persona: {
-    steps: ['Откройте app.withpersona.com → API → API Keys → создайте или скопируйте ключ.'],
-    links: [{ label: 'Persona', url: 'https://app.withpersona.com/' }],
+    steps: [
+      'app.withpersona.com → слева внизу переключатель Sandbox / Production (сначала Sandbox для проверки).',
+      'Inquiries → Templates → «Create template» → готовый шаблон «Government ID and Selfie» → Publish. Скопируйте его ID (itmpl_…).',
+      'API → API Keys → «Create API key» → скопируйте ключ (persona_sandbox_… или persona_production_…).',
+      'Webhooks → «Add webhook»: URL https://api.lawbid.dev/api/v1/webhooks/persona; события inquiry.approved, inquiry.declined, inquiry.marked-for-review, inquiry.failed, inquiry.completed, inquiry.expired → Save. Скопируйте Webhook secret.',
+    ],
+    links: [
+      { label: 'Persona', url: 'https://app.withpersona.com/' },
+      { label: 'Persona: вебхуки', url: 'https://docs.withpersona.com/docs/webhooks' },
+    ],
     enable: [
-      'Вставьте ключ (PERSONA_API_KEY) → «Сохранить» → «Проверить»: Persona должна принять ключ. persona_sandbox_… — тестовый, persona_production_… — боевой.',
-      'Ключ можно сохранить заранее: он понадобится, когда начнёте проверять личность адвокатов через Persona.',
+      'Вставьте ключ, ID шаблона и секрет вебхука → «Сохранить» → «Проверить» (Persona должна принять ключ) → «Включить».',
+      'Пока ключа нет или карточка выключена — проверка ручная, как сейчас. Выключили карточку — сразу снова ручная.',
+      'Цена: Persona берёт плату за каждую проверку; потолок — Админка → Лимиты (budget.id_check.daily_max / monthly_max). Кончился лимит — адвокат загружает документы вручную.',
     ],
     fields: {
       apiKey: { how: 'Начинается с persona_sandbox_ (тест) или persona_production_.', example: 'persona_production_…' },
+      templateId: { how: 'Inquiries → Templates → ваш шаблон «Government ID and Selfie» → ID.', example: 'itmpl_…' },
+      webhookSecret: { how: 'Webhooks → ваш вебхук → Webhook secret (Reveal).', example: 'wbhsec_…' },
     },
   },
 

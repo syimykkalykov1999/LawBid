@@ -12,7 +12,12 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { ATTESTATION_VERSION } from '../src/modules/verification/verification.constants';
-import { SELF_ATTESTED_NOTE } from '../src/modules/verification/services/verification-checks.service';
+import {
+  PERSONA_APPROVED_NOTE,
+  SELF_ATTESTED_NOTE,
+} from '../src/modules/verification/services/verification-checks.service';
+import { createHmac } from 'node:crypto';
+import { PersonaClient } from '../src/modules/verification/providers/persona.client';
 
 /**
  * docs/03_VERIFICATION_PROFILES.md stages 3.3 (verification request API)
@@ -48,7 +53,8 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-    app = moduleRef.createNestApplication();
+    // rawBody: the Persona webhook signature covers the exact bytes (main.ts).
+    app = moduleRef.createNestApplication({ rawBody: true });
     app.useLogger(app.get(Logger));
     app.useGlobalInterceptors(new LoggerErrorInterceptor());
     app.useGlobalPipes(
@@ -1323,6 +1329,262 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       });
       expect(lic.license_status).toBe('pending');
       expect(await profileStatus(a.userId)).not.toBe('verified');
+    });
+  });
+  // Owner 2026-11-08: Persona behind the admin card; Persona itself mocked.
+  describe('Persona ID checks (owner 2026-11-08)', () => {
+    const cfg = {
+      apiKey: 'persona_sandbox_test-e2e-token',
+      templateId: 'itmpl_e2eTemplate',
+      webhookSecret: 'test-persona-webhook-secret-e2e',
+    };
+    let inquirySeq = 0;
+
+    beforeAll(async () => {
+      await setConfig('verification.require_identity', true);
+    });
+    afterAll(async () => {
+      await setConfig('verification.require_identity', false);
+    });
+    afterEach(() => jest.restoreAllMocks());
+
+    function personaOn() {
+      const client = app.get(PersonaClient);
+      jest.spyOn(client, 'config').mockResolvedValue(cfg);
+      const create = jest
+        .spyOn(client, 'createInquiry')
+        .mockImplementation(() => {
+          inquirySeq += 1;
+          const inquiryId = `inq_e2e${tag}${inquirySeq}`;
+          return Promise.resolve({
+            inquiryId,
+            url: `https://inquiry.withpersona.com/verify?inquiry-id=${inquiryId}`,
+          });
+        });
+      jest.spyOn(client, 'resumeInquiry').mockResolvedValue(null);
+      return { create };
+    }
+
+    function webhook(
+      name: string,
+      inquiryId: string,
+      referenceId: string,
+      secret = cfg.webhookSecret,
+      eventId = `evt_${randomUUID().replace(/-/g, '')}`,
+    ) {
+      const raw = JSON.stringify({
+        data: {
+          type: 'event',
+          id: eventId,
+          attributes: {
+            name,
+            payload: {
+              data: {
+                type: 'inquiry',
+                id: inquiryId,
+                attributes: {
+                  status: name.replace('inquiry.', ''),
+                  'reference-id': referenceId,
+                },
+              },
+            },
+          },
+        },
+      });
+      const t = String(Math.floor(Date.now() / 1000));
+      const v1 = createHmac('sha256', secret)
+        .update(`${t}.${raw}`)
+        .digest('hex');
+      return api()
+        .post('/api/v1/webhooks/persona')
+        .set('content-type', 'application/json')
+        .set('persona-signature', `t=${t},v1=${v1}`)
+        .send(raw);
+    }
+
+    async function personaDraft(a: { auth: Record<string, string> }) {
+      const requestId = await createDraft(a.auth);
+      const lic = await api()
+        .post(`/api/v1/verification/requests/${requestId}/licenses`)
+        .set(a.auth)
+        .send({ stateCode: 'NJ', barNumber: barNumber() })
+        .expect(201);
+      const licenseId = (
+        (lic.body as Body).data.licenses as { id: string }[]
+      )[0].id;
+      return { requestId, licenseId };
+    }
+
+    it('no key: manual exactly as before (identity-check 403, uploads required)', async () => {
+      const a = await attorney();
+      const { requestId } = await personaDraft(a);
+      const me = await api()
+        .get('/api/v1/verification/me')
+        .set(a.auth)
+        .expect(200);
+      expect((me.body as Body).data.identityProvider).toBe('manual');
+      const off = await api()
+        .post(`/api/v1/verification/requests/${requestId}/identity-check`)
+        .set(a.auth)
+        .expect(403);
+      expect((off.body as Body).error?.code).toBe('FEATURE_DISABLED');
+      const incomplete = await api()
+        .post(`/api/v1/verification/requests/${requestId}/submit`)
+        .set(a.auth)
+        .send({ attestation: true })
+        .expect(400);
+      expect((incomplete.body as Body).error?.details?.missing).toEqual([
+        'identity_document',
+        'selfie',
+      ]);
+      // The webhook is closed without a key.
+      await webhook('inquiry.approved', 'inq_none', requestId).expect(404);
+    });
+
+    it('key: inquiry created, submit without uploads, approved webhook + registry pass = verified', async () => {
+      const { create } = personaOn();
+      const a = await attorney();
+      const { requestId, licenseId } = await personaDraft(a);
+      const me = await api()
+        .get('/api/v1/verification/me')
+        .set(a.auth)
+        .expect(200);
+      expect((me.body as Body).data.identityProvider).toBe('persona');
+      const started = await api()
+        .post(`/api/v1/verification/requests/${requestId}/identity-check`)
+        .set(a.auth)
+        .expect(201);
+      const { inquiryId, url } = (started.body as Body).data as {
+        inquiryId: string;
+        url: string;
+      };
+      expect(url).toContain(`inquiry-id=${inquiryId}`);
+      expect(create).toHaveBeenCalledWith(cfg, requestId);
+      const row = await prisma.verificationRequest.findUniqueOrThrow({
+        where: { id: requestId },
+      });
+      expect(row.provider).toBe('persona');
+      expect(row.provider_ref).toBe(inquiryId);
+
+      const submitted = await api()
+        .post(`/api/v1/verification/requests/${requestId}/submit`)
+        .set(a.auth)
+        .send({ attestation: true })
+        .expect(200);
+      expect((submitted.body as Body).data.status).toBe('submitted');
+      expect((submitted.body as Body).data.identityCheckStarted).toBe(true);
+
+      // A forged / missing signature changes nothing.
+      await webhook(
+        'inquiry.approved',
+        inquiryId,
+        requestId,
+        'wrong-secret-0000000',
+      ).expect(404);
+      await api()
+        .post('/api/v1/webhooks/persona')
+        .send({ data: {} })
+        .expect(404);
+      expect(
+        await prisma.verificationCheck.count({
+          where: { request_id: requestId, provider: 'persona' },
+        }),
+      ).toBe(0);
+
+      // The state registry matched (stored lookup), then Persona approves.
+      await prisma.verificationCheck.create({
+        data: {
+          request_id: requestId,
+          check_type: 'bar_lookup',
+          provider: 'manual',
+          result: 'pass',
+          details: { licenseId, stateCode: 'NJ', lookupProvider: 'e2e' },
+          checked_at: new Date(),
+        },
+      });
+      await webhook('inquiry.approved', inquiryId, requestId).expect(200);
+      const done = await prisma.verificationRequest.findUniqueOrThrow({
+        where: { id: requestId },
+      });
+      expect(done.status).toBe('approved');
+      expect(done.admin_note).toBe(PERSONA_APPROVED_NOTE);
+      expect(await profileStatus(a.userId)).toBe('verified');
+      const checks = await prisma.verificationCheck.findMany({
+        where: { request_id: requestId, provider: 'persona' },
+      });
+      expect(checks.map((c) => `${c.check_type}:${c.result}`).sort()).toEqual([
+        'face_match:pass',
+        'id_check:pass',
+      ]);
+    });
+
+    it('declined webhook: recorded as fail, request waits for staff, who can still approve', async () => {
+      personaOn();
+      const a = await attorney();
+      const { requestId, licenseId } = await personaDraft(a);
+      const started = await api()
+        .post(`/api/v1/verification/requests/${requestId}/identity-check`)
+        .set(a.auth)
+        .expect(201);
+      const { inquiryId } = (started.body as Body).data as {
+        inquiryId: string;
+      };
+      await api()
+        .post(`/api/v1/verification/requests/${requestId}/submit`)
+        .set(a.auth)
+        .send({ attestation: true })
+        .expect(200);
+      await webhook(
+        'inquiry.declined',
+        inquiryId,
+        requestId,
+        undefined,
+        'evt_e2eDeclined1',
+      ).expect(200);
+      // Persona retries the same event: recorded once.
+      await webhook(
+        'inquiry.declined',
+        inquiryId,
+        requestId,
+        undefined,
+        'evt_e2eDeclined1',
+      ).expect(200);
+      const checks = await prisma.verificationCheck.findMany({
+        where: { request_id: requestId, provider: 'persona' },
+      });
+      expect(checks.map((c) => c.result)).toEqual(['fail', 'fail']);
+      expect(
+        (
+          await prisma.verificationRequest.findUniqueOrThrow({
+            where: { id: requestId },
+          })
+        ).status,
+      ).toBe('submitted');
+      // A mismatched reference id is ignored.
+      await webhook('inquiry.approved', inquiryId, randomUUID()).expect(200);
+      expect(
+        await prisma.verificationCheck.count({
+          where: { request_id: requestId, provider: 'persona', result: 'pass' },
+        }),
+      ).toBe(0);
+
+      const verifier = await admin('verifier');
+      await api()
+        .post(`/api/v1/admin/verification/requests/${requestId}/take`)
+        .set(verifier.auth)
+        .expect(200);
+      await api()
+        .post(
+          `/api/v1/admin/verification/requests/${requestId}/licenses/${licenseId}/decision`,
+        )
+        .set(verifier.auth)
+        .send({ decision: 'verified' })
+        .expect(200);
+      const approved = await api()
+        .post(`/api/v1/admin/verification/requests/${requestId}/approve`)
+        .set(verifier.auth)
+        .expect(200);
+      expect((approved.body as Body).data.status).toBe('approved');
     });
   });
 });
