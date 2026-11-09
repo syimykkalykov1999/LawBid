@@ -30,6 +30,7 @@ VerificationRequestDto _$VerificationRequestDtoFromJson(
         (e) => OwnVerificationDocumentDto.fromJson(e as Map<String, dynamic>),
       )
       .toList(),
+  identityCheckStarted: json['identityCheckStarted'] as bool?,
 );
 
 Map<String, dynamic> _$VerificationRequestDtoToJson(
@@ -46,4 +47,5 @@ Map<String, dynamic> _$VerificationRequestDtoToJson(
   'createdAt': instance.createdAt.toIso8601String(),
   'licenses': instance.licenses.map((e) => e.toJson()).toList(),
   'documents': instance.documents.map((e) => e.toJson()).toList(),
+  'identityCheckStarted': ?instance.identityCheckStarted,
 };
