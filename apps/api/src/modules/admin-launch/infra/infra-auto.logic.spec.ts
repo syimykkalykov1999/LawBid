@@ -3,6 +3,8 @@ import {
   autoRefusal,
   autoWants,
   dueWants,
+  SEARCH_ENGINE_OFF_PEOPLE,
+  SEARCH_ENGINE_ON_PEOPLE,
   type AutoSignals,
   type AutoWant,
 } from './infra-auto.logic';
@@ -16,6 +18,53 @@ const calm: AutoSignals = {
 const offAll = () => 'off' as const;
 const MIN = 60_000;
 const H = 3_600_000;
+
+describe('autoWants G4–G6 (2026-11-08)', () => {
+  const ids = (w: AutoWant[]) => w.map((x) => `${x.id}:${x.to}`).sort();
+
+  it('G4: events.sink wants the stream and there is none → on; gone → off (only if auto)', () => {
+    expect(
+      ids(autoWants({ ...calm, eventsStreamWanted: true }, offAll, new Set())),
+    ).toEqual(['aws.events_stream:on']);
+    const onLive = (id: string) => (id === 'aws.events_stream' ? 'on' : 'off');
+    expect(
+      ids(autoWants(calm, onLive, new Set(['aws.events_stream']))),
+    ).toEqual(['aws.events_stream:off']);
+    // switched on by hand: stays
+    expect(autoWants(calm, onLive, new Set())).toEqual([]);
+  });
+
+  it('G5: cache node on Redis memory pressure (Авто) or Вкл; never by Выкл; never off by itself', () => {
+    const tight = { ...calm, pressures: ['redis_memory'] };
+    expect(
+      ids(autoWants({ ...tight, cacheRedisMode: 'auto' }, offAll, new Set())),
+    ).toEqual(['aws.redis_cache:on']);
+    expect(
+      ids(autoWants({ ...calm, cacheRedisMode: 'on' }, offAll, new Set())),
+    ).toEqual(['aws.redis_cache:on']);
+    expect(
+      autoWants({ ...tight, cacheRedisMode: 'off' }, offAll, new Set()),
+    ).toEqual([]);
+    expect(
+      autoWants({ ...tight, cacheNodeLive: true }, offAll, new Set()),
+    ).toEqual([]);
+    const onLive = (id: string) => (id === 'aws.redis_cache' ? 'on' : 'off');
+    expect(autoWants(calm, onLive, new Set(['aws.redis_cache']))).toEqual([]);
+  });
+
+  it('G6: db.replica_provision rules the pipeline replica; the app path wins when it has IAM', () => {
+    const busy = { ...calm, pressures: ['db_cpu'] };
+    expect(ids(autoWants(busy, offAll, new Set()))).toEqual([
+      'aws.rds_replicas:on',
+    ]);
+    expect(
+      autoWants({ ...busy, replicaProvision: 'off' }, offAll, new Set()),
+    ).toEqual([]);
+    expect(
+      autoWants({ ...busy, replicaAppPath: true }, offAll, new Set()),
+    ).toEqual([]);
+  });
+});
 
 describe('autoWants', () => {
   it('nothing when calm', () => {
@@ -69,6 +118,56 @@ describe('autoWants', () => {
     const on = () => 'on' as const;
     expect(
       autoWants({ ...calm, poolSmall: true }, on, new Set(['aws.pgbouncer'])),
+    ).toEqual([]);
+  });
+
+  it('5M people switch the search engine on; it goes off again only below 4M (perf guard 2026-11-08)', () => {
+    const ids = (w: AutoWant[]) => w.map((x) => `${x.id}:${x.to}`);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, people: SEARCH_ENGINE_ON_PEOPLE - 1 },
+          offAll,
+          new Set(),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, people: SEARCH_ENGINE_ON_PEOPLE },
+          offAll,
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.opensearch:on']);
+    const onAll = () => 'on' as const;
+    const mine = new Set(['aws.opensearch']);
+    // between the two lines: stays on, nothing to do
+    expect(
+      ids(
+        autoWants(
+          { ...calm, people: SEARCH_ENGINE_OFF_PEOPLE + 1 },
+          onAll,
+          mine,
+        ),
+      ).filter((x) => x.startsWith('aws.opensearch')),
+    ).toEqual([]);
+    // below the lower line: the one it switched on itself goes off
+    expect(
+      ids(
+        autoWants(
+          { ...calm, people: SEARCH_ENGINE_OFF_PEOPLE - 1 },
+          onAll,
+          mine,
+        ),
+      ).filter((x) => x.startsWith('aws.opensearch')),
+    ).toEqual(['aws.opensearch:off']);
+    // switched on by hand: never switched off by itself
+    expect(
+      ids(autoWants({ ...calm, people: 0 }, onAll, new Set())).filter((x) =>
+        x.startsWith('aws.opensearch'),
+      ),
     ).toEqual([]);
   });
 
