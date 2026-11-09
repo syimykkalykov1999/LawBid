@@ -64,3 +64,7 @@ aa2454bc6d4843a3af822f3add4ce6d2a1315bdb:apps/api/test/owner-subscription-alerts
 # commit f664e10 ("avatar/s1/2026/11/mine"), not a secret; replaced by
 # "avatar/me/mine" in the next commit.
 f664e10bea6316ed309c03b4d6dd573523bd63e3:apps/api/src/modules/files/files.service.spec.ts:generic-api-key:1085
+# Fake PEM (100×A) in a unit test from #82; flagged on PRs whose base predates it
+440fd42f18a8b8881e9aff7909e6a579c1f53573:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:4
+440fd42f18a8b8881e9aff7909e6a579c1f53573:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:20
+440fd42f18a8b8881e9aff7909e6a579c1f53573:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:28
