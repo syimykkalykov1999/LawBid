@@ -779,7 +779,7 @@ erDiagram
   follow_tombstones {
     String follower_id PK,FK
     String followee_id PK
-    DateTime deleted_at
+    DateTime unfollowed_at
     Int shard_id
   }
   user_blocks {

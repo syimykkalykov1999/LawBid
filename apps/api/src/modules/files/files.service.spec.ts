@@ -1472,7 +1472,9 @@ describe('storeGenerated({ sealed }) and Object Lock (C-c11)', () => {
     Object.assign(deps.storage, {
       put: jest.fn().mockResolvedValue(undefined),
     });
-    deps.prisma.file.create = jest.fn().mockResolvedValue({ id: 'f' });
+    Object.assign(deps.prisma.file, {
+      create: jest.fn().mockResolvedValue({ id: 'f' }),
+    });
     return { service, deps };
   };
   const lockArg = (deps: ReturnType<typeof make>['deps']): unknown =>

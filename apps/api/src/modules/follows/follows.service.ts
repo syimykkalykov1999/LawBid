@@ -183,9 +183,9 @@ export class FollowsService {
       create: {
         follower_id: user.sub,
         followee_id: attorneyId,
-        deleted_at: now,
+        unfollowed_at: now,
       },
-      update: { deleted_at: now },
+      update: { unfollowed_at: now },
     });
     await bumpFeedVersion(this.redis, user.sub);
     await this.counters.bump(
@@ -474,8 +474,8 @@ export class FollowsService {
         take: CHANGED_MAX,
       }),
       this.prisma.followTombstone.findMany({
-        where: { follower_id: viewerId, deleted_at: { gte: since } },
-        select: { followee_id: true, deleted_at: true },
+        where: { follower_id: viewerId, unfollowed_at: { gte: since } },
+        select: { followee_id: true, unfollowed_at: true },
         take: CHANGED_MAX,
       }),
     ]);
@@ -489,7 +489,10 @@ export class FollowsService {
       nextCursor: null,
       deletedIds: gone.map((t) => t.followee_id).filter((id) => !kept.has(id)),
       syncedAt: syncedAt(
-        [...added.map((f) => f.created_at), ...gone.map((t) => t.deleted_at)],
+        [
+          ...added.map((f) => f.created_at),
+          ...gone.map((t) => t.unfollowed_at),
+        ],
         since,
       ),
     };

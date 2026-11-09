@@ -11,7 +11,7 @@ const T = (ms: number) => new Date(Date.UTC(2026, 10, 9, 8, 0, 0, ms));
 function setup(
   opts: {
     added?: Array<{ followee_id: string; created_at: Date }>;
-    gone?: Array<{ followee_id: string; deleted_at: Date }>;
+    gone?: Array<{ followee_id: string; unfollowed_at: Date }>;
   } = {},
 ) {
   const prisma = {
@@ -102,7 +102,7 @@ describe('GET /users/me/following?updatedSince (B-c7)', () => {
     const since = T(0);
     const { service, prisma } = setup({
       added: [{ followee_id: 'a2', created_at: T(300) }],
-      gone: [{ followee_id: 'a1', deleted_at: T(700) }],
+      gone: [{ followee_id: 'a1', unfollowed_at: T(700) }],
     });
     const present = jest.spyOn(service, 'present').mockResolvedValue([]);
     const page = await service.mineChanged('me', since.toISOString());
@@ -120,7 +120,7 @@ describe('GET /users/me/following?updatedSince (B-c7)', () => {
     );
     expect(prisma.followTombstone.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { follower_id: 'me', deleted_at: { gte: since } },
+        where: { follower_id: 'me', unfollowed_at: { gte: since } },
       }),
     );
   });
@@ -129,7 +129,7 @@ describe('GET /users/me/following?updatedSince (B-c7)', () => {
     const since = T(0);
     const { service } = setup({
       added: [{ followee_id: 'a1', created_at: T(900) }],
-      gone: [{ followee_id: 'a1', deleted_at: T(400) }],
+      gone: [{ followee_id: 'a1', unfollowed_at: T(400) }],
     });
     jest.spyOn(service, 'present').mockResolvedValue([]);
     const page = await service.mineChanged('me', since.toISOString());

@@ -5,6 +5,7 @@ import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/sync/sync_freshness.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/calls/data/call_history_repository.dart';
 import 'package:lawbid/features/calls/domain/call_history_models.dart';
@@ -28,6 +29,10 @@ import '../../helpers/ux_harness.dart';
 /// tab switch asks the server nothing.
 
 class _CountingCalls implements CallHistoryRepository {
+  @override
+  Future<SyncedPage<CallHistoryEntry>> changed(DateTime since) async =>
+      const SyncedPage(items: []);
+
   int reads = 0;
 
   @override

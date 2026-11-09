@@ -2707,14 +2707,14 @@ model FollowTombstone {
   follower_id String   @db.Uuid
   follower    User     @relation("FollowTombstoneFollower", fields: [follower_id], references: [id], onDelete: Cascade)
   followee_id String   @db.Uuid
-  deleted_at  DateTime @default(now()) @db.Timestamptz
+  unfollowed_at DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
   @@id([follower_id, followee_id])
-  @@index([follower_id, deleted_at])
-  @@index([deleted_at])
+  @@index([follower_id, unfollowed_at])
+  @@index([unfollowed_at])
   @@map("follow_tombstones")
 }
 

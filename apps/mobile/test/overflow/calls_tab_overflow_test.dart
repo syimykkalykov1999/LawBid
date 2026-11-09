@@ -7,6 +7,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/calls/data/call_history_repository.dart';
 import 'package:lawbid/features/calls/domain/call_history_models.dart';
@@ -24,6 +25,10 @@ import '../helpers/ux_harness.dart';
 const _name = 'Maximilian-Alexander Montgomery-Wellington';
 
 class _History implements CallHistoryRepository {
+  @override
+  Future<SyncedPage<CallHistoryEntry>> changed(DateTime since) async =>
+      const SyncedPage(items: []);
+
   @override
   Future<CursorPage<CallHistoryEntry>> history({
     String? cursor,

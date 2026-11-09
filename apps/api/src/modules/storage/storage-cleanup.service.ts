@@ -179,7 +179,9 @@ export class StorageCleanupService {
     // (an older `updatedSince` is 409 SYNC_TOO_OLD → the list reloads).
     await this.prisma.followTombstone.deleteMany({
       where: {
-        deleted_at: { lt: new Date(now.getTime() - TOMBSTONE_DAYS * DAY_MS) },
+        unfollowed_at: {
+          lt: new Date(now.getTime() - TOMBSTONE_DAYS * DAY_MS),
+        },
       },
     });
 
