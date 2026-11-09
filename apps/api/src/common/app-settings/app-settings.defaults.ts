@@ -1453,6 +1453,10 @@ export const OWNER_FEED_SETTINGS = {
    * started with (a pinned copy, 15 min), not a list rebuilt mid-scroll
    * (posts skipped or repeated). Off = the old behaviour. */
   'reco.pin_paging_enabled': true,
+  /** Owner 2026-11-08: the reels feed is ordered for the viewer by the
+   * posts formula (`reco.post.*`, hot / topics / followed / fresh, watched
+   * lower). Off = newest first, as before. */
+  'reco.reels_ranked': true,
 };
 
 // Owner 2026-10-13: who may ADD files, documents and extra photos to a post

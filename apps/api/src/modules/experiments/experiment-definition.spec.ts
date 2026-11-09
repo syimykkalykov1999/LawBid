@@ -80,4 +80,38 @@ describe('guardrails and variants parsing', () => {
       { key: 'a', weight: 1 },
     ]);
   });
+
+  it('accepts formula weights on a new variant, never on control (2026-11-08)', () => {
+    const fine = definitionProblem({
+      key: 'case_feed_v3',
+      variants: [
+        { key: 'control', weight: 50 },
+        { key: 'urgent_first', weight: 50, weights: { urgency: 0.4 } },
+      ],
+    });
+    expect(fine).toBeNull();
+    expect(
+      definitionProblem({
+        key: 'case_feed_v3',
+        variants: [
+          { key: 'control', weight: 50, weights: { urgency: 0.4 } },
+          { key: 'b', weight: 50 },
+        ],
+      }),
+    ).toMatch(/control/);
+    expect(
+      definitionProblem({
+        key: 'case_feed_v3',
+        variants: [
+          { key: 'control', weight: 50 },
+          { key: 'b', weight: 50, weights: { urgency: 99 } },
+        ],
+      }),
+    ).toMatch(/от 0 до 10/);
+    expect(
+      parseVariants([
+        { key: 'b', weight: 50, weights: { urgency: 0.4, bad: 'x', 'x-y': 1 } },
+      ]),
+    ).toEqual([{ key: 'b', weight: 50, weights: { urgency: 0.4 } }]);
+  });
 });
