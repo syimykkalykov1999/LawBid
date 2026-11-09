@@ -59,76 +59,280 @@ const ENDPOINTS: [string, string][] = [
   ['payroll summary', '/admin/payroll/summary?period=2026-10'],
 ];
 
-(RUN ? describe : describe.skip)('Admin endpoints on a big database', () => {
-  let app: INestApplication;
-  let prisma: PrismaService;
-  let redis: Redis;
-  let base = '';
+/**
+ * 2026-11-08 (owner: «админка тормозит даже без данных»): what one page open
+ * really costs. The panel fires the shell's polls and every card's query of
+ * a page AT ONCE, so on prod (one API task, DB_POOL_SIZE=3) the requests
+ * queue for the three database connections; one endpoint alone is fast and
+ * hides that. Each page below is opened PERF_PAGE_ROUNDS times: all its
+ * GETs in parallel, as the browser sends them. Run with DB_POOL_SIZE=3 to
+ * match prod; PERF_STALE=1 ages every stored board to 20 min before each
+ * open (the panel opened after a pause). Fails when an endpoint's p95 is
+ * over PERF_BUDGET_MS (300).
+ *
+ *   PERF_ADMIN=1 PERF_PAGES=1 PERF_STALE=1 DB_POOL_SIZE=3 E2E_DATABASE_URL=… \
+ *     npx jest --config test/jest-perf-admin.json --forceExit
+ */
+const SHELL = [
+  '/admin/auth/me',
+  '/admin/counts',
+  '/admin/feature-flags',
+  '/admin/pii/watermark',
+];
+const ADMIN_PAGES: Record<string, string[]> = {
+  Главная: ['/admin/overview', '/admin/billing/overview'],
+  Сегодня: ['/admin/system-health', '/admin/pnl'],
+  Масштаб: [
+    '/admin/economy',
+    '/admin/system-health',
+    '/admin/system-health/scale',
+    '/admin/spend/registry',
+    '/admin/launch/budgets',
+    '/admin/system-health/backfills',
+    '/admin/system-health/db-replica',
+    '/admin/system-health/partitions',
+    '/admin/system-health/search-index',
+    '/admin/shards/overview',
+    '/admin/shards/split-plan?toDb=db1',
+    '/admin/system-health/heavy-hitters',
+    '/admin/infra',
+  ],
+  'Здоровье системы': [
+    '/admin/system-health',
+    '/admin/shards/overview',
+    '/admin/shards/split-plan?toDb=db1',
+  ],
+  Расходы: ['/admin/spend', '/admin/spend/registry', '/admin/infra'],
+  Интеграции: [
+    '/admin/integrations',
+    '/admin/system-health/calls-path',
+    '/admin/config',
+  ],
+  Настройки: [
+    '/admin/config',
+    '/admin/config/budgets',
+    '/admin/system-health/reco-qa',
+  ],
+  Пользователи: ['/admin/users?limit=50'],
+  'Журнал действий': ['/admin/audit-log'],
+  Дела: ['/admin/case-disputes', '/admin/contact-issues', '/admin/cases'],
+  Платежи: [
+    '/admin/billing/payments',
+    '/admin/billing/refunds',
+    '/admin/billing/duplicate-subscriptions',
+    '/admin/billing/dispute-refunds',
+  ],
+};
+const PAGE_ROUNDS = Number(process.env.PERF_PAGE_ROUNDS ?? 10);
 
-  beforeAll(async () => {
-    process.env.NODE_ENV = 'test';
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.setGlobalPrefix('api/v1');
-    await app.listen(0, '127.0.0.1');
-    base = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
-    prisma = app.get(PrismaService);
-    redis = app.get<Redis>(REDIS_CLIENT);
-  });
+(RUN && process.env.PERF_PAGES === '1' ? describe : describe.skip)(
+  'Admin pages opened the way the browser opens them',
+  () => {
+    let app: INestApplication;
+    let prisma: PrismaService;
+    let redis: Redis;
+    let base = '';
 
-  afterAll(async () => {
-    await app.close();
-  });
+    beforeAll(async () => {
+      process.env.NODE_ENV = 'test';
+      const moduleRef = await Test.createTestingModule({
+        imports: [AppModule],
+      }).compile();
+      app = moduleRef.createNestApplication();
+      app.useGlobalPipes(
+        new ValidationPipe({
+          whitelist: true,
+          forbidNonWhitelisted: true,
+          transform: true,
+        }),
+      );
+      app.setGlobalPrefix('api/v1');
+      await app.listen(0, '127.0.0.1');
+      base = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
+      prisma = app.get(PrismaService);
+      redis = app.get<Redis>(REDIS_CLIENT);
+    });
 
-  const pct = (xs: number[], p: number) =>
-    [...xs].sort((a, b) => a - b)[
-      Math.min(xs.length - 1, Math.floor(xs.length * p))
-    ];
+    afterAll(async () => {
+      await app.close();
+    });
 
-  it('prints the latency table', async () => {
-    const admin = await adminSession(base, prisma, 'super_admin');
-    const rows: string[] = [
-      '| endpoint | status | cold ms | warm p50 | warm p95 | warm max | bytes |',
-      '|---|---|---|---|---|---|---|',
-    ];
-    for (const [label, path] of ENDPOINTS) {
-      if (process.env.PERF_ONLY && !path.includes(process.env.PERF_ONLY))
-        continue;
-      // Empty every admin cache so the first call is a real cold one.
-      // (Only the aggregate caches: `adm:*` also holds the admin sessions.)
-      const keys = [
-        ...(await redis.keys('adm:sum:*')),
-        ...(await redis.keys('adm:counts:*')),
+    const pct = (xs: number[], p: number) =>
+      [...xs].sort((a, b) => a - b)[
+        Math.min(xs.length - 1, Math.floor(xs.length * p))
       ];
-      if (keys.length) await redis.del(...keys);
-      const times: number[] = [];
-      let status = 0;
-      let bytes = 0;
-      let cold = 0;
-      for (let i = 0; i <= ROUNDS; i++) {
+
+    /** PERF_STALE=1: every stored admin board is made 20 min old before
+     * each open — the owner's case, «I open the panel after a pause». */
+    const ageBoards = async () => {
+      if (process.env.PERF_STALE !== '1') return;
+      const old = new Date(Date.now() - 20 * 60_000).toISOString();
+      for (const k of await redis.keys('adm:sum:*')) {
+        if (k.includes(':lock:') || k.endsWith(':scopes')) continue;
+        const raw = await redis.get(k);
+        if (!raw) continue;
+        try {
+          const v = JSON.parse(raw) as { computedAt?: string };
+          if (!v.computedAt) continue;
+          v.computedAt = old;
+          await redis.set(k, JSON.stringify(v), 'KEEPTTL');
+        } catch {
+          /* not a board */
+        }
+      }
+      // Let the previous open's background refreshes finish first.
+      await new Promise((r) => setTimeout(r, 1500));
+    };
+
+    it('prints per-page and per-endpoint latency inside the burst', async () => {
+      const admin = await adminSession(base, prisma, 'super_admin');
+      const per = new Map<string, number[]>();
+      const status = new Map<string, number>();
+      const pageRows: string[] = [
+        '| page | requests | first open ms | p50 ms | p95 ms | SQL per open |',
+        '|---|---|---|---|---|---|',
+      ];
+      const timed = async (path: string) => {
         const t0 = process.hrtime.bigint();
         const res = await request(base).get(`/api/v1${path}`).set(admin.auth);
         const ms = Number(process.hrtime.bigint() - t0) / 1e6;
-        status = res.status;
-        bytes = Buffer.byteLength(JSON.stringify(res.body ?? {}));
-        if (i === 0) cold = ms;
-        else times.push(ms);
+        status.set(path, res.status);
+        return ms;
+      };
+      for (const [page, paths] of Object.entries(ADMIN_PAGES)) {
+        const all = [...SHELL, ...paths.filter((p) => !SHELL.includes(p))];
+        const walls: number[] = [];
+        // Statements the database ran per open (pg_stat_statements when the
+        // extension exists; the probe itself is one of them).
+        const sqlCalls = async (): Promise<number | null> => {
+          try {
+            const r = await prisma.$queryRawUnsafe<{ n: number }[]>(
+              'SELECT sum(calls)::float8 AS n FROM pg_stat_statements',
+            );
+            return Number(r[0]?.n ?? 0);
+          } catch {
+            return null;
+          }
+        };
+        const sqls: number[] = [];
+        for (let i = 0; i < PAGE_ROUNDS; i++) {
+          await ageBoards();
+          const before = await sqlCalls();
+          const t0 = process.hrtime.bigint();
+          const ms = await Promise.all(all.map(timed));
+          walls.push(Number(process.hrtime.bigint() - t0) / 1e6);
+          const after = await sqlCalls();
+          if (i > 0 && before !== null && after !== null)
+            sqls.push(after - before - 1);
+          all.forEach((p, k) => {
+            if (i === 0) return; // the first open is the cold one
+            const xs = per.get(p) ?? [];
+            xs.push(ms[k]);
+            per.set(p, xs);
+          });
+        }
+        const warm = walls.slice(1);
+        pageRows.push(
+          `| ${page} | ${all.length} | ${walls[0].toFixed(0)} | ${pct(warm, 0.5).toFixed(0)} | ${pct(warm, 0.95).toFixed(0)} | ${sqls.length ? pct(sqls, 0.5).toFixed(0) : 'n/a'} |`,
+        );
       }
-      const f = (n: number) => n.toFixed(1);
-      rows.push(
-        `| ${label} \`${path}\` | ${status} | ${f(cold)} | ${f(pct(times, 0.5))} | ${f(pct(times, 0.95))} | ${f(Math.max(...times))} | ${bytes} |`,
+      const epRows = [
+        '| endpoint | status | p50 ms | p95 ms | max ms |',
+        '|---|---|---|---|---|',
+        ...[...per.entries()]
+          .sort((a, b) => pct(b[1], 0.95) - pct(a[1], 0.95))
+          .map(
+            ([p, xs]) =>
+              `| \`${p}\` | ${status.get(p)} | ${pct(xs, 0.5).toFixed(0)} | ${pct(xs, 0.95).toFixed(0)} | ${Math.max(...xs).toFixed(0)} |`,
+          ),
+      ];
+      console.log(
+        `\nDB_POOL_SIZE=${process.env.DB_POOL_SIZE ?? '(default)'} stale=${process.env.PERF_STALE === '1'}\n${pageRows.join('\n')}\n\n${epRows.join('\n')}\n`,
       );
-    }
+      // Budget (owner 2026-11-08): every admin endpoint answers within
+      // 300 ms at p95 while its whole page loads at once on 3 connections.
+      const budget = Number(process.env.PERF_BUDGET_MS ?? 300);
+      const over = [...per.entries()]
+        .filter(([, xs]) => pct(xs, 0.95) > budget)
+        .map(([p, xs]) => `${p} p95 ${pct(xs, 0.95).toFixed(0)} ms`);
+      expect(over).toEqual([]);
+    });
+  },
+);
 
-    console.log(`\n${rows.join('\n')}\n`);
-  });
-});
+(RUN && process.env.PERF_PAGES !== '1' ? describe : describe.skip)(
+  'Admin endpoints on a big database',
+  () => {
+    let app: INestApplication;
+    let prisma: PrismaService;
+    let redis: Redis;
+    let base = '';
+
+    beforeAll(async () => {
+      process.env.NODE_ENV = 'test';
+      const moduleRef = await Test.createTestingModule({
+        imports: [AppModule],
+      }).compile();
+      app = moduleRef.createNestApplication();
+      app.useGlobalPipes(
+        new ValidationPipe({
+          whitelist: true,
+          forbidNonWhitelisted: true,
+          transform: true,
+        }),
+      );
+      app.setGlobalPrefix('api/v1');
+      await app.listen(0, '127.0.0.1');
+      base = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
+      prisma = app.get(PrismaService);
+      redis = app.get<Redis>(REDIS_CLIENT);
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
+
+    const pct = (xs: number[], p: number) =>
+      [...xs].sort((a, b) => a - b)[
+        Math.min(xs.length - 1, Math.floor(xs.length * p))
+      ];
+
+    it('prints the latency table', async () => {
+      const admin = await adminSession(base, prisma, 'super_admin');
+      const rows: string[] = [
+        '| endpoint | status | cold ms | warm p50 | warm p95 | warm max | bytes |',
+        '|---|---|---|---|---|---|---|',
+      ];
+      for (const [label, path] of ENDPOINTS) {
+        if (process.env.PERF_ONLY && !path.includes(process.env.PERF_ONLY))
+          continue;
+        // Empty every admin cache so the first call is a real cold one.
+        // (Only the aggregate caches: `adm:*` also holds the admin sessions.)
+        const keys = [
+          ...(await redis.keys('adm:sum:*')),
+          ...(await redis.keys('adm:counts:*')),
+        ];
+        if (keys.length) await redis.del(...keys);
+        const times: number[] = [];
+        let status = 0;
+        let bytes = 0;
+        let cold = 0;
+        for (let i = 0; i <= ROUNDS; i++) {
+          const t0 = process.hrtime.bigint();
+          const res = await request(base).get(`/api/v1${path}`).set(admin.auth);
+          const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+          status = res.status;
+          bytes = Buffer.byteLength(JSON.stringify(res.body ?? {}));
+          if (i === 0) cold = ms;
+          else times.push(ms);
+        }
+        const f = (n: number) => n.toFixed(1);
+        rows.push(
+          `| ${label} \`${path}\` | ${status} | ${f(cold)} | ${f(pct(times, 0.5))} | ${f(pct(times, 0.95))} | ${f(Math.max(...times))} | ${bytes} |`,
+        );
+      }
+
+      console.log(`\n${rows.join('\n')}\n`);
+    });
+  },
+);

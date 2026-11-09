@@ -6,7 +6,6 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
-  "transformIgnorePatterns": ["node_modules/(?!(@nestjs/jwt|jose)/)"],
   "maxWorkers": 1,
   "testTimeout": 1800000,
   "setupFiles": ["<rootDir>/support/e2e-setup-env.ts"]

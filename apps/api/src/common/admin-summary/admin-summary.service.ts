@@ -58,6 +58,47 @@ export class AdminSummaryService {
   }
 
   /**
+   * 2026-11-08 (owner: «админка тормозит даже без данных»): the read of an
+   * admin BOARD (system health, «Масштаб», the cost registry, partitions,
+   * cloud switches …). Plain stale-while-revalidate (RFC 5861, the way
+   * Stripe's and Shopify's dashboards answer): ANY stored copy that passes
+   * [valid] is returned at once — the page shows «обновлено N назад» from
+   * the board's own time and polls again — and when it is older than
+   * [freshMs] ONE refresh runs in the background (lock + in-process
+   * promise). Only a board that was never built (or expired after a day)
+   * makes the request wait, and concurrent waiters share that one build.
+   * Before this, a copy older than 15 min was rebuilt INSIDE the request:
+   * every first open after a pause waited for 20-40 queries and the AWS
+   * probes queued on the API task's three database connections (prod
+   * 2026-11-08: 1.2-2.4 s per request on an idle database).
+   */
+  async board<T>(
+    key: string,
+    compute: () => Promise<T>,
+    freshMs: number,
+    valid: (data: T) => boolean = (d) => d !== null && d !== undefined,
+  ): Promise<T> {
+    const hit = await this.peek<T>(key);
+    if (hit && valid(hit.data)) {
+      const age = Date.now() - Date.parse(hit.computedAt);
+      if (!(age <= freshMs)) {
+        void this.refresh(key, compute).catch(() => undefined);
+      }
+      return hit.data;
+    }
+    return (await this.refresh(key, compute, true)).data;
+  }
+
+  /** Forgets one stored copy (an action changed what the board shows). */
+  async drop(key: string): Promise<void> {
+    try {
+      await this.redis.del(PREFIX + key);
+    } catch {
+      /* not shared, still right */
+    }
+  }
+
+  /**
    * R-370 (owner 2026-11-04 «все страницы так открываются»): keeps [key]
    * warm from inside the API process — for boards the worker cannot build
    * (they read this process: the «API» light, the AWS/SSM clients of the
