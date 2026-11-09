@@ -28,6 +28,7 @@ import {
   type ImageFormat,
 } from '../processing/image-processor';
 import { MediaModerationQueue } from '../../media-moderation/media-moderation.queue';
+import { ReadBudget, SCAN_READ_BUDGET_MB } from '../read-budget';
 
 export type ScanOutcome =
   | 'clean'
@@ -71,14 +72,30 @@ export class FileScanProcessor {
     this.logger.setContext(FileScanProcessor.name);
   }
 
+  /** Audit 2026-11-08 (L6): bytes of whole files this worker holds at once. */
+  private readonly readBudget = new ReadBudget(SCAN_READ_BUDGET_MB);
+
   async run(fileId: string, finalAttempt: boolean): Promise<ScanOutcome> {
     const started = Date.now();
+    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+    if (!file || file.scan_status !== 'pending') return 'skipped:not-pending';
+    // The job holds the whole file from the read to the end: it waits until
+    // its megabytes fit the worker's budget.
+    return this.readBudget.run(Number(file.size_bytes), () =>
+      this.scanPending(file, finalAttempt, started),
+    );
+  }
+
+  private async scanPending(
+    file: File,
+    finalAttempt: boolean,
+    started: number,
+  ): Promise<ScanOutcome> {
+    const fileId = file.id;
     const laps: Record<string, number> = {};
     const lap = (name: string) => {
       laps[name] = Date.now() - started;
     };
-    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
-    if (!file || file.scan_status !== 'pending') return 'skipped:not-pending';
     // R-252: confirmed without reading the file (flag `files_confirm_light`):
     // the checks `confirm` left are done first, before the dedup can look at
     // the hash.

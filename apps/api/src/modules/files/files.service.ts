@@ -60,6 +60,11 @@ import {
   DEDUP_PROFILE,
   purposesOfProfile,
 } from './files.policy';
+import {
+  CONFIRM_READ_BUDGET_MB,
+  CONFIRM_READ_MAX_WAITING,
+  ReadBudget,
+} from './read-budget';
 import type {
   FileDto,
   MultipartCompleteDto,
@@ -149,6 +154,12 @@ const CONFIRM_SLOW_MS = 500;
 
 @Injectable()
 export class FilesService {
+  /** Audit 2026-11-08 (L6): bytes of whole-file confirm reads in flight. */
+  private readonly readBudget = new ReadBudget(
+    CONFIRM_READ_BUDGET_MB,
+    CONFIRM_READ_MAX_WAITING,
+  );
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
@@ -592,7 +603,14 @@ export class FilesService {
     // server-side copy at a key no link can write, so bytes swapped in after
     // the checks never reach anyone. The copy is done by S3 / R2 itself.
     const key = storedKey(intent.key, randomUUID().slice(0, 8));
-    if (!(await this.storage.copy(intent.bucket, intent.key, key))) {
+    // L5: the copy gets the bucket's real Cache-Control; the staging object
+    // was written `no-store`.
+    if (
+      !(await this.storage.copy(intent.bucket, intent.key, key, {
+        contentType: intent.mime,
+        cacheControl: this.storage.cacheControlFor(intent.bucket),
+      }))
+    ) {
       return this.notUploaded(userId, fileId);
     }
     lap('copy');
@@ -613,40 +631,50 @@ export class FilesService {
       );
       if (detectMime(start, intent.mime) !== null) prefix = start;
     }
-    const data = prefix ?? (await this.storage.read(intent.bucket, key));
-    lap('read');
-    let sha256: string | null = null;
-    if (!prefix) {
-      sha256 = createHash('sha256').update(data).digest('hex');
-      if (data.length !== intent.size || sha256 !== intent.sha256) {
-        await this.reject(fileId, intent, key);
-        throw this.checksumMismatch();
+    // Security audit 2026-11-08 (L6): a whole-file read holds its bytes
+    // until the checks below are done; the read budget caps how many
+    // megabytes all confirms of this process hold at once.
+    const check = async (data: Buffer) => {
+      lap('read');
+      let sha256: string | null = null;
+      if (!prefix) {
+        sha256 = createHash('sha256').update(data).digest('hex');
+        if (data.length !== intent.size || sha256 !== intent.sha256) {
+          await this.reject(fileId, intent, key);
+          throw this.checksumMismatch();
+        }
       }
-    }
-    const detected = detectMime(data, intent.mime);
-    if (
-      detected === null ||
-      detected !== intent.mime ||
-      !(await this.allowedMimes(intent.purpose)).includes(detected)
-    ) {
-      await this.reject(fileId, intent, key);
-      throw new BadRequestException({
-        code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
-        message: 'The file content does not match an allowed type.',
-        details: { declared: intent.mime, detected },
-      });
-    }
-    // Owner 2026-10-07: no program, macro or script hidden inside an
-    // allowed document (APK in a .docx, a macro, PDF JavaScript).
-    const danger = prefix ? null : dangerousContent(data, detected);
-    if (danger) {
-      await this.reject(fileId, intent, key);
-      throw new BadRequestException({
-        code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
-        message: 'The file contains content that is not allowed.',
-        details: { declared: intent.mime, detected, reason: danger },
-      });
-    }
+      const detected = detectMime(data, intent.mime);
+      if (
+        detected === null ||
+        detected !== intent.mime ||
+        !(await this.allowedMimes(intent.purpose)).includes(detected)
+      ) {
+        await this.reject(fileId, intent, key);
+        throw new BadRequestException({
+          code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
+          message: 'The file content does not match an allowed type.',
+          details: { declared: intent.mime, detected },
+        });
+      }
+      // Owner 2026-10-07: no program, macro or script hidden inside an
+      // allowed document (APK in a .docx, a macro, PDF JavaScript).
+      const danger = prefix ? null : dangerousContent(data, detected);
+      if (danger) {
+        await this.reject(fileId, intent, key);
+        throw new BadRequestException({
+          code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
+          message: 'The file contains content that is not allowed.',
+          details: { declared: intent.mime, detected, reason: danger },
+        });
+      }
+      return { sha256, detected };
+    };
+    const { sha256, detected } = prefix
+      ? await check(prefix)
+      : await this.readBudget.run(head.size, async () =>
+          check(await this.storage.read(intent.bucket, key)),
+        );
 
     try {
       await this.prisma.file.create({
