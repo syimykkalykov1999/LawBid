@@ -450,7 +450,11 @@ class _TermsLine extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bid = ref.watch(bidProvider(bidId)).value;
+    final async = ref.watch(bidProvider(bidId));
+    // Audit 2026-11-08 (L2): a refused bid (assistant without the duty)
+    // leaves the line out instead of a skeleton that never ends.
+    if (async.hasError && !async.hasValue) return const SizedBox.shrink();
+    final bid = async.value;
     if (bid == null) return const AppSkeleton(height: AppSpacing.xl);
     return AppCard(
       onTap: () => context.push(AppRoutes.bid(bidId)),
