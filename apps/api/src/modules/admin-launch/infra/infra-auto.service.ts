@@ -216,10 +216,11 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
 
   /** Signals the app already keeps, plus the partition growth signal. */
   async signals(now: Date): Promise<AutoSignals> {
-    const [s, engine, partitionNeedsRunner] = await Promise.all([
+    const [s, engine, partitionNeedsRunner, people] = await Promise.all([
       this.registry.signals(now),
       this.registry.searchEngine(),
       this.partitionNeedsRunner().catch(() => false),
+      this.people().catch(() => undefined),
     ]);
     const pool = Number(this.config.get<string>('DB_POOL_SIZE') ?? '');
     const pooler = !!this.config.get<string>('DB_POOLER_HOST');
@@ -230,7 +231,17 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       partitionNeedsRunner,
       poolSmall:
         !pooler && Number.isFinite(pool) && pool > 0 && pool < POOL_FLOOR,
+      people,
     };
+  }
+
+  /** People in the database: the planner's estimate (pg_class), free. */
+  async people(): Promise<number> {
+    const [r] = await this.prisma.$queryRaw<{ n: number }[]>`
+      SELECT GREATEST(c.reltuples, 0)::float8 AS n FROM pg_class c
+        JOIN pg_namespace ns ON ns.oid = c.relnamespace
+       WHERE ns.nspname = 'public' AND c.relname = 'users'`;
+    return Number(r?.n ?? 0);
   }
 
   /** A table in «Вкл», or in «Авто» at 80 % of its threshold, while the

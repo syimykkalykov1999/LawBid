@@ -3,6 +3,8 @@ import {
   autoRefusal,
   autoWants,
   dueWants,
+  SEARCH_ENGINE_OFF_PEOPLE,
+  SEARCH_ENGINE_ON_PEOPLE,
   type AutoSignals,
   type AutoWant,
 } from './infra-auto.logic';
@@ -69,6 +71,56 @@ describe('autoWants', () => {
     const on = () => 'on' as const;
     expect(
       autoWants({ ...calm, poolSmall: true }, on, new Set(['aws.pgbouncer'])),
+    ).toEqual([]);
+  });
+
+  it('5M people switch the search engine on; it goes off again only below 4M (perf guard 2026-11-08)', () => {
+    const ids = (w: AutoWant[]) => w.map((x) => `${x.id}:${x.to}`);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, people: SEARCH_ENGINE_ON_PEOPLE - 1 },
+          offAll,
+          new Set(),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, people: SEARCH_ENGINE_ON_PEOPLE },
+          offAll,
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.opensearch:on']);
+    const onAll = () => 'on' as const;
+    const mine = new Set(['aws.opensearch']);
+    // between the two lines: stays on, nothing to do
+    expect(
+      ids(
+        autoWants(
+          { ...calm, people: SEARCH_ENGINE_OFF_PEOPLE + 1 },
+          onAll,
+          mine,
+        ),
+      ).filter((x) => x.startsWith('aws.opensearch')),
+    ).toEqual([]);
+    // below the lower line: the one it switched on itself goes off
+    expect(
+      ids(
+        autoWants(
+          { ...calm, people: SEARCH_ENGINE_OFF_PEOPLE - 1 },
+          onAll,
+          mine,
+        ),
+      ).filter((x) => x.startsWith('aws.opensearch')),
+    ).toEqual(['aws.opensearch:off']);
+    // switched on by hand: never switched off by itself
+    expect(
+      ids(autoWants({ ...calm, people: 0 }, onAll, new Set())).filter((x) =>
+        x.startsWith('aws.opensearch'),
+      ),
     ).toEqual([]);
   });
 
