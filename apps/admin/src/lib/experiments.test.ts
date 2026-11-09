@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asReport, formatMetric, statusLabel, verdictLabel } from './experiments';
+import { asReport, formatMetric, parseVariantWeights, statusLabel, verdictLabel } from './experiments';
 import { SECTIONS, canOpen } from './rbac';
 
 describe('experiments page helpers', () => {
@@ -24,5 +24,15 @@ describe('experiments page helpers', () => {
     expect(SECTIONS.map((s) => s.href)).toContain('/experiments');
     const mod = { role: 'moderator' as const, permissions: { moderation: 'manage' as const } };
     expect(canOpen(mod, '/experiments')).toBe(false);
+  });
+
+  it('reads the new variant weights of a surface (owner 2026-11-08)', () => {
+    expect(parseVariantWeights('', 'case_feed')).toEqual({ weights: {} });
+    expect(parseVariantWeights('urgency=0.3, practice: 0,2', 'case_feed')).toEqual({
+      weights: { urgency: 0.3, practice: 0.2 },
+    });
+    expect(parseVariantWeights('hot=0.5', 'case_feed')).toHaveProperty('error');
+    expect(parseVariantWeights('urgency=11', 'case_feed')).toHaveProperty('error');
+    expect(parseVariantWeights('urgency', 'case_feed')).toHaveProperty('error');
   });
 });

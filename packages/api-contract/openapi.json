@@ -178049,6 +178049,13 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          },
+          "weights": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Formula weight overrides this variant applies on its surface (e.g. case_feed: { urgency: 0.3 }); control has none."
           }
         },
         "required": [
