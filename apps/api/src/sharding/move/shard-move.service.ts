@@ -9,7 +9,6 @@ import { remainingCrossFamilyForeignKeys } from './cross-family-fks';
 import { MemoryMoveLease, RedisMoveLease } from './move-lease';
 import { MoveDbPool } from './move-db';
 import { buildMoveTables } from './move-plan';
-import { q } from './move-sql';
 import { MoveRecord, MoveRefusedError, PreflightResult } from './move-types';
 import { PgMoveOps } from './pg-move-ops';
 import { PrismaMoveStore } from './shard-move.store';
@@ -145,16 +144,27 @@ export class ShardMoveService {
     const all = map.map((m) => m.logical_shard);
     // Upper half goes: shards are hash-uniform, so rows split about evenly.
     const shards = all.slice(Math.ceil(all.length / 2));
+    // 2026-11-08: the preview used to COUNT(*) half of every sharded table
+    // (messages, cases, bids …) on each open of «Масштаб» / «Здоровье
+    // системы» — a full scan that grows with the data (minutes at 100 M
+    // messages, past the 30 s statement timeout). It is a preview, and the
+    // shards are hash-uniform, so it now reads the planner's row estimate
+    // (pg_class.reltuples, partitions summed; the "count estimate" recipe of
+    // the PostgreSQL wiki) once for all tables and takes the moving share.
     let rows = 0;
     if (shards.length && this.pool.has(fromDb)) {
-      const src = this.pool.get(fromDb);
-      for (const t of buildMoveTables()) {
-        const [c] = await src.query<{ n: number }>(
-          `SELECT count(*)::int AS n FROM ${q(t.table)} WHERE shard_id = ANY($1::int[])`,
-          [shards],
-        );
-        rows += c.n;
-      }
+      const [est] = await this.pool.get(fromDb).query<{ rows: number }>(
+        `SELECT COALESCE(sum(CASE WHEN c.relkind = 'p'
+                   THEN (SELECT COALESCE(sum(GREATEST(p.reltuples, 0)), 0) FROM pg_inherits i JOIN pg_class p ON p.oid = i.inhrelid WHERE i.inhparent = c.oid)
+                   ELSE GREATEST(c.reltuples, 0) END), 0)::float8 AS rows
+           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'public' AND c.relkind IN ('r','p') AND NOT c.relispartition
+            AND c.relname = ANY($1::text[])`,
+        [buildMoveTables().map((t) => t.table)],
+      );
+      rows = Math.round(
+        (Number(est?.rows ?? 0) * shards.length) / Math.max(1, all.length),
+      );
     }
     return {
       fromDb,
