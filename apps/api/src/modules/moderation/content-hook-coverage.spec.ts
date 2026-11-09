@@ -261,11 +261,22 @@ describe('client review (open)', () => {
     );
   });
 
-  it('hold on an edit keeps its status (a re-save is not a repeat)', async () => {
+  it('hold on an edit: hidden and filed for moderators (a clean review cannot be edited into held text)', async () => {
     const h = review('hold', { id: 'cr0' });
+    await h.write();
+    expect(h.writes[0]).toMatchObject({ status: 'hidden' });
+    expect(h.autoHold.queue).toHaveBeenCalledWith(
+      expect.objectContaining({ targetType: 'client_review', targetId: 'cr0' }),
+    );
+    expect(h.notifications.emit).not.toHaveBeenCalled();
+  });
+
+  it('allow on an edit: status untouched, no new notice', async () => {
+    const h = review('allow', { id: 'cr0' });
     await h.write();
     expect(h.writes[0].status).toBeUndefined();
     expect(h.autoHold.queue).not.toHaveBeenCalled();
+    expect(h.notifications.emit).not.toHaveBeenCalled();
   });
 
   it('allow: published and the client told, as before', async () => {

@@ -191,7 +191,10 @@ export class ClientReviewsService {
       });
     }
     const existing = revived ? null : found;
-    const held = verdict === 'hold' && !existing;
+    // An edit is screened like a new review: otherwise a clean review
+    // could be edited into held text that stays public (coordinator review
+    // 09.11). A held edit is hidden and queued for the moderators.
+    const held = verdict === 'hold';
     const row = await this.prisma.clientReview.upsert({
       where: {
         case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
@@ -217,7 +220,7 @@ export class ClientReviewsService {
       },
     });
     await this.recalc(kase.client_id);
-    if (!existing) await this.afterSave(user.sub, row.id, body, held);
+    if (!existing || held) await this.afterSave(user.sub, row.id, body, held);
     if (!existing && !held) {
       await this.notifications.emit({
         type: 'review_received',
@@ -283,6 +286,8 @@ export class ClientReviewsService {
               body,
               edited_at: new Date(),
               ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+              // A held edit is hidden like a held new review (see above).
+              ...(verdict === 'hold' ? { status: 'hidden' as const } : {}),
             },
           })
         : await tx.clientReview.create({
@@ -298,8 +303,8 @@ export class ClientReviewsService {
       await this.recalc(clientId, tx);
       return { existing, row };
     });
-    const held = verdict === 'hold' && !existing;
-    if (!existing) await this.afterSave(user.sub, row.id, body, held);
+    const held = verdict === 'hold';
+    if (!existing || held) await this.afterSave(user.sub, row.id, body, held);
     if (!existing && !held) {
       await this.notifications.emit({
         type: 'review_received',
