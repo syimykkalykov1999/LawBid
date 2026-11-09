@@ -4309,12 +4309,11 @@ model DataAccessLog {
 // docs/06 §2.1, §10 (stage 6.1): admin 2FA. The TOTP secret is stored
 // encrypted (AES-256-GCM with ADMIN_TOTP_ENC_KEY; KMS envelope when the AWS
 // stack exists — OQ-016), recovery codes only as hashes.
-/// Owner 2026-10-22 (system audit #2, item 11 — maker-checker): a bulk
-/// payout or a refund at or above `billing.dual_approval_min_cents` is not
-/// run by the admin who asks for it. It waits here until ANOTHER admin
-/// approves it (with a fresh 2FA step-up); only then it runs, exactly once
-/// (the pending → approved switch is atomic). Banks call it dual control /
-/// four-eyes; Stripe lets teams require a second person for payouts.
+/// LEGACY, nothing reads or writes it. Owner 2026-10-22 added a
+/// second-admin (maker-checker) step for big payouts and refunds; owner
+/// 2026-10-25 / 2026-11-08 removed it for good (ADR 0010): every admin action
+/// runs after the owner's own fresh 2FA code and an audit_log row. The table
+/// stays only because migrations are additive; the pre-launch wipe empties it.
 model AdminApproval {
   id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// 'payroll_bulk_payout' | 'billing_refund'
