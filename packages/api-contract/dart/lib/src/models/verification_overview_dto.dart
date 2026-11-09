@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'identity_provider_kind.dart';
 import 'verification_request_dto.dart';
 import 'verification_status.dart';
 
@@ -19,6 +20,7 @@ class VerificationOverviewDto {
     required this.submissionsLast30Days,
     required this.maxSubmissions30Days,
     this.request,
+    this.identityProvider,
   });
 
   factory VerificationOverviewDto.fromJson(Map<String, Object?> json) =>
@@ -34,6 +36,9 @@ class VerificationOverviewDto {
 
   /// A photo of the bar card is required per license (setting verification.require_bar_document, off by default).
   final bool barDocumentRequired;
+
+  /// Owner 2026-11-08: `manual` = upload the ID + selfie for staff (default, as before); `persona` = only while the admin's Persona card has a key, template and webhook secret and is switched on: the app opens Persona's hosted flow (POST /verification/requests/{id}/identity-check) instead.
+  final IdentityProviderKind? identityProvider;
 
   /// Owner 2026-10-18: seconds until a bar number can be added again after too many failed attempts (0 = not locked). The manual-review path stays open while locked.
   final int barAttemptsRetryAfterSeconds;

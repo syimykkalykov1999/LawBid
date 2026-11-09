@@ -301,16 +301,23 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
   });
 
   it('owner 2026-10-22 (audit #3): a fresh sign-in is the reauth; later every contact needs one', async () => {
-    const token = await login('+12025557004');
+    // Its own number: this test really changes the phone (no SMS code), so
+    // it must not share an account with the consents test below.
+    const token = await login('+12025557024');
     const auth = { Authorization: `Bearer ${token}` };
     const me = await api().get('/api/v1/users/me').set(auth).expect(200);
     const userId = me.body.data.id as string;
 
     // Onboarding stays one code long: the sign-in minutes ago counts.
+    // Owner rule (sms-two-cases): a phone is set without an SMS code.
+    await prisma.user.update({
+      where: { id: userId },
+      data: { phone_verified_at: null },
+    });
     await api()
-      .post('/api/v1/users/me/contacts/request')
+      .post('/api/v1/users/me/phone')
       .set(auth)
-      .send({ type: 'phone', value: '+12025557005' })
+      .send({ phone: '+12025557005' })
       .expect(201);
 
     // An older session (or a stolen token of one): reauth for any contact,
@@ -324,9 +331,9 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       data: { phone_verified_at: null },
     });
     const add = await api()
-      .post('/api/v1/users/me/contacts/request')
+      .post('/api/v1/users/me/phone')
       .set(auth)
-      .send({ type: 'phone', value: '+12025557006' })
+      .send({ phone: '+12025557006' })
       .expect(403);
     expect(add.body.error.code).toBe('REAUTH_REQUIRED');
   });

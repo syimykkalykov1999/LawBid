@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { reauthByPassword } from './support/password-reauth';
 
 /**
  * Owner 2026-10-16: fewer SMS. A code goes only to a NEW number (once per
@@ -197,5 +198,85 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
     const mine = await otp(phone).set('Authorization', bearer);
     expect(mine.status).toBe(200);
     expect((await verifies(phone)).status).toBe(401);
+  });
+  it('owner rule sms-two-cases: a phone change is confirmed with the password, no SMS to the new number', async () => {
+    const oldPhone = fresh();
+    const newPhone = fresh();
+    const user = await prisma.user.create({
+      data: {
+        role: 'client',
+        phone_e164: oldPhone,
+        phone_verified_at: new Date(),
+        status: 'active',
+      },
+    });
+    await prisma.userIdentifier.create({
+      data: { user_id: user.id, provider: 'phone', provider_uid: oldPhone },
+    });
+    // An older session: a fresh sign-in would itself count as the step-up.
+    const sid = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: user.id,
+        session_chain_id: sid,
+        refresh_hash: `sms-two-cases-${sid}`,
+        platform: 'ios',
+        expires_at: new Date(Date.now() + 86_400_000),
+        created_at: new Date(Date.now() - 3_600_000),
+      },
+    });
+    const auth = {
+      Authorization: `Bearer ${app.get(TokenService).signAccessToken({
+        sub: user.id,
+        role: 'client',
+        sid,
+        verified: false,
+        subscriptionStatus: 'none',
+      })}`,
+    };
+
+    // The old code route refuses a phone (no SMS code for a change).
+    const bySms = await api()
+      .post('/api/v1/users/me/contacts/request')
+      .set(auth)
+      .send({ type: 'phone', value: newPhone });
+    expect(bySms.status).toBe(400);
+    expect(code(bySms)?.code).toBe('VALIDATION_ERROR');
+    // A step-up SMS is refused too: the step-up is the password.
+    const stepUpSms = await otp(oldPhone)
+      .set(auth)
+      .send({ channel: 'phone', identifier: oldPhone, purpose: 'reauth' });
+    expect(stepUpSms.status).toBe(400);
+
+    const noToken = await api()
+      .post('/api/v1/users/me/phone')
+      .set(auth)
+      .send({ phone: newPhone });
+    expect(noToken.status).toBe(403);
+    expect(code(noToken)?.code).toBe('REAUTH_REQUIRED');
+
+    const token = await reauthByPassword(app, base, auth, { userId: user.id });
+    const changed = await api()
+      .post('/api/v1/users/me/phone')
+      .set(auth)
+      .set('X-Reauth-Token', token)
+      .send({ phone: newPhone });
+    expect(changed.status).toBe(201);
+    expect(changed.body.data).toEqual({ verified: true });
+
+    const after = await prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: { phone_e164: true, phone_verified_at: true },
+    });
+    expect(after.phone_e164).toBe(newPhone);
+    expect(after.phone_verified_at).not.toBeNull();
+    const phones = await prisma.userIdentifier.findMany({
+      where: { user_id: user.id, provider: 'phone' },
+      select: { provider_uid: true },
+    });
+    expect(phones).toEqual([{ provider_uid: newPhone }]);
+    // Nothing was texted to either number: not even the dev code verifies.
+    expect((await verifies(newPhone)).status).toBe(401);
+    expect((await verifies(oldPhone)).status).toBe(401);
   });
 });
