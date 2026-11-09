@@ -22,7 +22,7 @@ import {
   InfraAuthError,
   InfraGithubClient,
   type WorkflowCaller,
-} from '../admin-launch/infra/infra-github.client';
+} from '../admin-launch/infra-github';
 import { AI_OIDC_AUDIENCE, AI_WORKFLOW_FILE } from './ai-assistant.logic';
 import { AiAssistantService } from './ai-assistant.service';
 

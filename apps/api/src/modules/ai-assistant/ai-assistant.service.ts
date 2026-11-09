@@ -4,7 +4,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AuditLogService } from '../admin-access/audit-log.service';
-import { InfraGithubClient } from '../admin-launch/infra/infra-github.client';
+import { InfraGithubClient } from '../admin-launch/infra-github';
 import { SentryIssuesClient } from '../staff-home/sentry-issues.client';
 import {
   AI_REFUSAL_TEXT,
