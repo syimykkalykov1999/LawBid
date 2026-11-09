@@ -506,12 +506,36 @@ export class VideosService {
 
   /**
    * `video.reel_max_duration_sec`; an admin who saved only the old single
-   * `video.max_duration_sec` keeps it as the reel limit.
+   * `video.max_duration_sec` keeps it as the reel limit. Feature reality
+   * audit 2026-11-08: with both saved, the one changed last wins (the admin
+   * page still shows the old key; before, editing it did nothing once the
+   * new key existed).
    */
   async reelMaxSec(): Promise<number> {
+    const reel = await this.settings.storedNumber(
+      'video.reel_max_duration_sec',
+    );
+    const legacy = await this.settings.storedNumber('video.max_duration_sec');
+    if (reel !== null && legacy !== null && reel !== legacy) {
+      const rows = await this.prisma.appConfig
+        .findMany({
+          where: {
+            key: {
+              in: ['video.reel_max_duration_sec', 'video.max_duration_sec'],
+            },
+          },
+          select: { key: true, updated_at: true },
+        })
+        .catch(() => []);
+      const at = (k: string) =>
+        rows.find((r) => r.key === k)?.updated_at.getTime() ?? 0;
+      return at('video.max_duration_sec') > at('video.reel_max_duration_sec')
+        ? legacy
+        : reel;
+    }
     return (
-      (await this.settings.storedNumber('video.reel_max_duration_sec')) ??
-      (await this.settings.storedNumber('video.max_duration_sec')) ??
+      reel ??
+      legacy ??
       (await this.settings.number('video.reel_max_duration_sec'))
     );
   }

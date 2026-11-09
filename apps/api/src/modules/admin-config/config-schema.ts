@@ -84,6 +84,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Who answers searches: postgres (today), shadow (ask the search engine too, show Postgres, log the differences) or engine (the search engine, Postgres if it fails or is slow). The engine needs Integrations → Search engine (OpenSearch).',
     pattern: /^(postgres|shadow|engine)$/,
   };
+  out['search.engine_follow'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Who moves search.engine. auto (default): the cloud automation, together with the search engine: when it switches the engine on, shadow, then a reindex from the database, then the engine; when the engine is off, back to postgres. manual: only the admin, by hand.',
+    pattern: /^(auto|manual)$/,
+  };
   out['search.engine_kind'] = {
     type: 'string',
     defaultValue: 'domain',

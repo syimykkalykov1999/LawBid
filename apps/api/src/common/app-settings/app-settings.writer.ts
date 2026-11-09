@@ -8,6 +8,25 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { AppSettingKey } from './app-settings.defaults';
 
+/**
+ * A setting the automation itself moves (no admin, so no audit row: the
+ * caller keeps its own action log), then the cache is dropped like an admin
+ * save. Infra «Авто» moves `search.engine` this way (search-engine-auto).
+ */
+export async function writeSystemSetting(
+  prisma: Pick<PrismaService, 'appConfig'>,
+  redis: Redis | undefined,
+  key: AppSettingKey,
+  value: Prisma.InputJsonValue,
+): Promise<void> {
+  await prisma.appConfig.upsert({
+    where: { key },
+    create: { key, value },
+    update: { value },
+  });
+  if (redis) await dropAppConfigCache(redis);
+}
+
 /** Object-valued settings a section saves as a whole (not typed tunables). */
 export type RawSettingKey = 'rewards.departments' | 'uploads.limits';
 
