@@ -88,7 +88,12 @@ if (paths.length === 0) {
 const jest = (files, out) =>
   run('npx', ['jest', '--config', './test/jest-e2e.json', '--forceExit', '--runTestsByPath', ...files, '--json', `--outputFile=${out}`], {
     cwd: prevApi,
-    env: process.env,
+    // Same flag as apps/api `npm run test:e2e`: NestJS 12 ships ESM only, and
+    // plain `npx jest` cannot load @nestjs/testing (2026-11-08, PR #843).
+    env: {
+      ...process.env,
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --experimental-vm-modules`.trim(),
+    },
   });
 const failed = (out) => {
   try {
