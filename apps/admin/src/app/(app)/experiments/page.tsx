@@ -15,7 +15,9 @@ import { formatDateTime } from '@/lib/utils';
 import {
   asReport,
   formatMetric,
+  parseVariantWeights,
   statusLabel,
+  SURFACE_WEIGHTS,
   verdictLabel,
   type Experiment,
 } from '@/lib/experiments';
@@ -150,7 +152,7 @@ function ExperimentCard({
             {e.stoppedBySystem ? <Badge tone="warning">остановлен защитой</Badge> : null}
           </div>
           <p className="mt-1 break-words text-xs text-faint">
-            ключ <code>{e.key}</code> · где: {e.surface} · варианты: {e.variants.map((v) => `${v.key} ${v.weight}%`).join(', ')}
+            ключ <code>{e.key}</code> · где: {e.surface} · варианты: {e.variants.map((v) => `${v.key} ${v.weight}%${v.weights && Object.keys(v.weights).length ? ` (${Object.entries(v.weights).map(([k, w]) => `${k}=${w}`).join(', ')})` : ''}`).join(', ')}
           </p>
           {e.hypothesis ? <p className="mt-1.5 text-sm text-muted">{e.hypothesis}</p> : null}
           {e.stopReason ? <p className="mt-1.5 text-sm text-muted">Причина остановки: {e.stopReason}</p> : null}
@@ -296,6 +298,10 @@ function CreateDialog({
   const [hypothesis, setHypothesis] = useState('');
   const [newWeight, setNewWeight] = useState(50);
   const [variantKey, setVariantKey] = useState('new_formula');
+  const [weightsText, setWeightsText] = useState('');
+  const parsedWeights = parseVariantWeights(weightsText, surface);
+  const weightsError = 'error' in parsedWeights ? parsedWeights.error : null;
+  const newWeights = 'weights' in parsedWeights ? parsedWeights.weights : {};
   const [reportsPct, setReportsPct] = useState(25);
   const [errorsPct, setErrorsPct] = useState(25);
 
@@ -310,7 +316,9 @@ function CreateDialog({
             hypothesis: hypothesis || undefined,
             variants: [
               { key: 'control', weight: 100 - newWeight },
-              { key: variantKey, weight: newWeight },
+              Object.keys(newWeights).length > 0
+                ? { key: variantKey, weight: newWeight, weights: newWeights }
+                : { key: variantKey, weight: newWeight },
             ],
             guardrails: { reportsRelIncreasePct: reportsPct, errorsRelIncreasePct: errorsPct },
           },
@@ -331,18 +339,27 @@ function CreateDialog({
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Новая формула ленты дел" />
         </div>
         <div>
-          <Label>Ключ (латиница, его указывает разработчик в коде)</Label>
+          <Label>Ключ (латиница, имя теста)</Label>
           <Input value={key} onChange={(e) => setKey(e.target.value.toLowerCase())} placeholder="case_feed_v2" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>Где (раздел)</Label>
+            <Label>Где (раздел: {Object.keys(SURFACE_WEIGHTS).join(', ')})</Label>
             <Input value={surface} onChange={(e) => setSurface(e.target.value.toLowerCase())} />
           </div>
           <div>
             <Label>Имя нового варианта</Label>
             <Input value={variantKey} onChange={(e) => setVariantKey(e.target.value.toLowerCase())} />
           </div>
+        </div>
+        <div>
+          <Label>Веса формулы у нового варианта (по желанию)</Label>
+          <Input
+            value={weightsText}
+            onChange={(e) => setWeightsText(e.target.value)}
+            placeholder={(SURFACE_WEIGHTS[surface] ?? []).slice(0, 2).map((w) => `${w}=0.3`).join(', ') || 'urgency=0.3'}
+          />
+          {weightsError ? <p className="mt-1 text-xs text-danger">{weightsError}</p> : null}
         </div>
         <div>
           <Label>Доля нового варианта среди попавших в тест, %</Label>
@@ -366,7 +383,7 @@ function CreateDialog({
           <Button variant="ghost" onClick={onClose}>
             Отмена
           </Button>
-          <Button loading={create.isPending} disabled={!key || !name || !variantKey} onClick={() => create.mutate()}>
+          <Button loading={create.isPending} disabled={!key || !name || !variantKey || weightsError !== null} onClick={() => create.mutate()}>
             Создать
           </Button>
         </div>

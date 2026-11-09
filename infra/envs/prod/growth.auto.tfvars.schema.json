@@ -54,6 +54,9 @@
         },
         "opensearch_enabled": {
           "type": "boolean"
+        },
+        "events_stream_enabled": {
+          "type": "boolean"
         }
       }
     },
@@ -78,7 +81,13 @@
     "nat_per_az": {
       "type": "boolean"
     },
+    "partition_role_enabled": {
+      "type": "boolean"
+    },
     "rds_cross_region_backups": {
+      "type": "boolean"
+    },
+    "redis_cache_node": {
       "type": "boolean"
     },
     "replicate_media": {

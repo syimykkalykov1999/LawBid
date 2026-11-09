@@ -245,6 +245,50 @@ describe('AppCheckGuard', () => {
     );
   });
 
+  it("2026-11-08: a tokenless request logs the device's reason, platform and version", async () => {
+    await expect(
+      guard().canActivate(
+        ctx({
+          'x-firebase-appcheck-status':
+            'error: unknown App attestation failed\u00ab\n',
+          'x-platform': 'ios',
+          'x-app-version': '1.0.0+42',
+        }),
+      ),
+    ).resolves.toBe(true);
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verdict: 'missing',
+        platform: 'ios',
+        appVersion: '1.0.0+42',
+        clientStatus: 'error: unknown App attestation failed',
+      }),
+      'app check',
+    );
+  });
+
+  it('2026-11-08: the device reason is capped and ignored once a token came', async () => {
+    await guard().canActivate(
+      ctx({ 'x-firebase-appcheck-status': 'x'.repeat(500) }),
+    );
+    const first = logger.info.mock.calls.at(-1)?.[0] as {
+      clientStatus?: string;
+    };
+    expect(first.clientStatus).toHaveLength(120);
+
+    result = { verdict: 'valid', appId: '1:2:ios:3' };
+    await guard().canActivate(
+      ctx({
+        'x-firebase-appcheck': 'good',
+        'x-firebase-appcheck-status': 'off: stale',
+      }),
+    );
+    expect(logger.info).toHaveBeenLastCalledWith(
+      expect.objectContaining({ verdict: 'valid', clientStatus: undefined }),
+      'app check',
+    );
+  });
+
   it('monitor: an invalid token is logged with its reason, not blocked', async () => {
     result = { verdict: 'invalid', reason: 'app-check/invalid-argument' };
     await expect(

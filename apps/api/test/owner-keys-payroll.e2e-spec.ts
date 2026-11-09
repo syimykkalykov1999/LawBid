@@ -633,12 +633,21 @@ describe('Key sets + payroll (e2e)', () => {
       f = await zones();
       expect(f.translate_posts).toBe(false);
       expect(f.translate_reviews).toBe(true);
+      // Owner 2026-11-08 (one control): chats switched off leave the
+      // master and the other zones alone.
+      await put('translate.chat', false).expect(200);
+      f = await zones();
+      expect([f.chat_translate, f.translate_chat, f.translate_reviews]).toEqual(
+        [true, false, true],
+      );
+      await put('translate.chat', true).expect(200);
       await setFlag(false);
       f = await zones();
       expect(f.chat_translate || f.translate_reviews).toBe(false);
     } finally {
       await put('translate.scope', 'all').expect(200);
       await put('translate.posts', true).expect(200);
+      await put('translate.chat', true).expect(200);
       await setFlag(false);
       await prisma.integrationCredential.deleteMany({
         where: { provider: 'google_translate' },

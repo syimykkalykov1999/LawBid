@@ -82,6 +82,7 @@ import {
   CrossFamilyOutbox,
   type OutboxTicket,
 } from '../../sharding/outbox/cross-family-outbox';
+import { RankingEventsService } from '../experiments/ranking-events.service';
 import {
   DomainEvents,
   type DomainEventTicket,
@@ -396,6 +397,7 @@ export class CasesService {
     @Optional() private readonly cipher?: MessageBodyCipher,
     // N-2: the domain-event bus.
     @Optional() private readonly events?: DomainEvents,
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
 
   /** The client's private details as plain text (legacy rows are plain). */
@@ -587,6 +589,14 @@ export class CasesService {
     });
     await this.outbox?.flush(tickets);
     await this.events?.flush(eventTickets);
+    // Owner 2026-11-08: a posted case starts the «hours to first bid» clock
+    // of the A/B report; tagged by the case (the unit of case tests).
+    void this.rankingEvents?.logUserAction('case_posted', {
+      userId: user.sub,
+      unitId: created.id,
+      surface: 'case_feed',
+      itemId: created.id,
+    });
     // Never throws; awaited so it does not outlive the request. Algo audit
     // 2026-10-27 (CASES M-4): BEFORE the alerts are planned, so the fan-out
     // gate reads the client's status this case may have just changed.

@@ -3,6 +3,8 @@ import { onlyDeleted } from '../../prisma/soft-delete.extension';
 import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
 
 import { DomainEvents } from '../events/domain-events.service';
+import { RecommendationsService } from '../recommendations/recommendations.service';
+import { decodeOffset, encodeOffset } from '../recommendations/offset-cursor';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   BadRequestException,
@@ -157,6 +159,8 @@ export class PostsService {
     @Optional() private readonly events?: DomainEvents,
     // Algo audit 2026-10-27 (CONTENT C-2): a held post goes to the queue.
     @Optional() private readonly autoHold?: AutoHoldService,
+    // Owner 2026-11-08: reels ordered for the viewer (`reco.reels_ranked`).
+    @Optional() private readonly recommendations?: RecommendationsService,
   ) {}
 
   /** Owner 2026-10-06: News is switched off for now (flag `news_posts`,
@@ -1071,9 +1075,17 @@ export class PostsService {
     // Owner 2026-10-15: 20 a page, so a page holds at least one ad slot.
     const limit = Math.min(query.limit ?? 20, 20);
     const practice = query.practice?.trim().toLowerCase();
-    const c = query.cursor ? decodeCursor(query.cursor) : undefined;
     // Owner 2026-10-18 (speed): the cached block set (block-set.cache.ts).
     const hidden = await cachedBlockSet(this.prisma, this.redis, user.sub);
+    const ranked = await this.rankedReels(
+      user,
+      query.cursor,
+      limit,
+      practice,
+      hidden,
+    );
+    if (ranked) return ranked;
+    const c = query.cursor ? decodeCursor(query.cursor) : undefined;
     const rows = await this.prisma.post.findMany({
       where: {
         AND: [
@@ -1111,6 +1123,69 @@ export class PostsService {
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
+  }
+
+  /**
+   * Owner 2026-11-08: reels «для вас», like Instagram Reels — the posts
+   * formula of Search (what is hot, the viewer's topics, followed authors,
+   * freshness, already watched lower; admin weights `reco.post.*` and A/B
+   * variants apply) over the newest ready reels, paged by offset through a
+   * pinned copy. Null = the newest-first list (setting off, a guest, an
+   * older keyset cursor, or the ranking failed).
+   */
+  private async rankedReels(
+    user: RequestUser,
+    cursor: string | undefined,
+    limit: number,
+    practice: string | undefined,
+    hidden: string[],
+  ): Promise<PostPage | null> {
+    if (!this.recommendations || user.guest) return null;
+    let offset = 0;
+    if (cursor) {
+      try {
+        offset = decodeOffset(cursor);
+      } catch {
+        return null; // a newest-first cursor from before: keep paging that way
+      }
+    }
+    try {
+      if (!(await this.settings.boolean('reco.reels_ranked'))) return null;
+      const where: Prisma.PostWhereInput = {
+        AND: [
+          VISIBLE_POST_WHERE,
+          { video_asset_id: { not: null } },
+          { video_asset: { status: 'ready', deleted_at: null } },
+          practice
+            ? postPracticeWhere([practice], legacyTopicTags(practice))
+            : {},
+          hidden.length ? { author_id: { notIn: hidden } } : {},
+        ],
+      };
+      const ids = await this.recommendations.postsForPage(
+        user.sub,
+        where,
+        { reels: true, practice: practice ?? null },
+        offset,
+      );
+      const slice = ids.slice(offset, offset + limit);
+      const rows = slice.length
+        ? await this.prisma.post.findMany({
+            where: { AND: [{ id: { in: slice } }, VISIBLE_POST_WHERE] },
+          })
+        : [];
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      const page = slice.flatMap((id) => byId.get(id) ?? []);
+      void this.recommendations.logServed(user.sub, 'post', slice, offset);
+      const items = await this.presenter.present(page, user.sub);
+      return {
+        items: await this.withPromotedReels(user, items, hidden),
+        nextCursor:
+          offset + limit < ids.length ? encodeOffset(offset + limit) : null,
+      };
+    } catch {
+      return null;
+    }
   }
 
   /** Owner 2026-10-15: a boosted reel after every N-th reel (own counter,

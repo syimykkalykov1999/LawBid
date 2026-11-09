@@ -51,6 +51,10 @@ export type ScanOutcome =
  * No scanner (staging/production without CLAMAV_HOST) → the file stays
  * `pending` and is never attachable.
  */
+/** Owner 2026-11-08: a check at least this slow writes where its time
+ * went (`files_scan_slow`: read, scan, process, store in ms). */
+const SCAN_SLOW_MS = 1500;
+
 @Injectable()
 export class FileScanProcessor {
   constructor(
@@ -68,6 +72,11 @@ export class FileScanProcessor {
   }
 
   async run(fileId: string, finalAttempt: boolean): Promise<ScanOutcome> {
+    const started = Date.now();
+    const laps: Record<string, number> = {};
+    const lap = (name: string) => {
+      laps[name] = Date.now() - started;
+    };
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     if (!file || file.scan_status !== 'pending') return 'skipped:not-pending';
     // R-252: confirmed without reading the file (flag `files_confirm_light`):
@@ -95,7 +104,9 @@ export class FileScanProcessor {
     let data: Buffer;
     try {
       data = held ?? (await this.storage.read(file.s3_bucket, file.s3_key));
+      lap('read');
       const verdict = await this.scanner.scan(data);
+      lap('scan');
       if (verdict.infected) {
         await this.storage.remove(file.s3_bucket, [file.s3_key]);
         await this.setStatus(fileId, 'infected');
@@ -152,7 +163,9 @@ export class FileScanProcessor {
       const main = processed.main;
       // Placeholder for the app while the picture loads (never blocks).
       const blurhash = main ? await computeBlurhash(main.data) : null;
+      lap('process');
       await putProcessedObjects(this.storage, this.logger, file, processed);
+      lap('store');
       await this.prisma.file.updateMany({
         where: { id: fileId, scan_status: 'pending' },
         data: {
@@ -173,6 +186,24 @@ export class FileScanProcessor {
         },
       });
       await this.moderation?.enqueueFile(fileId, file.purpose);
+      // Owner 2026-11-08 (R2 speed): where a slow check spends its time.
+      const totalMs = Date.now() - started;
+      if (totalMs >= SCAN_SLOW_MS) {
+        this.logger.warn(
+          {
+            metric: 'files_scan_slow',
+            fileId,
+            purpose: file.purpose,
+            store: this.storage.isPublicStoreBucket(file.s3_bucket)
+              ? 'r2'
+              : 'aws',
+            sizeBytes: Number(file.size_bytes),
+            totalMs,
+            laps,
+          },
+          'slow file check',
+        );
+      }
       return 'clean';
     } catch (err) {
       if (!finalAttempt) throw err;

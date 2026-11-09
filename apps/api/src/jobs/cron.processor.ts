@@ -1,5 +1,5 @@
 import { CaseToolsSweepService } from '../modules/cases/tools/case-tools.sweep';
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import {
   CRON_JOBS,
@@ -123,8 +123,13 @@ import { StaffWeeklyDigestJob } from './handlers/staff-weekly-digest.job';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
+/** A cron run at least this long is logged as `cron_slow` (G8). */
+export const CRON_SLOW_MS = 60_000;
+
 @Injectable()
 export class CronProcessor {
+  private readonly logger = new Logger(CronProcessor.name);
+
   constructor(
     private readonly sessionsCleanup: SessionsCleanupJob,
     private readonly otpCleanup: OtpCleanupJob,
@@ -270,6 +275,26 @@ export class CronProcessor {
    * a heavy one for 60.
    */
   async process(name: string): Promise<unknown> {
+    // G8 (2026-11-08): the `cron` lane runs one job at a time per worker
+    // task, and on prod its oldest waiting job reached 3599 s, flapping the
+    // queue-backlog alarm all day, with no way to tell which job held the
+    // lane. A run longer than [CRON_SLOW_MS] is logged with its name
+    // (`metric: cron_slow`), so the slow one can be moved to `cron-heavy`.
+    const started = Date.now();
+    try {
+      return await this.locked(name);
+    } finally {
+      const ms = Date.now() - started;
+      if (ms >= CRON_SLOW_MS) {
+        this.logger.warn(
+          { metric: 'cron_slow', job: name, lane: cronLaneOf(name), ms },
+          'cron job slow',
+        );
+      }
+    }
+  }
+
+  private async locked(name: string): Promise<unknown> {
     if (!this.redis) return this.guarded(name);
     const pattern = CRON_SCHEDULES.find((s) => s.name === name)?.pattern ?? '';
     const ttlMs =
@@ -530,6 +555,8 @@ export class CronProcessor {
         return this.statusWatchdog?.run();
       case CRON_JOBS.usagePoll:
         return this.usagePoll?.run();
+      case CRON_JOBS.usagePollNear:
+        return this.usagePoll?.runIfNear();
       case CRON_JOBS.opsCostCheck:
         return this.opsGuard?.costCheck();
       case CRON_JOBS.opsBackupCheck:

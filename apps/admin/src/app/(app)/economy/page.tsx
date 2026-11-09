@@ -64,14 +64,17 @@ export default function EconomyPage() {
   }, [s]);
 
   const limited = e?.guard === 'limited';
-  const used = e && e.figures.allowedUsd > 0 ? e.figures.projectedUsd / e.figures.allowedUsd : 0;
+  // Owner 2026-11-08: two brakes, each braking only what it controls.
+  const used = e && e.figures.allowedUsd > 0 ? e.figures.thirdPartyProjectedUsd / e.figures.allowedUsd : 0;
+  const awsUsed = e && e.figures.awsLimitUsd > 0 ? e.figures.awsProjectedUsd / e.figures.awsLimitUsd : 0;
+  const awsHeld = e?.containers.scaleMode === 'min';
 
   return (
     <>
       <PageHeader
         eyebrow="Система"
         title="Экономика"
-        subtitle="Сколько приложение зарабатывает и сколько уходит сторонним сервисам. Если расходы превышают правило, система сама включает ограничения, а когда всё в норме, снимает их. Потолок серверов растёт с доходом без правок кода."
+        subtitle="Два тормоза, каждый ограничивает только своё. Сторонние платные сервисы (SMS, видео Bunny, перевод, проверка личности, Cloudflare) сверяются с правилом от дохода: при превышении на минимум идут только они (лимиты сервисов, новые видео, SMS кроме входа и сброса пароля). Счёт AWS сверяется с бюджетом AWS: при превышении ограничиваются только серверы, база и Redis, видео и SMS не трогаются. Оба снимаются сами ниже 90 %."
         actions={e ? <UpdatedAgo at={q.dataUpdatedAt} /> : null}
       />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
@@ -90,25 +93,26 @@ export default function EconomyPage() {
               {!e.enabled
                 ? 'Ничего не ограничивается. Включите переключатель ниже, чтобы система следила за расходами.'
                 : limited
-                  ? `С ${formatDateTime(e.since)}: лимиты сервисов на минимуме, новые видео на паузе, SMS только для входа и сброса пароля, контейнеры на минимуме. Снимется само, когда прогноз расходов упадёт ниже 90% допустимого.`
+                  ? `С ${formatDateTime(e.since)}: сторонние платные сервисы — лимиты на минимуме, новые видео на паузе, SMS только для входа и сброса пароля. Серверы AWS этот тормоз не трогает. Снимется само, когда прогноз сторонних расходов упадёт ниже 90% допустимого.`
                   : 'Прогноз расходов на сторонние сервисы укладывается в правило. Делать ничего не нужно.'}
+              {e.enabled && awsHeld
+                ? ` Счёт AWS выше бюджета: серверов не больше минимума, база и Redis не растут (видео и SMS работают).`
+                : ''}
             </span>
           </Card>
 
-          <div className="mb-6 grid gap-3 md:grid-cols-3">
+          <div className="mb-2 grid gap-3 md:grid-cols-3">
             <Card className="p-4">
               <div className="text-xs text-muted">Доход за 30 дней</div>
               <div className="mt-1 text-2xl font-semibold text-heading">{usd(e.figures.revenue30dUsd)}</div>
               <div className="mt-1 text-xs text-muted">Этот месяц: {usd(e.figures.revenueMonthUsd)}</div>
             </Card>
             <Card className="p-4">
-              <div className="text-xs text-muted">Сторонним сервисам, прогноз за месяц</div>
-              <div className="mt-1 text-2xl font-semibold text-heading">{usd(e.figures.projectedUsd)}</div>
-              <div className="mt-1 text-xs text-muted">Уже потрачено: {usd(e.figures.monthToDateUsd)}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted">Допустимо по правилу</div>
-              <div className="mt-1 text-2xl font-semibold text-heading">{usd(e.figures.allowedUsd)}</div>
+              <div className="text-xs text-muted">Сторонние платные сервисы, прогноз за месяц</div>
+              <div className="mt-1 text-2xl font-semibold text-heading">{usd(e.figures.thirdPartyProjectedUsd)}</div>
+              <div className="mt-1 text-xs text-muted">
+                Уже потрачено: {usd(e.figures.thirdPartyMonthToDateUsd)}. Допустимо по правилу: {usd(e.figures.allowedUsd)}
+              </div>
               <div
                 className="mt-2 h-2 overflow-hidden rounded-full bg-surface-2"
                 role="progressbar"
@@ -122,9 +126,33 @@ export default function EconomyPage() {
                   style={{ width: `${Math.min(100, Math.round(used * 100))}%` }}
                 />
               </div>
-              <div className="mt-1 text-xs text-muted">Прогноз — {Math.round(used * 100)}% от допустимого</div>
+              <div className="mt-1 text-xs text-muted">Прогноз — {Math.round(used * 100)}% от допустимого. Тормоз: лимиты сервисов, видео, SMS.</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-muted">AWS (серверы, база, трафик, письма), прогноз за месяц</div>
+              <div className="mt-1 text-2xl font-semibold text-heading">{usd(e.figures.awsProjectedUsd)}</div>
+              <div className="mt-1 text-xs text-muted">
+                Уже потрачено: {usd(e.figures.awsMonthToDateUsd)}. Бюджет AWS: {usd(e.figures.awsLimitUsd)}
+              </div>
+              <div
+                className="mt-2 h-2 overflow-hidden rounded-full bg-surface-2"
+                role="progressbar"
+                aria-valuenow={Math.round(awsUsed * 100)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Прогноз счёта AWS от бюджета"
+              >
+                <div
+                  className={`h-full rounded-full ${awsUsed > 1 ? 'bg-danger' : awsUsed > 0.9 ? 'bg-warning' : 'bg-success'}`}
+                  style={{ width: `${Math.min(100, Math.round(awsUsed * 100))}%` }}
+                />
+              </div>
+              <div className="mt-1 text-xs text-muted">Прогноз — {Math.round(awsUsed * 100)}% от бюджета. Тормоз: только серверы, база и Redis.</div>
             </Card>
           </div>
+          <p className="mb-6 text-sm text-muted">
+            Всего за месяц (оба вместе): прогноз {usd(e.figures.projectedUsd)}, уже потрачено {usd(e.figures.monthToDateUsd)}.
+          </p>
 
         </>
       )}

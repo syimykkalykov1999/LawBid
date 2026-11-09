@@ -10757,6 +10757,123 @@
         ]
       }
     },
+    "/verification/requests/{id}/identity-check": {
+      "post": {
+        "operationId": "startIdentityCheck",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityCheckLinkEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_SUSPENDED, FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VERIFICATION_INVALID_STATUS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: IDENTITY_PROVIDER_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner 2026-11-08: Persona's hosted ID + selfie check for this editable request (only while the Persona card is set up); resumes the open inquiry or creates one",
+        "tags": [
+          "verification"
+        ]
+      }
+    },
     "/verification/handoff": {
       "post": {
         "operationId": "createVerificationHandoff",
@@ -32574,6 +32691,132 @@
             "bearer": []
           }
         ],
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/me/phone": {
+      "post": {
+        "operationId": "changePhone",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Resource-creating POST: a retry with the same key and body is applied once (see IdempotencyInterceptor).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "Single-use token from POST /auth/reauth (password) or /auth/passkeys/reauth; required to replace a verified phone, and to add the first one unless this session signed in within the last 10 minutes.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePhoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactVerifiedEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, PHONE_COUNTRY_NOT_SUPPORTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CONTACT_ALREADY_EXISTS, IDEMPOTENCY_KEY_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner rule (memory sms-two-cases): an SMS code goes out only at\nregistration and «Забыл пароль», so the phone is set or changed with\nthe account password or a passkey: `POST /auth/reauth`\n(`method: password`) or `POST /auth/passkeys/reauth` → single-use\nX-Reauth-Token → this route. Replacing a verified phone always needs\nthat token; adding the first phone also accepts a sign-in made on this\nsession minutes ago (onboarding). No code, no SMS.",
         "tags": [
           "users"
         ]
@@ -134476,6 +134719,7 @@
           "I18N_LANGUAGE_NOT_FOUND",
           "I18N_IMPORT_INVALID",
           "PROVIDER_BUDGET_EXCEEDED",
+          "IDENTITY_PROVIDER_UNAVAILABLE",
           "PHONE_COUNTRY_NOT_SUPPORTED",
           "REVIEW_CASE_NOT_CLOSED",
           "REVIEW_NO_ACCEPTED_BID",
@@ -139209,6 +139453,10 @@
             "items": {
               "$ref": "#/components/schemas/OwnVerificationDocumentDto"
             }
+          },
+          "identityCheckStarted": {
+            "type": "boolean",
+            "description": "Owner 2026-11-08: the identity check of this request was started in Persona's hosted flow (it then replaces the ID + selfie uploads)."
           }
         },
         "required": [
@@ -139224,6 +139472,14 @@
           "licenses",
           "documents"
         ]
+      },
+      "IdentityProviderKind": {
+        "type": "string",
+        "enum": [
+          "manual",
+          "persona"
+        ],
+        "description": "Owner 2026-11-08: `manual` = upload the ID + selfie for staff (default, as before); `persona` = only while the admin's Persona card has a key, template and webhook secret and is switched on: the app opens Persona's hosted flow (POST /verification/requests/{id}/identity-check) instead."
       },
       "VerificationOverviewDto": {
         "type": "object",
@@ -139252,6 +139508,14 @@
           "barDocumentRequired": {
             "type": "boolean",
             "description": "A photo of the bar card is required per license (setting verification.require_bar_document, off by default)."
+          },
+          "identityProvider": {
+            "description": "Owner 2026-11-08: `manual` = upload the ID + selfie for staff (default, as before); `persona` = only while the admin's Persona card has a key, template and webhook secret and is switched on: the app opens Persona's hosted flow (POST /verification/requests/{id}/identity-check) instead.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IdentityProviderKind"
+              }
+            ]
           },
           "barAttemptsRetryAfterSeconds": {
             "type": "integer",
@@ -139510,6 +139774,37 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/SelfieCaptureTokenDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "IdentityCheckLinkDto": {
+        "type": "object",
+        "properties": {
+          "inquiryId": {
+            "type": "string",
+            "description": "Persona inquiry id (inq_…)."
+          },
+          "url": {
+            "type": "string",
+            "description": "Persona's hosted verification page; open it in the in-app browser."
+          }
+        },
+        "required": [
+          "inquiryId",
+          "url"
+        ]
+      },
+      "IdentityCheckLinkEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/IdentityCheckLinkDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -153094,6 +153389,19 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "ChangePhoneDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$",
+            "example": "+13125550123"
+          }
+        },
+        "required": [
+          "phone"
         ]
       },
       "ConsentsSavedDto": {
@@ -169720,6 +170028,21 @@
           "checkedAt": {
             "type": "string",
             "nullable": true
+          },
+          "csamReportStatus": {
+            "type": "string",
+            "nullable": true,
+            "description": "The latest CyberTipline report of this check: pending | submitted | manual_required | failed (null = none)."
+          },
+          "csamExternalReportId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The NCMEC report id once submitted."
+          },
+          "csamReportError": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why the last report failed (the admin can send it again)."
           }
         },
         "required": [
@@ -169739,7 +170062,10 @@
           "decision",
           "previewUrl",
           "createdAt",
-          "checkedAt"
+          "checkedAt",
+          "csamReportStatus",
+          "csamExternalReportId",
+          "csamReportError"
         ]
       },
       "MediaCheckPageDto": {
@@ -175930,6 +176256,7 @@
               "http",
               "realtime",
               "breakers",
+              "email",
               "cloudflare_usage",
               "bunny_usage",
               "table_growth",
@@ -176803,6 +177130,26 @@
           "indexes"
         ]
       },
+      "SearchAutoStepDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "step": {
+            "type": "string",
+            "description": "search:set_mode:shadow | search:start_reindex | search:swap | search:set_mode:engine | search:set_mode:postgres"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "step",
+          "reason"
+        ]
+      },
       "SearchIndexStatusDto": {
         "type": "object",
         "properties": {
@@ -176906,6 +177253,13 @@
             "items": {
               "$ref": "#/components/schemas/SearchIndexEntityDto"
             }
+          },
+          "autoSteps": {
+            "description": "The last steps «Авто» took by itself, newest first (up to 5).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchAutoStepDto"
+            }
           }
         },
         "required": [
@@ -176927,7 +177281,8 @@
           "canStart",
           "canSwap",
           "canRollback",
-          "entities"
+          "entities",
+          "autoSteps"
         ]
       },
       "SearchIndexStatusEnvelope": {
@@ -177549,6 +177904,13 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          },
+          "weights": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Formula weight overrides this variant applies on its surface (e.g. case_feed: { urgency: 0.3 }); control has none."
           }
         },
         "required": [
@@ -177882,7 +178244,27 @@
           },
           "projectedUsd": {
             "type": "number",
-            "description": "Projected third-party spend for the month."
+            "description": "Projected spend for the month, both brakes together (third-party + AWS)."
+          },
+          "thirdPartyMonthToDateUsd": {
+            "type": "number",
+            "description": "Third-party brake: metered external services (SMS, Bunny video, translation, ID checks, Cloudflare) spent so far this month."
+          },
+          "thirdPartyProjectedUsd": {
+            "type": "number",
+            "description": "Third-party brake: projected for the month; compared with allowedUsd."
+          },
+          "awsMonthToDateUsd": {
+            "type": "number",
+            "description": "AWS brake: the AWS bill (SES, Rekognition included) so far."
+          },
+          "awsProjectedUsd": {
+            "type": "number",
+            "description": "AWS brake: projected AWS bill; compared with awsLimitUsd."
+          },
+          "awsLimitUsd": {
+            "type": "number",
+            "description": "The AWS budget (AWS Budgets); allowedUsd when it cannot be read."
           }
         },
         "required": [
@@ -177891,7 +178273,12 @@
           "allowedUsd",
           "lines",
           "monthToDateUsd",
-          "projectedUsd"
+          "projectedUsd",
+          "thirdPartyMonthToDateUsd",
+          "thirdPartyProjectedUsd",
+          "awsMonthToDateUsd",
+          "awsProjectedUsd",
+          "awsLimitUsd"
         ]
       },
       "EconomySettingsDto": {

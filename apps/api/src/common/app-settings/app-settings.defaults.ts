@@ -313,6 +313,10 @@ export const OWNER_MEDIA_SETTINGS = {
   // differences; engine = the search engine, Postgres on error / timeout.
   // See docs/architecture/SEARCH_READY.md.
   'search.engine': 'postgres',
+  /** «Авто» for search.engine (2026-11-08): auto = follows the search engine
+   * domain (shadow → reindex → engine; postgres when it is off), manual =
+   * the admin sets search.engine by hand. infra-auto search-engine-auto.logic.ts */
+  'search.engine_follow': 'auto',
   /** Review R-26: the nightly ledger check. off | on (whole ledger every
    * night) | auto (last N days nightly, whole ledger weekly). */
   'ledger.reconcile_mode': 'auto',
@@ -1449,6 +1453,10 @@ export const OWNER_FEED_SETTINGS = {
    * started with (a pinned copy, 15 min), not a list rebuilt mid-scroll
    * (posts skipped or repeated). Off = the old behaviour. */
   'reco.pin_paging_enabled': true,
+  /** Owner 2026-11-08: the reels feed is ordered for the viewer by the
+   * posts formula (`reco.post.*`, hot / topics / followed / fresh, watched
+   * lower). Off = newest first, as before. */
+  'reco.reels_ranked': true,
 };
 
 // Owner 2026-10-13: who may ADD files, documents and extra photos to a post
@@ -1584,9 +1592,11 @@ export const OWNER_LEGAL_QA_SAFETY_SETTINGS = {
   /** A user's new sticker image waits for the media scan before others see
    * it (off = published at once, as before). */
   'stickers.scan_uploads': true,
-  /** The NCMEC CyberTipline API call for a CSAM report. Off = reports are
-   * opened and logged as «file by hand» without calling the API. */
-  'moderation.csam.ncmec_submit_enabled': true,
+  /** The NCMEC CyberTipline API call for a CSAM report (report → files →
+   * finish, csam.adapters.ts NcmecReporter). Off = reports are opened and
+   * logged as «file by hand» without calling the API. Owner 2026-11-08:
+   * off until the ESP account is on the NCMEC card («не подключено»). */
+  'moderation.csam.ncmec_submit_enabled': false,
 };
 
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
@@ -1843,11 +1853,24 @@ export const OWNER_COST_REGISTRY_SETTINGS = {
  * - `infra.daily_cap`: at most this many change requests per 24 hours.
  * - `infra.quiet_hours`: "HH:MM-HH:MM" (America/Chicago) when an apply may
  *   start; empty = any time.
+ * Automation audit 2026-11-08 (owner: «Авто» must really act, both ways):
+ * - `infra.auto_mode`: auto = the API itself switches a cloud item ON when
+ *   its signal held for `infra.auto_on_minutes` and OFF (only what it turned
+ *   on) after `infra.auto_off_hours` without the signal; plan, apply and a
+ *   message to the on-call admins follow by themselves (no 2FA tap: nobody
+ *   pressed anything). off = signals stay proposals on «Масштаб».
+ * - `infra.auto_max_usd_month`: an automatic switch-on that may cost more a
+ *   month than this, or any switch-on while the AWS month is at 90 % of the
+ *   budget, is not made (the money ceiling); it stays a proposal.
  */
 export const OWNER_INFRA_SETTINGS = {
   'infra.dry_run': true,
   'infra.daily_cap': 3,
   'infra.quiet_hours': '',
+  'infra.auto_mode': 'auto',
+  'infra.auto_on_minutes': 30,
+  'infra.auto_off_hours': 72,
+  'infra.auto_max_usd_month': 100,
 };
 
 /**

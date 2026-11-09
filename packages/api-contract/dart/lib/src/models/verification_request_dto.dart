@@ -24,6 +24,7 @@ class VerificationRequestDto {
     required this.createdAt,
     required this.licenses,
     required this.documents,
+    this.identityCheckStarted,
   });
 
   factory VerificationRequestDto.fromJson(Map<String, Object?> json) =>
@@ -44,6 +45,9 @@ class VerificationRequestDto {
   /// All of the attorney's licenses with their status.
   final List<VerificationLicenseDto> licenses;
   final List<OwnVerificationDocumentDto> documents;
+
+  /// Owner 2026-11-08: the identity check of this request was started in Persona's hosted flow (it then replaces the ID + selfie uploads).
+  final bool? identityCheckStarted;
 
   Map<String, Object?> toJson() => _$VerificationRequestDtoToJson(this);
 }

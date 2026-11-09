@@ -29,4 +29,17 @@ class FeatureFlagsState {
   /// [defaultFeatureFlags] either — the same "unknown -> off" reasoning
   /// as an admin-only feature the client predates.
   bool isEnabled(String key) => flags[key] ?? defaultFeatureFlags[key] ?? false;
+
+  /// Owner 2026-11-08 (one control for translation): «Перевести» in a zone
+  /// ([zoneFlag] = `translate_chat`, `translate_posts`…) shows only while
+  /// the master `chat_translate` is on AND the zone follows it. A server
+  /// one release older sends no `translate_chat` (its `chat_translate` was
+  /// the chat zone itself), so the master alone decides there.
+  bool translationOn(String zoneFlag) {
+    if (!isEnabled('chat_translate')) return false;
+    if (zoneFlag == 'translate_chat' && !flags.containsKey(zoneFlag)) {
+      return true;
+    }
+    return isEnabled(zoneFlag);
+  }
 }

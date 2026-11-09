@@ -16,6 +16,12 @@ abstract final class VerificationMapper {
         request: dto.request == null ? null : request(dto.request!),
         identityRequired: dto.identityRequired,
         barDocumentRequired: dto.barDocumentRequired,
+        // Owner 2026-11-08: Persona only when the server says so; an older
+        // server (no field) or any other value = the manual upload.
+        identityProvider:
+            dto.identityProvider == api.IdentityProviderKind.persona
+                ? IdentityProvider.persona
+                : IdentityProvider.manual,
         barAttemptsRetryAfterSeconds: dto.barAttemptsRetryAfterSeconds,
         submissionsLast30Days: dto.submissionsLast30Days,
         maxSubmissions30Days: dto.maxSubmissions30Days,
@@ -39,6 +45,7 @@ abstract final class VerificationMapper {
         rejectionReason: dto.rejectionReason,
         submittedAt: dto.submittedAt,
         reviewedAt: dto.reviewedAt,
+        identityCheckStarted: dto.identityCheckStarted ?? false,
         licenses: [
           for (final l in dto.licenses)
             VerificationLicense(

@@ -84,7 +84,17 @@ class WizardState {
     this.barDocumentRequired = true,
     this.maxFilesPerDocument = DocSlot.maxFiles,
     this.barLockedUntil,
+    this.identityProvider = IdentityProvider.manual,
   });
+
+  /// Owner 2026-11-08: Persona checks the ID + selfie only when the server
+  /// says its admin card is on; anything else is the manual upload.
+  final IdentityProvider identityProvider;
+
+  /// The identity step opens Persona's hosted flow instead of the uploads
+  /// (and there is no separate selfie step: Persona takes the selfie).
+  bool get usesPersona =>
+      identityRequired && identityProvider == IdentityProvider.persona;
 
   /// Owner 2026-10-18: after 5 failed bar numbers the server locks adding a
   /// number for an hour; until then «Добавить» is off (manual review stays
@@ -126,7 +136,9 @@ class WizardState {
   List<WizardStep> get steps => [
         if (!isSupplement && !attestationOnly) WizardStep.intro,
         WizardStep.licenses,
-        if (identityRequired) ...[WizardStep.identity, WizardStep.selfie],
+        if (usesPersona)
+          WizardStep.identity
+        else if (identityRequired) ...[WizardStep.identity, WizardStep.selfie],
         WizardStep.review,
       ];
 
@@ -170,7 +182,11 @@ class WizardState {
         }
       }
     }
-    if (identityRequired) {
+    if (usesPersona) {
+      if (!request.identityCheckStarted) {
+        out.add(const MissingIdentity(back: false));
+      }
+    } else if (identityRequired) {
       if (!request.identityComplete) {
         final front =
             request.docsFor(DocSlot.identity(idType, DocSide.front)).isNotEmpty;
@@ -189,10 +205,12 @@ class WizardState {
     List<MissingItem>? missing,
     DateTime? barLockedUntil,
     bool clearBarLock = false,
+    IdentityProvider? identityProvider,
   }) =>
       WizardState(
         request: request ?? this.request,
         identityRequired: identityRequired,
+        identityProvider: identityProvider ?? this.identityProvider,
         barDocumentRequired: barDocumentRequired,
         maxFilesPerDocument: maxFilesPerDocument,
         barLockedUntil:
@@ -211,6 +229,7 @@ WizardStep resumeStep(
   VerificationRequest r, {
   required bool identityRequired,
   bool barDocumentRequired = true,
+  IdentityProvider identityProvider = IdentityProvider.manual,
 }) {
   if (r.status == RequestStatus.needsMoreInfo) return WizardStep.review;
   if (r.pendingLicenses.isEmpty && r.documents.isEmpty) {
@@ -220,6 +239,9 @@ WizardStep resumeStep(
   }
   if (!r.licensesReady(barDocumentRequired: barDocumentRequired)) {
     return WizardStep.licenses;
+  }
+  if (identityRequired && identityProvider == IdentityProvider.persona) {
+    return r.identityCheckStarted ? WizardStep.review : WizardStep.identity;
   }
   if (identityRequired && !r.identityComplete) return WizardStep.identity;
   if (identityRequired && !r.selfieComplete) return WizardStep.selfie;
@@ -259,6 +281,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     return WizardState(
       request: request,
       identityRequired: overview.identityRequired,
+      identityProvider: overview.identityProvider,
       barDocumentRequired: overview.barDocumentRequired,
       maxFilesPerDocument:
           ref.read(uploadLimitsProvider)[UploadPlace.verification].maxFiles,
@@ -266,6 +289,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
         request,
         identityRequired: overview.identityRequired,
         barDocumentRequired: overview.barDocumentRequired,
+        identityProvider: overview.identityProvider,
       ),
       idType: request.identityType ?? IdDocumentType.driversLicense,
       barLockedUntil: overview.barAttemptsRetryAfterSeconds > 0
@@ -300,6 +324,30 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     if (s == null || s.stepIndex <= 0) return false;
     _emit(s.copyWith(step: s.steps[s.stepIndex - 1]));
     return true;
+  }
+
+  /// Owner 2026-11-08: Persona's hosted ID + selfie page for this request.
+  /// Null when the server cannot start it now (Persona switched off, the
+  /// daily cap used up, Persona not answering): the wizard then falls back
+  /// to the manual upload for this session, so the attorney is never stuck.
+  Future<Uri?> startIdentityCheck() async {
+    final s = _s;
+    if (s == null || !s.usesPersona) return null;
+    try {
+      final url = await _repo.startIdentityCheck(s.request.id);
+      _setRequest(await _repo.get(s.request.id));
+      return url;
+    } on ApiException catch (e) {
+      if (e.code != ApiErrorCodes.featureDisabled &&
+          e.code != ApiErrorCodes.identityProviderUnavailable) {
+        rethrow;
+      }
+      final latest = _s;
+      if (latest != null) {
+        _emit(latest.copyWith(identityProvider: IdentityProvider.manual));
+      }
+      return null;
+    }
   }
 
   /// The type can change only while none of its sides has a file.
@@ -546,6 +594,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     final cancellation = UploadCancellation();
     _cancellations[id] = cancellation;
     final polling = ref.read(scanPollingProvider);
+    void Function()? releaseKeepAlive;
     try {
       var fileId = initial.fileId;
       fileId ??= await _files.presignAndUpload(
@@ -560,6 +609,11 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
         },
       );
       if (cancellation.isCancelled) return;
+      // Owner 2026-11-08 (every upload finishes): the file is in storage, so
+      // leaving the wizard no longer drops the check and the attach — the
+      // document used to stay an orphan, never on the request. «Отмена» on
+      // the row still stops it.
+      releaseKeepAlive ??= ref.keepAlive().close;
       _patch(
         id,
         (t) => t.copyWith(
@@ -604,6 +658,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
       if (identical(_cancellations[id], cancellation)) {
         _cancellations.remove(id);
       }
+      releaseKeepAlive?.call();
     }
   }
 

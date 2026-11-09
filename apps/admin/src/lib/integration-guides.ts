@@ -403,14 +403,25 @@ export const GUIDES: Record<string, ProviderGuide> = {
   },
 
   persona: {
-    steps: ['Откройте app.withpersona.com → API → API Keys → создайте или скопируйте ключ.'],
-    links: [{ label: 'Persona', url: 'https://app.withpersona.com/' }],
+    steps: [
+      'app.withpersona.com → слева внизу переключатель Sandbox / Production (сначала Sandbox для проверки).',
+      'Inquiries → Templates → «Create template» → готовый шаблон «Government ID and Selfie» → Publish. Скопируйте его ID (itmpl_…).',
+      'API → API Keys → «Create API key» → скопируйте ключ (persona_sandbox_… или persona_production_…).',
+      'Webhooks → «Add webhook»: URL https://api.lawbid.dev/api/v1/webhooks/persona; события inquiry.approved, inquiry.declined, inquiry.marked-for-review, inquiry.failed, inquiry.completed, inquiry.expired → Save. Скопируйте Webhook secret.',
+    ],
+    links: [
+      { label: 'Persona', url: 'https://app.withpersona.com/' },
+      { label: 'Persona: вебхуки', url: 'https://docs.withpersona.com/docs/webhooks' },
+    ],
     enable: [
-      'Вставьте ключ (PERSONA_API_KEY) → «Сохранить» → «Проверить»: Persona должна принять ключ. persona_sandbox_… — тестовый, persona_production_… — боевой.',
-      'Ключ можно сохранить заранее: он понадобится, когда начнёте проверять личность адвокатов через Persona.',
+      'Вставьте ключ, ID шаблона и секрет вебхука → «Сохранить» → «Проверить» (Persona должна принять ключ) → «Включить».',
+      'Пока ключа нет или карточка выключена — проверка ручная, как сейчас. Выключили карточку — сразу снова ручная.',
+      'Цена: Persona берёт плату за каждую проверку; потолок — Админка → Лимиты (budget.id_check.daily_max / monthly_max). Кончился лимит — адвокат загружает документы вручную.',
     ],
     fields: {
       apiKey: { how: 'Начинается с persona_sandbox_ (тест) или persona_production_.', example: 'persona_production_…' },
+      templateId: { how: 'Inquiries → Templates → ваш шаблон «Government ID and Selfie» → ID.', example: 'itmpl_…' },
+      webhookSecret: { how: 'Webhooks → ваш вебхук → Webhook secret (Reveal).', example: 'wbhsec_…' },
     },
   },
 
@@ -763,13 +774,17 @@ export const GUIDES: Record<string, ProviderGuide> = {
     ],
     links: [{ label: 'NCMEC CyberTipline', url: 'https://report.cybertip.org/' }],
     enable: [
-      'Заполните NCMEC_USERNAME и NCMEC_PASSWORD (режим NCMEC_ENVIRONMENT: test или production) → «Сохранить» → «Проверить» → «Включить».',
-      'Пока полей нет, отчёты ждут в Модерация → Медиа с пометкой «подать вручную». Начните с test, затем переключите на production.',
+      'Заполните NCMEC_USERNAME, NCMEC_PASSWORD и e-mail для связи (режим NCMEC_ENVIRONMENT: test или production) → «Сохранить» → «Проверить» (сверяет вход в CyberTipline) → «Включить».',
+      'Затем включите отправку: Настройки → «Отправка отчёта о CSAM в NCMEC CyberTipline». С этого момента находка уходит в NCMEC сама: отчёт, файл-доказательство, завершение; номер отчёта NCMEC виден в Модерация → Медиа.',
+      'Пока полей нет («не подключено»), отчёты ждут в Модерация → Медиа с пометкой «подать вручную». Начните с test, затем переключите на production.',
     ],
     fields: {
       username: { how: 'Логин ESP из письма NCMEC.' },
       password: { how: 'Пароль ESP из письма NCMEC.' },
       environment: { how: 'test (пробный) или production (боевой). Пусто = test.', example: 'test' },
+      reporterEmail: { how: 'E-mail человека, с которым NCMEC свяжется по отчёту (обязателен в каждом отчёте).', example: 'safety@lawbid.dev' },
+      reporterFirstName: { how: 'Имя этого человека (необязательно).' },
+      reporterLastName: { how: 'Фамилия (необязательно).' },
     },
   },
 };

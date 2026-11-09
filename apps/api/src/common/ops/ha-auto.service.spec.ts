@@ -1,6 +1,8 @@
 import {
   decideHa,
+  haMoneyHold,
   HA_FLIP_MS,
+  HA_USD_MONTH,
   HaAutoService,
   wantedHa,
   type HaFacts,
@@ -23,6 +25,44 @@ const full = {
   db: { multiAz: true, available: true, pending: false },
   redis: { replicas: 1, failover: true, available: true },
 };
+
+describe('G10: the copies have their own money check', () => {
+  it('economy limited: nothing is added in Авто, removing still works', () => {
+    const money = { limited: true, budgetLeftUsd: 500 };
+    expect(decideHa({ ...base, money })).toEqual([]);
+    expect(haMoneyHold({ ...base, money })).toContain('limited');
+    expect(decideHa({ ...quiet, ...full, money })).toEqual([
+      'db_multi_az_off',
+      'redis_failover_off',
+    ]);
+  });
+
+  it('AWS budget left below their monthly cost: held; enough left: added', () => {
+    expect(
+      decideHa({
+        ...base,
+        money: { limited: false, budgetLeftUsd: HA_USD_MONTH - 1 },
+      }),
+    ).toEqual([]);
+    expect(
+      decideHa({ ...base, money: { limited: false, budgetLeftUsd: 100 } }),
+    ).toEqual(['db_multi_az_on', 'redis_replica_up']);
+    // unknown budget never blocks
+    expect(
+      decideHa({ ...base, money: { limited: false, budgetLeftUsd: null } }),
+    ).toEqual(['db_multi_az_on', 'redis_replica_up']);
+  });
+
+  it("«Вкл» is the owner's choice: money does not hold it", () => {
+    expect(
+      decideHa({
+        ...base,
+        mode: 'on',
+        money: { limited: true, budgetLeftUsd: 0 },
+      }),
+    ).toEqual(['db_multi_az_on', 'redis_replica_up']);
+  });
+});
 
 describe('decideHa: adding copies', () => {
   it('adds both after 3 busy hours', () => {
@@ -103,6 +143,40 @@ describe('decideHa: removing copies', () => {
 
   it('mode on never removes', () => {
     expect(decideHa({ ...q, mode: 'on' })).toEqual([]);
+  });
+});
+
+describe('decideHa: busy database or Redis (automation audit 2026-11-08)', () => {
+  it('adds the copies when the database is busy, whatever the online count', () => {
+    expect(
+      decideHa({ ...quiet, pressure: { db: true, redis: false } }),
+    ).toEqual(['db_multi_az_on', 'redis_replica_up']);
+    expect(wantedHa({ ...quiet, pressure: { db: false, redis: true } })).toBe(
+      'up',
+    );
+  });
+
+  it('never removes the copies while busy, and is inert when off', () => {
+    const busy: HaFacts = {
+      ...quiet,
+      ...full,
+      pressure: { db: true, redis: false },
+    };
+    expect(decideHa(busy)).toEqual([]);
+    expect(decideHa({ ...busy, mode: 'off' })).toEqual([]);
+  });
+
+  it('does not wait 24 h after a removal: an overload beats one flip', () => {
+    expect(
+      decideHa({
+        ...quiet,
+        pressure: { db: true, redis: true },
+        last: {
+          db: { dir: 'down', atMs: NOW - 3600_000 },
+          redis: { dir: 'down', atMs: NOW - 3600_000 },
+        },
+      }),
+    ).toEqual(['db_multi_az_on', 'redis_replica_up']);
   });
 });
 

@@ -273,6 +273,22 @@ variable "create_anomaly_monitor" {
   default     = true
   description = "false when the AWS account already has a service-level Cost Anomaly monitor (one allowed per account)."
 }
+# Automation audit 2026-11-08: generated phone-book pepper (see the stack).
+variable "contacts_pepper_enabled" {
+  type    = bool
+  default = false
+}
+
+# Automation audit 2026-11-08: the stack had this switch, prod never passed
+# it, so partition.*_mode = auto could not be made to work from tfvars.
+# true = Terraform generates the lawbid_partition login (PARTITION_DB_PASSWORD)
+# for the worker and the migrate task. Turned on by itself by the infra
+# pipeline (switch aws.partition_role) when a table nears partition.auto_rows.
+variable "partition_role_enabled" {
+  type    = bool
+  default = false
+}
+
 # Owner 2026-10-24: our own PgBouncer (docs/architecture/DB_POOLER.md,
 # runbook docs/runbooks/DB_POOLER.md). false = direct database connection.
 variable "db_pooler_enabled" {
