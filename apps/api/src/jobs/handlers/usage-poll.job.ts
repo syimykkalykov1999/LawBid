@@ -41,6 +41,17 @@ export interface UsageSnapshot {
   };
 }
 
+/** G3: the last poll is at warn / crit (or a read failed): poll hourly. */
+export function usageNear(snap: UsageSnapshot): boolean {
+  const lv = [
+    snap.cloudflare?.level,
+    snap.bunny?.bandwidthLevel,
+    snap.bunny?.storageLevel,
+  ];
+  if (lv.some((l) => l === 'warn' || l === 'crit')) return true;
+  return snap.cloudflare?.ok === false || snap.bunny?.ok === false;
+}
+
 /**
  * Batch C items 11 and 16 (2026-10-24): `ops.usage-poll`, once a day.
  * Reads month-to-date Cloudflare Realtime (TURN) egress and Bunny traffic /
@@ -77,6 +88,36 @@ export class UsagePollJob {
       .catch(() => undefined);
     await this.spend?.refresh(now, fetchFn).catch(() => undefined);
     await this.pnl?.refresh().catch(() => undefined);
+    return snap;
+  }
+
+  /**
+   * G3 (automation audit 2026-11-08): the Bunny / Cloudflare hard-stops read
+   * this snapshot, and the daily poll made them up to 24 h late. Every hour
+   * (`ops.usage-poll-near`) the two vendor reads run again, but ONLY while
+   * the last snapshot is already at the warning level or above (or a read
+   * failed) — far from the limits nothing is fetched, as before. The money
+   * snapshots (spend, P&L) stay daily.
+   */
+  async runIfNear(
+    now: Date = new Date(),
+    fetchFn?: FetchFn,
+  ): Promise<UsageSnapshot | { skipped: string }> {
+    const raw = await this.redis.get(USAGE_SNAPSHOT_KEY).catch(() => null);
+    let last: UsageSnapshot | null;
+    try {
+      last = raw ? (JSON.parse(raw) as UsageSnapshot) : null;
+    } catch {
+      last = null;
+    }
+    if (!last) return { skipped: 'no daily snapshot yet' };
+    if (!usageNear(last)) return { skipped: 'far from the limits' };
+    const snap: UsageSnapshot = { at: now.toISOString() };
+    snap.cloudflare = await this.cloudflare(now, fetchFn);
+    snap.bunny = await this.bunny(now, fetchFn);
+    await this.redis
+      .set(USAGE_SNAPSHOT_KEY, JSON.stringify(snap), 'EX', SNAPSHOT_TTL_SEC)
+      .catch(() => undefined);
     return snap;
   }
 

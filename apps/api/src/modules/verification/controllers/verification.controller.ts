@@ -40,6 +40,7 @@ import {
   UpdateVerificationRequestDto,
 } from '../dto/verification-requests.dto';
 import {
+  IdentityCheckLinkDto,
   SelfieCaptureTokenDto,
   VerificationHandoffDto,
   VerificationHandoffStatusDto,
@@ -221,6 +222,26 @@ export class VerificationController {
     @Param() params: RequestIdParamDto,
   ): Promise<SelfieCaptureTokenDto> {
     return this.requests.issueSelfieCapture(user.sub, params.id);
+  }
+
+  // flag: none gated by the admin card «Ключи и сервисы → Persona»: without its key the route answers 403 FEATURE_DISABLED and the app keeps the manual upload
+  @Post('requests/:id/identity-check')
+  @ApiOperation({
+    summary:
+      "Owner 2026-11-08: Persona's hosted ID + selfie check for this editable request (only while the Persona card is set up); resumes the open inquiry or creates one",
+  })
+  @ApiEnvelopeResponse(IdentityCheckLinkDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    ...ATTORNEY_ERRORS,
+    403: [E.FORBIDDEN, E.ATTORNEY_SUSPENDED, E.FEATURE_DISABLED],
+    409: [E.VERIFICATION_INVALID_STATUS],
+    503: [E.IDENTITY_PROVIDER_UNAVAILABLE],
+  })
+  startIdentityCheck(
+    @CurrentUser() user: RequestUser,
+    @Param() params: RequestIdParamDto,
+  ): Promise<IdentityCheckLinkDto> {
+    return this.requests.startIdentityCheck(user.sub, params.id);
   }
 
   // flag: none R-146 «continue on your phone»: only offered where the selfie camera cannot run (web / no camera); a code alone grants nothing

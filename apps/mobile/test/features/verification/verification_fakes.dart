@@ -40,6 +40,9 @@ class FakeVerificationBackend
   int submissionsLast30Days;
   int maxSubmissions30Days;
 
+  /// Owner 2026-11-08: what the server says checks the ID + selfie.
+  IdentityProvider identityProvider = IdentityProvider.manual;
+
   /// Scan result the next uploads get.
   ScanState nextScan = ScanState.clean;
 
@@ -78,6 +81,29 @@ class FakeVerificationBackend
   int handoffStatusCalls = 0;
   SelfieHandoffStatus handoffState = SelfieHandoffStatus.pending;
   bool handoffKnown = true;
+
+  /// Owner 2026-11-08: Persona's hosted page; set [identityCheckError] to
+  /// make the server refuse it.
+  int identityChecks = 0;
+  ApiException? identityCheckError;
+
+  @override
+  Future<Uri> startIdentityCheck(String requestId) async {
+    final error = identityCheckError;
+    if (error != null) throw error;
+    identityChecks++;
+    final r = request!;
+    request = VerificationRequest(
+      id: r.id,
+      status: r.status,
+      licenses: r.licenses,
+      documents: r.documents,
+      identityCheckStarted: true,
+    );
+    return Uri.parse(
+      'https://inquiry.withpersona.com/verify?inquiry-id=inq_test$identityChecks',
+    );
+  }
 
   @override
   Future<SelfieHandoff> createHandoff(String requestId) async {
@@ -137,6 +163,7 @@ class FakeVerificationBackend
         submissionsLast30Days: submissionsLast30Days,
         maxSubmissions30Days: maxSubmissions30Days,
         barAttemptsRetryAfterSeconds: lockSeconds,
+        identityProvider: identityProvider,
       );
 
   @override

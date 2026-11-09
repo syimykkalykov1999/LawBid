@@ -263,12 +263,11 @@ class CurrentUser {
   bool get isClient => role == UserRole.client;
   bool get isAttorney => role == UserRole.attorney;
 
-  /// The verified contact a `POST /auth/reauth` code can be sent to —
-  /// phone first, then email (see `AuthService.reauth` in apps/api).
+  /// The verified contact a `POST /auth/reauth` code can be sent to: the
+  /// e-mail only. Owner rule (sms-two-cases): an SMS code goes out only at
+  /// registration and «Забыл пароль» — a step-up is the password / passkey,
+  /// or this e-mail code (the server refuses a phone step-up code).
   ({String channel, String identifier})? get reauthIdentifier {
-    if (phoneVerified && phone != null) {
-      return (channel: 'phone', identifier: phone!);
-    }
     if (emailVerified && email != null) {
       return (channel: 'email', identifier: email!);
     }

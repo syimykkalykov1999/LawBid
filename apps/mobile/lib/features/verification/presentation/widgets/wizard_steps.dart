@@ -21,6 +21,7 @@ class StepActions {
     required this.editLicense,
     required this.selectIdType,
     required this.goTo,
+    this.startIdentityCheck,
   });
 
   final void Function(DocSlot slot, FileOrigin origin) addFile;
@@ -32,6 +33,9 @@ class StepActions {
   final ValueChanged<VerificationLicense> editLicense;
   final ValueChanged<IdDocumentType> selectIdType;
   final ValueChanged<WizardStep> goTo;
+
+  /// Owner 2026-11-08: opens Persona's hosted ID + selfie page.
+  final VoidCallback? startIdentityCheck;
 }
 
 /// Where a file comes from.
@@ -418,6 +422,7 @@ class IdentityStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (state.usesPersona) return _persona();
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final type = state.idType;
@@ -511,6 +516,43 @@ class IdentityStep extends StatelessWidget {
       ],
     );
   }
+}
+
+extension on IdentityStep {
+  /// Owner 2026-11-08: with Persona on, the same step and card open
+  /// Persona's page (document + selfie there); existing texts only.
+  Widget _persona() => StepBody(
+        title: t.t('verification.id.title'),
+        lead: t.t('verification.id.lead'),
+        children: [
+          DocumentSlotCard(
+            t: t,
+            title: t.t('verification.review.id'),
+            subtitle: t.t(
+              state.request.identityCheckStarted
+                  ? 'common.done'
+                  : 'verification.intro.item.id',
+            ),
+            icon: AppIcons.badgeOutlined,
+            documents: const [],
+            tasks: const [],
+            canAdd: true,
+            canRemoveAttached: false,
+            onRemoveAttached: actions.removeDocument,
+            onRetry: actions.retry,
+            onCancel: actions.cancel,
+            actions: [
+              SlotAction(
+                label: t.t('verification.selfie.take'),
+                icon: AppIcons.photoCameraOutlined,
+                onTap: () => actions.startIdentityCheck?.call(),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          PrivacyNote(t: t),
+        ],
+      );
 }
 
 // --- 4. Selfie --------------------------------------------------------------
@@ -709,10 +751,20 @@ class ReviewStep extends StatelessWidget {
             t: t,
             icon: AppIcons.badgeOutlined,
             title: t.t('verification.review.id'),
-            detail: t.t(IdentityStep.typeKey(r.identityType ?? idType)),
-            complete: r.identityComplete,
+            detail: t.t(
+              state.usesPersona
+                  ? (r.identityCheckStarted
+                      ? 'common.done'
+                      : 'verification.review.none')
+                  : IdentityStep.typeKey(r.identityType ?? idType),
+            ),
+            complete: state.usesPersona
+                ? r.identityCheckStarted
+                : r.identityComplete,
             onEdit: () => actions.goTo(WizardStep.identity),
           ),
+        ],
+        if (state.identityRequired && !state.usesPersona) ...[
           const SizedBox(height: AppSpacing.md),
           _SummaryRow(
             t: t,

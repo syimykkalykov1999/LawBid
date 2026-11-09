@@ -31,6 +31,7 @@ import type {
   SubmitVerificationRequestDto,
 } from '../dto/verification-requests.dto';
 import type {
+  IdentityCheckLinkDto,
   SelfieCaptureTokenDto,
   VerificationHandoffDto,
   VerificationHandoffStatusDto,
@@ -59,6 +60,7 @@ import {
   type SelfieCaptureGrant,
 } from './selfie-capture-tokens.service';
 import { VerificationHandoffService } from './verification-handoff.service';
+import { PersonaVerificationService } from './persona-verification.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -116,7 +118,14 @@ export class VerificationRequestsService {
     @Optional() private readonly attempts?: BarAttemptsService,
     // R-146: «continue on your phone» codes for the selfie.
     @Optional() private readonly handoff?: VerificationHandoffService,
+    // Owner 2026-11-08: Persona, only while its admin card is set up.
+    @Optional() private readonly persona?: PersonaVerificationService,
   ) {}
+
+  /** Owner 2026-11-08: `persona` only with the admin card set up and on. */
+  private async identityProvider(): Promise<'manual' | 'persona'> {
+    return (await this.persona?.enabled()) ? 'persona' : 'manual';
+  }
 
   /**
    * ID + selfie: owner 2026-10-28 — every new verification request needs
@@ -214,6 +223,7 @@ export class VerificationRequestsService {
       request: latest ? toDto(latest) : null,
       identityRequired: await this.identityRequired(userId, verificationStatus),
       barDocumentRequired: await this.barDocumentNeeded(latest),
+      identityProvider: await this.identityProvider(),
       barAttemptsRetryAfterSeconds: this.attempts
         ? Math.max(0, await this.attempts.remainingSeconds(userId, ip))
         : 0,
@@ -535,6 +545,27 @@ export class VerificationRequestsService {
     const required = await this.selfieLiveCaptureRequired();
     const issued = await this.captureTokens.issue(userId, requestId);
     return { ...issued, required };
+  }
+
+  /**
+   * Owner 2026-11-08: Persona's hosted ID + selfie flow for this editable
+   * request (403 FEATURE_DISABLED while the Persona card is not set up).
+   */
+  async startIdentityCheck(
+    userId: string,
+    requestId: string,
+  ): Promise<IdentityCheckLinkDto> {
+    await this.requireActiveAttorney(userId);
+    const req = await this.load(this.prisma, userId, requestId);
+    assertEditable(req.status);
+    if (!this.persona) {
+      throw httpError(
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FEATURE_DISABLED,
+        'Automatic identity check is off.',
+      );
+    }
+    return this.persona.start(req, req.provider);
   }
 
   /**
@@ -873,7 +904,9 @@ export class VerificationRequestsService {
     }
     // Checked on every submit (also a re-submit after an info request), so
     // the ID or selfie cannot be removed in between.
-    if (identityRequired) {
+    // Owner 2026-11-08: a Persona inquiry started for this request (Persona
+    // card on) replaces the uploads; Persona's verdict comes by webhook.
+    if (identityRequired && !(await this.personaCovers(req))) {
       const identity = identityCompleteness(req.documents);
       if (identity) missing.push(identity);
       if (!req.documents.some((d) => d.doc_type === 'selfie')) {
@@ -895,6 +928,14 @@ export class VerificationRequestsService {
       }
     }
     return missing;
+  }
+
+  private async personaCovers(req: RequestRow): Promise<boolean> {
+    return (
+      req.provider === 'persona' &&
+      req.provider_ref !== null &&
+      (await this.identityProvider()) === 'persona'
+    );
   }
 
   private async assertSubmissionBudget(
@@ -1067,6 +1108,8 @@ export function toDto(row: RequestRow): VerificationRequestDto {
       fileId: d.file_id,
       createdAt: d.created_at.toISOString(),
     })),
+    identityCheckStarted:
+      row.provider === 'persona' && row.provider_ref !== null,
   };
 }
 
