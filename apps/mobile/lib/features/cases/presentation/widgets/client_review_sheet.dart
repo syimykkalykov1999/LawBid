@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -9,14 +10,16 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/profile/application/review_outbox.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart'
     show ReviewPhoto;
 import 'package:lawbid/features/social/application/social_providers.dart'
-    show socialActionsProvider;
+    show SocialActions, socialActionsProvider;
 
 /// OQ-038: "Review the client" on a case in work — the hired attorney
 /// rates the client (1–5 stars + optional text). Editable; every signed-in
@@ -46,6 +49,7 @@ class ClientReviewAction extends ConsumerWidget {
           onSave: (rating, body, photoIds) => ref
               .read(clientReviewsRepositoryProvider)
               .save(caseId, rating: rating, body: body, photoIds: photoIds),
+          target: (kind: ReviewTargetKind.caseClient, id: caseId),
         );
         if ((saved ?? false) && context.mounted) {
           ref.invalidate(myClientReviewProvider(caseId));
@@ -71,6 +75,9 @@ Future<bool?> showClientReviewSheet(
   String titleKey = 'client.review.title',
   String hintKey = 'client.review.hint',
   List<ReviewSheetPhoto> photos = const [],
+  // Owner 2026-11-08: with a target the review is queued and the sheet
+  // closes at once ([onSave] is then not called).
+  ReviewTarget? target,
 }) =>
     showAppBottomSheet<bool>(
       context: context,
@@ -82,6 +89,7 @@ Future<bool?> showClientReviewSheet(
         photos: photos,
         titleKey: titleKey,
         hintKey: hintKey,
+        target: target,
       ),
     );
 
@@ -93,7 +101,10 @@ class _Sheet extends ConsumerStatefulWidget {
     required this.titleKey,
     required this.hintKey,
     this.photos = const [],
+    this.target,
   });
+
+  final ReviewTarget? target;
 
   final List<ReviewSheetPhoto> photos;
   final String titleKey;
@@ -121,6 +132,9 @@ class _SheetState extends ConsumerState<_Sheet> {
   int _uploading = 0;
   bool _busy = false;
 
+  /// Photos still going up (bytes and their upload).
+  final List<({Uint8List bytes, Future<String> task})> _inflight = [];
+
   /// Owner 2026-10-01 (Google Maps-style): photos; 2026-10-07 (bug 17)
   /// how many and how big — the admin's «Отзывы» limits.
   PlaceUploadLimits get _limits =>
@@ -138,28 +152,45 @@ class _SheetState extends ConsumerState<_Sheet> {
       maxHeight: limits.maxPx,
       limit: room > 1 ? room : null,
     );
+    // Owner 2026-11-08: every picked photo starts at once (the app-wide
+    // limit spaces them), so «Сохранить» can take them all along at any
+    // moment — the queued review waits for them, not the sheet.
+    final all = <Uint8List>[];
     for (final x in picked.take(room)) {
-      final bytes = await x.readAsBytes();
+      all.add(await x.readAsBytes());
+    }
+    if (!mounted) return;
+    final actions = ref.read(socialActionsProvider);
+    await Future.wait([for (final bytes in all) _upload(actions, bytes, t)]);
+  }
+
+  Future<void> _upload(
+    SocialActions actions,
+    Uint8List bytes,
+    Translator t,
+  ) async {
+    final task = actions.uploadPhoto(
+      bytes,
+      reviewPhoto: true,
+      maxBytes: _limits.fileBytes,
+      allowedMimes: _limits.photoMimes,
+    );
+    final entry = (bytes: bytes, task: task);
+    setState(() {
+      _uploading++;
+      _local.add(bytes);
+      _inflight.add(entry);
+    });
+    try {
+      final id = await task;
       if (!mounted) return;
-      setState(() {
-        _uploading++;
-        _local.add(bytes);
-      });
-      try {
-        final id = await ref.read(socialActionsProvider).uploadPhoto(
-              bytes,
-              reviewPhoto: true,
-              maxBytes: _limits.fileBytes,
-              allowedMimes: _limits.photoMimes,
-            );
-        if (!mounted) return;
-        setState(() => _photos.add((fileId: id, url: null)));
-      } on Object catch (e) {
-        if (mounted) showAppSnackBar(context, errorText(t, e));
-        _local.remove(bytes);
-      } finally {
-        if (mounted) setState(() => _uploading--);
-      }
+      setState(() => _photos.add((fileId: id, url: null)));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+      _local.remove(bytes);
+    } finally {
+      _inflight.remove(entry);
+      if (mounted) setState(() => _uploading--);
     }
   }
 
@@ -171,6 +202,26 @@ class _SheetState extends ConsumerState<_Sheet> {
 
   Future<void> _save() async {
     final t = ref.read(translatorProvider);
+    // Owner 2026-11-08 (instant): the review goes through the app's queue;
+    // the sheet closes at once, photos still uploading are taken along.
+    final target = widget.target;
+    if (target != null) {
+      unawaited(
+        ref.read(reviewOutboxProvider).submit(
+          target,
+          rating: _rating,
+          body: _text.text,
+          photos: [
+            for (final p in _photos)
+              (fileId: p.fileId, bytes: null, upload: null),
+            for (final f in _inflight)
+              (fileId: null, bytes: f.bytes, upload: f.task),
+          ],
+        ),
+      );
+      Navigator.of(context).pop(true);
+      return;
+    }
     setState(() => _busy = true);
     try {
       await widget.onSave(

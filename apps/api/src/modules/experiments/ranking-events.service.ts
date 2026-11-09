@@ -1,8 +1,18 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  Optional,
+} from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { randomBytes } from 'node:crypto';
+import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { inImpressionSample } from './experiment-math';
+import { type Assignment, ExperimentsService } from './experiments.service';
 
 /** What can be recorded. Impressions and clicks are sampled by user. */
 export const RANKING_EVENT_KINDS = [
@@ -49,6 +59,34 @@ const FLUSH_ROWS = 200;
 /** Beyond this the oldest waiting rows are dropped: the log never hurts the app. */
 const MAX_BUFFER = 5000;
 const SETTINGS_TTL_MS = 15_000;
+/** Where a person saw each item last (for the click's place): this long. */
+const POSITIONS_TTL_SEC = 30 * 60;
+const MAX_LIST = 100;
+
+/** One ranked page as it was served. */
+export interface ServedList {
+  userId: string | null | undefined;
+  surface: string;
+  /** In the order shown. */
+  itemIds: readonly string[];
+  /** How many items came before this page (0 = first page). */
+  offset?: number;
+  assignment?: Assignment | null;
+  formulaVersion?: string | null;
+  /** The 0..1 features the formula saw per item (offline replay). */
+  features?: ReadonlyMap<string, Record<string, number>> | null;
+}
+
+interface Seen {
+  s: string;
+  l: string;
+  p: number;
+  f: string | null;
+  e: string | null;
+  v: string | null;
+}
+
+export const positionsKey = (userId: string): string => `rk:pos:${userId}`;
 
 /**
  * The ranking events log (owner 2026-10-25). `logImpression` / `logAction`
@@ -75,7 +113,150 @@ export class RankingEventsService implements OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
+    @Optional() private readonly experiments?: ExperimentsService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
+
+  /** Re-reads the mode next time (after an admin start / stop on this pod). */
+  invalidate(): void {
+    this.cfg = null;
+  }
+
+  /** Whether impressions / clicks of this person are kept right now. */
+  async keepsImpressionsOf(
+    userId: string | null | undefined,
+  ): Promise<boolean> {
+    try {
+      const cfg = await this.config();
+      if (cfg.mode === 'off') return false;
+      if (cfg.mode === 'auto' && !cfg.running) return false;
+      return !userId || inImpressionSample(userId, cfg.sample);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * A ranked page was served: one impression per item at its 1-based place,
+   * tied by one list id, tagged with the viewer's variant. The places are
+   * remembered (Redis, 30 min) so the person's next open of an item counts
+   * as a click on that place. Never throws, never waits for the database.
+   */
+  async logList(list: ServedList): Promise<void> {
+    try {
+      const userId = list.userId ?? null;
+      if (!userId || list.itemIds.length === 0) return;
+      if (!(await this.keepsImpressionsOf(userId))) return;
+      const listId = randomBytes(9).toString('base64url');
+      const offset = Math.max(0, list.offset ?? 0);
+      const a = list.assignment ?? null;
+      const seen: string[] = [];
+      for (const [i, itemId] of list.itemIds.slice(0, MAX_LIST).entries()) {
+        const position = offset + i + 1;
+        await this.add('impression', {
+          userId,
+          surface: list.surface,
+          itemId,
+          listId,
+          position,
+          formulaVersion: list.formulaVersion ?? null,
+          experimentKey: a?.experimentKey ?? null,
+          variant: a?.variant ?? null,
+          features: list.features?.get(itemId) ?? null,
+        });
+        const v: Seen = {
+          s: list.surface,
+          l: listId,
+          p: position,
+          f: list.formulaVersion ?? null,
+          e: a?.experimentKey ?? null,
+          v: a?.variant ?? null,
+        };
+        seen.push(itemId, JSON.stringify(v));
+      }
+      if (this.redis && seen.length > 0) {
+        const key = positionsKey(userId);
+        await this.redis
+          .multi()
+          .hset(key, ...seen)
+          .expire(key, POSITIONS_TTL_SEC)
+          .exec();
+      }
+    } catch (err) {
+      this.log.warn(`ranking list skipped: ${String(err)}`);
+    }
+  }
+
+  /**
+   * The person opened [itemIds] (a case, a post, a profile, a search
+   * result). Only an item they were served in a ranked list counts, as a
+   * click on that list's place; once per served place.
+   */
+  async logClicks(
+    userId: string | null | undefined,
+    itemIds: readonly string[],
+  ): Promise<void> {
+    try {
+      if (!userId || !this.redis || itemIds.length === 0) return;
+      if (!(await this.keepsImpressionsOf(userId))) return;
+      const ids = [...new Set(itemIds)].slice(0, MAX_LIST);
+      const key = positionsKey(userId);
+      const raw = await this.redis.hmget(key, ...ids);
+      const hit: string[] = [];
+      for (const [i, r] of raw.entries()) {
+        if (!r) continue;
+        const v = JSON.parse(r) as Seen;
+        hit.push(ids[i]);
+        await this.add('click', {
+          userId,
+          surface: v.s,
+          itemId: ids[i],
+          listId: v.l,
+          position: v.p,
+          formulaVersion: v.f,
+          experimentKey: v.e,
+          variant: v.v,
+        });
+      }
+      if (hit.length > 0) await this.redis.hdel(key, ...hit);
+    } catch (err) {
+      this.log.warn(`ranking click skipped: ${String(err)}`);
+    }
+  }
+
+  /**
+   * An outcome (bid, accept, report, search, case_posted...): one row per
+   * running experiment the unit is in (the unit's variant, no new
+   * exposure), or one untagged row when it is in none.
+   */
+  async logUserAction(
+    kind: Exclude<RankingEventKind, 'impression' | 'click'>,
+    e: Omit<RankingEventInput, 'experimentKey' | 'variant'> & {
+      /** Whose variant tags the row; default the user (a case id for case tests). */
+      unitId?: string | null;
+    },
+  ): Promise<void> {
+    try {
+      const unit = e.unitId ?? e.userId;
+      const tags =
+        unit && this.experiments
+          ? await this.experiments.assignAll(unit, { expose: false })
+          : [];
+      if (tags.length === 0) {
+        await this.add(kind, e);
+        return;
+      }
+      for (const t of tags) {
+        await this.add(kind, {
+          ...e,
+          experimentKey: t.experimentKey,
+          variant: t.variant,
+        });
+      }
+    } catch (err) {
+      this.log.warn(`ranking action skipped: ${String(err)}`);
+    }
+  }
 
   async logImpression(e: RankingEventInput): Promise<void> {
     await this.add('impression', e);
