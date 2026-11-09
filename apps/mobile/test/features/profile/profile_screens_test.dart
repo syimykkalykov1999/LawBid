@@ -1,4 +1,5 @@
 // ignore_for_file: lines_longer_than_80_chars
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -928,6 +929,67 @@ void main() {
 
       expect(repo.lastCancellation?.isCancelled, isTrue);
       expect(repo.steps, ['presign:image/jpeg:8', 'upload']);
+    });
+
+    test(
+        'R2 2026-11-08: leaving the screen after the upload still attaches '
+        'the photo («Профиль сохранён», old avatar stayed)', () async {
+      const newUrl = 'https://media.test/avatar/new';
+      final hold = Completer<ScanOutcome>();
+      final repo = FakeAvatarRepo(me: attorneyMe(avatarUrl: newUrl))
+        ..holdConfirm = hold;
+      final c = ProviderContainer(
+        overrides: [
+          avatarUploadRepositoryProvider.overrideWithValue(repo),
+          currentUserControllerProvider
+              .overrideWith(() => FixedController(attorneyMe())),
+        ],
+      );
+      addTearDown(c.dispose);
+      final screen = c.listen(currentUserControllerProvider, (_, __) {});
+      addTearDown(screen.close);
+      final sub = c.listen(avatarUploadControllerProvider, (_, __) {});
+      final run = c.read(avatarUploadControllerProvider.notifier).start(jpeg);
+      await pumpEventQueue();
+      expect(
+        c.read(avatarUploadControllerProvider).stage,
+        AvatarUploadStage.checking,
+      );
+
+      sub.close(); // «Сохранить» popped the editor while the scan ran
+      await pumpEventQueue();
+      hold.complete(ScanOutcome.clean);
+      await run;
+
+      expect(repo.steps.last, 'attach:f1');
+      expect(c.read(currentUserControllerProvider).user?.avatarUrl, newUrl);
+    });
+
+    test('settled waits for the photo on its way, at once when idle', () async {
+      final hold = Completer<ScanOutcome>();
+      final repo = FakeAvatarRepo(me: attorneyMe())..holdConfirm = hold;
+      final c = ProviderContainer(
+        overrides: [
+          avatarUploadRepositoryProvider.overrideWithValue(repo),
+          currentUserControllerProvider
+              .overrideWith(() => FixedController(attorneyMe())),
+        ],
+      );
+      addTearDown(c.dispose);
+      final sub = c.listen(avatarUploadControllerProvider, (_, __) {});
+      addTearDown(sub.close);
+      final notifier = c.read(avatarUploadControllerProvider.notifier);
+      await notifier.settled; // idle: completes at once
+      unawaited(notifier.start(jpeg));
+      await pumpEventQueue();
+      var settled = false;
+      unawaited(notifier.settled.then((_) => settled = true));
+      await pumpEventQueue();
+      expect(settled, isFalse);
+      hold.complete(ScanOutcome.clean);
+      await pumpEventQueue();
+      expect(settled, isTrue);
+      expect(repo.steps.last, 'attach:f1');
     });
 
     test('rejects non-images before any network call', () async {
