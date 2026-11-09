@@ -23,6 +23,8 @@ function make(
     quotaMb?: number | null;
     /** The public-media switch is on: `media` resolves to the R2 bucket. */
     r2?: boolean;
+    /** Owner 2026-11-08: R2 selected but not ready (health check fails). */
+    r2Down?: boolean;
   } = {},
 ) {
   const file =
@@ -77,6 +79,11 @@ function make(
         ),
       ),
       awsBucket: jest.fn((k: string) => `lawbid-${k}`),
+      publicStoreState: jest.fn(() =>
+        Promise.resolve(
+          overrides.r2Down ? 'r2_unavailable' : overrides.r2 ? 'r2' : 'aws',
+        ),
+      ),
       ready: jest.fn().mockResolvedValue(true),
       isPublicStoreBucket: jest.fn((b: string) => b === 'lawbid-r2'),
       publicObjectUrl: jest.fn((b: string, k: string) =>
@@ -274,13 +281,70 @@ describe('FilesService', () => {
       expect(JSON.parse(value)).toMatchObject({ bucket: 'lawbid-r2' });
     });
 
-    it('switch on but an older app (no PUT): stays on AWS with POST', async () => {
+    it('switch on but an older app (no PUT): asked to update, never AWS', async () => {
       const { service, deps } = make({ r2: true });
-      await service.presign('u1', photo);
-      expect(deps.storage.presignPost).toHaveBeenCalledWith(
-        expect.objectContaining({ bucket: 'lawbid-media' }),
-      );
+      await expect(service.presign('u1', photo)).rejects.toMatchObject({
+        status: 426,
+      });
+      expect(deps.storage.presignPost).not.toHaveBeenCalled();
       expect(deps.storage.presignPut).not.toHaveBeenCalled();
+    });
+
+    // Owner 2026-11-08: public data never goes to AWS once the switch is r2.
+    it.each(['avatar', 'post_image', 'review_photo', 'sticker'] as const)(
+      'R2 selected but down: %s waits (503, retry later) and nothing goes to AWS',
+      async (purpose) => {
+        const { service, deps } = make({ r2Down: true });
+        const mime = purpose === 'sticker' ? 'image/png' : 'image/jpeg';
+        await expect(
+          service.presign('u1', {
+            purpose,
+            mime,
+            sizeBytes: 500,
+            sha256: SHA,
+            supportsPut: true,
+          }),
+        ).rejects.toMatchObject({
+          status: 503,
+          response: {
+            code: 'FILE_STORAGE_UNAVAILABLE',
+            details: { retryAfterSeconds: 30 },
+          },
+        });
+        expect(deps.storage.presignPost).not.toHaveBeenCalled();
+        expect(deps.storage.presignPut).not.toHaveBeenCalled();
+        expect(deps.redis.set).not.toHaveBeenCalled();
+        expect(deps.logger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ alert: 'r2_public_upload_waiting' }),
+          expect.any(String),
+        );
+      },
+    );
+
+    it('R2 back: the same upload goes to R2', async () => {
+      const down = make({ r2Down: true });
+      await expect(
+        down.service.presign('u1', { ...photo, supportsPut: true }),
+      ).rejects.toMatchObject({ status: 503 });
+      const { service, deps } = make({ r2: true });
+      await service.presign('u1', { ...photo, supportsPut: true });
+      expect(deps.storage.presignPut).toHaveBeenCalledWith(
+        expect.objectContaining({ bucket: 'lawbid-r2' }),
+      );
+    });
+
+    it('R2 down: private files still go to AWS as before', async () => {
+      const { service, deps } = make({ r2Down: true });
+      await service.presign('u1', {
+        purpose: 'chat_attachment',
+        mime: 'image/jpeg',
+        sizeBytes: 500,
+        sha256: SHA,
+        supportsPut: true,
+      });
+      expect(deps.storage.presignPost).toHaveBeenCalledWith(
+        expect.objectContaining({ bucket: 'lawbid-documents' }),
+      );
     });
 
     it.each([

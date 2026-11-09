@@ -20,6 +20,7 @@ import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/proactive_refresh_provider.dart';
 import 'package:lawbid/core/startup/startup_idle_queue.dart';
 import 'package:lawbid/features/auth/presentation/widgets/passkey_nudge_sheet.dart';
+import 'package:lawbid/features/cases/workspace/case_files_outbox.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
@@ -30,8 +31,10 @@ import 'package:lawbid/features/demo/presentation/demo_banner.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/profile/application/review_outbox.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
+import 'package:lawbid/features/social/application/pending_posts.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Shell scaffold for the 4 `StatefulShellRoute.indexedStack` branches
@@ -116,6 +119,16 @@ class _MainShellState extends ConsumerState<MainShell> {
       // hashing no longer share the frames of the first feed paint.
       StartupIdleQueue.enqueue(() {
         if (mounted) ref.read(contactsBackgroundSyncProvider).start();
+      });
+      // Owner 2026-11-08 (instant publish): posts, reviews and case files
+      // left in the queue by the last run go on at start, not only when
+      // their screen opens.
+      StartupIdleQueue.enqueue(() {
+        if (!mounted) return;
+        ref
+          ..read(pendingPostsProvider)
+          ..read(reviewOutboxProvider)
+          ..read(caseFilesOutboxProvider);
       });
       // Owner 2026-10-24 (R-140: every role): users without a passkey are
       // offered Face ID / fingerprint once (snoozable).

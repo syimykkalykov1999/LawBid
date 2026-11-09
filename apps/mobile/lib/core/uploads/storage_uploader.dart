@@ -282,6 +282,44 @@ class StorageUploader {
     required String sha256,
     bool acceptsExisting = false,
   }) async {
+    // Owner 2026-11-08: public photos never go to AWS once the switch is R2;
+    // while R2 is not ready the server answers 503 FILE_STORAGE_UNAVAILABLE
+    // with a wait. The photo waits here quietly a few times (the queue keeps
+    // retrying after that) instead of failing at once.
+    for (var attempt = 0;; attempt++) {
+      try {
+        return await _presignOnce(
+          purpose: purpose,
+          mime: mime,
+          sizeBytes: sizeBytes,
+          sha256: sha256,
+          acceptsExisting: acceptsExisting,
+        );
+      } on ApiException catch (e) {
+        if (e.code != ApiErrorCodes.fileStorageUnavailable ||
+            attempt >= storageBusyRetries) {
+          rethrow;
+        }
+        final s = (e.details?['retryAfterSeconds'] as num?)?.toInt() ?? 30;
+        await Future<void>.delayed(storageBusyWait(s));
+      }
+    }
+  }
+
+  /// Quiet waits for a busy photo storage before the error is shown.
+  static int storageBusyRetries = 3;
+
+  /// How long one wait lasts (at most 30 s); overridable in tests.
+  static Duration Function(int seconds) storageBusyWait =
+      (s) => Duration(seconds: s.clamp(1, 30));
+
+  Future<StorageTarget> _presignOnce({
+    required api.FilePurpose purpose,
+    required String mime,
+    required int sizeBytes,
+    required String sha256,
+    required bool acceptsExisting,
+  }) async {
     final d = (await guardApiCall(
       () => _files.presign(
         body: api.PresignFileDto(

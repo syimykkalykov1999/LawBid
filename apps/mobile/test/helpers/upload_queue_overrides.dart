@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/connectivity/connectivity_status.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
@@ -48,6 +50,12 @@ class FakeStorageUploader extends StorageUploader {
   }
 }
 
+/// Online, without the connectivity plugin (widget tests have no channel).
+class _Online extends ConnectivityStatusNotifier {
+  @override
+  ConnectivityStatus build() => const ConnectivityStatus.online();
+}
+
 /// The queue for a test: a Drift database in RAM, files in a temp folder,
 /// [owner] as the signed-in account and [uploader] instead of the network.
 List<Override> uploadQueueOverrides({
@@ -55,6 +63,9 @@ List<Override> uploadQueueOverrides({
   FakeStorageUploader? uploader,
   UploadQueueDatabase? db,
   UploadFiles? files,
+  // Widget tests without the connectivity plugin; a test that simulates
+  // the network itself leaves this off.
+  bool fixedOnline = false,
 }) =>
     [
       uploadQueueDatabaseProvider.overrideWith((ref) {
@@ -69,4 +80,5 @@ List<Override> uploadQueueOverrides({
       uploadQueueOwnerProvider.overrideWithValue(owner),
       uploadQueueUploaderProvider
           .overrideWithValue(uploader ?? FakeStorageUploader()),
+      if (fixedOnline) connectivityStatusProvider.overrideWith(_Online.new),
     ];
