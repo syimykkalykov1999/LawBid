@@ -3,7 +3,7 @@ import 'dart:io' show File, Platform;
 
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:lawbid/core/diagnostics/sentry_reporter.dart';
 import 'package:lawbid/core/persistence/drift_memory_stub.dart'
     if (dart.library.js_interop) 'package:lawbid/core/persistence/drift_memory_web.dart';
@@ -108,8 +108,9 @@ QueryExecutor _nativeDatabase(String name, DriftRecovery recovery) =>
 QueryExecutor appDriftDatabase(
   String name, {
   DriftRecovery recovery = DriftRecovery.rebuildCache,
+  bool web = kIsWeb,
 }) {
-  if (kIsWeb) {
+  if (web) {
     return _FallbackExecutor(
       driftDatabase(name: name, web: appDriftWebOptions),
       openMemoryDatabase,
@@ -133,21 +134,28 @@ QueryExecutor appDriftDatabase(
 bool get isFlutterTest =>
     !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
 
-/// Owner 2026-10-22 (client economy plan §5): a cache database. On the web
-/// it lives only in the tab's memory (a shared or private computer keeps
-/// nothing of the account on disk); on phones it is a file; when that file
-/// cannot be opened or migrated (S15-5) it is deleted and created again, and
-/// should that fail too (no documents directory, a full disk) the cache works
-/// in memory for this process.
-QueryExecutor appDriftCacheDatabase(String name) {
-  if (!kIsWeb) return appDriftDatabase(name);
-  return LazyDatabase(() async {
-    final memory = await openProcessMemoryDatabase(
-      appDriftWebOptions.sqlite3Wasm,
-    );
-    return memory ?? appDriftDatabase(name);
-  });
-}
+/// Owner 2026-10-22 (client economy plan §5): a cache database. On phones it
+/// is a file; when that file cannot be opened or migrated (S15-5) it is
+/// deleted and created again, and should that fail too (no documents
+/// directory, a full disk) the cache works in memory for this process.
+///
+/// Owner 2026-11-08 (speed everywhere, SPEED_MATRIX §3 №6): on the web it is
+/// kept in the browser's storage too (sqlite3 wasm + OPFS / IndexedDB through
+/// drift's worker — the same opener as the social and the public-reference
+/// databases), so a reload or a new tab shows the lists and the chats from
+/// the copy instead of asking the server for everything again. Until then it
+/// lived only in the tab's memory. A private window or blocked site data
+/// falls back to the tab's memory as before ([_FallbackExecutor]); the
+/// account's rows are wiped on sign-out (`CacheMaintenance.clearAccountData`),
+/// as on the phone. [web] exists for tests (the real build passes `kIsWeb`).
+QueryExecutor appDriftCacheDatabase(String name, {bool web = kIsWeb}) =>
+    appDriftDatabase(name, web: web);
+
+/// Whether [executor] is the browser-storage opener of [appDriftDatabase]
+/// (with the in-memory fallback), as opposed to a tab-only database.
+@visibleForTesting
+bool isBrowserStorageExecutor(QueryExecutor executor) =>
+    executor is _FallbackExecutor;
 
 class _FallbackExecutor extends QueryExecutor {
   _FallbackExecutor(this._current, this._fallback);

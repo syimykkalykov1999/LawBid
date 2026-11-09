@@ -9,7 +9,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
-    show openCaseDocument;
+    show openKeptDocument;
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show docLook, fileSizeLabel;
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
@@ -427,7 +427,16 @@ class _TemplateSheetState extends ConsumerState<TemplateSheet> {
         final d = await ref
             .read(templatesRepositoryProvider)
             .download(widget.template.id);
-        await openCaseDocument(d.url);
+        // Owner 2026-11-08: kept on the phone after the first download,
+        // opened from the disk next time (the signed link is fresh each
+        // time; the file is named by the template's id and size, so a
+        // template replaced in the admin is downloaded again).
+        final t = widget.template;
+        await openKeptDocument(
+          fileId: 'template-${t.id}-${t.sizeBytes}',
+          url: d.url,
+          mime: d.mime,
+        );
       });
 
   Future<void> _share(Rect? origin) => _run('share', () async {

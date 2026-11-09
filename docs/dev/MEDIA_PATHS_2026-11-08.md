@@ -44,8 +44,9 @@ State of branch `claude/media-speed-gaps` (PR #845, includes #841). Paths are in
 | Pictures (feed, chats, avatars) | two disk caches keyed by the file, not the signed link (`core/media/app_image_cache.dart`, `core/media/stable_network_image.dart`); on web the browser cache + immutable/ETag | — | OK |
 | Videos (reels, chat) | chunk cache through the local proxy on the phone (`core/media/video_cache/`); off on web (`video_cache.dart:153`), the browser streams | Range requests | OK |
 | Case documents | `CaseFileCache` (`cases/workspace/file_actions.dart`) | resumable, parallel pieces with `downloads_parallel` (`core/files/resumable_download.dart`) | OK |
-| Chat documents | not checked in this pass | not checked | to check |
-| Voice notes | storage client, cached (`chat/application/voice_player.dart`) | — | OK |
+| Chat documents (bubble) | `CaseFileCache.openKept` (PR #856, `chat/presentation/chat_album.dart`) | resumable, pieces | in #856 |
+| Chat «Files» list, post documents, templates | `openKeptDocument` → `CaseFileCache.openKept` (`cases/presentation/widgets/case_photos.dart`); the browser opens the link | resumable, parallel pieces | OK (claude/speed-gaps-app) |
+| Voice notes | kept on the phone by message id (`chat/data/voice_files.dart` `downloadVoiceNote`) | resumable through `ResumableDownload` (`Range: bytes=N-` after a cut) | OK (claude/speed-gaps-app) |
 
 ## Waiting for the owner
 1. **Instant publish for posts, reviews and case files** (see the comparison in the #845 report). Recommendation: reuse our own `UploadQueue`.
