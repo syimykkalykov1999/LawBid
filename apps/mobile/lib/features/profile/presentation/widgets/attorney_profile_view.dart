@@ -26,6 +26,7 @@ import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/profile/application/review_outbox.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_quiet_button.dart';
@@ -197,6 +198,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       onSave: (rating, body, photoIds) => ref
           .read(reviewsRepositoryProvider)
           .saveMine(p.id, rating: rating, body: body, photoIds: photoIds),
+      target: (kind: ReviewTargetKind.attorney, id: p.id),
     );
     if ((saved ?? false) && mounted) {
       _refreshReviews();

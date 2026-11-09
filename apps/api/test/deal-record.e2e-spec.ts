@@ -33,6 +33,10 @@ class FakeS3 {
   resolveBucket(kind: string): Promise<string> {
     return Promise.resolve(this.bucket(kind));
   }
+  // Owner 2026-11-08: where new public media may go (the switch is off here).
+  publicStoreState(): Promise<'aws'> {
+    return Promise.resolve('aws');
+  }
   // The real service answers these for the R2 public-store switch (off here).
   isPublicStoreBucket(): boolean {
     return false;
