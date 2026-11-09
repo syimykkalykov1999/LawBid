@@ -750,10 +750,95 @@ jobs:
 
   # One stable required check for the ruleset / merge queue.
 
+  perf-user:
+    # Owner 2026-11-08: as people and data grow, the app and the web must not
+    # slow down. The hot user-facing endpoints (feed, chats, messages, groups,
+    # notifications, search, cases, bids, contacts, calls, uploads) on a seeded
+    # database (100 000 people, ~5 M rows), with every plan EXPLAINed at 10 M
+    # and 100 M people (statistics inflated, rolled back). Fails on p95 > 300 ms,
+    # a sequential scan of a big table, a plan that touches a big part of a
+    # table, or N+1 (test/perf-user.e2e-spec.ts, docs/perf/USER_API_PERF_GUARD_2026-11-08.md).
+    name: API perf guard (user endpoints at 10M/100M rows)
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: lawbid
+          POSTGRES_DB: lawbid_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U root -d lawbid_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
+        ports:
+          - 6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Point the job at its service containers (random host ports)
+        env:
+          PG_PORT: ${{ job.services.postgres.ports['5432'] }}
+          REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
+        run: scripts/ci/service-env.sh
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.12.1"
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
+      - name: Restore the npm cache (self-hosted, read-only)
+        uses: ./.github/actions/npm-cache-restore
+
+      - name: Install dependencies (root workspace, hoisted)
+        run: npm ci
+
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: Migrate a clean database
+        working-directory: apps/api
+        run: npx prisma migrate deploy && node prisma/run-concurrent.mjs
+
+      - name: psql (seed generators)
+        run: command -v psql || (sudo apt-get update -q && sudo apt-get install -yq postgresql-client)
+
+      - name: Seed 100 000 people (repo generators, deterministic)
+        run: apps/api/scripts/perf-user-seed.sh "$DATABASE_URL"
+
+      - name: Hot endpoints - p95, plans at 10M/100M rows, N+1
+        working-directory: apps/api
+        env:
+          PERF_USER: "1"
+          E2E_DATABASE_URL: ${{ env.DATABASE_URL }}
+          PERF_OUT: ${{ runner.temp }}/perf-user.json
+        run: npx jest --config test/jest-perf-user.json --forceExit
+
+      - name: Upload the perf result
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: perf-user
+          path: ${{ runner.temp }}/perf-user.json
+          if-no-files-found: ignore
+
   api-ci:
     name: API CI
     if: ${{ always() }}
-    needs: [static, e2e, two-db, n1]
+    needs: [static, e2e, two-db, n1, perf-user]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
