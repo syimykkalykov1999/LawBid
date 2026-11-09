@@ -55,7 +55,20 @@ export interface HaFacts {
   } | null;
   /** The last step taken per resource (direction and time). */
   last: Partial<Record<'db' | 'redis', { dir: Dir; atMs: number } | undefined>>;
+  /**
+   * Automation audit 2026-11-08: the database / Redis is busy right now
+   * (CPU or memory over the size autoscaler's line for 30 minutes). The size
+   * autoscalers refuse to resize without the copies (not_multi_az /
+   * no_failover), so a busy resource without copies was stuck at its size
+   * (prod 08.11). Busy = add the copies first, whatever the online count.
+   */
+  pressure?: { db: boolean; redis: boolean };
 }
+
+/** Line and window of the «busy» signal (the size autoscaler's own up line). */
+export const HA_PRESSURE_PCT = 70;
+export const HA_PRESSURE_MEM_PCT = 80;
+export const HA_PRESSURE_MINUTES = 30;
 
 /** Hours in a row the load must stay above the threshold to add copies. */
 export const HA_HOURS = 3;
@@ -68,6 +81,7 @@ const MIN_DATA = 0.9;
 export function wantedHa(f: HaFacts): Dir | null {
   if (f.mode === 'off') return null;
   if (f.mode === 'on') return 'up';
+  if (f.pressure?.db || f.pressure?.redis) return 'up';
   if (f.threshold <= 0) return null;
   const last = f.online.slice(-HA_HOURS);
   if (
@@ -109,8 +123,13 @@ export function decideHa(f: HaFacts): HaAction[] {
   const out: HaAction[] = [];
   const db = f.db;
   const dbWant = load;
+  // A busy resource gets its copies at once, also within 24 h of a removal:
+  // an overload (the size autoscaler stuck without copies) costs more than
+  // one flip (about $1 a day).
+  const busy = !!(f.pressure?.db || f.pressure?.redis);
   const free = (r: 'db' | 'redis', want: Dir): boolean => {
     const l = f.last[r];
+    if (want === 'up' && busy) return true;
     return !l || l.dir === want || f.nowMs - l.atMs >= HA_FLIP_MS;
   };
   if (dbWant && db && db.available && !db.pending && free('db', dbWant)) {
@@ -236,12 +255,14 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
         return fb;
       }
     };
-    const [online, db, redis] = await Promise.all([
+    const [online, db, redis, dbBusy, redisBusy] = await Promise.all([
       soft('online users', [] as (number | null)[], () =>
         this.onlineByHour(days * 24, nowMs),
       ),
       soft('database', null as HaFacts['db'], () => this.dbFacts()),
       soft('redis', null as HaFacts['redis'], () => this.redisFacts()),
+      soft('database load', false, () => this.dbBusy(nowMs)),
+      soft('redis load', false, () => this.redisBusy(nowMs)),
     ]);
     const facts: HaFacts = {
       mode: mode === 'on' ? 'on' : 'auto',
@@ -250,6 +271,7 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       nowMs,
       db,
       redis,
+      pressure: { db: dbBusy, redis: redisBusy },
       last: {
         db: await this.lastStep('db'),
         redis: await this.lastStep('redis'),
@@ -268,7 +290,9 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
             LAST_TTL_S,
           )
           .catch(() => undefined);
-        this.log.warn(`ha-auto: ${a} (mode ${mode}, threshold ${threshold})`);
+        this.log.warn(
+          `ha-auto: ${a} (mode ${mode}, threshold ${threshold}, busy db ${dbBusy} redis ${redisBusy})`,
+        );
       } catch (e) {
         this.log.error(`${a} failed: ${(e as Error).message}`);
       }
@@ -309,6 +333,69 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       if (i >= 0 && i < hours) out[i] = (d.Sum ?? 0) / 60;
     }
     return out;
+  }
+
+  /** Every 5-minute point of the last 30 minutes at or over [pct]; a
+   * missing point means «not busy» (never adds copies on no data). */
+  private async sustained(
+    namespace: string,
+    metric: string,
+    dims: { Name: string; Value: string }[],
+    pct: number,
+    nowMs: number,
+  ): Promise<boolean> {
+    const r = await this.cwClient().send(
+      new GetMetricStatisticsCommand({
+        Namespace: namespace,
+        MetricName: metric,
+        Dimensions: dims,
+        StartTime: new Date(nowMs - HA_PRESSURE_MINUTES * 60_000),
+        EndTime: new Date(nowMs),
+        Period: 300,
+        Statistics: ['Average'],
+      }),
+    );
+    const pts = (r.Datapoints ?? []).map((d) => d.Average ?? 0);
+    return (
+      pts.length >= Math.floor(HA_PRESSURE_MINUTES / 5) - 1 &&
+      pts.every((v) => v >= pct)
+    );
+  }
+
+  private async dbBusy(nowMs: number): Promise<boolean> {
+    const id = this.env('OPS_DB_INSTANCE');
+    if (!id) return false;
+    return this.sustained(
+      'AWS/RDS',
+      'CPUUtilization',
+      [{ Name: 'DBInstanceIdentifier', Value: id }],
+      HA_PRESSURE_PCT,
+      nowMs,
+    );
+  }
+
+  private async redisBusy(nowMs: number): Promise<boolean> {
+    const id = this.env('OPS_REDIS_GROUP');
+    if (!id) return false;
+    // A one-node group's node is <group>-001.
+    const dims = [{ Name: 'CacheClusterId', Value: `${id}-001` }];
+    const [cpu, mem] = await Promise.all([
+      this.sustained(
+        'AWS/ElastiCache',
+        'EngineCPUUtilization',
+        dims,
+        HA_PRESSURE_PCT,
+        nowMs,
+      ),
+      this.sustained(
+        'AWS/ElastiCache',
+        'DatabaseMemoryUsagePercentage',
+        dims,
+        HA_PRESSURE_MEM_PCT,
+        nowMs,
+      ),
+    ]);
+    return cpu || mem;
   }
 
   private cwClient(): CloudWatchClient {

@@ -27,6 +27,7 @@ import {
   type InfraSuggestion,
   type SuggestionSignals,
 } from './infra-change.logic';
+import { SYSTEM_ACTOR_ID, autoApplyOk } from './infra-auto.logic';
 import { InfraGithubClient, type WorkflowCaller } from './infra-github.client';
 
 export class InfraRequestError extends Error {
@@ -220,8 +221,13 @@ export class InfraChangeService {
     itemId: string,
     to: string,
     rollbackOf: string | null = null,
+    opts: { auto?: boolean } = {},
   ): Promise<InfraRequestView> {
     await this.sweep();
+    // Automation audit 2026-11-08: an automatic request (infra-auto.service)
+    // is made by the system, not an admin, and is real (owner: «Авто» must
+    // act; infra.dry_run guards the admin buttons only).
+    const auto = opts.auto === true && adminId === SYSTEM_ACTOR_ID;
     const entry = COST_REGISTRY.find((e) => e.id === itemId);
     const sw = switchFor(itemId);
     const live = await this.liveStates();
@@ -262,7 +268,7 @@ export class InfraChangeService {
           changes: changesFor(sw!, target),
           requested_by: adminId,
           cost_delta_usd: delta,
-          dry_run: g.dryRun,
+          dry_run: auto ? false : g.dryRun,
           rollback_of: rollbackOf,
         },
       });
@@ -275,20 +281,29 @@ export class InfraChangeService {
       }
       throw e;
     }
-    await this.audit.record({
-      adminId,
-      action: rollbackOf ? 'ops.infra_rollback' : 'ops.infra_request',
-      targetType: 'infra_change_request',
-      targetId: row.id,
-      before: { item: itemId, state: current },
-      after: {
-        item: itemId,
-        state: target,
-        costDeltaUsd: delta,
-        dryRun: g.dryRun,
-      },
-      ip: ip ?? undefined,
-    });
+    if (auto) {
+      // The system has no admin row for the audit log (admin_id is a user);
+      // the request row itself (requested_by = the zero id) is the action
+      // log, shown on «Масштаб», and the on-call admins get a message.
+      this.log.warn(
+        `infra auto: ${itemId} ${current ?? '?'} -> ${target} (request ${row.id})`,
+      );
+    } else {
+      await this.audit.record({
+        adminId,
+        action: rollbackOf ? 'ops.infra_rollback' : 'ops.infra_request',
+        targetType: 'infra_change_request',
+        targetId: row.id,
+        before: { item: itemId, state: current },
+        after: {
+          item: itemId,
+          state: target,
+          costDeltaUsd: delta,
+          dryRun: g.dryRun,
+        },
+        ip: ip ?? undefined,
+      });
+    }
     try {
       await this.github.dispatch(row.id);
     } catch (e) {
@@ -444,7 +459,7 @@ export class InfraChangeService {
       throw new InfraRequestError('bad_plan', 'plan destroys protected data');
     }
     const now = new Date();
-    const row = await this.move(
+    let row = await this.move(
       r,
       r.dry_run ? 'plan_ready_dry_run' : 'plan_ready',
       {
@@ -454,6 +469,21 @@ export class InfraChangeService {
         ...(r.dry_run ? { finished_at: now } : {}),
       },
     );
+    // Automation audit 2026-11-08: nobody pressed anything, so nobody has to
+    // confirm: a safe plan of an automatic request is applied at once (the
+    // waiting workflow sees «apply» on its next poll). A plan that removes or
+    // adds more than the item needs stays «planned» for the owner.
+    if (
+      !r.dry_run &&
+      r.requested_by === SYSTEM_ACTOR_ID &&
+      (r.to_state === 'on' || r.to_state === 'off') &&
+      autoApplyOk(r.to_state, plan.resources)
+    ) {
+      row = await this.move(row, 'confirm', {
+        confirmed_by: SYSTEM_ACTOR_ID,
+        confirmed_at: now,
+      });
+    }
     return this.view(row);
   }
 
