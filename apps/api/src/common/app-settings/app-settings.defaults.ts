@@ -536,6 +536,11 @@ export const OWNER_BILLING_GATE_SETTINGS = {
   'billing.dispute_refund_user_limit': 1,
   'billing.dispute_refund_window_days': 365,
   'billing.dispute_refund_daily_cap_cents': 100_000,
+  /** Sweep B-c3 (2026-11-09): a «disputed» subscription without a bank — the
+   * attorney cancels within this many days of the FIRST (and only) charge:
+   * that charge is refunded by itself under the same `dispute_auto_refund`
+   * switch and the same limits; 0 = never by itself. */
+  'billing.first_charge_refund_days': 7,
   // Owner 2026-10-22 (systems checklist §12): Stripe Tax (automatic_tax)
   // on subscriptions, seat purchases, hosted checkouts and our card page.
   // Off until the owner enables Stripe Tax in the Stripe Dashboard
@@ -1133,8 +1138,11 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
  * the changed ones to the web bucket. `off` (default) = the job does nothing
  * and nothing is queued; the nightly GitHub run stays the only builder. */
 export const OWNER_SEO_SETTINGS = {
-  /** off | nightly | nightly+events (also after an attorney is published or removed). */
-  'seo.generator_mode': 'off',
+  /** off | nightly | nightly+events (also after an attorney is published or removed).
+   * Owner 2026-11-07 («SEO all ON»): nightly+events — pages refresh a minute
+   * after an attorney is published / removed; cost is capped by the debounce,
+   * the minimum interval, the upload limit and the 30 CDN resets a day below. */
+  'seo.generator_mode': 'nightly+events',
   /** Events within this many seconds become one run (debounce). */
   'seo.generator_debounce_seconds': 60,
   /** At least this many minutes between two event runs. */
@@ -1742,7 +1750,15 @@ export const OWNER_OBSERVABILITY_SETTINGS = {
  *   restricted (docs/CLIENT_FRAUD.md);
  * - 0 means "off" for `stop_at_bids`, `daily_cap`, `new_quota_percent`. */
 export const OWNER_CASE_FANOUT_SETTINGS = {
-  'case_fanout.enabled': false,
+  /** Owner rule (Выкл / Вкл / Авто): off = one wave to everyone, as before;
+   * on = waves and the smart order; auto (default) = waves while the
+   * `case-fanout` queue is reachable and has at most
+   * `case_fanout.auto_max_waiting` jobs waiting, else the one wave at once.
+   * Stored true / false from the boolean days still read as on / off. */
+  'case_fanout.enabled': 'auto',
+  /** Авто: more waiting wave jobs than this = the queue is behind, send the
+   * one wave right away instead of slicing it over minutes. */
+  'case_fanout.auto_max_waiting': 500,
   'case_fanout.first_wave_size': 5000,
   'case_fanout.wave_size': 5000,
   'case_fanout.wave_interval_minutes': 10,
@@ -1889,24 +1905,27 @@ export const OWNER_SEO_PROMOTION_SETTINGS = {
   'seo.checklist.reddit_quora': false,
   'seo.checklist.video_social': false,
   'seo.checklist.yelp_bbb': false,
+  // Owner 2026-11-07 («SEO all ON»): every switch below is ON by default and
+  // the ramp is 200 pages a day (the value seo-deploy.yml recommends). The
+  // admin page «Продвижение» can still switch any of them off.
   /** Upload only changed files (SEO_INCREMENTAL). */
-  'seo.incremental_enabled': false,
+  'seo.incremental_enabled': true,
   /** /llms.txt and /llms-full.txt (SEO_LLMS). */
-  'seo.llms_enabled': false,
+  'seo.llms_enabled': true,
   /** City and city x practice pages (SEO_PAGES_CITIES). */
-  'seo.pages_cities_enabled': false,
+  'seo.pages_cities_enabled': true,
   /** Pages of attorneys' text posts (SEO_PAGES_POSTS). */
-  'seo.pages_posts_enabled': false,
+  'seo.pages_posts_enabled': true,
   /** Reviewed legal question pages (SEO_PAGES_QA). */
-  'seo.pages_qa_enabled': false,
+  'seo.pages_qa_enabled': true,
   /** Thin pages: noindex and out of the sitemap (SEO_QUALITY_GATE). */
-  'seo.quality_gate_enabled': false,
+  'seo.quality_gate_enabled': true,
   /** At most N new pages a day enter the index; 0 = no limit (SEO_RAMP_PER_DAY). */
-  'seo.ramp_per_day': 0,
+  'seo.ramp_per_day': 200,
   /** Search/answer bots in, training bots out (SEO_ROBOTS_AI). */
-  'seo.robots_ai_enabled': false,
+  'seo.robots_ai_enabled': true,
   /** /sitemap.xml becomes an index of /sitemaps/*.xml (SEO_SITEMAP_INDEX). */
-  'seo.sitemap_index_enabled': false,
+  'seo.sitemap_index_enabled': true,
 };
 
 /**

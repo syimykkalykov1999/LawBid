@@ -31,6 +31,11 @@ interface World {
     /** cases.alert_generation (C-1 / M-2 re-alerts). */
     generation: number;
     urgent: boolean;
+    /** The Авто signal of `case_fanout.enabled`: the fake queue's Redis
+     * status, waiting count and a read error. */
+    redisStatus: string;
+    waiting: number;
+    queueError?: string;
   };
   overrides: Record<string, unknown>;
   logs: Record<string, unknown>[];
@@ -54,6 +59,8 @@ function world(
     alertsTotal: {},
     generation: 0,
     urgent: false,
+    redisStatus: 'ready',
+    waiting: 0,
   };
   const newcomers = opts.newcomers ?? 0;
   const candidates: FanoutCandidate[] = Array.from({ length: n }, (_, i) => ({
@@ -142,12 +149,17 @@ function world(
     number: async (k: keyof typeof APP_SETTINGS) =>
       (overrides[k] as number | undefined) ?? (APP_SETTINGS[k] as number),
     boolean: async (k: keyof typeof APP_SETTINGS) =>
-      // the waves switch is OFF by default in production; these specs test
-      // the waves, so they turn it on unless a test says otherwise.
-      (overrides[k] as boolean | undefined) ??
-      (k === 'case_fanout.enabled' ? true : (APP_SETTINGS[k] as boolean)),
+      (overrides[k] as boolean | undefined) ?? (APP_SETTINGS[k] as boolean),
     string: async (k: keyof typeof APP_SETTINGS) =>
       (overrides[k] as string | undefined) ?? String(APP_SETTINGS[k]),
+    // the waves switch is Авто by default in production; these specs test
+    // the waves, so they turn it ON unless a test says otherwise.
+    raw: async (k: keyof typeof APP_SETTINGS) =>
+      k in overrides
+        ? overrides[k]
+        : k === 'case_fanout.enabled'
+          ? 'on'
+          : APP_SETTINGS[k],
   } as unknown as AppSettingsService;
   const logger = {
     setContext: () => undefined,
@@ -163,16 +175,25 @@ function world(
     logger,
     settings,
   );
+  const queue = {
+    add: async (
+      _n: string,
+      job: CaseFanoutJob,
+      o: { delay: number; jobId: string },
+    ) => {
+      jobs.push({ job, delay: o.delay, jobId: o.jobId });
+    },
+    // the Авто signal: a connected Redis and the waiting count
+    get client() {
+      return Promise.resolve({ status: state.redisStatus });
+    },
+    getWaitingCount: async () => {
+      if (state.queueError) throw new Error(state.queueError);
+      return state.waiting;
+    },
+  };
   if (withQueue) {
-    (svc as unknown as { queue: unknown }).queue = {
-      add: async (
-        _n: string,
-        job: CaseFanoutJob,
-        o: { delay: number; jobId: string },
-      ) => {
-        jobs.push({ job, delay: o.delay, jobId: o.jobId });
-      },
-    };
+    (svc as unknown as { queue: unknown }).queue = queue;
   }
   return { svc, sent, emitted, digests, jobs, state, overrides, logs };
 }
@@ -386,9 +407,9 @@ describe('case fan-out waves', () => {
     expect(w.sent.size).toBe(15);
   });
 
-  it('enabled=false is the old behaviour: everybody, no cap, no gate', async () => {
+  it('off is the old behaviour: everybody, no cap, no gate', async () => {
     const w = world(12, {
-      'case_fanout.enabled': false,
+      'case_fanout.enabled': 'off',
       'case_fanout.first_wave_size': 2,
       'case_fanout.daily_cap': 1,
       // CASES M-4 off = the gate-free legacy wave of before.
@@ -410,20 +431,96 @@ describe('case fan-out waves', () => {
     expect(w.jobs).toHaveLength(0);
   });
 
-  it('enabled=false with queue_mode=off keeps the old inline send (no retry)', async () => {
-    const w = world(12, {
-      'case_fanout.enabled': false,
-      'case_fanout.queue_mode': 'off',
-    });
-    expect(await w.svc.start(CASE)).toBe(12);
-    expect(w.sent.size).toBe(12);
-    expect(w.jobs).toHaveLength(0);
+  it('off with queue_mode=off keeps the old inline send (no retry); the stored boolean false still reads as off', async () => {
+    for (const off of ['off', false]) {
+      const w = world(12, {
+        'case_fanout.enabled': off,
+        'case_fanout.queue_mode': 'off',
+      });
+      expect(await w.svc.start(CASE)).toBe(12);
+      expect(w.sent.size).toBe(12);
+      expect(w.jobs).toHaveLength(0);
+    }
   });
 
-  it('enabled=false without a queue (no Redis) still sends inline', async () => {
-    const w = world(12, { 'case_fanout.enabled': false }, { withQueue: false });
+  it('off without a queue (no Redis) still sends inline', async () => {
+    const w = world(12, { 'case_fanout.enabled': 'off' }, { withQueue: false });
     expect(await w.svc.start(CASE)).toBe(12);
     expect(w.sent.size).toBe(12);
+  });
+
+  // Owner rule: Выкл / Вкл / Авто, Авто by default with a real signal.
+  describe('auto (the default): waves while the queue is healthy', () => {
+    it('queue reachable and under the ceiling: waves, the decision travels in the job', async () => {
+      const w = world(12, {
+        'case_fanout.enabled': 'auto',
+        'case_fanout.first_wave_size': 4,
+        'case_fanout.wave_size': 4,
+      });
+      expect(await w.svc.wavesAuto()).toBe(true);
+      expect(await w.svc.start(CASE)).toBe(0);
+      expect(w.jobs[0].job.waves).toBe(true);
+      const first = await w.svc.runWave(w.jobs.shift()!.job);
+      expect(first).toMatchObject({ done: false, sent: 4 });
+      // the next wave is queued with the same decision
+      expect(w.jobs[0].job).toMatchObject({ wave: 2, waves: true });
+    });
+
+    it('queue behind (more waiting than case_fanout.auto_max_waiting): one wave to everybody', async () => {
+      const w = world(12, {
+        'case_fanout.enabled': 'auto',
+        'case_fanout.first_wave_size': 4,
+        'case_fanout.auto_max_waiting': 10,
+      });
+      w.state.waiting = 11;
+      expect(await w.svc.wavesAuto()).toBe(false);
+      await w.svc.start(CASE);
+      expect(w.jobs[0].job.waves).toBe(false);
+      expect(await w.svc.runWave(w.jobs.shift()!.job)).toMatchObject({
+        done: 'last',
+        sent: 12,
+      });
+      expect(w.jobs).toHaveLength(0);
+    });
+
+    it('Redis not connected, a queue error or no queue: one wave at once', async () => {
+      const down = world(6, { 'case_fanout.enabled': 'auto' });
+      down.state.redisStatus = 'reconnecting';
+      expect(await down.svc.wavesAuto()).toBe(false);
+      const err = world(6, { 'case_fanout.enabled': 'auto' });
+      err.state.queueError = 'ECONNRESET';
+      expect(await err.svc.wavesAuto()).toBe(false);
+      const none = world(6, { 'case_fanout.enabled': 'auto' }, { withQueue: false });
+      expect(await none.svc.wavesAuto()).toBe(false);
+      expect(await none.svc.start(CASE)).toBe(6);
+    });
+
+    it('on ignores the signal (waves even with a backlog); off ignores it too', async () => {
+      const on = world(12, {
+        'case_fanout.enabled': 'on',
+        'case_fanout.first_wave_size': 4,
+      });
+      on.state.waiting = 9999;
+      expect(await on.svc.wavesAuto()).toBe(false);
+      await on.svc.start(CASE);
+      expect(on.jobs[0].job.waves).toBe(true);
+      expect(await on.svc.runWave(on.jobs.shift()!.job)).toMatchObject({
+        sent: 4,
+      });
+      const off = world(12, { 'case_fanout.enabled': 'off' });
+      await off.svc.start(CASE);
+      expect(off.jobs[0].job.waves).toBe(false);
+    });
+
+    it('an old job without the decision (queued before this release) decides in the worker', async () => {
+      const w = world(12, {
+        'case_fanout.enabled': 'auto',
+        'case_fanout.first_wave_size': 4,
+      });
+      expect(await w.svc.runWave({ caseId: CASE, wave: 1 })).toMatchObject({
+        sent: 4,
+      });
+    });
   });
 
   // Algo audit 2026-10-27 (CASES C-1 / M-2).
@@ -438,7 +535,7 @@ describe('case fan-out waves', () => {
     });
 
     it('a second start() after the practice changed alerts everybody again', async () => {
-      const w = world(5, { 'case_fanout.enabled': false });
+      const w = world(5, { 'case_fanout.enabled': 'off' });
       expect(await drain(w)).toEqual([5]);
       // Same generation: everybody already has a row → nothing more.
       expect(await w.svc.runWave({ caseId: CASE, wave: 1 })).toEqual({
@@ -500,7 +597,7 @@ describe('case fan-out waves', () => {
   // Algo audit 2026-10-27 (CASES M-4).
   describe('fraud gate with the waves off', () => {
     it('a restricted client: the one legacy wave reaches nobody', async () => {
-      const w = world(12, { 'case_fanout.enabled': false });
+      const w = world(12, { 'case_fanout.enabled': 'off' });
       w.state.fraud = 'restricted';
       expect(await w.svc.runWave({ caseId: CASE, wave: 1 })).toEqual({
         done: 'fraud',
@@ -510,7 +607,7 @@ describe('case fan-out waves', () => {
 
     it('a review client with "small": no waves to slice, so everybody', async () => {
       const w = world(12, {
-        'case_fanout.enabled': false,
+        'case_fanout.enabled': 'off',
         'case_fanout.fraud_review_action': 'small',
       });
       w.state.fraud = 'review';
@@ -523,7 +620,7 @@ describe('case fan-out waves', () => {
   // Algo audit 2026-10-27 (CASES C-1): the case became urgent later.
   describe('urgent top-up', () => {
     it('only «Только срочные» people, once, under the same key; nobody twice', async () => {
-      const w = world(10, { 'case_fanout.enabled': false }, { urgentOnly: 3 });
+      const w = world(10, { 'case_fanout.enabled': 'off' }, { urgentOnly: 3 });
       // Round 1 while not urgent: the audience then had no urgent-only people.
       w.state.urgent = false;
       await w.svc.runWave({ caseId: CASE, wave: 1 });
@@ -587,7 +684,7 @@ describe('case fan-out waves', () => {
     });
 
     it('everybody already alerted: nothing', async () => {
-      const w = world(5, { 'case_fanout.enabled': false });
+      const w = world(5, { 'case_fanout.enabled': 'off' });
       await drain(w);
       expect(
         await w.svc.runWave({
