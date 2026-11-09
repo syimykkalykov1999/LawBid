@@ -100,7 +100,16 @@ export class AdminMediaModerationController {
     };
   }
 
-  private async present(c: MediaModerationCheck): Promise<MediaCheckDto> {
+  private async present(
+    c: MediaModerationCheck & {
+      csam_reports?: {
+        status: string;
+        external_report_id: string | null;
+        error: string | null;
+      }[];
+    },
+  ): Promise<MediaCheckDto> {
+    const report = c.csam_reports?.[0] ?? null;
     return {
       id: c.id,
       fileId: c.file_id,
@@ -120,6 +129,9 @@ export class AdminMediaModerationController {
       previewUrl: await this.service.previewUrl(c),
       createdAt: c.created_at.toISOString(),
       checkedAt: c.checked_at?.toISOString() ?? null,
+      csamReportStatus: report?.status ?? null,
+      csamExternalReportId: report?.external_report_id ?? null,
+      csamReportError: report?.error ?? null,
     };
   }
 }

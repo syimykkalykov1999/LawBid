@@ -199,6 +199,11 @@ export class PasswordAuthService {
     if (!this.settings) return;
     if (user.role !== 'attorney' && user.role !== 'assistant') return;
     if (!(await this.settings.boolean('security.attorney_strong_auth'))) return;
+    // Feature reality audit 2026-11-08: with the passkey sign-in switched
+    // off (flag passkey_login) the passkey cannot be used, so demanding it
+    // locked such attorneys out of both ways in. The password is accepted
+    // until passkeys are on again.
+    if (!(await this.loginMethods.isEnabled('passkey'))) return;
     const passkeys = await this.prisma.webauthnCredential.count({
       where: { user_id: user.id, scope: 'user' },
     });

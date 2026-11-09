@@ -32,6 +32,14 @@ const STATUS: Record<string, { tone: 'danger' | 'gold' | 'neutral'; text: string
   error: { tone: 'neutral', text: 'ошибка' },
 };
 
+/** Owner 2026-11-08: where the CyberTipline report stands. */
+const NCMEC: Record<string, string> = {
+  pending: 'отправляется',
+  submitted: 'отправлено',
+  manual_required: 'подать вручную (не подключено или выключено)',
+  failed: 'ошибка, можно отправить снова',
+};
+
 const SKIP: Record<string, string> = {
   not_configured: 'нет ключей AWS Rekognition',
   budget: 'дневной лимит расходов',
@@ -100,7 +108,7 @@ export default function MediaModerationPage() {
       const ok = await confirm({
         title: 'Сообщить в NCMEC?',
         description:
-          'Картинка скрывается везде и сохраняется как доказательство. Пока нет доступа к API NCMEC, сообщение надо подать вручную на report.cybertip.org.',
+          'Картинка скрывается везде и сохраняется как доказательство. Если в «Ключи и сервисы» заполнена карточка NCMEC и включена отправка, отчёт с файлом уходит в CyberTipline сам; иначе («не подключено») его надо подать вручную на report.cybertip.org.',
         confirm: 'Сообщить',
         danger: true,
       });
@@ -168,6 +176,13 @@ export default function MediaModerationPage() {
                   </div>
                 ) : null}
                 {r.skipReason ? <div className="mt-1 text-muted">{SKIP[r.skipReason] ?? r.skipReason}</div> : null}
+                {r.csamReportStatus ? (
+                  <div className="mt-1 text-muted">
+                    NCMEC: {NCMEC[r.csamReportStatus] ?? r.csamReportStatus}
+                    {r.csamExternalReportId ? ` № ${r.csamExternalReportId}` : ''}
+                    {r.csamReportStatus === 'failed' && r.csamReportError ? ` (${r.csamReportError})` : ''}
+                  </div>
+                ) : null}
               </Td>
               <Td className="text-xs">
                 <Link href={`/users/${r.ownerUserId}`} className="text-gold-600 hover:underline">
