@@ -42,17 +42,21 @@ const PROBE_TIMEOUT_MS = 3_000;
 /** Owner 2026-11-02: the board took 4-5 s on every open (the slowest probe
  * sets the pace). The finished report is a shared admin summary
  * (AdminSummaryService: Redis, one refresher across all tasks): younger than
- * FRESH it is served as is; up to MAX_STALE it is served at once while one
+ * FRESH it is served as is; an older copy is served at once while one
  * refresh runs (the page shows «обновлено N с назад» from `generatedAt` and
  * polls again within 15-60 s, so old lights never stay); only a cold cache
  * waits.
  * R-370 (owner 2026-11-04): MAX_STALE was 120 s and nothing refreshed the
  * copy between opens, so almost every first open rebuilt the board (prod
  * 24 h: p50 3.4 s, max 4.7 s). Now 15 min (as «Масштаб», R-369), and the
- * copy is kept warm every minute while an admin is active (keepWarm). */
+ * copy is kept warm every minute while an admin is active (keepWarm).
+ * 2026-11-08: the first open after more than 15 min still rebuilt the board
+ * inside the request (prod: 1.1-1.2 s per query, 20+ queries queued on the
+ * task's 3 connections). Now any stored copy is served at once and refreshed
+ * in the background (AdminSummaryService.board); only a never-built board
+ * waits. */
 const REPORT_KEY = 'ops:system-health';
 const REPORT_FRESH_MS = 15_000;
-const REPORT_MAX_STALE_MS = 15 * 60_000;
 const KEEP_WARM_MS = 60_000;
 
 const DLQ = 'stripe-webhooks-dlq';
@@ -121,16 +125,12 @@ export class SystemHealthService implements OnModuleInit, OnModuleDestroy {
   /** GET path: the shared summary (see REPORT_* above). */
   async cachedReport(): Promise<SystemHealthDto> {
     if (!this.summary) return this.build(new Date());
-    const compute = () => this.build(new Date());
-    const hit = await this.summary.peek<SystemHealthDto>(REPORT_KEY);
-    const age = hit ? Date.now() - Date.parse(hit.computedAt) : Infinity;
-    if (hit?.data?.items && age < REPORT_MAX_STALE_MS) {
-      if (age > REPORT_FRESH_MS) {
-        void this.summary.refresh(REPORT_KEY, compute).catch(() => undefined);
-      }
-      return hit.data;
-    }
-    return (await this.summary.refresh(REPORT_KEY, compute, true)).data;
+    return this.summary.board<SystemHealthDto>(
+      REPORT_KEY,
+      () => this.build(new Date()),
+      REPORT_FRESH_MS,
+      (d) => !!d?.items,
+    );
   }
 
   /** Always computed now (the action buttons); the result also replaces the

@@ -111,7 +111,7 @@ owner step named; **PREPARE+TAP** = deliberately not fully automatic (reason giv
 | 32 | Terraform drift check | terraform-drift.yml | — | yes | green 08.11 | WORKS | — |
 | 33 | Events sink auto-switch to Kinesis | events/day ≥ ceiling | `EVENTS_STREAM_NAME` | empty | flag would flip, nothing published | NO-OP (gap G4) | — |
 | 34 | Redis cache node auto | `REDIS_CACHE_URL` | `redis_cache_node` | false | — | NO-OP (gap G5) | 28.10 |
-| 35 | Read-replica provision by CPU (app path) | 3 h CPU ≥ 75 % | `OPS_DB_REPLICA_TOGGLE` | not set | — | NO-OP, one-way (superseded by #15; gap G6) | 25.10 |
+| 35 | Read-replica provision by CPU (app path) | 3 h CPU ≥ 75 % | `OPS_DB_REPLICA_TOGGLE` | not set | — | NO-OP, one-way (gap G6: make it work, keep it) | 25.10 |
 | 36 | Shard split / move | admin button; status green/yellow/red | — | — | — | PREPARE+TAP (reason R1) | «сделай в админке кнопкой делить базу» 24.10, 2026-10-24.md:832 |
 | 37 | Real-money auto-refund | — | — | OFF by rule | — | OFF on purpose (STRICT_RULES.md:11) | rule 05.11 |
 
@@ -183,7 +183,7 @@ owner step named; **PREPARE+TAP** = deliberately not fully automatic (reason giv
 - **G4.** `events.sink=auto` flips without `EVENTS_STREAM_NAME`: add `events_stream_enabled` to the
   pipeline with the same hysteresis.
 - **G5.** `cache.redis_mode=auto` without `redis_cache_node`: same.
-- **G6.** `db.replica_provision` app path is one-way and gated off; remove it in favour of #15.
+- **G6.** `db.replica_provision` app path is one-way and gated off: make it work (switch `db_replica_toggle` on through the pipeline, add the switch-off after a quiet window). Owner rule 08.11: nothing already built is removed, hidden or retired; G4–G6 are made to work in later PRs.
 - **G7.** Terraform sizes the direct pool from `db_autoscale_min_class` (safe at the smallest size)
   and the full 2 × (50 + 20) task peak → 3 per task. The cure is the pooler (#16, now automatic).
   A `data "aws_db_instance"` for the live class is NOT safe for the pool (the autoscaler may shrink

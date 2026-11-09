@@ -12,6 +12,10 @@ export type ProcessedFile = Awaited<ReturnType<ImageProcessor['process']>>;
  * effort) and, last, the main object itself. The order matters: a reader
  * who sees the new main already finds its variants. Shared by the scan job
  * (FileScanProcessor) and the avatar backfill (R-405, `avatars:backfill`).
+ *
+ * Owner 2026-11-08 (R2 speed): the variants and their twins go up at once
+ * (one round trip to Cloudflare R2 instead of one per object, like the
+ * parallel parts of @aws-sdk/lib-storage); only the main waits for them.
  */
 export async function putProcessedObjects(
   storage: Pick<S3StorageService, 'put'>,
@@ -19,15 +23,17 @@ export async function putProcessedObjects(
   file: Pick<File, 'id' | 's3_bucket' | 's3_key'>,
   processed: ProcessedFile,
 ): Promise<void> {
-  for (const [px, img] of processed.variants) {
-    await storage.put(
-      file.s3_bucket,
-      variantKey(file.s3_key, px),
-      img.data,
-      img.mime,
-    );
-  }
-  await putAvifTwins(storage, logger, file, processed);
+  await Promise.all([
+    ...[...processed.variants].map(([px, img]) =>
+      storage.put(
+        file.s3_bucket,
+        variantKey(file.s3_key, px),
+        img.data,
+        img.mime,
+      ),
+    ),
+    putAvifTwins(storage, logger, file, processed),
+  ]);
   const main = processed.main;
   if (main) {
     await storage.put(file.s3_bucket, file.s3_key, main.data, main.mime);
@@ -43,23 +49,29 @@ async function putAvifTwins(
   processed: ProcessedFile,
 ): Promise<void> {
   try {
+    const twins: Promise<void>[] = [];
     if (processed.main?.avif) {
-      await storage.put(
-        file.s3_bucket,
-        avifKey(file.s3_key),
-        processed.main.avif.data,
-        processed.main.avif.mime,
+      twins.push(
+        storage.put(
+          file.s3_bucket,
+          avifKey(file.s3_key),
+          processed.main.avif.data,
+          processed.main.avif.mime,
+        ),
       );
     }
     for (const [px, img] of processed.variants) {
       if (!img.avif) continue;
-      await storage.put(
-        file.s3_bucket,
-        avifKey(variantKey(file.s3_key, px)),
-        img.avif.data,
-        img.avif.mime,
+      twins.push(
+        storage.put(
+          file.s3_bucket,
+          avifKey(variantKey(file.s3_key, px)),
+          img.avif.data,
+          img.avif.mime,
+        ),
       );
     }
+    await Promise.all(twins);
   } catch (err) {
     logger.warn({ fileId: file.id, err }, 'AVIF twins not stored');
   }
