@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -8,6 +10,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
     show openCaseDocument;
+import 'package:lawbid/features/cases/workspace/file_actions.dart'
+    show CaseFileCache, FileRef;
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/message_groups.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
@@ -322,6 +326,28 @@ class ChatMediaAlbum extends ConsumerWidget {
   }
 }
 
+/// Owner 2026-11-08 (speed features everywhere): a chat document is kept on
+/// the phone like a case file — downloaded once (resumable, in pieces with
+/// `downloads_parallel`), then opened from the disk; a second tap never
+/// downloads it again. The browser opens the link as before (its own cache).
+/// Anything that fails falls back to opening the link outside the app.
+Future<void> openChatDocument(ChatAttachment a) async {
+  final url = a.url;
+  if (url == null) return;
+  if (kIsWeb) return openCaseDocument(url);
+  try {
+    await CaseFileCache.openKept(
+      FileRef(
+        fileId: a.fileId,
+        mime: a.mime ?? 'application/octet-stream',
+        url: url,
+      ),
+    );
+  } on Object {
+    await openCaseDocument(url);
+  }
+}
+
 /// A document card inside a bubble (tap → the phone's viewer), with the
 /// upload progress while sending.
 class ChatDocumentRow extends StatelessWidget {
@@ -354,8 +380,9 @@ class ChatDocumentRow extends StatelessWidget {
       label: '${a.name}, ${fileSizeLabel(a.sizeBytes)}',
       excludeSemantics: true,
       child: AppPressable(
-        onTap:
-            a.url == null ? () {} : (onOpen ?? () => openCaseDocument(a.url!)),
+        onTap: a.url == null
+            ? () {}
+            : (onOpen ?? () => unawaited(openChatDocument(a))),
         child: SizedBox(
           width: width ?? 240,
           child: Column(

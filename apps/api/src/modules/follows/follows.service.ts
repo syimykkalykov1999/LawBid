@@ -496,6 +496,11 @@ export class FollowsService {
       }
     }
     const items = await this.present(picked, user.sub);
+    // Owner 2026-11-08: the ranked suggestions go to the ranking events log
+    // (not the popular fill-up below SUGGEST_MIN: that one is not ranked).
+    if (this.recommendations && !filled) {
+      void this.recommendations.logServed(user.sub, 'people', picked, start);
+    }
     // Owner 2026-10-13: people from my address book get a small caption.
     const inContacts = new Set(
       (
