@@ -1377,6 +1377,15 @@ export const OWNER_OPS_SETTINGS = {
   /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
    * the launch size). */
   'economy.aws_fallback_usd': 150,
+  /** Owner 2026-11-09 (no flapping): the automatic container ceiling moves
+   * only when every 5-minute recommendation of the window agrees — up after
+   * this many minutes, down after the next one (Kubernetes HPA
+   * stabilization window; AWS scale-in cooldown). */
+  'economy.ceiling_up_window_min': 10,
+  'economy.ceiling_down_window_min': 30,
+  /** A recommendation this close to the current ceiling (percent) is noise
+   * and changes nothing (HPA tolerance 10 %). */
+  'economy.ceiling_tolerance_percent': 10,
   /** Queues hardening 2026-10-25 (S10): the number the worker autoscales
    * on. off = flat count of waiting jobs (the old way); on = jobs weighted
    * by how heavy they are; auto = weighted + extra pressure while the

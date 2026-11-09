@@ -178303,6 +178303,18 @@
           "dailyBrakeDays": {
             "type": "number",
             "description": "The daily money brake = allowed spend / 30 × this many days."
+          },
+          "ceilingUpWindowMin": {
+            "type": "number",
+            "description": "Auto ceiling: no increase unless every recommendation of the last N minutes agrees (HPA scale-up stabilization window)."
+          },
+          "ceilingDownWindowMin": {
+            "type": "number",
+            "description": "Auto ceiling: no decrease unless every recommendation of the last N minutes agrees (HPA scale-down stabilization window)."
+          },
+          "ceilingTolerancePercent": {
+            "type": "number",
+            "description": "Auto ceiling: a recommendation within this percent of the current ceiling changes nothing (HPA tolerance)."
           }
         },
         "required": [
@@ -178312,7 +178324,10 @@
           "manualApi",
           "manualWorker",
           "awsFallbackUsd",
-          "dailyBrakeDays"
+          "dailyBrakeDays",
+          "ceilingUpWindowMin",
+          "ceilingDownWindowMin",
+          "ceilingTolerancePercent"
         ]
       },
       "ContainerReportDto": {
@@ -178596,6 +178611,21 @@
             "type": "number",
             "minimum": 0,
             "maximum": 100000
+          },
+          "ceilingUpWindowMin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1440
+          },
+          "ceilingDownWindowMin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1440
+          },
+          "ceilingTolerancePercent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
           },
           "guardEnabled": {
             "type": "boolean",

@@ -180,6 +180,12 @@ export interface CeilingSnapshot {
   worker: number;
   mode: 'auto' | 'manual';
   at: string;
+  /** Owner 2026-11-09 (hysteresis): the unstabilized recommendations of
+   * the last ticks — the HPA stabilization window reads them. Older
+   * snapshots in Redis lack the field. */
+  samples?: { at: string; api: number; worker: number }[];
+  /** Plain-Russian reason of the last change (shown in «Что было»). */
+  reason?: string;
 }
 
 export interface CostSnapshot {

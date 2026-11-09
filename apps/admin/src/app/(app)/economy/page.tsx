@@ -50,6 +50,8 @@ export default function EconomyPage() {
   const [manualApi, setManualApi] = useState('');
   const [manualWorker, setManualWorker] = useState('');
   const [prices, setPrices] = useState({ brake: '', aws: '' });
+  // Owner 2026-11-09: stabilization of the automatic ceiling (no flapping).
+  const [stab, setStab] = useState({ up: '', down: '', tol: '' });
   const s = e?.settings;
   useEffect(() => {
     if (!s) return;
@@ -60,6 +62,11 @@ export default function EconomyPage() {
     setPrices({
       brake: String(s.dailyBrakeDays),
       aws: String(s.awsFallbackUsd),
+    });
+    setStab({
+      up: String(s.ceilingUpWindowMin),
+      down: String(s.ceilingDownWindowMin),
+      tol: String(s.ceilingTolerancePercent),
     });
   }, [s]);
 
@@ -299,7 +306,7 @@ export default function EconomyPage() {
             </div>
             <p className="text-sm text-muted">
               {s?.ceilingMode === 'auto'
-                ? 'Автомат: потолок растёт, когда доход позволяет, и снижается до минимума, если расходы превысили правило. Растёт не быстрее 5 контейнеров за 5 минут.'
+                ? 'Автомат: потолок растёт, когда бюджет AWS позволяет, и снижается до минимума, если счёт превысил бюджет. Растёт не быстрее 5 контейнеров за 5 минут. Чтобы не дёргаться, меняется только когда все рекомендации за окно согласны; причина каждого изменения — в «Что было».'
                 : 'Вручную: потолок равен вашим числам, но не выше предела Terraform. Ограничения экономики всё равно могут опустить его до минимума.'}
             </p>
             {s?.ceilingMode === 'manual' ? (
@@ -319,7 +326,33 @@ export default function EconomyPage() {
                   </Button>
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-4">
+                <Field label="Вверх не раньше, мин" htmlFor="eco-up-win">
+                  <Input id="eco-up-win" inputMode="numeric" value={stab.up} onChange={(ev) => setStab({ ...stab, up: ev.target.value })} />
+                </Field>
+                <Field label="Вниз не раньше, мин" htmlFor="eco-down-win">
+                  <Input id="eco-down-win" inputMode="numeric" value={stab.down} onChange={(ev) => setStab({ ...stab, down: ev.target.value })} />
+                </Field>
+                <Field label="Допуск, %" htmlFor="eco-tol">
+                  <Input id="eco-tol" inputMode="numeric" value={stab.tol} onChange={(ev) => setStab({ ...stab, tol: ev.target.value })} />
+                </Field>
+                <div className="flex items-end">
+                  <Button
+                    loading={save.isPending}
+                    onClick={() =>
+                      save.mutate({
+                        ceilingUpWindowMin: Number(stab.up),
+                        ceilingDownWindowMin: Number(stab.down),
+                        ceilingTolerancePercent: Number(stab.tol),
+                      })
+                    }
+                  >
+                    Сохранить окна
+                  </Button>
+                </div>
+              </div>
+            )}
             <p className="text-xs text-muted">
               Предел Terraform — потолок, выше которого сервер не поднимется никогда. Его выше 50 (API) и 20 (фон) без
               правки инфраструктуры не поднять; перед этим нужна квота Fargate vCPU в AWS.

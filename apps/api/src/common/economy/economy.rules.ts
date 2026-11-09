@@ -187,6 +187,105 @@ export function limitStepUp(
   return Math.min(target, prev + maxUp);
 }
 
+// --- stabilization of the automatic ceiling (owner 2026-11-09) ------------
+//
+// Ported from Kubernetes HPA, pkg/controller/podautoscaler/horizontal.go
+// `stabilizeRecommendationWithBehaviors` and the metric `tolerance`
+// (Apache-2.0, see apps/api/THIRD_PARTY_NOTICES.md). Without it the
+// ceiling copied every ±1 move of the running count all night (API
+// 11→12→13→12→11, worker 3→4→3→4, pairs 5 minutes apart on prod 09.11).
+
+/** No increase unless every recommendation of the last N minutes agrees
+ * (HPA scaleUp stabilizationWindowSeconds; AWS scale-out cooldown). */
+export const CEILING_UP_WINDOW_MIN = 10;
+/** No decrease unless every recommendation of the last N minutes agrees
+ * (HPA scaleDown default 300 s; here longer: a lower ceiling may shrink the
+ * service, which is the costly direction for users). */
+export const CEILING_DOWN_WINDOW_MIN = 30;
+/** A recommendation this close (percent of the current ceiling) is noise
+ * and keeps the ceiling where it is (HPA tolerance 0.1). */
+export const CEILING_TOLERANCE_PERCENT = 10;
+
+/** One unstabilized recommendation of a 5-minute tick. */
+export interface CeilingSample {
+  at: string;
+  api: number;
+  worker: number;
+}
+
+export type StabilizeReason =
+  'first' | 'steady' | 'tolerance' | 'wait_up' | 'wait_down' | 'up' | 'down';
+
+export interface StabilizeInput {
+  /** The ceiling applied now (null = nothing applied yet). */
+  current: number | null;
+  /** What the money rule recommends this tick. */
+  recommended: number;
+  /** Earlier recommendations (any age; the windows filter them). */
+  history: { at: string; value: number }[];
+  now: Date;
+  upWindowMs: number;
+  downWindowMs: number;
+  tolerancePercent: number;
+}
+
+export interface StabilizeResult {
+  value: number;
+  reason: StabilizeReason;
+  /** The value written into the history (tolerance folds noise into
+   * `current`, exactly as HPA records currentReplicas). */
+  sample: number;
+}
+
+/**
+ * HPA stabilization: an increase is the smallest recommendation of the
+ * up-window, a decrease the largest of the down-window — so one flip in
+ * the window blocks the move; the ceiling moves at most once per window
+ * in each direction, and a 3-4-3-4 signal stays put.
+ */
+export function stabilizeCeiling(i: StabilizeInput): StabilizeResult {
+  if (i.current === null) {
+    return { value: i.recommended, reason: 'first', sample: i.recommended };
+  }
+  const cur = i.current;
+  const rec = i.recommended;
+  if (rec === cur) return { value: cur, reason: 'steady', sample: rec };
+  const tol = (Math.abs(cur) * Math.max(i.tolerancePercent, 0)) / 100;
+  if (Math.abs(rec - cur) <= tol + 1e-9) {
+    return { value: cur, reason: 'tolerance', sample: cur };
+  }
+  const nowMs = i.now.getTime();
+  let up = rec;
+  let down = rec;
+  for (const h of i.history) {
+    const t = Date.parse(h.at);
+    if (!Number.isFinite(t)) continue;
+    if (t > nowMs - i.upWindowMs) up = Math.min(up, h.value);
+    if (t > nowMs - i.downWindowMs) down = Math.max(down, h.value);
+  }
+  // Bring the recommendation within the limits (stabilize).
+  let value = cur;
+  if (value < up) value = up;
+  if (value > down) value = down;
+  if (value === cur) {
+    return { value, reason: rec > cur ? 'wait_up' : 'wait_down', sample: rec };
+  }
+  return { value, reason: value > cur ? 'up' : 'down', sample: rec };
+}
+
+/** Keep only the samples the longest window still needs (plus the new). */
+export function pruneSamples<T extends { at: string }>(
+  samples: readonly T[],
+  now: Date,
+  keepMs: number,
+): T[] {
+  const cutoff = now.getTime() - keepMs;
+  return samples.filter((s) => {
+    const t = Date.parse(s.at);
+    return Number.isFinite(t) && t > cutoff && t <= now.getTime();
+  });
+}
+
 /** Manual mode: the owner's N, never above the Terraform cap nor below
  * the minimum. */
 export function manualCeiling(n: number, min: number, hardCap: number): number {

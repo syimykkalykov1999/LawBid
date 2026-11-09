@@ -17,6 +17,9 @@ EconomySettingsDto _$EconomySettingsDtoFromJson(Map<String, dynamic> json) =>
       manualWorker: json['manualWorker'] as num,
       awsFallbackUsd: json['awsFallbackUsd'] as num,
       dailyBrakeDays: json['dailyBrakeDays'] as num,
+      ceilingUpWindowMin: json['ceilingUpWindowMin'] as num,
+      ceilingDownWindowMin: json['ceilingDownWindowMin'] as num,
+      ceilingTolerancePercent: json['ceilingTolerancePercent'] as num,
     );
 
 Map<String, dynamic> _$EconomySettingsDtoToJson(EconomySettingsDto instance) =>
@@ -28,4 +31,7 @@ Map<String, dynamic> _$EconomySettingsDtoToJson(EconomySettingsDto instance) =>
       'manualWorker': instance.manualWorker,
       'awsFallbackUsd': instance.awsFallbackUsd,
       'dailyBrakeDays': instance.dailyBrakeDays,
+      'ceilingUpWindowMin': instance.ceilingUpWindowMin,
+      'ceilingDownWindowMin': instance.ceilingDownWindowMin,
+      'ceilingTolerancePercent': instance.ceilingTolerancePercent,
     };

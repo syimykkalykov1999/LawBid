@@ -31,6 +31,10 @@ interface Opts {
   onAws?: boolean;
   scaleMode?: ScaleMode | null;
   running?: { api: number; worker: number };
+  /** Monthly price of one task (default API $18, worker $28). */
+  taskUsd?: { api: number; worker: number };
+  /** Owner 2026-11-09: stabilization windows (minutes) and tolerance (%). */
+  stabilize?: { up: number; down: number; tol: number };
   stored?: Record<string, unknown>;
   capacityMetrics?: Partial<CapacityReading>;
   mode?: 'auto' | 'manual';
@@ -106,6 +110,9 @@ function setup(o: Opts = {}) {
     'scale.endpoints.mode': 'auto',
     'scale.endpoints.ceiling': 4,
     'economy.aws_fallback_usd': 150,
+    'economy.ceiling_up_window_min': o.stabilize?.up ?? 10,
+    'economy.ceiling_down_window_min': o.stabilize?.down ?? 30,
+    'economy.ceiling_tolerance_percent': o.stabilize?.tol ?? 10,
   };
   const settings = {
     number: jest.fn(async (k: string) => settingValues[k] as number),
@@ -140,15 +147,18 @@ function setup(o: Opts = {}) {
   };
   const flagSvc = { isEnabled: jest.fn(async () => o.flag ?? true) };
 
+  // Mutable: a test moves the running count between ticks (ECS autoscaling).
+  const running = { api: o.running?.api ?? 1, worker: o.running?.worker ?? 1 };
   const aws = {
     available: o.onAws ?? true,
     minTasks: 1,
     hardCap: (k: string) => (k === 'api' ? 50 : 20),
-    taskUsd: (k: string) => (k === 'api' ? 18 : 28),
+    taskUsd: (k: string) =>
+      k === 'api' ? (o.taskUsd?.api ?? 18) : (o.taskUsd?.worker ?? 28),
     cost: jest.fn(async () => null),
     taskCounts: jest.fn(async () => ({
-      api: { running: o.running?.api ?? 1, desired: 1 },
-      worker: { running: o.running?.worker ?? 1, desired: 1 },
+      api: { running: running.api, desired: 1 },
+      worker: { running: running.worker, desired: 1 },
     })),
     ceilingsNow: jest.fn(async () => null),
     setScale: jest.fn(async () => undefined),
@@ -258,6 +268,7 @@ function setup(o: Opts = {}) {
     storage,
     stored,
     events,
+    running,
     state: () => economy,
     scale: () => scaleMode,
     ceiling: () => ceiling,
@@ -848,5 +859,122 @@ describe('EconomyService.report (R-369: «Масштаб» opens at once)', () =
     });
     await t.svc.report(NOW);
     expect((await t.svc.cachedReport()).containers.api.running).toBe(7);
+  });
+});
+
+describe('EconomyService.applyCeilings — hysteresis (owner 2026-11-09)', () => {
+  /** The prod night 08–09.11 as the AWS brake saw it: income $0, the AWS
+   * forecast at 85 % of the $450 budget, third-party 5 % of the allowance,
+   * ARM + Spot task prices, and ECS target tracking moving the running
+   * count by ±1 every 5 minutes. */
+  const NIGHT = {
+    awsBudget: 450,
+    awsActual: 200,
+    awsForecast: 382.5,
+    thirdPartyForecast: 7.5,
+    taskUsd: { api: 6.48, worker: 10.08 },
+  };
+  const tick = async (
+    t: ReturnType<typeof setup>,
+    running: { api: number; worker: number },
+    minutes: number,
+  ) => {
+    t.running.api = running.api;
+    t.running.worker = running.worker;
+    await t.svc.tick(new Date(NOW.getTime() + minutes * 60_000));
+  };
+  /** Every ceiling written to ECS (the fake is typed `() => undefined`). */
+  const ceilingsSet = (t: ReturnType<typeof setup>) =>
+    (
+      t.aws.setCeilings.mock.calls as unknown as [
+        { api: number; worker: number },
+      ][]
+    ).map((c) => c[0]);
+  const ceilingChanges = (t: ReturnType<typeof setup>) =>
+    t.events
+      .filter((e) => e.kind === 'ceiling')
+      .map((e) => e.text)
+      .reverse();
+
+  it('reproduces the night (no stabilization): the ceiling copies every ±1 of the running count', async () => {
+    const t = setup({
+      ...NIGHT,
+      running: { api: 4, worker: 1 },
+      stabilize: { up: 0, down: 0, tol: 0 },
+    });
+    const seq: [number, number][] = [
+      [4, 1],
+      [5, 2],
+      [6, 1],
+      [5, 2],
+      [4, 1],
+    ];
+    for (let i = 0; i < seq.length; i++) {
+      await tick(t, { api: seq[i][0], worker: seq[i][1] }, i * 5);
+    }
+    const ceilings = ceilingsSet(t);
+    expect(ceilings.map((c) => c.api)).toEqual([11, 12, 13, 12, 11]);
+    expect(ceilings.map((c) => c.worker)).toEqual([3, 4, 3, 4, 3]);
+    // Five «Потолок контейнеров» rows in 20 minutes — the flapping.
+    expect(ceilingChanges(t)).toHaveLength(5);
+  });
+
+  it('with the default windows the same night produces one row and the ceiling stays put', async () => {
+    const t = setup({ ...NIGHT, running: { api: 4, worker: 1 } });
+    const seq: [number, number][] = [
+      [4, 1],
+      [5, 2],
+      [6, 1],
+      [5, 2],
+      [4, 1],
+      [5, 2],
+      [4, 1],
+      [5, 2],
+      [4, 1],
+    ];
+    for (let i = 0; i < seq.length; i++) {
+      await tick(t, { api: seq[i][0], worker: seq[i][1] }, i * 5);
+    }
+    expect(ceilingsSet(t).at(-1)).toEqual({ api: 11, worker: 3 });
+    const rows = ceilingChanges(t);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain('API — → 11, фоновые — → 3');
+    expect(rows[0]).toContain('Причина:');
+    expect(rows[0]).toContain('запас бюджета AWS $67.5');
+    // Only the 30-min window is kept (samples strictly younger than 30 min).
+    expect(t.ceiling()?.samples).toHaveLength(6);
+  });
+
+  it('a real, sustained change still gets through: at most one move per window, with the reason', async () => {
+    const t = setup({ ...NIGHT, running: { api: 4, worker: 1 } });
+    await tick(t, { api: 4, worker: 1 }, 0);
+    // The API really needs 6 tasks now (+2 = 18 % > tolerance): held while
+    // the 10-min window still holds an 11, then applied once (the same
+    // «every sample strictly inside the window» rule as Kubernetes HPA).
+    await tick(t, { api: 6, worker: 1 }, 5);
+    expect(t.ceiling()?.api).toBe(11);
+    await tick(t, { api: 6, worker: 1 }, 10);
+    expect(t.ceiling()?.api).toBe(13);
+    const up = ceilingChanges(t).at(-1)!;
+    expect(up).toContain('API 11 → 13');
+    expect(up).toContain('API вверх: все рекомендации за 10 мин не ниже 13');
+    // Then the load goes away: down only after the whole 30-min window
+    // agrees, and only once.
+    for (let m = 15; m <= 35; m += 5) await tick(t, { api: 4, worker: 1 }, m);
+    expect(t.ceiling()?.api).toBe(13);
+    await tick(t, { api: 4, worker: 1 }, 40);
+    expect(t.ceiling()?.api).toBe(11);
+    const down = ceilingChanges(t).at(-1)!;
+    expect(down).toContain('API 13 → 11');
+    expect(down).toContain('API вниз: все рекомендации за 30 мин не выше 11');
+    expect(ceilingChanges(t)).toHaveLength(3);
+  });
+
+  it('manual mode writes the reason too', async () => {
+    const t = setup({ ...NIGHT, mode: 'manual' });
+    await t.svc.tick(NOW);
+    expect(ceilingChanges(t)[0]).toContain(
+      'Причина: числа заданы вручную в админке (API 6, фоновые 3)',
+    );
   });
 });

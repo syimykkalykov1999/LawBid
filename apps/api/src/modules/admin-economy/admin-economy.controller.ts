@@ -80,6 +80,9 @@ export class AdminEconomyController {
       'economy.manual_worker_max': dto.manualWorker,
       'economy.daily_brake_days': dto.dailyBrakeDays,
       'economy.aws_fallback_usd': dto.awsFallbackUsd,
+      'economy.ceiling_up_window_min': dto.ceilingUpWindowMin,
+      'economy.ceiling_down_window_min': dto.ceilingDownWindowMin,
+      'economy.ceiling_tolerance_percent': dto.ceilingTolerancePercent,
     });
     if (dto.guardEnabled !== undefined) {
       await this.config.updateFlag(admin, ECONOMY_FLAG, {

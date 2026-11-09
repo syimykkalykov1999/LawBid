@@ -18,6 +18,9 @@ class UpdateEconomyDto {
     this.manualWorker,
     this.dailyBrakeDays,
     this.awsFallbackUsd,
+    this.ceilingUpWindowMin,
+    this.ceilingDownWindowMin,
+    this.ceilingTolerancePercent,
     this.guardEnabled,
   });
 
@@ -31,6 +34,9 @@ class UpdateEconomyDto {
   final num? manualWorker;
   final num? dailyBrakeDays;
   final num? awsFallbackUsd;
+  final num? ceilingUpWindowMin;
+  final num? ceilingDownWindowMin;
+  final num? ceilingTolerancePercent;
 
   /// The economy_guard flag (rollback).
   final bool? guardEnabled;

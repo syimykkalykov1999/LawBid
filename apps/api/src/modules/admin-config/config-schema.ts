@@ -1208,6 +1208,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   for (const key of ['economy.manual_api_max', 'economy.manual_worker_max']) {
     out[key] = { ...out[key], min: 1, max: 1000 };
   }
+  for (const key of [
+    'economy.ceiling_up_window_min',
+    'economy.ceiling_down_window_min',
+  ]) {
+    out[key] = { ...out[key], min: 0, max: 1440 };
+  }
+  out['economy.ceiling_tolerance_percent'] = {
+    ...out['economy.ceiling_tolerance_percent'],
+    min: 0,
+    max: 100,
+  };
   out['trust.payout_delay_days'] = {
     ...out['trust.payout_delay_days'],
     description:

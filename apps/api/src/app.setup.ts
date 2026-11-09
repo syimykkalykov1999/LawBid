@@ -46,7 +46,7 @@ export function shouldExposeApiDocs(
  * Owner 2026-10-15: gzip/brotli for answers over 1 KB (JSON shrinks 3-6x).
  * Skipped for a client that sends `X-No-Compression` and for event streams.
  */
-export function responseCompression() {
+export function responseCompression(): express.RequestHandler {
   return compression({
     threshold: 1024,
     filter: (req, res) =>

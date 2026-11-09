@@ -21,6 +21,11 @@ import {
   pressures,
   projectMonth,
   REDIS_TIERS,
+  stabilizeCeiling,
+  pruneSamples,
+  CEILING_UP_WINDOW_MIN,
+  CEILING_DOWN_WINDOW_MIN,
+  CEILING_TOLERANCE_PERCENT,
 } from './economy.rules';
 
 describe('allowedSpendUsd', () => {
@@ -310,5 +315,147 @@ describe('affordableTier (budget-tied autoscale ceilings, cost registry V4)', ()
     expect(
       affordableTier(DB_TIERS, 100_000, DB_CEILING_SHARE, 'db.r7g.large').name,
     ).toBe('db.r7g.large');
+  });
+});
+
+describe('stabilizeCeiling (HPA stabilization window + tolerance, owner 2026-11-09)', () => {
+  const T0 = Date.parse('2026-11-08T19:00:00Z');
+  const at = (min: number) => new Date(T0 + min * 60_000).toISOString();
+  const opts = {
+    upWindowMs: CEILING_UP_WINDOW_MIN * 60_000,
+    downWindowMs: CEILING_DOWN_WINDOW_MIN * 60_000,
+    tolerancePercent: CEILING_TOLERANCE_PERCENT,
+  };
+
+  it('the first value is applied as is', () => {
+    const r = stabilizeCeiling({
+      current: null,
+      recommended: 4,
+      history: [],
+      now: new Date(T0),
+      ...opts,
+    });
+    expect(r).toEqual({ value: 4, reason: 'first', sample: 4 });
+  });
+
+  it('the night of 08–09.11: a 4-3-4-3 signal every 5 minutes never moves the ceiling', () => {
+    // Prod «Что было»: фоновые 4→3 (19:00), 3→4 (19:05), 4→3 (19:30), 3→4 (19:35)…
+    const recs = [4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3];
+    let current = 4;
+    const history: { at: string; value: number }[] = [];
+    const changes: number[] = [];
+    recs.forEach((rec, i) => {
+      const r = stabilizeCeiling({
+        current,
+        recommended: rec,
+        history,
+        now: new Date(T0 + i * 5 * 60_000),
+        ...opts,
+      });
+      history.push({ at: at(i * 5), value: r.sample });
+      if (r.value !== current) changes.push(r.value);
+      current = r.value;
+    });
+    expect(changes).toEqual([]);
+    expect(current).toBe(4);
+  });
+
+  it('a change within the tolerance is noise (11 → 12 with 10 %)', () => {
+    const r = stabilizeCeiling({
+      current: 11,
+      recommended: 12,
+      history: [],
+      now: new Date(T0),
+      ...opts,
+    });
+    expect(r).toEqual({ value: 11, reason: 'tolerance', sample: 11 });
+  });
+
+  it('goes up only once every recommendation of the up-window agrees', () => {
+    const history = [
+      { at: at(-5), value: 4 },
+      { at: at(-10), value: 4 },
+    ];
+    // 4 → 6 five minutes ago, still 6 now: the window (10 min) has a 4.
+    const wait = stabilizeCeiling({
+      current: 4,
+      recommended: 6,
+      history: [...history, { at: at(-5), value: 6 }],
+      now: new Date(T0),
+      ...opts,
+    });
+    expect(wait.value).toBe(4);
+    expect(wait.reason).toBe('wait_up');
+    // Every sample of the last 10 min says 6 (the 4s are older).
+    const up = stabilizeCeiling({
+      current: 4,
+      recommended: 6,
+      history: [
+        { at: at(-15), value: 4 },
+        { at: at(-5), value: 6 },
+      ],
+      now: new Date(T0),
+      ...opts,
+    });
+    expect(up).toEqual({ value: 6, reason: 'up', sample: 6 });
+  });
+
+  it('goes down only once every recommendation of the down-window agrees', () => {
+    const wait = stabilizeCeiling({
+      current: 13,
+      recommended: 3,
+      history: [{ at: at(-20), value: 13 }],
+      now: new Date(T0),
+      ...opts,
+    });
+    expect(wait).toMatchObject({ value: 13, reason: 'wait_down' });
+    const down = stabilizeCeiling({
+      current: 13,
+      recommended: 3,
+      history: [
+        { at: at(-40), value: 13 },
+        { at: at(-25), value: 3 },
+        { at: at(-5), value: 3 },
+      ],
+      now: new Date(T0),
+      ...opts,
+    });
+    expect(down).toEqual({ value: 3, reason: 'down', sample: 3 });
+  });
+
+  it('a decrease uses the largest value of the window, not the latest', () => {
+    const r = stabilizeCeiling({
+      current: 13,
+      recommended: 3,
+      history: [
+        { at: at(-25), value: 11 },
+        { at: at(-10), value: 3 },
+      ],
+      now: new Date(T0),
+      ...opts,
+    });
+    expect(r).toEqual({ value: 11, reason: 'down', sample: 3 });
+  });
+
+  it('windows of 0 and tolerance 0 = the old behaviour (every tick applies)', () => {
+    const r = stabilizeCeiling({
+      current: 4,
+      recommended: 3,
+      history: [{ at: at(-5), value: 4 }],
+      now: new Date(T0),
+      upWindowMs: 0,
+      downWindowMs: 0,
+      tolerancePercent: 0,
+    });
+    expect(r).toEqual({ value: 3, reason: 'down', sample: 3 });
+  });
+
+  it('pruneSamples keeps only the window (and nothing from the future)', () => {
+    const kept = pruneSamples(
+      [{ at: at(-40) }, { at: at(-20) }, { at: at(5) }, { at: 'bad' }],
+      new Date(T0),
+      30 * 60_000,
+    );
+    expect(kept).toEqual([{ at: at(-20) }]);
   });
 });

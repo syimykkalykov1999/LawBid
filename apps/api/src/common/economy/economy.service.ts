@@ -30,6 +30,7 @@ import {
 import { AwsOpsService, type TaskKind } from '../ops/aws-ops.service';
 import type {
   CapacityReading,
+  CeilingSnapshot,
   EconomyEvent,
   EconomyState,
 } from '../ops/ops.constants';
@@ -37,6 +38,9 @@ import { OpsStateService } from '../ops/ops-state.service';
 import { SsmParamGateway } from '../ops/ssm-param.gateway';
 import {
   affordableCeilings,
+  CEILING_DOWN_WINDOW_MIN,
+  CEILING_TOLERANCE_PERCENT,
+  CEILING_UP_WINDOW_MIN,
   dailyBrakeCents,
   dbStorageMonthUsd,
   DB_TIERS,
@@ -48,8 +52,11 @@ import {
   nextTier,
   prevTier,
   pressures,
+  pruneSamples,
   shrinkBlocker,
+  stabilizeCeiling,
   projectMonth,
+  type StabilizeResult,
   REDIS_TIERS,
   allowedSpendUsd,
   affordableTier,
@@ -89,6 +96,11 @@ export interface EconomySettings {
   percent: number;
   thresholdUsd: number;
   ceilingMode: 'auto' | 'manual';
+  /** Owner 2026-11-09: stabilization of the automatic ceiling (minutes and
+   * percent; Kubernetes-HPA style, see economy.rules.ts). */
+  ceilingUpWindowMin: number;
+  ceilingDownWindowMin: number;
+  ceilingTolerancePercent: number;
   manualApi: number;
   manualWorker: number;
   awsFallbackUsd: number;
@@ -250,6 +262,9 @@ export class EconomyService {
       manualWorker,
       awsFallbackUsd,
       dailyBrakeDays,
+      upWin,
+      downWin,
+      tol,
     ] = await Promise.all([
       s.number('economy.max_spend_percent'),
       s.number('economy.min_threshold_usd'),
@@ -258,7 +273,12 @@ export class EconomyService {
       s.number('economy.manual_worker_max'),
       s.number('economy.aws_fallback_usd'),
       s.number('economy.daily_brake_days'),
+      s.number('economy.ceiling_up_window_min'),
+      s.number('economy.ceiling_down_window_min'),
+      s.number('economy.ceiling_tolerance_percent'),
     ]);
+    const num = (v: unknown, dflt: number) =>
+      typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : dflt;
     return {
       percent,
       thresholdUsd,
@@ -267,6 +287,9 @@ export class EconomyService {
       manualWorker,
       awsFallbackUsd,
       dailyBrakeDays,
+      ceilingUpWindowMin: num(upWin, CEILING_UP_WINDOW_MIN),
+      ceilingDownWindowMin: num(downWin, CEILING_DOWN_WINDOW_MIN),
+      ceilingTolerancePercent: num(tol, CEILING_TOLERANCE_PERCENT),
     };
   }
 
@@ -695,17 +718,23 @@ export class EconomyService {
       api: this.aws.hardCap('api'),
       worker: this.aws.hardCap('worker'),
     };
+    const prev = await this.ops.ceiling();
     let target: Record<TaskKind, number>;
+    let reason: string;
+    let samples: CeilingSnapshot['samples'];
+    let stabilized: Record<TaskKind, StabilizeResult> | undefined;
     if (cfg.ceilingMode === 'manual') {
       target = {
         api: manualCeiling(cfg.manualApi, min, hard.api),
         worker: manualCeiling(cfg.manualWorker, min, hard.worker),
       };
+      reason = `числа заданы вручную в админке (API ${cfg.manualApi}, фоновые ${cfg.manualWorker}), в пределах Terraform ${hard.api}/${hard.worker}`;
     } else {
       const counts = await this.aws.taskCounts();
       if (!counts) return null;
+      const headroomUsd = f.awsLimitUsd - f.awsProjectedUsd;
       const want = affordableCeilings({
-        headroomUsd: f.awsLimitUsd - f.awsProjectedUsd,
+        headroomUsd,
         apiRunning: counts.api.running,
         workerRunning: counts.worker.running,
         apiTaskUsd: this.aws.taskUsd('api'),
@@ -714,11 +743,46 @@ export class EconomyService {
         apiHardCap: hard.api,
         workerHardCap: hard.worker,
       });
-      const prev = await this.ops.ceiling();
+      // Owner 2026-11-09: HPA-style stabilization — the ceiling used to copy
+      // every ±1 move of the running count (API 11→12→13→12→11 all night).
+      const upMs = cfg.ceilingUpWindowMin * 60_000;
+      const downMs = cfg.ceilingDownWindowMin * 60_000;
+      const history = pruneSamples(
+        prev?.samples ?? [],
+        now,
+        Math.max(upMs, downMs),
+      );
+      const stab = (kind: TaskKind) =>
+        stabilizeCeiling({
+          current: prev?.[kind] ?? null,
+          recommended: want[kind],
+          history: history.map((h) => ({ at: h.at, value: h[kind] })),
+          now,
+          upWindowMs: upMs,
+          downWindowMs: downMs,
+          tolerancePercent: cfg.ceilingTolerancePercent,
+        });
+      stabilized = { api: stab('api'), worker: stab('worker') };
       target = {
-        api: limitStepUp(prev?.api ?? null, want.api),
-        worker: limitStepUp(prev?.worker ?? null, want.worker),
+        api: limitStepUp(prev?.api ?? null, stabilized.api.value),
+        worker: limitStepUp(prev?.worker ?? null, stabilized.worker.value),
       };
+      samples = [
+        ...history,
+        {
+          at: now.toISOString(),
+          api: stabilized.api.sample,
+          worker: stabilized.worker.sample,
+        },
+      ];
+      reason = this.ceilingReason({
+        headroomUsd,
+        f,
+        running: { api: counts.api.running, worker: counts.worker.running },
+        want,
+        stabilized,
+        cfg,
+      });
     }
     await this.aws.setCeilings(target);
     if (mode?.mode === 'min') {
@@ -729,20 +793,66 @@ export class EconomyService {
         source: 'economy',
       });
     }
-    const prev = await this.ops.ceiling();
+    const changed =
+      !prev || prev.api !== target.api || prev.worker !== target.worker;
     await this.ops.setCeiling({
       ...target,
       mode: cfg.ceilingMode,
       at: now.toISOString(),
+      samples,
+      reason: changed ? reason : prev?.reason,
     });
-    if (!prev || prev.api !== target.api || prev.worker !== target.worker) {
+    if (changed) {
       await this.event(
         'ceiling',
-        `Потолок контейнеров: API ${prev?.api ?? '—'} → ${target.api}, фоновые ${prev?.worker ?? '—'} → ${target.worker} (${cfg.ceilingMode === 'auto' ? 'автомат' : 'вручную'}).`,
+        `Потолок контейнеров: API ${prev?.api ?? '—'} → ${target.api}, фоновые ${prev?.worker ?? '—'} → ${target.worker} (${cfg.ceilingMode === 'auto' ? 'автомат' : 'вручную'}). Причина: ${reason}.`,
         now,
       );
     }
-    return { ...target, mode: cfg.ceilingMode };
+    return {
+      ...target,
+      mode: cfg.ceilingMode,
+      changed,
+      held: stabilized
+        ? { api: stabilized.api.reason, worker: stabilized.worker.reason }
+        : undefined,
+    };
+  }
+
+  /** Plain Russian for «Что было»: why the automatic ceiling moved (or was
+   * held) this tick. */
+  private ceilingReason(o: {
+    headroomUsd: number;
+    f: EconomyFigures;
+    running: Record<TaskKind, number>;
+    want: Record<TaskKind, number>;
+    stabilized: Record<TaskKind, StabilizeResult>;
+    cfg: EconomySettings;
+  }): string {
+    const money = `запас бюджета AWS $${usd(o.headroomUsd)} (бюджет $${usd(o.f.awsLimitUsd)}, прогноз счёта $${usd(o.f.awsProjectedUsd)}) при работающих API ${o.running.api}, фоновые ${o.running.worker} оплачивает API до ${o.want.api}, фоновые до ${o.want.worker}`;
+    const part = (kind: TaskKind, label: string): string | null => {
+      const s = o.stabilized[kind];
+      switch (s.reason) {
+        case 'first':
+          return `${label}: первое значение`;
+        case 'up':
+          return `${label} вверх: все рекомендации за ${o.cfg.ceilingUpWindowMin} мин не ниже ${s.value}`;
+        case 'down':
+          return `${label} вниз: все рекомендации за ${o.cfg.ceilingDownWindowMin} мин не выше ${s.value}`;
+        case 'wait_up':
+          return `${label} держим: рост до ${o.want[kind]} ещё не подтверждён ${o.cfg.ceilingUpWindowMin} мин`;
+        case 'wait_down':
+          return `${label} держим: снижение до ${o.want[kind]} ещё не подтверждено ${o.cfg.ceilingDownWindowMin} мин`;
+        case 'tolerance':
+          return `${label} держим: разница с ${o.want[kind]} меньше допуска ${o.cfg.ceilingTolerancePercent} %`;
+        default:
+          return null;
+      }
+    };
+    const parts = [part('api', 'API'), part('worker', 'фоновые')].filter(
+      (p): p is string => p !== null,
+    );
+    return parts.length ? `${money}; ${parts.join('; ')}` : money;
   }
 
   private pressureText(p: Pressure): string {

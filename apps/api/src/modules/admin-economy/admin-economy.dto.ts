@@ -26,6 +26,21 @@ export class EconomySettingsDto {
     description: 'The daily money brake = allowed spend / 30 × this many days.',
   })
   dailyBrakeDays!: number;
+  @ApiProperty({
+    description:
+      'Auto ceiling: no increase unless every recommendation of the last N minutes agrees (HPA scale-up stabilization window).',
+  })
+  ceilingUpWindowMin!: number;
+  @ApiProperty({
+    description:
+      'Auto ceiling: no decrease unless every recommendation of the last N minutes agrees (HPA scale-down stabilization window).',
+  })
+  ceilingDownWindowMin!: number;
+  @ApiProperty({
+    description:
+      'Auto ceiling: a recommendation within this percent of the current ceiling changes nothing (HPA tolerance).',
+  })
+  ceilingTolerancePercent!: number;
 }
 
 export class SpendLineDto {
@@ -269,6 +284,27 @@ export class UpdateEconomyDto {
   @Min(0)
   @Max(100_000)
   awsFallbackUsd?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 1440 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1440)
+  ceilingUpWindowMin?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 1440 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1440)
+  ceilingDownWindowMin?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  ceilingTolerancePercent?: number;
 
   @ApiPropertyOptional({ description: 'The economy_guard flag (rollback).' })
   @IsOptional()

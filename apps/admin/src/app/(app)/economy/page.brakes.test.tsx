@@ -32,6 +32,9 @@ const report = (over: { guard?: 'ok' | 'limited'; scaleMode?: 'min' | 'normal' |
     manualWorker: 2,
     awsFallbackUsd: 150,
     dailyBrakeDays: 3,
+    ceilingUpWindowMin: 10,
+    ceilingDownWindowMin: 30,
+    ceilingTolerancePercent: 10,
   },
   containers: { onAws: true, api: container, worker: container, scaleMode: over.scaleMode ?? 'normal' },
   capacity: {
