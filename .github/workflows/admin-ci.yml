@@ -163,8 +163,11 @@ jobs:
           npm run build
           # .env.test = the e2e settings (mock SMS/email, fixed OTP); DATABASE_URL /
           # REDIS_URL from the services above win over the file.
+          # .env.test carries localhost:5432 / :6379; the services listen on random
+          # ports (service-env.sh), so keep the job's values over the file's.
+          DB="$DATABASE_URL"; RD="$REDIS_URL"
           set -a; . ./.env.test; set +a
-          export DATABASE_URL="${DATABASE_URL}" REDIS_URL="${REDIS_URL}" PORT=3000
+          export DATABASE_URL="$DB" REDIS_URL="$RD" PORT=3000
           export ADMIN_LOGIN_LIMIT_PER_IP_PER_HOUR=1000
           nohup node dist/src/main.js > "$RUNNER_TEMP/api.log" 2>&1 &
           # A cold runner boots the API in 2–4 min (run 42658592498 was still
@@ -178,8 +181,9 @@ jobs:
         working-directory: apps/api
         run: |
           set -eu
+          DB="$DATABASE_URL"
           set -a; . ./.env.test; set +a
-          export DATABASE_URL="${DATABASE_URL}" API_URL=http://localhost:3000
+          export DATABASE_URL="$DB" API_URL=http://localhost:3000
           TOKEN=$(npx ts-node --transpile-only scripts/lhci-admin.ts)
           echo "::add-mask::$TOKEN"
           echo "LHCI_ADMIN_TOKEN=$TOKEN" >> "$GITHUB_ENV"
