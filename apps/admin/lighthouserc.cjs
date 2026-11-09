@@ -34,8 +34,10 @@ module.exports = {
         'categories:performance': ['warn', { minScore: 0.8 }],
         'categories:accessibility': ['warn', { minScore: 0.9 }],
         'largest-contentful-paint': ['warn', { maxNumericValue: 2500 }],
-        // Owner 2026-11-09: the main-thread budget is enforced (error).
-        'total-blocking-time': ['error', { maxNumericValue: 300 }],
+        // Owner 2026-11-09: the main-thread budget is enforced (error) on the
+        // MEDIAN of the runs — lhci's default «optimistic» takes the best run,
+        // which let a 314 ms median pass.
+        'total-blocking-time': ['error', { maxNumericValue: 300, aggregationMethod: 'median' }],
         'cumulative-layout-shift': ['warn', { maxNumericValue: 0.1 }],
         'resource-summary:script:size': ['warn', { maxNumericValue: 600 * 1024 }],
       },

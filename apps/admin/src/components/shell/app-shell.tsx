@@ -1,6 +1,7 @@
 'use client';
 
 import { AnimatePresence, m } from 'motion/react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -10,7 +11,6 @@ import { useMe } from '@/lib/hooks';
 import { canOpen, navModeFor, sectionFor } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
 import { BottomNav } from './bottom-nav';
-import { CommandPalette } from './command-palette';
 import { DeskTabs } from './desk-tabs';
 import { SectionTabs } from './section-tabs';
 import { StepUpHost } from './step-up-host';
@@ -19,12 +19,36 @@ import { Topbar } from './topbar';
 
 const COLLAPSE_KEY = 'lawbid-admin-sidebar';
 
+// ⌘K palette: its code (all sections, icons, search) loads on the first
+// ⌘K / search click instead of with every page (next/dynamic, Next.js docs
+// «Lazy Loading»: load client components only when they are needed).
+const CommandPalette = dynamic(() => import('./command-palette').then((m) => m.CommandPalette), { ssr: false });
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { data: me } = useMe();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
+  // Until the palette is mounted the shell listens for ⌘K itself; after
+  // that the palette's own listener takes over (one listener at a time).
+  const [paletteMounted, setPaletteMounted] = useState(false);
+  const openPalette = () => {
+    setPaletteMounted(true);
+    setPalette(true);
+  };
+  useEffect(() => {
+    if (paletteMounted) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteMounted(true);
+        setPalette(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [paletteMounted]);
 
   useEffect(() => {
     try {
@@ -99,7 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       <div className={cn('relative min-w-0 overflow-x-clip transition-[padding] duration-300', desk ? '' : collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]')}>
-        <Topbar me={me} onMenu={() => setDrawer(true)} onSearch={() => setPalette(true)} />
+        <Topbar me={me} onMenu={() => setDrawer(true)} onSearch={openPalette} />
         <main className="mx-auto w-full max-w-[1480px] px-3 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-7 lg:px-10 lg:py-9">
           {/* Owner 2026-10-07: the tabs stay put while the page below
               changes, so a far-right tab doesn't throw the strip back. */}
@@ -130,7 +154,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       {desk ? null : <BottomNav me={me} onMore={() => setDrawer(true)} />}
-      <CommandPalette me={me} open={palette} setOpen={setPalette} />
+      {paletteMounted ? <CommandPalette me={me} open={palette} setOpen={setPalette} /> : null}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { Archive, ArrowCounterClockwise, Briefcase, EyeSlash, Flag, LockSimple, MagnifyingGlass, RocketLaunch } from '@phosphor-icons/react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { useState } from 'react';
 import { LoadMore } from '@/components/billing/shared';
 import { DossierBadge } from '@/components/cases/dossier';

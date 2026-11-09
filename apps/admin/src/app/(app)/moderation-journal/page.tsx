@@ -1,7 +1,7 @@
 'use client';
 
 import { useInfiniteQuery } from '@tanstack/react-query';
-import Link from 'next/link';
+import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { VirtualRows } from '@/components/ui/virtual-rows';
 import { MoreButton } from '@/components/legacy/more-button';

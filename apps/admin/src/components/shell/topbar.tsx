@@ -1,7 +1,7 @@
 'use client';
 
 import { CaretDown, List, MagnifyingGlass, ShieldCheck, SignOut } from '@phosphor-icons/react';
-import Link from 'next/link';
+import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, m } from 'motion/react';
 import { usePathname, useRouter } from 'next/navigation';

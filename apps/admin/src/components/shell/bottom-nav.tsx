@@ -1,7 +1,7 @@
 'use client';
 
 import { List } from '@phosphor-icons/react';
-import Link from 'next/link';
+import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { usePathname } from 'next/navigation';
 import type { Me } from '@/lib/hooks';
 import { groupFor, groupsFor } from '@/lib/rbac';
