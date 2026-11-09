@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/audio/proximity_screen.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -20,6 +21,7 @@ import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 
+import '../../core/audio/fake_proximity.dart';
 import 'call_audio_fakes.dart';
 
 /// OQ-041: the call state machine — ring out, pick-up, signaling,
@@ -555,6 +557,7 @@ class _Harness {
         realtimeEventsProvider.overrideWithValue(events.stream),
         appSoundsProvider.overrideWithValue(sounds),
         callForegroundProvider.overrideWithValue(foreground),
+        proximityScreenProvider.overrideWithValue(ProximityScreen(proximity)),
         systemCallUiProvider.overrideWithValue(systemUi),
         callMyIdProvider.overrideWithValue(me),
         callMicPermissionProvider.overrideWithValue(() async => true),
@@ -585,6 +588,7 @@ class _Harness {
   final systemUi = _SystemUi();
   final media = _FakeMedia();
   final audio = FakeCallAudioDevices();
+  final proximity = FakeProximityBackend();
   final events = StreamController<RealtimeEvent>.broadcast();
   final signals = <Map<String, Object?>>[];
   final signalTargets = <String?>[];
@@ -1908,6 +1912,104 @@ void main() {
       expect(h.media.speaker, isFalse);
       expect(h.audio.used, isEmpty);
       await h.c.hangUp();
+    });
+  });
+
+  group('screen off at the ear (owner 2026-11-08, WhatsApp)', () {
+    Future<_Harness> talking() async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      await _settle();
+      h.media.onState!(CallMediaState.connected);
+      await _settle();
+      return h;
+    }
+
+    test('ringing out at the ear: the lock is armed before the sensor',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      await _settle();
+      expect(h.s.phase, CallPhase.outgoing);
+      expect(h.proximity.calls, ['arm', 'listen']);
+      expect(h.proximity.lockHeld, isTrue);
+      await h.c.hangUp();
+      await _settle();
+      expect(h.proximity.lockHeld, isFalse);
+      expect(h.proximity.listening, isFalse);
+    });
+
+    test('earpiece holds it, speaker lets go, back to the ear holds again',
+        () async {
+      final h = await talking();
+      expect(h.s.phase, CallPhase.active);
+      expect(h.proximity.lockHeld, isTrue);
+      await h.c.toggleSpeaker();
+      await _settle();
+      expect(h.s.speaker, isTrue);
+      expect(h.proximity.lockHeld, isFalse);
+      expect(h.proximity.listening, isFalse);
+      await h.c.toggleSpeaker();
+      await _settle();
+      expect(h.proximity.lockHeld, isTrue);
+      await h.c.hangUp();
+      await _settle();
+      expect(h.proximity.lockHeld, isFalse);
+      expect(h.proximity.armed, isFalse);
+    });
+
+    test('a headset or bluetooth lets go; taken off holds again', () async {
+      final h = await talking();
+      expect(h.proximity.lockHeld, isTrue);
+      h.audio.connect(FakeCallAudioDevices.btOut);
+      await _settle();
+      expect(h.container.read(callAudioRouterProvider).inHeadset, isTrue);
+      expect(h.proximity.lockHeld, isFalse);
+      h.audio.disconnect(FakeCallAudioDevices.btOut);
+      await _settle();
+      expect(h.proximity.lockHeld, isTrue);
+      await h.c.hangUp();
+    });
+
+    test('the camera on lets go', () async {
+      final h = await talking();
+      expect(h.proximity.lockHeld, isTrue);
+      await h.c.toggleVideo();
+      await _settle();
+      expect(h.s.video, isTrue);
+      expect(h.proximity.lockHeld, isFalse);
+      await h.c.hangUp();
+    });
+
+    test('the other side hangs up: released', () async {
+      final h = await talking();
+      expect(h.proximity.lockHeld, isTrue);
+      h.emit(
+        'call:ended',
+        _event(_call('c1', CallStatus.ended, outgoing: true)),
+      );
+      await _settle();
+      expect(h.s.phase, isNot(CallPhase.active));
+      expect(h.proximity.lockHeld, isFalse);
+      expect(h.proximity.listening, isFalse);
+    });
+
+    test('an incoming call still ringing does not hold it', () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.emit(
+        'call:incoming',
+        _event(_call('c9', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.proximity.calls, isEmpty);
     });
   });
 
