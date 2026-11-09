@@ -926,6 +926,7 @@ model User {
   post_reposts                PostRepost[]                   @relation("PostReposter")
   comment_likes               CommentLike[]                  @relation("CommentLiker")
   following                   Follow[]                       @relation("Follower")
+  follow_tombstones           FollowTombstone[]              @relation("FollowTombstoneFollower")
   followers                   Follow[]                       @relation("Followee")
   // Owner 2026-09-29 (OQ-028): user-level blocks, both roles.
   blocks_made                 UserBlock[]                    @relation("Blocker")
@@ -2694,6 +2695,27 @@ model Follow {
   @@index([followee_id, created_at(sort: Desc), follower_id(sort: Desc)], map: "follows_followee_created_follower_idx")
   @@index([follower_id, created_at(sort: Desc), followee_id(sort: Desc)], map: "follows_follower_created_followee_idx")
   @@map("follows")
+}
+
+/// B-c7 (2026-11-09, Telegram getDifference): the journal of unfollows —
+/// the tombstone `GET /users/me/following?updatedSince` answers in
+/// meta.deletedIds, so the phone drops the row instead of reloading the
+/// list. Written on unfollow (upsert, the time moves), removed on a new
+/// follow of the same person; rows older than the sync window (7 days)
+/// are swept by the storage cleanup.
+model FollowTombstone {
+  follower_id String   @db.Uuid
+  follower    User     @relation("FollowTombstoneFollower", fields: [follower_id], references: [id], onDelete: Cascade)
+  followee_id String   @db.Uuid
+  deleted_at  DateTime @default(now()) @db.Timestamptz
+
+  /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
+  shard_id Int @default(0) @db.SmallInt
+
+  @@id([follower_id, followee_id])
+  @@index([follower_id, deleted_at])
+  @@index([deleted_at])
+  @@map("follow_tombstones")
 }
 
 /// Owner decision 2026-09-29 (OQ-028): any user may block any other.

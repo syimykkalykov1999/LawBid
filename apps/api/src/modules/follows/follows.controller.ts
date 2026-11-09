@@ -27,6 +27,7 @@ import {
   AttorneyIdParamDto,
   AttorneyListItemDto,
   FollowStateDto,
+  MyFollowingQueryDto,
   PeopleListQueryDto,
   SuggestionsQueryDto,
   type AttorneyListPage,
@@ -127,10 +128,13 @@ export class FollowsController {
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
   async listMyFollowing(
     @CurrentUser() user: RequestUser,
-    @Query() q: PeopleListQueryDto,
+    @Query() q: MyFollowingQueryDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AttorneyListPage | undefined> {
+    // B-c7 (2026-11-09): a catch-up brings only what changed + deletedIds.
+    if (q.updatedSince)
+      return this.follows.mineChanged(user.sub, q.updatedSince);
     return conditionalGet(
       req,
       res,

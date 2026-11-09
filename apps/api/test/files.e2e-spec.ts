@@ -664,6 +664,91 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
     });
   });
 
+  /**
+   * D-c1 (2026-11-09, security audit M3 + OWASP File Upload Cheat Sheet):
+   * the presigned link writes only under `staging/`; confirm copies the
+   * checked bytes to the row's own key outside it. Fail-first: a write to
+   * the final key is refused by the store, and bytes swapped in through the
+   * still-valid link after the scan never reach the row's object.
+   */
+  describe('upload staging (D-c1)', () => {
+    it('the link writes under staging/, the row points outside it, a PUT to the final key is refused', async () => {
+      const auth = await login();
+      const data = Buffer.from('%PDF-1.4\nstaged\n');
+      const body = await presign(auth, {
+        purpose: 'verification_document',
+        mime: 'application/pdf',
+        sizeBytes: data.length,
+        sha256: sha(data),
+      });
+      const p = body.data as {
+        fileId: string;
+        upload: { url: string; fields: Record<string, string> };
+      };
+      expect(p.upload.fields.key.startsWith('staging/')).toBe(true);
+      expect(await uploadTo(p.upload, data, 'application/pdf')).toBe(204);
+      await confirm(auth, p.fileId);
+      expect((await settled(auth, p.fileId)).scanStatus).toBe('clean');
+      const row = await prisma.file.findUniqueOrThrow({
+        where: { id: p.fileId },
+      });
+      expect(row.s3_key.startsWith('staging/')).toBe(false);
+      expect(row.s3_key).not.toBe(p.upload.fields.key);
+
+      // The signed form is bound to the staging key: the same form aimed
+      // at the row's key (or at any key outside staging/) is refused.
+      const aimed = {
+        url: p.upload.url,
+        fields: { ...p.upload.fields, key: row.s3_key },
+      };
+      expect(await uploadTo(aimed, data, 'application/pdf')).toBe(403);
+      // And an unsigned PUT to the final key is refused outright.
+      const endpoint = process.env.S3_ENDPOINT!;
+      const put = await fetch(`${endpoint}/${row.s3_bucket}/${row.s3_key}`, {
+        method: 'PUT',
+        body: new Uint8Array(Buffer.from('%PDF-1.4\nswapped\n')),
+        headers: { 'Content-Type': 'application/pdf' },
+      });
+      expect(put.status).toBe(403);
+    });
+
+    it('bytes swapped in through the still-valid link after the scan are not what the row serves', async () => {
+      const auth = await login();
+      const original = Buffer.from('%PDF-1.4\noriginal-bytes\n');
+      const body = await presign(auth, {
+        purpose: 'verification_document',
+        mime: 'application/pdf',
+        sizeBytes: original.length,
+        sha256: sha(original),
+      });
+      const p = body.data as {
+        fileId: string;
+        upload: { url: string; fields: Record<string, string> };
+      };
+      expect(await uploadTo(p.upload, original, 'application/pdf')).toBe(204);
+      await confirm(auth, p.fileId);
+      expect((await settled(auth, p.fileId)).scanStatus).toBe('clean');
+
+      // The attacker's link is still valid (5 min): the same size, other
+      // bytes (the form fixes only the length and the type).
+      const swapped = Buffer.from('%PDF-1.4\nswapped!-bytes\n');
+      expect(swapped.length).toBe(original.length);
+      expect(await uploadTo(p.upload, swapped, 'application/pdf')).toBe(204);
+
+      const row = await prisma.file.findUniqueOrThrow({
+        where: { id: p.fileId },
+      });
+      // What every download signs and reads is the row's key: the original.
+      const served = await storage.read(row.s3_bucket, row.s3_key);
+      expect(sha(served)).toBe(sha(original));
+      expect(row.sha256).toBe(sha(original));
+      const { url } = await app.get(FilesService).verificationFileUrl(p.fileId);
+      expect(new URL(url).pathname.includes('/staging/')).toBe(false);
+      const viaLink = Buffer.from(await (await fetch(url)).arrayBuffer());
+      expect(sha(viaLink)).toBe(sha(original));
+    });
+  });
+
   describe('private storage + signed links', () => {
     it('an unsigned GET of the object key is denied by MinIO (both buckets)', async () => {
       const auth = await login();

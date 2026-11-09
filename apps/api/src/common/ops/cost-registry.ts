@@ -1249,6 +1249,37 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: null,
   },
   {
+    // B-c17 (2026-11-09): Performance Insights закрывается 31.07.2026 и
+    // становится CloudWatch Database Insights. Стандартный режим — как
+    // сегодня, бесплатно (7 дней); расширенный — платный за vCPU-час,
+    // история 465 дней. Terraform держит стандартный и возвращает его,
+    // если кто-то переключил в консоли.
+    id: 'aws.database_insights_advanced',
+    name: 'Расширенная диагностика базы (Database Insights Advanced)',
+    purpose:
+      'Планы запросов и разбор «что тормозит» за 15 месяцев истории. Стандартный режим (бесплатно, 7 дней) остаётся и после закрытия Performance Insights 31.07.2026; Terraform сторожит, чтобы платный режим не включился сам.',
+    kind: 'aws',
+    control: tf(['database_insights_advanced'], {
+      off: 'database_insights_advanced = false',
+      on: 'database_insights_advanced = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'mixed',
+      '≈ $0,0125 за vCPU-час базы (t4g.micro 2 vCPU ≈ $18 в месяц; копии чтения — отдельно); стандартный режим $0',
+      U.cw,
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(18, 150),
+    needed: 'later',
+    neededNote:
+      'Не нужно: стандартный режим бесплатен и показывает то же, что Performance Insights сегодня. Включать только на время расследования, потом выключать.',
+    alarm: null,
+  },
+  {
     id: 'aws.turn_own',
     name: 'Свой сервер звонков (coturn)',
     purpose:

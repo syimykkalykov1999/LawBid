@@ -90,6 +90,12 @@ variable "rds_logical_replication" {
   default     = false
   description = "rds.logical_replication = 1. Needed for shard moves and Blue/Green major upgrades. STATIC parameter: takes effect only after a REBOOT - do it in the planned Sunday Multi-AZ reboot (docs/runbooks/db-ops.md)."
 }
+# B-c17 (2026-11-09): see modules/stack `database_insights_advanced`.
+variable "database_insights_advanced" {
+  type        = bool
+  default     = false
+  description = "CloudWatch Database Insights Advanced mode (paid per vCPU-hour, 465-day retention). Off = standard: free 7-day retention."
+}
 variable "monitoring_interval" {
   type        = number
   default     = 0
@@ -330,12 +336,15 @@ resource "aws_db_instance" "this" {
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name}-postgres-final"
 
-  auto_minor_version_upgrade            = var.auto_minor_version_upgrade
-  monitoring_interval                   = var.monitoring_interval
-  monitoring_role_arn                   = var.monitoring_interval > 0 ? aws_iam_role.monitoring[0].arn : null
-  maintenance_window                    = "sun:04:30-sun:05:30"
-  performance_insights_enabled          = true
-  performance_insights_retention_period = 7 # free tier; longer history is billed
+  auto_minor_version_upgrade   = var.auto_minor_version_upgrade
+  monitoring_interval          = var.monitoring_interval
+  monitoring_role_arn          = var.monitoring_interval > 0 ? aws_iam_role.monitoring[0].arn : null
+  maintenance_window           = "sun:04:30-sun:05:30"
+  performance_insights_enabled = true
+  # B-c17: Performance Insights → Database Insights (EOL 31.07.2026).
+  # standard = free 7 days (today's view); advanced = paid, 465 days only.
+  database_insights_mode                = var.database_insights_advanced ? "advanced" : "standard"
+  performance_insights_retention_period = var.database_insights_advanced ? 465 : 7
   performance_insights_kms_key_id       = var.kms_key_arn
   enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
 

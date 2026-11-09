@@ -20,6 +20,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BoostActions } from '../promotions/boost-actions.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
@@ -46,6 +47,8 @@ import { userDirectory } from '../../sharding/user-directory';
 import { shardContext } from '../../sharding/shard-context';
 
 const PAGE = 20;
+/** B-c7: rows one catch-up carries at most (as the groups' 500). */
+const CHANGED_MAX = 500;
 /** A follow-list tag rotates at least this often (names, photos and
  * profile states of the people in the rows are not in the tag). */
 export const FOLLOW_LIST_TAG_BUCKET_MS = 5 * 60_000;
@@ -121,6 +124,10 @@ export class FollowsService {
       skipDuplicates: true,
     });
     if (count === 0) return this.state(attorneyId, target.role, true);
+    // B-c7: a follow again cancels the unfollow tombstone (sync deltas).
+    await this.prisma.followTombstone.deleteMany({
+      where: { follower_id: user.sub, followee_id: attorneyId },
+    });
     // S2-3: the follower's feed now includes the new followee.
     await bumpFeedVersion(this.redis, user.sub);
     await this.counters.bump(
@@ -162,6 +169,24 @@ export class FollowsService {
       where: { follower_id: user.sub, followee_id: attorneyId },
     });
     if (count === 0) return this.state(attorneyId, target?.role, false);
+    // B-c7 (2026-11-09): the tombstone GET /users/me/following?updatedSince
+    // answers in meta.deletedIds, so the phone drops the row without a
+    // reload. Swept after the 7-day sync window (StorageCleanupService).
+    const now = new Date();
+    await this.prisma.followTombstone.upsert({
+      where: {
+        follower_id_followee_id: {
+          follower_id: user.sub,
+          followee_id: attorneyId,
+        },
+      },
+      create: {
+        follower_id: user.sub,
+        followee_id: attorneyId,
+        deleted_at: now,
+      },
+      update: { deleted_at: now },
+    });
     await bumpFeedVersion(this.redis, user.sub);
     await this.counters.bump(
       profileEntity(target?.role),
@@ -424,6 +449,50 @@ export class FollowsService {
     q?: string,
   ): Promise<AttorneyListPage> {
     return this.pageOf(viewerId, cursor, 'follower', viewerId, q);
+  }
+
+  /**
+   * B-c7 (2026-11-09, Telegram getDifference as GET /groups?updatedSince):
+   * GET /users/me/following?updatedSince — the people I started following
+   * since, plus `deletedIds` = the ones I unfollowed since (the tombstone
+   * journal), and syncedAt = the newest stamp of the answer. The phone
+   * merges this into its saved list and never reloads it whole.
+   */
+  async mineChanged(
+    viewerId: string,
+    sinceRaw: string,
+  ): Promise<AttorneyListPage> {
+    const since = parseUpdatedSince(sinceRaw) as Date;
+    const [added, gone] = await Promise.all([
+      this.prisma.follow.findMany({
+        where: {
+          follower_id: viewerId,
+          created_at: { gte: since },
+          followee: LISTABLE_ATTORNEY,
+        },
+        orderBy: [{ created_at: 'desc' }, { followee_id: 'desc' }],
+        take: CHANGED_MAX,
+      }),
+      this.prisma.followTombstone.findMany({
+        where: { follower_id: viewerId, deleted_at: { gte: since } },
+        select: { followee_id: true, deleted_at: true },
+        take: CHANGED_MAX,
+      }),
+    ]);
+    // Followed again after the unfollow: the row wins over the tombstone.
+    const kept = new Set(added.map((f) => f.followee_id));
+    return {
+      items: await this.present(
+        added.map((f) => f.followee_id),
+        viewerId,
+      ),
+      nextCursor: null,
+      deletedIds: gone.map((t) => t.followee_id).filter((id) => !kept.has(id)),
+      syncedAt: syncedAt(
+        [...added.map((f) => f.created_at), ...gone.map((t) => t.deleted_at)],
+        since,
+      ),
+    };
   }
 
   /**

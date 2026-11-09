@@ -335,3 +335,45 @@ describe('S3StorageService with Cloudflare R2', () => {
     });
   });
 });
+
+/** C-c11 (2026-11-09): a put with a lock carries the Object Lock headers
+ * (COMPLIANCE + retain-until); without one it carries none, so a bucket
+ * without Object Lock (local MinIO, R2) never sees them. */
+describe('S3StorageService.put with Object Lock (C-c11)', () => {
+  const inputs = () => {
+    const seen: Record<string, unknown>[] = [];
+    jest.spyOn(S3Client.prototype, 'send').mockImplementation(((
+      cmd: unknown,
+    ) => {
+      seen.push((cmd as { input: Record<string, unknown> }).input);
+      return Promise.resolve({});
+    }) as never);
+    return seen;
+  };
+
+  it('sends ObjectLockMode COMPLIANCE and the retain-until date', async () => {
+    const s = r2service('aws');
+    const seen = inputs();
+    const until = new Date('2033-11-09T00:00:00Z');
+    await s.put(
+      'lawbid-documents',
+      'case_attachment/s0/2026/11/f',
+      Buffer.from('x'),
+      'application/pdf',
+      { retainUntil: until },
+    );
+    expect(seen[0]).toMatchObject({
+      Bucket: 'lawbid-documents',
+      ObjectLockMode: 'COMPLIANCE',
+      ObjectLockRetainUntilDate: until,
+    });
+  });
+
+  it('a put without a lock carries no Object Lock fields', async () => {
+    const s = r2service('aws');
+    const seen = inputs();
+    await s.put('lawbid-documents', 'k', Buffer.from('x'), 'application/pdf');
+    expect(seen[0]).not.toHaveProperty('ObjectLockMode');
+    expect(seen[0]).not.toHaveProperty('ObjectLockRetainUntilDate');
+  });
+});
