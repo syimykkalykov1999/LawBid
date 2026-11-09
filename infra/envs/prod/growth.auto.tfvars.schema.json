@@ -54,6 +54,9 @@
         },
         "opensearch_enabled": {
           "type": "boolean"
+        },
+        "events_stream_enabled": {
+          "type": "boolean"
         }
       }
     },
@@ -82,6 +85,9 @@
       "type": "boolean"
     },
     "rds_cross_region_backups": {
+      "type": "boolean"
+    },
+    "redis_cache_node": {
       "type": "boolean"
     },
     "replicate_media": {

@@ -1,3 +1,4 @@
+import { AUTO_SINK_KEY } from '../../events/domain-events.service';
 import {
   Inject,
   Injectable,
@@ -7,6 +8,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ModuleRef } from '@nestjs/core';
 import type Redis from 'ioredis';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { COST_REGISTRY } from '../../../common/ops/cost-registry';
@@ -37,6 +39,24 @@ import {
   inQuietWindow,
 } from './infra-change.logic';
 import { InfraChangeService } from './infra-change.service';
+import { writeSystemSetting } from '../../../common/app-settings/app-settings.writer';
+import {
+  SEARCH_AUTO_LOG_KEY,
+  SEARCH_REINDEX_PORT,
+  type SearchReindexPort,
+} from '../../../common/search/search-reindex.port';
+import {
+  searchActionImmediate,
+  searchActionKey,
+  searchAutoStep,
+  type ReindexPhaseLike,
+  type SearchAutoAction,
+  type SearchMode,
+} from './search-engine-auto.logic';
+
+const SEARCH_SEEN_KEY = 'ops:infra-auto:search-seen';
+/** The last automatic search steps (newest first), for «Масштаб». */
+export const SEARCH_LOG_KEY = SEARCH_AUTO_LOG_KEY;
 
 const CHECK_MS = 10 * 60_000;
 const LOCK_KEY = 'ops:infra-auto:lock';
@@ -84,6 +104,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
     @Optional() private readonly incidents?: IncidentsService,
     @Optional() private readonly push?: PushQueueService,
+    @Optional() private readonly moduleRef?: ModuleRef,
   ) {}
 
   onModuleInit(): void {
@@ -118,6 +139,11 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       this.log.warn(`infra-auto notify failed: ${e.message}`),
     );
     const mode = (await this.settings.string('infra.auto_mode')) ?? 'auto';
+    if (mode.trim().toLowerCase() === 'auto') {
+      await this.searchPass(now).catch((e: Error) =>
+        this.log.warn(`infra-auto search step failed: ${e.message}`),
+      );
+    }
     const signals = await this.signals(now);
     const live = await this.liveFn();
     const autoOn = await this.autoOwned();
@@ -216,10 +242,22 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
 
   /** Signals the app already keeps, plus the partition growth signal. */
   async signals(now: Date): Promise<AutoSignals> {
-    const [s, engine, partitionNeedsRunner] = await Promise.all([
+    const [
+      s,
+      engine,
+      partitionNeedsRunner,
+      eventsStreamWanted,
+      cacheMode,
+      replicaProvision,
+      people,
+    ] = await Promise.all([
       this.registry.signals(now),
       this.registry.searchEngine(),
       this.partitionNeedsRunner().catch(() => false),
+      this.eventsStreamWanted().catch(() => false),
+      this.settings.string('cache.redis_mode').catch(() => 'auto'),
+      this.settings.string('db.replica_provision').catch(() => 'auto'),
+      this.people().catch(() => undefined),
     ]);
     const pool = Number(this.config.get<string>('DB_POOL_SIZE') ?? '');
     const pooler = !!this.config.get<string>('DB_POOLER_HOST');
@@ -230,7 +268,146 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       partitionNeedsRunner,
       poolSmall:
         !pooler && Number.isFinite(pool) && pool > 0 && pool < POOL_FLOOR,
+      eventsStreamWanted,
+      cacheRedisMode: cacheMode ?? 'auto',
+      cacheNodeLive: !!this.config.get<string>('REDIS_CACHE_URL'),
+      replicaProvision: replicaProvision ?? 'auto',
+      replicaAppPath:
+        this.config.get<string>('OPS_DB_REPLICA_TOGGLE') === 'on' &&
+        !!this.config.get<string>('OPS_DB_INSTANCE'),
+      people,
     };
+  }
+
+  /**
+   * G4 (2026-11-08): `events.sink` asks for the Kinesis stream (`stream`,
+   * or `auto` whose day counter crossed `events.auto_ceiling_per_day`,
+   * events.maintenance.ts) while this stand has none (EVENTS_STREAM_NAME
+   * empty). Until the stream exists the events wait in their table
+   * (published_at null) and the relay ships them once it does.
+   */
+  async eventsStreamWanted(): Promise<boolean> {
+    if (this.config.get<string>('EVENTS_STREAM_NAME')) return false;
+    const sink = (await this.settings.string('events.sink')) ?? 'db';
+    if (sink === 'stream') return true;
+    if (sink !== 'auto' || !this.redis) return false;
+    return (await this.redis.get(AUTO_SINK_KEY)) === 'stream';
+  }
+
+  /**
+   * «Авто» for `search.engine` (search-engine-auto.logic.ts): one step per
+   * pass along shadow → reindex → swap → engine while the search engine
+   * domain is on, postgres at once when it is off. Steps toward the engine
+   * wait `infra.auto_on_minutes` of the same want (hysteresis, like the
+   * cloud items); each step is logged (SEARCH_LOG_KEY) and told to the
+   * on-call admins. Returns the step taken (tests).
+   */
+  async searchPass(now: Date = new Date()): Promise<SearchAutoAction | null> {
+    const follow =
+      (await this.settings.string('search.engine_follow')) ?? 'auto';
+    if (follow.trim().toLowerCase() !== 'auto') return null;
+    const reindex = this.reindex();
+    if (!reindex) return null;
+    const raw = (await this.settings.string('search.engine')) ?? 'postgres';
+    const mode: SearchMode =
+      raw === 'shadow' || raw === 'engine' ? raw : 'postgres';
+    const live = await this.liveFn();
+    const status = await reindex.status().catch(() => null);
+    const action = searchAutoStep({
+      follow,
+      mode,
+      domain: live('aws.opensearch'),
+      engineConfigured: status?.engineConfigured ?? false,
+      phase: (status?.state?.phase as ReindexPhaseLike | undefined) ?? null,
+    });
+    if (!action) {
+      await this.redis?.del(SEARCH_SEEN_KEY).catch(() => 0);
+      return null;
+    }
+    const key = searchActionKey(action);
+    if (!searchActionImmediate(action)) {
+      const seenRaw = await this.redis?.get(SEARCH_SEEN_KEY).catch(() => null);
+      const seen = seenRaw?.startsWith(`${key}@`)
+        ? Number(seenRaw.slice(key.length + 1))
+        : NaN;
+      const first = Number.isFinite(seen) ? seen : now.getTime();
+      await this.redis
+        ?.set(SEARCH_SEEN_KEY, `${key}@${first}`, 'EX', 7 * 24 * 3600)
+        .catch(() => undefined);
+      const onMs =
+        Math.max(10, await this.settings.number('infra.auto_on_minutes')) *
+        60_000;
+      if (now.getTime() - first < onMs) return null;
+    }
+    try {
+      if (action.kind === 'set_mode') {
+        await writeSystemSetting(
+          this.prisma,
+          this.redis,
+          'search.engine',
+          action.to,
+        );
+      } else if (action.kind === 'start_reindex') {
+        await reindex.start('postgres');
+      } else {
+        await reindex.swap();
+      }
+    } catch (e) {
+      const why = (e as Error).message;
+      this.log.warn(`search auto ${key} refused: ${why}`);
+      await this.tell(
+        `search:${key}:fail:${now.toISOString().slice(0, 10)}`,
+        'Поиск: автоматический шаг не прошёл',
+        `${action.reason} Причина: ${why}. Следующая попытка через 10 минут.`,
+      );
+      return null;
+    }
+    await this.redis?.del(SEARCH_SEEN_KEY).catch(() => 0);
+    const entry = JSON.stringify({
+      at: now.toISOString(),
+      step: key,
+      reason: action.reason,
+    });
+    await this.redis
+      ?.multi()
+      .lpush(SEARCH_LOG_KEY, entry)
+      .ltrim(SEARCH_LOG_KEY, 0, 49)
+      .exec()
+      .catch(() => null);
+    this.log.log(`search auto: ${key} — ${action.reason}`);
+    await this.tell(
+      `search:${key}:${now.toISOString()}`,
+      action.kind === 'set_mode'
+        ? `Поиск: ${action.to === 'engine' ? 'отвечает поисковый движок' : action.to === 'shadow' ? 'движок подключён, идёт сверка' : 'вернулся в базу'}`
+        : action.kind === 'start_reindex'
+          ? 'Поиск: строится индекс в движке'
+          : 'Поиск: индекс проверен, переключение',
+      `${action.reason} Само, через «Авто». Ручное управление: search.engine_follow = manual.`,
+    );
+    return action;
+  }
+
+  /** The search reindex through its port (common/search/search-reindex.port),
+   * resolved lazily from the app: no import of the search module here. */
+  private reindex(): SearchReindexPort | null {
+    try {
+      return (
+        this.moduleRef?.get<SearchReindexPort>(SEARCH_REINDEX_PORT, {
+          strict: false,
+        }) ?? null
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  /** People in the database: the planner's estimate (pg_class), free. */
+  async people(): Promise<number> {
+    const [r] = await this.prisma.$queryRaw<{ n: number }[]>`
+      SELECT GREATEST(c.reltuples, 0)::float8 AS n FROM pg_class c
+        JOIN pg_namespace ns ON ns.oid = c.relnamespace
+       WHERE ns.nspname = 'public' AND c.relname = 'users'`;
+    return Number(r?.n ?? 0);
   }
 
   /** A table in «Вкл», or in «Авто» at 80 % of its threshold, while the

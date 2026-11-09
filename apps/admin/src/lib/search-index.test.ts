@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { phaseWord, sizeWord, swapLabel, type SearchIndexStatus } from './search-index';
+import { autoStepWord, phaseWord, sizeWord, swapLabel, type SearchIndexStatus } from './search-index';
 
 const base = (o: Partial<SearchIndexStatus>): SearchIndexStatus =>
   ({
@@ -64,5 +64,16 @@ describe('search index card', () => {
   it('formats sizes', () => {
     expect(sizeWord(500)).toBe('500 Б');
     expect(sizeWord(2_500_000)).toBe('2.5 МБ');
+  });
+});
+
+describe('autoStepWord', () => {
+  it('names every step search «Авто» takes, and passes an unknown one through', () => {
+    expect(autoStepWord('search:set_mode:shadow')).toBe('движок подключён, сверка');
+    expect(autoStepWord('search:start_reindex')).toBe('начата сборка индекса');
+    expect(autoStepWord('search:swap')).toBe('индекс проверен и переключён');
+    expect(autoStepWord('search:set_mode:engine')).toBe('поиск отвечает движок');
+    expect(autoStepWord('search:set_mode:postgres')).toBe('поиск вернулся в базу');
+    expect(autoStepWord('search:new')).toBe('search:new');
   });
 });

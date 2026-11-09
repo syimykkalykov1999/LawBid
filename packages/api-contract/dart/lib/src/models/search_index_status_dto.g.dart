@@ -42,6 +42,9 @@ SearchIndexStatusDto _$SearchIndexStatusDtoFromJson(
   entities: (json['entities'] as List<dynamic>)
       .map((e) => SearchIndexEntityDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  autoSteps: (json['autoSteps'] as List<dynamic>)
+      .map((e) => SearchAutoStepDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$SearchIndexStatusDtoToJson(
@@ -66,4 +69,5 @@ Map<String, dynamic> _$SearchIndexStatusDtoToJson(
   'canSwap': instance.canSwap,
   'canRollback': instance.canRollback,
   'entities': instance.entities.map((e) => e.toJson()).toList(),
+  'autoSteps': instance.autoSteps.map((e) => e.toJson()).toList(),
 };
