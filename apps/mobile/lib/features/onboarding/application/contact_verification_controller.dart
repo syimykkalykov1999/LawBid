@@ -17,7 +17,8 @@ enum ContactVerificationStage {
   /// the account's verified contact and the user types it here first.
   confirmIdentity,
 
-  /// The code for the NEW contact was sent; waiting for it.
+  /// The code for the NEW contact was sent; waiting for it (e-mail only:
+  /// a phone goes straight to [verified], owner rule sms-two-cases).
   codeSent,
 
   /// Done — `GET /users/me` now reports it verified.
@@ -84,6 +85,8 @@ const kNoReauthContactCode = 'NO_REAUTH_CONTACT';
 ///
 ///   first contact:  editing ──send──▶ codeSent ──code──▶ verified
 ///   replacement:    editing ──send──▶ confirmIdentity ──code──▶ codeSent ──▶ …
+///   phone (owner rule sms-two-cases, no SMS code):
+///     editing ──▶ [confirmIdentity: password / passkey] ──▶ verified
 ///
 /// Adding the FIRST contact of a type sends its code directly. Replacing
 /// an already-verified one needs reauth (docs/01 §11 step 3A): the
@@ -128,6 +131,13 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
             : (me?.emailVerified ?? false);
         if (!alreadyVerified) {
           try {
+            if (type == ContactType.phone) {
+              // Owner rule (sms-two-cases): no SMS code — a first phone
+              // right after sign-in is saved as is.
+              state = state.copyWith(value: value);
+              await _changePhone(value, null);
+              return;
+            }
             await ref
                 .read(onboardingRepositoryProvider)
                 .requestContactCode(type: type, value: value);
@@ -196,6 +206,15 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
       });
 
   Future<void> _requestWithToken(String value, String token) async {
+    if (type == ContactType.phone) {
+      try {
+        await _changePhone(value, token);
+      } on ApiException {
+        state = state.copyWith(stage: ContactVerificationStage.editing);
+        rethrow;
+      }
+      return;
+    }
     try {
       await ref.read(onboardingRepositoryProvider).requestContactCode(
             type: type,
@@ -223,6 +242,18 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
         final token = await repo.reauth(identifier: target, code: code);
         await _requestWithToken(value, token);
       });
+
+  /// Owner rule (sms-two-cases): the phone is saved with the password /
+  /// passkey token ([token] null = a first phone right after sign-in) —
+  /// no code on the new number — then `GET /users/me` is refreshed.
+  Future<void> _changePhone(String value, String? token) async {
+    await ref
+        .read(onboardingRepositoryProvider)
+        .changePhone(value: value, reauthToken: token);
+    state = state.copyWith(stage: ContactVerificationStage.verified);
+    AppEvents.track(AppEventNames.contactsVerified);
+    await ref.read(currentUserControllerProvider.notifier).load();
+  }
 
   /// Step 3: verifies the new contact, then refreshes `GET /users/me`.
   Future<void> verify(String code) => _guard(() async {

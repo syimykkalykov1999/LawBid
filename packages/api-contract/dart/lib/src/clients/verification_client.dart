@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/add_license_dto.dart';
 import '../models/attach_document_dto.dart';
 import '../models/create_handoff_dto.dart';
+import '../models/identity_check_link_envelope.dart';
 import '../models/selfie_capture_token_envelope.dart';
 import '../models/submit_verification_request_dto.dart';
 import '../models/update_verification_request_dto.dart';
@@ -76,6 +77,13 @@ abstract class VerificationClient {
   /// One-time selfie capture token (owner 2026-10-28): the app asks for it before opening the guided selfie camera; the selfie attach sends it back
   @POST('/verification/requests/{id}/selfie-capture')
   Future<SelfieCaptureTokenEnvelope> issueSelfieCaptureToken({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner 2026-11-08: Persona's hosted ID + selfie check for this editable request (only while the Persona card is set up); resumes the open inquiry or creates one
+  @POST('/verification/requests/{id}/identity-check')
+  Future<IdentityCheckLinkEnvelope> startIdentityCheck({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

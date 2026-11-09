@@ -459,6 +459,8 @@ void main() {
           consents: true,
           phone: '+15551234567',
           phoneVerified: true,
+          email: 'ann@example.com',
+          emailVerified: true,
         );
         await open(
           tester,
@@ -473,9 +475,11 @@ void main() {
         await tester.pump();
         await tester.tap(button('Continue'));
         await tester.pumpAndSettle();
-        // Refused without a token: the code goes to the verified phone.
+        // Refused without a token: the code goes to the verified E-MAIL —
+        // owner rule sms-two-cases, a step-up code is never an SMS.
         expect(repo.reauthTokens, [null]);
-        expect(find.textContaining('(555) 123-4567'), findsOneWidget);
+        expect(repo.requested, ['email:ann@example.com']);
+        expect(find.textContaining('ann@example.com'), findsOneWidget);
 
         final code = find.descendant(
           of: find.byType(AppOtpField),
@@ -485,6 +489,35 @@ void main() {
         await tester.pumpAndSettle();
         expect(repo.passwordsSet, ['12345678', '12345678']);
         expect(repo.reauthTokens.last, isNotNull);
+      },
+    );
+
+    testWidgets(
+      'owner rule sms-two-cases: a phone-only account gets no SMS step-up code',
+      (tester) async {
+        repo.needsReauth = true;
+        final me = meFixture(
+          role: UserRole.client,
+          consents: true,
+          phone: '+15551234567',
+          phoneVerified: true,
+        );
+        await open(
+          tester,
+          AuthRoutes.setPassword,
+          overrides: [
+            currentUserControllerProvider.overrideWith(
+              () => FixedUserController(CurrentUserState.ready(me)),
+            ),
+          ],
+        );
+        await tester.enterText(find.byType(TextField), '12345678');
+        await tester.pump();
+        await tester.tap(button('Continue'));
+        await tester.pumpAndSettle();
+        expect(repo.requested, isEmpty);
+        expect(find.byType(AppOtpField), findsNothing);
+        expect(find.text("Please confirm it's you first."), findsOneWidget);
       },
     );
 

@@ -98,9 +98,10 @@ class UsersApiClient {
         ),
       );
 
-  /// Sends a paid SMS/email — keyed so a transparent retry can't send a
+  /// Sends a paid e-mail code — keyed so a transparent retry can't send a
   /// second one. [reauthToken] (single-use) is only needed when this
-  /// replaces an already-verified contact (docs/01 §11 step 3A).
+  /// replaces an already-verified contact (docs/01 §11 step 3A). A phone
+  /// goes through [changePhone] (the server answers 400 here).
   Future<void> requestContact({
     required api.ContactRequestDtoType type,
     required String value,
@@ -109,6 +110,22 @@ class UsersApiClient {
       guardApiCall(
         () => _users.requestContact(
           body: api.ContactRequestDto(type: type, value: value),
+          xReauthToken: reauthToken,
+          extras: _createsResource,
+        ),
+      );
+
+  /// `POST /users/me/phone` — owner rule (sms-two-cases): the phone is set
+  /// or changed with the account password / passkey ([reauthToken] from
+  /// `POST /auth/reauth` or `/auth/passkeys/reauth`), never an SMS code.
+  /// The token may be omitted only for a first phone right after sign-in.
+  Future<void> changePhone({
+    required String phone,
+    String? reauthToken,
+  }) =>
+      guardApiCall(
+        () => _users.changePhone(
+          body: api.ChangePhoneDto(phone: phone),
           xReauthToken: reauthToken,
           extras: _createsResource,
         ),

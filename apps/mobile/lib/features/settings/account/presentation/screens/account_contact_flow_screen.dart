@@ -17,9 +17,10 @@ import 'package:lawbid/features/onboarding/domain/contact_type.dart';
 /// What the flow does with the phone/email.
 enum AccountContactMode {
   /// Sets the ACCOUNT contact (users.phone_e164 / users.email): adding a
-  /// first one, or replacing a verified one — reauth (code to the current
-  /// verified contact, `POST /auth/reauth`) + code on the new contact
-  /// (docs/01 §11 3A). Reuses the onboarding ContactVerificationController.
+  /// first one, or replacing a verified one — reauth (the password /
+  /// passkey, `POST /auth/reauth`) + code on a new e-mail (docs/01 §11 3A).
+  /// A phone needs no code: owner rule sms-two-cases, POST /users/me/phone.
+  /// Reuses the onboarding ContactVerificationController.
   ///
   /// Owner 2026-10-28: the former `link` mode (an ADDITIONAL sign-in
   /// phone/email via `POST /auth/identifiers`) was removed: it cost SMS
@@ -136,7 +137,8 @@ class _AccountContactFlowScreenState
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
     final state = _watch();
-    final total = _replacing ? 3 : 2;
+    // Owner rule (sms-two-cases): a phone has no code step on the new number.
+    final total = _replacing && !_isPhone ? 3 : 2;
     final current = switch (state.stage) {
       ContactVerificationStage.editing => 1,
       ContactVerificationStage.confirmIdentity => 2,
@@ -198,6 +200,10 @@ class _AccountContactFlowScreenState
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final kind = _isPhone ? 'phone' : 'email';
     final error = state.error == null ? null : errorText(t, state.error!);
+    final canUseCode = ref.watch(
+      currentUserControllerProvider
+          .select((s) => s.user?.reauthIdentifier != null),
+    );
     String display(String v) => v.startsWith('+') ? UsPhone.format(v) : v;
 
     switch (state.stage) {
@@ -287,7 +293,9 @@ class _AccountContactFlowScreenState
             PasswordStepUp(
               key: ValueKey('password-${state.attempt}'),
               onToken: _confirmWithToken,
-              onUseCode: _useSmsCode,
+              // Owner rule (sms-two-cases): the step-up code goes to the
+              // account e-mail only; without one there is no code path.
+              onUseCode: canUseCode ? _useSmsCode : null,
             ),
           ],
           action: AppButton(

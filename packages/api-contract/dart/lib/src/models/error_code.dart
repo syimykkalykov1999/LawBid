@@ -102,6 +102,8 @@ enum ErrorCode {
   i18nImportInvalid('I18N_IMPORT_INVALID'),
   @JsonValue('PROVIDER_BUDGET_EXCEEDED')
   providerBudgetExceeded('PROVIDER_BUDGET_EXCEEDED'),
+  @JsonValue('IDENTITY_PROVIDER_UNAVAILABLE')
+  identityProviderUnavailable('IDENTITY_PROVIDER_UNAVAILABLE'),
   @JsonValue('PHONE_COUNTRY_NOT_SUPPORTED')
   phoneCountryNotSupported('PHONE_COUNTRY_NOT_SUPPORTED'),
   @JsonValue('REVIEW_CASE_NOT_CLOSED')

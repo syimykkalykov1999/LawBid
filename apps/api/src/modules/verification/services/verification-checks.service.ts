@@ -49,6 +49,11 @@ export const AUTO_APPROVED_NOTE =
 export const SELF_ATTESTED_NOTE =
   'Самоподтверждение: адвокат под присягой подтвердил лицензию, внешняя проверка не проводилась';
 
+/** `admin_note` of a request approved by Persona + the state registry
+ * (owner 2026-11-08: Persona runs only with its key saved in the admin). */
+export const PERSONA_APPROVED_NOTE =
+  'Одобрено автоматически: Persona подтвердила документ и лицо, номер совпал с реестром штата';
+
 @Injectable()
 export class VerificationChecksService {
   constructor(
@@ -94,6 +99,8 @@ export class VerificationChecksService {
       select: {
         id: true,
         attorney_id: true,
+        provider: true,
+        provider_ref: true,
         documents: { select: { doc_type: true } },
         attorney: {
           select: {
@@ -136,6 +143,18 @@ export class VerificationChecksService {
       allSupported &&
       barResults.length > 0 &&
       barResults.every((r) => r === 'pass');
+
+    // Owner 2026-11-08: the ID + selfie went through Persona's hosted flow;
+    // its verdict arrives by webhook (before or after this submit).
+    if (request.provider === 'persona' && request.provider_ref) {
+      if (
+        barPassed &&
+        (await this.personaPassed(request.id, request.provider_ref))
+      ) {
+        await this.approve(request.id, PERSONA_APPROVED_NOTE);
+      }
+      return;
+    }
 
     const types = new Set(request.documents.map((d) => d.doc_type));
     const hasIdentity =
@@ -224,6 +243,64 @@ export class VerificationChecksService {
     });
     this.logger.info({ requestId, note }, 'Verification request auto-approved');
     await this.trustRecompute(requestId);
+  }
+
+  /**
+   * Owner 2026-11-08: Persona approved the identity after the request was
+   * submitted. Approves it only when every pending license already passed
+   * its state registry lookup for this request (stored checks, nothing is
+   * looked up again); otherwise the request stays with staff.
+   */
+  async approveIfRegistryPassed(
+    requestId: string,
+    note: string = PERSONA_APPROVED_NOTE,
+  ): Promise<boolean> {
+    const req = await this.prisma.verificationRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        status: true,
+        provider_ref: true,
+        attorney: {
+          select: { licenses: { where: { license_status: 'pending' } } },
+        },
+        checks: {
+          where: { check_type: 'bar_lookup' },
+          orderBy: { checked_at: 'desc' },
+          select: { result: true, details: true },
+        },
+      },
+    });
+    if (!req || req.status !== 'submitted' || !req.provider_ref) return false;
+    if (!(await this.personaPassed(requestId, req.provider_ref))) return false;
+    const licenses = req.attorney.licenses;
+    if (licenses.length === 0) return false;
+    for (const l of licenses) {
+      if (l.registry_flag === 'format_unusual') return false;
+      const latest = req.checks.find(
+        (c) => (c.details as { licenseId?: unknown }).licenseId === l.id,
+      );
+      if (latest?.result !== 'pass') return false;
+    }
+    await this.approve(requestId, note);
+    return true;
+  }
+
+  /** The newest Persona verdict of [inquiryId] on this request is a pass. */
+  private async personaPassed(
+    requestId: string,
+    inquiryId: string,
+  ): Promise<boolean> {
+    const latest = await this.prisma.verificationCheck.findFirst({
+      where: {
+        request_id: requestId,
+        provider: 'persona',
+        check_type: 'id_check',
+        details: { path: ['inquiryId'], equals: inquiryId },
+      },
+      orderBy: { checked_at: 'desc' },
+      select: { result: true },
+    });
+    return latest?.result === 'pass';
   }
 
   /** Owner 2026-10-05: the trust level follows every verification change. */
