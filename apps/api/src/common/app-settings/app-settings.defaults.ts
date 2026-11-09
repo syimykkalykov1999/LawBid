@@ -1842,9 +1842,11 @@ export const OWNER_PRIVACY_SETTINGS = {
  *   sweep only when an event waits; on = every tick; off = never.
  */
 export const OWNER_COST_REGISTRY_SETTINGS = {
-  'scale.capacity_ceiling.mode': 'auto',
-  'scale.bunny_hardstop.mode': 'auto',
-  'scale.cloudflare_hardstop.mode': 'auto',
+  // Owner 2026-11-09: no money stops by default — growth is automatic;
+  // the stops stay switchable on «Расходы».
+  'scale.capacity_ceiling.mode': 'off',
+  'scale.bunny_hardstop.mode': 'off',
+  'scale.cloudflare_hardstop.mode': 'off',
   'ops.outbox_sweep.mode': 'auto',
 };
 
