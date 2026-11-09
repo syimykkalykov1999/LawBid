@@ -51,12 +51,12 @@ variable "env" {
 variable "bind_deploy_workflows" {
   type        = bool
   default     = true
-  description = "Require the OIDC claim job_workflow_ref to be one of deploy_workflows@refs/heads/main on the deploy role."
+  description = "Require the OIDC claim job_workflow_ref to be a workflow file of this repository on refs/heads/main (wildcard per repository spelling: the per-file list exceeded the 2048-character trust policy limit on 08.11)."
 }
 variable "deploy_workflows" {
   type        = list(string)
   default     = ["deploy.yml", "rollback.yml", "web-deploy.yml", "seo-deploy.yml", "self-check.yml", "build-pgbouncer.yml", "mirror-clamav.yml", "aws-inventory.yml"]
-  description = "Workflow files under .github/workflows that may assume the deploy role."
+  description = "Workflow files that use the deploy role (documentation and the deploy-role policy review; the trust binding itself is per repository, see locals.deploy_workflow_refs)."
 }
 
 provider "aws" {
@@ -71,16 +71,17 @@ data "aws_caller_identity" "current" {}
 locals {
   name    = "lawbid-${var.env}"
   account = data.aws_caller_identity.current.account_id
-  # job_workflow_ref carries the repository NAME (not the immutable ids), in the
-  # case the repository has; both spellings are listed like the `sub` values.
-  deploy_workflow_refs = flatten([
-    for r in distinct([var.github_repo, lower(var.github_repo)]) : [
-      # Automation audit 2026-11-08: infra-apply.yml assumes this role too
-      # (infra-apply.tf); without it in the bound list the admin's infra
-      # pipeline would be refused by the trust policy.
-      for w in concat(var.deploy_workflows, var.infra_apply_enabled ? ["infra-apply.yml"] : []) : "${r}/.github/workflows/${w}@refs/heads/main"
-    ]
-  ])
+  # job_workflow_ref carries the repository name in the case GitHub emits;
+  # all spellings of the repository are listed like the `sub` values.
+  # 08.11 apply: one entry per workflow file x 2 spellings made the trust
+  # policy longer than AWS allows (ACLSizePerRole 2048, «LimitExceeded»), so
+  # the binding is any workflow FILE on main of this repository (a workflow
+  # edited on another branch still cannot assume the role). Size checked by
+  # the precondition on aws_iam_role.deploy.
+  deploy_workflow_refs = [
+    for r in distinct([var.github_repo, lower(var.github_repo), var.github_repo_immutable]) :
+    "${r}/.github/workflows/*@refs/heads/main"
+  ]
 }
 
 # --- Terraform state ---------------------------------------------------------
@@ -251,6 +252,14 @@ data "aws_iam_policy_document" "deploy_trust" {
 resource "aws_iam_role" "deploy" {
   name               = "${local.name}-github-deploy"
   assume_role_policy = data.aws_iam_policy_document.deploy_trust.json
+  lifecycle {
+    # AWS refuses a trust policy longer than 2048 characters (whitespace
+    # removed): stop at plan time instead of half-way through an apply.
+    precondition {
+      condition     = length(jsonencode(jsondecode(data.aws_iam_policy_document.deploy_trust.json))) <= 2048
+      error_message = "The deploy role trust policy is longer than AWS allows (2048 characters, ACLSizePerRole)."
+    }
+  }
 }
 
 data "aws_iam_policy_document" "deploy" {
