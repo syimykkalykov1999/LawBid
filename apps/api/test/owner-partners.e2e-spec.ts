@@ -195,8 +195,8 @@ describe('Partner program (e2e)', () => {
     expect(detail.body.data.referred[0].email).toBeNull();
     const attCommission = detail.body.data.commissions[0].id as string;
 
-    // Owner 2026-10-22: marking money paid needs a fresh step-up (and a
-    // second admin from the dual-approval limit on; 70 USD is below it).
+    // Owner 2026-10-22: marking money paid needs a fresh step-up, nothing
+    // more (owner 2026-10-25 / 2026-11-08: no second admin).
     await adminStepUp(base, admin);
     // Owner 2026-10-05 (legal): no payout before the W-9 is on file.
     await api()

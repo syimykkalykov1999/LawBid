@@ -139,7 +139,7 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
    * sustained load. It is inert unless Terraform `db_replica_toggle` gave the
    * task the IAM rights, and it creates the same single replica the button
    * creates (same size, same name), at most once a day. It never deletes:
-   * deleting stays a tap with a second admin and a fresh 2FA code, because
+   * deleting stays the owner's tap with a fresh 2FA code, because
    * the replica itself lowers the primary's CPU and a "quiet" signal would
    * make it flap.
    */
@@ -332,7 +332,7 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
           ? { MonitoringInterval: 60, MonitoringRoleArn: monitoringRole }
           : {}),
         // Deletion protection stays OFF on purpose: the tap deletes it, and
-        // that tap needs a second admin and a fresh 2FA code.
+        // that tap needs the owner's fresh 2FA code (no second admin).
         DeletionProtection: false,
         CopyTagsToSnapshot: true,
         Tags: [
