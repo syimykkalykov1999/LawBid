@@ -1,3 +1,4 @@
+import { AUTO_SINK_KEY } from '../../events/domain-events.service';
 import {
   Inject,
   Injectable,
@@ -216,10 +217,20 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
 
   /** Signals the app already keeps, plus the partition growth signal. */
   async signals(now: Date): Promise<AutoSignals> {
-    const [s, engine, partitionNeedsRunner] = await Promise.all([
+    const [
+      s,
+      engine,
+      partitionNeedsRunner,
+      eventsStreamWanted,
+      cacheMode,
+      replicaProvision,
+    ] = await Promise.all([
       this.registry.signals(now),
       this.registry.searchEngine(),
       this.partitionNeedsRunner().catch(() => false),
+      this.eventsStreamWanted().catch(() => false),
+      this.settings.string('cache.redis_mode').catch(() => 'auto'),
+      this.settings.string('db.replica_provision').catch(() => 'auto'),
     ]);
     const pool = Number(this.config.get<string>('DB_POOL_SIZE') ?? '');
     const pooler = !!this.config.get<string>('DB_POOLER_HOST');
@@ -230,7 +241,29 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       partitionNeedsRunner,
       poolSmall:
         !pooler && Number.isFinite(pool) && pool > 0 && pool < POOL_FLOOR,
+      eventsStreamWanted,
+      cacheRedisMode: cacheMode ?? 'auto',
+      cacheNodeLive: !!this.config.get<string>('REDIS_CACHE_URL'),
+      replicaProvision: replicaProvision ?? 'auto',
+      replicaAppPath:
+        this.config.get<string>('OPS_DB_REPLICA_TOGGLE') === 'on' &&
+        !!this.config.get<string>('OPS_DB_INSTANCE'),
     };
+  }
+
+  /**
+   * G4 (2026-11-08): `events.sink` asks for the Kinesis stream (`stream`,
+   * or `auto` whose day counter crossed `events.auto_ceiling_per_day`,
+   * events.maintenance.ts) while this stand has none (EVENTS_STREAM_NAME
+   * empty). Until the stream exists the events wait in their table
+   * (published_at null) and the relay ships them once it does.
+   */
+  async eventsStreamWanted(): Promise<boolean> {
+    if (this.config.get<string>('EVENTS_STREAM_NAME')) return false;
+    const sink = (await this.settings.string('events.sink')) ?? 'db';
+    if (sink === 'stream') return true;
+    if (sink !== 'auto' || !this.redis) return false;
+    return (await this.redis.get(AUTO_SINK_KEY)) === 'stream';
   }
 
   /** A table in «Вкл», or in «Авто» at 80 % of its threshold, while the

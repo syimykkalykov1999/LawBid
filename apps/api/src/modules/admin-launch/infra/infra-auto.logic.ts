@@ -26,6 +26,15 @@ export interface AutoSignals extends SuggestionSignals {
    * (prod 08.11: 3 per task made the admin slow). The cure is the pooler.
    */
   poolSmall?: boolean;
+  /** G4: `events.sink` wants the Kinesis stream and this stand has none. */
+  eventsStreamWanted?: boolean;
+  /** G5: `cache.redis_mode` (off / on / auto) and whether a cache node runs. */
+  cacheRedisMode?: string;
+  cacheNodeLive?: boolean;
+  /** G6: `db.replica_provision` (off / auto) and whether the app's own RDS
+   * path may create the replica (Terraform `db_replica_toggle`, IAM). */
+  replicaProvision?: string;
+  replicaAppPath?: boolean;
 }
 
 /** Fewer direct connections per task than this = switch the pooler on. */
@@ -49,6 +58,12 @@ const KEEP_ON: Readonly<Record<string, (s: AutoSignals) => boolean>> = {
   'aws.rds_replicas': (s) => s.pressures.includes('db_cpu'),
   'aws.opensearch': (s) =>
     s.searchEngine === 'shadow' || s.searchEngine === 'engine',
+  // G4: the stream goes when the event volume fell back under the ceiling
+  // for the whole cool-down (events.sink auto turns back to the table).
+  'aws.events_stream': (s) => s.eventsStreamWanted === true,
+  // G5: the cache node is NOT here on purpose: its own effect removes the
+  // signal (main Redis memory drops once the cache moved), so switching it
+  // off by that signal would flap. Once on by itself, it stays.
 };
 
 /**
@@ -63,8 +78,19 @@ export function autoWants(
   live: (id: string) => InfraTarget | null,
   autoOn: ReadonlySet<string>,
 ): AutoWant[] {
+  const provision = (s.replicaProvision ?? 'auto').trim().toLowerCase();
   const out: AutoWant[] = infraSuggestions(s, live).filter(
-    (x) => x.to === 'on',
+    (x) =>
+      x.to === 'on' &&
+      // G6 (2026-11-08): `db.replica_provision` rules the replica on both
+      // paths. Off = never by itself. With the app's own RDS path (IAM
+      // toggle on) that path creates it, so the pipeline does not ALSO
+      // plan one; without it (prod today) the pipeline is the way «Авто»
+      // works, both ways (on by CPU, off after the cool-down).
+      !(
+        x.id === 'aws.rds_replicas' &&
+        (provision === 'off' || s.replicaAppPath === true)
+      ),
   );
   if (
     s.poolSmall === true &&
@@ -75,6 +101,30 @@ export function autoWants(
       id: 'aws.pgbouncer',
       to: 'on',
       reason: `У каждого сервера меньше ${POOL_FLOOR} соединений с базой: запросы ждут в очереди, пул соединений это снимет.`,
+    });
+  }
+  if (s.eventsStreamWanted === true && live('aws.events_stream') !== 'on') {
+    out.push({
+      id: 'aws.events_stream',
+      to: 'on',
+      reason:
+        'Событий в сутки больше потолка events.auto_ceiling_per_day (или events.sink = stream): нужен поток Kinesis.',
+    });
+  }
+  const cacheMode = (s.cacheRedisMode ?? 'auto').trim().toLowerCase();
+  if (
+    !s.cacheNodeLive &&
+    live('aws.redis_cache') !== 'on' &&
+    (cacheMode === 'on' ||
+      (cacheMode === 'auto' && s.pressures.includes('redis_memory')))
+  ) {
+    out.push({
+      id: 'aws.redis_cache',
+      to: 'on',
+      reason:
+        cacheMode === 'on'
+          ? 'cache.redis_mode = Вкл, а отдельного узла кэша нет.'
+          : 'Основному Redis не хватает памяти: кэш переезжает в свой узел.',
     });
   }
   if (s.partitionNeedsRunner && live('aws.partition_role') !== 'on') {
