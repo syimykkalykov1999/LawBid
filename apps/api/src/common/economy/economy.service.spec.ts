@@ -514,8 +514,22 @@ describe('EconomyService.tick', () => {
     (on.svc as unknown as { flags: { isEnabled: jest.Mock } }).flags.isEnabled =
       jest.fn(async () => false);
     const res = await on.svc.tick(NOW);
-    expect(res).toEqual({ skipped: 'flag economy_guard is off' });
+    expect(res).toMatchObject({ skipped: 'flag economy_guard is off' });
     expect(on.state()?.guard).toBe('ok');
+  });
+
+  it('owner 2026-11-09: switched off, it lifts the ceilings it left behind to the Terraform maximum', async () => {
+    const t = setup({ awsActual: 50, awsForecast: 100 });
+    await t.ops.setCeiling({
+      api: 3,
+      worker: 1,
+      mode: 'auto',
+      at: NOW.toISOString(),
+    });
+    (t.svc as unknown as { flags: { isEnabled: jest.Mock } }).flags.isEnabled =
+      jest.fn(async () => false);
+    await t.svc.tick(NOW);
+    expect(t.aws.setCeilings).toHaveBeenLastCalledWith({ api: 50, worker: 20 });
   });
 
   it('leaves a ceiling the owner or the AWS budget capped alone', async () => {

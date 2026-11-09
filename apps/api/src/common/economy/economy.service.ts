@@ -449,7 +449,13 @@ export class EconomyService {
     const active = state?.guard === 'limited';
     if (!(await this.isEnabled())) {
       if (active) await this.release(now, 'выключено флагом economy_guard');
-      return { skipped: 'flag economy_guard is off' };
+      // Owner 2026-11-09: «Автоматика выключена — ничего не ограничивается»
+      // must be true in AWS too: before, a switched-off tick returned here
+      // and the small ceilings written while it was on stayed for good.
+      const lifted = await this.liftCeilings(now).catch((e: unknown) =>
+        this.fail('lift_ceilings', e),
+      );
+      return { skipped: 'flag economy_guard is off', lifted };
     }
     const cfg = await this.settings();
     const f = await this.figures(now, cfg);
@@ -665,6 +671,39 @@ export class EconomyService {
     const text = `Ограничения сняты (${why}): лимиты сторонних сервисов, видео и SMS восстановлены.`;
     await this.event('guard_off', text, now);
     this.logger.info({ alert: 'economy_guard_off' }, text);
+  }
+
+  /** Economy switched off: the container ceilings go back to the Terraform
+   * maximum (an economy «min» is released; an owner's own «min» stays) and
+   * the DB / Redis autoscalers get the largest size as their ceiling. */
+  private async liftCeilings(now: Date): Promise<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    if (this.aws.available) {
+      const mode = await this.ops.scaleMode();
+      if (mode?.mode === 'min' && mode.source !== 'economy') {
+        out.containers = { skipped: 'scaling capped by owner or AWS budget' };
+      } else {
+        const target = {
+          api: this.aws.hardCap('api'),
+          worker: this.aws.hardCap('worker'),
+        };
+        await this.aws.setCeilings(target);
+        if (mode?.mode === 'min') {
+          await this.ops.setScaleMode({
+            mode: 'normal',
+            by: 'auto',
+            at: now.toISOString(),
+            source: 'economy',
+          });
+        }
+        out.containers = target;
+      }
+    }
+    out.capacity = await this.applyCapacityCeilings(
+      { awsLimitUsd: 0 } as EconomyFigures,
+      { awsCapUsd: 0 },
+    );
+    return out;
   }
 
   /** The AWS brake (owner 2026-11-08): the container ceiling follows the
