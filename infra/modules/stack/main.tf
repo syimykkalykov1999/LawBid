@@ -982,6 +982,7 @@ module "s3" {
   documents_cdn_public_key_pem = var.documents_cdn_public_key_pem
   force_destroy                = var.ephemeral
   access_log_bucket            = try(module.audit_logs[0].bucket, "")
+  access_log_enabled           = var.audit_logs_enabled && !var.ephemeral
   replicate_media              = var.replicate_media && !var.ephemeral
   cdn_additional_metrics       = var.cdn_additional_metrics && !var.ephemeral
 }
@@ -1721,7 +1722,39 @@ locals {
     var.livekit_enabled ? module.livekit[0].secret_arns : {},
     var.ops_role_split ? { OPS_ROLE_EXTERNAL_ID = aws_secretsmanager_secret.ops_external_id[0].arn } : {},
     var.alarm_incident_hook_enabled ? { ALARM_HOOK_TOKEN = aws_secretsmanager_secret.alarm_hook[0].arn } : {},
+    var.contacts_pepper_enabled ? { CONTACTS_PEPPER = aws_secretsmanager_secret_version.contacts_pepper[0].arn } : {},
   )
+}
+
+# Automation audit 2026-11-08: every worker boot logged «CONTACTS_PEPPER is not
+# set: phone-book hashes are stored without a pepper». Generated here like
+# ALARM_HOOK_TOKEN (no manual step); the api and the worker get it, and the
+# existing `contacts.pepper-backfill` job re-seals the stored hashes by itself.
+# Never rotated by Terraform (keepers fixed): a new value would orphan the hashes.
+variable "contacts_pepper_enabled" {
+  type        = bool
+  default     = false
+  description = "Generate CONTACTS_PEPPER (phone-book hash pepper, 48 chars) into Secrets Manager and give it to api and worker. The pepper backfill job re-seals existing rows."
+}
+
+resource "random_password" "contacts_pepper" {
+  count   = var.contacts_pepper_enabled ? 1 : 0
+  length  = 48
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "contacts_pepper" {
+  count                   = var.contacts_pepper_enabled ? 1 : 0
+  name                    = "${local.name}/CONTACTS_PEPPER"
+  kms_key_id              = module.kms.key_arn
+  recovery_window_in_days = var.ephemeral ? 0 : 30
+  tags                    = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "contacts_pepper" {
+  count         = var.contacts_pepper_enabled ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.contacts_pepper[0].id
+  secret_string = random_password.contacts_pepper[0].result
 }
 
 # --- automatic secret rotation (owner 2026-10-25, docs/runbooks/secrets-rotation.md) --

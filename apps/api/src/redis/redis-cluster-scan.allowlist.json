@@ -60,6 +60,11 @@
     "reason": "Every admin session key is ck('adm', ...) (tiny volume), so create/revoke MULTI stays in one slot."
   },
   {
+    "file": "modules/admin-launch/infra/infra-auto.service.ts",
+    "kind": "multi",
+    "reason": "Search «Авто» step log: LPUSH + LTRIM of the ONE key ops:infra-auto:search-log in a MULTI: one key, one slot."
+  },
+  {
     "file": "modules/auth/services/otp.service.ts",
     "kind": "lua-multi-key",
     "reason": "VERIFY_LUA keys (code, attempts, lock, strikes) are built by one helper family that wraps them in ck(idHash)."

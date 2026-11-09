@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'search_auto_step_dto.dart';
 import 'search_index_entity_dto.dart';
 import 'search_index_status_dto_next_swap.dart';
 import 'search_index_status_dto_phase.dart';
@@ -35,6 +36,7 @@ class SearchIndexStatusDto {
     required this.canSwap,
     required this.canRollback,
     required this.entities,
+    required this.autoSteps,
   });
 
   factory SearchIndexStatusDto.fromJson(Map<String, Object?> json) =>
@@ -69,6 +71,9 @@ class SearchIndexStatusDto {
   final bool canSwap;
   final bool canRollback;
   final List<SearchIndexEntityDto> entities;
+
+  /// The last steps «Авто» took by itself, newest first (up to 5).
+  final List<SearchAutoStepDto> autoSteps;
 
   Map<String, Object?> toJson() => _$SearchIndexStatusDtoToJson(this);
 }
