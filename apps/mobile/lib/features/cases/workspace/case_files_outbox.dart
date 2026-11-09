@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/uploads/queue_refused_notice.dart';
 import 'package:lawbid/core/uploads/queued_photos.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
@@ -124,6 +125,10 @@ class CaseFilesHandler extends UploadJobHandler {
   }
 
   @override
+  void refused(UploadJob job, String code) =>
+      showQueueRefused(_ref, _ref.read(uploadQueueProvider), job.id, code);
+
+  @override
   Future<void> removed(UploadJob job, {required bool sent}) =>
       QueuedPhotos.removeFiles(_ref.read(uploadFilesProvider), job);
 }
@@ -133,5 +138,6 @@ class CaseFilesHandler extends UploadJobHandler {
 final caseFilesOutboxProvider = Provider<CaseFilesOutbox>((ref) {
   final queue = ref.watch(uploadQueueProvider)
     ..register(CaseFilesHandler(ref));
+  unawaited(showRefusedAtStart(ref, queue, kCaseFilesJobKind));
   return CaseFilesOutbox(ref, queue);
 });
