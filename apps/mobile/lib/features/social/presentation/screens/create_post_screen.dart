@@ -67,6 +67,10 @@ class _Photo {
   String? fileId;
   Object? error;
 
+  /// The upload running now (owner 2026-11-08: «Publish» does not wait for
+  /// it; the queued post does).
+  Future<String>? task;
+
   bool get uploading => fileId == null && error == null;
 }
 
@@ -642,7 +646,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         ..progress = 0;
     });
     try {
-      final id = await ref.read(socialActionsProvider).uploadPhoto(
+      final task = photo.task = ref.read(socialActionsProvider).uploadPhoto(
         photo.bytes,
         // Owner 2026-10-19: the admin's MB and photo formats of a post.
         maxBytes: _limits.fileBytes,
@@ -651,6 +655,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           if (mounted) setState(() => photo.progress = p);
         },
       );
+      final id = await task;
       if (mounted) setState(() => photo.fileId = id);
     } on Object catch (e) {
       if (mounted) setState(() => photo.error = e);
@@ -714,8 +719,14 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         body: _parts.$2,
         hasMedia: _hasMedia,
       ) &&
-      _photos.every((p) => p.fileId != null) &&
+      // Owner 2026-11-08: the photos may still be going up — the queued post
+      // waits for them, not the form (an assistant's request needs them).
+      (!_isAssistantRequest || _photos.every((p) => p.fileId != null)) &&
       _docs.ready;
+
+  bool get _isAssistantRequest =>
+      ref.read(isAssistantProvider) &&
+      !ref.read(canDoProvider(AssistantDuty.publish));
 
   Future<void> _publish() async {
     final t = ref.read(translatorProvider);
@@ -806,10 +817,17 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           practiceCode: _practice,
           isNews: _news,
           markedLegal: _markedLegal,
-          mediaFileIds: [for (final p in _photos) p.fileId!],
           attachments: _docs.refs,
           locationName: _placeName,
         ),
+        photos: [
+          for (final p in _photos)
+            (
+              fileId: p.fileId,
+              bytes: p.fileId == null ? p.bytes : null,
+              upload: p.fileId == null && p.error == null ? p.task : null,
+            ),
+        ],
         thumbnail: _photos.firstOrNull?.bytes,
         onPublished: (post) {
           // The author's profile grids and post counters follow at
