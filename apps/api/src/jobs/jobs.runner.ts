@@ -158,6 +158,29 @@ export class JobsRunner
           'cron job failed',
         );
       });
+      // Automation audit 2026-11-08: most jobs logged nothing on success, so
+      // nobody could prove from the logs that an automation ran on prod.
+      // One line per finished run of every job slower than every-hour-or-so
+      // (the every-minute sweeps would flood the log; they have metrics).
+      worker.on('completed', (job) => {
+        const pattern =
+          CRON_SCHEDULES.find((x) => x.name === job.name)?.pattern ?? '';
+        if (isSubHourly(pattern)) return;
+        this.logger.info(
+          {
+            lane,
+            job: job.name,
+            ms:
+              job.finishedOn && job.processedOn
+                ? job.finishedOn - job.processedOn
+                : undefined,
+            skipped:
+              (job.returnvalue as { skipped?: string } | null)?.skipped ??
+              undefined,
+          },
+          'cron job done',
+        );
+      });
       worker.on('error', (error) => {
         this.logger.error({ lane, err: error.message }, 'cron worker error');
       });
