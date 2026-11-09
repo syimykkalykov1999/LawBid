@@ -396,6 +396,7 @@ export class FilesService {
         width: own.width,
         height: own.height,
         blurhash: own.blurhash,
+        avif_twins: own.avif_twins,
         scan_status: 'clean',
       },
     });
@@ -1447,6 +1448,7 @@ export class FilesService {
           source_sha256: src.source_sha256 ?? src.sha256,
           width: src.width,
           height: src.height,
+          avif_twins: src.avif_twins,
           scan_status: 'clean',
         },
       });
@@ -1615,7 +1617,9 @@ export class FilesService {
       imageFormatContext.wantsAvif()
     ) {
       const since = await avifSince(this.settings);
-      if (since && file.created_at >= since) {
+      // Owner 2026-11-09: only a file whose every twin is stored (an AVIF
+      // no smaller than the WebP is not kept, and its link would be a 404).
+      if (since && file.created_at >= since && file.avif_twins) {
         return this.mediaLink(file.s3_bucket, avifKey(key));
       }
     }

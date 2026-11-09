@@ -30,7 +30,7 @@ export async function putProcessedObjects(
   file: Pick<File, 'id' | 's3_bucket' | 's3_key'>,
   processed: ProcessedFile,
   opts: { original?: { data: Buffer; mime: string } } = {},
-): Promise<void> {
+): Promise<{ avifTwins: boolean }> {
   const derived = [
     ...[...processed.variants].map(([px, img]) =>
       storage.put(
@@ -44,14 +44,17 @@ export async function putProcessedObjects(
   ];
   const main = processed.main;
   const original = opts.original;
+  // Owner 2026-11-09: true only when every size got its AVIF twin; the row
+  // then may hand out `.avif` links (files.avif_twins).
+  const twins = derived[derived.length - 1] as Promise<boolean>;
   if (!main) {
     await Promise.all(derived);
-    return;
+    return { avifTwins: false };
   }
   if (!original) {
     await Promise.all(derived);
     await storage.put(file.s3_bucket, file.s3_key, main.data, main.mime);
-    return;
+    return { avifTwins: await twins };
   }
   const mainPut = storage.put(
     file.s3_bucket,
@@ -63,7 +66,7 @@ export async function putProcessedObjects(
   const failed = results.find(
     (r): r is PromiseRejectedResult => r.status === 'rejected',
   );
-  if (!failed) return;
+  if (!failed) return { avifTwins: await twins };
   if (results[0].status === 'fulfilled') {
     try {
       await storage.put(
@@ -89,7 +92,10 @@ async function putAvifTwins(
   logger: Pick<PinoLogger, 'warn'>,
   file: Pick<File, 'id' | 's3_bucket' | 's3_key'>,
   processed: ProcessedFile,
-): Promise<void> {
+): Promise<boolean> {
+  const sizes = [processed.main, ...processed.variants.values()];
+  const complete =
+    processed.main !== null && sizes.every((img) => img?.avif !== undefined);
   try {
     const twins: Promise<void>[] = [];
     if (processed.main?.avif) {
@@ -114,7 +120,9 @@ async function putAvifTwins(
       );
     }
     await Promise.all(twins);
+    return complete;
   } catch (err) {
     logger.warn({ fileId: file.id, err }, 'AVIF twins not stored');
+    return false;
   }
 }

@@ -749,9 +749,19 @@ describe('FilesService', () => {
     });
 
     describe('AVIF twins (owner 2026-10-25)', () => {
-      const withSettings = (on: boolean, since: string, created: Date) => {
+      const withSettings = (
+        on: boolean,
+        since: string,
+        created: Date,
+        twins = true,
+      ) => {
         const m = make({
-          file: { width: 1024, mime: 'image/webp', created_at: created },
+          file: {
+            width: 1024,
+            mime: 'image/webp',
+            created_at: created,
+            avif_twins: twins,
+          },
         });
         (m.deps.settings as Record<string, unknown>).boolean = jest.fn(() =>
           Promise.resolve(on),
@@ -778,6 +788,20 @@ describe('FilesService', () => {
           'media',
           'avatar/u1/f1_w256.avif',
           3600,
+        );
+      });
+
+      // Owner 2026-11-09: an AVIF that came out no smaller than the WebP is
+      // not stored; such a file must never be linked as .avif (404).
+      it('a file whose AVIF twins were not stored keeps WebP links', async () => {
+        const { service, deps } = withSettings(true, since, after, false);
+        await asAvifClient(() => service.avatarUrls('f1'));
+        const keys = deps.storage.signedGetUrl.mock.calls.map(
+          (c: unknown[]) => c[1],
+        );
+        expect(keys).toContain('avatar/u1/f1');
+        expect(keys.some((k: unknown) => String(k).endsWith('.avif'))).toBe(
+          false,
         );
       });
 

@@ -109,17 +109,23 @@ abstract final class ClientTuning {
   /// (`client.upload_parts_mode`): a file starts at [uploadPartsStart],
   /// climbs while the speed grows up to [uploadPartsCeiling]
   /// (`client.upload_parts_max`, 8) and falls to [uploadPartsFloor]
-  /// (`client.upload_parts_min`, 2) after a failed part. Mobile data, a weak
-  /// phone or low power: two at most. fixed: [uploadsAtOnce], as before.
+  /// (`client.upload_parts_min`, 2) after a failed or timed-out part. Mobile
+  /// data is not capped: it starts at four like everywhere and the climb
+  /// stays there when the link is full. A weak phone or low power: two at
+  /// most. fixed: [uploadsAtOnce], as before.
   static int get uploadPartsCeiling =>
-      _partsAuto ? _gentle(_partsMax) : uploadsAtOnce;
+      _partsAuto ? _gentleDevice(_partsMax) : uploadsAtOnce;
 
   /// Where the parts of a new file start (the old fixed number).
-  static int get uploadPartsStart => min(uploadsAtOnce, uploadPartsCeiling);
+  static int get uploadPartsStart => _partsAuto
+      ? min(_gentleDevice(_uploadsAtOnce), uploadPartsCeiling)
+      : uploadsAtOnce;
 
   /// The fewest parts at once after a failure.
   static int get uploadPartsFloor =>
       _partsAuto ? min(_partsMin, uploadPartsStart) : 1;
+
+  static int _gentleDevice(int n) => (weakDevice || lowPower) && n > 2 ? 2 : n;
 
   /// R-251: pieces of files coming down at once in the whole app
   /// (`client.downloads_at_once`); two on mobile data, a weak phone or

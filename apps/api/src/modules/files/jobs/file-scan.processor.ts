@@ -168,7 +168,7 @@ export class FileScanProcessor {
       // the smallest picture meanwhile — the same 32 px look, a fraction of
       // the decoding.
       const smallest = [...processed.variants].sort(([a], [b]) => a - b)[0];
-      const [blurhash] = await Promise.all([
+      const [blurhash, stored] = await Promise.all([
         main ? computeBlurhash((smallest?.[1] ?? main).data) : null,
         putProcessedObjects(this.storage, this.logger, file, processed, {
           original: { data, mime: mime ?? file.mime },
@@ -179,6 +179,7 @@ export class FileScanProcessor {
         where: { id: fileId, scan_status: 'pending' },
         data: {
           scan_status: 'clean',
+          avif_twins: stored.avifTwins,
           ...(blurhash ? { blurhash } : {}),
           // Owner 2026-10-18: videos get their shown size too (the app
           // draws the bubble at that shape before the video loads).
@@ -305,6 +306,7 @@ export class FileScanProcessor {
         width: twin.width,
         height: twin.height,
         blurhash: twin.blurhash,
+        avif_twins: twin.avif_twins,
         scan_status: 'clean',
       },
     });

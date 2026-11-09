@@ -132,4 +132,40 @@ describe('putProcessedObjects', () => {
       'image/jpeg',
     );
   });
+
+  // Owner 2026-11-09: the row may promise AVIF only when every twin is there.
+  it('says whether every size got its AVIF twin', async () => {
+    const storage = { put: jest.fn().mockResolvedValue(undefined) };
+    const all = {
+      main: img('image/webp', true),
+      variants: new Map([[320, img('image/webp', true)]]),
+      width: 1,
+      height: 1,
+    } as unknown as ProcessedFile;
+    const some = {
+      main: img('image/webp', true),
+      variants: new Map([[320, img('image/webp')]]),
+      width: 1,
+      height: 1,
+    } as unknown as ProcessedFile;
+    expect(
+      (await putProcessedObjects(storage, { warn: jest.fn() }, file, all))
+        .avifTwins,
+    ).toBe(true);
+    expect(
+      (await putProcessedObjects(storage, { warn: jest.fn() }, file, some))
+        .avifTwins,
+    ).toBe(false);
+    const failing = {
+      put: jest.fn((_b: string, key: string) =>
+        key.endsWith('.avif')
+          ? Promise.reject(new Error('R2 down'))
+          : Promise.resolve(),
+      ),
+    };
+    expect(
+      (await putProcessedObjects(failing, { warn: jest.fn() }, file, all))
+        .avifTwins,
+    ).toBe(false);
+  });
 });

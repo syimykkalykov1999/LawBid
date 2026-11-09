@@ -63,6 +63,7 @@ erDiagram
     Int width "nullable"
     Int height "nullable"
     String blurhash "nullable"
+    Boolean avif_twins
     enum_ScanStatus scan_status
     Boolean is_public
     DateTime deleted_at "nullable"

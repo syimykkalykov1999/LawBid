@@ -5,6 +5,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/transfers/adaptive_limiter.dart';
+import 'package:lawbid/core/transfers/transfer_limits.dart';
 
 void main() {
   group('AdaptiveLimiter', () {
@@ -313,12 +314,25 @@ void main() {
       expect(ClientTuning.uploadPartsFloor, 1);
     });
 
-    test('mobile data keeps the parts to two at most', () {
-      ClientTuning.reset();
-      ClientTuning.metered = true;
-      expect(ClientTuning.uploadPartsCeiling, 2);
-      expect(ClientTuning.uploadPartsStart, 2);
-      expect(ClientTuning.uploadPartsFloor, 2);
+    // Owner 2026-11-09: mobile data is not capped; the climb decides and a
+    // failure drops to the floor. A weak phone keeps its own cap of two.
+    test('mobile data starts at four like everywhere; a failure drops to 2',
+        () {
+      fakeAsync((clock) {
+        ClientTuning.reset();
+        ClientTuning.metered = true;
+        expect(ClientTuning.uploadPartsStart, 4);
+        expect(ClientTuning.uploadPartsCeiling, 8);
+        expect(ClientTuning.uploadPartsFloor, 2);
+        final l = TransferLimits.newUploadLimiter();
+        expect(l.limit, 4);
+        l.rateLimit(const Duration(milliseconds: 10));
+        expect(l.limit, 2);
+        ClientTuning.metered = false;
+        ClientTuning.weakDevice = true;
+        expect(ClientTuning.uploadPartsCeiling, 2);
+        expect(ClientTuning.uploadPartsStart, 2);
+      });
     });
 
     test('mobile data and a weak phone keep to two', () {
