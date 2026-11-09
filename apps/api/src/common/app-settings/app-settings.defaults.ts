@@ -313,6 +313,10 @@ export const OWNER_MEDIA_SETTINGS = {
   // differences; engine = the search engine, Postgres on error / timeout.
   // See docs/architecture/SEARCH_READY.md.
   'search.engine': 'postgres',
+  /** «Авто» for search.engine (2026-11-08): auto = follows the search engine
+   * domain (shadow → reindex → engine; postgres when it is off), manual =
+   * the admin sets search.engine by hand. infra-auto search-engine-auto.logic.ts */
+  'search.engine_follow': 'auto',
   /** Review R-26: the nightly ledger check. off | on (whole ledger every
    * night) | auto (last N days nightly, whole ledger weekly). */
   'ledger.reconcile_mode': 'auto',

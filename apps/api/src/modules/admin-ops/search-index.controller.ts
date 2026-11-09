@@ -5,8 +5,11 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Inject,
+  Optional,
   Post,
 } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -14,6 +17,11 @@ import {
 } from '../../common/dto/api-docs.decorators';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import {
+  SEARCH_AUTO_LOG_KEY,
+  parseSearchAutoLog,
+} from '../../common/search/search-reindex.port';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   AdminEndpoint,
@@ -27,6 +35,7 @@ import {
   SearchReindexService,
 } from '../search/search-reindex.service';
 import {
+  type SearchAutoStepDto,
   SearchIndexStatusDto,
   StartSearchReindexDto,
   toSearchIndexStatusDto,
@@ -59,7 +68,16 @@ export class SearchIndexController {
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
     private readonly summary: AdminSummaryService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
+
+  /** The last 5 steps search «Авто» took by itself (infra-auto searchPass). */
+  private async autoSteps(): Promise<SearchAutoStepDto[]> {
+    const lines =
+      (await this.redis?.lrange(SEARCH_AUTO_LOG_KEY, 0, 4).catch(() => null)) ??
+      [];
+    return parseSearchAutoLog(lines);
+  }
 
   @Get()
   @ApiOperation({
@@ -69,9 +87,14 @@ export class SearchIndexController {
   searchIndexStatus(): Promise<SearchIndexStatusDto> {
     return this.summary.board(
       STATUS_KEY,
-      async () => toSearchIndexStatusDto(await this.reindex.status()),
+      async () =>
+        toSearchIndexStatusDto(
+          await this.reindex.status(),
+          await this.autoSteps(),
+        ),
       STATUS_FRESH_MS,
-      (d) => typeof d?.engineConfigured === 'boolean',
+      (d) =>
+        typeof d?.engineConfigured === 'boolean' && Array.isArray(d.autoSteps),
     );
   }
 
@@ -141,7 +164,10 @@ export class SearchIndexController {
       after: { phase },
       ip: admin.ip,
     });
-    const status = toSearchIndexStatusDto(await this.reindex.status());
+    const status = toSearchIndexStatusDto(
+      await this.reindex.status(),
+      await this.autoSteps(),
+    );
     await this.summary.put(STATUS_KEY, status);
     return status;
   }
