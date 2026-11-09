@@ -90,6 +90,12 @@ export interface TurnOnDemandPorts {
   /** UDP 3478 of [ip] answers a STUN Binding. */
   relayAnswers(ip: string): Promise<boolean>;
   now(): number;
+  /** G8 (2026-11-08): the box is NEEDED (Cloudflare failing, or mode on)
+   * but cannot carry calls on this tick (running and silent on 3478, or
+   * still stopping). Counted as `ownTurnDown` for the alarm that replaces
+   * the Route 53 one: never called while the switch is off or nothing needs
+   * the box, so a box stopped on purpose never alarms. */
+  down?(): void;
 }
 
 export type TurnTickAction =
@@ -142,6 +148,7 @@ export class TurnOnDemand {
     if (info.state === 'stopping') {
       await store.setAddress(null);
       // The box must finish stopping before it can be started again.
+      if (needed) this.ports.down?.();
       return needed ? 'waiting' : 'idle';
     }
     if (info.state === 'pending') return 'starting';
@@ -155,6 +162,7 @@ export class TurnOnDemand {
         // A new address (or none yet): offered only once it answers.
         if (!(await this.ports.relayAnswers(info.publicIp))) {
           if (known) await store.setAddress(null);
+          if (needed) this.ports.down?.();
           return 'waiting';
         }
         await store.setAddress(wanted);
