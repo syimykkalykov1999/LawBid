@@ -27,6 +27,18 @@ describe('status board wording', () => {
     expect(ws.todo).toBeTruthy();
   });
 
+  it('e-mail card says SES sandbox plainly (08.11)', () => {
+    const sandbox = word({
+      key: 'email',
+      status: 'red',
+      detail: { problem: 'sandbox', text: 'SES: песочница — письма не уходят' },
+    } as never);
+    expect(sandbox.title).toContain('SES');
+    expect(sandbox.line).toBe('SES: песочница — письма не уходят');
+    expect(sandbox.todo).toContain('песочниц');
+    expect(word({ key: 'email', status: 'green', detail: {} } as never).todo).toBeUndefined();
+  });
+
   it('says how long an incident lasts', () => {
     const t0 = '2026-10-23T10:00:00Z';
     expect(incidentSpan(t0, '2026-10-23T10:12:00Z')).toBe('длился 12 мин');
