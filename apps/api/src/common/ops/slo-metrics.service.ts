@@ -35,6 +35,10 @@ export const SLO_COUNTERS = [
   // Cloudflare TURN gave no login even after a retry. Not part of an SLO
   // ratio: an alarm of its own (monitoring/slo.tf) watches it.
   'turnProviderFailed',
+  // G8 (2026-11-08): our own coturn is needed (Cloudflare failing or the
+  // switch on) but does not answer. Never counted while it is off on
+  // purpose (monitoring/slo.tf `own-turn-down`).
+  'ownTurnDown',
   // S12-3 journey SLIs (monitoring/slo.tf): login, chat send, feed open, payment.
   'loginOk',
   'loginFail',

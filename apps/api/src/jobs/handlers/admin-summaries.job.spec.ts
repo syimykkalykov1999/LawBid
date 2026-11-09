@@ -1,4 +1,5 @@
-import { AdminSummariesJob } from './admin-summaries.job';
+import { CircuitOpenError } from '../../common/resilience/resilience';
+import { AdminSummariesJob, databaseDown } from './admin-summaries.job';
 
 function make(peek: unknown) {
   const dashboard = { refresh: jest.fn().mockResolvedValue(undefined) };
@@ -8,7 +9,7 @@ function make(peek: unknown) {
     refreshSnapshots: jest.fn().mockResolvedValue(undefined),
   };
   const summary = { peek: jest.fn().mockResolvedValue(peek) };
-  const logger = { setContext: jest.fn(), warn: jest.fn() };
+  const logger = { setContext: jest.fn(), warn: jest.fn(), info: jest.fn() };
   const accessReport = { refreshDaily: jest.fn().mockResolvedValue(undefined) };
   const job = new AdminSummariesJob(
     dashboard as never,
@@ -68,6 +69,39 @@ describe('AdminSummariesJob', () => {
     expect(billing.refreshOverview).toHaveBeenCalled();
     expect(trust.refreshScan).toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it('G9: the database away stops the pass with ONE line, no warnings', async () => {
+    const { job, dashboard, billing, trust, logger } = make(null);
+    dashboard.refresh.mockRejectedValue(
+      new Error(
+        "Invalid `prisma.case.count()` invocation: Can't reach database server at `x:5432`",
+      ),
+    );
+    const out = await job.run();
+    expect(out.refreshed).toEqual([]);
+    expect(out.failed).toEqual([
+      'dashboard',
+      'analytics',
+      'billing-overview',
+      'access-report',
+      'trust-scan',
+      'economy-report',
+      'promotions-by-model',
+    ]);
+    expect(billing.refreshOverview).not.toHaveBeenCalled();
+    expect(trust.refreshScan).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledTimes(1);
+  });
+
+  it('G9: what counts as «database away»', () => {
+    expect(databaseDown(new CircuitOpenError('database#1'))).toBe(true);
+    expect(databaseDown(new CircuitOpenError('twilio'))).toBe(false);
+    expect(databaseDown({ code: 'P1001', message: 'x' })).toBe(true);
+    expect(databaseDown({ code: 'P2024', message: 'pool' })).toBe(true);
+    expect(databaseDown(new Error('db down'))).toBe(false);
+    expect(databaseDown(new Error('column "x" does not exist'))).toBe(false);
   });
 
   describe('S20-1: ops.admin_summaries_mode', () => {

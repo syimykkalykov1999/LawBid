@@ -12,7 +12,7 @@ import {
 
 function setup(init: { state: Ec2State; ip?: string }) {
   const box = { state: init.state, ip: init.ip };
-  const calls = { start: 0, stop: 0, check: 0 };
+  const calls = { start: 0, stop: 0, check: 0, down: 0 };
   const flags = {
     needed: false,
     answers: true,
@@ -42,6 +42,9 @@ function setup(init: { state: Ec2State; ip?: string }) {
       return flags.answers;
     },
     now: () => flags.now,
+    down: () => {
+      calls.down++;
+    },
   };
   return { sut: new TurnOnDemand(ports), box, calls, flags, store };
 }
@@ -200,6 +203,47 @@ describe('on-demand coturn state machine', () => {
     expect(effectiveOwnTurnMode('auto', 'off')).toBe('off');
     expect(effectiveOwnTurnMode('auto', 'on')).toBe('on');
     expect(effectiveOwnTurnMode('auto', undefined)).toBe('auto');
+  });
+
+  describe('G8 ownTurnDown (alarm follows the switch)', () => {
+    it('switch off: a stopped box never counts, even with Cloudflare down', async () => {
+      const { sut, flags, calls } = setup({ state: 'stopped' });
+      flags.mode = 'off';
+      flags.needed = true;
+      for (let i = 0; i < 5; i++) await sut.tick();
+      expect(calls.down).toBe(0);
+      expect(calls.start).toBe(0);
+    });
+
+    it('auto, Cloudflare healthy: a stopped or silent box never counts', async () => {
+      const { sut, box, flags, calls } = setup({ state: 'stopped' });
+      await sut.tick();
+      box.state = 'running';
+      box.ip = '1.2.3.4';
+      flags.answers = false;
+      await sut.tick();
+      expect(calls.down).toBe(0);
+    });
+
+    it('auto, Cloudflare down: a running box that does not answer counts', async () => {
+      const { sut, flags, calls } = setup({ state: 'running', ip: '1.2.3.4' });
+      flags.needed = true;
+      flags.answers = false;
+      expect(await sut.tick()).toBe('waiting');
+      expect(await sut.tick()).toBe('waiting');
+      expect(calls.down).toBe(2);
+      flags.answers = true;
+      expect(await sut.tick()).toBe('registered');
+      expect(calls.down).toBe(2);
+    });
+
+    it('booting after a start is normal: not counted', async () => {
+      const { sut, flags, calls } = setup({ state: 'stopped' });
+      flags.needed = true;
+      expect(await sut.tick()).toBe('started');
+      expect(await sut.tick()).toBe('starting');
+      expect(calls.down).toBe(0);
+    });
   });
 
   it('parseOwnTurnMode: unknown values mean auto', () => {
