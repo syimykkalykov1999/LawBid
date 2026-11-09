@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { crc32 } from 'node:zlib';
 import sharp from 'sharp';
-import { ImageProcessor } from './image-processor';
+import { ImageProcessor, usableCores } from './image-processor';
 import { detectMime } from '../magic-bytes';
 import { MAX_INPUT_PIXELS } from '../files.policy';
 
@@ -82,6 +82,56 @@ describe('ImageProcessor', () => {
     expect([out.main?.width, out.main?.height]).toEqual([1000, 750]);
     expect(out.variants.get(1080)!.data).toBe(out.main!.data);
     expect(out.variants.get(320)!.width).toBe(320);
+  });
+
+  it('sizes at once and one after another give the same bytes', async () => {
+    const src = await jpegWithExif(1600, 1200);
+    const run = async (atOnce: boolean) => {
+      const p = new ImageProcessor();
+      p.atOnce = () => atOnce;
+      return p.process({
+        data: src,
+        mime: 'image/jpeg',
+        avatar: false,
+        postImage: true,
+        format: 'webp',
+        quality: { jpeg: 90, webp: 88, avif: { quality: 60, effort: 2 } },
+      });
+    };
+    const [a, b] = [await run(true), await run(false)];
+    expect(a.main!.data.equals(b.main!.data)).toBe(true);
+    for (const px of [320, 1080]) {
+      expect(a.variants.get(px)!.data.equals(b.variants.get(px)!.data)).toBe(
+        true,
+      );
+    }
+    expect(a.main!.avif?.data.equals(b.main!.avif!.data)).toBe(true);
+  });
+
+  it('usable cores: the container quota, not the cores Node sees', () => {
+    const files = (m: Record<string, string>) => (p: string) => {
+      if (!(p in m)) throw new Error('ENOENT');
+      return m[p];
+    };
+    expect(
+      usableCores(
+        files({ '/sys/fs/cgroup/cpu.max': '50000 100000\n' }),
+        () => 2,
+      ),
+    ).toBe(0.5);
+    expect(
+      usableCores(files({ '/sys/fs/cgroup/cpu.max': 'max 100000' }), () => 8),
+    ).toBe(8);
+    expect(
+      usableCores(
+        files({
+          '/sys/fs/cgroup/cpu/cpu.cfs_quota_us': '200000',
+          '/sys/fs/cgroup/cpu/cpu.cfs_period_us': '100000',
+        }),
+        () => 4,
+      ),
+    ).toBe(2);
+    expect(usableCores(files({}), () => 3)).toBe(3);
   });
 
   it('avatar smaller than 256: the variant is the main encode', async () => {

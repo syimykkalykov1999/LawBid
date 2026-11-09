@@ -249,7 +249,10 @@ async function main(): Promise<void> {
       confirmCalls: count(confirmCalls),
       scanCalls: count(scanCalls),
       ...(process.env.BENCH_VERBOSE === '1'
-        ? { confirmMs: confirmMs.map(Math.round), scanMs: scanMs.map(Math.round) }
+        ? {
+            confirmMs: confirmMs.map(Math.round),
+            scanMs: scanMs.map(Math.round),
+          }
         : {}),
     }),
   );

@@ -73,7 +73,11 @@ describe('putProcessedObjects', () => {
       width: 1,
       height: 1,
     }) as unknown as ProcessedFile;
-  const file = { id: 'f', s3_bucket: 'lawbid-media', s3_key: 'post_image/s1/k' };
+  const file = {
+    id: 'f',
+    s3_bucket: 'lawbid-media',
+    s3_key: 'post_image/s1/k',
+  };
 
   it('a pending file: the main goes up together with its variants', async () => {
     const started: string[] = [];
@@ -95,7 +99,11 @@ describe('putProcessedObjects', () => {
     );
     await Promise.resolve();
     expect([...started].sort()).toEqual(
-      ['post_image/s1/k', 'post_image/s1/k_w320', 'post_image/s1/k_w1080'].sort(),
+      [
+        'post_image/s1/k',
+        'post_image/s1/k_w320',
+        'post_image/s1/k_w1080',
+      ].sort(),
     );
     await done;
   });

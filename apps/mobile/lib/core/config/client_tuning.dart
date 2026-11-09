@@ -26,6 +26,9 @@ abstract final class ClientTuning {
   static int _videoPrefetchCellular = 1;
   static int _videoCacheMb = 100;
   static int _uploadsAtOnce = 4;
+  static bool _partsAuto = true;
+  static int _partsMax = 8;
+  static int _partsMin = 2;
   static int _downloadsAtOnce = 4;
 
   /// Whether a bootstrap answer (or [reset]) has set the numbers yet.
@@ -102,6 +105,22 @@ abstract final class ClientTuning {
   /// low power.
   static int get uploadsAtOnce => _gentle(_uploadsAtOnce);
 
+  /// Owner 2026-11-09: parts of uploads at once. Auto
+  /// (`client.upload_parts_mode`): a file starts at [uploadPartsStart],
+  /// climbs while the speed grows up to [uploadPartsCeiling]
+  /// (`client.upload_parts_max`, 8) and falls to [uploadPartsFloor]
+  /// (`client.upload_parts_min`, 2) after a failed part. Mobile data, a weak
+  /// phone or low power: two at most. fixed: [uploadsAtOnce], as before.
+  static int get uploadPartsCeiling =>
+      _partsAuto ? _gentle(_partsMax) : uploadsAtOnce;
+
+  /// Where the parts of a new file start (the old fixed number).
+  static int get uploadPartsStart => min(uploadsAtOnce, uploadPartsCeiling);
+
+  /// The fewest parts at once after a failure.
+  static int get uploadPartsFloor =>
+      _partsAuto ? min(_partsMin, uploadPartsStart) : 1;
+
   /// R-251: pieces of files coming down at once in the whole app
   /// (`client.downloads_at_once`); two on mobile data, a weak phone or
   /// low power.
@@ -146,8 +165,8 @@ abstract final class ClientTuning {
   /// not come back together. One rule for [outboxDelay] and the inline
   /// `RetryInterceptor` backoff.
   static Duration withJitter(Duration d, [Random? random]) {
-    final extra = (d.inMilliseconds * 0.3 * (random ?? _rng).nextDouble())
-        .round();
+    final extra =
+        (d.inMilliseconds * 0.3 * (random ?? _rng).nextDouble()).round();
     return d + Duration(milliseconds: extra);
   }
 
@@ -199,9 +218,8 @@ abstract final class ClientTuning {
     var own = base + base * extra;
     if (own > cap) own = cap - base * extra;
     if (retryAfter == null) return own;
-    final asked = retryAfter > queueRetryAfterMax
-        ? queueRetryAfterMax
-        : retryAfter;
+    final asked =
+        retryAfter > queueRetryAfterMax ? queueRetryAfterMax : retryAfter;
     final askedJittered = withJitter(asked, random);
     return askedJittered > own ? askedJittered : own;
   }
@@ -231,6 +249,9 @@ abstract final class ClientTuning {
     _videoCacheMb = pick('client.video_cache_mb', 100, 0, 1000);
     _videoCacheChunkS = pick('client.video_cache_chunk_s', 4, 1, 15);
     _uploadsAtOnce = pick('client.uploads_at_once', 4, 1, 4);
+    _partsAuto = config['client.upload_parts_mode'] != 'fixed';
+    _partsMax = pick('client.upload_parts_max', 8, 1, 16);
+    _partsMin = pick('client.upload_parts_min', 2, 1, 8);
     _downloadsAtOnce = pick('client.downloads_at_once', 4, 1, 4);
     _chatPhotoMaxPx = pick(
       'media.chat_photo_max_px',

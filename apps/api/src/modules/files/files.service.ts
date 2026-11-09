@@ -73,7 +73,7 @@ import {
   PART_URL_TTL_SEC,
   missingParts,
   partsComplete,
-  planParts,
+  planFromUploaded,
 } from './multipart';
 import {
   PENDING_UPLOADS_KEY,
@@ -461,7 +461,6 @@ export class FilesService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    const plan = planParts(intent.size);
     let uploadId = await this.redis.get(multipartKey(fileId));
     if (!uploadId) {
       const started = await this.storage.startMultipart({
@@ -499,6 +498,7 @@ export class FilesService {
       intent.key,
       uploadId,
     );
+    const plan = planFromUploaded(intent.size, uploaded);
     const todo = missingParts(plan, uploaded);
     const parts = await Promise.all(
       todo.map(async (partNumber) => ({
@@ -537,12 +537,12 @@ export class FilesService {
         message: 'Start the resumable upload first.',
       });
     }
-    const plan = planParts(intent.size);
     const uploaded = await this.storage.listParts(
       intent.bucket,
       intent.key,
       uploadId,
     );
+    const plan = planFromUploaded(intent.size, uploaded);
     if (!partsComplete(plan, intent.size, uploaded)) {
       throw new ConflictException({
         code: ErrorCode.FILE_NOT_UPLOADED,
