@@ -336,6 +336,7 @@ abstract final class CasesMappers {
         autoCloseAt: _dateOrNull(w.autoCloseAt),
         acceptedAt: _dateOrNull(w.acceptedAt),
         closedAt: _dateOrNull(w.closedAt),
+        lastActivityAt: _dateOrNull(w.lastActivityAt),
         primaryStateCode: w.primaryStateCode,
         practiceCode: w.practiceAreaCode,
         practiceI18nKey: w.practiceAreaI18nKey,

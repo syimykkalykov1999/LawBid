@@ -2,10 +2,17 @@ import {
   communityQuery,
   rankCommunities,
 } from '../../common/search/community-search';
+import { AutoHoldService } from '../moderation/auto-hold.service';
+import {
+  CONTENT_MODERATION_HOOK,
+  type ContentModerationHook,
+} from '../moderation/content-moderation.hook';
+import { screenContent } from '../moderation/content-screen';
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -130,6 +137,12 @@ export class ChannelsService {
     @Optional() private readonly counters?: CounterAggregator,
     // Replica seam: the discover rows come from a cached snapshot anyway.
     @Optional() private readonly read?: PrismaReadService,
+    // Feature reality audit 2026-11-08: the admin's moderation rules hold
+    // channel posts as they hold feed posts.
+    @Optional()
+    @Inject(CONTENT_MODERATION_HOOK)
+    private readonly moderationHook?: ContentModerationHook,
+    @Optional() private readonly autoHold?: AutoHoldService,
   ) {}
 
   async assertEnabled(): Promise<void> {
@@ -724,27 +737,50 @@ export class ChannelsService {
     for (const fid of mediaIds) {
       await this.files.assertAttachable(me, fid, ['post_image']);
     }
+    const verdict = await screenContent(this.moderationHook, body, {
+      kind: 'channel_post',
+      authorId: me,
+    });
     if (dto.videoAssetId) await this.videos.takeReady(me, dto.videoAssetId);
     await this.limits.consume('channel_post', me);
+    const held = verdict === 'hold';
     const row = await this.prisma.$transaction(async (tx) => {
       const p = await tx.channelPost.create({
         data: {
           channel_id: channel.id,
           author_id: me,
           body,
+          // A held post waits hidden for a moderator: no subscriber sees it.
+          ...(held ? { status: 'hidden' } : {}),
           media_file_ids: mediaIds,
           video_asset_id: dto.videoAssetId ?? null,
           forwarded_from_name: opts.forwardedFromName ?? null,
           forward_key: opts.forwardKey ?? null,
         },
       });
-      await tx.channel.update({
-        where: { id: channel.id },
-        data: { post_count: { increment: 1 }, last_post_at: p.created_at },
-      });
+      if (!held) {
+        await tx.channel.update({
+          where: { id: channel.id },
+          data: { post_count: { increment: 1 }, last_post_at: p.created_at },
+        });
+      }
       return p;
     });
-    if (opts.notify !== false) {
+    if (body) {
+      await this.moderationHook?.record?.(body, {
+        kind: 'channel_post',
+        authorId: me,
+      });
+    }
+    if (held) {
+      await this.autoHold?.queue({
+        targetType: 'channel_post',
+        targetId: row.id,
+        authorId: me,
+        rule: 'rules',
+      });
+    }
+    if (opts.notify !== false && !held) {
       void this.fanout
         .start({
           channelId: channel.id,
@@ -761,10 +797,12 @@ export class ChannelsService {
     // Owner 2026-10-22 (package F): the open channel sees the post at once
     // (room channel:{id}, joined by `channel:watch`); the subscribers'
     // rows move through `channel:update` from the fan-out queue.
-    this.realtime?.toRoom(channelRoom(channel.id), 'channel:post', {
-      channelId: channel.id,
-      post: out,
-    });
+    if (!held) {
+      this.realtime?.toRoom(channelRoom(channel.id), 'channel:post', {
+        channelId: channel.id,
+        post: out,
+      });
+    }
     return out;
   }
 

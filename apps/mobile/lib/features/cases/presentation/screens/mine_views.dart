@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,13 +8,16 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
+import 'package:lawbid/features/cases/data/cases_list_filter_store.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/cases_list_filter.dart';
 import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
 import 'package:lawbid/features/cases/presentation/widgets/my_case_row.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
@@ -69,11 +74,18 @@ class ClientMineView extends ConsumerStatefulWidget {
   ConsumerState<ClientMineView> createState() => _ClientMineViewState();
 }
 
-class _ClientMineViewState extends ConsumerState<ClientMineView> {
+class _ClientMineViewState extends ConsumerState<ClientMineView>
+    with _RemembersCasesFilter {
   _ClientTab _tab = _ClientTab.cases;
   _CaseSection _section = _CaseSection.active;
-  MineSearch _search = const MineSearch();
+  // Owner 2026-11-09: the cases-screen filter opens as it was left.
+  late MineSearch _search = loadCasesFilter(ref);
   final _chrome = FeedChromeController(revealOnUp: true);
+
+  void _setSearch(MineSearch v) {
+    setState(() => _search = v);
+    saveCasesFilter(ref, v);
+  }
 
   @override
   void dispose() {
@@ -101,7 +113,16 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
                       // Owner 2026-10-16: the chips and the search share a row.
                       MineChipsSearchRow(
                         search: _search,
-                        onChanged: (v) => setState(() => _search = v),
+                        onChanged: _setSearch,
+                        // Owner 2026-11-09: the filter icon left of the
+                        // search, on the list that sorts by stage.
+                        filter: _section == _CaseSection.active
+                            ? CasesListFilterButton(
+                                search: _search,
+                                onChanged: _setSearch,
+                                attorney: false,
+                              )
+                            : null,
                         chips: FilterChips<_CaseSection>(
                           key: const ValueKey('case-sections'),
                           compact: true,
@@ -116,7 +137,7 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
                       ),
                       MineActiveFilters(
                         search: _search,
-                        onChanged: (v) => setState(() => _search = v),
+                        onChanged: _setSearch,
                       ),
                       const DeadlineMineEntry(),
                       const SizedBox(height: AppSpacing.sm),
@@ -140,7 +161,10 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
                         filter: isActive
                             ? MyCasesFilter.active
                             : MyCasesFilter.completed,
-                        search: _search,
+                        // Owner 2026-11-09: the stage filters belong to
+                        // «Active»; «Done» keeps its order.
+                        search:
+                            isActive ? _search : _search.withoutListFilters,
                         cards: true,
                         scale: isActive,
                       );
@@ -290,7 +314,8 @@ class AttorneyMineView extends ConsumerStatefulWidget {
   ConsumerState<AttorneyMineView> createState() => _AttorneyMineViewState();
 }
 
-class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
+class _AttorneyMineViewState extends ConsumerState<AttorneyMineView>
+    with _RemembersCasesFilter {
   _AttorneyTab _tab = _AttorneyTab.cases;
   late AttorneyCasesSection _section = AttorneyCasesSection.fromLegacy(
         widget.initialSection ?? '',
@@ -298,8 +323,14 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       AttorneyCasesSection.active;
   bool _saved = false;
   _SavedKind _savedKind = _SavedKind.cases;
-  MineSearch _search = const MineSearch();
+  // Owner 2026-11-09: the cases-screen filter opens as it was left.
+  late MineSearch _search = loadCasesFilter(ref);
   final _chrome = FeedChromeController(revealOnUp: true);
+
+  void _setSearch(MineSearch v) {
+    setState(() => _search = v);
+    saveCasesFilter(ref, v);
+  }
 
   @override
   void dispose() {
@@ -314,7 +345,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
     final qa = ref.watch(legalQaEnabledProvider);
     final filters = MineActiveFilters(
       search: _search,
-      onChanged: (v) => setState(() => _search = v),
+      onChanged: _setSearch,
     );
     // Owner 2026-10-15: «Saved» is a bookmark right of the search.
     final saved = AppIconButton(
@@ -331,8 +362,17 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
     // row; the invitations switch stays under it.
     final topRow = MineChipsSearchRow(
       search: _search,
-      onChanged: (v) => setState(() => _search = v),
+      onChanged: _setSearch,
       action: saved,
+      // Owner 2026-11-09: the filter icon left of the search, on the list
+      // that sorts by stage.
+      filter: !_saved && _section == AttorneyCasesSection.active
+          ? CasesListFilterButton(
+              search: _search,
+              onChanged: _setSearch,
+              attorney: true,
+            )
+          : null,
       hintKey: _saved
           ? 'mine.search.saved'
           : _section == AttorneyCasesSection.active
@@ -367,7 +407,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           AttorneyCasesSection.bids => _BidsGrid(
               key: const ValueKey('waiting'),
               filter: MyBidsFilter.active,
-              search: _search,
+              search: _search.withoutListFilters,
             ),
           AttorneyCasesSection.invites =>
             const InvitesList(key: ValueKey('invites')),
@@ -376,14 +416,14 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           AttorneyCasesSection.completed => _BidsGrid(
               key: const ValueKey('completed'),
               filter: MyBidsFilter.completed,
-              search: _search,
+              search: _search.withoutListFilters,
             ),
         };
     // Owner 2026-10-22: Active | Bids | Completed swipe like the tabs.
     final Widget grid = _saved
         ? _AttorneySaved(
             key: const ValueKey('saved'),
-            search: _search,
+            search: _search.withoutListFilters,
             searchBar: const SizedBox.shrink(),
             kind: _savedKind,
             onKind: (v) => setState(() => _savedKind = v),
@@ -697,5 +737,26 @@ class CompletedWorkScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// Owner 2026-11-09: the cases-screen filter is remembered per account on
+/// this device (CasesListFilterStore); the text, practice and state of the
+/// search are per visit as before.
+mixin _RemembersCasesFilter<T extends ConsumerStatefulWidget>
+    on ConsumerState<T> {
+  String? _userId(WidgetRef ref) =>
+      ref.read(sessionControllerProvider.select((s) => s?.sub));
+
+  MineSearch loadCasesFilter(WidgetRef ref) {
+    final id = _userId(ref);
+    if (id == null) return const MineSearch();
+    return ref.read(casesListFilterStoreProvider).load(id);
+  }
+
+  void saveCasesFilter(WidgetRef ref, MineSearch search) {
+    final id = _userId(ref);
+    if (id == null) return;
+    unawaited(ref.read(casesListFilterStoreProvider).save(id, search));
   }
 }

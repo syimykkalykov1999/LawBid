@@ -12,6 +12,7 @@ import '../models/case_deleted_envelope.dart';
 import '../models/case_detail_for_attorney_envelope.dart';
 import '../models/case_envelope.dart';
 import '../models/case_feed_item_list_envelope.dart';
+import '../models/case_list_sort.dart';
 import '../models/case_summary_list_envelope.dart';
 import '../models/case_tasks_envelope.dart';
 import '../models/case_update_list_envelope.dart';
@@ -195,6 +196,10 @@ abstract class CasesClient {
   ///
   /// [q] - Words of the case: title, description, city, state, topic (any language).
   ///
+  /// [stages] - Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.
+  ///
+  /// [awaiting] - Only the cases waiting for me (client: open with bids, or pending completion).
+  ///
   /// [updatedSince] - Owner 2026-10-22 (client economy plan, package E): only my cases changed since (ISO); meta.deletedIds = cases that left this tab (status moved, deleted); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.
   ///
   /// [cursor] - meta.nextCursor of the previous page.
@@ -205,6 +210,9 @@ abstract class CasesClient {
     @Query('q') String? q,
     @Query('practice') String? practice,
     @Query('state') String? state,
+    @Query('stages') List<num>? stages,
+    @Query('awaiting') bool? awaiting,
+    @Query('sort') CaseListSort? sort,
     @Query('updatedSince') DateTime? updatedSince,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,

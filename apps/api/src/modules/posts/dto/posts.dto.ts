@@ -268,8 +268,9 @@ export class PostIdParamDto {
 }
 
 /** Owner 2026-10-12: where to pin a post — slot 1..3; owner 2026-10-28:
- * 1..6 (two rows of three in the app). */
-export const MAX_PIN_SLOT = 6;
+ * 1..6; owner 2026-11-09: 1..10 everywhere pins exist (Instagram keeps
+ * three pinned posts, Telegram pins up to ten chats — ten it is). */
+export const MAX_PIN_SLOT = 10;
 
 export class PinPostDto {
   @ApiProperty({ type: 'integer', minimum: 1, maximum: MAX_PIN_SLOT })
@@ -616,7 +617,7 @@ export class PostDto {
   })
   editedAt!: string | null;
 
-  /** Owner 2026-10-12: 1..6 (was 1..3 until 2026-10-28) when pinned to the
+  /** Owner 2026-10-12: 1..10 (1..3, then 1..6 until 2026-11-09) when pinned to the
    * top of the author's list. */
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   pinSlot?: number | null;
