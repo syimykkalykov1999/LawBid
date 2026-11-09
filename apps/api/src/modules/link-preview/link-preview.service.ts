@@ -75,6 +75,16 @@ export class LinkPreviewService {
   }
 
   async preview(userId: string, rawUrl: string): Promise<LinkPreviewDto> {
+    // The kill switch hides the cards, it does not break chats. Checked
+    // first (feature reality audit 2026-11-08): a switched-off preview used
+    // up the person's daily quota (chat.link_preview_per_user_per_day) for
+    // nothing, so turning it back on found people already limited.
+    if (
+      (await readSwitchMode(this.settings, 'chat.link_preview_enabled')) ===
+      'off'
+    ) {
+      return this.empty(rawUrl);
+    }
     const user = await this.limiter.consumeFixedWindow(
       ['link-preview', 'user', 'm', userId],
       LINK_PREVIEW_USER_PER_MINUTE,
@@ -116,14 +126,6 @@ export class LinkPreviewService {
       );
     }
     const canonical = url.toString();
-
-    // The kill switch hides the cards, it does not break chats.
-    if (
-      (await readSwitchMode(this.settings, 'chat.link_preview_enabled')) ===
-      'off'
-    ) {
-      return this.empty(canonical);
-    }
 
     const key =
       CACHE_PREFIX + createHash('sha256').update(canonical).digest('hex');

@@ -4,9 +4,13 @@ import { VideosService } from './videos.service';
 const MB = 1024 * 1024;
 
 const stored: Record<string, number> = {};
+const updatedAt: { rows: { key: string; updated_at: Date }[] } = { rows: [] };
 
 function setup(video: Record<string, unknown> | null) {
   const prisma = {
+    appConfig: {
+      findMany: jest.fn(() => Promise.resolve(updatedAt.rows)),
+    },
     videoAsset: {
       update: jest.fn((args: { data: object }) =>
         Promise.resolve({ id: 'a1', ...args.data }),
@@ -77,6 +81,29 @@ describe('VideosService limits', () => {
     expect(await service.reelMaxSec()).toBe(100);
     stored['video.reel_max_duration_sec'] = 120;
     expect(await service.reelMaxSec()).toBe(120);
+  });
+
+  it('both keys saved: the one the admin changed last wins (feature reality 2026-11-08)', async () => {
+    const { service } = setup({});
+    stored['video.reel_max_duration_sec'] = 120;
+    stored['video.max_duration_sec'] = 90;
+    updatedAt.rows = [
+      {
+        key: 'video.reel_max_duration_sec',
+        updated_at: new Date('2026-11-01'),
+      },
+      { key: 'video.max_duration_sec', updated_at: new Date('2026-11-08') },
+    ];
+    expect(await service.reelMaxSec()).toBe(90);
+    updatedAt.rows = [
+      {
+        key: 'video.reel_max_duration_sec',
+        updated_at: new Date('2026-11-09'),
+      },
+      { key: 'video.max_duration_sec', updated_at: new Date('2026-11-08') },
+    ];
+    expect(await service.reelMaxSec()).toBe(120);
+    updatedAt.rows = [];
   });
 
   it('post limit is never below the reel limit', async () => {
