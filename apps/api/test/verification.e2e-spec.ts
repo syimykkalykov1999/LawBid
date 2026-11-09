@@ -956,7 +956,10 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       const card = (taken.body as Body).data;
       expect(card.status).toBe('in_review');
       const licenses = card.licenses as { id: string; barNumber: string }[];
-      expect(licenses[0].barNumber).toBe(bar);
+      // Staff data protection is on by default (2026-11-09): a mass-work
+      // verifier sees the document number partially masked (last 4 digits);
+      // the full number is one audited «reveal» away.
+      expect(licenses[0].barNumber).toBe(`*****${bar.slice(-4)}`);
       const documents = card.documents as { id: string; docType: string }[];
       expect(documents).toHaveLength(3);
       expect(JSON.stringify(card)).not.toContain('s3_key');

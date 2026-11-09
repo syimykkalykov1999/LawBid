@@ -18,6 +18,7 @@ import {
   E2E_ADMIN_PASSWORD,
   e2eLogin,
 } from './support/admin-login';
+import { storeStaffSwitches } from './support/staff-switches';
 
 jest.setTimeout(60_000);
 
@@ -40,6 +41,7 @@ interface Body {
 describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let restoreStaff: () => Promise<void> = () => Promise.resolve();
   let redis: Redis;
   let tokens: TokenService;
   let baseUrl = '';
@@ -58,11 +60,19 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     const port = (app.getHttpServer() as Server).address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${port.port}`;
     prisma = app.get(PrismaService);
+    // This stage describes the generic grant model (a «manager» admin,
+    // sections granted one by one) WITHOUT the workspace ceiling of the
+    // staff package, which is on by default since 2026-11-09.
+    restoreStaff = await storeStaffSwitches(app, {
+      'staff.workspaces_enabled': false,
+      'staff.head_enabled': false,
+    });
     redis = app.get<Redis>(REDIS_CLIENT);
     tokens = app.get(TokenService);
   });
 
   afterAll(async () => {
+    await restoreStaff();
     await app.close();
   });
 

@@ -11,10 +11,17 @@ const body = {
 async function run(
   admin: Partial<RequestAdmin> | undefined,
   port?: Partial<StaffSecurityPort>,
+  req: { url?: string; headers?: Record<string, string> } = {},
 ) {
+  const headers = req.headers ?? {};
   const ctx = {
     switchToHttp: () => ({
-      getRequest: () => ({ admin, url: '/x', method: 'GET' }),
+      getRequest: () => ({
+        admin,
+        url: req.url ?? '/x',
+        method: 'GET',
+        header: (n: string) => headers[n.toLowerCase()],
+      }),
     }),
   } as unknown as ExecutionContext;
   const next: CallHandler = {
@@ -52,6 +59,25 @@ describe('AdminPiiMaskInterceptor + staff security (T11)', () => {
     expect(out).toEqual({
       items: [{ phone: '+1 *** ** 80', email: 'a***@b.co', firstName: 'Ann' }],
     });
+  });
+
+  it("mode partial never hides the admin's own session (/admin/auth/*) nor a response unlocked with a written reason (X-Justification)", async () => {
+    const port = {
+      beforeHandler: jest.fn(() => Promise.resolve()),
+      maskMode: jest.fn(() => Promise.resolve('partial' as const)),
+    };
+    const me = await run({ id: 'a' }, port, { url: '/api/v1/admin/auth/me' });
+    expect(me.out).toEqual(body);
+    const justified = await run({ id: 'a' }, port, {
+      url: '/api/v1/admin/users/u1/contacts',
+      headers: { 'x-justification': 'Support ticket #4711' },
+    });
+    expect(justified.out).toEqual(body);
+    const blank = await run({ id: 'a' }, port, {
+      url: '/api/v1/admin/users/u1/contacts',
+      headers: { 'x-justification': '   ' },
+    });
+    expect(blank.out).not.toEqual(body);
   });
 
   it('a refusal from beforeHandler (closed export) stops the handler', async () => {

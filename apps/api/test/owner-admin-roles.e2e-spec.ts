@@ -20,7 +20,7 @@ jest.setTimeout(120_000);
 describe('Admin roles, presets and invite links (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let restoreStaff: () => Promise<void> = async () => undefined;
+  let restoreStaff: () => Promise<void> = () => Promise.resolve();
   let base = '';
   const tag = randomUUID().slice(0, 8);
 

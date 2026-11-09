@@ -34,7 +34,7 @@ jest.setTimeout(120_000);
 describe('Key sets + payroll (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let restoreStaff: () => Promise<void> = async () => undefined;
+  let restoreStaff: () => Promise<void> = () => Promise.resolve();
   let secrets: SecretsService;
   let flags: FeatureFlagsService;
   let base = '';

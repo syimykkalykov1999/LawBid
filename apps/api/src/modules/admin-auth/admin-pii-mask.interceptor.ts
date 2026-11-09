@@ -22,7 +22,23 @@ import { maskPii, maskPiiPartial } from './admin-pii-mask';
  * `staff.masking_enabled` is on (phone / e-mail / document numbers
  * shortened, payment fields removed), and its exports are closed
  * (`staff.export_block_enabled`). Everyone else passes through untouched.
+ * Owner 2026-11-09 (masking is on by default now): the partial mask never
+ * hides the admin's OWN session data (`/admin/auth/*`: their e-mail, TOTP
+ * setup), and never a response the admin already unlocked with a written
+ * reason (`X-Justification`: that route is the audited reveal itself).
  */
+const OWN_SESSION = /\/admin\/auth(\/|$)/;
+
+export function partialMaskSkipped(req: {
+  url?: string;
+  path?: string;
+  header?: (name: string) => string | undefined;
+}): boolean {
+  const path = req.path ?? req.url ?? '';
+  if (OWN_SESSION.test(path)) return true;
+  const reason = req.header?.('x-justification');
+  return typeof reason === 'string' && reason.trim().length > 0;
+}
 @Injectable()
 export class AdminPiiMaskInterceptor implements NestInterceptor {
   constructor(
@@ -46,7 +62,7 @@ export class AdminPiiMaskInterceptor implements NestInterceptor {
       })(),
     ).pipe(
       mergeMap((mode) =>
-        mode === 'partial'
+        mode === 'partial' && !partialMaskSkipped(req)
           ? next.handle().pipe(map((body) => maskPiiPartial(body)))
           : next.handle(),
       ),

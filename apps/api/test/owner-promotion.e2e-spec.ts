@@ -8,6 +8,7 @@ import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-co
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import type Redis from 'ioredis';
 import { adminSession } from './support/admin-login';
+import { storeStaffSwitches } from './support/staff-switches';
 
 /**
  * Owner 2026-10-27 «Продвижение»: the SEO switches and the channel
@@ -27,6 +28,7 @@ const KEYS = [
 describe('Promotion admin page (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let restoreStaff: () => Promise<void> = () => Promise.resolve();
   let redis: Redis;
   let base = '';
 
@@ -48,12 +50,19 @@ describe('Promotion admin page (e2e)', () => {
     const { port } = (app.getHttpServer() as Server).address() as AddressInfo;
     base = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
+    // Grants to the owner-only «promotion» section for a support admin exist
+    // only without the workspace ceiling (on by default since 2026-11-09).
+    restoreStaff = await storeStaffSwitches(app, {
+      'staff.workspaces_enabled': false,
+      'staff.head_enabled': false,
+    });
     redis = app.get<Redis>(REDIS_CLIENT);
     await prisma.appConfig.deleteMany({ where: { key: { in: KEYS } } });
     await dropAppConfigCache(redis);
   });
 
   afterAll(async () => {
+    await restoreStaff();
     await prisma.appConfig.deleteMany({ where: { key: { in: KEYS } } });
     await dropAppConfigCache(redis);
     await app.close();
