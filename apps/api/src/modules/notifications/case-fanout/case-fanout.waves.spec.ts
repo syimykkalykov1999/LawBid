@@ -516,6 +516,17 @@ describe('case fan-out waves', () => {
       expect(off.jobs[0].job.waves).toBe(false);
     });
 
+    it('queue_mode=off (the alerts go inside the request): auto sends one wave inline', async () => {
+      const w = world(6, {
+        'case_fanout.enabled': 'auto',
+        'case_fanout.queue_mode': 'off',
+        'case_fanout.first_wave_size': 2,
+      });
+      expect(await w.svc.wavesAuto()).toBe(false);
+      expect(await w.svc.start(CASE)).toBe(6);
+      expect(w.jobs).toHaveLength(0);
+    });
+
     it('an old job without the decision (queued before this release) decides in the worker', async () => {
       const w = world(12, {
         'case_fanout.enabled': 'auto',

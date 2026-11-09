@@ -184,6 +184,14 @@ export class CaseFanoutService
       ? await readSwitchMode(this.settings, 'case_fanout.enabled')
       : parseSwitchMode(APP_SETTINGS['case_fanout.enabled']);
     if (mode !== 'auto' || !this.queue) return false;
+    // `case_fanout.queue_mode` = off is the owner saying «no queue for the
+    // alerts» (they go inside the request): waves cannot run there.
+    if (
+      this.settings &&
+      (await this.settings.string('case_fanout.queue_mode')) === 'off'
+    ) {
+      return false;
+    }
     try {
       const max = Math.max(
         0,
