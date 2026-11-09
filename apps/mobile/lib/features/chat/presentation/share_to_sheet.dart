@@ -263,16 +263,35 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
       c.request != MessageRequest.pending &&
       c.request != MessageRequest.declined;
 
+  /// Instagram / Telegram: one tile per person, however many chats (a direct
+  /// one and case chats) we have with them; the most recent chat wins. Chats
+  /// with no known person id stay as they are.
+  static List<Conversation> _onePerPerson(List<Conversation> chats) {
+    DateTime at(Conversation c) => c.lastMessageAt ?? c.updatedAt;
+    final newest = <String, Conversation>{};
+    for (final c in chats) {
+      final id = c.counterpart.id;
+      if (id == null) continue;
+      final cur = newest[id];
+      if (cur == null || at(c).isAfter(at(cur))) newest[id] = c;
+    }
+    return [
+      for (final c in chats)
+        if (c.counterpart.id == null || identical(newest[c.counterpart.id], c))
+          c,
+    ];
+  }
+
   Widget _chatsGrid(Translator t, {bool withGroups = false}) {
     final list = _q.isEmpty
         ? ref.watch(conversationsProvider)
         : ref.watch(
             searchConversationsProvider((folder: ChatListFolder.all, q: _q)),
           );
-    final items = [
+    final items = _onePerPerson([
       for (final c in list.value?.items ?? const <Conversation>[])
         if (_canWrite(c)) c,
-    ];
+    ]);
     // Owner 2026-10-21 (inbox 25b, Instagram): anyone in the app by name or
     // @username, under the matching chats.
     final searching = peopleSuggestQuery(_q).length >= peopleSuggestMinChars;
