@@ -165,14 +165,14 @@ describe('RankingEventsService', () => {
             expire() {
               return chain;
             },
-            exec: async () => ops.forEach((o) => o()),
+            exec: () => Promise.resolve(ops.forEach((o) => o())),
           };
           return chain;
         },
-        hmget: async (key: string, ...f: string[]) =>
-          f.map((x) => hashes.get(key)?.get(x) ?? null),
-        hdel: async (key: string, ...f: string[]) =>
-          f.forEach((x) => hashes.get(key)?.delete(x)),
+        hmget: (key: string, ...f: string[]) =>
+          Promise.resolve(f.map((x) => hashes.get(key)?.get(x) ?? null)),
+        hdel: (key: string, ...f: string[]) =>
+          Promise.resolve(f.forEach((x) => hashes.get(key)?.delete(x))),
       };
       const svc = new RankingEventsService(
         prisma as never,

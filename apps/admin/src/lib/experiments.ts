@@ -35,7 +35,7 @@ export function parseVariantWeights(
 ): { weights: Record<string, number> } | { error: string } {
   const out: Record<string, number> = {};
   const known = SURFACE_WEIGHTS[surface];
-  for (const part of text.split(/[,;\n]+/)) {
+  for (const part of text.split(/[;\n]+|,(?=\s*[a-zA-Z])/)) {
     const t = part.trim();
     if (!t) continue;
     const m = /^([a-zA-Z][a-zA-Z0-9_]*)\s*[=:]\s*(-?[0-9]+(?:[.,][0-9]+)?)$/.exec(t);
