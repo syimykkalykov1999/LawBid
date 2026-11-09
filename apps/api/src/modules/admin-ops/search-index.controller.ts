@@ -12,6 +12,7 @@ import {
   ApiEnvelopeResponse,
   ApiErrors,
 } from '../../common/dto/api-docs.decorators';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
@@ -33,6 +34,15 @@ import {
 
 const E = ErrorCode;
 
+/** 2026-11-08: the card asked the key store and the search engine (layout,
+ * mapping version per index) on every open and every minute's poll of
+ * «Масштаб» (prod: 1.2-1.4 s while the page's other cards queued on the
+ * same 3 connections). Now a shared board (AdminSummaryService.board), at
+ * most 15 s old before a background rebuild; the buttons store the status
+ * they just read. */
+const STATUS_KEY = 'search:index-status';
+const STATUS_FRESH_MS = 15_000;
+
 /**
  * Owner 2026-10-25: zero-downtime search reindex from the admin «Масштаб»
  * page (super_admin). Start / Swap / Rollback need a fresh 2FA code
@@ -48,6 +58,7 @@ export class SearchIndexController {
     private readonly reindex: SearchReindexService,
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
+    private readonly summary: AdminSummaryService,
   ) {}
 
   @Get()
@@ -55,8 +66,13 @@ export class SearchIndexController {
     summary: 'Search index generations, aliases, counts and reindex progress',
   })
   @ApiEnvelopeResponse(SearchIndexStatusDto)
-  async searchIndexStatus(): Promise<SearchIndexStatusDto> {
-    return toSearchIndexStatusDto(await this.reindex.status());
+  searchIndexStatus(): Promise<SearchIndexStatusDto> {
+    return this.summary.board(
+      STATUS_KEY,
+      async () => toSearchIndexStatusDto(await this.reindex.status()),
+      STATUS_FRESH_MS,
+      (d) => typeof d?.engineConfigured === 'boolean',
+    );
   }
 
   @Post('start')
@@ -125,6 +141,8 @@ export class SearchIndexController {
       after: { phase },
       ip: admin.ip,
     });
-    return toSearchIndexStatusDto(await this.reindex.status());
+    const status = toSearchIndexStatusDto(await this.reindex.status());
+    await this.summary.put(STATUS_KEY, status);
+    return status;
   }
 }

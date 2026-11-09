@@ -892,8 +892,13 @@ export class RecommendationsService {
                WHERE j.group_id = g.id AND j.left_at IS NULL
                  AND j.user_id = ANY(${circle}::UUID[])) AS mutual
       FROM chat_groups g
-      JOIN chat_group_members own
-        ON own.group_id = g.id AND own.role = 'owner' AND own.left_at IS NULL
+      -- Perf guard 2026-11-08: a LATERAL lookup of the owner keeps the
+      -- groups in the order of their index (chat_groups_discover_*), so
+      -- the LIMIT stops after a page; a plain join hashed every owner row
+      -- of every group first (a full scan of chat_group_members at 10M).
+      CROSS JOIN LATERAL (SELECT o.user_id FROM chat_group_members o
+        WHERE o.group_id = g.id AND o.role = 'owner' AND o.left_at IS NULL
+        LIMIT 1) own
       WHERE g.group_type = 'public' AND g.deleted_at IS NULL
         AND g.member_count > 0
         AND NOT EXISTS (SELECT 1 FROM chat_group_members me

@@ -12,8 +12,8 @@ import { livePoll } from '@/lib/live';
 
 /**
  * Owner 2026-10-24: two switches on «Масштаб» that are OFF until somebody
- * taps them. Both need a fresh 2FA code and then a second admin's approval
- * («Требуют подтверждения»); the action runs when the second admin approves.
+ * taps them. Both need one fresh 2FA code from the owner and then run at
+ * once (owner 2026-11-08: no second admin, ever).
  *   - «Копия базы для чтения»: an RDS read replica, created / deleted by RDS.
  *   - «Разделить таблицу по месяцам»: online conversion in the background.
  */

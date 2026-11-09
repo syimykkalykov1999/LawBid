@@ -1210,6 +1210,8 @@ model AuthEvent {
   // Hash-sharded (created_at) index is also raw SQL, stage 2.6 (§5.2).
   @@index([user_id, created_at(sort: Desc)])
   @@index([created_shard, created_at], map: "auth_events_created_at_idx")
+  // Batched reads by month for the online partition conversion (20261120090000).
+  @@index([created_at, id], map: "auth_events_created_at_id_idx")
   @@map("auth_events")
 }
 
@@ -4231,10 +4233,13 @@ model AuditLog {
   // `seq`, `prev_hash` and `row_hash` are set by the audit_log_chain
   // trigger (raw SQL) — never by the application.
   reason_code   String?
-  seq           BigInt?  @unique
+  seq           BigInt?
   prev_hash     String?
   row_hash      String?
 
+  // Automation audit 2026-11-08: unique together with the partition key, so
+  // the online monthly conversion can carry it (20261120090000).
+  @@unique([seq, created_at], map: "audit_log_seq_created_at_key")
   @@index([admin_id, created_at(sort: Desc)])
   @@index([created_shard, created_at], map: "audit_log_created_at_idx")
   // Owner 2026-10-23 (admin economy pass): the audit log pages newest-first, filtered by target or action prefix.
@@ -4303,18 +4308,19 @@ model DataAccessLog {
   accessed_at DateTime          @default(now()) @db.Timestamptz
 
   @@index([request_id])
+  // Batched reads by month for the online partition conversion (20261120090000).
+  @@index([accessed_at, id], map: "data_access_log_accessed_at_id_idx")
   @@map("data_access_log")
 }
 
 // docs/06 §2.1, §10 (stage 6.1): admin 2FA. The TOTP secret is stored
 // encrypted (AES-256-GCM with ADMIN_TOTP_ENC_KEY; KMS envelope when the AWS
 // stack exists — OQ-016), recovery codes only as hashes.
-/// Owner 2026-10-22 (system audit #2, item 11 — maker-checker): a bulk
-/// payout or a refund at or above `billing.dual_approval_min_cents` is not
-/// run by the admin who asks for it. It waits here until ANOTHER admin
-/// approves it (with a fresh 2FA step-up); only then it runs, exactly once
-/// (the pending → approved switch is atomic). Banks call it dual control /
-/// four-eyes; Stripe lets teams require a second person for payouts.
+/// LEGACY, nothing reads or writes it. Owner 2026-10-22 added a
+/// second-admin (maker-checker) step for big payouts and refunds; owner
+/// 2026-10-25 / 2026-11-08 removed it for good (ADR 0010): every admin action
+/// runs after the owner's own fresh 2FA code and an audit_log row. The table
+/// stays only because migrations are additive; the pre-launch wipe empties it.
 model AdminApproval {
   id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// 'payroll_bulk_payout' | 'billing_refund'

@@ -339,9 +339,10 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   data_export_jobs: '"download my data" jobs',
   audit_log:
     'admin actions of the test period (mostly on tester accounts); the trail starts clean at launch',
-  // Owner 2026-10-22: maker-checker requests of the test period.
+  // Owner 2026-10-22: maker-checker requests of the test period. The flow
+  // was removed on 2026-10-25 (no second admin); the old rows go too.
   admin_approvals:
-    'second-admin approvals of test payouts / refunds (pending ones would run on real money)',
+    'old rows of the removed second-admin flow (test payouts / refunds); nothing reads them',
   // Owner 2026-10-26: cloud change requests from the admin (infra switches).
   // The applied state lives in growth.auto.tfvars.json on main, not here.
   infra_change_requests:

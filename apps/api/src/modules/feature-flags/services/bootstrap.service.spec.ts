@@ -48,13 +48,26 @@ function build(
     bundleVersions?: { lang: string; version: number }[];
     redis?: MemoryRedis;
     config?: Record<string, unknown>;
+    flags?: Record<string, boolean>;
+    googleKey?: string;
   } = {},
 ) {
   const flags = {
     getFlags: jest
       .fn()
-      .mockResolvedValue({ apple_login: true, video_posts: false }),
+      .mockResolvedValue(
+        opts.flags ?? { apple_login: true, video_posts: false },
+      ),
   } as unknown as FeatureFlagsService;
+  const secrets = {
+    get: jest.fn((id: string) =>
+      Promise.resolve(
+        id === 'google_translate' && opts.googleKey
+          ? { fields: { apiKey: opts.googleKey } }
+          : null,
+      ),
+    ),
+  };
   const appConfig = {
     getConfig: jest
       .fn()
@@ -78,6 +91,7 @@ function build(
     flags,
     appConfig,
     redis as never,
+    secrets as never,
   );
   return { service, prisma, redis };
 }
@@ -127,6 +141,108 @@ describe('BootstrapService.build deal-record switches', () => {
   });
 });
 
+describe('BootstrapService.build translation: one control (owner 2026-11-08)', () => {
+  const KEY = 'test-google-key';
+  const zones = async (
+    flagOn: boolean,
+    config: Record<string, unknown> = {},
+    googleKey = KEY,
+  ) => {
+    const r = await build({
+      flags: { chat_translate: flagOn },
+      config,
+      googleKey,
+    }).service.build();
+    const f = r.flags;
+    return {
+      master: f.chat_translate,
+      chat: f.translate_chat,
+      posts: f.translate_posts,
+      cases: f.translate_cases,
+      reviews: f.translate_reviews,
+      profiles: f.translate_profiles,
+    };
+  };
+  const all = (v: boolean) => ({
+    master: v,
+    chat: v,
+    posts: v,
+    cases: v,
+    reviews: v,
+    profiles: v,
+  });
+
+  it('master off: nothing anywhere, whatever the zone settings say', async () => {
+    expect(
+      await zones(false, {
+        'translate.scope': 'all',
+        'translate.chat': true,
+        'translate.posts': true,
+      }),
+    ).toEqual(all(false));
+  });
+
+  it('master on with the key, «Везде»: every zone on', async () => {
+    expect(await zones(true, { 'translate.scope': 'all' })).toEqual(all(true));
+  });
+
+  it('master on without the key: nothing (the paid path cannot run)', async () => {
+    expect(await zones(true, {}, '')).toEqual(all(false));
+  });
+
+  it('«Только выбранные» without chats: chats off, every other zone stays on', async () => {
+    expect(
+      await zones(true, {
+        'translate.scope': 'zones',
+        'translate.chat': false,
+      }),
+    ).toEqual({ ...all(true), chat: false });
+  });
+
+  it('«Только выбранные»: each zone follows its own switch only', async () => {
+    expect(
+      await zones(true, {
+        'translate.scope': 'zones',
+        'translate.posts': false,
+        'translate.profiles': false,
+      }),
+    ).toEqual({ ...all(true), posts: false, profiles: false });
+  });
+
+  it('«Везде» ignores a zone switched off earlier', async () => {
+    expect(
+      await zones(true, { 'translate.scope': 'all', 'translate.chat': false }),
+    ).toEqual(all(true));
+  });
+
+  it('other flags are untouched by the translation gate', async () => {
+    const r = await build({
+      flags: { chat_translate: true, apple_login: true, stories: false },
+      googleKey: KEY,
+    }).service.build();
+    expect(r.flags.apple_login).toBe(true);
+    expect(r.flags.stories).toBe(false);
+  });
+});
+
+describe('BootstrapService.build app-side limits (feature reality 2026-11-08)', () => {
+  it('a stored story length and channel photo limit reach the app', async () => {
+    const r = await build({
+      config: {
+        'stories.max_video_sec': 30,
+        'channels.max_post_media': 4,
+        // Server-only limits stay private.
+        'stories.max_active_per_user': 5,
+        'channels.max_owned': 2,
+      },
+    }).service.build();
+    expect(r.app_config['stories.max_video_sec']).toBe(30);
+    expect(r.app_config['channels.max_post_media']).toBe(4);
+    expect(r.app_config['stories.max_active_per_user']).toBeUndefined();
+    expect(r.app_config['channels.max_owned']).toBeUndefined();
+  });
+});
+
 describe('BootstrapService.build guest browsing (dedup D-12)', () => {
   const guest = async (config: Record<string, unknown>) => {
     const r = await build({ config }).service.build();
@@ -168,6 +284,7 @@ describe('BootstrapService.build', () => {
       // Owner 2026-10-05: one flag per translation zone, off without the
       // translator flag and the Google key.
       chat_translate: false,
+      translate_chat: false,
       translate_posts: false,
       translate_cases: false,
       translate_reviews: false,

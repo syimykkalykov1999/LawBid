@@ -1694,6 +1694,11 @@ export class GroupsService {
     }
     const dup = await this.findOwn(id, user.sub, dto.clientMessageId);
     if (dup) return this.one(dup, user.sub);
+    // Feature reality audit 2026-11-08: admin «Сообщений в минуту»
+    // (rate_limit.message_per_minute) held only direct chats
+    // (chat.service.ts); group messages now count against the same budget.
+    // After the duplicate check, so a resent message costs nothing.
+    await this.limits?.consume('message', user.sub);
     const topic = await this.writableTopic(m, dto.topicId);
     if (attachment) {
       await this.files.assertAttachable(user.sub, dto.fileId!, [

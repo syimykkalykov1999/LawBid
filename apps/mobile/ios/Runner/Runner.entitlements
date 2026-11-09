@@ -29,5 +29,12 @@
 	     (Communication Notifications, NotificationService extension). -->
 	<key>com.apple.developer.usernotifications.communication</key>
 	<true/>
+	<!-- 2026-11-08: Firebase App Check on iPhone uses App Attest
+	     (core/security/app_check.dart). Without this entitlement iOS refuses
+	     the attestation, the app never gets a token and every prod request
+	     came in as `missing` (docs/runbooks/APP_CHECK.md). "production" as
+	     Firebase asks; App Store / TestFlight builds always use production. -->
+	<key>com.apple.developer.devicecheck.appattest-environment</key>
+	<string>production</string>
 </dict>
 </plist>

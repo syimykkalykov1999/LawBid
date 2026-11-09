@@ -85,10 +85,22 @@ if (paths.length === 0) {
   console.log('nothing to run');
   process.exit(0);
 }
+// Same flags as the e2e shards (api-ci.yml, scripts/run-e2e-sharded.mjs):
+// NestJS 12 ships ESM only, so `npx jest` needs --experimental-vm-modules; and
+// jest keeps every finished suite's module graph (40-60 MB each), so 35 suites
+// in one process ran out of the default 4 GB heap (#843, 2026-11-08: «FATAL
+// ERROR: … heap out of memory», no result file, the retry then re-ran ALL
+// suites in the same order). Fresh process per chunk, like the shards; a
+// failed suite is retried once ON ITS OWN (suites share one database, so an
+// order-only failure of one suite must not fail the job).
+const jestEnv = {
+  ...process.env,
+  NODE_OPTIONS: `${(process.env.NODE_OPTIONS ?? '').replace(/--max-old-space-size=\d+/g, '')} --experimental-vm-modules --max-old-space-size=6144`.trim(),
+};
 const jest = (files, out) =>
   run('npx', ['jest', '--config', './test/jest-e2e.json', '--forceExit', '--runTestsByPath', ...files, '--json', `--outputFile=${out}`], {
     cwd: prevApi,
-    env: process.env,
+    env: jestEnv,
   });
 const failed = (out) => {
   try {
@@ -97,12 +109,30 @@ const failed = (out) => {
     return null;
   }
 };
-const out1 = join(process.env.RUNNER_TEMP ?? '/tmp', 'n1-1.json');
-let r = jest(paths, out1);
-if (r.status !== 0) {
-  const bad = failed(out1);
-  console.warn(`N-1: retrying once: ${bad === null ? 'all suites (no result file)' : bad.join(', ')}`);
-  r = jest(bad ?? paths, join(process.env.RUNNER_TEMP ?? '/tmp', 'n1-2.json'));
+const tmp = process.env.RUNNER_TEMP ?? '/tmp';
+const CHUNK = 12;
+let bad = [];
+for (let i = 0; i < paths.length; i += CHUNK) {
+  const part = paths.slice(i, i + CHUNK);
+  const out = join(tmp, `n1-1-${i / CHUNK}.json`);
+  if (jest(part, out).status === 0) continue;
+  const f = failed(out);
+  // No result file = the process died: every suite of the chunk is retried.
+  bad = bad.concat(f === null || f.length === 0 ? part : f);
+}
+let r = { status: 0 };
+if (bad.length > 0) {
+  console.warn(`N-1: retrying once, each suite on its own: ${bad.join(', ')}`);
+  const still = [];
+  bad.forEach((p, n) => {
+    if (jest([p], join(tmp, `n1-2-${n}.json`)).status !== 0) still.push(p);
+  });
+  if (still.length > 0) {
+    console.error(`N-1: failed again: ${still.join(', ')}`);
+    r = { status: 1 };
+  } else {
+    console.warn('N-1: passed on retry (flaky in the combined order)');
+  }
 }
 if (r.status !== 0) {
   console.error(

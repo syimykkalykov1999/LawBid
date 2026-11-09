@@ -1,6 +1,6 @@
 import { EconomyService } from './economy.service';
 
-type Fig = { allowedUsd: number };
+type Fig = { awsLimitUsd: number };
 
 function make(
   mode: string,
@@ -41,7 +41,7 @@ function make(
         ) => Promise<Record<string, unknown> | null>;
       }
     ).applyCapacityCeilings(f);
-  return { run, ssm, stored, f: { allowedUsd: allowed } };
+  return { run, ssm, stored, f: { awsLimitUsd: allowed } };
 }
 
 describe('EconomyService.applyCapacityCeilings (cost registry V4)', () => {
@@ -57,14 +57,14 @@ describe('EconomyService.applyCapacityCeilings (cost registry V4)', () => {
     });
   });
 
-  it('raises the ceiling when the allowance grows, and writes nothing when unchanged', async () => {
+  it('raises the ceiling when the AWS budget grows, and writes nothing when unchanged', async () => {
     const { run, ssm, stored } = make('auto', 350, {
       '/p/db/max': 'db.t4g.medium',
       '/p/redis/max': 'cache.t4g.small',
     });
-    await run({ allowedUsd: 350 });
+    await run({ awsLimitUsd: 350 });
     expect(ssm.put).not.toHaveBeenCalled();
-    await run({ allowedUsd: 1000 });
+    await run({ awsLimitUsd: 1000 });
     expect(stored['/p/db/max']).toBe('db.r7g.large');
   });
 

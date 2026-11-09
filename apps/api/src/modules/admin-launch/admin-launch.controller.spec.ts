@@ -1,6 +1,9 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PAGERDUTY_URL } from '../../common/secrets/provider-registry';
-import type { AdminActor } from '../admin-auth/admin-auth.decorators';
+import {
+  ADMIN_ROLES_KEY,
+  type AdminActor,
+} from '../admin-auth/admin-auth.decorators';
 import { AdminLaunchController } from './admin-launch.controller';
 
 const admin: AdminActor = {
@@ -93,6 +96,36 @@ describe('AdminLaunchController budgets (2FA only, no second admin)', () => {
     expect(
       audit.record.mock.calls.map((x: [{ action: string }]) => x[0].action),
     ).toEqual(['ops.budget_delete']);
+  });
+});
+
+describe('AdminLaunchController: one owner, no second admin (owner 2026-11-08)', () => {
+  it('only the super admin (owner) reaches the budget buttons at all', () => {
+    expect(Reflect.getMetadata(ADMIN_ROLES_KEY, AdminLaunchController)).toEqual(
+      ['super_admin'],
+    );
+  });
+
+  it('the owner alone deletes «LawBid Monthly» with one 2FA code: no request, no second approval', async () => {
+    const { c, budgets, audit, auth } = make();
+    await c.deleteAwsBudget(admin, { name: 'LawBid Monthly' });
+    expect(auth.assertStepUp).toHaveBeenCalledTimes(1);
+    expect(auth.assertStepUp).toHaveBeenCalledWith('s1');
+    expect(budgets.remove).toHaveBeenCalledTimes(1);
+    const rows = audit.record.mock.calls.map(
+      (x: [{ action: string; adminId: string }]) => x[0],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ action: 'ops.budget_delete' });
+  });
+
+  it('without a fresh 2FA code nothing is deleted', async () => {
+    const { c, budgets, audit } = make(false);
+    await expect(
+      c.deleteAwsBudget(admin, { name: 'LawBid Monthly' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(budgets.remove).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
   });
 });
 
