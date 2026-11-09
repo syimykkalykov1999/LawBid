@@ -61,7 +61,7 @@ describe('AdminPiiMaskInterceptor + staff security (T11)', () => {
     });
   });
 
-  it("mode partial never hides the admin's own session (/admin/auth/*) nor a response unlocked with a written reason (X-Justification)", async () => {
+  it("mode partial never hides the admin's own session (/admin/auth/*); a written reason does not lift the mask (the reveal does)", async () => {
     const port = {
       beforeHandler: jest.fn(() => Promise.resolve()),
       maskMode: jest.fn(() => Promise.resolve('partial' as const)),
@@ -72,12 +72,7 @@ describe('AdminPiiMaskInterceptor + staff security (T11)', () => {
       url: '/api/v1/admin/users/u1/contacts',
       headers: { 'x-justification': 'Support ticket #4711' },
     });
-    expect(justified.out).toEqual(body);
-    const blank = await run({ id: 'a' }, port, {
-      url: '/api/v1/admin/users/u1/contacts',
-      headers: { 'x-justification': '   ' },
-    });
-    expect(blank.out).not.toEqual(body);
+    expect(justified.out).not.toEqual(body);
   });
 
   it('a refusal from beforeHandler (closed export) stops the handler', async () => {

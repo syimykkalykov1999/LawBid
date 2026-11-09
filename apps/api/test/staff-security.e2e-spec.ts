@@ -74,10 +74,13 @@ describe('Staff data security (e2e)', () => {
   });
 
   afterAll(async () => {
-    await setSwitches({});
+    // Back to the DEFAULTS (not «all off»): the next suite of the shard
+    // counts on the staff package being on, as in production.
     await prisma.appConfig.deleteMany({
       where: {
-        key: { in: ['admin.country_allowlist', 'staff.reveal_per_day'] },
+        key: {
+          in: [...SWITCHES, 'admin.country_allowlist', 'staff.reveal_per_day'],
+        },
       },
     });
     await redis.del('config:app_config');

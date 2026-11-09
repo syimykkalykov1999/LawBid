@@ -24,20 +24,16 @@ import { maskPii, maskPiiPartial } from './admin-pii-mask';
  * (`staff.export_block_enabled`). Everyone else passes through untouched.
  * Owner 2026-11-09 (masking is on by default now): the partial mask never
  * hides the admin's OWN session data (`/admin/auth/*`: their e-mail, TOTP
- * setup), and never a response the admin already unlocked with a written
- * reason (`X-Justification`: that route is the audited reveal itself).
+ * setup). A written reason (`X-Justification`) does NOT lift it: the only
+ * way to the full value is the staff «reveal» (audited, capped per day).
  */
 const OWN_SESSION = /\/admin\/auth(\/|$)/;
 
 export function partialMaskSkipped(req: {
   url?: string;
   path?: string;
-  header?: (name: string) => string | undefined;
 }): boolean {
-  const path = req.path ?? req.url ?? '';
-  if (OWN_SESSION.test(path)) return true;
-  const reason = req.header?.('x-justification');
-  return typeof reason === 'string' && reason.trim().length > 0;
+  return OWN_SESSION.test(req.path ?? req.url ?? '');
 }
 @Injectable()
 export class AdminPiiMaskInterceptor implements NestInterceptor {

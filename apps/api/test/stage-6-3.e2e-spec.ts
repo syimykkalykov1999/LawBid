@@ -283,7 +283,12 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
       .set(support.auth)
       .set('X-Justification', 'Support ticket #4711: user asks to change phone')
       .expect(200);
-    expect((contacts.body as Body).data).toMatchObject({ phone: c.phone });
+    // Staff data protection is on by default (2026-11-09): a mass-work
+    // support admin sees the phone partially masked even with a reason; the
+    // full value is one audited «reveal» away (staff-security e2e).
+    expect((contacts.body as Body).data).toMatchObject({
+      phone: `+1 *** ** ${c.phone.slice(-2)}`,
+    });
     const audit = await prisma.auditLog.findFirst({
       where: { admin_id: support.userId, target_id: c.id },
       orderBy: { created_at: 'desc' },
