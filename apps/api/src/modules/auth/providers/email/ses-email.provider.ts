@@ -11,6 +11,7 @@ import {
 } from '../../../../common/resilience/resilience';
 import type { EmailMessage, EmailProvider } from './email-provider.interface';
 import { buildMimeMessage } from './mime-message';
+import { recordSesOk, recordSesProblem } from './ses-delivery';
 
 /** A failure on SES's side or the network (counts toward the breaker);
  * a rejected address, an unverified sender or a send-rate throttle is ours. */
@@ -83,6 +84,17 @@ export class SesEmailProvider implements EmailProvider {
   }
 
   private async sendOnce(message: EmailMessage): Promise<void> {
+    try {
+      await this.deliver(message);
+      recordSesOk();
+    } catch (error) {
+      // 08.11: the «Здоровье» card says WHY (sandbox, no permission).
+      recordSesProblem(error);
+      throw error;
+    }
+  }
+
+  private async deliver(message: EmailMessage): Promise<void> {
     if (message.headers && Object.keys(message.headers).length > 0) {
       // Owner 2026-10-05 (legal): SendEmail cannot set custom headers
       // (List-Unsubscribe on cold emails), so such messages go as raw MIME.

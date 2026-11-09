@@ -29,6 +29,8 @@ describe('Starter catalog (e2e)', () => {
     },
     bucket: () => 'media-test',
     resolveBucket: () => Promise.resolve('media-test'),
+    // Owner 2026-11-08: the switch is off here (public media → AWS).
+    publicStoreState: () => Promise.resolve('aws' as const),
     put: (_b: string, key: string) => {
       stored.push(key);
       return Promise.resolve();

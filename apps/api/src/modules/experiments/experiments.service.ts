@@ -1,12 +1,13 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { parseVariants } from './experiment-definition';
-import { assignVariant, type VariantWeight } from './experiment-math';
+import { parseVariants, type VariantSpec } from './experiment-definition';
+import { assignVariant } from './experiment-math';
 
 interface RunningExperiment {
   id: string;
   key: string;
-  variants: VariantWeight[];
+  surface: string;
+  variants: VariantSpec[];
   trafficPercent: number;
   startAt: number | null;
   endAt: number | null;
@@ -15,6 +16,16 @@ interface RunningExperiment {
 export interface Assignment {
   experimentKey: string;
   variant: string;
+  /** The formula weight overrides of this variant (none = as now). */
+  weights?: Record<string, number>;
+}
+
+export interface AssignOptions {
+  /**
+   * false = only read the unit's variant (to tag an action such as a bid),
+   * without recording an exposure: exposure means "was served the variant".
+   */
+  expose?: boolean;
 }
 
 /** Definitions are re-read at most this often per process: a stop applies within it. */
@@ -60,27 +71,79 @@ export class ExperimentsService implements OnModuleDestroy {
   }
 
   /** Like [variant], with the experiment key to put on logged events. */
-  async assign(unitId: string, key: string): Promise<Assignment | null> {
+  async assign(
+    unitId: string,
+    key: string,
+    opts: AssignOptions = {},
+  ): Promise<Assignment | null> {
     try {
       const exp = (await this.definitions()).get(key);
-      if (!exp) return null;
-      const now = Date.now();
-      if (exp.startAt !== null && now < exp.startAt) return null;
-      if (exp.endAt !== null && now >= exp.endAt) return null;
-      const v = assignVariant(
-        unitId,
-        exp.key,
-        exp.variants,
-        exp.trafficPercent,
-      );
-      if (v === null) return null;
-      this.noteExposure(exp.id, unitId, v);
-      return { experimentKey: exp.key, variant: v };
+      return exp ? this.assignIn(exp, unitId, opts) : null;
     } catch (e) {
       // An experiment must never break the request it is attached to.
       this.log.warn(`variant(${key}) failed, using default: ${String(e)}`);
       return null;
     }
+  }
+
+  /**
+   * The unit's variant in the running experiment of [surface] (the admin
+   * picks the surface when creating a test: case_feed, people, posts,
+   * search). Several on one surface: the first by key that takes the unit.
+   */
+  async assignSurface(
+    unitId: string,
+    surface: string,
+    opts: AssignOptions = {},
+  ): Promise<Assignment | null> {
+    try {
+      const defs = [...(await this.definitions()).values()]
+        .filter((e) => e.surface === surface)
+        .sort((a, b) => a.key.localeCompare(b.key));
+      for (const exp of defs) {
+        const a = this.assignIn(exp, unitId, opts);
+        if (a) return a;
+      }
+      return null;
+    } catch (e) {
+      this.log.warn(`surface ${surface} failed, using default: ${String(e)}`);
+      return null;
+    }
+  }
+
+  /** Every running experiment the unit is in (to tag its actions). */
+  async assignAll(
+    unitId: string,
+    opts: AssignOptions = { expose: false },
+  ): Promise<Assignment[]> {
+    try {
+      const out: Assignment[] = [];
+      for (const exp of (await this.definitions()).values()) {
+        const a = this.assignIn(exp, unitId, opts);
+        if (a) out.push(a);
+      }
+      return out;
+    } catch (e) {
+      this.log.warn(`assignAll failed: ${String(e)}`);
+      return [];
+    }
+  }
+
+  private assignIn(
+    exp: RunningExperiment,
+    unitId: string,
+    opts: AssignOptions,
+  ): Assignment | null {
+    const now = Date.now();
+    if (exp.startAt !== null && now < exp.startAt) return null;
+    if (exp.endAt !== null && now >= exp.endAt) return null;
+    const v = assignVariant(unitId, exp.key, exp.variants, exp.trafficPercent);
+    if (v === null) return null;
+    if (opts.expose !== false) this.noteExposure(exp.id, unitId, v);
+    const weights = exp.variants.find((x) => x.key === v)?.weights;
+    return weights && v !== 'control'
+      ? { experimentKey: exp.key, variant: v, weights }
+      : { experimentKey: exp.key, variant: v };
   }
 
   /** Drops the cached definitions (after an admin start / stop on this pod). */
@@ -102,6 +165,7 @@ export class ExperimentsService implements OnModuleDestroy {
             byKey.set(r.key, {
               id: r.id,
               key: r.key,
+              surface: r.surface,
               variants: parseVariants(r.variants),
               trafficPercent: r.traffic_percent,
               startAt: r.start_at ? r.start_at.getTime() : null,
