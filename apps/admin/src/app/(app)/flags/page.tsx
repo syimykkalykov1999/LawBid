@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { optimistic, patchRow } from '@/lib/optimistic';
 import {
   REELS_CLIENT_FLAG,
   REELS_CLIENT_MODES,
@@ -333,16 +334,22 @@ export default function FlagsPage() {
       params: { path: { key: v.key } },
       body: { enabled: v.enabled },
     });
+  // SPEED_MATRIX 2026-11-09: the switch flips at once; the server's
+  // answer confirms it, a refusal flips it back (lib/optimistic.ts).
   const update = useMutation({
     mutationFn: async (v: { key: string; enabled: boolean }) => {
       await patch(v);
       return v;
     },
+    ...optimistic<Flag[], { key: string; enabled: boolean }>(
+      qc,
+      ['flags'],
+      patchRow((f, v) => ({ ...f, enabled: v.enabled })),
+      { onError: (e) => toast.error(e) },
+    ),
     onSuccess: (v) => {
       toast.success(`${FLAG_INFO[v.key]?.title ?? v.key}: ${v.enabled ? 'включено' : 'выключено'}`);
-      void qc.invalidateQueries({ queryKey: ['flags'] });
     },
-    onError: (e) => toast.error(e),
   });
 
   const flags = q.data ?? [];

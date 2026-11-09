@@ -1,0 +1,39 @@
+# Third-party notices (apps/admin)
+
+Packages taken whole (RULE #1), pinned in `package.json` / `package-lock.json`.
+The MIT licence asks only that the copyright and permission notice travel with
+the code; here they are.
+
+## browser-image-compression 2.0.2 — MIT
+
+Shrinks sticker / gift pictures in the browser before upload
+(`src/lib/image-shrink.ts`). https://github.com/Donaldcwl/browser-image-compression
+
+MIT License — Copyright (c) 2019 Donald Chan
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions: The above copyright
+notice and this permission notice shall be included in all copies or
+substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS",
+WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+### uzip 0.20201231.0 — MIT (dependency of browser-image-compression)
+
+MIT License — Copyright (c) 2018 Photopea. Same permission notice as above.
+
+## @tanstack/react-virtual 3.13.12, @tanstack/virtual-core 3.13.12 — MIT
+
+Window-scroll virtualisation of long admin journals (`src/lib/virtual-rows.tsx`).
+https://github.com/TanStack/virtual
+
+MIT License — Copyright (c) 2021-present Tanner Linsley. Same permission
+notice as above.

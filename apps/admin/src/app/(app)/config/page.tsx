@@ -14,6 +14,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { api, errorText } from "@/lib/api/client";
+import { optimistic, patchRow } from "@/lib/optimistic";
 import { useMe } from "@/lib/hooks";
 import { CONFIG_TYPE, label } from "@/lib/labels";
 import { can } from "@/lib/rbac";
@@ -1312,6 +1313,8 @@ function FullConfigPage() {
     queryKey: ["config"],
     queryFn: async () => (await api.GET("/admin/config")).data!.data as Entry[],
   });
+  // SPEED_MATRIX 2026-11-09: the row shows the new value at once; the
+  // server confirms, a refusal puts the old value back (lib/optimistic.ts).
   const save = useMutation({
     mutationFn: (v: { key: string; value: unknown }) =>
       // The contract types `value` as an opaque object; any JSON value is valid here.
@@ -1319,6 +1322,12 @@ function FullConfigPage() {
         params: { path: { key: v.key } },
         body: { value: v.value } as never,
       }),
+    ...optimistic<Entry[], { key: string; value: unknown }>(
+      qc,
+      ["config"],
+      patchRow((e, v) => ({ ...e, value: v.value, stored: true })),
+      { onError: (e) => toast.error(e) },
+    ),
     onSuccess: (_r, v) => {
       toast.success(`Сохранено: ${v.key}`);
       setDrafts((d) => {
@@ -1326,9 +1335,7 @@ function FullConfigPage() {
         delete next[v.key];
         return next;
       });
-      void qc.invalidateQueries({ queryKey: ["config"] });
     },
-    onError: (e) => toast.error(e),
   });
   const f = filter.trim().toLowerCase();
   // Spend caps (`budget.*`) are managed by the «Лимиты расходов» card.

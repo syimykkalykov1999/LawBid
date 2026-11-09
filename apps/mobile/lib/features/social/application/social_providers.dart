@@ -639,7 +639,49 @@ final postProvider = FutureProvider.autoDispose.family<Post, String>(
 
 // --- Comments (docs/05 §5) -------------------------------------------------
 
-class CommentsNotifier extends PagedNotifier<Comment> {
+/// SPEED_MATRIX 2026-11-09 §3 №14: the rows of a comment list that a
+/// pending (not yet answered) comment passes through — shown at once,
+/// swapped for the server's row, or taken away on a refusal
+/// (`comment_sender.dart`).
+mixin CommentRows on PagedNotifier<Comment> {
+  /// A new comment; the same one twice changes nothing.
+  void add(Comment c);
+
+  /// The server answered: [live] takes the place of the pending row
+  /// [pendingId] (or the pending row goes when the room already brought
+  /// the live one).
+  void settle(String pendingId, Comment live) {
+    final current = state.value;
+    if (current == null) return;
+    final alreadyThere = current.items.any((x) => x.id == live.id);
+    state = AsyncData(
+      PaginatedList(
+        items: [
+          for (final x in current.items)
+            if (x.id == pendingId) ...[if (!alreadyThere) live] else x,
+        ],
+        nextCursor: current.nextCursor,
+      ),
+    );
+  }
+
+  /// The pending row of a refused comment.
+  void remove(String id) {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(
+      PaginatedList(
+        items: [
+          for (final x in current.items)
+            if (x.id != id) x,
+        ],
+        nextCursor: current.nextCursor,
+      ),
+    );
+  }
+}
+
+class CommentsNotifier extends PagedNotifier<Comment> with CommentRows {
   CommentsNotifier(this.postId);
 
   final String postId;
@@ -688,6 +730,7 @@ class CommentsNotifier extends PagedNotifier<Comment> {
 
   /// A new comment (mine from the answer, or someone's from the room);
   /// the same one twice changes nothing.
+  @override
   void add(Comment c) {
     final current = state.value;
     if (current == null) return;
@@ -719,7 +762,7 @@ final commentsProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
-class RepliesNotifier extends PagedNotifier<Comment> {
+class RepliesNotifier extends PagedNotifier<Comment> with CommentRows {
   RepliesNotifier(this.commentId);
 
   final String commentId;
@@ -733,6 +776,7 @@ class RepliesNotifier extends PagedNotifier<Comment> {
 
   /// My reply from the answer (package F: no reload of the thread); the
   /// same one twice changes nothing.
+  @override
   void add(Comment c) {
     final current = state.value;
     if (current == null || current.items.any((x) => x.id == c.id)) return;

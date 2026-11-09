@@ -10,6 +10,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { api, errorText } from '@/lib/api/client';
 import { MOD_ACTION, TARGET_TYPE } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
+import { SpacerRow, useVirtualRows } from '@/lib/virtual-rows';
 
 const APPEAL: Record<string, string> = {
   pending: 'обжалование ждёт',
@@ -31,6 +32,9 @@ export default function ModerationJournalPage() {
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
   const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  // SPEED_MATRIX 2026-11-09 §3 №12: only the rows around the viewport
+  // stay in the DOM (lib/virtual-rows.tsx).
+  const virtual = useVirtualRows(rows);
   return (
     <>
       <PageHeader
@@ -50,10 +54,11 @@ export default function ModerationJournalPage() {
             <Th>Обжалование</Th>
           </tr>
         </thead>
-        <tbody>
+        <tbody ref={virtual.bodyRef}>
           {q.isPending ? <TableEmpty colSpan={6} loading /> : null}
-          {rows.map((r, i) => (
-            <MotionRow key={r.id} i={i}>
+          <SpacerRow height={virtual.paddingTop} />
+          {virtual.items.map(({ row: r, index: i, rowProps }) => (
+            <MotionRow key={r.id} i={i} {...rowProps}>
               <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(r.createdAt)}</Td>
               <Td>
                 <Badge tone="neutral" dot>
@@ -70,6 +75,7 @@ export default function ModerationJournalPage() {
               <Td className="text-xs">{r.appealStatus ? APPEAL[r.appealStatus] : '—'}</Td>
             </MotionRow>
           ))}
+          <SpacerRow height={virtual.paddingBottom} />
           {!q.isPending && rows.length === 0 ? <TableEmpty colSpan={6}>Решений пока нет.</TableEmpty> : null}
         </tbody>
       </Table>

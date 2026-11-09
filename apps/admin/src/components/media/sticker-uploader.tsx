@@ -10,6 +10,7 @@ import { growthError } from '@/components/growth/errors';
 import { api } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { fileMime, sha256Hex, sleep } from './media-utils';
+import { shrinkForUpload } from '@/lib/image-shrink';
 import { sendToStorage } from '@/lib/storage-upload';
 
 type Pack = components['schemas']['AdminStickerPackDto'];
@@ -86,19 +87,23 @@ export function StickerUploader({ packId, onAdded }: { packId: string; onAdded: 
     setMessage(null);
     try {
       setPhase('hash');
-      const sha256 = await sha256Hex(file);
+      // SPEED_MATRIX 2026-11-09 §3 №8: shrunk to the app's 512 px in the
+      // browser first (lib/image-shrink.ts); animated pictures pass as is.
+      const mime = fileMime(file) as Mime;
+      const upload = await shrinkForUpload(file, mime);
+      const sha256 = await sha256Hex(upload);
 
       setPhase('presign');
       const presigned = (
         await api.POST('/admin/media/sticker-uploads', {
-          body: { mime: fileMime(file) as Mime, sizeBytes: file.size, sha256 },
+          body: { mime, sizeBytes: upload.size, sha256 },
         })
       ).data!.data;
 
       setPhase('upload');
       let uploaded: Response;
       try {
-        uploaded = await sendToStorage(presigned.upload, file);
+        uploaded = await sendToStorage(presigned.upload, upload);
       } catch {
         throw new Error('Не удалось отправить файл в хранилище (сеть или CORS).');
       }

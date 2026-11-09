@@ -7,9 +7,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:lawbid/core/audio/safe_play.dart';
+import 'package:lawbid/core/cache/voice_web_cache.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/blob_url.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -128,6 +130,8 @@ class VoicePlayer extends Notifier<VoicePlayback> {
       unawaited(_proximity?.cancel());
       if (!kIsWeb) unawaited(ProximitySensor.setProximityScreenOff(false));
       _player?.dispose();
+      final blob = _blobUrl;
+      if (blob != null) revokeBlobUrl(blob);
     });
     // A call (ringing or talking) takes the audio: the note stops.
     ref.listen(callControllerProvider.select((c) => c.phase), (_, phase) {
@@ -208,9 +212,12 @@ class VoicePlayer extends Notifier<VoicePlayback> {
       durationMs: v.durationMs,
     );
     try {
-      // Web: no file system — stream the signed link (or the unsent blob).
+      // Web: no file system — the unsent blob, else the note's bytes from
+      // the browser cache (downloaded once, SPEED_MATRIX 2026-11-09 §2.3),
+      // else the signed link streamed as before.
       if (kIsWeb) {
-        final url = v.localPath ?? v.url;
+        final url = v.localPath ?? await _webUrl(m.id, v.url);
+        if (!ref.mounted || load != _load) return;
         if (url == null) {
           _resetFailed(load);
           return;
@@ -351,6 +358,46 @@ class VoicePlayer extends Notifier<VoicePlayback> {
   /// A call is on (ringing, dialling or talking): sound from notes would
   /// fight the call for the audio session.
   bool get callBusy => ref.read(callControllerProvider).phase != CallPhase.idle;
+
+  /// The blob address of the note playing now (web); revoked when the next
+  /// one loads so the browser frees the bytes.
+  String? _blobUrl;
+
+  /// Web: the note's bytes from the browser's Cache Storage, downloaded
+  /// once ([VoiceWebCache]); the signed link itself when the cache cannot
+  /// hold them (a closed store) so the note still plays.
+  Future<String?> _webUrl(String messageId, String? url) async {
+    if (url == null) return null;
+    final bytes = await ref.read(voiceWebCacheProvider).bytes(
+          messageId,
+          () => _fetchBytes(url),
+        );
+    if (bytes == null) return url;
+    final previous = _blobUrl;
+    if (previous != null) revokeBlobUrl(previous);
+    return _blobUrl = blobUrlFor(bytes, _mimeOf(url)) ?? url;
+  }
+
+  static String _mimeOf(String url) {
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
+    if (path.endsWith('.webm')) return 'audio/webm';
+    if (path.endsWith('.ogg') || path.endsWith('.opus')) return 'audio/ogg';
+    return 'audio/mp4';
+  }
+
+  Future<Uint8List?> _fetchBytes(String url) async {
+    try {
+      final res = await ref.read(storageDioProvider).get<List<int>>(
+            url,
+            options: Options(responseType: ResponseType.bytes),
+          );
+      final data = res.data;
+      if (data == null || data.isEmpty) return null;
+      return data is Uint8List ? data : Uint8List.fromList(data);
+    } on Object {
+      return null;
+    }
+  }
 
   /// Telegram-style: a note is downloaded once into the cache and played
   /// from the file (replays work offline; the signed link may expire).
