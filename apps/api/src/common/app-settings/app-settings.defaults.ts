@@ -1317,7 +1317,9 @@ export const OWNER_OPS_SETTINGS = {
   'ops.admin_summaries_mode': 'auto',
   // S20-6: every-minute sweeps that found nothing back off to
   // `ops.cron_idle_every_min` after `ops.cron_idle_after_runs` empty runs.
-  'ops.cron_idle_backoff': 'auto',
+  // Owner 2026-11-09: off — every sweep runs each minute (no limiter he
+  // did not order); auto / on stay available in the admin.
+  'ops.cron_idle_backoff': 'off',
   'ops.cron_idle_after_runs': 10,
   'ops.cron_idle_every_min': 5,
   // S20-8: ceiling of the message re-encryption pass, rows per minute
