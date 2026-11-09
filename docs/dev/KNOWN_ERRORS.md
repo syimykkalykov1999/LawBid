@@ -28,6 +28,8 @@
 
 - **`resumable_download_pieces_test`: «an expired link» иногда падает (05.11, #755).** Запрос, отменённый в первой попытке, доходил до тестового сервера уже после очистки списка. Порядок запросов при параллельной работе в тестах не проверять; проверять наличие.
 
+- **precheck «✔ API contract up to date», а контракт не пересобран (08.11, ветка claude/reco-experiments-wiring).** В worktree с `node_modules` по ссылке на `storage-usage` команда `nest build` падает на TS2742 («cannot be named without a reference to …/storage-usage/node_modules/@types/qs»), `generate.sh` молча не пишет `openapi.json`, и шаг зелёный. Признак: в `/tmp/precheck-gen.log` есть TS2742. Лечение: собрать без деклараций (`nest build -p` с tsconfig, где `declaration: false`), выгрузить `node dist/src/openapi/export-openapi.js` и взять из выгрузки только свои схемы (общий `node_modules` старее main, остальные места выгрузки отличаются не из-за PR), затем `SKIP_OPENAPI_EXPORT=1 sh packages/api-contract/generate.sh`.
+
 ## B. Деплой и прод
 12. **Сайт 503 с 24.10:** CloudFront function опубликована со старым кодом (`cf.kvs(имя)` вместо ID хранилища). После любого Terraform apply проверять `curl -s -o /dev/null -w "%{http_code}" https://lawbid.dev/` = 200 и `aws cloudfront test-function` на LIVE-стадии.
 13. **Terraform apply оборвался на сохранении state:** короткий `aws login` истёк в конце apply → state ушёл в errored.tfstate. Перед apply обновлять вход; при обрыве — `terraform state push errored.tfstate`, а не повторный apply.
