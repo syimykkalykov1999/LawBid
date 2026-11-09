@@ -6,7 +6,7 @@ import { AdminMediaModerationController } from './admin-media-moderation.control
 import {
   CSAM_HASH_MATCHER,
   CSAM_REPORTER,
-  NcmecReporterStub,
+  NcmecReporter,
   PhotoDnaMatcher,
 } from './csam.adapters';
 import {
@@ -49,7 +49,7 @@ export class MediaModerationModule {
           useClass: RekognitionModerationProvider,
         },
         { provide: CSAM_HASH_MATCHER, useClass: PhotoDnaMatcher },
-        { provide: CSAM_REPORTER, useClass: NcmecReporterStub },
+        { provide: CSAM_REPORTER, useClass: NcmecReporter },
         MediaModerationQueue,
         MediaModerationService,
         MediaModerationRunner,

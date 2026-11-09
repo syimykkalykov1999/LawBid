@@ -37,6 +37,7 @@ Keep the raw `k6` summary (`--summary-export`) next to this file as
 
 ## Audits (newest first)
 
+- `USER_API_PERF_GUARD_2026-11-08.md` — CI guard of the app/web API: 46 hot endpoints on a seeded database, every SQL statement EXPLAINed at 10M / 100M rows (statistics inflated), p95, N+1; `apps/api/test/perf-user.e2e-spec.ts`, job «API perf guard» in `api-ci.yml`.
 - `APP_DEVICE_PERF.md` — on-device app speed suite (cold start, frame jank, tap latency, memory, video start), profile mode, `apps/mobile/tool/perf/run_device_perf.sh <device>`.
 
 - `LOAD_SPEED_AUDIT_6_2026-10-23.md` — hot-path latency, round trips per request, Redis, replica seam, billion-user model; tools in `apps/api/bench`, data in `scripts/ops/user-load-gen.sql`.

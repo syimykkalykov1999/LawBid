@@ -6,6 +6,7 @@
  * (database, Redis, JWT, S3/IAM, the master key itself) are deliberately
  * NOT here — a wrong value there would take the whole app down.
  */
+import { ncmecStatusTest } from './ncmec-cybertipline';
 import { r2SelfTest } from './r2-self-test';
 
 export interface ProviderField {
@@ -1527,7 +1528,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: 'ncmec',
     label: 'NCMEC CyberTipline (CSAM reports)',
     description:
-      'Electronic Service Provider account of the NCMEC CyberTipline reporting API. Without it, reports wait in Модерация → Медиа as «file by hand».',
+      'Electronic Service Provider account of the NCMEC CyberTipline reporting API (account issued by NCMEC after ESP registration). Filled: a CSAM finding is reported automatically (report → files → finish), environment test until set to production. Not filled: «не подключено» — reports wait in Модерация → Медиа as «file by hand».',
     fields: [
       {
         name: 'username',
@@ -1554,7 +1555,33 @@ export const PROVIDERS: ProviderDefinition[] = [
         patternHint: 'test or production (default test)',
         env: 'NCMEC_ENVIRONMENT',
       },
+      // Owner 2026-11-08: the CyberTipline needs a contact person on every
+      // report (<reporter><reportingPerson><email>).
+      {
+        name: 'reporterEmail',
+        label: 'Reporter e-mail (contact for NCMEC)',
+        secret: false,
+        required: true,
+        pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+        env: 'NCMEC_REPORTER_EMAIL',
+      },
+      {
+        name: 'reporterFirstName',
+        label: 'Reporter first name (optional)',
+        secret: false,
+        required: false,
+        pattern: /^.{1,60}$/,
+      },
+      {
+        name: 'reporterLastName',
+        label: 'Reporter last name (optional)',
+        secret: false,
+        required: false,
+        pattern: /^.{1,60}$/,
+      },
     ],
+    // «Проверить»: GET /status with the saved ESP account.
+    test: (f) => ncmecStatusTest(f),
   },
 ];
 
