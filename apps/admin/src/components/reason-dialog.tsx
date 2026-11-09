@@ -23,6 +23,10 @@ interface ReasonOptions {
   /** Text is needed even though it is labelled «Причина»: a message to
    * a person, or the X-Justification for viewing personal data. */
   required?: boolean;
+  /** The server refuses the action without this text, for the owner too
+   * (click audit 2026-11-08: trust status / bar number unblock answered 400
+   * after the dialog let the owner send it empty). */
+  textRequired?: boolean;
   /** Section of the action when it differs from the page's (e.g. a money
    * action on a user's card): decides whether staff must give a reason. */
   area?: string;
@@ -82,7 +86,7 @@ function ReasonDialog({
   // (the access is still logged).
   const { data: me } = useMe();
   const owner = me?.role === 'super_admin';
-  const optional = opts.optionalText || (opts.required ? owner && isReason : isReason && !policy);
+  const optional = !opts.textRequired && (opts.optionalText || (opts.required ? owner && isReason : isReason && !policy));
   const ok = (optional || trimmed.length >= min) && trimmed.length <= max;
 
   return (

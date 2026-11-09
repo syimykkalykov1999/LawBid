@@ -239,19 +239,26 @@ export const envSchema = z
       .int()
       .positive()
       .default(20),
+    // Click audit 2026-11-08: 60 per address made every account behind one
+    // shared address (office NAT, a carrier's CGNAT) share 60 refreshes an
+    // hour — about 15 active people — after which the app showed «You're
+    // offline». The per-session cap below is what stops a stolen token.
     AUTH_REFRESH_LIMIT_PER_IP_PER_HOUR: z.coerce
       .number()
       .int()
       .positive()
-      .default(60),
+      .default(1200),
     // Per session chain (one device's login): an access token lives 15
-    // min (docs/01 §10.4), so a well-behaved client refreshes ~4x/hour;
-    // 30 leaves room for retries while capping a stolen-token refresh loop.
+    // min (docs/01 §10.4), so a phone refreshes ~4x/hour. The website
+    // refreshes on every page load / new tab (the refresh token is an
+    // HttpOnly cookie, the access token lives only in the tab), so 30 ran
+    // out after 30 reloads (click audit 2026-11-08); 120 = 2/min still caps
+    // a stolen-token refresh loop.
     AUTH_REFRESH_LIMIT_PER_SESSION_PER_HOUR: z.coerce
       .number()
       .int()
       .positive()
-      .default(30),
+      .default(120),
     // docs/01 §10.2 E / §12: https base of the universal-link domain
     // (e.g. https://lawbid.app). Optional: when unset, emails carry only
     // the lawbid:// deep link. No trailing slash.

@@ -604,4 +604,8 @@ export enum ErrorCode {
   // 403: this account cannot switch (an assistant, a suspended account,
   // a demo session).
   ROLE_SWITCH_NOT_ALLOWED = 'ROLE_SWITCH_NOT_ALLOWED',
+  // Click audit 2026-11-08: 502 — the mail provider refused or could not
+  // be reached (admin «send a test to myself»); the message carries the
+  // provider's reason instead of a generic «server did not answer».
+  EMAIL_SEND_FAILED = 'EMAIL_SEND_FAILED',
 }

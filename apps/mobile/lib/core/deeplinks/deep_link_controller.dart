@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link.dart';
 import 'package:lawbid/core/deeplinks/group_invite_handler.dart';
@@ -136,8 +137,30 @@ final deepLinkSourceProvider = Provider<DeepLinkSource>(
 /// Navigation used by [DeepLinkController] — the app router's `go`;
 /// overridable in tests.
 final deepLinkNavigatorProvider = Provider<void Function(String location)>(
-  (ref) => (location) => ref.read(appRouterProvider).go(location),
+  (ref) => (location) => goAfterSplash(ref.read(appRouterProvider), location),
 );
+
+/// Click audit 2026-11-08 (web): a reloaded or typed tab address
+/// (`/profile`, `/mine`) opened the feed. The link is handled the moment
+/// `GET /users/me` arrives — the same change that makes the guard move the
+/// splash to the feed, and that redirect landed after this `go`. While the
+/// router still shows the splash, wait until the guard has moved off it,
+/// then go.
+void goAfterSplash(GoRouter router, String location) {
+  bool onSplash() =>
+      router.routerDelegate.currentConfiguration.uri.path == AppRoutes.splash;
+  if (!onSplash()) {
+    router.go(location);
+    return;
+  }
+  late final VoidCallback once;
+  once = () {
+    if (onSplash()) return;
+    router.routerDelegate.removeListener(once);
+    router.go(location);
+  };
+  router.routerDelegate.addListener(once);
+}
 
 /// Turns incoming links into app actions (docs/01_FOUNDATION_AUTH.md §12,
 /// §10.2 E/F). State = the link still waiting to be handled (null = none).

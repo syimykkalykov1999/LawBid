@@ -193,6 +193,10 @@ const ERROR_TEXT: Record<string, string> = {
   DEMO_LIMIT_REACHED: 'У партнёра уже максимум демо-аккаунтов.',
   DEMO_UNAVAILABLE: 'Демо-база не готова. Причина — на вкладке «Демо-доступ».',
   DEMO_CODE_INVALID: 'Код не найден, истёк или удалён.',
+  // Click audit 2026-11-08: the English server text showed in the Russian admin.
+  FLAG_PROVIDER_KEYS_MISSING: 'Не подключено: эта функция платная у внешнего сервиса, его ключи ещё не добавлены в «Интеграциях».',
+  // Click audit 2026-11-08: the mail provider refused the test letter.
+  EMAIL_SEND_FAILED: 'Почтовый сервис не отправил письмо (адрес не подтверждён в SES или почта не подключена).',
 };
 
 const SERVER_DOWN = 'Сервер не ответил, попробуйте ещё раз.';
