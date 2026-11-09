@@ -1,3 +1,8 @@
+import {
+  sesDeliveryStatus,
+  setSesDeliverySink,
+  type SesProblem,
+} from '../../../modules/auth/providers/email/ses-delivery';
 import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
@@ -97,6 +102,10 @@ const PROBE_TURN_TTL_SEC = 300;
 /** Owner 2026-10-26 (failover): the last «Проверить» of the calls card. */
 const CALLS_CHECK_KEY = 'calls:path:check';
 const CALLS_CHECK_TTL_SEC = 7 * 24 * 60 * 60;
+const SES_OK_KEY = 'ops:email:ses:last_ok';
+const SES_PROBLEM_KEY = 'ops:email:ses:last_problem';
+const SES_KEY_TTL_S = 7 * 24 * 3600;
+
 /** Two presses within this many ms share one check (no hammering). */
 export const CALLS_CHECK_REUSE_MS = 10_000;
 
@@ -212,7 +221,40 @@ export class StatusProbesService implements OnModuleDestroy {
     private readonly secrets: SecretsService,
     private readonly http: HttpStatsService,
     @Optional() private readonly realtime?: RealtimeStatsService,
-  ) {}
+  ) {
+    // 08.11 (e-mail): every task's SES outcomes land in one Redis reading.
+    setSesDeliverySink({
+      ok: (at) =>
+        void this.redis
+          .set(SES_OK_KEY, String(at), 'EX', SES_KEY_TTL_S)
+          .catch(() => undefined),
+      problem: (kind, at, message) =>
+        void this.redis
+          .set(
+            SES_PROBLEM_KEY,
+            JSON.stringify({ kind, atMs: at, message }),
+            'EX',
+            SES_KEY_TTL_S,
+          )
+          .catch(() => undefined),
+    });
+  }
+
+  /** 08.11: the last SES outcomes (sandbox / no permission / ok). */
+  private async email(): Promise<Omit<ProbeResult, 'key'>> {
+    const [ok, problem] = await Promise.all([
+      this.redis.get(SES_OK_KEY),
+      this.redis.get(SES_PROBLEM_KEY),
+    ]);
+    type Problem = { kind: SesProblem; atMs: number; message?: string };
+    let p: Problem | null;
+    try {
+      p = problem ? (JSON.parse(problem) as Problem) : null;
+    } catch {
+      p = null;
+    }
+    return sesDeliveryStatus(ok ? Number(ok) : null, p);
+  }
 
   private queue(name: string): Queue {
     let q = this.queues.get(name);
@@ -249,6 +291,7 @@ export class StatusProbesService implements OnModuleDestroy {
       this.safe('http', () => this.httpErrors()),
       this.safe('realtime', () => this.realtimeHealth()),
       this.safe('breakers', () => this.breakers()),
+      this.safe('email', () => this.email()),
       this.safe('cloudflare_usage', () => this.usage('cloudflare')),
       this.safe('bunny_usage', () => this.usage('bunny')),
     ]);

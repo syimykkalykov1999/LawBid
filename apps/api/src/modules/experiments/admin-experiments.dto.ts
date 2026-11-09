@@ -6,6 +6,7 @@ import {
   IsArray,
   IsDateString,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -36,6 +37,16 @@ export class ExperimentVariantDto {
   @Min(1)
   @Max(100)
   weight!: number;
+
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: { type: 'number' },
+    description:
+      'Formula weight overrides this variant applies on its surface (e.g. case_feed: { urgency: 0.3 }); control has none.',
+  })
+  @IsOptional()
+  @IsObject()
+  weights?: Record<string, number>;
 }
 
 export class ExperimentGuardrailsDto {

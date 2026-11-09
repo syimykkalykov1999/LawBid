@@ -164,6 +164,24 @@ class FakeOnboardingRepository implements OnboardingRepository {
   }) async {
     calls.add('verifyContact');
   }
+
+  /// Owner rule (sms-two-cases): the phone is changed with the password /
+  /// passkey token, no code. [contactErrorWithoutReauth] applies here too.
+  @override
+  Future<void> changePhone({
+    required String value,
+    String? reauthToken,
+  }) async {
+    calls.add(
+      reauthToken == null
+          ? 'changePhone:$value'
+          : 'changePhone:$value:$reauthToken',
+    );
+    if (reauthToken == null && contactErrorWithoutReauth != null) {
+      // ignore: only_throw_errors
+      throw contactErrorWithoutReauth!;
+    }
+  }
 }
 
 /// ProviderScope + MaterialApp wrapper for onboarding widget/golden tests.

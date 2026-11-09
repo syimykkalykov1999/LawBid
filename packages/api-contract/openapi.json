@@ -32696,6 +32696,132 @@
         ]
       }
     },
+    "/users/me/phone": {
+      "post": {
+        "operationId": "changePhone",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Resource-creating POST: a retry with the same key and body is applied once (see IdempotencyInterceptor).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "Single-use token from POST /auth/reauth (password) or /auth/passkeys/reauth; required to replace a verified phone, and to add the first one unless this session signed in within the last 10 minutes.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePhoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactVerifiedEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, PHONE_COUNTRY_NOT_SUPPORTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CONTACT_ALREADY_EXISTS, IDEMPOTENCY_KEY_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner rule (memory sms-two-cases): an SMS code goes out only at\nregistration and «Забыл пароль», so the phone is set or changed with\nthe account password or a passkey: `POST /auth/reauth`\n(`method: password`) or `POST /auth/passkeys/reauth` → single-use\nX-Reauth-Token → this route. Replacing a verified phone always needs\nthat token; adding the first phone also accepts a sign-in made on this\nsession minutes ago (onboarding). No code, no SMS.",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/users/me/consents": {
       "post": {
         "operationId": "saveConsents",
@@ -153342,6 +153468,19 @@
           "data"
         ]
       },
+      "ChangePhoneDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$",
+            "example": "+13125550123"
+          }
+        },
+        "required": [
+          "phone"
+        ]
+      },
       "ConsentsSavedDto": {
         "type": "object",
         "properties": {
@@ -176194,6 +176333,7 @@
               "http",
               "realtime",
               "breakers",
+              "email",
               "cloudflare_usage",
               "bunny_usage",
               "table_growth",
@@ -177067,6 +177207,26 @@
           "indexes"
         ]
       },
+      "SearchAutoStepDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "step": {
+            "type": "string",
+            "description": "search:set_mode:shadow | search:start_reindex | search:swap | search:set_mode:engine | search:set_mode:postgres"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "step",
+          "reason"
+        ]
+      },
       "SearchIndexStatusDto": {
         "type": "object",
         "properties": {
@@ -177170,6 +177330,13 @@
             "items": {
               "$ref": "#/components/schemas/SearchIndexEntityDto"
             }
+          },
+          "autoSteps": {
+            "description": "The last steps «Авто» took by itself, newest first (up to 5).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchAutoStepDto"
+            }
           }
         },
         "required": [
@@ -177191,7 +177358,8 @@
           "canStart",
           "canSwap",
           "canRollback",
-          "entities"
+          "entities",
+          "autoSteps"
         ]
       },
       "SearchIndexStatusEnvelope": {
@@ -177813,6 +177981,13 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          },
+          "weights": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Formula weight overrides this variant applies on its surface (e.g. case_feed: { urgency: 0.3 }); control has none."
           }
         },
         "required": [

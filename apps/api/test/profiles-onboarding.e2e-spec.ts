@@ -537,26 +537,38 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     };
     await api().get('/api/v1/users/me').set(otherAuth).expect(200);
     const newPhone = nextPhone();
-    const noReauth = await api()
+    // Owner rule (sms-two-cases): no SMS code for a phone change — the old
+    // contacts/request|verify answer 400 for a phone...
+    const bySms = await api()
       .post('/api/v1/users/me/contacts/request')
       .set(auth)
       .send({ type: 'phone', value: newPhone })
+      .expect(400);
+    expect(bySms.body.error.code).toBe('VALIDATION_ERROR');
+    // ...and the change itself needs the password (or a passkey).
+    const noReauth = await api()
+      .post('/api/v1/users/me/phone')
+      .set(auth)
+      .send({ phone: newPhone })
       .expect(403);
     expect(noReauth.body.error.code).toBe('REAUTH_REQUIRED');
 
     const reauthToken = await reauthByPassword(app, baseUrl, auth, { userId });
 
     await api()
-      .post('/api/v1/users/me/contacts/request')
+      .post('/api/v1/users/me/phone')
       .set(auth)
       .set('X-Reauth-Token', reauthToken)
-      .send({ type: 'phone', value: newPhone })
+      .send({ phone: newPhone })
       .expect(201);
-    await api()
-      .post('/api/v1/users/me/contacts/verify')
+    // The token is single-use.
+    const replay = await api()
+      .post('/api/v1/users/me/phone')
       .set(auth)
-      .send({ type: 'phone', value: newPhone, code: '000000' })
-      .expect(201);
+      .set('X-Reauth-Token', reauthToken)
+      .send({ phone: nextPhone() })
+      .expect(401);
+    expect(replay.body.error.code).toBe('REAUTH_INVALID');
 
     const after = await api()
       .get('/api/v1/users/me/identifiers')
@@ -579,15 +591,9 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .expect(401);
     expect(dropped.body.error.code).toBe('AUTH_SESSION_REVOKED');
 
-    // Linking an ADDITIONAL phone sign-in method via POST /auth/identifiers
-    // (email delivery isn't runnable here, see onboarding.e2e-spec.ts).
-    const extra = nextPhone();
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: extra })
-      .expect(200);
     // Owner 2026-10-22 (audit #3): a new sign-in method always needs a
     // reauth token, however fresh the session.
+    const extra = nextPhone();
     const refused = await api()
       .post('/api/v1/auth/identifiers')
       .set(auth)
@@ -595,10 +601,6 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .expect(403);
     expect(refused.body.error.code).toBe('REAUTH_REQUIRED');
     const again = await reauthByPassword(app, baseUrl, auth, { userId });
-    await api()
-      .post('/api/v1/auth/otp/request')
-      .send({ channel: 'phone', identifier: extra })
-      .expect(200);
     // Owner 2026-10-28: the route is kept for older apps but the switch
     // `auth.additional_identifiers_enabled` is OFF by default.
     const disabled = await api()
@@ -608,37 +610,22 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .send({ provider: 'phone', identifier: extra, code: '000000' })
       .expect(403);
     expect(disabled.body.error.code).toBe('FEATURE_DISABLED');
+    // Owner rule (sms-two-cases): even with the switch on, a phone is never
+    // linked as an extra sign-in method (it would need an SMS code).
+    await setSwitch('auth.additional_identifiers_enabled', true);
+    const again2 = await reauthByPassword(app, baseUrl, auth, { userId });
+    const noPhone = await api()
+      .post('/api/v1/auth/identifiers')
+      .set(auth)
+      .set('X-Reauth-Token', again2)
+      .send({ provider: 'phone', identifier: extra, code: '000000' })
+      .expect(400);
+    expect(noPhone.body.error.code).toBe('VALIDATION_ERROR');
+    await setSwitch('auth.additional_identifiers_enabled', false);
     expect(
       await prisma.userIdentifier.count({
         where: { user_id: userId, provider_uid: extra },
       }),
     ).toBe(0);
-    // Already-linked identifiers keep signing in with the switch off, so
-    // an account linked before the switch was turned off is not locked out.
-    await setSwitch('auth.additional_identifiers_enabled', true);
-    const again2 = await reauthByPassword(app, baseUrl, auth, { userId });
-    await api()
-      .post('/api/v1/auth/identifiers')
-      .set(auth)
-      .set('X-Reauth-Token', again2)
-      .send({ provider: 'phone', identifier: extra, code: '000000' })
-      .expect(201);
-    await setSwitch('auth.additional_identifiers_enabled', false);
-    const extraAuth = await login(extra);
-    const viaExtra = await api()
-      .get('/api/v1/users/me')
-      .set(extraAuth)
-      .expect(200);
-    expect((viaExtra.body as { data: { id: string } }).data.id).toBe(userId);
-    const withExtra = await api()
-      .get('/api/v1/users/me/identifiers')
-      .set(extraAuth) // logging in again replaced the first session
-      .expect(200);
-    expect(withExtra.body.data).toEqual([
-      expect.objectContaining({ value: newPhone, isPrimaryContact: true }),
-      expect.objectContaining({ value: extra, isPrimaryContact: false }),
-    ]);
-    // ...and so is a new sign-in method.
-    expect(await notices()).toBe(2);
   });
 });
