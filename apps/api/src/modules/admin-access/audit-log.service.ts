@@ -65,6 +65,9 @@ export class AuditLogService {
         reason_code: entry.reasonCode ?? null,
       },
     });
+    // Speed matrix 2026-11-09 (§3 #5): an admin action anywhere is what the
+    // other open tabs poll for (leases, replies, flags, the journal itself).
+    this.summary?.notifyChanged('audit-log');
   }
 
   /**

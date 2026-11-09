@@ -37,6 +37,7 @@ import {
   useBulkRun,
   useSelection,
 } from '@/components/bulk/bulk-controls';
+import { LazyImg } from '@/components/ui/lazy-img';
 
 const VIDEOS: Noun = ['видео', 'видео', 'видео'];
 
@@ -218,8 +219,7 @@ export function VideosPanel() {
                       aria-label="Смотреть"
                     >
                       {v.thumbnailUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={v.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                        <LazyImg src={v.thumbnailUrl} alt="" className="h-full w-full object-cover" />
                       ) : (
                         <span className="grid h-full w-full place-items-center text-faint">
                           <VideoCamera size={18} weight="light" />

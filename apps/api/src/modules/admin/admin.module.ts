@@ -42,7 +42,8 @@ import { DashboardService } from './dashboard.service';
     AdminSessionsService,
   ],
   // Staff package T10: the staff cockpit ends a person's work through the
-  // same call as the administrators' page.
-  exports: [AdminsService],
+  // same call as the administrators' page. Speed matrix 2026-11-09 (§3 #5):
+  // the admin socket gateway refreshes the sidebar counts for connected tabs.
+  exports: [AdminsService, AdminCountsService],
 })
 export class AdminModule {}

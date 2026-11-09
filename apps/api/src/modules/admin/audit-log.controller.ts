@@ -1,4 +1,14 @@
-import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { conditionalGet } from '../../common/sync/cheap-etag';
+import { VersionEtagService } from '../../common/sync/version-etag.service';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -36,17 +46,31 @@ export class AuditLogController {
     private readonly auditLog: AuditLogQueryService,
     private readonly chain: AuditLogService,
     private readonly report: AdminAccessReportService,
+    private readonly versionEtag: VersionEtagService,
   ) {}
 
   @Get()
   @ApiOperation({ summary: 'Audit log, newest first (cursor)' })
   @ApiEnvelopeResponse(AuditLogEntryDto, { isArray: true })
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
-  listAuditLog(
+  async listAuditLog(
     @CurrentAdmin() actor: AdminActor,
     @Query() query: AuditLogQueryDto,
-  ): Promise<AuditLogPage> {
-    return this.auditLog.list(actor, query);
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuditLogPage | undefined> {
+    // Speed matrix 2026-11-09 (§3 #4): the newest row's time is the tag
+    // (everybody's rows, or this admin's own — the same rule as the list).
+    const seesAll =
+      actor.adminRole === 'super_admin' ||
+      actor.permissions?.audit !== undefined;
+    return conditionalGet(
+      req,
+      res,
+      await this.versionEtag.adminAuditLog(seesAll ? null : actor.id),
+      () => Promise.resolve(),
+      () => this.auditLog.list(actor, query),
+    );
   }
 
   @Get('access-report')

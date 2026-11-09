@@ -133,6 +133,8 @@ export interface SignedAttachment {
   sizeBytes: number;
   width: number | null;
   height: number | null;
+  /** Drawn while the photo loads (images only). */
+  blurhash: string | null;
 }
 
 /** Links of one post photo; `blurhash` is the loading placeholder. */
@@ -1179,6 +1181,7 @@ export class FilesService {
         sizeBytes: Number(f.size_bytes),
         width: f.width,
         height: f.height,
+        blurhash: isImageMime(f.mime) ? f.blurhash : null,
       });
     }
     return out;

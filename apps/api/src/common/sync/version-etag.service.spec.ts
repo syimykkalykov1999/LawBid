@@ -194,3 +194,46 @@ describe('conditionalGet', () => {
     expect(etagMatches('W/"a"', 'W/"a"')).toBe(true);
   });
 });
+
+/** Speed matrix 2026-11-09 (§3 #4): the admin list tags. */
+describe('VersionEtagService admin lists', () => {
+  const newest = new Date('2026-11-09T08:00:00Z');
+
+  it('users: one MAX() read, the scope is part of the tag', async () => {
+    const all = make([{ newest }]);
+    const a = await all.svc.adminUsers(null);
+    expect(a).toMatch(/^W\/"adm-users-/);
+    expect(all.queryRaw).toHaveBeenCalledTimes(1);
+    const scoped = await make([{ newest }]).svc.adminUsers(['US', 'GB']);
+    expect(scoped).not.toBe(a);
+    // The same countries in another order are the same scope.
+    expect(await make([{ newest }]).svc.adminUsers(['GB', 'US'])).toBe(scoped);
+    const moved = await make([
+      { newest: new Date(newest.getTime() + 1000) },
+    ]).svc.adminUsers(null);
+    expect(moved).not.toBe(a);
+  });
+
+  it('cases and audit log move with their newest row; own rows get their own tag', async () => {
+    const c = await make([{ newest }]).svc.adminCases(null);
+    expect(c).toMatch(/^W\/"adm-cases-/);
+    expect(await make([{ newest }]).svc.adminCases(null)).toBe(c);
+    const all = make([{ newest }]);
+    const everybody = await all.svc.adminAuditLog(null);
+    const own = make([{ newest }]);
+    const mine = await own.svc.adminAuditLog('admin-1');
+    expect(everybody).toMatch(/^W\/"adm-audit-/);
+    expect(mine).not.toBe(everybody);
+    expect(all.queryRaw).toHaveBeenCalledTimes(1);
+    expect(own.queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('an empty table still gives a tag; the setting 0 gives none', async () => {
+    expect(await make([{ newest: null }]).svc.adminUsers(null)).toMatch(/^W\//);
+    const off = make([{ newest }], 0);
+    expect(await off.svc.adminUsers(null)).toBeNull();
+    expect(await off.svc.adminCases(null)).toBeNull();
+    expect(await off.svc.adminAuditLog(null)).toBeNull();
+    expect(off.queryRaw).not.toHaveBeenCalled();
+  });
+});

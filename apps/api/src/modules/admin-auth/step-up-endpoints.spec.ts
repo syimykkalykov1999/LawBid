@@ -119,7 +119,11 @@ const CASES: Case[] = [
     name: 'POST /admin/users/:id/phone',
     method: 'changePhone',
     run: (auth, svc) =>
-      new AdminUsersController(svc as never, auth as never).changeUserPhone(
+      new AdminUsersController(
+        svc as never,
+        auth as never,
+        {} as never,
+      ).changeUserPhone(
         actor,
         { id: 'u1' },
         { phone: '+15555550100', reason: 'On request' },
@@ -129,16 +133,17 @@ const CASES: Case[] = [
     name: 'POST /admin/users/:id/password/reset',
     method: 'resetPassword',
     run: (auth, svc) =>
-      new AdminUsersController(svc as never, auth as never).resetUserPassword(
-        actor,
-        { id: 'u1' },
-      ),
+      new AdminUsersController(
+        svc as never,
+        auth as never,
+        {} as never,
+      ).resetUserPassword(actor, { id: 'u1' }),
   },
   {
     name: 'POST /admin/users/bulk',
     method: 'bulk',
     run: (auth, svc) =>
-      new AdminUsersController(svc as never, auth as never).bulk(
+      new AdminUsersController(svc as never, auth as never, {} as never).bulk(
         actor,
         {} as never,
       ),
