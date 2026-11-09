@@ -43,7 +43,12 @@ export type CostControl =
    * (`on` | `dry-run` | `off`). Выкл = off, Вкл = dry-run (the Lambda only
    * e-mails what it would do), Авто = on.
    */
-  | { type: 'ssm-mode'; target: 'db' | 'redis' }
+  | {
+      type: 'ssm-mode';
+      /** G2 (2026-11-08): `both` = the database AND the Redis Lambda
+       * (the «Запуски автомасштабов» row): one switch writes both. */
+      target: 'db' | 'redis' | 'both';
+    }
   /** Infra-only: a Terraform variable. Read-only here; steps are shown. */
   | {
       type: 'tfvars';
@@ -2332,7 +2337,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     purpose:
       'Две функции Lambda смотрят нагрузку; ночью проверяют, можно ли уменьшить.',
     kind: 'aws',
-    control: { type: 'ssm-mode', target: 'db' },
+    control: { type: 'ssm-mode', target: 'both' },
     states: ['off', 'on', 'auto'],
     defaultState: 'auto',
     ceiling: null,
@@ -2344,7 +2349,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(0), m1: R(0) },
     needed: 'auto',
     neededNote:
-      'Нагрузка: 576 запусков в сутки на двоих. Те же переключатели, что у строк «Автомасштаб базы / Redis» выше (здесь показан переключатель базы).',
+      'Нагрузка: 576 запусков в сутки на двоих. Те же переключатели, что у строк «Автомасштаб базы / Redis» выше: этот меняет оба сразу.',
     alarm: null,
   },
   {
@@ -2662,6 +2667,13 @@ export const STATE_LABEL: Record<CostState, string> = {
 };
 
 /** Entries on the day-1 bill: everything that is not switched off by default. */
+/** The Lambda switches an `ssm-mode` control stands for (G2). */
+export function ssmTargets(
+  target: 'db' | 'redis' | 'both',
+): ('db' | 'redis')[] {
+  return target === 'both' ? ['db', 'redis'] : [target];
+}
+
 export function dayOneEntries(): CostEntry[] {
   return COST_REGISTRY.filter(
     (e) => e.defaultState !== 'off' && mid(e.usd.launch) > 0,

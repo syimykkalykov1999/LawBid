@@ -341,7 +341,13 @@ so the public address is new at every start).
   API task role.
 - Terraform is in `infra/modules/turn` (no `aws_eip`, public address read from the instance metadata) and
   `infra/modules/stack` (IAM, `TURN_ONDEMAND_INSTANCE_ID`, plan fails if `turn_second_enabled` is on).
-  **`turn_on_demand` stays `false` in `infra/envs/prod/growth.auto.tfvars.json`.**
+  **2026-11-08 (G8): `turn_on_demand = true` in `infra/envs/prod/growth.auto.tfvars.json`.** The owner
+  stopped the classic box by hand on 04.11 (our TURN is only the BACKUP of Cloudflare and stays off), so
+  the Route 53 alarm `lawbid-prod-turn-primary-health` sat in ALARM all the time. On-demand removes that
+  check; its place is taken by `lawbid-prod-own-turn-down` (monitoring/slo.tf), which the API feeds
+  (`ownTurnDown`) only while the box is NEEDED (Cloudflare failing, or «Вкл») and silent. With
+  `calls.own_turn.mode = off` the API stops the new box within a minute of the apply by itself (no call
+  runs), so step (4) below is automatic; it stays off until the switch says otherwise.
 
 **Turning it on for prod is a separate step by the owner from the Mac, in plain words:** with coturn
 already running, `turn_on_demand = true` REPLACES the TURN machine. The old Elastic IP and the
