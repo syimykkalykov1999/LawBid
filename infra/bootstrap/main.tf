@@ -75,7 +75,10 @@ locals {
   # case the repository has; both spellings are listed like the `sub` values.
   deploy_workflow_refs = flatten([
     for r in distinct([var.github_repo, lower(var.github_repo)]) : [
-      for w in var.deploy_workflows : "${r}/.github/workflows/${w}@refs/heads/main"
+      # Automation audit 2026-11-08: infra-apply.yml assumes this role too
+      # (infra-apply.tf); without it in the bound list the admin's infra
+      # pipeline would be refused by the trust policy.
+      for w in concat(var.deploy_workflows, var.infra_apply_enabled ? ["infra-apply.yml"] : []) : "${r}/.github/workflows/${w}@refs/heads/main"
     ]
   ])
 }
