@@ -1,4 +1,5 @@
 import { forEachDatabase } from '../../sharding/for-each-database';
+import { RankingEventsService } from '../experiments/ranking-events.service';
 import {
   DomainEvents,
   type DomainEventTicket,
@@ -142,6 +143,7 @@ export class BidsService {
     @Optional() private readonly events?: DomainEvents,
     // Owner 2026-10-27: a bid counts for the case's boost paid per action.
     @Optional() private readonly boostActions?: BoostActions,
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
 
   /** Codes of the case's topics (the first and the extras). */
@@ -527,6 +529,12 @@ export class BidsService {
         { isolation: 'readCommitted', op: 'bids.create' },
       );
       await this.events?.flush(eventTickets);
+      // Owner 2026-11-08: a bid is the case feed's outcome (A/B report).
+      void this.rankingEvents?.logUserAction('bid', {
+        userId: user.sub,
+        surface: 'case_feed',
+        itemId: caseId,
+      });
       // OQ-048: the assistant's draft for this case is used up.
       await this.prisma.bidDraft
         .deleteMany({ where: { attorney_id: user.sub, case_id: caseId } })
