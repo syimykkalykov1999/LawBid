@@ -500,6 +500,9 @@ class FakeAvatarRepo implements AvatarUploadRepository {
   bool holdUpload = false;
   UploadCancellation? lastCancellation;
 
+  /// The server answers that this photo is stored already (R-254).
+  bool alreadyStored = false;
+
   /// When set, `confirm` waits for it (the server's scan still running).
   Completer<ScanOutcome>? holdConfirm;
 
@@ -510,10 +513,11 @@ class FakeAvatarRepo implements AvatarUploadRepository {
     required String sha256,
   }) async {
     steps.add('presign:$mime:$sizeBytes');
-    return const PresignedUpload(
+    return PresignedUpload(
       fileId: 'f1',
       url: 'https://storage.test/bucket',
-      fields: {'key': 'k'},
+      fields: const {'key': 'k'},
+      alreadyStored: alreadyStored,
     );
   }
 

@@ -78,6 +78,9 @@
     "nat_per_az": {
       "type": "boolean"
     },
+    "partition_role_enabled": {
+      "type": "boolean"
+    },
     "rds_cross_region_backups": {
       "type": "boolean"
     },

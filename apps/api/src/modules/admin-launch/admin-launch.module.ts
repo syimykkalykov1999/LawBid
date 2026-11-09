@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminLaunchController } from './admin-launch.controller';
 import { AdminSpendController } from './admin-spend.controller';
 import { CostRegistryService } from './cost-registry.service';
 import { AdminInfraController } from './infra/admin-infra.controller';
+import { InfraAutoService } from './infra/infra-auto.service';
 import { InfraChangeService } from './infra/infra-change.service';
 import { InfraGithubClient } from './infra/infra-github.client';
 import { InfraWorkflowController } from './infra/infra-workflow.controller';
@@ -16,14 +18,21 @@ import { InfraWorkflowController } from './infra/infra-workflow.controller';
  * Terraform row → GitHub plan → 2FA → apply (docs/runbooks/infra-from-admin.md).
  */
 @Module({
-  imports: [AdminAccessModule],
+  imports: [AdminAccessModule, NotificationsModule],
   controllers: [
     AdminLaunchController,
     AdminSpendController,
     AdminInfraController,
     InfraWorkflowController,
   ],
-  providers: [CostRegistryService, InfraChangeService, InfraGithubClient],
+  // Automation audit 2026-11-08: InfraAutoService turns «Авто» signals into
+  // the same change requests by itself (infra/infra-auto.service.ts).
+  providers: [
+    CostRegistryService,
+    InfraChangeService,
+    InfraGithubClient,
+    InfraAutoService,
+  ],
   // Owner 2026-10-27: «Продвижение» starts a SEO dry run through the same App.
   exports: [InfraGithubClient],
 })

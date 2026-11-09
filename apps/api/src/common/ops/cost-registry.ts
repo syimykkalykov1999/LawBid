@@ -1440,6 +1440,27 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: null,
   },
   {
+    id: 'aws.partition_role',
+    name: 'Вход для деления больших таблиц (роль lawbid_partition)',
+    purpose:
+      'Даёт фоновым серверам право переделать большую таблицу на куски по месяцам или хешу без остановки.',
+    kind: 'aws',
+    control: tf(['partition_role_enabled'], {
+      off: 'partition_role_enabled = false',
+      on: 'partition_role_enabled = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price('unit', '≈ $0,40 в месяц (один секрет)', U.sm, false),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 1),
+    needed: 'later',
+    neededNote:
+      'Включается сам, когда таблица приближается к порогу «Авто» деления (partition.auto_rows).',
+    alarm: null,
+  },
+  {
     id: 'aws.security_hub',
     name: 'Проверки безопасности (Security Hub)',
     purpose: 'Каждые 12 часов сверяет аккаунт со стандартами CIS и AWS.',
@@ -1947,7 +1968,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Сверяет номер лицензии и имя с реестром штата после присяги и раз в месяц. Выключено у всех штатов, кроме готовых открытых данных Нью-Йорка.',
     kind: 'vendor',
     control: fixed(
-      'Включается по штатам: Админка → Система → Ключи и сервисы → «Реестры адвокатов по штатам». Старый общий флаг auto_bar_check больше не читается.',
+      'Включается по штатам: Админка → Система → Ключи и сервисы → «Реестры адвокатов по штатам». Общий флаг auto_bar_check («Флаги» → «Автопроверка лицензии адвоката») — главный: выключен — реестры не запрашиваются нигде.',
     ),
     states: ['off', 'on'],
     defaultState: 'off',

@@ -172,6 +172,16 @@ jobs:
           grep -E '^Apply complete' apply.log || true
           rm -f apply.log
 
+      # Automation audit 2026-11-08: the partition login (Terraform just put
+      # PARTITION_DB_PASSWORD into the migrate task) is set on the role by the
+      # migrate task at once, not at the next deploy. Same image as running now.
+      - name: Give lawbid_partition its login now (only for that switch)
+        if: steps.apply.outcome == 'success' && steps.job.outputs.item == 'aws.partition_role'
+        run: |
+          TAG=$(aws ecs describe-task-definition --task-definition "$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].taskDefinition' --output text)" \
+            --query 'taskDefinition.containerDefinitions[0].image' --output text | sed 's/.*://')
+          scripts/deploy/run-migrations.sh lawbid-prod "$TAG"
+
       - name: Record the file on main
         id: record
         if: steps.apply.outcome == 'success'
