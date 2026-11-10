@@ -16,7 +16,16 @@ export const MEDIA_HIDDEN_REASON =
   'A picture you posted is hidden until a moderator reviews it.';
 
 export interface AutoHoldInput {
-  targetType: Extract<ReportTargetType, 'post' | 'comment'>;
+  targetType: Extract<
+    ReportTargetType,
+    | 'post'
+    | 'comment'
+    | 'legal_question'
+    | 'legal_answer'
+    | 'review'
+    | 'client_review'
+    | 'channel_post'
+  >;
   targetId: string;
   authorId: string;
   /** Which rule held it (hold words, links, repeat, classifier). */

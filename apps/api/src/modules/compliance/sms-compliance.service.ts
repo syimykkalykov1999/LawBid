@@ -15,8 +15,19 @@ import {
 
 export type SmsPurpose = 'marketing' | 'notifications';
 
+/** Owner rule (memory sms-two-cases, «never ask again»): no plain-text SMS.
+ * The sending code below stays for a case the owner may approve later. */
+export const PLAIN_SMS_ALLOWED: boolean = false;
+
 export type SmsBlockReason =
-  'switched_off' | 'bad_number' | 'suppressed' | 'no_consent' | 'quiet_hours';
+  | 'switched_off'
+  | 'bad_number'
+  | 'suppressed'
+  | 'no_consent'
+  | 'quiet_hours'
+  // Owner rule (memory sms-two-cases): an SMS goes out only at registration
+  // and «Забыл пароль» — a plain text is never sent, whatever the switch.
+  | 'two_cases_only';
 
 export type SmsDecision =
   { allowed: true; phone: string } | { allowed: false; reason: SmsBlockReason };
@@ -223,11 +234,11 @@ export class SmsComplianceService {
       await this.restart(phone, msg.messageSid, now);
       return { keyword, reply: null };
     }
-    // HELP
-    const reply = (await this.settings.boolean('compliance.sms.reply_to_help'))
-      ? await this.settings.string('compliance.sms.help_text')
-      : null;
-    return { keyword, reply };
+    // HELP. Security audit 2026-11-08 (L8): a TwiML reply is an outgoing
+    // SMS, outside the two cases (registration, «Забыл пароль»), so none is
+    // sent whatever `compliance.sms.reply_to_help` says. Carrier-required
+    // HELP/STOP answers are Twilio's Advanced Opt-Out (Twilio Console).
+    return { keyword, reply: null };
   }
 
   /** START: lift the block and give back the consents the STOP took away
@@ -311,6 +322,10 @@ export class SmsComplianceService {
   ): Promise<SmsDecision> {
     const decision = await this.authorizeNonOtp(input);
     if (!decision.allowed) return decision;
+    // Security audit 2026-11-08 (L8): consent, quiet hours and opt-outs are
+    // still checked above (the records stay right), but no plain text goes
+    // out — the owner allows exactly two SMS cases, both codes (OtpService).
+    if (!PLAIN_SMS_ALLOWED) return { allowed: false, reason: 'two_cases_only' };
     if (!sender.sendText) {
       throw new Error('This SMS provider cannot send plain texts');
     }

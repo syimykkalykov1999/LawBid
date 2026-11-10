@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { crc32 } from 'node:zlib';
 import sharp from 'sharp';
-import { ImageProcessor } from './image-processor';
+import { ImageProcessor, usableCores } from './image-processor';
 import { detectMime } from '../magic-bytes';
 import { MAX_INPUT_PIXELS } from '../files.policy';
 
@@ -61,6 +61,92 @@ describe('ImageProcessor', () => {
     expect((await sharp(out.main!.data).metadata()).exif).toBeUndefined();
     expect(out.variants.get(320)?.height).toBe(320);
     expect(out.variants.get(1080)?.height).toBe(1080);
+  });
+
+  // Owner 2026-11-09 («фото обрабатываются долго»): a size that gives the
+  // same pixels as a bigger one is encoded once (a 1000 px photo has the
+  // same main and 1080 picture), and the sizes are made at once.
+  it('post photo no wider than 1080: main and the 1080 variant are one encode', async () => {
+    const src = await sharp({
+      create: { width: 1000, height: 750, channels: 3, background: '#335577' },
+    })
+      .jpeg()
+      .toBuffer();
+    const out = await processor.process({
+      data: src,
+      mime: 'image/jpeg',
+      avatar: false,
+      postImage: true,
+      format: 'webp',
+    });
+    expect([out.main?.width, out.main?.height]).toEqual([1000, 750]);
+    expect(out.variants.get(1080)!.data).toBe(out.main!.data);
+    expect(out.variants.get(320)!.width).toBe(320);
+  });
+
+  it('sizes at once and one after another give the same bytes', async () => {
+    const src = await jpegWithExif(1600, 1200);
+    const run = async (atOnce: boolean) => {
+      const p = new ImageProcessor();
+      p.atOnce = () => atOnce;
+      return p.process({
+        data: src,
+        mime: 'image/jpeg',
+        avatar: false,
+        postImage: true,
+        format: 'webp',
+        quality: { jpeg: 90, webp: 88, avif: { quality: 60, effort: 2 } },
+      });
+    };
+    const [a, b] = [await run(true), await run(false)];
+    expect(a.main!.data.equals(b.main!.data)).toBe(true);
+    for (const px of [320, 1080]) {
+      expect(a.variants.get(px)!.data.equals(b.variants.get(px)!.data)).toBe(
+        true,
+      );
+    }
+    expect(a.main!.avif?.data.equals(b.main!.avif!.data)).toBe(true);
+  });
+
+  it('usable cores: the container quota, not the cores Node sees', () => {
+    const files = (m: Record<string, string>) => (p: string) => {
+      if (!(p in m)) throw new Error('ENOENT');
+      return m[p];
+    };
+    expect(
+      usableCores(
+        files({ '/sys/fs/cgroup/cpu.max': '50000 100000\n' }),
+        () => 2,
+      ),
+    ).toBe(0.5);
+    expect(
+      usableCores(files({ '/sys/fs/cgroup/cpu.max': 'max 100000' }), () => 8),
+    ).toBe(8);
+    expect(
+      usableCores(
+        files({
+          '/sys/fs/cgroup/cpu/cpu.cfs_quota_us': '200000',
+          '/sys/fs/cgroup/cpu/cpu.cfs_period_us': '100000',
+        }),
+        () => 4,
+      ),
+    ).toBe(2);
+    expect(usableCores(files({}), () => 3)).toBe(3);
+  });
+
+  it('avatar smaller than 256: the variant is the main encode', async () => {
+    const src = await sharp({
+      create: { width: 200, height: 300, channels: 3, background: '#335577' },
+    })
+      .png()
+      .toBuffer();
+    const out = await processor.process({
+      data: src,
+      mime: 'image/png',
+      avatar: true,
+    });
+    expect([out.main?.width, out.main?.height]).toEqual([200, 200]);
+    expect(out.variants.get(256)!.data).toBe(out.main!.data);
   });
 
   it('storage.image_format webp: photo, variants and avatar come out as WebP', async () => {

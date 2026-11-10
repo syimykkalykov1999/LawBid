@@ -41,6 +41,17 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
   /// what is shown. A broken copy is just "no copy": any error is swallowed.
   Future<CursorPage<T>?> cachedFirstPage() async => null;
 
+  /// Owner 2026-11-09: the rows in the order this list shows them. The
+  /// default keeps the server's order; a list with an order of its own
+  /// (SyncedListNotifier.order) re-sorts every page it receives — the
+  /// phone's saved copy too, so a copy saved before the order changed
+  /// shows the same order as the live page.
+  @protected
+  List<T> arrange(List<T> items) => items;
+
+  CursorPage<T> _arranged(CursorPage<T> page) =>
+      CursorPage(items: arrange(page.items), nextCursor: page.nextCursor);
+
   bool _built = false;
   bool _rebuilding = false;
   int _builds = 0;
@@ -86,10 +97,12 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
     _extended = false;
     _cacheFor();
     final saved = await _savedFirstPage();
-    if (saved == null) return PaginatedList.firstPage(await fetch(null));
+    if (saved == null) {
+      return PaginatedList.firstPage(_arranged(await fetch(null)));
+    }
     // After this build has returned: the swap needs a value to replace.
     unawaited(Future<void>(() => revalidateSaved(saved)));
-    return PaginatedList.firstPage(saved);
+    return PaginatedList.firstPage(_arranged(saved));
   }
 
   /// Owner 2026-10-22 (client economy plan): a list that can catch up with
@@ -126,7 +139,7 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
       if (!ref.mounted || generation != _generation) return;
       final shown = state.value;
       if (shown == null || _extended) return;
-      state = AsyncData(PaginatedList.firstPage(live));
+      state = AsyncData(PaginatedList.firstPage(_arranged(live)));
     } on Object {
       // Offline / 5xx: the saved page stays; pull-to-refresh retries.
     }
@@ -176,7 +189,7 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
     if (previous == null) {
       state = const AsyncLoading();
       final next = await AsyncValue.guard(
-        () async => PaginatedList.firstPage(await _fetchFresh()),
+        () async => PaginatedList.firstPage(_arranged(await _fetchFresh())),
       );
       if (ref.mounted && generation == _generation) state = next;
       return;
@@ -188,7 +201,7 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
       return;
     }
     if (ref.mounted && generation == _generation) {
-      state = AsyncData(PaginatedList.firstPage(page));
+      state = AsyncData(PaginatedList.firstPage(_arranged(page)));
     }
   }
 
@@ -201,7 +214,13 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
       final page = await fetch(current.nextCursor);
       if (!ref.mounted || generation != _generation) return;
       _extended = true;
-      state = AsyncData((state.value ?? current).appended(page, idOf: idOf));
+      final appended = (state.value ?? current).appended(page, idOf: idOf);
+      state = AsyncData(
+        PaginatedList(
+          items: arrange(appended.items),
+          nextCursor: appended.nextCursor,
+        ),
+      );
     } on Object catch (error) {
       if (!ref.mounted || generation != _generation) return;
       state = AsyncData((state.value ?? current).failedMore(error));

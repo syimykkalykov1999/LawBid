@@ -10,9 +10,26 @@ import {
   Optional,
 } from '@nestjs/common';
 import { mineWhere } from './mine/mine-filters';
+import {
+  CASE_STAGES,
+  CASE_STAGE_WHERE,
+  afterActivity,
+  caseStageOf,
+  decodeStageCursor,
+  encodeStageCursor,
+  pageByStages,
+  stagesWhere,
+  type CaseListSort,
+} from './case-stages';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
-import type { BudgetMode, Case, CaseState, Prisma } from '@prisma/client';
+import type {
+  BudgetMode,
+  Case,
+  CaseState,
+  CaseStatus,
+  Prisma,
+} from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -124,6 +141,9 @@ type PracticeRef = {
   name_en: string;
   i18n_key: string;
 };
+
+/** A row of «My cases» (the detail include). */
+type CaseRow = Prisma.CaseGetPayload<{ include: typeof CASE_DETAIL_INCLUDE }>;
 
 type CaseWithDetails = Case & {
   practice_area: PracticeRef;
@@ -1399,32 +1419,7 @@ export class CasesService {
     // case of mine changed since; the ones outside this tab now come back
     // as deletedIds (the status moved them to another tab, or they are gone).
     const since = parseUpdatedSince(query.updatedSince);
-    const cursor =
-      query.cursor && !since ? decodeCursor(query.cursor) : undefined;
-    const rows = await this.prisma.case.findMany({
-      where: {
-        client_id: user.sub,
-        ...(since
-          ? { updated_at: { gte: since } }
-          : {
-              status: FILTER_STATUSES[filter],
-              // Owner 2026-09-30: search and filters in "Mine".
-              ...(await mineWhere(this.prisma, query)),
-            }),
-        ...(cursor
-          ? {
-              OR: [
-                { created_at: { lt: cursor.createdAt } },
-                { created_at: cursor.createdAt, id: { lt: cursor.id } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-      take: since ? 500 : limit + 1,
-      include: CASE_DETAIL_INCLUDE,
-    });
-    const inTab = (k: (typeof rows)[number]) => {
+    const inTab = (k: { status: CaseStatus; deleted_at: Date | null }) => {
       const s = FILTER_STATUSES[filter];
       const allowed = Array.isArray(s)
         ? (s as unknown[])
@@ -1433,8 +1428,34 @@ export class CasesService {
           : [s];
       return k.deleted_at === null && allowed.includes(k.status);
     };
-    const page = since ? rows.filter(inTab) : rows.slice(0, limit);
-    const last = page[page.length - 1];
+    const base: Prisma.CaseWhereInput = {
+      client_id: user.sub,
+      ...(since
+        ? { updated_at: { gte: since } }
+        : {
+            status: FILTER_STATUSES[filter],
+            // Owner 2026-09-30: search and filters in "Mine".
+            ...(await mineWhere(this.prisma, query)),
+          }),
+    };
+    // Owner 2026-11-09: «Active» sorts by stage — the most advanced case on
+    // top, the newest activity first inside a stage; «Done» keeps its date
+    // order. The «Дата» filter picks newest / oldest for any tab.
+    const sort: CaseListSort =
+      query.sort ?? (filter === 'active' ? 'stage' : 'newest');
+    const changed = since
+      ? await this.prisma.case.findMany({
+          where: base,
+          orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+          take: 500,
+          include: CASE_DETAIL_INCLUDE,
+        })
+      : [];
+    const { page, nextCursor } = since
+      ? { page: changed.filter(inTab), nextCursor: null }
+      : sort === 'stage'
+        ? await this.stagePage(base, query, limit)
+        : await this.datePage(base, query, limit, sort);
     const covers = await this.photos.coverUrls(
       page.map((k) => k.id),
       user.sub,
@@ -1447,19 +1468,108 @@ export class CasesService {
         coverUrl: covers.get(k.id)?.url ?? null,
         coverBlurhash: covers.get(k.id)?.blurhash ?? null,
       })),
-      nextCursor:
-        !since && rows.length > limit && last
-          ? encodeCursor({ createdAt: last.created_at, id: last.id })
-          : null,
+      nextCursor,
       ...(since
         ? {
-            deletedIds: rows.filter((k) => !inTab(k)).map((k) => k.id),
+            deletedIds: changed.filter((k) => !inTab(k)).map((k) => k.id),
             syncedAt: syncedAt(
-              rows.map((k) => k.updated_at),
+              changed.map((k) => k.updated_at),
               since,
             ),
           }
         : {}),
+    };
+  }
+
+  /** A page by the case's date, newest or oldest first (keyset on
+   * `created_at, id`; the cursor of the old «newest» list as it was). */
+  private async datePage(
+    base: Prisma.CaseWhereInput,
+    query: ListMyCasesQueryDto,
+    limit: number,
+    sort: 'newest' | 'oldest',
+  ): Promise<{ page: CaseRow[]; nextCursor: string | null }> {
+    const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+    const dir = sort === 'newest' ? 'desc' : 'asc';
+    const beyond = sort === 'newest' ? 'lt' : 'gt';
+    const rows = await this.prisma.case.findMany({
+      where: {
+        ...base,
+        ...(cursor
+          ? {
+              OR: [
+                { created_at: { [beyond]: cursor.createdAt } },
+                { created_at: cursor.createdAt, id: { [beyond]: cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: dir }, { id: dir }],
+      take: limit + 1,
+      include: CASE_DETAIL_INCLUDE,
+    });
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    return {
+      page,
+      nextCursor:
+        rows.length > limit && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
+  /** Owner 2026-11-09: a page sorted «stage desc, last activity desc»,
+   * read stage by stage (see [pageByStages]); the cursor carries the
+   * stage, the activity time and the id of the last row. */
+  private async stagePage(
+    base: Prisma.CaseWhereInput,
+    query: ListMyCasesQueryDto,
+    limit: number,
+  ): Promise<{ page: CaseRow[]; nextCursor: string | null }> {
+    const cursor = query.cursor ? decodeStageCursor(query.cursor) : undefined;
+    if (query.cursor && !cursor) {
+      // A cursor of another order (an older app mid-list): the first page.
+      decodeCursor(query.cursor);
+    }
+    // Most advanced first; a «stages» pick keeps only those.
+    const stages = [...CASE_STAGES]
+      .reverse()
+      .filter((s) => !query.stages?.length || query.stages.includes(s));
+    const { items, hasMore } = await pageByStages<CaseRow>({
+      stages,
+      cursor,
+      limit,
+      fetch: (stage, after, take) =>
+        this.prisma.case.findMany({
+          where: {
+            AND: [
+              base,
+              CASE_STAGE_WHERE[stage],
+              ...(after ? [afterActivity(after)] : []),
+            ],
+          },
+          orderBy: [{ last_activity_at: 'desc' }, { id: 'desc' }],
+          take,
+          include: CASE_DETAIL_INCLUDE,
+        }),
+      hasAny: async (rest) =>
+        (await this.prisma.case.findFirst({
+          where: { AND: [base, stagesWhere(rest)] },
+          select: { id: true },
+        })) !== null,
+    });
+    const last = items[items.length - 1];
+    return {
+      page: items,
+      nextCursor:
+        hasMore && last
+          ? encodeStageCursor({
+              rank: caseStageOf(last.status, last.bids_count),
+              createdAt: last.last_activity_at,
+              id: last.id,
+            })
+          : null,
     };
   }
 

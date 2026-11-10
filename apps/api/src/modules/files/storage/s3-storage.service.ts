@@ -54,6 +54,15 @@ const MULTIPART_PART_BYTES = 8 * 1024 * 1024;
  * the object (uploads) and asked for on signed reads.
  */
 export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+/**
+ * Security audit 2026-11-08 (L5): the object a presigned link writes is
+ * only a staging copy — `confirm` copies the checked bytes to a server key
+ * with the real Cache-Control (M3). Until then the staging object of the
+ * public R2 bucket answers at its public URL; with `no-store` no edge or
+ * browser keeps it, so it is gone for everyone once the upload sweep (or
+ * confirm) deletes it, never cached for a year as `immutable` was.
+ */
+export const UPLOAD_CACHE_CONTROL = 'private, no-store';
 
 /**
  * Owner 2026-10-25 (caching round 2, S2-10): PRIVATE files (the documents
@@ -494,11 +503,11 @@ export class S3StorageService implements OnModuleDestroy {
         ['content-length-range', input.size, input.size],
         ['eq', '$Content-Type', input.contentType],
       ],
-      // The app forwards every field as-is, so the object is stored with
-      // the immutable Cache-Control (package I).
+      // The app forwards every field as-is. The staging object is never
+      // cached (L5); confirm's copy gets the bucket's Cache-Control.
       Fields: {
         'Content-Type': input.contentType,
-        'Cache-Control': this.cacheControlFor(input.bucket),
+        'Cache-Control': UPLOAD_CACHE_CONTROL,
       },
       Expires: input.expiresSec,
     });
@@ -525,7 +534,7 @@ export class S3StorageService implements OnModuleDestroy {
     }
     const url = await presignR2Put(this.publicStore.client, {
       ...input,
-      cacheControl: IMMUTABLE_CACHE_CONTROL,
+      cacheControl: UPLOAD_CACHE_CONTROL,
     });
     return {
       url,
@@ -533,7 +542,7 @@ export class S3StorageService implements OnModuleDestroy {
       method: 'PUT',
       headers: {
         'Content-Type': input.contentType,
-        'Cache-Control': IMMUTABLE_CACHE_CONTROL,
+        'Cache-Control': UPLOAD_CACHE_CONTROL,
       },
     };
   }
@@ -558,7 +567,7 @@ export class S3StorageService implements OnModuleDestroy {
         Bucket: input.bucket,
         Key: input.key,
         ContentType: input.contentType,
-        CacheControl: this.cacheControlFor(input.bucket),
+        CacheControl: UPLOAD_CACHE_CONTROL,
       }),
     );
     if (!out.UploadId) throw new Error('S3 returned no multipart upload id');
@@ -705,6 +714,30 @@ export class S3StorageService implements OnModuleDestroy {
   }
 
   /**
+   * Owner 2026-11-09 (photo publish speed): at most [bytes] of an object in
+   * ONE request (a ranged GET; S3 / R2 answer the whole object when it is
+   * shorter), null when it is not there. `confirm` reads a small upload with
+   * it instead of HEAD + copy + GET, and [bytes] keeps a longer object than
+   * the link allowed from ever being held whole.
+   */
+  async readUpTo(
+    bucket: string,
+    key: string,
+    bytes: number,
+  ): Promise<Buffer | null> {
+    try {
+      return await this.readStart(bucket, key, bytes);
+    } catch (err) {
+      if (isNotFound(err)) return null;
+      // An empty object has no byte 0 to start a range at.
+      if ((err as { name?: string })?.name === 'InvalidRange') {
+        return Buffer.alloc(0);
+      }
+      throw err;
+    }
+  }
+
+  /**
    * Security audit 2026-11-08 (M3): server-side copy inside one bucket —
    * S3 / R2 / MinIO copy the bytes themselves, nothing passes through the
    * API. Content-Type and Cache-Control are copied with the object
@@ -712,7 +745,13 @@ export class S3StorageService implements OnModuleDestroy {
    * upload to a key no presigned link can write. False when [fromKey] is
    * not there.
    */
-  async copy(bucket: string, fromKey: string, toKey: string): Promise<boolean> {
+  async copy(
+    bucket: string,
+    fromKey: string,
+    toKey: string,
+    /** L5: new headers for the copy (MetadataDirective REPLACE). */
+    replace?: { contentType: string; cacheControl: string },
+  ): Promise<boolean> {
     await this.refresh();
     const source = fromKey.split('/').map(encodeURIComponent).join('/');
     try {
@@ -721,6 +760,13 @@ export class S3StorageService implements OnModuleDestroy {
           Bucket: bucket,
           Key: toKey,
           CopySource: `${bucket}/${source}`,
+          ...(replace
+            ? {
+                MetadataDirective: 'REPLACE' as const,
+                ContentType: replace.contentType,
+                CacheControl: replace.cacheControl,
+              }
+            : {}),
         }),
       );
       return true;

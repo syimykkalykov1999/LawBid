@@ -453,6 +453,9 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
         q: _q(search),
         practice: search.practice,
         state: search.state,
+        stages: _stages(search),
+        awaiting: search.awaiting ? true : null,
+        sort: _sort(search),
       ),
     );
     return CursorPage(
@@ -811,6 +814,9 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
         practice: search.practice,
         state: search.state,
         filter: _workFilter(filter),
+        stages: _stages(search),
+        awaiting: search.awaiting ? true : null,
+        sort: _sort(search),
       ),
     );
     return CursorPage(
@@ -861,6 +867,18 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
   }
 
   static String? _q(MineSearch s) => s.q.trim().isEmpty ? null : s.q.trim();
+
+  // Owner 2026-11-09: the cases-screen filters; the default order is not
+  // sent (the server's default is the same stage order), so the URL — and
+  // the phone's copy of the first page — stay as they were.
+  static List<num>? _stages(MineSearch s) =>
+      s.stages.isEmpty ? null : s.stageList;
+
+  static api.CaseListSort? _sort(MineSearch s) => switch (s.sort) {
+        CasesSort.stage => null,
+        CasesSort.newest => api.CaseListSort.newest,
+        CasesSort.oldest => api.CaseListSort.oldest,
+      };
 
   @override
   Future<ClientContacts> contacts(String caseId) async => CasesMappers.contacts(

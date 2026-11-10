@@ -13,6 +13,7 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { AddressSuggestQueryDto, AddressSuggestionsDto } from './addresses.dto';
 import { AddressesService } from './addresses.service';
+import { AssistantAllowed } from '../auth/assistant/assistant-context';
 
 /** Owner 2026-10-28: US address suggestions while typing. */
 @ApiTags('addresses')
@@ -22,6 +23,7 @@ import { AddressesService } from './addresses.service';
 export class AddressesController {
   constructor(private readonly service: AddressesService) {}
 
+  @AssistantAllowed()
   @Get('suggest')
   @Throttle({ default: { limit: 90, ttl: 60_000 } })
   @ApiOperation({

@@ -177,11 +177,14 @@ void refreshPostLists(WidgetRef ref) {
     ..invalidate(attorneyReelsProvider);
 }
 
-/// The pin slots the sheet offers (owner 2026-10-28: six, was three), in
-/// rows of three. The server allows 1..6 (PinPostDto).
+/// The pin slots the sheet offers (owner 2026-11-09: ten; six from
+/// 2026-10-28, three before), in rows of three as before. The server
+/// allows 1..10 (PinPostDto.MAX_PIN_SLOT).
 const kPinSlotRows = [
   [1, 2, 3],
   [4, 5, 6],
+  [7, 8, 9],
+  [10],
 ];
 
 /// Owner 2026-10-12: a small sheet with numbered circles — the slot the post
@@ -309,7 +312,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                             showEditPostSheet(context, ref, post);
                           },
                         ),
-                      // Owner 2026-10-12: pin to the profile top (1..6).
+                      // Owner 2026-10-12: pin to the profile top (1..10).
                       if (!post.isNews &&
                           !post.isArchived &&
                           post.status == 'published' &&

@@ -344,6 +344,9 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
   /** G10: the money facts from the snapshots the other jobs keep. */
   private async money(): Promise<HaFacts['money']> {
     if (!this.ops) return undefined;
+    // Owner 2026-11-09: no money hold unless he typed an AWS ceiling.
+    const capUsd = (await this.settings?.number('economy.aws_cap_usd')) ?? 0;
+    if (!(Number.isFinite(capUsd) && capUsd > 0)) return undefined;
     const [econ, cost] = await Promise.all([
       this.ops.economy(),
       this.ops.cost(),

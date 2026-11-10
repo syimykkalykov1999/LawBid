@@ -649,3 +649,89 @@ describe('ReviewsService.upsertOpen / mineFor (owner 2026-10-06)', () => {
     await expect(service.mineFor(CLIENT, 'att-1')).resolves.toBeNull();
   });
 });
+
+/** Feature reality audit 2026-11-08: the admin's moderation rules (blocked
+ * / hold words, links, repeats, AI text check) apply to review texts as
+ * they apply to posts. */
+describe('ReviewsService.create and the content moderation hook', () => {
+  const closedCase = {
+    client_id: 'client-1',
+    status: 'closed',
+    accepted_bid: { attorney_id: 'att-1', status: 'accepted' },
+  };
+
+  function withHook(verdict: 'allow' | 'hold' | 'block') {
+    const s = setup();
+    const hook = {
+      check: jest.fn(() => Promise.resolve(verdict)),
+      record: jest.fn(() => Promise.resolve()),
+    };
+    const autoHold = { queue: jest.fn(() => Promise.resolve(true)) };
+    const service = new ReviewsService(
+      s.prisma as unknown as PrismaService,
+      s.settings as unknown as AppSettingsService,
+      s.notifications as unknown as NotificationsService,
+      {
+        autoHideIfThreshold: jest.fn(() => Promise.resolve(false)),
+      } as unknown as ModerationService,
+      undefined,
+      undefined,
+      undefined,
+      hook,
+      autoHold as never,
+    );
+    s.tx.case.findUnique.mockResolvedValue(closedCase);
+    s.tx.review.findUnique.mockResolvedValue(null);
+    s.tx.review.create.mockImplementation(
+      (a: { data: Record<string, unknown> }) =>
+        Promise.resolve(review({ status: a.data.status ?? 'published' })),
+    );
+    return { ...s, service, hook, autoHold };
+  }
+
+  it('block: refused with CONTENT_BLOCKED, nothing written', async () => {
+    const h = withHook('block');
+    expect(
+      await codeOf(
+        h.service.create(CLIENT, 'case-1', { rating: 5, body: 'bad words' }),
+      ),
+    ).toBe('CONTENT_BLOCKED');
+    expect(h.tx.review.create).not.toHaveBeenCalled();
+  });
+
+  it('hold: saved hidden, no notice to the attorney, filed for moderators', async () => {
+    const h = withHook('hold');
+    await h.service.create(CLIENT, 'case-1', { rating: 5, body: 'held text' });
+    expect(h.tx.review.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'hidden' }),
+      }),
+    );
+    expect(h.notifications.emit).not.toHaveBeenCalled();
+    expect(h.autoHold.queue).toHaveBeenCalledWith(
+      expect.objectContaining({ targetType: 'review', targetId: 'r1' }),
+    );
+  });
+
+  it('allow: published and notified as before; the text is remembered', async () => {
+    const h = withHook('allow');
+    await h.service.create(CLIENT, 'case-1', { rating: 5, body: 'fine text' });
+    expect(h.tx.review.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ status: 'hidden' }),
+      }),
+    );
+    expect(h.notifications.emit).toHaveBeenCalled();
+    expect(h.autoHold.queue).not.toHaveBeenCalled();
+    expect(h.hook.record).toHaveBeenCalledWith('fine text', {
+      kind: 'review',
+      authorId: 'client-1',
+    });
+  });
+
+  it('a rating without text is not sent to the hook', async () => {
+    const h = withHook('block');
+    await h.service.create(CLIENT, 'case-1', { rating: 5 });
+    expect(h.hook.check).not.toHaveBeenCalled();
+  });
+});

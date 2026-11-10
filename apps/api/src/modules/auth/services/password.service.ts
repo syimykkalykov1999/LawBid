@@ -25,6 +25,9 @@ export const SCRYPT_N = 65536;
 export const SCRYPT_R = 8;
 export const SCRYPT_P = 2;
 const KEY_LENGTH = 64;
+
+/** Which line of the hash queue a check waits in (see `withSlot`). */
+type HashLane = 'high' | 'low';
 const FORMAT = 'scrypt';
 
 function scryptAsync(
@@ -58,9 +61,14 @@ export class PasswordService {
    * the answer does not reveal which accounts exist. */
   private dummyHash?: Promise<string>;
 
-  /** Hashes running now / waiting (see `withSlot`). */
+  /** Hashes running now / waiting (see `withSlot`). Two lines: `high`
+   * for real accounts (sign-in to an existing password, setting one) and
+   * `low` for the dummy check of an unknown account. */
   private running = 0;
-  private readonly waiting: Array<() => void> = [];
+  private readonly waiting: Record<HashLane, Array<() => void>> = {
+    high: [],
+    low: [],
+  };
 
   constructor(
     @Optional() private readonly settings?: AppSettingsService,
@@ -73,8 +81,17 @@ export class PasswordService {
    * work: a sign-in flood must not queue those behind hashes). Others wait
    * in line; beyond `security.password_hash_max_queue` the request is
    * refused with RATE_LIMITED. Metric line: `password_hash_queue`.
+   *
+   * Security audit 2026-11-08 (L1): a flood of sign-ins to made-up
+   * accounts (each one still burns a dummy hash, so the answer reveals
+   * nothing) must not starve real people. Such checks wait in the `low`
+   * line, which may hold at most half of the queue; a freed slot goes to
+   * the `high` line first (real accounts, registration, reset, change).
    */
-  private async withSlot<T>(work: () => Promise<T>): Promise<T> {
+  private async withSlot<T>(
+    work: () => Promise<T>,
+    lane: HashLane = 'high',
+  ): Promise<T> {
     const max = await this.readInt('security.password_hash_concurrency', 2, 1);
     // Read both settings first: from the check below to the slot grab
     // nothing may be awaited (a slot freed meanwhile would be missed).
@@ -83,10 +100,14 @@ export class PasswordService {
       200,
       0,
     );
+    const queued = this.waiting.high.length + this.waiting.low.length;
     if (this.running >= max) {
-      if (this.waiting.length >= maxQueue) {
+      const full =
+        queued >= maxQueue ||
+        (lane === 'low' && this.waiting.low.length >= Math.floor(maxQueue / 2));
+      if (full) {
         this.logger?.warn(
-          { metric: 'password_hash_rejected', queued: this.waiting.length },
+          { metric: 'password_hash_rejected', queued, lane },
           'password hash queue full',
         );
         throw new HttpException(
@@ -97,7 +118,7 @@ export class PasswordService {
           HttpStatus.TOO_MANY_REQUESTS,
         );
       }
-      await new Promise<void>((resolve) => this.waiting.push(resolve));
+      await new Promise<void>((resolve) => this.waiting[lane].push(resolve));
       // The releasing run handed its slot over: `running` is unchanged.
     } else {
       this.running++;
@@ -106,14 +127,15 @@ export class PasswordService {
       {
         metric: 'password_hash_queue',
         running: this.running,
-        queued: this.waiting.length,
+        queued: this.waiting.high.length + this.waiting.low.length,
+        lane,
       },
       'password hash queue',
     );
     try {
       return await work();
     } finally {
-      const next = this.waiting.shift();
+      const next = this.waiting.high.shift() ?? this.waiting.low.shift();
       if (next) next();
       else this.running--;
     }
@@ -253,15 +275,17 @@ export class PasswordService {
       ? parts
       : (await this.getDummy()).split('$');
     const expected = Buffer.from(hash, 'base64url');
-    const key = await this.withSlot(() =>
-      scryptAsync(
-        password,
-        Buffer.from(salt, 'base64url'),
-        Number(n),
-        Number(r),
-        Number(p),
-        expected.length,
-      ),
+    const key = await this.withSlot(
+      () =>
+        scryptAsync(
+          password,
+          Buffer.from(salt, 'base64url'),
+          Number(n),
+          Number(r),
+          Number(p),
+          expected.length,
+        ),
+      real ? 'high' : 'low',
     );
     return real && timingSafeEqual(key, expected);
   }

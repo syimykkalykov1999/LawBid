@@ -29,6 +29,7 @@ import {
   SignRequestIdParamDto,
   SignVerifyDto,
 } from './signing.dto';
+import { RequiresDuty } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const ERR = {
@@ -46,6 +47,7 @@ const ERR = {
 export class CaseSigningController {
   constructor(private readonly signing: CaseSigningService) {}
 
+  @RequiresDuty('cases')
   @Get()
   @ApiOperation({
     summary: 'Documents of the case waiting for / carrying signatures',
@@ -60,6 +62,7 @@ export class CaseSigningController {
     return this.signing.list(u, p.id, { ip: req.ip ?? null });
   }
 
+  @RequiresDuty('cases')
   @Post()
   @ApiOperation({
     summary: 'Ask both sides to sign a PDF (uploaded as a case attachment)',
@@ -74,6 +77,7 @@ export class CaseSigningController {
     return this.signing.create(u, p.id, dto);
   }
 
+  @RequiresDuty('cases')
   @Post(':requestId/sign')
   @HttpCode(200)
   @ApiOperation({
@@ -94,6 +98,7 @@ export class CaseSigningController {
     });
   }
 
+  @RequiresDuty('cases')
   @Post(':requestId/decline')
   @HttpCode(200)
   @ApiOperation({ summary: 'Decline to sign (with a reason)' })
@@ -107,6 +112,7 @@ export class CaseSigningController {
     return this.signing.decline(u, p.id, p.requestId, dto.reason);
   }
 
+  @RequiresDuty('cases')
   @Post(':requestId/cancel')
   @HttpCode(200)
   @ApiOperation({ summary: 'The side that asked withdraws the request' })
@@ -119,6 +125,7 @@ export class CaseSigningController {
     return this.signing.cancel(u, p.id, p.requestId);
   }
 
+  @RequiresDuty('cases')
   @Post(':requestId/resend')
   @HttpCode(200)
   @ApiOperation({
@@ -134,6 +141,7 @@ export class CaseSigningController {
     return this.signing.resend(u, p.id, p.requestId);
   }
 
+  @RequiresDuty('cases')
   @Get(':requestId/verify')
   @ApiOperation({
     summary: 'Recompute the file hashes and the journal chain of a document',

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -233,9 +234,20 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                                 ],
                                 const SizedBox(height: AppSpacing.md),
                                 // Twilio A2P 10DLC: the opt-in wording the
-                                // campaign was registered with.
+                                // campaign was registered with. Owner
+                                // 2026-11-09 (FR D-c2): the admin's wording
+                                // («Соответствие» → compliance.sms.
+                                // disclosure_text) wins once stored; until
+                                // then the translated string.
                                 Text(
-                                  t.t('auth.phone.smsConsent'),
+                                  ref.watch(
+                                        featureFlagsControllerProvider.select(
+                                          (s) => s.configText(
+                                            kSmsDisclosureTextConfig,
+                                          ),
+                                        ),
+                                      ) ??
+                                      t.t('auth.phone.smsConsent'),
                                   textAlign: TextAlign.center,
                                   style: typography.caption.copyWith(
                                     color: colors.textSecondary,

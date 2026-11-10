@@ -2,14 +2,18 @@
  * Resumable uploads (checklist reconciliation 2026-11-01). Pure rules for
  * cutting a file into S3 multipart parts.
  *
- * S3: every part except the last is at least 5 MiB, at most 10 000 parts. We
- * use 8 MiB parts (small enough to repeat one cheaply on a bad network, big
- * enough that a 1 GiB file is 128 requests) and grow the part for very large
- * files so the count stays under MAX_PARTS.
+ * S3: every part except the last is at least 5 MiB, at most 10 000 parts.
+ * Owner 2026-11-09: every file S3 / R2 can cut goes in parts — anything over
+ * one 5 MiB part — and the parts are the minimum 5 MiB (more of them travel
+ * at once, a lost one costs less to repeat). Up to 5 MiB one PUT is faster:
+ * parts only add the plan and complete round trips. The part grows for very
+ * large files so the count stays under MAX_PARTS.
  */
 export const MIB = 1024 * 1024;
-export const DEFAULT_PART_BYTES = 8 * MIB;
-export const MIN_MULTIPART_BYTES = 16 * MIB;
+export const DEFAULT_PART_BYTES = 5 * MIB;
+/** Before 2026-11-09 parts were 8 MiB (from 16 MiB files). */
+export const LEGACY_PART_BYTES = 8 * MIB;
+export const MIN_MULTIPART_BYTES = 5 * MIB + 1;
 export const MAX_PARTS = 1000;
 /** How long a multipart upload may be continued (the intent is extended). */
 export const MULTIPART_TTL_SEC = 24 * 60 * 60;
@@ -20,12 +24,38 @@ export interface PartPlan {
   partCount: number;
 }
 
-export function planParts(sizeBytes: number): PartPlan {
-  let partSizeBytes = DEFAULT_PART_BYTES;
+export function planParts(
+  sizeBytes: number,
+  basePartBytes = DEFAULT_PART_BYTES,
+): PartPlan {
+  let partSizeBytes = basePartBytes;
   if (Math.ceil(sizeBytes / partSizeBytes) > MAX_PARTS) {
     partSizeBytes = Math.ceil(sizeBytes / MAX_PARTS / MIB) * MIB;
   }
   return { partSizeBytes, partCount: Math.ceil(sizeBytes / partSizeBytes) };
+}
+
+/**
+ * The plan of an upload that may already have parts: one begun with the old
+ * 8 MiB parts (before the 2026-11-09 deploy, resumable for 24 h) keeps them,
+ * so a resume across the deploy never starts again or gets stuck.
+ */
+export function planFromUploaded(
+  sizeBytes: number,
+  uploaded: readonly UploadedPart[],
+): PartPlan {
+  const plan = planParts(sizeBytes);
+  const legacy = planParts(sizeBytes, LEGACY_PART_BYTES);
+  const first = uploaded.find((p) => p.partNumber === 1);
+  if (
+    first &&
+    legacy.partCount > 1 &&
+    first.size === legacy.partSizeBytes &&
+    first.size !== plan.partSizeBytes
+  ) {
+    return legacy;
+  }
+  return plan;
 }
 
 export interface UploadedPart {
