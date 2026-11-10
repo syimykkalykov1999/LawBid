@@ -6,6 +6,7 @@ import {
   type DealRecordSnapshot,
 } from './deal-record.snapshot';
 import { DealRecordTexts } from './deal-record-texts';
+import { dealRecordVerifyUrl } from './deal-record.verify';
 
 /** A 1x1 transparent PNG: the sample "signature" of the admin preview. */
 const SAMPLE_PNG = Buffer.from(
@@ -13,13 +14,21 @@ const SAMPLE_PNG = Buffer.from(
   'base64',
 );
 
-/** Admin «Запись о сделке» → «Предпросмотр PDF»: sample data, live texts. */
+/** Admin «Запись о сделке» → «Предпросмотр PDF»: sample data, live texts
+ * (v2: a Russian-speaking client, audit rows, consents and the QR). */
 @Injectable()
 export class DealRecordPreview {
   constructor(private readonly texts: DealRecordTexts) {}
 
   async sample(): Promise<Buffer> {
-    const texts = await this.texts.pdf();
+    const [texts, labels, local, clientConsents, attorneyConsents] =
+      await Promise.all([
+        this.texts.pdf(),
+        this.texts.labels(),
+        this.texts.local(['ru']),
+        this.texts.consentsFor('ru'),
+        this.texts.consentsFor('en'),
+      ]);
     const snapshot: DealRecordSnapshot = {
       version: 1,
       recordId: '00000000-0000-4000-8000-000000000001',
@@ -110,6 +119,12 @@ export class DealRecordPreview {
       recordCode: recordCodeOf(snapshot.recordId, sha),
       snapshotSha256: sha,
       title: texts.title,
+      labels,
+      local,
+      verifyUrl: dealRecordVerifyUrl(
+        'https://api.lawbid.dev/api/v1',
+        snapshot.recordId,
+      ),
       generatedAt: new Date('2026-10-27T20:02:00.000Z'),
       signatures: [
         {
@@ -118,6 +133,10 @@ export class DealRecordPreview {
           image: SAMPLE_PNG,
           signedAt: new Date('2026-10-27T19:41:00.000Z'),
           ip: '203.0.113.10',
+          device: 'iPhone 15 · ios · LawBid 1.0.0',
+          authMethod: 'phone',
+          lang: 'ru',
+          consents: clientConsents,
         },
         {
           role: 'attorney',
@@ -125,6 +144,10 @@ export class DealRecordPreview {
           image: SAMPLE_PNG,
           signedAt: new Date('2026-10-27T20:02:00.000Z'),
           ip: '203.0.113.20',
+          device: 'Pixel 8 · android · LawBid 1.0.0',
+          authMethod: 'phone_email',
+          lang: 'en',
+          consents: attorneyConsents,
         },
       ],
     });

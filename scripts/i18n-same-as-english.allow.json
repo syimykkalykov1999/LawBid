@@ -214,7 +214,10 @@
       "trust.req.documents",
       "verification.review.selfie",
       "verification.selfie.card",
-      "verification.step.selfie"
+      "verification.step.selfie",
+      "deal_record.pdf.label.client",
+      "deal_record.pdf.label.important",
+      "deal_record.pdf.label.signatures"
     ],
     "cs": [
       "billing.mOnly",
@@ -768,7 +771,10 @@
       "trust.req.documents",
       "verification.review.selfie",
       "verification.selfie.card",
-      "verification.step.selfie"
+      "verification.step.selfie",
+      "deal_record.pdf.label.client",
+      "deal_record.pdf.label.important",
+      "deal_record.pdf.label.signatures"
     ],
     "ga": [
       "boost.stat.ctr",
@@ -1633,7 +1639,9 @@
       "verification.review.selfie",
       "verification.selfie.card",
       "verification.step.selfie",
-      "video.edit.title"
+      "video.edit.title",
+      "deal_record.pdf.label.client",
+      "deal_record.pdf.label.important"
     ],
     "ru": [
       "boost.stat.ctr",
@@ -2011,7 +2019,8 @@
       "verification.step.selfie",
       "video.edit.frame",
       "video.edit.tab.cover",
-      "video.edit.title"
+      "video.edit.title",
+      "deal_record.pdf.label.device"
     ],
     "tr": [
       "cases.files.video",

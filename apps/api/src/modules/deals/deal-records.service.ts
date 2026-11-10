@@ -27,6 +27,8 @@ import { FilesService } from '../files/files.service';
 import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { DealRecordTexts } from './deal-record-texts';
+import type { SignerAuthMethod } from './deal-record.pdf';
+import { maskName, type VerifyView } from './deal-record.verify';
 import {
   dealRecordTransition,
   invalidDealRecordState,
@@ -457,6 +459,7 @@ export class DealRecordsService {
     }
     const name = dto.name.trim();
     const requestId = row.sign_request_id;
+    const audit = await this.signerAudit(user, meta);
     const chat: ChatChange[] = [];
     let accepted: { case_id: string } | null = null;
     try {
@@ -490,6 +493,10 @@ export class DealRecordsService {
                 row.sign_request?.source_sha256 ?? row.snapshot_sha256,
               ip: meta.ip?.slice(0, 64) ?? null,
               user_agent: meta.userAgent?.slice(0, 300) ?? null,
+              device: audit.device,
+              auth_method: audit.authMethod,
+              lang: audit.lang,
+              consents: audit.consents as unknown as Prisma.InputJsonArray,
             },
           });
         } catch (e) {
@@ -515,6 +522,9 @@ export class DealRecordsService {
             name,
             docSha256: row.sign_request?.source_sha256 ?? row.snapshot_sha256,
             ip: meta.ip?.slice(0, 64) ?? null,
+            device: audit.device,
+            authMethod: audit.authMethod,
+            lang: audit.lang,
           },
         });
         if (next === 'sealing') {
@@ -573,6 +583,97 @@ export class DealRecordsService {
       }
     }
     return this.toDto(await this.load(id), user);
+  }
+
+  /**
+   * v2 (owner 2026-11-08): the same audit data for both signers, taken at
+   * signing from what the platform already knows — the session's device,
+   * which sign-in identity the account verified, the app language and the
+   * consent lines the app shows above «Confirm» (tapping it is the
+   * consent). Anything unknown stays null and prints «—».
+   */
+  private async signerAudit(
+    user: RequestUser,
+    meta: RequestMeta,
+  ): Promise<{
+    device: string | null;
+    authMethod: SignerAuthMethod | null;
+    lang: string | null;
+    consents: Awaited<ReturnType<DealRecordTexts['consentsFor']>>;
+  }> {
+    const [me, session] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: user.sub },
+        select: {
+          ui_language: true,
+          phone_verified_at: true,
+          email_verified_at: true,
+        },
+      }),
+      user.sid
+        ? this.prisma.session.findFirst({
+            where: { session_chain_id: user.sid, user_id: user.sub },
+            orderBy: { created_at: 'desc' },
+            select: { device_name: true, platform: true, app_version: true },
+          })
+        : Promise.resolve(null),
+    ]);
+    const fromSession = [
+      session?.device_name,
+      session?.platform,
+      session?.app_version ? `LawBid ${session.app_version}` : null,
+    ]
+      .map((x) => x?.trim())
+      .filter((x): x is string => !!x)
+      .join(' · ');
+    const device = (fromSession || meta.userAgent?.trim() || '').slice(0, 160);
+    const phone = !!me?.phone_verified_at;
+    const email = !!me?.email_verified_at;
+    const authMethod: SignerAuthMethod | null =
+      phone && email ? 'phone_email' : phone ? 'phone' : email ? 'email' : null;
+    const lang = me?.ui_language?.slice(0, 16) ?? null;
+    return {
+      device: device || null,
+      authMethod,
+      lang,
+      consents: await this.texts.consentsFor(lang),
+    };
+  }
+
+  // ---------------------------------------------------------------- verify
+
+  /** Public authenticity check (QR on the PDF): non-sensitive facts only. */
+  async verifyView(id: string): Promise<VerifyView | null> {
+    if (!(await this.settings.boolean('deal_record.enabled'))) return null;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+    return shardContext.runForCase(id, async () => {
+      const row = await this.prisma.dealRecord.findUnique({
+        where: { id },
+        select: {
+          record_code: true,
+          status: true,
+          created_at: true,
+          sealed_at: true,
+          snapshot: true,
+          snapshot_sha256: true,
+          sealed_sha256: true,
+          sign_request: { select: { source_sha256: true } },
+        },
+      });
+      if (!row) return null;
+      const s = row.snapshot as unknown as DealRecordSnapshot;
+      return {
+        recordCode: row.record_code,
+        client: maskName(s.client.fullName),
+        attorney: maskName(s.attorney.fullName),
+        status: row.status,
+        createdAt: row.created_at,
+        sealedAt: row.sealed_at,
+        snapshotSha256: row.snapshot_sha256,
+        unsignedSha256: row.sign_request?.source_sha256 ?? null,
+        sealedSha256: row.sealed_sha256,
+      };
+    });
   }
 
   // --------------------------------------------------------------- decline
