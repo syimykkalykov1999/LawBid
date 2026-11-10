@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_picker.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
 
@@ -41,7 +42,18 @@ class ContactsConsentView extends ConsumerWidget {
             const SizedBox(height: AppSpacing.xl),
             AppButton(
               label: t.t('phoneContacts.consentYes'),
-              onPressed: () {
+              onPressed: () async {
+                // B-c2 (c): in a browser the tap opens the Contact Picker
+                // (it needs this very gesture); the picked people are the
+                // book.
+                final picker = ref.read(contactsPickerProvider);
+                if (picker != null) {
+                  final picked = await picker.pick();
+                  if (picked == null) return;
+                  ref.read(contactsConsentProvider.notifier).grant();
+                  ref.read(pickedContactsProvider.notifier).set(picked);
+                  return;
+                }
                 ref.read(contactsConsentProvider.notifier).grant();
                 ref.invalidate(phoneContactsProvider);
               },
