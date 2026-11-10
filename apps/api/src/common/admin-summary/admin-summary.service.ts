@@ -12,6 +12,18 @@ export interface Summary<T> {
 }
 
 const PREFIX = 'adm:sum:';
+/**
+ * Speed matrix 2026-11-09 (§3 #5, admin polls 29 panels every minute): the
+ * Redis channel on which the KEY of a stored admin value is announced when
+ * that value changed (a refresh that computed something new, an action that
+ * dropped a copy, a value put by hand). The admin socket gateway
+ * (modules/realtime/admin-realtime.gateway.ts) relays it to every open tab
+ * as `admin:changed`, so the panel refetches only when something moved.
+ * Pub/sub is best-effort (an instance whose subscriber is reconnecting can
+ * miss one); the panel keeps its minute poll as the fallback when its
+ * socket is down, and the stored copies stay the source of truth.
+ */
+export const ADMIN_CHANGED_CHANNEL = 'adm:changed';
 /** Keeps the last good value for a day, so a stuck refresh still answers. */
 const HARD_TTL_SECONDS = 24 * 3600;
 /** One refresher per key at a time, across every API / worker process. */
@@ -96,6 +108,24 @@ export class AdminSummaryService {
     } catch {
       /* not shared, still right */
     }
+    this.notifyChanged(key);
+  }
+
+  /**
+   * Announces on {@link ADMIN_CHANGED_CHANNEL} that what the admin sees
+   * under [key] changed (see the constant). Never throws, never awaited:
+   * a lost announcement only means the panel's fallback poll shows the
+   * change a little later.
+   */
+  notifyChanged(key: string): void {
+    if (typeof (this.redis as Partial<Redis>).publish !== 'function') return;
+    try {
+      void Promise.resolve(
+        this.redis.publish(ADMIN_CHANGED_CHANNEL, key),
+      ).catch(() => undefined);
+    } catch {
+      /* a signal only */
+    }
   }
 
   /**
@@ -147,6 +177,7 @@ export class AdminSummaryService {
     } catch {
       /* not shared, still right */
     }
+    this.notifyChanged(key);
   }
 
   /**
@@ -186,6 +217,7 @@ export class AdminSummaryService {
     } catch {
       /* not shared, still right */
     }
+    this.notifyChanged(family);
   }
 
   /** What is stored now, or null. Never computes. */
@@ -255,6 +287,9 @@ export class AdminSummaryService {
         data: await compute(),
         computedAt: new Date().toISOString(),
       };
+      // The copy this one replaces: announced only when the DATA differs
+      // (a refresh that counted the same numbers wakes no tab).
+      const previous = await this.peek<T>(key);
       try {
         await this.redis.set(
           PREFIX + key,
@@ -264,6 +299,14 @@ export class AdminSummaryService {
         );
       } catch {
         // Redis down: the answer is still right, it is just not shared.
+      }
+      if (
+        !previous ||
+        JSON.stringify(previous.data) !== JSON.stringify(summary.data)
+      ) {
+        // A scoped copy (`family:scope`) is announced under its family: the
+        // panel knows families, not scopes.
+        this.notifyChanged(key.split(':')[0]);
       }
       return summary;
     } finally {

@@ -19,6 +19,7 @@ import { can } from '@/lib/rbac';
 import { useMe } from '@/lib/hooks';
 import { reelsClientMode } from '@/lib/reels-client-mode';
 import { formatDateTime } from '@/lib/utils';
+import { LazyImg } from '@/components/ui/lazy-img';
 
 type Status = '' | 'pending' | 'approved' | 'rejected' | 'revoked';
 type Sub = '' | 'none' | 'active' | 'past_due' | 'canceled' | 'comped';
@@ -357,9 +358,7 @@ function DetailDialog({
                       rel="noreferrer noopener"
                       className="block overflow-hidden rounded-[var(--radius-md)] border border-line"
                     >
-                      {/* short-lived signed link, so a plain img */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.url} alt={`Документ ${i + 1}`} className="h-40 w-full object-cover" />
+                      <LazyImg src={f.url} alt={`Документ ${i + 1}`} className="h-40 w-full object-cover" />
                     </a>
                   ) : (
                     <div key={f.fileId} className="rounded-[var(--radius-md)] border border-line p-3 text-xs text-muted">

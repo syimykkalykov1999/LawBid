@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_book_sync.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_picker.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:lawbid/features/contacts_sync/data/phone_numbers.dart';
@@ -220,6 +221,13 @@ PhoneContacts _view(
 /// (ContactsBookSync): an unchanged book costs one tiny "changed?" request
 /// at most once an hour; the device keeps the people list between runs.
 final phoneContactsProvider = FutureProvider<PhoneContacts>((ref) async {
+  // B-c2 (c): in a browser the book is what the person picked in the
+  // browser's Contact Picker; nothing is read or sent before that pick.
+  final picker = ref.watch(contactsPickerProvider);
+  final picked = picker == null ? null : ref.watch(pickedContactsProvider);
+  if (picker != null && picked == null) {
+    return const PhoneContacts(needsConsent: true);
+  }
   final actions = ref.read(contactsSyncActionsProvider);
   final bookSync = ref.read(contactsBookSyncProvider);
   final saved = bookSync.saved;
@@ -236,7 +244,7 @@ final phoneContactsProvider = FutureProvider<PhoneContacts>((ref) async {
       !ref.watch(contactsConsentProvider)) {
     return const PhoneContacts(needsConsent: true);
   }
-  final entries = await ref.read(phoneBookEntriesReaderProvider)();
+  final entries = picked ?? await ref.read(phoneBookEntriesReaderProvider)();
   if (entries == null) return const PhoneContacts(denied: true);
   // Allowed on this install: the daily background sync may run from now on.
   await actions.markAsked();

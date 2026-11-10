@@ -256,10 +256,20 @@ jobs:
       - name: boot_head.js matches the Flutter loader
         run: node scripts/deploy/web-boot-check.mjs apps/mobile/build/web/flutter_bootstrap.js apps/mobile/web/boot_head.js "${{ steps.fv.outputs.v }}"
 
+      # B-c13: the engine's fallback Noto fonts (Chinese, Arabic, Hindi, ...)
+      # from our own host once it serves them under /s/* (infra/modules/web
+      # `font_fallback_proxy`); fonts.gstatic.com is blocked in China and Iran.
+      # Until the live host answers a font there, the release stays on gstatic.
+      - name: Where the fallback fonts come from
+        id: fonts
+        env:
+          WEB_HOST: ${{ secrets.WEB_DEEP_LINK_HOST }}
+        run: echo "base=$(bash scripts/deploy/web-font-base.sh "$WEB_HOST" "$FLUTTER_ROOT")" >> "$GITHUB_OUTPUT"
+
       # Owner 2026-10-23: app, engine and assets under v/<sha>/ (see above).
       - name: Move the heavy files under v/<sha>/
         working-directory: apps/mobile
-        run: python3 ../../scripts/deploy/web-immutable.py build/web "${{ env.RELEASE_SHA }}"
+        run: python3 ../../scripts/deploy/web-immutable.py build/web "${{ env.RELEASE_SHA }}" "${{ steps.fonts.outputs.base }}"
 
       # The engine (CanvasKit / skwasm) is served from our own domain: the
       # page's CSP allows fetches only to 'self' and the API, and a fetch to

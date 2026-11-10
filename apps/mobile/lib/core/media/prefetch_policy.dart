@@ -3,6 +3,7 @@ import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/media/data_saver.dart';
 import 'package:lawbid/core/media/video_prefetch.dart';
+import 'package:lawbid/core/media/web_video_warm.dart';
 
 /// S16-4 + S20-9: the one gate of the video warm-up. The admin switch
 /// (`client.video_prefetch_mode` Выкл/Вкл/Авто) is folded by the server into
@@ -20,11 +21,14 @@ final prefetchGateProvider = Provider<void>((ref) {
         dataSaver: ref.read(dataSaverProvider),
         ahead: ClientTuning.videoPrefetchAhead,
       );
+  // B-c2 (b): the site's warm-up of the next reels follows the same gate.
+  WebVideoWarm.instance.allow = HlsPrefetcher.instance.allow;
   HlsPrefetcher.instance.smart = () => ref
       .read(featureFlagsControllerProvider)
       .isEnabled('video_prefetch_smart');
   ref.onDispose(() {
     HlsPrefetcher.instance.allow = () => true;
+    WebVideoWarm.instance.allow = () => true;
     HlsPrefetcher.instance.smart = () => false;
   });
 });

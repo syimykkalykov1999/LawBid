@@ -100159,6 +100159,83 @@
         ]
       }
     },
+    "/admin/realtime/ticket": {
+      "post": {
+        "operationId": "ticket",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRealtimeTicketEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One-shot ticket for the admin live-updates socket (namespace /admin)",
+        "tags": [
+          "admin-realtime"
+        ]
+      }
+    },
     "/conversations": {
       "get": {
         "operationId": "listConversations",
@@ -190318,6 +190395,48 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/MissedEventsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminRealtimeTicketDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "false: the switch `realtime.admin_events_enabled` is off — keep polling."
+          },
+          "ticket": {
+            "type": "object",
+            "nullable": true,
+            "description": "One-shot handshake ticket (`auth.ticket`), valid `ttlSec` seconds; null when disabled."
+          },
+          "namespace": {
+            "type": "string",
+            "description": "The Socket.IO namespace to connect to."
+          },
+          "ttlSec": {
+            "type": "number",
+            "description": "Seconds the ticket stays redeemable."
+          }
+        },
+        "required": [
+          "enabled",
+          "ticket",
+          "namespace",
+          "ttlSec"
+        ]
+      },
+      "AdminRealtimeTicketEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminRealtimeTicketDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

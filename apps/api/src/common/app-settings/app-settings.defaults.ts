@@ -972,6 +972,12 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * identity that is counted; the address only guards sockets with no
    * account). 0 = no limit. */
   'realtime.max_connects_per_user_per_minute': 60,
+  /** Speed matrix 2026-11-09 (§3 #5): the admin panel listens on a socket
+   * (`/admin` namespace, modules/realtime/admin-realtime.gateway.ts) and
+   * refetches a board only when the server says it changed, instead of
+   * polling 29 panels every minute. Off = the panel gets no ticket and
+   * keeps the minute poll (the fallback it uses anyway while offline). */
+  'realtime.admin_events_enabled': true,
   /** Owner 2026-10-25: password screening (NIST SP 800-63B-4 §3.1.1.2). */
   'security.password_breach_check_enabled': true,
   /** Milliseconds to wait for the breached-password service; later = skip. */
