@@ -58,3 +58,33 @@ export function disputeRefundKey(disputeId: string): string {
 export function disputeRefundReason(disputeId: string): string {
   return `dispute_auto:${disputeId}`;
 }
+
+/**
+ * R-237, sweep B-c3 (2026-11-09): a «disputed» subscription without a bank
+ * — the attorney cancels soon after the FIRST charge. Refundable by itself
+ * only while it is the one and only successful charge and it is younger
+ * than `billing.first_charge_refund_days` (0 = the rule is off). The same
+ * anti-abuse guard above (fraud review, prior disputes, amount, one per user
+ * per window, daily cap) then decides between the money and a person.
+ * Pattern: Google Play's 48-hour / Apple's «request a refund» windows.
+ */
+export function firstChargeRefundable(input: {
+  now: Date;
+  windowDays: number;
+  succeededPayments: number;
+  firstChargeAt: Date | null;
+}): boolean {
+  if (!(input.windowDays > 0) || input.succeededPayments !== 1) return false;
+  if (!input.firstChargeAt) return false;
+  const age = input.now.getTime() - input.firstChargeAt.getTime();
+  return age >= 0 && age <= input.windowDays * 86_400_000;
+}
+
+/** The `dispute_id` of such a row: there is no dispute, so the payment. */
+export function firstChargeCancelRef(paymentId: string): string {
+  return `cancel:${paymentId}`;
+}
+
+export function isFirstChargeCancelRef(ref: string): boolean {
+  return ref.startsWith('cancel:');
+}

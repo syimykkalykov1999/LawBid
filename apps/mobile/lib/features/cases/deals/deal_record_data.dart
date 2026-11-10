@@ -3,6 +3,8 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/tools/signing_data.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Deal record 2026-10-27 (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md):
@@ -55,6 +57,9 @@ final caseDealRecordProvider =
     FutureProvider.autoDispose.family<api.DealRecordDto?, String>(
   (ref, caseId) async {
     if (!ref.watch(dealRecordEnabledProvider)) return null;
+    // Audit 2026-11-08 (L2): the server refuses an assistant without the
+    // "cases" duty; not asked (and not retried) at all then.
+    if (!ref.watch(canDoProvider(AssistantDuty.cases))) return null;
     return (await guardApiCall(
       () => ref.watch(dealRecordsClientProvider).currentDealRecord(id: caseId),
     ))

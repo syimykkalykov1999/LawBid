@@ -32,6 +32,9 @@ class MediaCheckDto {
     required this.previewUrl,
     required this.createdAt,
     required this.checkedAt,
+    required this.csamReportStatus,
+    required this.csamExternalReportId,
+    required this.csamReportError,
   });
 
   factory MediaCheckDto.fromJson(Map<String, Object?> json) =>
@@ -58,6 +61,15 @@ class MediaCheckDto {
   final String? previewUrl;
   final String createdAt;
   final String? checkedAt;
+
+  /// The latest CyberTipline report of this check: pending | submitted | manual_required | failed (null = none).
+  final String? csamReportStatus;
+
+  /// The NCMEC report id once submitted.
+  final String? csamExternalReportId;
+
+  /// Why the last report failed (the admin can send it again).
+  final String? csamReportError;
 
   Map<String, Object?> toJson() => _$MediaCheckDtoToJson(this);
 }

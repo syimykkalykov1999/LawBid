@@ -3,11 +3,13 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { Experiment, ExperimentResult, Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RankingEventsService } from './ranking-events.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type {
@@ -44,6 +46,8 @@ export class AdminExperimentsService {
     private readonly settings: AppSettingsService,
     private readonly experiments: ExperimentsService,
     private readonly nightly: ExperimentsNightlyJob,
+    // «Авто» mode of the events log follows "a test is running" at once.
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
 
   async list(): Promise<ExperimentDto[]> {
@@ -77,7 +81,11 @@ export class AdminExperimentsService {
         hypothesis: dto.hypothesis?.trim() || null,
         surface: dto.surface,
         status: 'draft',
-        variants: dto.variants.map((v) => ({ key: v.key, weight: v.weight })),
+        variants: dto.variants.map((v) =>
+          v.weights && Object.keys(v.weights).length > 0
+            ? { key: v.key, weight: v.weight, weights: v.weights }
+            : { key: v.key, weight: v.weight },
+        ),
         guardrails: normalizeGuardrails(
           dto.guardrails,
         ) as unknown as Prisma.InputJsonValue,
@@ -133,6 +141,7 @@ export class AdminExperimentsService {
       },
     });
     this.experiments.invalidate();
+    this.rankingEvents?.invalidate();
     await this.audit.record({
       adminId: admin.id,
       action: EXPERIMENT_AUDIT.start,
@@ -169,6 +178,7 @@ export class AdminExperimentsService {
       data: { traffic_percent: percent },
     });
     this.experiments.invalidate();
+    this.rankingEvents?.invalidate();
     await this.audit.record({
       adminId: admin.id,
       action: EXPERIMENT_AUDIT.traffic,
@@ -203,6 +213,7 @@ export class AdminExperimentsService {
       },
     });
     this.experiments.invalidate();
+    this.rankingEvents?.invalidate();
     await this.audit.record({
       adminId: admin.id,
       action: EXPERIMENT_AUDIT.stop,

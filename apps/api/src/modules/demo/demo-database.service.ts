@@ -78,6 +78,24 @@ const LOCK_TTL_SECONDS = 15 * 60;
 // the demo migrations, the others wait and then find nothing pending
 // (two replays at once fail with "relation … already exists").
 const MIGRATE_LOCK_KEY = 'demo:world:migrate-lock';
+/** PostgreSQL «already exists» codes: duplicate_object (type, constraint,
+ * enum value), duplicate_table (table, index), duplicate_column,
+ * duplicate_schema, duplicate_function. */
+export const ALREADY_EXISTS_CODES: ReadonlySet<string> = new Set([
+  '42710',
+  '42P07',
+  '42701',
+  '42P06',
+  '42723',
+]);
+
+/** The SQLSTATE of a raw-query error (Prisma P2010 keeps it in meta.code). */
+export function pgErrorCode(e: unknown): string {
+  const err = e as { meta?: { code?: unknown }; code?: unknown } | null;
+  const meta = err?.meta?.code;
+  if (typeof meta === 'string') return meta;
+  return typeof err?.code === 'string' ? err.code : '';
+}
 const MIGRATE_LOCK_TTL_SECONDS = 15 * 60;
 const MIGRATE_LOCK_POLL_MS = 3000;
 
@@ -272,9 +290,33 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
     const pending = names.filter((n) => !applied.has(n));
     this.state.migrationsPending = pending.length;
     this.state.migrationsApplied = applied.size;
+    // Feature reality audit 2026-11-08: a replay cut off half-way (a deploy
+    // restarting the task) left a migration's first objects behind with
+    // `finished_at` still empty; every later boot then stopped on «type
+    // "deal_record_status" already exists» and the demo code answered
+    // DEMO_UNAVAILABLE on prod. Such a migration is replayed with the
+    // «already exists» answers skipped (only those, only for it).
+    const halfApplied = new Set(
+      (
+        await demo.$queryRawUnsafe<{ migration_name: string }[]>(
+          `SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NULL AND rolled_back_at IS NULL`,
+        )
+      ).map((r) => r.migration_name),
+    );
     for (const name of pending) {
       const sql = readFileSync(join(dir, name, 'migration.sql'), 'utf8');
       const statements = splitSqlStatements(sql);
+      const recovering = halfApplied.has(name);
+      if (recovering) {
+        await demo.$executeRawUnsafe(
+          `UPDATE "_prisma_migrations" SET rolled_back_at = now() WHERE migration_name = $1 AND finished_at IS NULL AND rolled_back_at IS NULL`,
+          name,
+        );
+        this.logger.warn(
+          { migration: name },
+          'Demo world: replaying a half-applied migration',
+        );
+      }
       const id = randomUUID();
       await demo.$executeRawUnsafe(
         `INSERT INTO "_prisma_migrations" (id, checksum, migration_name, started_at, applied_steps_count) VALUES ($1, $2, $3, now(), 0)`,
@@ -284,7 +326,13 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
       );
       let steps = 0;
       for (const statement of statements) {
-        await demo.$executeRawUnsafe(statement);
+        try {
+          await demo.$executeRawUnsafe(statement);
+        } catch (e) {
+          if (!recovering || !ALREADY_EXISTS_CODES.has(pgErrorCode(e))) {
+            throw e;
+          }
+        }
         steps += 1;
       }
       await demo.$executeRawUnsafe(
@@ -472,6 +520,9 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
     if (attorneys.length === 0 || !this.storage?.configured) return;
     let bucket: string;
     try {
+      // Owner 2026-11-08: public avatars never go to AWS while the switch is
+      // r2; with R2 not ready the demo simply keeps its initials.
+      if ((await this.storage.publicStoreState()) === 'r2_unavailable') return;
       bucket = await this.storage.resolveBucket('media');
     } catch {
       return;

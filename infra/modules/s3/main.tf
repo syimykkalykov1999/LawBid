@@ -41,6 +41,11 @@ variable "access_log_bucket" {
   default     = ""
   description = "Security & legal pass 2026-10-24: bucket (modules/audit-logs) that receives the S3 server access log of the documents bucket: requester, object key, operation, time. Empty = no access log."
 }
+variable "access_log_enabled" {
+  type        = bool
+  default     = false
+  description = "Automation audit 2026-11-08: known at plan time (the bucket name is not until the audit log bucket exists), so turning audit_logs_enabled on plans in one step instead of «Invalid count argument»."
+}
 variable "documents_cdn_public_key_pem" {
   type        = string
   default     = ""
@@ -95,7 +100,7 @@ resource "aws_s3_bucket_versioning" "documents" {
 # Who touched which object: requester, key, operation, status (delivered
 # within hours, free to switch on; the log bucket costs cents).
 resource "aws_s3_bucket_logging" "documents" {
-  count         = var.access_log_bucket == "" ? 0 : 1
+  count         = var.access_log_enabled ? 1 : 0
   bucket        = aws_s3_bucket.documents.id
   target_bucket = var.access_log_bucket
   target_prefix = "s3-documents/"

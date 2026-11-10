@@ -239,6 +239,13 @@ resource "aws_instance" "this" {
   # NOTE: both relays change in the same apply - roll out the second one
   # first (docs/runbooks/TURN.md, "Смена размера").
   user_data_replace_on_change = true
+
+  lifecycle {
+    # 09.11 plan: an on-demand box that is STOPPED reports
+    # associate_public_ip_address = false (no public address while stopped),
+    # so every plan wanted to replace it. The setting matters only at launch.
+    ignore_changes = [associate_public_ip_address]
+  }
 }
 
 data "aws_region" "current" {}

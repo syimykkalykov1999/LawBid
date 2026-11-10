@@ -6,6 +6,7 @@
  * (database, Redis, JWT, S3/IAM, the master key itself) are deliberately
  * NOT here — a wrong value there would take the whole app down.
  */
+import { ncmecStatusTest } from './ncmec-cybertipline';
 import { r2SelfTest } from './r2-self-test';
 
 export interface ProviderField {
@@ -740,7 +741,10 @@ export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'persona',
     label: 'Persona (ID checks)',
-    description: 'Identity verification of attorneys.',
+    // Owner 2026-11-08: «пусть пока будет ручной; подключу ключ — должен
+    // работать». No key / card off = manual review as before.
+    description:
+      'Проверка документа и селфи юриста через Persona. Пока ключа нет (или карточка выключена) — проверка ручная, как сейчас. С ключом, шаблоном и секретом вебхука приложение открывает страницу Persona, а результат приходит по вебхуку https://<API>/api/v1/webhooks/persona. Сотрудник всё равно может одобрить или отклонить в «Проверке».',
     fields: [
       {
         name: 'apiKey',
@@ -749,6 +753,27 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: true,
         pattern: /^persona_(sandbox|production)_[\w-]+$/,
         env: 'PERSONA_API_KEY',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'templateId',
+        label: 'Inquiry template ID (Government ID + Selfie)',
+        secret: false,
+        required: true,
+        pattern: /^itmpl_[A-Za-z0-9]+$/,
+        patternHint: 'itmpl_…',
+        env: 'PERSONA_TEMPLATE_ID',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'webhookSecret',
+        label: 'Webhook secret (Persona → Webhooks)',
+        secret: true,
+        required: true,
+        pattern: /^\S{16,200}$/,
+        patternHint: 'wbhsec_…',
+        env: 'PERSONA_WEBHOOK_SECRET',
+        normalize: cleanPasted,
       },
     ],
     test: (f) =>
@@ -1527,7 +1552,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: 'ncmec',
     label: 'NCMEC CyberTipline (CSAM reports)',
     description:
-      'Electronic Service Provider account of the NCMEC CyberTipline reporting API. Without it, reports wait in Модерация → Медиа as «file by hand».',
+      'Electronic Service Provider account of the NCMEC CyberTipline reporting API (account issued by NCMEC after ESP registration). Filled: a CSAM finding is reported automatically (report → files → finish), environment test until set to production. Not filled: «не подключено» — reports wait in Модерация → Медиа as «file by hand».',
     fields: [
       {
         name: 'username',
@@ -1554,7 +1579,33 @@ export const PROVIDERS: ProviderDefinition[] = [
         patternHint: 'test or production (default test)',
         env: 'NCMEC_ENVIRONMENT',
       },
+      // Owner 2026-11-08: the CyberTipline needs a contact person on every
+      // report (<reporter><reportingPerson><email>).
+      {
+        name: 'reporterEmail',
+        label: 'Reporter e-mail (contact for NCMEC)',
+        secret: false,
+        required: true,
+        pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+        env: 'NCMEC_REPORTER_EMAIL',
+      },
+      {
+        name: 'reporterFirstName',
+        label: 'Reporter first name (optional)',
+        secret: false,
+        required: false,
+        pattern: /^.{1,60}$/,
+      },
+      {
+        name: 'reporterLastName',
+        label: 'Reporter last name (optional)',
+        secret: false,
+        required: false,
+        pattern: /^.{1,60}$/,
+      },
     ],
+    // «Проверить»: GET /status with the saved ESP account.
+    test: (f) => ncmecStatusTest(f),
   },
 ];
 

@@ -60,6 +60,11 @@ import {
   DEDUP_PROFILE,
   purposesOfProfile,
 } from './files.policy';
+import {
+  CONFIRM_READ_BUDGET_MB,
+  CONFIRM_READ_MAX_WAITING,
+  ReadBudget,
+} from './read-budget';
 import type {
   FileDto,
   MultipartCompleteDto,
@@ -73,7 +78,7 @@ import {
   PART_URL_TTL_SEC,
   missingParts,
   partsComplete,
-  planParts,
+  planFromUploaded,
 } from './multipart';
 import {
   PENDING_UPLOADS_KEY,
@@ -144,11 +149,17 @@ export interface PostImageLinks {
 }
 
 /** Owner 2026-11-08: a confirm at least this slow writes where its time
- * went (`files_confirm_slow`: head, copy, read, db, enqueue in ms). */
+ * went (`files_confirm_slow`: head, copy, read, put, db, enqueue in ms). */
 const CONFIRM_SLOW_MS = 500;
 
 @Injectable()
 export class FilesService {
+  /** Audit 2026-11-08 (L6): bytes of whole-file confirm reads in flight. */
+  private readonly readBudget = new ReadBudget(
+    CONFIRM_READ_BUDGET_MB,
+    CONFIRM_READ_MAX_WAITING,
+  );
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
@@ -213,11 +224,27 @@ export class FilesService {
     // 503 if S3 is off. Owner 2026-10-24: public media goes to R2 (a
     // presigned PUT) only when the switch is on AND this app can do a PUT;
     // an older app keeps getting the AWS POST. Private kinds: AWS always.
+    // Owner 2026-11-08: with `media.public_store` = r2, public media goes to
+    // R2 or waits — it never lands in AWS (an app that cannot PUT is asked
+    // to update).
+    if (mayUsePublicStore(dto.purpose)) {
+      const store = await this.storage.publicStoreState();
+      if (store === 'r2_unavailable') throw this.publicStoreDown();
+      if (store === 'r2' && !dto.supportsPut) {
+        throw new HttpException(
+          {
+            code: ErrorCode.APP_UPDATE_REQUIRED,
+            message: 'Update the app to upload photos.',
+          },
+          426,
+        );
+      }
+    }
     const resolved = await this.storage.resolveBucket(rule.bucket);
     const bucket =
       rule.bucket === 'media' &&
       this.storage.isPublicStoreBucket(resolved) &&
-      (!dto.supportsPut || !mayUsePublicStore(dto.purpose))
+      !mayUsePublicStore(dto.purpose)
         ? this.storage.awsBucket('media')
         : resolved;
     if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
@@ -380,6 +407,7 @@ export class FilesService {
         width: own.width,
         height: own.height,
         blurhash: own.blurhash,
+        avif_twins: own.avif_twins,
         scan_status: 'clean',
       },
     });
@@ -461,7 +489,6 @@ export class FilesService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    const plan = planParts(intent.size);
     let uploadId = await this.redis.get(multipartKey(fileId));
     if (!uploadId) {
       const started = await this.storage.startMultipart({
@@ -499,6 +526,7 @@ export class FilesService {
       intent.key,
       uploadId,
     );
+    const plan = planFromUploaded(intent.size, uploaded);
     const todo = missingParts(plan, uploaded);
     const parts = await Promise.all(
       todo.map(async (partNumber) => ({
@@ -537,12 +565,12 @@ export class FilesService {
         message: 'Start the resumable upload first.',
       });
     }
-    const plan = planParts(intent.size);
     const uploaded = await this.storage.listParts(
       intent.bucket,
       intent.key,
       uploadId,
     );
+    const plan = planFromUploaded(intent.size, uploaded);
     if (!partsComplete(plan, intent.size, uploaded)) {
       throw new ConflictException({
         code: ErrorCode.FILE_NOT_UPLOADED,
@@ -574,78 +602,149 @@ export class FilesService {
     const lap = (name: string) => {
       laps[name] = Date.now() - started;
     };
-    const head = await this.storage.head(intent.bucket, intent.key);
-    lap('head');
-    if (!head) return this.notUploaded(userId, fileId);
+    // Owner 2026-11-09 («фото обрабатываются долго»): a file under the light
+    // threshold is read whole anyway, so the HEAD and the server-side copy
+    // (≈0.6 s on R2, measured on prod) are skipped: ONE ranged GET of the
+    // upload (never more than the size the link allowed, plus one byte to see
+    // a longer object), the checks below on those bytes, then a PUT of
+    // exactly the checked bytes to the server key (M3 holds: what is stored
+    // is what was checked, nothing a link can still write is ever read
+    // again). Flag `files_confirm_direct`; off = HEAD + copy as before.
     const maxBytes = await this.maxBytes(intent.purpose);
-    if (head.size > maxBytes) {
-      await this.reject(fileId, intent);
-      throw this.tooLarge(maxBytes);
-    }
-    if (head.size !== intent.size) {
-      await this.reject(fileId, intent);
-      throw this.checksumMismatch();
-    }
-    // Security audit 2026-11-08 (M3): the presigned link of this upload can
-    // still overwrite intent.key until it expires. Everything below — the
-    // type, the hash, the content check, the scan, every download — uses a
-    // server-side copy at a key no link can write, so bytes swapped in after
-    // the checks never reach anyone. The copy is done by S3 / R2 itself.
+    const direct =
+      intent.size < LIGHT_CONFIRM_MIN_BYTES &&
+      (await this.flags.isEnabled('files_confirm_direct', true));
     const key = storedKey(intent.key, randomUUID().slice(0, 8));
-    if (!(await this.storage.copy(intent.bucket, intent.key, key))) {
-      return this.notUploaded(userId, fileId);
-    }
-    lap('copy');
-    // R-252: a big file is not read into the API's memory here. The start
-    // of the file settles its type at once; the checksum and the look inside
-    // the container move to the scan worker, which holds the file anyway. The
-    // file stays `pending`, and only `clean` files can be attached. A start
-    // the prefix cannot settle goes the full way.
-    let prefix: Buffer | null = null;
-    if (
-      head.size >= LIGHT_CONFIRM_MIN_BYTES &&
-      (await this.flags.isEnabled('files_confirm_light', true))
-    ) {
-      const start = await this.storage.readStart(
-        intent.bucket,
-        key,
-        CONFIRM_PREFIX_BYTES,
-      );
-      if (detectMime(start, intent.mime) !== null) prefix = start;
-    }
-    const data = prefix ?? (await this.storage.read(intent.bucket, key));
-    lap('read');
-    let sha256: string | null = null;
-    if (!prefix) {
-      sha256 = createHash('sha256').update(data).digest('hex');
-      if (data.length !== intent.size || sha256 !== intent.sha256) {
+    // The content checks, on the whole file or (light confirm) on its start.
+    const checkData = async (
+      data: Buffer,
+      isPrefix: boolean,
+    ): Promise<{ sha256: string | null; detected: string }> => {
+      let sha256: string | null = null;
+      if (!isPrefix) {
+        sha256 = createHash('sha256').update(data).digest('hex');
+        if (data.length !== intent.size || sha256 !== intent.sha256) {
+          await this.reject(fileId, intent, key);
+          throw this.checksumMismatch();
+        }
+      }
+      const detected = detectMime(data, intent.mime);
+      if (
+        detected === null ||
+        detected !== intent.mime ||
+        !(await this.allowedMimes(intent.purpose)).includes(detected)
+      ) {
         await this.reject(fileId, intent, key);
+        throw new BadRequestException({
+          code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
+          message: 'The file content does not match an allowed type.',
+          details: { declared: intent.mime, detected },
+        });
+      }
+      // Owner 2026-10-07: no program, macro or script hidden inside an
+      // allowed document (APK in a .docx, a macro, PDF JavaScript).
+      const danger = isPrefix ? null : dangerousContent(data, detected);
+      if (danger) {
+        await this.reject(fileId, intent, key);
+        throw new BadRequestException({
+          code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
+          message: 'The file contains content that is not allowed.',
+          details: { declared: intent.mime, detected, reason: danger },
+        });
+      }
+      return { sha256, detected };
+    };
+    let size: number;
+    let checked: { sha256: string | null; detected: string };
+    let directData: Buffer | null = null;
+    if (direct) {
+      // Security audit 2026-11-08 (L6): a whole-file read holds its bytes
+      // until the checks are done; the read budget caps how many megabytes
+      // all confirms of this process hold at once.
+      const read = await this.readBudget.run(
+        Math.min(intent.size, maxBytes) + 1,
+        async () => {
+          const got = await this.storage.readUpTo(
+            intent.bucket,
+            intent.key,
+            Math.min(intent.size, maxBytes) + 1,
+          );
+          lap('read');
+          if (!got) return null;
+          if (got.length > maxBytes) {
+            await this.reject(fileId, intent);
+            throw this.tooLarge(maxBytes);
+          }
+          return { got, ...(await checkData(got, false)) };
+        },
+      );
+      if (!read) return this.notUploaded(userId, fileId);
+      size = read.got.length;
+      directData = read.got;
+      checked = { sha256: read.sha256, detected: read.detected };
+    } else {
+      const head = await this.storage.head(intent.bucket, intent.key);
+      lap('head');
+      if (!head) return this.notUploaded(userId, fileId);
+      size = head.size;
+      if (head.size > maxBytes) {
+        await this.reject(fileId, intent);
+        throw this.tooLarge(maxBytes);
+      }
+      if (head.size !== intent.size) {
+        await this.reject(fileId, intent);
         throw this.checksumMismatch();
       }
+      // Security audit 2026-11-08 (M3): the presigned link of this upload
+      // can still overwrite intent.key until it expires. Everything below —
+      // the type, the hash, the content check, the scan, every download —
+      // uses a server-side copy at a key no link can write, so bytes swapped
+      // in after the checks never reach anyone. The copy is done by S3 / R2.
+      // L5: the copy gets the bucket's real Cache-Control; the staging object
+      // was written `no-store`.
+      if (
+        !(await this.storage.copy(intent.bucket, intent.key, key, {
+          contentType: intent.mime,
+          cacheControl: this.storage.cacheControlFor(intent.bucket),
+        }))
+      ) {
+        return this.notUploaded(userId, fileId);
+      }
+      lap('copy');
+      // R-252: a big file is not read into the API's memory here. The start
+      // of the file settles its type at once; the checksum and the look
+      // inside the container move to the scan worker, which holds the file
+      // anyway. The file stays `pending`, and only `clean` files can be
+      // attached. A start the prefix cannot settle goes the full way.
+      let prefix: Buffer | null = null;
+      if (
+        head.size >= LIGHT_CONFIRM_MIN_BYTES &&
+        (await this.flags.isEnabled('files_confirm_light', true))
+      ) {
+        const start = await this.storage.readStart(
+          intent.bucket,
+          key,
+          CONFIRM_PREFIX_BYTES,
+        );
+        if (detectMime(start, intent.mime) !== null) prefix = start;
+      }
+      if (prefix) {
+        lap('read');
+        checked = await checkData(prefix, true);
+      } else {
+        checked = await this.readBudget.run(head.size, async () => {
+          const whole = await this.storage.read(intent.bucket, key);
+          lap('read');
+          return checkData(whole, false);
+        });
+      }
     }
-    const detected = detectMime(data, intent.mime);
-    if (
-      detected === null ||
-      detected !== intent.mime ||
-      !(await this.allowedMimes(intent.purpose)).includes(detected)
-    ) {
-      await this.reject(fileId, intent, key);
-      throw new BadRequestException({
-        code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
-        message: 'The file content does not match an allowed type.',
-        details: { declared: intent.mime, detected },
-      });
-    }
-    // Owner 2026-10-07: no program, macro or script hidden inside an
-    // allowed document (APK in a .docx, a macro, PDF JavaScript).
-    const danger = prefix ? null : dangerousContent(data, detected);
-    if (danger) {
-      await this.reject(fileId, intent, key);
-      throw new BadRequestException({
-        code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
-        message: 'The file contains content that is not allowed.',
-        details: { declared: intent.mime, detected, reason: danger },
-      });
+    const { sha256, detected } = checked;
+    if (directData) {
+      // The checked bytes, and only they, go to the key no link can write
+      // (put sets the bucket's Cache-Control).
+      await this.storage.put(intent.bucket, key, directData, detected);
+      lap('put');
     }
 
     try {
@@ -657,7 +756,7 @@ export class FilesService {
           s3_bucket: intent.bucket,
           s3_key: key,
           mime: detected,
-          size_bytes: BigInt(head.size),
+          size_bytes: BigInt(size),
           // Light confirm: `sha256` is what the phone claimed, unproven until
           // the worker checks it. An empty `source_sha256` is what tells the
           // worker so, and it keeps the row out of the storage dedup: a false
@@ -678,7 +777,7 @@ export class FilesService {
       }
       return this.get(userId, fileId);
     }
-    this.heavy?.upload(userId, head.size);
+    this.heavy?.upload(userId, size);
     await this.redis.del(intentKey(fileId));
     await this.redis.zrem(
       PENDING_UPLOADS_KEY,
@@ -707,7 +806,8 @@ export class FilesService {
           fileId,
           purpose: intent.purpose,
           store: this.storage.isPublicStoreBucket(intent.bucket) ? 'r2' : 'aws',
-          sizeBytes: head.size,
+          sizeBytes: size,
+          path: direct ? 'direct' : 'copy',
           totalMs,
           laps,
         },
@@ -715,6 +815,23 @@ export class FilesService {
       );
     }
     return answer;
+  }
+
+  /** Owner 2026-11-08: R2 is selected but not ready — a temporary 503 the
+   * app's queue retries (after `retryAfterSeconds`), never an AWS upload. */
+  private publicStoreDown(): HttpException {
+    this.logger.warn(
+      { alert: 'r2_public_upload_waiting' },
+      'Public upload refused while R2 is not ready (media.public_store = r2)',
+    );
+    return new HttpException(
+      {
+        code: ErrorCode.FILE_STORAGE_UNAVAILABLE,
+        message: 'Photo storage is busy. Try again shortly.',
+        details: { retryAfterSeconds: 30 },
+      },
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
   }
 
   /** No object at the upload key: a retry of a confirm that already
@@ -1344,6 +1461,13 @@ export class FilesService {
     // Owner 2026-10-24: bytes of a PRIVATE file (documents bucket) are never
     // copied to R2, even when the new purpose is a public one.
     const srcPrivate = PURPOSE_RULES[src.purpose].bucket === 'documents';
+    if (
+      !srcPrivate &&
+      mayUsePublicStore(purpose) &&
+      (await this.storage.publicStoreState()) === 'r2_unavailable'
+    ) {
+      throw this.publicStoreDown();
+    }
     const resolved = await this.storage.resolveBucket(rule.bucket);
     const bucket =
       (srcPrivate || !mayUsePublicStore(purpose)) &&
@@ -1371,6 +1495,7 @@ export class FilesService {
           source_sha256: src.source_sha256 ?? src.sha256,
           width: src.width,
           height: src.height,
+          avif_twins: src.avif_twins,
           scan_status: 'clean',
         },
       });
@@ -1434,6 +1559,12 @@ export class FilesService {
   ): Promise<File> {
     const rule = PURPOSE_RULES[purpose];
     const fileId = randomUUID();
+    if (
+      mayUsePublicStore(purpose) &&
+      (await this.storage.publicStoreState()) === 'r2_unavailable'
+    ) {
+      throw this.publicStoreDown();
+    }
     const resolved = await this.storage.resolveBucket(rule.bucket);
     const bucket =
       !mayUsePublicStore(purpose) && this.storage.isPublicStoreBucket(resolved)
@@ -1533,7 +1664,9 @@ export class FilesService {
       imageFormatContext.wantsAvif()
     ) {
       const since = await avifSince(this.settings);
-      if (since && file.created_at >= since) {
+      // Owner 2026-11-09: only a file whose every twin is stored (an AVIF
+      // no smaller than the WebP is not kept, and its link would be a 404).
+      if (since && file.created_at >= since && file.avif_twins) {
         return this.mediaLink(file.s3_bucket, avifKey(key));
       }
     }

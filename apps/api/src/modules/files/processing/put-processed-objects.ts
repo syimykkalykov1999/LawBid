@@ -9,21 +9,29 @@ export type ProcessedFile = Awaited<ReturnType<ImageProcessor['process']>>;
 /**
  * Writes what [ImageProcessor] made next to [file]'s object: the sized
  * variants (`<key>_w256`, `_w320`, `_w1080`), their AVIF twins (best
- * effort) and, last, the main object itself. The order matters: a reader
- * who sees the new main already finds its variants. Shared by the scan job
+ * effort) and the main object itself. Shared by the scan job
  * (FileScanProcessor) and the avatar backfill (R-405, `avatars:backfill`).
  *
  * Owner 2026-11-08 (R2 speed): the variants and their twins go up at once
- * (one round trip to Cloudflare R2 instead of one per object, like the
- * parallel parts of @aws-sdk/lib-storage); only the main waits for them.
+ * (like the parallel parts of @aws-sdk/lib-storage).
+ *
+ * Without [opts.original] (the backfill: the file is already `clean` and
+ * served) the main goes LAST, so a reader who sees the new main already
+ * finds its variants. With it (the scan job: the row is still `pending`, no
+ * key of it is handed to anyone) the main goes up together with the rest —
+ * owner 2026-11-09 («фото обрабатываются долго»): one round trip to R2
+ * instead of two. If any object fails, the upload ([opts.original]) is put
+ * back under the main key, so the retried job reads the upload again and
+ * never re-encodes an already processed picture.
  */
 export async function putProcessedObjects(
   storage: Pick<S3StorageService, 'put'>,
   logger: Pick<PinoLogger, 'warn'>,
   file: Pick<File, 'id' | 's3_bucket' | 's3_key'>,
   processed: ProcessedFile,
-): Promise<void> {
-  await Promise.all([
+  opts: { original?: { data: Buffer; mime: string } } = {},
+): Promise<{ avifTwins: boolean }> {
+  const derived = [
     ...[...processed.variants].map(([px, img]) =>
       storage.put(
         file.s3_bucket,
@@ -33,11 +41,48 @@ export async function putProcessedObjects(
       ),
     ),
     putAvifTwins(storage, logger, file, processed),
-  ]);
+  ];
   const main = processed.main;
-  if (main) {
-    await storage.put(file.s3_bucket, file.s3_key, main.data, main.mime);
+  const original = opts.original;
+  // Owner 2026-11-09: true only when every size got its AVIF twin; the row
+  // then may hand out `.avif` links (files.avif_twins).
+  const twins = derived[derived.length - 1] as Promise<boolean>;
+  if (!main) {
+    await Promise.all(derived);
+    return { avifTwins: false };
   }
+  if (!original) {
+    await Promise.all(derived);
+    await storage.put(file.s3_bucket, file.s3_key, main.data, main.mime);
+    return { avifTwins: await twins };
+  }
+  const mainPut = storage.put(
+    file.s3_bucket,
+    file.s3_key,
+    main.data,
+    main.mime,
+  );
+  const results = await Promise.allSettled([mainPut, ...derived]);
+  const failed = results.find(
+    (r): r is PromiseRejectedResult => r.status === 'rejected',
+  );
+  if (!failed) return { avifTwins: await twins };
+  if (results[0].status === 'fulfilled') {
+    try {
+      await storage.put(
+        file.s3_bucket,
+        file.s3_key,
+        original.data,
+        original.mime,
+      );
+    } catch (err) {
+      logger.warn(
+        { fileId: file.id, err },
+        'The upload could not be put back after a failed store',
+      );
+    }
+  }
+  throw failed.reason;
 }
 
 /** Owner 2026-10-25: the AVIF twins (`images.avif_enabled`). A failure
@@ -47,7 +92,10 @@ async function putAvifTwins(
   logger: Pick<PinoLogger, 'warn'>,
   file: Pick<File, 'id' | 's3_bucket' | 's3_key'>,
   processed: ProcessedFile,
-): Promise<void> {
+): Promise<boolean> {
+  const sizes = [processed.main, ...processed.variants.values()];
+  const complete =
+    processed.main !== null && sizes.every((img) => img?.avif !== undefined);
   try {
     const twins: Promise<void>[] = [];
     if (processed.main?.avif) {
@@ -72,7 +120,9 @@ async function putAvifTwins(
       );
     }
     await Promise.all(twins);
+    return complete;
   } catch (err) {
     logger.warn({ fileId: file.id, err }, 'AVIF twins not stored');
+    return false;
   }
 }

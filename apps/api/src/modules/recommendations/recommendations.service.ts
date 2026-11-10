@@ -11,15 +11,22 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { cached } from '../../common/cache/cached';
 import {
+  type Assignment,
+  ExperimentsService,
+} from '../experiments/experiments.service';
+import { RankingEventsService } from '../experiments/ranking-events.service';
+import {
   type CaseCandidate,
   type CaseViewer,
   CASE_WEIGHTS,
+  caseFeatures,
   caseScore,
 } from './cases.scoring';
 import {
   type PeopleViewer,
   PEOPLE_WEIGHTS,
   type PersonCandidate,
+  personFeatures,
   personScore,
 } from './people.scoring';
 import {
@@ -27,6 +34,7 @@ import {
   type PostCandidate,
   type PostKind,
   POST_WEIGHTS,
+  postFeatures,
   type PostViewer,
   hotRaw,
   postScore,
@@ -140,6 +148,29 @@ const toPerson = (r: PersonRow): PersonCandidate => ({
   contact: Number(r.contact),
 });
 
+export type RecoKind = 'case' | 'people' | 'post';
+
+/** The experiment surface (admin «Эксперименты» → «где») of each formula. */
+export const RECO_SURFACE: Record<RecoKind, string> = {
+  case: 'case_feed',
+  people: 'people',
+  post: 'posts',
+};
+
+/** Put on logged impressions: which formula ranked the list. */
+export const RECO_FORMULA: Record<RecoKind, string> = {
+  case: 'cases-2026-10',
+  people: 'people-2026-10',
+  post: 'posts-2026-10',
+};
+
+/** Cache key part of a variant: a variant's list is never served to control. */
+export const variantSuffix = (a: Assignment | null | undefined): string =>
+  a ? `:x:${a.experimentKey}:${a.variant}` : '';
+
+const featuresKey = (kind: RecoKind, viewerId: string) =>
+  `reco:f:${kind}:${viewerId}`;
+
 /**
  * Owner 2026-10-13: the recommendation algorithms of Search — people,
  * posts, cases — "like Instagram, but ours". One service, one weighted
@@ -156,7 +187,108 @@ export class RecommendationsService {
     @Optional() private readonly settings?: AppSettingsService,
     // R-401: the nightly Q&A ranking snapshot (read only here).
     @Optional() private readonly qaSnapshot?: QaSnapshotService,
+    // Owner 2026-11-08: A/B tests change the formula's weights per variant.
+    @Optional() private readonly experiments?: ExperimentsService,
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
+
+  /**
+   * The viewer's variant in the running test of [kind]'s surface (null =
+   * not in a test: the admin's weights as they are). Records the exposure.
+   */
+  async assignmentFor(
+    viewerId: string,
+    kind: RecoKind,
+  ): Promise<Assignment | null> {
+    if (!this.experiments) return null;
+    return this.experiments.assignSurface(viewerId, RECO_SURFACE[kind]);
+  }
+
+  /**
+   * A ranked page of [kind] was served to the viewer: logs one impression
+   * per item at its place (with the variant and the features), so the
+   * nightly experiment report and the replay have data. Never throws; the
+   * caller does not wait for it.
+   */
+  async logServed(
+    viewerId: string,
+    kind: RecoKind,
+    ids: readonly string[],
+    offset: number,
+  ): Promise<void> {
+    try {
+      const ev = this.rankingEvents;
+      if (!ev || ids.length === 0) return;
+      if (!(await ev.keepsImpressionsOf(viewerId))) return;
+      const [assignment, features] = await Promise.all([
+        this.assignmentFor(viewerId, kind),
+        this.featuresFor(viewerId, kind, ids),
+      ]);
+      await ev.logList({
+        userId: viewerId,
+        surface: RECO_SURFACE[kind],
+        itemIds: ids,
+        offset,
+        assignment,
+        formulaVersion: RECO_FORMULA[kind],
+        features,
+      });
+    } catch {
+      // the log never hurts the list
+    }
+  }
+
+  /**
+   * The 0..1 features each item of [ids] had when it was ranked for the
+   * viewer (kept only while impressions of this viewer are logged), for the
+   * offline replay of new weights.
+   */
+  async featuresFor(
+    viewerId: string,
+    kind: RecoKind,
+    ids: readonly string[],
+  ): Promise<Map<string, Record<string, number>>> {
+    const out = new Map<string, Record<string, number>>();
+    if (ids.length === 0) return out;
+    try {
+      const raw = await this.redis.hmget(featuresKey(kind, viewerId), ...ids);
+      raw.forEach((r, i) => {
+        if (r) out.set(ids[i], JSON.parse(r) as Record<string, number>);
+      });
+    } catch {
+      // no features: the impressions are logged without them
+    }
+    return out;
+  }
+
+  private async keepFeatures(
+    viewerId: string,
+    kind: RecoKind,
+    rows: Array<[string, Record<string, number>]>,
+    ttlSec: number,
+  ): Promise<void> {
+    try {
+      if (rows.length === 0 || !this.rankingEvents) return;
+      if (!(await this.rankingEvents.keepsImpressionsOf(viewerId))) return;
+      const key = featuresKey(kind, viewerId);
+      const flat = rows.flatMap(([id, f]) => [
+        id,
+        JSON.stringify(
+          Object.fromEntries(
+            Object.entries(f).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]),
+          ),
+        ),
+      ]);
+      await this.redis
+        .multi()
+        .del(key)
+        .hset(key, ...flat)
+        .expire(key, ttlSec)
+        .exec();
+    } catch {
+      // best effort
+    }
+  }
 
   /** R-401: how much the Q&A snapshot adds on top of the people score. */
   private async qaPeopleWeights(): Promise<{ qa: number; qaTopic: number }> {
@@ -168,16 +300,24 @@ export class RecommendationsService {
     };
   }
 
-  /** The admin's weights for [kind] (the built-in ones when unset). */
+  /**
+   * The admin's weights for [kind] (the built-in ones when unset), with the
+   * viewer's experiment variant on top (its overrides of known weights).
+   */
   private async weights<T extends Record<string, number>>(
-    kind: 'case' | 'people' | 'post',
+    kind: RecoKind,
     base: T,
+    variant?: Assignment | null,
   ): Promise<T> {
     const s = this.settings;
-    if (!s) return base;
-    const out: Record<string, number> = {};
-    for (const k of Object.keys(base)) {
-      out[k] = await s.number(`reco.${kind}.${k}` as AppSettingKey);
+    const out: Record<string, number> = { ...base };
+    if (s) {
+      for (const k of Object.keys(base)) {
+        out[k] = await s.number(`reco.${kind}.${k}` as AppSettingKey);
+      }
+    }
+    for (const [k, v] of Object.entries(variant?.weights ?? {})) {
+      if (Object.prototype.hasOwnProperty.call(base, k)) out[k] = v;
     }
     return out as T;
   }
@@ -278,14 +418,22 @@ export class RecommendationsService {
    * followed, not blocked either way. Cached per viewer; a follow made
    * after the build is filtered out by the caller.
    */
-  peopleFor(viewerId: string): Promise<string[]> {
-    return this.cached(`reco:people:${viewerId}`, PEOPLE_TTL_SEC, async () => {
+  async peopleFor(viewerId: string): Promise<string[]> {
+    const variant = await this.assignmentFor(viewerId, 'people');
+    const key = `reco:people:${viewerId}${variantSuffix(variant)}`;
+    return this.cached(key, PEOPLE_TTL_SEC, async () => {
       const [viewer, candidates] = await Promise.all([
         this.peopleViewer(viewerId),
         this.peopleCandidates(viewerId, { suggest: true }),
       ]);
       const now = Date.now();
-      const w = await this.weights('people', PEOPLE_WEIGHTS);
+      const w = await this.weights('people', PEOPLE_WEIGHTS, variant);
+      await this.keepFeatures(
+        viewerId,
+        'people',
+        candidates.map((c) => [c.id, personFeatures(c, viewer, now)]),
+        PEOPLE_TTL_SEC,
+      );
       // R-401: answers to clients' questions lift an attorney — read from
       // the nightly snapshot (empty / flag off = nothing added).
       const [qa, qw] = await Promise.all([
@@ -324,7 +472,11 @@ export class RecommendationsService {
       this.peopleCandidates(viewerId, { ids }),
     ]);
     const now = Date.now();
-    const w = await this.weights('people', PEOPLE_WEIGHTS);
+    const w = await this.weights(
+      'people',
+      PEOPLE_WEIGHTS,
+      await this.assignmentFor(viewerId, 'people'),
+    );
     const [qa, qw] = await Promise.all([
       this.qaSnapshot?.attorneyScores(ids) ??
         new Map<string, QaAttorneyEntry>(),
@@ -480,8 +632,9 @@ export class RecommendationsService {
     } catch {
       // unreadable: the built-in default
     }
-    if (!pin) return this.postsFor(viewerId, where, filterKey);
-    const key = `reco:posts:pin:${viewerId}:${hashOf(filterKey)}`;
+    const variant = await this.assignmentFor(viewerId, 'post');
+    if (!pin) return this.postsFor(viewerId, where, filterKey, variant);
+    const key = `reco:posts:pin:${viewerId}:${hashOf(filterKey)}${variantSuffix(variant)}`;
     if (offset > 0) {
       try {
         const raw = await this.redis.get(key);
@@ -493,7 +646,7 @@ export class RecommendationsService {
         // cache down or garbage: rebuild below
       }
     }
-    const ids = await this.postsFor(viewerId, where, filterKey);
+    const ids = await this.postsFor(viewerId, where, filterKey, variant);
     // Pinned on the first page, or re-pinned when the copy was lost.
     await Promise.resolve()
       .then(() =>
@@ -512,9 +665,10 @@ export class RecommendationsService {
     viewerId: string,
     where: Prisma.PostWhereInput,
     filterKey: unknown,
+    variant: Assignment | null = null,
   ): Promise<string[]> {
     return this.cached(
-      `reco:posts:${viewerId}:${hashOf(filterKey)}`,
+      `reco:posts:${viewerId}:${hashOf(filterKey)}${variantSuffix(variant)}`,
       LISTING_TTL_SEC,
       async () => {
         const rows = await this.prisma.post.findMany({
@@ -572,8 +726,17 @@ export class RecommendationsService {
           seen,
         };
         const now = Date.now();
-        const w = await this.weights('post', POST_WEIGHTS);
+        const w = await this.weights('post', POST_WEIGHTS, variant);
         const hotMax = Math.max(0, ...candidates.map((c) => hotRaw(c, now)));
+        await this.keepFeatures(
+          viewerId,
+          'post',
+          candidates.map((c) => [
+            c.id,
+            postFeatures(c, authors.get(c.authorId), viewer, hotMax, now),
+          ]),
+          LISTING_TTL_SEC,
+        );
         const scored: Scored<PostCandidate>[] = candidates
           // Own posts are not "discovery".
           .filter((c) => c.authorId !== viewerId)
@@ -650,14 +813,15 @@ export class RecommendationsService {
    * caller) in the order an attorney is most likely to want them.
    * Cached per attorney and filter set.
    */
-  casesFor(
+  async casesFor(
     attorneyId: string,
     candidates: string[],
     filterKey: unknown,
   ): Promise<string[]> {
-    if (candidates.length === 0) return Promise.resolve([]);
+    if (candidates.length === 0) return [];
+    const variant = await this.assignmentFor(attorneyId, 'case');
     return this.cached(
-      `reco:cases:${attorneyId}:${hashOf(filterKey)}`,
+      `reco:cases:${attorneyId}:${hashOf(filterKey)}${variantSuffix(variant)}`,
       LISTING_TTL_SEC,
       async () => {
         const [rows, viewer] = await Promise.all([
@@ -690,7 +854,7 @@ export class RecommendationsService {
         });
         const byClient = new Map(clients.map((c) => [c.user_id, c]));
         const now = Date.now();
-        const w = await this.weights('case', CASE_WEIGHTS);
+        const w = await this.weights('case', CASE_WEIGHTS, variant);
         // R-401: cases of the topics this attorney answers questions in.
         const [mineQa, qaW] = await Promise.all([
           this.qaSnapshot?.attorneyScores([attorneyId]) ??
@@ -730,6 +894,12 @@ export class RecommendationsService {
                 qaCaseBoost(myQa, c.categoryId, qaW),
             };
           },
+        );
+        await this.keepFeatures(
+          attorneyId,
+          'case',
+          scored.map((x) => [x.item.id, caseFeatures(x.item, viewer, now)]),
+          LISTING_TTL_SEC,
         );
         return diversify(scored, {
           key: (c) => c.category,
@@ -892,8 +1062,13 @@ export class RecommendationsService {
                WHERE j.group_id = g.id AND j.left_at IS NULL
                  AND j.user_id = ANY(${circle}::UUID[])) AS mutual
       FROM chat_groups g
-      JOIN chat_group_members own
-        ON own.group_id = g.id AND own.role = 'owner' AND own.left_at IS NULL
+      -- Perf guard 2026-11-08: a LATERAL lookup of the owner keeps the
+      -- groups in the order of their index (chat_groups_discover_*), so
+      -- the LIMIT stops after a page; a plain join hashed every owner row
+      -- of every group first (a full scan of chat_group_members at 10M).
+      CROSS JOIN LATERAL (SELECT o.user_id FROM chat_group_members o
+        WHERE o.group_id = g.id AND o.role = 'owner' AND o.left_at IS NULL
+        LIMIT 1) own
       WHERE g.group_type = 'public' AND g.deleted_at IS NULL
         AND g.member_count > 0
         AND NOT EXISTS (SELECT 1 FROM chat_group_members me

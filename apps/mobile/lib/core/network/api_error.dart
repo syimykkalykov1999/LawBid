@@ -109,6 +109,7 @@ abstract final class ApiErrorCodes {
 
   // Cost protection (docs/COST_PROTECTION.md)
   static const providerBudgetExceeded = 'PROVIDER_BUDGET_EXCEEDED';
+  static const identityProviderUnavailable = 'IDENTITY_PROVIDER_UNAVAILABLE';
   static const phoneCountryNotSupported = 'PHONE_COUNTRY_NOT_SUPPORTED';
 
   // Countries (owner 2026-10-05): LawBid is not open there yet.
@@ -422,6 +423,7 @@ abstract final class ApiErrorCodes {
     i18nLanguageNotFound,
     i18nImportInvalid,
     providerBudgetExceeded,
+    identityProviderUnavailable,
     phoneCountryNotSupported,
     countryNotAvailable,
     reviewCaseNotClosed,

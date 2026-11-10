@@ -37,6 +37,7 @@ import {
   UpdateFormTemplateDto,
 } from './form-templates.dto';
 import { FormTemplatesService } from './form-templates.service';
+import { RequiresDuty } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -48,6 +49,7 @@ const E = ErrorCode;
 export class CaseDocumentsController {
   constructor(private readonly templates: FormTemplatesService) {}
 
+  @RequiresDuty('cases')
   @Get('templates')
   @ApiOperation({
     summary: 'Published templates with their fields, and what the app prefills',
@@ -61,6 +63,7 @@ export class CaseDocumentsController {
     return this.templates.listForCase(u, p.id);
   }
 
+  @RequiresDuty('cases')
   @Post('build')
   @ApiOperation({
     summary: 'Attorney: fill a template and get a PDF in the case files',

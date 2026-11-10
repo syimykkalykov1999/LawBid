@@ -36,6 +36,7 @@ import {
   type Page,
 } from './dto/mine.dto';
 import { MineService } from './mine.service';
+import { RequiresDuty } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -54,6 +55,7 @@ export class MineController {
     private readonly versionEtag: VersionEtagService,
   ) {}
 
+  @RequiresDuty('cases')
   @Get('users/me/cases/:id')
   @ApiOperation({ summary: "Owner's case detail (docs/04 §11.1)" })
   @ApiEnvelopeResponse(OwnerCaseDetailDto)
@@ -78,6 +80,7 @@ export class MineController {
     );
   }
 
+  @RequiresDuty('cases', 'bids', 'bid_drafts')
   @Get('users/me/bids')
   @ApiOperation({ summary: '"My bids" (attorney, docs/04 §11.2)' })
   @ApiEnvelopeResponse(MyBidItemDto, { isArray: true })
@@ -96,6 +99,7 @@ export class MineController {
     );
   }
 
+  @RequiresDuty('cases')
   @Get('users/me/work')
   @ApiOperation({ summary: '"In progress" / "Completed" (attorney, §11.2)' })
   @ApiEnvelopeResponse(WorkItemDto, { isArray: true })
@@ -114,6 +118,7 @@ export class MineController {
     );
   }
 
+  @RequiresDuty('cases')
   @Get('saved-items')
   @ApiOperation({ summary: 'Saved cases (docs/04 §11.2 "Сохранённое")' })
   @ApiEnvelopeResponse(SavedCaseItemDto, { isArray: true })
@@ -125,6 +130,7 @@ export class MineController {
     return this.mine.savedCases(user, query.cursor, query.limit, query);
   }
 
+  @RequiresDuty('chats')
   @Post('cases/:id/conversation')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '"Message the client" (attorney, docs/04 §9)' })

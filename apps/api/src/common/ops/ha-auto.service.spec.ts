@@ -1,6 +1,8 @@
 import {
   decideHa,
+  haMoneyHold,
   HA_FLIP_MS,
+  HA_USD_MONTH,
   HaAutoService,
   wantedHa,
   type HaFacts,
@@ -23,6 +25,44 @@ const full = {
   db: { multiAz: true, available: true, pending: false },
   redis: { replicas: 1, failover: true, available: true },
 };
+
+describe('G10: the copies have their own money check', () => {
+  it('economy limited: nothing is added in Авто, removing still works', () => {
+    const money = { limited: true, budgetLeftUsd: 500 };
+    expect(decideHa({ ...base, money })).toEqual([]);
+    expect(haMoneyHold({ ...base, money })).toContain('limited');
+    expect(decideHa({ ...quiet, ...full, money })).toEqual([
+      'db_multi_az_off',
+      'redis_failover_off',
+    ]);
+  });
+
+  it('AWS budget left below their monthly cost: held; enough left: added', () => {
+    expect(
+      decideHa({
+        ...base,
+        money: { limited: false, budgetLeftUsd: HA_USD_MONTH - 1 },
+      }),
+    ).toEqual([]);
+    expect(
+      decideHa({ ...base, money: { limited: false, budgetLeftUsd: 100 } }),
+    ).toEqual(['db_multi_az_on', 'redis_replica_up']);
+    // unknown budget never blocks
+    expect(
+      decideHa({ ...base, money: { limited: false, budgetLeftUsd: null } }),
+    ).toEqual(['db_multi_az_on', 'redis_replica_up']);
+  });
+
+  it("«Вкл» is the owner's choice: money does not hold it", () => {
+    expect(
+      decideHa({
+        ...base,
+        mode: 'on',
+        money: { limited: true, budgetLeftUsd: 0 },
+      }),
+    ).toEqual(['db_multi_az_on', 'redis_replica_up']);
+  });
+});
 
 describe('decideHa: adding copies', () => {
   it('adds both after 3 busy hours', () => {
@@ -200,5 +240,32 @@ describe('HaAutoService', () => {
     const svc = new HaAutoService({ get: () => undefined } as never);
     svc.onModuleInit();
     await expect(svc.check()).resolves.toEqual([]);
+  });
+});
+
+describe('owner 2026-11-09: money holds the copies only with a sum he typed', () => {
+  const money = (cap: number) => {
+    const ops = {
+      economy: jest.fn(() => Promise.resolve({ guard: 'limited' })),
+      cost: jest.fn(() =>
+        Promise.resolve({ limitUsd: 450, forecastUsd: 449, actualUsd: 100 }),
+      ),
+    };
+    const settings = { number: jest.fn(() => Promise.resolve(cap)) };
+    const svc = new HaAutoService(
+      { get: () => undefined } as never,
+      undefined,
+      settings as never,
+      ops as never,
+    );
+    return (svc as unknown as { money(): Promise<unknown> }).money();
+  };
+
+  it('no sum (0): no money facts, so nothing holds the copies back', async () => {
+    expect(await money(0)).toBeUndefined();
+  });
+
+  it('a sum typed: the economy and AWS budget readings count again', async () => {
+    expect(await money(300)).toEqual({ limited: true, budgetLeftUsd: 1 });
   });
 });

@@ -17,13 +17,21 @@ import 'package:lawbid/core/network/api_error.dart';
 /// app» (core/l10n/api_error_text.dart). After that answer the next
 /// attempt asks the SDK for a fresh token instead of the cached one.
 class AppCheckInterceptor extends Interceptor {
-  AppCheckInterceptor({required this.token});
+  AppCheckInterceptor({required this.token, this.status});
 
   /// The current token, or null when there is none
   /// (core/security/app_check.dart).
   final Future<String?> Function({bool forceRefresh}) token;
 
+  /// Why [token] gave nothing (core/security/app_check.dart, `status`).
+  final String? Function()? status;
+
   static const header = 'X-Firebase-AppCheck';
+
+  /// 2026-11-08: sent instead of [header] when there is no token, so the
+  /// server log (`metric: app_check`, `clientStatus`) shows which step
+  /// fails on real phones. Never blocks anything.
+  static const statusHeader = 'X-Firebase-AppCheck-Status';
 
   /// The routes the server verifies (relative to `/api/v1`).
   static const routes = [
@@ -60,12 +68,26 @@ class AppCheckInterceptor extends Interceptor {
       final forceRefresh = _refreshNext;
       _refreshNext = false;
       final t = await token(forceRefresh: forceRefresh);
-      if (t != null && t.isNotEmpty) options.headers[header] = t;
+      if (t != null && t.isNotEmpty) {
+        options.headers[header] = t;
+      } else {
+        _putStatus(options, () => status?.call() ?? 'none');
+      }
     } on Object catch (e) {
       // Never block sign-in over the attestation: send nothing, log.
       debugPrint('app check: header skipped ($e)');
+      _putStatus(options, () => 'interceptor: ${e.runtimeType}');
     }
     handler.next(options);
+  }
+
+  /// Only when a [status] source was given (the phones; not the web).
+  void _putStatus(RequestOptions options, String Function() value) {
+    if (status == null) return;
+    final clean = value().replaceAll(RegExp(r'[^\x20-\x7E]'), ' ').trim();
+    if (clean.isEmpty) return;
+    options.headers[statusHeader] =
+        clean.length <= 120 ? clean : clean.substring(0, 120);
   }
 
   @override

@@ -33,6 +33,9 @@ MediaCheckDto _$MediaCheckDtoFromJson(Map<String, dynamic> json) =>
       previewUrl: json['previewUrl'] as String?,
       createdAt: json['createdAt'] as String,
       checkedAt: json['checkedAt'] as String?,
+      csamReportStatus: json['csamReportStatus'] as String?,
+      csamExternalReportId: json['csamExternalReportId'] as String?,
+      csamReportError: json['csamReportError'] as String?,
     );
 
 Map<String, dynamic> _$MediaCheckDtoToJson(MediaCheckDto instance) =>
@@ -54,4 +57,7 @@ Map<String, dynamic> _$MediaCheckDtoToJson(MediaCheckDto instance) =>
       'previewUrl': ?instance.previewUrl,
       'createdAt': instance.createdAt,
       'checkedAt': ?instance.checkedAt,
+      'csamReportStatus': ?instance.csamReportStatus,
+      'csamExternalReportId': ?instance.csamExternalReportId,
+      'csamReportError': ?instance.csamReportError,
     };

@@ -30,7 +30,10 @@ import {
   type CommentPage,
 } from './comments.dto';
 import { CommentsService } from './comments.service';
-import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -42,6 +45,7 @@ const E = ErrorCode;
 export class CommentsController {
   constructor(private readonly comments: CommentsService) {}
 
+  @AssistantAllowed()
   @Get('posts/:id/comments')
   @ApiOperation({ summary: 'Top-level comments, newest first (docs/05 §5.3)' })
   @ApiEnvelopeResponse(CommentDto, { isArray: true })
@@ -54,6 +58,7 @@ export class CommentsController {
     return this.comments.list(user.sub, p.id, q.cursor);
   }
 
+  @AssistantAllowed()
   @Get('comments/:id/replies')
   @ApiOperation({ summary: 'Replies of a comment (docs/05 §5.3)' })
   @ApiEnvelopeResponse(CommentDto, { isArray: true })
@@ -101,6 +106,7 @@ export class CommentsController {
     return this.comments.remove(user.sub, p.id);
   }
 
+  @AttorneyOnly('publish')
   @Post('comments/:id/like')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Like a comment (idempotent)' })
@@ -112,6 +118,7 @@ export class CommentsController {
     return this.comments.like(user.sub, p.id);
   }
 
+  @AttorneyOnly('publish')
   @Delete('comments/:id/like')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove a comment like (idempotent)' })

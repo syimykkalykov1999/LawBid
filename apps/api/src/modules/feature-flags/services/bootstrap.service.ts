@@ -5,6 +5,7 @@ import type { I18nLanguage, LegalDocument } from '@prisma/client';
 import type Redis from 'ioredis';
 import { weakEtag } from '../../../common/sync/cheap-etag';
 import {
+  APP_SETTINGS,
   OWNER_CACHE_SETTINGS,
   OWNER_DEAL_RECORD_SETTINGS,
 } from '../../../common/app-settings/app-settings.defaults';
@@ -156,6 +157,11 @@ export const PUBLIC_CONFIG_PREFIXES = [
   'deal_record.',
   'bids.rich_terms_enabled',
   'bids.confirmation_required',
+  // Feature reality audit 2026-11-08: the app reads these two limits
+  // (stories_providers.dart, channel_compose.dart) but they never reached
+  // it, so an admin change was enforced by the server only.
+  'stories.max_video_sec',
+  'channels.max_post_media',
 ] as const;
 
 @Injectable()
@@ -294,8 +300,9 @@ export class BootstrapService {
 
   /** Owner 2026-10-04/05: a "Translate" button shows only while the
    * translator is on (`chat_translate`), the Google key is saved and its
-   * zone is allowed (Ключи и сервисы → Google Translate). One flag per
-   * zone: `chat_translate` for chats, `translate_<zone>` for the rest. */
+   * zone is allowed (Ключи и сервисы → Google Translate). Owner 2026-11-08
+   * (one control): `chat_translate` = the master (flag and key), and one
+   * `translate_<zone>` per zone, chats included, that follows it. */
   private async withTranslateGate(
     flags: Record<string, boolean>,
     appConfig: Record<string, unknown>,
@@ -303,7 +310,7 @@ export class BootstrapService {
     const on =
       !!flags[TRANSLATE_FLAG] &&
       !!(await this.secrets?.get('google_translate'))?.fields.apiKey;
-    const out = { ...flags };
+    const out: Record<string, boolean> = { ...flags, [TRANSLATE_FLAG]: on };
     for (const zone of TRANSLATE_ZONES) {
       out[zoneFlag(zone)] = on && zoneAllowed(appConfig, zone);
     }
@@ -339,6 +346,34 @@ export class BootstrapService {
   }
 
   /** The two client guest switches, forced off while the master is off. */
+  /**
+   * Owner 2026-11-09 (FR D-c2): the text-message consent wording the admin
+   * keeps under «Соответствие» reaches the app. The version is always told
+   * (the app records it with a consent); the wording and the HELP text
+   * only once the admin stored one — until then the app keeps its own
+   * translated string, so the look does not change by itself.
+   */
+  smsDisclosureKeys(
+    appConfig: Record<string, unknown>,
+  ): Record<string, string> {
+    const text = (key: string): string | undefined => {
+      const v = appConfig[key];
+      return typeof v === 'string' && v.trim().length > 0
+        ? v.trim()
+        : undefined;
+    };
+    const version = text('compliance.sms.disclosure_version');
+    const out: Record<string, string> = {
+      'compliance.sms.disclosure_version':
+        version ?? APP_SETTINGS['compliance.sms.disclosure_version'],
+    };
+    const disclosure = text('compliance.sms.disclosure_text');
+    if (disclosure) out['compliance.sms.disclosure_text'] = disclosure;
+    const help = text('compliance.sms.help_text');
+    if (help) out['compliance.sms.help_text'] = help;
+    return out;
+  }
+
   private guestBrowseKeys(
     appConfig: Record<string, unknown>,
   ): Record<string, boolean> {
@@ -415,6 +450,7 @@ export class BootstrapService {
         // "browse as guest" only while it is on, so an app never offers what
         // the API would answer with 401.
         ...this.guestBrowseKeys(appConfig),
+        ...this.smsDisclosureKeys(appConfig),
         // Owner 2026-10-07 (bug 17): the app shows and checks the admin's
         // upload limits (always present, inside the safe ceilings).
         [UPLOAD_LIMITS_KEY]: sanitizeUploadLimits(appConfig[UPLOAD_LIMITS_KEY]),

@@ -12,7 +12,7 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { VideoAsset, VideoAssetStatus } from '@prisma/client';
+import type { Prisma, VideoAsset, VideoAssetStatus } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { EntitlementsService } from '../plans/entitlements.service';
@@ -33,9 +33,18 @@ import type {
 
 export const VIDEO_FLAG = 'video_posts';
 
-/** Bunny's video status → ours. */
+const STILL_WAITING_MS = 10 * 60_000;
+const WEBHOOK_CHECK_MS = 3600_000;
+
+/**
+ * Bunny's video status → ours. Prod 2026-11-09: a post waited for 4
+ * (every rendition encoded), which for a long HD phone video is many
+ * minutes. Bunny's own rule (stream webhook docs, «Resolution finished»:
+ * the first finished resolution means the video is playable): once
+ * `availableResolutions` lists one rendition, the HLS playlist plays.
+ */
 export function mapBunnyStatus(
-  v: Pick<BunnyVideo, 'status'>,
+  v: Pick<BunnyVideo, 'status'> & { availableResolutions?: string | null },
 ): 'awaiting_upload' | 'processing' | 'ready' | 'failed' {
   switch (v.status) {
     case 0:
@@ -45,10 +54,23 @@ export function mapBunnyStatus(
     case 5:
     case 6:
       return 'failed';
+    case 3:
+    case 8:
+      return playableRenditions(v.availableResolutions) > 0
+        ? 'ready'
+        : 'processing';
     default:
       return 'processing';
   }
 }
+
+/** "360p,720p" → 2; null / "" → 0. */
+function playableRenditions(list: string | null | undefined): number {
+  return (list ?? '').split(',').filter((r) => r.trim().length > 0).length;
+}
+
+/** Called once per stored status change of a video asset. */
+export type VideoAssetListener = (asset: VideoAsset) => Promise<void>;
 
 /**
  * Owner 2026-10-05 — the part of the source a reel plays. null = the
@@ -92,6 +114,10 @@ export function playedSec(
 @Injectable()
 export class VideosService {
   private readonly logger = new Logger(VideosService.name);
+  private readonly listeners: VideoAssetListener[] = [];
+  private readonly waitingSaid = new Map<string, number>();
+  private webhookCheckedAt = 0;
+  private webhookWarned = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -108,6 +134,51 @@ export class VideosService {
     @Optional() private readonly hardStop?: UsageHardStopService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
+
+  /**
+   * Prod 2026-11-09: every status change [refresh] stores reaches the
+   * post that waits for the video, whoever asked Bunny (webhook, sweep,
+   * the composer's GET /videos/:id, GET /posts/:id). Before, only the
+   * webhook and the sweep published the post; a ready asset from the
+   * other paths left it `processing` for good.
+   */
+  onStatusChange(fn: VideoAssetListener): void {
+    this.listeners.push(fn);
+  }
+
+  private async changed(a: VideoAsset): Promise<VideoAsset> {
+    for (const fn of this.listeners) {
+      await fn(a).catch((e: unknown) =>
+        this.logger.warn(`video ${a.id} status listener failed: ${String(e)}`),
+      );
+    }
+    return a;
+  }
+
+  /**
+   * Prod 2026-11-09: the library's webhook points at us (checked at most
+   * once an hour per process; the sweep calls it). Never throws.
+   */
+  async ensureWebhook(now = Date.now()): Promise<void> {
+    if (now - this.webhookCheckedAt < WEBHOOK_CHECK_MS) return;
+    this.webhookCheckedAt = now;
+    try {
+      const keys = await this.bunny.keys();
+      const url = keys ? this.bunny.ownWebhookUrl(keys.webhookToken) : null;
+      if (!url) return;
+      const r = await this.bunny.ensureWebhook(url);
+      if (r === 'set')
+        this.logger.log('Bunny library webhook URL set to this API');
+      if (r === 'no_account_key' && !this.webhookWarned) {
+        this.webhookWarned = true;
+        this.logger.warn(
+          'Bunny webhook URL is not set automatically: save the Account API key (Admin → Integrations → Bunny) or paste the webhook URL in Bunny → Stream → library → API → Webhook URL.',
+        );
+      }
+    } catch (e) {
+      this.logger.warn(`Bunny webhook check failed: ${String(e)}`);
+    }
+  }
 
   /** The flag is on and every Bunny key is set. */
   async isAvailable(): Promise<boolean> {
@@ -379,13 +450,15 @@ export class VideosService {
     }
     const v = await this.bunny.getVideo(a.external_id);
     if (!v) {
-      return this.prisma.videoAsset.update({
-        where: { id: a.id },
+      return this.store(a, {
         data: { status: 'failed', failure_reason: 'missing_at_provider' },
       });
     }
     const next = mapBunnyStatus(v);
-    if (next === a.status) return a;
+    if (next === a.status) {
+      this.sayStillWaiting(a, v);
+      return a;
+    }
     if (next === 'ready') {
       const maxSec = await this.reelMaxSec();
       // The phone said how long it was; Bunny is the truth. A trimmed reel
@@ -398,8 +471,7 @@ export class VideosService {
             ? await this.postMaxSec(maxSec)
             : maxSec;
       if (v.length > limit + 2) {
-        return this.prisma.videoAsset.update({
-          where: { id: a.id },
+        return this.store(a, {
           data: {
             status: 'rejected',
             failure_reason: 'too_long',
@@ -411,8 +483,7 @@ export class VideosService {
       // 3× leaves room for the encoded renditions Bunny stores alongside.
       const maxMb = await this.settings.number('video.max_size_mb');
       if ((v.storageSize || 0) > 3 * maxMb * 1024 * 1024) {
-        return this.prisma.videoAsset.update({
-          where: { id: a.id },
+        return this.store(a, {
           data: {
             status: 'rejected',
             failure_reason: 'too_large',
@@ -420,8 +491,7 @@ export class VideosService {
           },
         });
       }
-      const ready = await this.prisma.videoAsset.update({
-        where: { id: a.id },
+      const ready = await this.store(a, {
         data: {
           status: 'ready',
           duration_sec: Math.round(v.length),
@@ -432,16 +502,51 @@ export class VideosService {
         },
       });
       // Owner 2026-10-22 (audit #4 §5): its thumbnail is checked.
-      await this.moderation?.enqueueVideo(ready.id);
+      if (ready.status === 'ready')
+        await this.moderation?.enqueueVideo(ready.id);
       return ready;
     }
-    return this.prisma.videoAsset.update({
-      where: { id: a.id },
+    return this.store(a, {
       data: {
         status: next,
         ...(next === 'failed' ? { failure_reason: 'encoding_failed' } : {}),
       },
     });
+  }
+
+  /**
+   * Prod 2026-11-09: a video still not playable after 10 min says what
+   * Bunny answers (status, renditions, progress), at most every 10 min.
+   */
+  private sayStillWaiting(a: VideoAsset, v: BunnyVideo): void {
+    const age =
+      a.created_at instanceof Date ? Date.now() - a.created_at.getTime() : 0;
+    if (age < STILL_WAITING_MS) return;
+    const last = this.waitingSaid.get(a.id) ?? 0;
+    if (Date.now() - last < STILL_WAITING_MS) return;
+    if (this.waitingSaid.size > 1000) this.waitingSaid.clear();
+    this.waitingSaid.set(a.id, Date.now());
+    this.logger.warn(
+      `video ${a.id} not playable after ${Math.round(age / 60_000)} min: Bunny status ${v.status}, renditions "${v.availableResolutions ?? ''}", progress ${v.encodeProgress ?? '?'}%`,
+    );
+  }
+
+  /**
+   * Stores a transition only from the status [a] was read with, so two
+   * callers asking Bunny at once (webhook + sweep + the phone) store it
+   * and tell the listeners exactly once; the loser gets the fresh row.
+   */
+  private async store(
+    a: VideoAsset,
+    args: { data: Prisma.VideoAssetUpdateManyMutationInput },
+  ): Promise<VideoAsset> {
+    const { count } = await this.prisma.videoAsset.updateMany({
+      where: { id: a.id, status: a.status },
+      data: args.data,
+    });
+    const row =
+      (await this.prisma.videoAsset.findUnique({ where: { id: a.id } })) ?? a;
+    return count === 1 ? this.changed(row) : row;
   }
 
   async findByExternalId(guid: string): Promise<VideoAsset | null> {
@@ -506,12 +611,36 @@ export class VideosService {
 
   /**
    * `video.reel_max_duration_sec`; an admin who saved only the old single
-   * `video.max_duration_sec` keeps it as the reel limit.
+   * `video.max_duration_sec` keeps it as the reel limit. Feature reality
+   * audit 2026-11-08: with both saved, the one changed last wins (the admin
+   * page still shows the old key; before, editing it did nothing once the
+   * new key existed).
    */
   async reelMaxSec(): Promise<number> {
+    const reel = await this.settings.storedNumber(
+      'video.reel_max_duration_sec',
+    );
+    const legacy = await this.settings.storedNumber('video.max_duration_sec');
+    if (reel !== null && legacy !== null && reel !== legacy) {
+      const rows = await this.prisma.appConfig
+        .findMany({
+          where: {
+            key: {
+              in: ['video.reel_max_duration_sec', 'video.max_duration_sec'],
+            },
+          },
+          select: { key: true, updated_at: true },
+        })
+        .catch(() => []);
+      const at = (k: string) =>
+        rows.find((r) => r.key === k)?.updated_at.getTime() ?? 0;
+      return at('video.max_duration_sec') > at('video.reel_max_duration_sec')
+        ? legacy
+        : reel;
+    }
     return (
-      (await this.settings.storedNumber('video.reel_max_duration_sec')) ??
-      (await this.settings.storedNumber('video.max_duration_sec')) ??
+      reel ??
+      legacy ??
       (await this.settings.number('video.reel_max_duration_sec'))
     );
   }

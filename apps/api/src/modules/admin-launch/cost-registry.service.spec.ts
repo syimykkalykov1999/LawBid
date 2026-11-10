@@ -145,9 +145,10 @@ describe('CostRegistryService status dots', () => {
     const { svc, ops } = make();
     const r = await svc.report(NOW);
     const by = (id: string) => r.rows.find((x) => x.id === id)!.status;
+    // Owner 2026-11-09: the Bunny upload stop is off by default.
     expect(by('vendor.bunny')).toMatchObject({
       live: 'attention',
-      state: 'auto',
+      state: 'off',
     });
     expect(by('vendor.bunny').reason).toContain('Bunny');
     expect(by('aws.db_autoscale').live).toBe('idle');
@@ -220,6 +221,37 @@ describe('CostRegistryService.setMode', () => {
     await svc.setMode('a', null, 'aws.db_autoscale', 'off');
     expect(ssm.setMode).toHaveBeenLastCalledWith('db', 'off');
     expect(audit.record).toHaveBeenCalledTimes(3);
+  });
+
+  it('G2: «Запуски автомасштабов» switches the database AND the Redis Lambda', async () => {
+    const { svc, ssm, audit } = make();
+    await svc.setMode('a', null, 'hidden.autoscale_lambdas', 'off');
+    expect(ssm.setMode).toHaveBeenCalledWith('db', 'off');
+    expect(ssm.setMode).toHaveBeenCalledWith('redis', 'off');
+    expect(ssm.setMode).toHaveBeenCalledTimes(2);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        after: expect.objectContaining({ targets: ['db', 'redis'] }),
+      }),
+    );
+  });
+
+  it('G2: the row shows one state when both agree, none when they differ', async () => {
+    const same = make();
+    const row = (await same.svc.report(NOW)).rows.find(
+      (x) => x.id === 'hidden.autoscale_lambdas',
+    )!;
+    expect(row.state).toBe('auto');
+    expect(row.editable).toBe(true);
+
+    const split = make();
+    split.ssm.getMode.mockImplementation((t: string) =>
+      Promise.resolve(t === 'db' ? 'on' : 'off'),
+    );
+    const r2 = (await split.svc.report(NOW)).rows.find(
+      (x) => x.id === 'hidden.autoscale_lambdas',
+    )!;
+    expect(r2.state).toBeNull();
   });
 
   it('refuses unknown ids, tfvars items, unsupported states and a missing AWS switch', async () => {

@@ -54,6 +54,7 @@ import {
   SubmitClientBadgeDto,
 } from './client-badge.dto';
 import { ClientBadgeService } from './client-badge.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -65,6 +66,7 @@ const E = ErrorCode;
 export class ClientBadgeController {
   constructor(private readonly badge: ClientBadgeService) {}
 
+  @AttorneyOnly()
   @Get('me')
   @ApiOperation({ summary: 'My badge request, subscription and price' })
   @ApiEnvelopeResponse(ClientBadgeStateDto)
@@ -75,6 +77,7 @@ export class ClientBadgeController {
     return this.badge.state(user.sub);
   }
 
+  @AttorneyOnly()
   @Post('submit')
   @ApiOperation({ summary: 'Send documents for review (up to 5 files)' })
   @ApiEnvelopeResponse(ClientBadgeStateDto)
@@ -93,6 +96,7 @@ export class ClientBadgeController {
   // Security research #5 (2026-10-22), A11: card testing — a stolen-card
   // script creating checkouts in a loop (each attempt costs a Stripe fee).
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @AttorneyOnly()
   @Post('checkout')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
@@ -110,6 +114,7 @@ export class ClientBadgeController {
     return this.badge.checkout(user.sub, apiBaseOf(req));
   }
 
+  @AttorneyOnly()
   @Post('cancel')
   @ApiOperation({
     summary: 'Stop renewing; the badge stays until the period ends',
@@ -122,6 +127,7 @@ export class ClientBadgeController {
     return this.badge.setCancel(user.sub, true);
   }
 
+  @AttorneyOnly()
   @Post('resume')
   @ApiOperation({ summary: 'Keep renewing after a cancel' })
   @ApiEnvelopeResponse(ClientBadgeStateDto)

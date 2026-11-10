@@ -16,6 +16,12 @@ import { SecretsService } from '../../../common/secrets/secrets.service';
  * `FirebaseAppCheck.instance.getToken()`). docs/runbooks/APP_CHECK.md. */
 export const APP_CHECK_HEADER = 'x-firebase-appcheck';
 
+/** 2026-11-08: sent by the phone app INSTEAD of [APP_CHECK_HEADER] when it
+ * has no token: one short line saying which step failed on the device
+ * (`off: …` = activation, `error: …` = token). Logged only, never trusted
+ * for any decision. */
+export const APP_CHECK_STATUS_HEADER = 'x-firebase-appcheck-status';
+
 /** What the server concluded about one request's token. */
 export type AppCheckVerdict =
   /** A current token signed by Firebase for our project. */

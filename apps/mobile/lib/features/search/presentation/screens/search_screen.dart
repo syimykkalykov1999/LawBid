@@ -39,6 +39,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 enum SearchTab { attorneys, cases, posts, tags }
@@ -208,7 +209,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       (SearchTab.attorneys, t.t('search.tab.people')),
       // Owner 2026-09-30: cases are searched by attorneys only; a client
       // sees their own cases in "Mine".
-      if (attorney) (SearchTab.cases, t.t('search.tab.cases')),
+      // Audit 2026-11-08 (L2), like the Feed's Cases tab: an assistant
+      // searches cases only with the "cases" duty.
+      if (attorney && ref.watch(canDoProvider(AssistantDuty.cases)))
+        (SearchTab.cases, t.t('search.tab.cases')),
       (SearchTab.posts, t.t('search.tab.posts')),
       (SearchTab.tags, t.t('search.tab.tags')),
     ];

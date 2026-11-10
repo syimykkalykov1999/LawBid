@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { Injectable } from '@nestjs/common';
 import sharp from 'sharp';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
@@ -128,8 +130,88 @@ function assertPixels(width: number, height: number): void {
   }
 }
 
+/**
+ * CPU cores this process may really use: the container's quota (cgroup v2
+ * `cpu.max`, v1 `cpu.cfs_quota_us` / `cpu.cfs_period_us` — what ECS Fargate
+ * sets from the task's `cpu`), else the cores Node sees. A 0.5 vCPU task
+ * reports 0.5 here although the machine shows two cores.
+ */
+export function usableCores(
+  read: (path: string) => string = (p) => readFileSync(p, 'utf8'),
+  visible: () => number = availableParallelism,
+): number {
+  try {
+    const [quota, period] = read('/sys/fs/cgroup/cpu.max').trim().split(/\s+/);
+    if (quota !== 'max' && Number(period) > 0) {
+      return Number(quota) / Number(period);
+    }
+  } catch {
+    // not cgroup v2
+  }
+  try {
+    const quota = Number(read('/sys/fs/cgroup/cpu/cpu.cfs_quota_us'));
+    const period = Number(read('/sys/fs/cgroup/cpu/cpu.cfs_period_us'));
+    if (quota > 0 && period > 0) return quota / period;
+  } catch {
+    // no cgroup v1 quota either
+  }
+  return visible();
+}
+
+/**
+ * Owner 2026-11-09 («фото обрабатываются долго»): the sizes of one picture
+ * (and their AVIF twins) are encoded at once only where there are cores to
+ * run them on. Measured: at once costs 15–35 % more CPU in total (09.11,
+ * bench in the PR), so on a container under two cores it would be slower.
+ */
+let atOnceCache: boolean | undefined;
+export function encodeAtOnce(): boolean {
+  return (atOnceCache ??= usableCores() >= 2);
+}
+
+/**
+ * Every size of one picture; a size whose output is the same as another's —
+ * a 1000 px photo is 1000 px as «main» and as «1080» — is encoded only once
+ * and shares its bytes. [outSide] is the long side a size really comes out
+ * at (never upscaled). [atOnce]: all sizes in parallel (sharp pipelines that
+ * share the decoded pixels), else one after another.
+ */
+async function sizesAtOnce(
+  mainPx: number,
+  variantPx: readonly number[],
+  outSide: (px: number) => number,
+  make: (px: number) => Promise<ProcessedImage>,
+  atOnce: boolean,
+): Promise<{ main: ProcessedImage; variants: Map<number, ProcessedImage> }> {
+  const bySide = new Map<number, Promise<ProcessedImage>>();
+  const once = async (px: number): Promise<ProcessedImage> => {
+    const side = outSide(px);
+    let job = bySide.get(side);
+    if (!job) {
+      job = make(px);
+      bySide.set(side, job);
+    }
+    return job;
+  };
+  const all = [mainPx, ...variantPx];
+  const done: ProcessedImage[] = [];
+  if (atOnce) {
+    done.push(...(await Promise.all(all.map(once))));
+  } else {
+    for (const px of all) done.push(await once(px));
+  }
+  const [main, ...rest] = done;
+  const variants = new Map<number, ProcessedImage>();
+  variantPx.forEach((px, i) => variants.set(px, rest[i]));
+  return { main, variants };
+}
+
 @Injectable()
 export class ImageProcessor {
+  /** Encode the sizes at once (default: only with two cores or more;
+   * tests set it). */
+  atOnce: () => boolean = encodeAtOnce;
+
   async process(input: {
     data: Buffer;
     mime: FileMime;
@@ -158,11 +240,15 @@ export class ImageProcessor {
         .rotate()
         .raw()
         .toBuffer({ resolveWithObject: true });
-      const main = await this.square(oriented, AVATAR_MAIN_PX, format, q);
-      const variants = new Map<number, ProcessedImage>();
-      for (const px of AVATAR_VARIANT_PX) {
-        variants.set(px, await this.square(oriented, px, format, q));
-      }
+      const side = (px: number) =>
+        Math.min(px, oriented.info.width, oriented.info.height);
+      const { main, variants } = await sizesAtOnce(
+        AVATAR_MAIN_PX,
+        AVATAR_VARIANT_PX,
+        side,
+        (px) => this.square(oriented, px, format, q),
+        this.atOnce(),
+      );
       return { main, variants, width: main.width, height: main.height };
     }
 
@@ -171,11 +257,14 @@ export class ImageProcessor {
         .rotate()
         .raw()
         .toBuffer({ resolveWithObject: true });
-      const main = await this.fitted(oriented, POST_IMAGE_MAIN_PX, format, q);
-      const variants = new Map<number, ProcessedImage>();
-      for (const px of POST_IMAGE_VARIANT_PX) {
-        variants.set(px, await this.fitted(oriented, px, format, q));
-      }
+      const long = Math.max(oriented.info.width, oriented.info.height);
+      const { main, variants } = await sizesAtOnce(
+        POST_IMAGE_MAIN_PX,
+        POST_IMAGE_VARIANT_PX,
+        (px) => Math.min(px, long),
+        (px) => this.fitted(oriented, px, format, q),
+        this.atOnce(),
+      );
       return { main, variants, width: main.width, height: main.height };
     }
 
@@ -274,7 +363,16 @@ export class ImageProcessor {
     format: ImageFormat,
     q: ImageQuality,
   ): Promise<ProcessedImage> {
+    // Owner 2026-11-09: with cores to spare the AVIF twin is encoded at the
+    // same time as the WebP/JPEG (sharp's clone() of one pipeline).
     const avifPipe = q.avif ? img.clone() : null;
+    const encodeAvif = () =>
+      avifPipe!
+        .avif({ quality: q.avif!.quality, effort: q.avif!.effort })
+        .toBuffer({ resolveWithObject: true });
+    const avifEarly = avifPipe && this.atOnce() ? encodeAvif() : null;
+    // Never left unobserved while the main encode is awaited.
+    avifEarly?.catch(() => undefined);
     const out =
       format === 'webp'
         ? await img
@@ -289,10 +387,8 @@ export class ImageProcessor {
       width: out.info.width,
       height: out.info.height,
     };
-    if (avifPipe && q.avif) {
-      const a = await avifPipe
-        .avif({ quality: q.avif.quality, effort: q.avif.effort })
-        .toBuffer({ resolveWithObject: true });
+    if (avifPipe) {
+      const a = await (avifEarly ?? encodeAvif());
       // Never keep an AVIF that is not smaller than what it twins.
       if (a.data.length < out.data.length) {
         result.avif = {

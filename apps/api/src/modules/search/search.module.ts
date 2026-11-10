@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { SEARCH_REINDEX_PORT } from '../../common/search/search-reindex.port';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { BlocksModule } from '../blocks/blocks.module';
 import { CasesModule } from '../cases/cases.module';
@@ -43,6 +44,8 @@ import { SearchService } from './search.service';
     SearchDocsLoader,
     SearchIndexerService,
     SearchReindexService,
+    // infra «Авто» drives the reindex through this token (no module import).
+    { provide: SEARCH_REINDEX_PORT, useExisting: SearchReindexService },
     SwitchingSearchProvider,
     { provide: SEARCH_PROVIDER, useExisting: SwitchingSearchProvider },
   ],
@@ -52,6 +55,7 @@ import { SearchService } from './search.service';
     SEARCH_PROVIDER,
     SearchIndexerService,
     SearchReindexService,
+    SEARCH_REINDEX_PORT,
   ],
 })
 export class SearchModule {}

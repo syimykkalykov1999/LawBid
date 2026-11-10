@@ -1057,6 +1057,10 @@ model File {
   /// BlurHash (4x3) of a clean image, drawn by the app as a placeholder
   /// while the picture loads. Null for non-images / not yet computed.
   blurhash           String?            @db.VarChar(40)
+  /// Owner 2026-11-09: every size of this image has its AVIF twin in storage
+  /// (an AVIF no smaller than the WebP is not kept). Only then is a client
+  /// that asked for AVIF given `.avif` links; false = WebP / JPEG links.
+  avif_twins         Boolean            @default(false)
   scan_status        ScanStatus         @default(pending)
   is_public          Boolean            @default(false)
   deleted_at         DateTime?          @db.Timestamptz
@@ -3146,7 +3150,7 @@ model MessageEdit {
   @@map("message_edits")
 }
 
-/// A message pinned to the top of a chat (at most 3 per chat).
+/// A message pinned to the top of a chat (at most `chat.max_pins`, 10, per chat).
 model MessagePin {
   message_id      String   @id @db.Uuid
   message         Message  @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)

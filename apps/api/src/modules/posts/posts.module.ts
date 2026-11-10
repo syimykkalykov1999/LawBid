@@ -1,3 +1,4 @@
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { Module } from '@nestjs/common';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
@@ -30,6 +31,7 @@ import { SharedPostCardsService } from './shared-post-cards.service';
     VideosModule,
     FeatureFlagsModule,
     PromotionsCoreModule,
+    RecommendationsModule,
   ],
   controllers: [PostsController, PostVideosController, BunnyWebhookController],
   providers: [

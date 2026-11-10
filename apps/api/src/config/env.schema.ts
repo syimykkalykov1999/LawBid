@@ -999,6 +999,15 @@ export const envSchema = z
       blankToUndefined,
       z.string().min(8).optional(),
     ),
+    // Owner 2026-11-08: the rest of the Persona card (admin wins over env).
+    PERSONA_TEMPLATE_ID: z.preprocess(
+      blankToUndefined,
+      z.string().min(8).optional(),
+    ),
+    PERSONA_WEBHOOK_SECRET: z.preprocess(
+      blankToUndefined,
+      z.string().min(16).optional(),
+    ),
     // Optional Socrata app token of the NY attorney registry (data.ny.gov).
     NY_OPEN_DATA_APP_TOKEN: z.preprocess(
       blankToUndefined,

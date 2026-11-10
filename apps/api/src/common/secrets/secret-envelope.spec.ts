@@ -31,6 +31,20 @@ describe('SecretEnvelope (owner 2026-10-01)', () => {
     ).toThrow();
   });
 
+  // Semgrep pass 2026-11-08 (gcm-no-tag-length): without authTagLength
+  // Node accepts a GCM tag cut to 4 bytes, so a forger needs ~2^32 tries
+  // instead of 2^128. Only the full 16-byte tag is accepted now.
+  it('a truncated auth tag is refused', () => {
+    const env = new SecretEnvelope(K1, 'k1');
+    const [v, kid, iv, tag, ct] = env.encrypt('x', 'turn:1').split('.');
+    const short = Buffer.from(tag, 'base64url')
+      .subarray(0, 4)
+      .toString('base64url');
+    expect(() =>
+      env.decrypt([v, kid, iv, short, ct].join('.'), 'turn:1'),
+    ).toThrow();
+  });
+
   it('refuses short keys and an unknown active kid', () => {
     expect(() => new SecretEnvelope('k1:short', 'k1')).toThrow();
     expect(() => new SecretEnvelope(K1, 'k9')).toThrow();

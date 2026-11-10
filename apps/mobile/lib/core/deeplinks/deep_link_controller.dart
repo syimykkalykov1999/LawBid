@@ -140,12 +140,27 @@ final deepLinkNavigatorProvider = Provider<void Function(String location)>(
   (ref) => (location) => goAfterSplash(ref.read(appRouterProvider), location),
 );
 
-/// Click audit 2026-11-08 (web): a reloaded or typed tab address
-/// (`/profile`, `/mine`) opened the feed. The link is handled the moment
-/// `GET /users/me` arrives — the same change that makes the guard move the
-/// splash to the feed, and that redirect landed after this `go`. While the
-/// router still shows the splash, wait until the guard has moved off it,
-/// then go.
+/// Whether the app router has a screen for `path` (web address restore,
+/// `parseDeepLink` `appLocation`). Tests override it.
+final appLocationMatcherProvider = Provider<bool Function(String path)>(
+  (ref) => (path) => routerKnows(ref.read(appRouterProvider), path),
+);
+
+/// True when [router] can show [path] (a real route, not its error page).
+bool routerKnows(GoRouter router, String path) {
+  try {
+    final match = router.configuration.findMatch(Uri.parse(path));
+    return !match.isError && match.matches.isNotEmpty;
+  } on Object {
+    return false;
+  }
+}
+
+/// Click audit 2026-11-08 (web): a reloaded or typed address (`/profile`,
+/// `/mine`) opened the feed. The link is handled the moment `GET /users/me`
+/// arrives — the same change that makes the guard move the splash to the
+/// feed, and that redirect landed after this `go`. While the router still
+/// shows the splash, wait until the guard has moved off it, then go.
 void goAfterSplash(GoRouter router, String location) {
   bool onSplash() =>
       router.routerDelegate.currentConfiguration.uri.path == AppRoutes.splash;
@@ -213,6 +228,8 @@ class DeepLinkController extends Notifier<DeepLink?> {
       // Web: the page's own host is the app's link host.
       host: kIsWeb ? uri.host : ref.read(appEnvironmentProvider).deepLinkHost,
       webTabs: kIsWeb,
+      // Web: every screen the router knows keeps its address on reload.
+      appLocation: kIsWeb ? ref.read(appLocationMatcherProvider) : null,
     );
     if (link == null) return;
     state = link;

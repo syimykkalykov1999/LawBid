@@ -565,8 +565,14 @@ describe('SeoGenerateJob', () => {
   });
 
   describe('page types of 2026-10-27 (posts, city hubs, legal Q&A)', () => {
-    it('switches OFF (the default, even in nightly mode): no post or question is read, no such page is rendered or published', async () => {
-      const t = make({ posts: 3, questions: 2 });
+    const ALL_OFF = {
+      'seo.pages_posts_enabled': false,
+      'seo.pages_cities_enabled': false,
+      'seo.pages_qa_enabled': false,
+    };
+
+    it('switches OFF in the admin: no post or question is read, no such page is rendered or published', async () => {
+      const t = make({ posts: 3, questions: 2, stored: ALL_OFF });
       const r = await t.job.run();
       expect(r).toMatchObject({ pages: 3 }); // home + 2 attorneys
       expect(t.directory.seoPosts).not.toHaveBeenCalled();
@@ -597,13 +603,14 @@ describe('SeoGenerateJob', () => {
       expect(t.lib.renderSite).not.toHaveBeenCalled();
     });
 
-    it('the admin switch wins over the variable, both ways; never decided = the variable', async () => {
+    it('never decided = the catalog default (owner 2026-11-07: ON); an explicit admin OFF wins over the variable', async () => {
       const on = make({
         posts: 2,
         questions: 2,
         stored: {
           'seo.pages_posts_enabled': true,
           'seo.pages_cities_enabled': true,
+          'seo.pages_qa_enabled': false,
         },
       });
       await on.job.run();
@@ -618,13 +625,15 @@ describe('SeoGenerateJob', () => {
       const off = make({
         posts: 2,
         questions: 2,
-        env: { SEO_PAGES_POSTS: '1', SEO_PAGES_QA: '1' },
+        env: { SEO_PAGES_POSTS: '1', SEO_PAGES_QA: '' },
         stored: { 'seo.pages_posts_enabled': false },
       });
       await off.job.run();
       const offOpts = off.lib.renderSite.mock.calls[0][1] as SeoRenderOptions;
       expect(offOpts.pagesPosts).toBe(false);
+      // never decided: the default (ON), not the empty variable
       expect(offOpts.pagesQa).toBe(true);
+      expect(offOpts.pagesCities).toBe(true);
       expect(off.directory.seoPosts).not.toHaveBeenCalled();
     });
 
@@ -633,7 +642,7 @@ describe('SeoGenerateJob', () => {
         posts: 5,
         questions: 4,
         rowsPerCall: 2,
-        env: { SEO_PAGES_POSTS: 'true' },
+        stored: { ...ALL_OFF, 'seo.pages_posts_enabled': true },
       });
       await t.job.run();
       expect(t.directory.seoQuestions).not.toHaveBeenCalled();
@@ -647,7 +656,10 @@ describe('SeoGenerateJob', () => {
         [...t.store.objects.keys()].filter((k) => k.includes('/posts/')),
       ).toHaveLength(5);
 
-      const q = make({ questions: 3, env: { SEO_PAGES_QA: '1' } });
+      const q = make({
+        questions: 3,
+        stored: { ...ALL_OFF, 'seo.pages_qa_enabled': true },
+      });
       await q.job.run();
       expect(q.directory.seoPosts).not.toHaveBeenCalled();
       expect(
@@ -659,8 +671,8 @@ describe('SeoGenerateJob', () => {
 
     it('city hubs need no extra read: the switch and the thresholds reach the library', async () => {
       const t = make({
+        stored: { ...ALL_OFF, 'seo.pages_cities_enabled': true },
         env: {
-          SEO_PAGES_CITIES: '1',
           SEO_MIN_CITY_ATTORNEYS: '5',
           SEO_MIN_POST_CHARS: '500',
           SEO_MIN_QA_CHARS: '200',

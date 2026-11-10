@@ -11,6 +11,9 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminStateRegistriesController } from './controllers/admin-state-registries.controller';
 import { AdminVerificationController } from './controllers/admin-verification.controller';
 import { VerificationController } from './controllers/verification.controller';
+import { PersonaWebhookController } from './controllers/persona-webhook.controller';
+import { PersonaClient } from './providers/persona.client';
+import { PersonaVerificationService } from './services/persona-verification.service';
 import { AutoBarLookupProvider } from './providers/bar-lookup/auto-bar-lookup.provider';
 import { GenericRestAdapter } from './providers/bar-lookup/generic-rest.adapter';
 import { SocrataAdapter } from './providers/bar-lookup/socrata.adapter';
@@ -63,6 +66,8 @@ import {
     VerificationController,
     AdminVerificationController,
     AdminStateRegistriesController,
+    // Owner 2026-11-08: Persona results (signed webhook).
+    PersonaWebhookController,
   ],
   providers: [
     BarAttemptsService,
@@ -103,6 +108,9 @@ import {
       useExisting: ManualIdVerificationProvider,
     },
     VerificationChecksService,
+    // Owner 2026-11-08: Persona ID checks, only with the admin card set up.
+    PersonaClient,
+    PersonaVerificationService,
     // Owner 2026-10-28: one-time tokens of the guided selfie camera.
     SelfieCaptureTokensService,
     // R-146: «continue on your phone» codes (computer without a camera).
