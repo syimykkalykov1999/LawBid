@@ -532,6 +532,25 @@ describe('EconomyService.tick', () => {
     expect(t.aws.setCeilings).toHaveBeenLastCalledWith({ api: 50, worker: 20 });
   });
 
+  it('owner 2026-11-10: switched off, it still reads the database and Redis size for «Масштаб»', async () => {
+    const t = setup({
+      awsActual: 50,
+      awsForecast: 100,
+      capacityMetrics: { dbCpuPercent: 12 },
+    });
+    (t.svc as unknown as { flags: { isEnabled: jest.Mock } }).flags.isEnabled =
+      jest.fn(async () => false);
+    await t.svc.tick(NOW);
+    expect(t.ops.setCapacity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        at: NOW.toISOString(),
+        dbClass: 'db.t4g.medium',
+        redisClass: 'cache.t4g.micro',
+        dbCpuPercent: 12,
+      }),
+    );
+  });
+
   it('leaves a ceiling the owner or the AWS budget capped alone', async () => {
     const t = setup({
       awsActual: 50,

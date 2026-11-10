@@ -455,7 +455,14 @@ export class EconomyService {
       const lifted = await this.liftCeilings(now).catch((e: unknown) =>
         this.fail('lift_ceilings', e),
       );
-      return { skipped: 'flag economy_guard is off', lifted };
+      // Owner 2026-11-10: «Масштаб» showed «—» for the database and Redis
+      // size: the reading was taken only with the guard on. Watching is not
+      // limiting, so the size, CPU and memory are read (and their alerts
+      // sent) either way.
+      const pressure = await this.checkPressure(now).catch((e: unknown) =>
+        this.fail('pressure', e),
+      );
+      return { skipped: 'flag economy_guard is off', lifted, pressure };
     }
     const cfg = await this.settings();
     const f = await this.figures(now, cfg);
