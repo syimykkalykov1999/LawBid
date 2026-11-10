@@ -201,6 +201,26 @@ const ERROR_TEXT: Record<string, string> = {
 
 const SERVER_DOWN = 'Сервер не ответил, попробуйте ещё раз.';
 
+/**
+ * Click audit 2026-11-09: a setting the server refuses because its keys
+ * are missing comes back as VALIDATION_ERROR with an English sentence
+ * (apps/api admin-config.service `assert*Ready`). The Russian admin shows
+ * these in Russian; any other field message is still shown as sent.
+ */
+const SERVER_MESSAGE_RU: Array<[prefix: string, text: string]> = [
+  ['Cloudflare is not configured:', 'Cloudflare не подключён: сначала добавьте ключи в «Интеграции → Cloudflare TURN» (и Cloudflare SFU для групповых звонков) или оставьте «авто».'],
+  ['Cloudflare SFU is not configured:', 'Cloudflare SFU не подключён: сначала добавьте его ключи в «Интеграции → Cloudflare SFU».'],
+  ['Cloudflare R2 is not configured:', 'Cloudflare R2 не подключён: сначала добавьте его ключи в «Интеграции → Cloudflare R2».'],
+  ['LiveKit is not configured:', 'LiveKit не подключён: сначала добавьте его ключи в «Интеграции → LiveKit».'],
+  ['The search engine is not configured:', 'Поисковый движок не подключён: сначала укажите его адрес в «Интеграции → Поисковый движок».'],
+  ['OpenSearch Serverless is not configured:', 'OpenSearch Serverless не включён: сначала включите growth.opensearch_serverless_enabled в Terraform.'],
+];
+
+function serverMessageRu(message: string): string {
+  const hit = SERVER_MESSAGE_RU.find(([prefix]) => message.startsWith(prefix));
+  return hit ? hit[1] : message;
+}
+
 /** Raw server code/message behind a friendly text, for tooltips (see ErrorNote). */
 const DETAILS = new Map<string, string>();
 export function errorDetail(text: string | null | undefined): string | undefined {
@@ -216,7 +236,7 @@ export function errorText(e: unknown): string {
     // generic line instead of hiding it.
     const field = e.code === 'VALIDATION_ERROR' && e.details?.field;
     const base = field
-      ? `${known} ${e.message}`
+      ? `${known} ${serverMessageRu(e.message)}`
       : (known ?? (generic ? SERVER_DOWN : e.message));
     const left = e.details?.remainingAttempts;
     const text = typeof left === 'number' ? `${base} Осталось попыток: ${left}.` : base;
