@@ -6,6 +6,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { formatBytes } from '@/components/media/media-utils';
 import type { components } from '@/lib/api/schema';
 import { cn } from '@/lib/utils';
+import { LazyImg } from '@/components/ui/lazy-img';
 
 export type Attachment = components['schemas']['SupportAttachmentDto'];
 
@@ -45,8 +46,13 @@ export function AttachmentList({ items, mine }: { items: Attachment[]; mine?: bo
                 className="overflow-hidden rounded-xl border border-line transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:outline-none"
                 aria-label={`Открыть фото ${a.name}`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URL */}
-                <img src={a.previewUrl ?? a.url ?? ''} alt={a.name} className="h-28 w-28 object-cover sm:h-36 sm:w-36" />
+                <LazyImg
+                  src={a.previewUrl ?? a.url ?? ''}
+                  sources={a.url ? { url: a.url, previewUrl: a.previewUrl } : null}
+                  sizes="144px"
+                  alt={a.name}
+                  className="h-28 w-28 object-cover sm:h-36 sm:w-36"
+                />
               </button>
             ) : (
               <Pending key={a.id} a={a} />
@@ -78,8 +84,7 @@ export function AttachmentList({ items, mine }: { items: Attachment[]; mine?: bo
       <Dialog open={!!open} onClose={() => setOpen(null)} title={open?.name} wide>
         {open ? (
           <div className="flex flex-col items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URL */}
-            <img src={open.url ?? open.previewUrl ?? ''} alt={open.name} className="max-h-[70vh] max-w-full rounded-lg object-contain" />
+            <LazyImg src={open.url ?? open.previewUrl ?? ''} alt={open.name} className="max-h-[70vh] max-w-full rounded-lg object-contain" />
             {open.url ? (
               <a href={open.url} target="_blank" rel="noreferrer" className="text-xs text-muted underline">
                 Открыть оригинал

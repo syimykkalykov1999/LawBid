@@ -18,12 +18,40 @@ export function parseOrigins(raw: string | undefined): string[] {
   return (raw ?? '')
     .split(/[\s,]+/)
     .map((s) => s.trim())
-    .filter((s) => /^https:\/\/[a-z0-9.*-]+(:\d+)?$/i.test(s) || /^http:\/\/[a-z0-9.-]+(:\d+)?$/i.test(s));
+    .filter(
+      (s) =>
+        /^(https|wss):\/\/[a-z0-9.*-]+(:\d+)?$/i.test(s) || /^(http|ws):\/\/[a-z0-9.-]+(:\d+)?$/i.test(s),
+    );
 }
 
-export function buildCsp(opts: { nonce: string; dev: boolean; connectSrc?: string }): string {
+/**
+ * Speed matrix 2026-11-09 (§3 #5): the live-updates socket (lib/admin-live.ts)
+ * is the one connection the browser makes straight to the API — its origin
+ * (from API_BASE_URL, or ADMIN_SOCKET_ORIGIN) in both the https and the wss
+ * spelling, since Socket.IO opens the handshake over one and upgrades to
+ * the other. Nothing when the URL is unusable.
+ */
+export function socketOrigins(apiBaseUrl: string | undefined): string[] {
+  if (!apiBaseUrl) return [];
+  try {
+    const u = new URL(apiBaseUrl);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return [];
+    const ws = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    return [`${u.protocol}//${u.host}`, `${ws}//${u.host}`];
+  } catch {
+    return [];
+  }
+}
+
+export function buildCsp(opts: { nonce: string; dev: boolean; connectSrc?: string; socketOrigin?: string }): string {
   const { nonce, dev } = opts;
-  const connect = ["'self'", ...parseOrigins(opts.connectSrc), ...R2_CONNECT_SRC, ...SENTRY_CONNECT_SRC];
+  const connect = [
+    "'self'",
+    ...parseOrigins(opts.connectSrc),
+    ...socketOrigins(opts.socketOrigin),
+    ...R2_CONNECT_SRC,
+    ...SENTRY_CONNECT_SRC,
+  ];
   // Outside production http:/ws: are allowed too: on a phone in the same
   // Wi-Fi the local storage (MinIO) answers at http://<mac-ip>:9000, and
   // `next dev` needs eval + its websocket for react-refresh.

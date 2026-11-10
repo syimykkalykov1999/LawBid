@@ -885,6 +885,8 @@ const KEY_TEXT: Record<string, string> = {
   // Scale audit 2026-10-23: the phone's own traffic, changeable without an app update.
   "security.anonymous_rate_limit_per_minute":
     "Запросов в минуту с одного адреса до входа в аккаунт (гость, экраны входа). За одним адресом оператора связи или офиса — много людей: поднимите, если жалуются «слишком много запросов». Не меньше 100. Ключ: security.anonymous_rate_limit_per_minute.",
+  "realtime.admin_events_enabled":
+    "Живые обновления админки: сервер сам сообщает открытым вкладкам, что цифры или очередь изменились, и панель перечитывает только это. Выкл — панель опрашивает сервер раз в минуту, как раньше. Ключ: realtime.admin_events_enabled.",
   "realtime.max_sockets_per_user":
     "Сколько живых соединений (чат, звонки) может держать один человек на одном сервере; лишние старые закрываются. Несколько устройств и вкладок — норма: держите 10 и больше. Ключ: realtime.max_sockets_per_user.",
   "client.video_cache_mb":
