@@ -25,7 +25,10 @@ import {
   disputeRefundGuard,
   disputeRefundKey,
   disputeRefundReason,
+  firstChargeCancelRef,
+  firstChargeRefundable,
   inquiryRefundable,
+  isFirstChargeCancelRef,
 } from './dispute-refund.logic';
 import { refreshProvider } from './dynamic-payment.provider';
 import type { PaymentProvider } from './payment-provider';
@@ -113,7 +116,109 @@ export class DisputeRefundService {
     });
     const cents = payment.amount_cents - (taken._sum.amount_cents ?? 0);
     if (cents <= 0) return false;
+    const row = await this.reserve(input.disputeId, payment, cents);
+    if (!row) return true;
+    if (row.status === 'review') {
+      await this.hold(row, input.dueBy);
+      return true;
+    }
+    await this.settle(row, true);
+    return true;
+  }
 
+  /**
+   * Sweep B-c3 (2026-11-09): a «disputed» subscription without a bank — the
+   * attorney cancelled right after the first charge. Called after a cancel;
+   * answers true when the first charge is refunded (access ends now) or
+   * waits for a person. Same switch, same limits, same table and journal
+   * as the bank inquiry; one row per payment (`cancel:<payment>`), so a
+   * repeated cancel / resume / cancel never pays twice.
+   */
+  async onFirstChargeCancel(
+    userId: string,
+    now = new Date(),
+  ): Promise<boolean> {
+    if (!(await this.enabled())) return false;
+    const windowDays = await this.settings.number(
+      'billing.first_charge_refund_days',
+    );
+    if (!(windowDays > 0)) return false;
+    const [succeededPayments, first] = await Promise.all([
+      this.prisma.payment.count({
+        where: {
+          user_id: userId,
+          status: 'succeeded',
+          stripe_invoice_id: { not: null },
+        },
+      }),
+      this.prisma.payment.findFirst({
+        where: {
+          user_id: userId,
+          status: 'succeeded',
+          stripe_invoice_id: { not: null },
+        },
+        orderBy: { created_at: 'asc' },
+        select: {
+          id: true,
+          user_id: true,
+          amount_cents: true,
+          currency: true,
+          created_at: true,
+        },
+      }),
+    ]);
+    if (
+      !first ||
+      !firstChargeRefundable({
+        now,
+        windowDays,
+        succeededPayments,
+        firstChargeAt: first.created_at,
+      })
+    ) {
+      return false;
+    }
+    const existing = await this.prisma.billingDisputeRefund.findUnique({
+      where: { dispute_id: firstChargeCancelRef(first.id) },
+    });
+    if (existing) {
+      if (existing.status === 'refunding') await this.settle(existing, true);
+      return existing.status !== 'rejected' && existing.status !== 'no_refund';
+    }
+    const taken = await this.prisma.refund.aggregate({
+      where: { payment_id: first.id, status: { in: LIVE_REFUND_STATUSES } },
+      _sum: { amount_cents: true },
+    });
+    const cents = first.amount_cents - (taken._sum.amount_cents ?? 0);
+    if (cents <= 0) return false;
+    const row = await this.reserve(
+      firstChargeCancelRef(first.id),
+      first,
+      cents,
+    );
+    if (!row) return true;
+    if (row.status === 'review') {
+      await this.hold(row, null);
+      return true;
+    }
+    await this.settle(row, true);
+    return true;
+  }
+
+  /**
+   * One `billing_dispute_refunds` row per reference, decided by the
+   * anti-abuse guard inside one transaction (`refunding` or `review`).
+   * null = another delivery holds the row already.
+   */
+  private async reserve(
+    ref: string,
+    payment: {
+      id: string;
+      user_id: string;
+      currency: string;
+    },
+    cents: number,
+  ): Promise<BillingDisputeRefund | null> {
     const [fraudReview, priorDisputes, maxCents, userLimit, days, dailyCap] =
       await Promise.all([
         this.underReview(payment.user_id),
@@ -121,7 +226,7 @@ export class DisputeRefundService {
           where: {
             user_id: payment.user_id,
             kind: { in: ['dispute', 'early_fraud_warning'] },
-            NOT: { stripe_ref: input.disputeId },
+            NOT: { stripe_ref: ref },
           },
         }),
         this.settings.number('billing.dispute_refund_max_cents'),
@@ -130,9 +235,8 @@ export class DisputeRefundService {
         this.settings.number('billing.dispute_refund_daily_cap_cents'),
       ]);
 
-    let row: BillingDisputeRefund;
     try {
-      row = await withTxRetry(
+      return await withTxRetry(
         this.prisma,
         async (tx) => {
           const dayStart = new Date(new Date().toISOString().slice(0, 10));
@@ -165,7 +269,7 @@ export class DisputeRefundService {
           });
           return tx.billingDisputeRefund.create({
             data: {
-              dispute_id: input.disputeId,
+              dispute_id: ref,
               user_id: payment.user_id,
               payment_id: payment.id,
               status: hold ? 'review' : 'refunding',
@@ -183,16 +287,10 @@ export class DisputeRefundService {
         e instanceof Prisma.PrismaClientKnownRequestError &&
         e.code === 'P2002'
       ) {
-        return true;
+        return null;
       }
       throw e;
     }
-    if (row.status === 'review') {
-      await this.hold(row, input.dueBy);
-      return true;
-    }
-    await this.settle(row, true);
-    return true;
   }
 
   /** The inquiry became a chargeback or closed: nothing may wait any more. */
@@ -217,13 +315,18 @@ export class DisputeRefundService {
   async approve(id: string, adminId: string): Promise<BillingDisputeRefund> {
     const row = await this.waiting(id);
     await refreshProvider(this.provider);
-    const now = await this.provider.retrieveDispute?.(null, row.dispute_id);
+    // A first-charge cancel row has no bank behind it: Stripe's dispute rule
+    // does not apply, the person's word is enough.
+    const now = isFirstChargeCancelRef(row.dispute_id)
+      ? null
+      : await this.provider.retrieveDispute?.(null, row.dispute_id);
     if (
-      !now ||
-      !inquiryRefundable({
-        status: now.status,
-        chargeRefundable: now.chargeRefundable === true,
-      })
+      !isFirstChargeCancelRef(row.dispute_id) &&
+      (!now ||
+        !inquiryRefundable({
+          status: now.status,
+          chargeRefundable: now.chargeRefundable === true,
+        }))
     ) {
       await this.onDisputeEnded(row.dispute_id, 'escalated');
       throw new ConflictException({
@@ -401,7 +504,9 @@ export class DisputeRefundService {
       userId: row.user_id,
       amountCents: row.amount_cents,
       currency: row.currency,
-      summary: `A refund of a bank inquiry waits for a decision (${row.reason ?? 'review'}): answer in time, Admin → Платежи → «Возвраты по спорам».`,
+      summary: isFirstChargeCancelRef(row.dispute_id)
+        ? `A refund of a first charge after a cancel waits for a decision (${row.reason ?? 'review'}): Admin → Платежи → «Возвраты по спорам».`
+        : `A refund of a bank inquiry waits for a decision (${row.reason ?? 'review'}): answer in time, Admin → Платежи → «Возвраты по спорам».`,
       details: { reason: row.reason, paymentId: row.payment_id },
       dueAt: dueBy ? new Date(dueBy * 1000) : null,
     });

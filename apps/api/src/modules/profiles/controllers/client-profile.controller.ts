@@ -20,6 +20,10 @@ import {
   UpdateContactPreferencesDto,
 } from '../dto/client-profile.dto';
 import { ClientProfilesService } from '../services/client-profiles.service';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -35,6 +39,7 @@ const E = ErrorCode;
 export class ClientProfileController {
   constructor(private readonly clients: ClientProfilesService) {}
 
+  @AssistantAllowed()
   @Get('profile')
   @ApiEnvelopeResponse(ClientProfileDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
@@ -44,6 +49,7 @@ export class ClientProfileController {
     return this.clients.getOwn(user.sub);
   }
 
+  @AttorneyOnly()
   @Patch('profile')
   @ApiIfMatchVersion()
   @ApiEnvelopeResponse(ClientProfileDto)
@@ -60,6 +66,7 @@ export class ClientProfileController {
     return this.clients.update(user.sub, dto, new Date(), expectedVersion);
   }
 
+  @AttorneyOnly()
   @Patch('contact-preferences')
   @ApiEnvelopeResponse(ClientProfileDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })

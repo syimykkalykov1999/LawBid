@@ -54,6 +54,7 @@ import {
   CaseSummaryDto,
   type CasePage,
 } from './dto/case-responses.dto';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -73,6 +74,7 @@ const E = ErrorCode;
 export class CasesController {
   constructor(private readonly cases: CasesService) {}
 
+  @AttorneyOnly()
   @Post('cases')
   @RequireLegalAcceptance()
   @UseGuards(RequireIdempotencyKeyGuard)
@@ -109,6 +111,7 @@ export class CasesController {
     return this.cases.create(user, dto, meta(req));
   }
 
+  @AttorneyOnly()
   @Patch('cases/:id')
   @ApiIfMatchVersion()
   @ApiOperation({ summary: 'Edit an open case (client, docs/04 §3.5)' })
@@ -128,6 +131,7 @@ export class CasesController {
     return this.cases.update(user, params.id, dto, expectedVersion);
   }
 
+  @AttorneyOnly()
   @Patch('cases/:id/private-details')
   @ApiIfMatchVersion()
   @ApiOperation({
@@ -155,6 +159,7 @@ export class CasesController {
     );
   }
 
+  @AttorneyOnly()
   @Patch('cases/:id/urgency')
   @ApiIfMatchVersion()
   @ApiOperation({
@@ -177,6 +182,7 @@ export class CasesController {
     return this.cases.updateUrgency(user, params.id, dto, expectedVersion);
   }
 
+  @AttorneyOnly()
   @Post('cases/:id/close')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -195,6 +201,7 @@ export class CasesController {
     return this.cases.close(user, params.id);
   }
 
+  @AttorneyOnly()
   @Delete('cases/:id')
   @ApiOperation({
     summary: 'Soft-delete a case (client, open/archived only, docs/04 §3.5)',
@@ -212,6 +219,7 @@ export class CasesController {
     return this.cases.remove(user, params.id);
   }
 
+  @AttorneyOnly()
   @Post('cases/:id/restore')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -230,6 +238,7 @@ export class CasesController {
     return this.cases.restore(user, params.id);
   }
 
+  @AttorneyOnly()
   @Post('cases/:id/keep-alive')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -248,6 +257,7 @@ export class CasesController {
     return this.cases.keepAlive(user, params.id);
   }
 
+  @AttorneyOnly()
   @Post('cases/:id/still-needed')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -269,6 +279,7 @@ export class CasesController {
     return this.cases.answerStillNeeded(user, params.id, dto.answer);
   }
 
+  @AttorneyOnly()
   @Post('cases/:id/resume')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -288,6 +299,7 @@ export class CasesController {
     return this.cases.resume(user, params.id);
   }
 
+  @AttorneyOnly()
   @Get('users/me/cases')
   @ApiOperation({ summary: '"My cases" tabs (client, docs/04 §11.1)' })
   @ApiEnvelopeResponse(CaseSummaryDto, { isArray: true })

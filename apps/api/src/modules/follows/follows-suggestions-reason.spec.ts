@@ -11,7 +11,10 @@ describe('FollowsService.suggestions reason', () => {
       },
     };
     const blocks = { hiddenIds: jest.fn().mockResolvedValue(new Set()) };
-    const reco = { peopleFor: jest.fn().mockResolvedValue(['a', 'b']) };
+    const reco = {
+      peopleFor: jest.fn().mockResolvedValue(['a', 'b']),
+      logServed: jest.fn().mockResolvedValue(undefined),
+    };
     const svc = Object.create(FollowsService.prototype) as FollowsService;
     Object.assign(svc, {
       prisma,
@@ -42,7 +45,10 @@ describe('FollowsService.suggestions reason', () => {
         contactMatch: { findMany: jest.fn().mockResolvedValue([]) },
       },
       blocks: { hiddenIds: jest.fn().mockResolvedValue(new Set()) },
-      recommendations: { peopleFor: jest.fn().mockResolvedValue(ids) },
+      recommendations: {
+        peopleFor: jest.fn().mockResolvedValue(ids),
+        logServed: jest.fn().mockResolvedValue(undefined),
+      },
       present: jest.fn((p: string[]) =>
         Promise.resolve(p.map((id) => ({ id }))),
       ),
@@ -71,7 +77,10 @@ describe('FollowsService.suggestions reason', () => {
         contactMatch: { findMany: jest.fn().mockResolvedValue([]) },
       },
       blocks: { hiddenIds: jest.fn().mockResolvedValue(new Set(hidden)) },
-      recommendations: { peopleFor: jest.fn().mockResolvedValue(ranked) },
+      recommendations: {
+        peopleFor: jest.fn().mockResolvedValue(ranked),
+        logServed: jest.fn().mockResolvedValue(undefined),
+      },
       suggestionPool,
       present: jest.fn((p: string[]) =>
         Promise.resolve(p.map((id) => ({ id }))),

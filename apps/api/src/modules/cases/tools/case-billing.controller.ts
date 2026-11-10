@@ -35,6 +35,7 @@ import {
   StopTimerDto,
   UpdateTimeDto,
 } from './billing.dto';
+import { RequiresDuty } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const ERR = {
@@ -52,6 +53,7 @@ const ERR = {
 export class CaseBillingController {
   constructor(private readonly billing: CaseBillingService) {}
 
+  @RequiresDuty('cases')
   @Get('users/me/running-timer')
   @ApiOperation({ summary: 'The attorney’s running case timer, if any' })
   @ApiEnvelopeResponse(RunningTimerDto, {
@@ -61,6 +63,7 @@ export class CaseBillingController {
     return this.billing.runningTimer(u);
   }
 
+  @RequiresDuty('cases')
   @Get('cases/:id/billing')
   @ApiOperation({
     summary:
@@ -72,6 +75,7 @@ export class CaseBillingController {
     return this.billing.get(u, p.id);
   }
 
+  @RequiresDuty('cases')
   @Put('cases/:id/billing/rate')
   @ApiOperation({ summary: 'Attorney: the hourly rate of the case' })
   @ApiEnvelopeResponse(CaseBillingDto)
@@ -84,6 +88,7 @@ export class CaseBillingController {
     return this.billing.setRate(u, p.id, dto.hourlyRateCents);
   }
 
+  @RequiresDuty('cases')
   @Post('cases/:id/billing/timer/start')
   @HttpCode(200)
   @ApiOperation({ summary: 'Attorney: start the timer (one at a time)' })
@@ -93,6 +98,7 @@ export class CaseBillingController {
     return this.billing.startTimer(u, p.id);
   }
 
+  @RequiresDuty('cases')
   @Post('cases/:id/billing/timer/stop')
   @HttpCode(200)
   @ApiOperation({
@@ -108,6 +114,7 @@ export class CaseBillingController {
     return this.billing.stopTimer(u, p.id, dto.note);
   }
 
+  @RequiresDuty('cases')
   @Post('cases/:id/billing/time')
   @ApiOperation({ summary: 'Attorney: add time by hand' })
   @ApiEnvelopeResponse(CaseBillingDto)
@@ -120,6 +127,7 @@ export class CaseBillingController {
     return this.billing.addTime(u, p.id, dto);
   }
 
+  @RequiresDuty('cases')
   @Patch('cases/:id/billing/time/:entryId')
   @ApiOperation({ summary: 'Attorney: edit a time entry not yet invoiced' })
   @ApiEnvelopeResponse(CaseBillingDto)
@@ -132,6 +140,7 @@ export class CaseBillingController {
     return this.billing.updateTime(u, p.id, p.entryId, dto);
   }
 
+  @RequiresDuty('cases')
   @Delete('cases/:id/billing/time/:entryId')
   @ApiOperation({ summary: 'Attorney: delete a time entry not yet invoiced' })
   @ApiEnvelopeResponse(CaseBillingDto)
@@ -140,6 +149,7 @@ export class CaseBillingController {
     return this.billing.deleteTime(u, p.id, p.entryId);
   }
 
+  @RequiresDuty('cases')
   @Post('cases/:id/billing/expenses')
   @ApiOperation({ summary: 'Attorney: add an expense, with a receipt photo' })
   @ApiEnvelopeResponse(CaseBillingDto)
@@ -152,6 +162,7 @@ export class CaseBillingController {
     return this.billing.addExpense(u, p.id, dto);
   }
 
+  @RequiresDuty('cases')
   @Delete('cases/:id/billing/expenses/:entryId')
   @ApiOperation({ summary: 'Attorney: delete an expense not yet invoiced' })
   @ApiEnvelopeResponse(CaseBillingDto)
@@ -163,6 +174,7 @@ export class CaseBillingController {
     return this.billing.deleteExpense(u, p.id, p.entryId);
   }
 
+  @RequiresDuty('cases')
   @Post('cases/:id/billing/invoices')
   @ApiOperation({
     summary:
@@ -178,6 +190,7 @@ export class CaseBillingController {
     return this.billing.issueInvoice(u, p.id, dto);
   }
 
+  @RequiresDuty('cases')
   @Post('cases/:id/billing/invoices/:invoiceId/send')
   @HttpCode(200)
   @ApiOperation({
@@ -192,6 +205,7 @@ export class CaseBillingController {
     return this.billing.sendInvoice(u, p.id, p.invoiceId);
   }
 
+  @RequiresDuty('cases')
   @Post('cases/:id/billing/invoices/:invoiceId/void')
   @HttpCode(200)
   @ApiOperation({
@@ -207,6 +221,7 @@ export class CaseBillingController {
     return this.billing.voidInvoice(u, p.id, p.invoiceId);
   }
 
+  @RequiresDuty('cases')
   @Post('cases/:id/billing/invoices/:invoiceId/remind')
   @HttpCode(200)
   @ApiOperation({
@@ -221,6 +236,7 @@ export class CaseBillingController {
     return this.billing.remindInvoice(u, p.id, p.invoiceId);
   }
 
+  @RequiresDuty('cases')
   @Post('cases/:id/billing/invoices/:invoiceId/payment')
   @HttpCode(200)
   @ApiOperation({

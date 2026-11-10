@@ -49,6 +49,10 @@ import {
 } from './search.dto';
 import { SearchLogService } from './search-log.service';
 import { SearchService } from './search.service';
+import {
+  AssistantAllowed,
+  RequiresDuty,
+} from '../auth/assistant/assistant-context';
 
 /** docs/05 §7, §15 "Поиск" (stage 5.6). */
 @ApiTags('search')
@@ -113,6 +117,7 @@ export class SearchController {
   // the whole table; 30 a minute per person is a human searching, not a
   // script pulling the catalog.
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @AssistantAllowed()
   @Get('search/people')
   @ApiOperation({
     summary: 'People: attorneys and clients by @username / name (OQ-026)',
@@ -133,6 +138,7 @@ export class SearchController {
   // the whole table; 30 a minute per person is a human searching, not a
   // script pulling the catalog.
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @RequiresDuty('cases')
   @Get('search/cases')
   @ApiOperation({ summary: 'Cases visible to the attorney (docs/05 §7.4)' })
   @ApiEnvelopeResponse(CaseFeedItemDto, { isArray: true })
@@ -217,6 +223,7 @@ export class SearchController {
     );
   }
 
+  @AssistantAllowed()
   @Post('search/clicks')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

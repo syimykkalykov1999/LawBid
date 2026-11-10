@@ -536,6 +536,11 @@ export const OWNER_BILLING_GATE_SETTINGS = {
   'billing.dispute_refund_user_limit': 1,
   'billing.dispute_refund_window_days': 365,
   'billing.dispute_refund_daily_cap_cents': 100_000,
+  /** Sweep B-c3 (2026-11-09): a «disputed» subscription without a bank — the
+   * attorney cancels within this many days of the FIRST (and only) charge:
+   * that charge is refunded by itself under the same `dispute_auto_refund`
+   * switch and the same limits; 0 = never by itself. */
+  'billing.first_charge_refund_days': 7,
   // Owner 2026-10-22 (systems checklist §12): Stripe Tax (automatic_tax)
   // on subscriptions, seat purchases, hosted checkouts and our card page.
   // Off until the owner enables Stripe Tax in the Stripe Dashboard
@@ -1061,8 +1066,9 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
 export const OWNER_CHAT_ACTION_SETTINGS = {
   'chat.edit_window_min': 15,
   'chat.delete_for_all_hours': 48,
-  /** Pinned messages per chat (WhatsApp: 3). */
-  'chat.max_pins': 3,
+  /** Pinned messages per chat. Owner 2026-11-09: 10 (Telegram pins
+   * without a cap, WhatsApp stops at 3; the owner wants ten everywhere). */
+  'chat.max_pins': 10,
   /** Owner 2026-10-22: link cards under messages. Kill switch + domains
    * (and their subdomains) that are never fetched. */
   /** Owner 2026-10-22: calls. Group calls up to this many people (peer to
@@ -1133,8 +1139,11 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
  * the changed ones to the web bucket. `off` (default) = the job does nothing
  * and nothing is queued; the nightly GitHub run stays the only builder. */
 export const OWNER_SEO_SETTINGS = {
-  /** off | nightly | nightly+events (also after an attorney is published or removed). */
-  'seo.generator_mode': 'off',
+  /** off | nightly | nightly+events (also after an attorney is published or removed).
+   * Owner 2026-11-07 («SEO all ON»): nightly+events — pages refresh a minute
+   * after an attorney is published / removed; cost is capped by the debounce,
+   * the minimum interval, the upload limit and the 30 CDN resets a day below. */
+  'seo.generator_mode': 'nightly+events',
   /** Events within this many seconds become one run (debounce). */
   'seo.generator_debounce_seconds': 60,
   /** At least this many minutes between two event runs. */
@@ -1305,8 +1314,10 @@ export const OWNER_OPS_SETTINGS = {
   'db.bloat_mode': 'auto',
   'db.bloat_scan_max_mb': 256,
   /** AWS spend reached the monthly budget → api/worker autoscaling capped
-   * at the minimum until the next month (or until the owner lifts it). */
-  'ops.auto_scale_down_on_budget': true,
+   * at the minimum until the next month (or until the owner lifts it).
+   * Owner 2026-11-09: off — no money stop he did not order; the AWS Budgets
+   * alert still e-mails. His own sum is economy.aws_cap_usd. */
+  'ops.auto_scale_down_on_budget': false,
   /** The newest database backup (provider API) older than this → alert. */
   'ops.backup_max_age_hours': 26,
   /** Hidden-cost switches (Round 20, 2026-10-25). Each is off | on | auto;
@@ -1316,7 +1327,9 @@ export const OWNER_OPS_SETTINGS = {
   'ops.admin_summaries_mode': 'auto',
   // S20-6: every-minute sweeps that found nothing back off to
   // `ops.cron_idle_every_min` after `ops.cron_idle_after_runs` empty runs.
-  'ops.cron_idle_backoff': 'auto',
+  // Owner 2026-11-09: off — every sweep runs each minute (no limiter he
+  // did not order); auto / on stay available in the admin.
+  'ops.cron_idle_backoff': 'off',
   'ops.cron_idle_after_runs': 10,
   'ops.cron_idle_every_min': 5,
   // S20-8: ceiling of the message re-encryption pass, rows per minute
@@ -1357,6 +1370,10 @@ export const OWNER_OPS_SETTINGS = {
   /** Autoscaling ceiling: 'auto' (follows the rule above) or 'manual'
    * (the numbers below, always within the Terraform cap). */
   'economy.ceiling_mode': 'auto',
+  /** Owner 2026-11-09: the AWS money ceiling, $ a month. 0 = none — the
+   * servers, the database and Redis grow by load up to the Terraform
+   * maximum. A sum here caps that growth to what it pays for. */
+  'economy.aws_cap_usd': 0,
   'economy.manual_api_max': 4,
   'economy.manual_worker_max': 2,
   /** S9-4: the global daily money brake = allowed spend / 30 × this many
@@ -1453,6 +1470,10 @@ export const OWNER_FEED_SETTINGS = {
    * started with (a pinned copy, 15 min), not a list rebuilt mid-scroll
    * (posts skipped or repeated). Off = the old behaviour. */
   'reco.pin_paging_enabled': true,
+  /** Owner 2026-11-08: the reels feed is ordered for the viewer by the
+   * posts formula (`reco.post.*`, hot / topics / followed / fresh, watched
+   * lower). Off = newest first, as before. */
+  'reco.reels_ranked': true,
 };
 
 // Owner 2026-10-13: who may ADD files, documents and extra photos to a post
@@ -1691,8 +1712,9 @@ export const OWNER_CASE_TOOLS_SETTINGS = {
  *   app sends it) | enforce (a NEW account without a valid 18+ attestation
  *   is refused with 403 AGE_ATTESTATION_REQUIRED; turn on only after the app
  *   shows the checkbox and sends `ageAttestation`).
- * - `compliance.sms.marketing_enabled`: master switch for any text that is
- *   not a sign-in code. A code is always allowed.
+ * - `compliance.sms.marketing_enabled`: consent bookkeeping for texts that
+ *   are not a code; since audit 2026-11-08 (L8) no such text is ever sent
+ *   (owner rule: SMS only at registration and «Забыл пароль»).
  * - quiet hours: no non-code text before `quiet_end_hour` or from
  *   `quiet_start_hour` in the person's local time (TCPA 8:00-21:00); unknown
  *   time zone = the strictest US-wide window.
@@ -1742,7 +1764,15 @@ export const OWNER_OBSERVABILITY_SETTINGS = {
  *   restricted (docs/CLIENT_FRAUD.md);
  * - 0 means "off" for `stop_at_bids`, `daily_cap`, `new_quota_percent`. */
 export const OWNER_CASE_FANOUT_SETTINGS = {
-  'case_fanout.enabled': false,
+  /** Owner rule (Выкл / Вкл / Авто): off = one wave to everyone, as before;
+   * on = waves and the smart order; auto (default) = waves while the
+   * `case-fanout` queue is reachable and has at most
+   * `case_fanout.auto_max_waiting` jobs waiting, else the one wave at once.
+   * Stored true / false from the boolean days still read as on / off. */
+  'case_fanout.enabled': 'auto',
+  /** Авто: more waiting wave jobs than this = the queue is behind, send the
+   * one wave right away instead of slicing it over minutes. */
+  'case_fanout.auto_max_waiting': 500,
   'case_fanout.first_wave_size': 5000,
   'case_fanout.wave_size': 5000,
   'case_fanout.wave_interval_minutes': 10,
@@ -1835,9 +1865,11 @@ export const OWNER_PRIVACY_SETTINGS = {
  *   sweep only when an event waits; on = every tick; off = never.
  */
 export const OWNER_COST_REGISTRY_SETTINGS = {
-  'scale.capacity_ceiling.mode': 'auto',
-  'scale.bunny_hardstop.mode': 'auto',
-  'scale.cloudflare_hardstop.mode': 'auto',
+  // Owner 2026-11-09: no money stops by default — growth is automatic;
+  // the stops stay switchable on «Расходы».
+  'scale.capacity_ceiling.mode': 'off',
+  'scale.bunny_hardstop.mode': 'off',
+  'scale.cloudflare_hardstop.mode': 'off',
   'ops.outbox_sweep.mode': 'auto',
 };
 
@@ -1889,24 +1921,27 @@ export const OWNER_SEO_PROMOTION_SETTINGS = {
   'seo.checklist.reddit_quora': false,
   'seo.checklist.video_social': false,
   'seo.checklist.yelp_bbb': false,
+  // Owner 2026-11-07 («SEO all ON»): every switch below is ON by default and
+  // the ramp is 200 pages a day (the value seo-deploy.yml recommends). The
+  // admin page «Продвижение» can still switch any of them off.
   /** Upload only changed files (SEO_INCREMENTAL). */
-  'seo.incremental_enabled': false,
+  'seo.incremental_enabled': true,
   /** /llms.txt and /llms-full.txt (SEO_LLMS). */
-  'seo.llms_enabled': false,
+  'seo.llms_enabled': true,
   /** City and city x practice pages (SEO_PAGES_CITIES). */
-  'seo.pages_cities_enabled': false,
+  'seo.pages_cities_enabled': true,
   /** Pages of attorneys' text posts (SEO_PAGES_POSTS). */
-  'seo.pages_posts_enabled': false,
+  'seo.pages_posts_enabled': true,
   /** Reviewed legal question pages (SEO_PAGES_QA). */
-  'seo.pages_qa_enabled': false,
+  'seo.pages_qa_enabled': true,
   /** Thin pages: noindex and out of the sitemap (SEO_QUALITY_GATE). */
-  'seo.quality_gate_enabled': false,
+  'seo.quality_gate_enabled': true,
   /** At most N new pages a day enter the index; 0 = no limit (SEO_RAMP_PER_DAY). */
-  'seo.ramp_per_day': 0,
+  'seo.ramp_per_day': 200,
   /** Search/answer bots in, training bots out (SEO_ROBOTS_AI). */
-  'seo.robots_ai_enabled': false,
+  'seo.robots_ai_enabled': true,
   /** /sitemap.xml becomes an index of /sitemaps/*.xml (SEO_SITEMAP_INDEX). */
-  'seo.sitemap_index_enabled': false,
+  'seo.sitemap_index_enabled': true,
 };
 
 /**

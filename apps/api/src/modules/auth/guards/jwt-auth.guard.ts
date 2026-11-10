@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import {
+  ASSISTANT_ALLOWED,
   ASSISTANT_SELF,
   ATTORNEY_ONLY,
   AssistantContextService,
@@ -213,15 +214,38 @@ export class JwtAuthGuard implements CanActivate {
             message: 'Only the attorney can do this.',
           });
         }
-        const duty = this.reflector.getAllAndOverride<string>(REQUIRES_DUTY, [
-          context.getHandler(),
-          context.getClass(),
-        ]);
-        if (duty && !ctx.duties.includes(duty)) {
+        const duty = this.reflector.getAllAndOverride<string | string[]>(
+          REQUIRES_DUTY,
+          [context.getHandler(), context.getClass()],
+        );
+        const anyOf = duty === undefined ? [] : [duty].flat();
+        if (anyOf.length > 0 && !anyOf.some((d) => ctx.duties.includes(d))) {
           throw new ForbiddenException({
             code: ErrorCode.ASSISTANT_NOT_ALLOWED,
             message: 'The attorney has not given you this duty.',
-            details: { duty },
+            details: { duty: anyOf[0] },
+          });
+        }
+        // Security audit 2026-11-08 (L2): deny by default. A route that
+        // names no duty, no delegated attorney-only right, is not an
+        // optional-auth (public) read and is not marked @AssistantAllowed
+        // is closed to an assistant — a controller added later can no
+        // longer leak the attorney's data to a duty-less assistant.
+        const open =
+          delegated ||
+          anyOf.length > 0 ||
+          this.reflector.getAllAndOverride<boolean>(ASSISTANT_ALLOWED, [
+            context.getHandler(),
+            context.getClass(),
+          ]) === true ||
+          this.reflector.getAllAndOverride<boolean>(IS_OPTIONAL_AUTH_KEY, [
+            context.getHandler(),
+            context.getClass(),
+          ]) === true;
+        if (!open) {
+          throw new ForbiddenException({
+            code: ErrorCode.ASSISTANT_NOT_ALLOWED,
+            message: 'Only the attorney can do this.',
           });
         }
         req.user = {

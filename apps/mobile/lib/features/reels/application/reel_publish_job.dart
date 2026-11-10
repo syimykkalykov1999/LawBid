@@ -461,7 +461,10 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
     var post = created;
     final until = DateTime.now().add(const Duration(minutes: 20));
     while (post.video != null && !post.video!.ready) {
-      if (post.video!.status == 'failed') {
+      // Prod 2026-11-09: `rejected` (too long / too large) is final too;
+      // before, it spun «processing» until the 20-minute limit.
+      final status = post.video!.status;
+      if (status == 'failed' || status == 'rejected') {
         throw StateError('video processing failed');
       }
       if (DateTime.now().isAfter(until)) {

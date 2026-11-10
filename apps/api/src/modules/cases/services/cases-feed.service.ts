@@ -48,6 +48,7 @@ import {
   type ClientActivityView,
 } from './client-activity.service';
 import { PromotionDeliveryService } from '../../promotions/promotion-delivery.service';
+import { RankingEventsService } from '../../experiments/ranking-events.service';
 import { RecommendationsService } from '../../recommendations/recommendations.service';
 import {
   clientsWithEntitlementSql,
@@ -117,6 +118,8 @@ export class CasesFeedService {
     @Optional() private readonly boostActions?: BoostActions,
     // Replica seam: the browse id list may be a few seconds old.
     @Optional() private readonly read?: PrismaReadService,
+    // Owner 2026-11-08: an opened case is a click on its place in the feed.
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -308,6 +311,13 @@ export class CasesFeedService {
         { ...query, sort: undefined, cursor: undefined, limit: undefined },
       );
       const end = start + limit;
+      // Owner 2026-11-08: the ranked page goes to the ranking events log.
+      void this.recommendations.logServed(
+        viewer.userId,
+        'case',
+        ids.slice(start, end),
+        start,
+      );
       const shownPromoted = start === 0 ? slot : [];
       const top = start === 0 ? onTop : [];
       const items = await this.hydrate(
@@ -450,11 +460,13 @@ export class CasesFeedService {
   async recordView(attorneyId: string, caseId: string): Promise<void> {
     await this.access.assertVisibleToAttorney(attorneyId, caseId);
     await this.viewTracking.recordView(attorneyId, caseId);
+    void this.rankingEvents?.logClicks(attorneyId, [caseId]);
   }
 
   /** POST /cases/views (owner 2026-10-22, package A): the same, for many
    * cases in one request; a case the attorney may not see is skipped. */
   async recordViews(attorneyId: string, caseIds: string[]): Promise<void> {
+    void this.rankingEvents?.logClicks(attorneyId, caseIds);
     for (const caseId of [...new Set(caseIds)]) {
       try {
         await this.access.assertVisibleToAttorney(attorneyId, caseId);

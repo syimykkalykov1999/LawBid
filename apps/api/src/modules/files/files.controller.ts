@@ -34,8 +34,26 @@ import {
 } from './dto/files.dto';
 import { FileAccessService } from './file-access.service';
 import { FilesService } from './files.service';
+import {
+  AssistantAllowed,
+  RequiresDuty,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
+
+/** Duties under which an assistant uploads or reads a file. */
+const FILE_DUTIES = [
+  'files',
+  'chats',
+  'cases',
+  'posts',
+  'tasks',
+  'bid_drafts',
+  'profile',
+  'bids',
+  'publish',
+  'qa_answers',
+] as const;
 
 /**
  * docs/03_VERIFICATION_PROFILES.md §2.2, stage 3.2: pre-signed uploads to
@@ -52,6 +70,7 @@ export class FilesController {
     private readonly access: FileAccessService,
   ) {}
 
+  @AssistantAllowed()
   @Post('presign')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiHeader({
@@ -84,6 +103,7 @@ export class FilesController {
    * the app asks for the part links here, PUTs each part, and asks again
    * after an interruption to learn which parts S3 already has.
    */
+  @AssistantAllowed()
   @Post(':id/multipart')
   @HttpCode(HttpStatus.OK)
   @ApiEnvelopeResponse(MultipartPlanDto)
@@ -102,6 +122,7 @@ export class FilesController {
   }
 
   /** Assembles the uploaded parts; then call `confirm` as usual. Safe to retry. */
+  @AssistantAllowed()
   @Post(':id/multipart/complete')
   @HttpCode(HttpStatus.OK)
   @ApiEnvelopeResponse(MultipartCompleteDto)
@@ -119,6 +140,7 @@ export class FilesController {
   }
 
   /** Safe to retry: confirming an already confirmed file returns it. */
+  @AssistantAllowed()
   @Post(':id/confirm')
   @HttpCode(HttpStatus.OK)
   @ApiEnvelopeResponse(FileDto)
@@ -141,6 +163,9 @@ export class FilesController {
   }
 
   /** Poll after confirm until scanStatus leaves `pending`. */
+  // Any work duty: the file is one this account may read (FileAccessService);
+  // a duty-less or calls-only assistant reads no files (audit 2026-11-08 L2).
+  @RequiresDuty(...FILE_DUTIES)
   @Get(':id')
   @ApiEnvelopeResponse(FileDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
@@ -157,6 +182,7 @@ export class FilesController {
    * file's owner may read it. Owner 2026-10-24: `?since=` returns only the
    * rows logged after that time and meta.syncedAt, `?cursor=` pages back.
    */
+  @RequiresDuty(...FILE_DUTIES)
   @Get(':id/views')
   @ApiEnvelopeResponse(FileViewDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })

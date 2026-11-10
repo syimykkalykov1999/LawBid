@@ -685,3 +685,9 @@ GET /tasks removed the enum value `all` from the `query` request parameter `view
 GET /tasks removed the enum value `archive` from the `query` request parameter `view`
 GET /tasks removed the enum value `done` from the `query` request parameter `view`
 PATCH /users/me/profile the `languages` request property's maxItems was set to `20`
+GET /admin/system-health added the new `email` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `email` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `email` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `email` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `email` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `email` enum value to the `data/items/items/key` response property for the response status `200`

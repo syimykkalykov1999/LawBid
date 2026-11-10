@@ -1,9 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { S3Client } from '@aws-sdk/client-s3';
-import {
-  IMMUTABLE_CACHE_CONTROL,
-  S3StorageService,
-} from './s3-storage.service';
+import { UPLOAD_CACHE_CONTROL, S3StorageService } from './s3-storage.service';
 
 // Owner 2026-10-24: public media on Cloudflare R2
 // (docs/architecture/R2_PUBLIC_MEDIA.md). Private content never reaches R2.
@@ -169,7 +166,9 @@ describe('S3StorageService with Cloudflare R2', () => {
     expect(put.fields).toEqual({});
     expect(put.headers).toEqual({
       'Content-Type': 'image/jpeg',
-      'Cache-Control': IMMUTABLE_CACHE_CONTROL,
+      // Audit 2026-11-08 (L5): the staging object is never cached; the
+      // copy made by confirm carries the immutable header.
+      'Cache-Control': UPLOAD_CACHE_CONTROL,
     });
     await expect(
       s.presignPut({
@@ -283,6 +282,23 @@ describe('S3StorageService with Cloudflare R2', () => {
         publicBaseUrl: 'https://media.lawbid.dev',
       });
       expect(await s.resolveBucket('media')).toBe('lawbid-public-r2');
+    });
+
+    // Owner 2026-11-08: public media never falls back to AWS — it waits.
+    it('public media: r2_unavailable while R2 is down, r2 once it answers', async () => {
+      const send = jest
+        .spyOn(S3Client.prototype, 'send')
+        .mockRejectedValue(new Error('403') as never);
+      const now = jest.spyOn(Date, 'now').mockReturnValue(2_000_000);
+      const s = on();
+      expect(await s.publicStoreState()).toBe('r2_unavailable');
+      send.mockResolvedValue({} as never);
+      now.mockReturnValue(2_000_000 + 31_000);
+      expect(await s.publicStoreState()).toBe('r2');
+    });
+
+    it('the switch off: public media is AWS as before', async () => {
+      expect(await r2service('aws').publicStoreState()).toBe('aws');
     });
 
     it('recovers by itself once R2 answers, without a restart', async () => {

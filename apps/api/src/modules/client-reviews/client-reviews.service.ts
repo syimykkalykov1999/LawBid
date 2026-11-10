@@ -3,10 +3,17 @@ import type { Prisma } from '@prisma/client';
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { AutoHoldService } from '../moderation/auto-hold.service';
+import {
+  CONTENT_MODERATION_HOOK,
+  type ContentModerationHook,
+} from '../moderation/content-moderation.hook';
+import { screenContent } from '../moderation/content-screen';
 import type { ReportReason } from '@prisma/client';
 import { ModerationService } from '../moderation/moderation.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -85,7 +92,43 @@ export class ClientReviewsService {
     @Optional() private readonly settings?: AppSettingsService,
     // Replica seam: the public summary may be a few seconds old.
     @Optional() private readonly read?: PrismaReadService,
+    // Feature reality audit 2026-11-08: the admin's moderation rules hold
+    // review texts as they hold posts.
+    @Optional()
+    @Inject(CONTENT_MODERATION_HOOK)
+    private readonly moderationHook?: ContentModerationHook,
+    @Optional() private readonly autoHold?: AutoHoldService,
   ) {}
+
+  /** Blocked text is refused; held text is saved hidden (see below). */
+  private screen(authorId: string, body: string | null) {
+    return screenContent(this.moderationHook, body, {
+      kind: 'client_review',
+      authorId,
+    });
+  }
+
+  /** A held review waits hidden in the moderators' queue. */
+  private async afterSave(
+    authorId: string,
+    reviewId: string,
+    body: string | null,
+    held: boolean,
+  ): Promise<void> {
+    if (body) {
+      await this.moderationHook?.record?.(body, {
+        kind: 'client_review',
+        authorId,
+      });
+    }
+    if (!held) return;
+    await this.autoHold?.queue({
+      targetType: 'client_review',
+      targetId: reviewId,
+      authorId,
+      rule: 'rules',
+    });
+  }
 
   async upsert(
     user: RequestUser,
@@ -113,6 +156,9 @@ export class ClientReviewsService {
     }
     const body = dto.body?.length ? dto.body : null;
     if (body) assertNoContactInfo({ body });
+    // «block» refuses any write; «hold» hides only a new review (an edit
+    // keeps its status, like a post re-save — CONTENT C-3).
+    const verdict = await this.screen(user.sub, body);
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     const found = await this.prisma.clientReview.findUnique({
       where: {
@@ -145,6 +191,10 @@ export class ClientReviewsService {
       });
     }
     const existing = revived ? null : found;
+    // An edit is screened like a new review: otherwise a clean review
+    // could be edited into held text that stays public (coordinator review
+    // 09.11). A held edit is hidden and queued for the moderators.
+    const held = verdict === 'hold';
     const row = await this.prisma.clientReview.upsert({
       where: {
         case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
@@ -156,16 +206,22 @@ export class ClientReviewsService {
         rating: dto.rating,
         body,
         photo_ids: photoIds,
+        ...(held ? { status: 'hidden' as const } : {}),
       },
       update: {
         rating: dto.rating,
         body,
         ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
-        ...(revived ? { status: 'published' as const } : {}),
+        ...(held
+          ? { status: 'hidden' as const }
+          : revived
+            ? { status: 'published' as const }
+            : {}),
       },
     });
     await this.recalc(kase.client_id);
-    if (!existing) {
+    if (!existing || held) await this.afterSave(user.sub, row.id, body, held);
+    if (!existing && !held) {
       await this.notifications.emit({
         type: 'review_received',
         recipientId: kase.client_id,
@@ -207,6 +263,7 @@ export class ClientReviewsService {
     await assertNoBlock(this.prisma, user.sub, clientId);
     const body = dto.body?.length ? dto.body : null;
     if (body) assertNoContactInfo({ body });
+    const verdict = await this.screen(user.sub, body);
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     // Audit 2026-10-01: find → write → rating in one serializable
     // transaction — a double submit can't make two reviews, the rating
@@ -229,6 +286,8 @@ export class ClientReviewsService {
               body,
               edited_at: new Date(),
               ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+              // A held edit is hidden like a held new review (see above).
+              ...(verdict === 'hold' ? { status: 'hidden' as const } : {}),
             },
           })
         : await tx.clientReview.create({
@@ -238,12 +297,15 @@ export class ClientReviewsService {
               rating: dto.rating,
               body,
               photo_ids: photoIds,
+              ...(verdict === 'hold' ? { status: 'hidden' as const } : {}),
             },
           });
       await this.recalc(clientId, tx);
       return { existing, row };
     });
-    if (!existing) {
+    const held = verdict === 'hold';
+    if (!existing || held) await this.afterSave(user.sub, row.id, body, held);
+    if (!existing && !held) {
       await this.notifications.emit({
         type: 'review_received',
         recipientId: clientId,

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/audio/proximity_screen.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
@@ -31,7 +32,6 @@ import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:proximity_sensor/proximity_sensor.dart';
 
 /// What the call screen shows (OQ-041).
 enum CallPhase {
@@ -633,7 +633,10 @@ class CallController extends Notifier<CallSession> {
         if (a != null) _onNotificationAction(a);
       }),
     );
+    final proximity = ref.read(proximityScreenProvider);
     ref.onDispose(() {
+      _proximityOn = false;
+      unawaited(proximity.release(this));
       unawaited(actions.cancel());
       _events?.cancel();
       _clearTimers();
@@ -643,7 +646,10 @@ class CallController extends Notifier<CallSession> {
   }
 
   // Like WhatsApp: an audio call held to the ear (no speaker) turns the
-  // screen off while the phone is near the face.
+  // screen off while the phone is near the face — while it rings out too.
+  // [ProximityScreen] arms the Android screen-off wake lock and starts the
+  // sensor (iOS: proximity monitoring); speaker, headset, video or the end
+  // of the call release it.
   bool _proximityOn = false;
 
   void _syncProximity(CallSession? prev, CallSession next) {
@@ -652,15 +658,13 @@ class CallController extends Notifier<CallSession> {
     final on = !next.video &&
         !next.speaker &&
         !ref.read(callAudioRouterProvider).inHeadset &&
-        (next.phase == CallPhase.connecting || next.phase == CallPhase.active);
+        (next.phase == CallPhase.outgoing ||
+            next.phase == CallPhase.connecting ||
+            next.phase == CallPhase.active);
     if (on == _proximityOn) return;
     _proximityOn = on;
-    unawaited(
-      ProximitySensor.setProximityScreenOff(on).then<void>(
-        (_) {},
-        onError: (Object _) {},
-      ),
-    );
+    final screen = ref.read(proximityScreenProvider);
+    unawaited(on ? screen.hold(this) : screen.release(this));
   }
 
   /// Owner 2026-11-04 (WhatsApp): the sound moved by itself (a headset

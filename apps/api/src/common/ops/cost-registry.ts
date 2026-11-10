@@ -531,7 +531,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       map: { off: 'off', auto: 'auto' },
     },
     states: ['off', 'auto'],
-    defaultState: 'auto',
+    defaultState: 'off',
     ceiling: setCeil(
       'economy.max_spend_percent',
       'Допустимый расход: процент выручки и минимум в долларах (Экономика)',
@@ -1888,7 +1888,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       map: { off: 'off', on: 'on', auto: 'auto' },
     },
     states: ['off', 'on', 'auto'],
-    defaultState: 'auto',
+    defaultState: 'off',
     ceiling: setCeil(
       'budget.video.monthly_max',
       'Лимит минут видео в месяц (админка → Лимиты); порог паузы: usage.bunny_bandwidth_crit_gb и usage.bunny_storage_crit_gb (админка → Настройки)',
@@ -1920,7 +1920,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       map: { off: 'off', on: 'on', auto: 'auto' },
     },
     states: ['off', 'on', 'auto'],
-    defaultState: 'auto',
+    defaultState: 'off',
     ceiling: setCeil(
       'usage.cloudflare_egress_crit_gb',
       'Срочный порог трафика звонков в ГБ в месяц (по умолчанию 950 из 1000 бесплатных)',

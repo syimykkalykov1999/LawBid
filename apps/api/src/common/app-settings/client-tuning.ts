@@ -83,10 +83,12 @@ export const CLIENT_TUNING_DEFS = {
   },
   // S20-9 (2026-10-25): 3-state switch over the number above.
   'client.video_prefetch_mode': {
-    default: 'auto',
+    // Owner 2026-11-09: no limiter he did not order — reels warm up the
+    // same on Wi-Fi and mobile data (Instagram / TikTok do), always.
+    default: 'on',
     pattern: /^(off|on|auto)$/,
     description:
-      'Reel warm-up switch. off = never warm up; on = always the numbers below, whatever the network; auto (default) = «ahead» on Wi-Fi, «cellular» on mobile data, and 0 while Bunny video traffic this month is over its warning level (Usage alarms).',
+      'Reel warm-up switch. off = never warm up; on (default) = «ahead» on any network; auto = «ahead» on Wi-Fi, «cellular» on mobile data, and 0 while Bunny video traffic this month is over its warning level (Usage alarms).',
   },
   'client.video_prefetch_cellular': {
     default: 1,
@@ -131,6 +133,31 @@ export const CLIENT_TUNING_DEFS = {
     max: 4,
     description:
       'How many pieces of files the app sends at once, across all files. Fewer on mobile data or a weak phone, and after a network failure.',
+  },
+  // Owner 2026-11-09: the parts of one big upload are not a fixed four.
+  // auto: start at client.uploads_at_once, add one more at a time while the
+  // total speed keeps growing (up to client.upload_parts_max), fall to
+  // client.upload_parts_min after a failed part; mobile data, a weak phone or
+  // low power keep to two. fixed: client.uploads_at_once, as before.
+  'client.upload_parts_mode': {
+    default: 'auto',
+    pattern: /^(auto|fixed)$/,
+    description:
+      'Parts of a big upload at once. auto (default) = start at client.uploads_at_once, climb while the speed grows up to client.upload_parts_max, fall to client.upload_parts_min after a failure; fixed = always client.uploads_at_once.',
+  },
+  'client.upload_parts_max': {
+    default: 8,
+    min: 1,
+    max: 16,
+    description:
+      'Auto mode: the most parts of uploads at once on a fast network (Wi-Fi, a wired computer). Mobile data, a weak phone and low power keep to two.',
+  },
+  'client.upload_parts_min': {
+    default: 2,
+    min: 1,
+    max: 8,
+    description:
+      'Auto mode: the fewest parts of uploads at once after a failed or timed-out part.',
   },
   'client.downloads_at_once': {
     default: 4,

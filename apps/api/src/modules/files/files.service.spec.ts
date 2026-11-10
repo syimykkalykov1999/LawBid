@@ -23,6 +23,8 @@ function make(
     quotaMb?: number | null;
     /** The public-media switch is on: `media` resolves to the R2 bucket. */
     r2?: boolean;
+    /** Owner 2026-11-08: R2 selected but not ready (health check fails). */
+    r2Down?: boolean;
   } = {},
 ) {
   const file =
@@ -77,6 +79,11 @@ function make(
         ),
       ),
       awsBucket: jest.fn((k: string) => `lawbid-${k}`),
+      publicStoreState: jest.fn(() =>
+        Promise.resolve(
+          overrides.r2Down ? 'r2_unavailable' : overrides.r2 ? 'r2' : 'aws',
+        ),
+      ),
       ready: jest.fn().mockResolvedValue(true),
       isPublicStoreBucket: jest.fn((b: string) => b === 'lawbid-r2'),
       publicObjectUrl: jest.fn((b: string, k: string) =>
@@ -94,6 +101,10 @@ function make(
       signedGetUrl: jest.fn().mockResolvedValue('http://signed'),
       // M3 (2026-11-08): confirm copies the upload to a server-owned key.
       copy: jest.fn().mockResolvedValue(true),
+      // L5 (2026-11-08): the copy gets the bucket's real Cache-Control.
+      cacheControlFor: jest.fn((b: string) =>
+        b === 'lawbid-documents' ? 'private, max-age=300' : 'public, immutable',
+      ),
       remove: jest.fn().mockResolvedValue(undefined),
       configured: true,
     },
@@ -276,13 +287,70 @@ describe('FilesService', () => {
       expect(JSON.parse(value)).toMatchObject({ bucket: 'lawbid-r2' });
     });
 
-    it('switch on but an older app (no PUT): stays on AWS with POST', async () => {
+    it('switch on but an older app (no PUT): asked to update, never AWS', async () => {
       const { service, deps } = make({ r2: true });
-      await service.presign('u1', photo);
-      expect(deps.storage.presignPost).toHaveBeenCalledWith(
-        expect.objectContaining({ bucket: 'lawbid-media' }),
-      );
+      await expect(service.presign('u1', photo)).rejects.toMatchObject({
+        status: 426,
+      });
+      expect(deps.storage.presignPost).not.toHaveBeenCalled();
       expect(deps.storage.presignPut).not.toHaveBeenCalled();
+    });
+
+    // Owner 2026-11-08: public data never goes to AWS once the switch is r2.
+    it.each(['avatar', 'post_image', 'review_photo', 'sticker'] as const)(
+      'R2 selected but down: %s waits (503, retry later) and nothing goes to AWS',
+      async (purpose) => {
+        const { service, deps } = make({ r2Down: true });
+        const mime = purpose === 'sticker' ? 'image/png' : 'image/jpeg';
+        await expect(
+          service.presign('u1', {
+            purpose,
+            mime,
+            sizeBytes: 500,
+            sha256: SHA,
+            supportsPut: true,
+          }),
+        ).rejects.toMatchObject({
+          status: 503,
+          response: {
+            code: 'FILE_STORAGE_UNAVAILABLE',
+            details: { retryAfterSeconds: 30 },
+          },
+        });
+        expect(deps.storage.presignPost).not.toHaveBeenCalled();
+        expect(deps.storage.presignPut).not.toHaveBeenCalled();
+        expect(deps.redis.set).not.toHaveBeenCalled();
+        expect(deps.logger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ alert: 'r2_public_upload_waiting' }),
+          expect.any(String),
+        );
+      },
+    );
+
+    it('R2 back: the same upload goes to R2', async () => {
+      const down = make({ r2Down: true });
+      await expect(
+        down.service.presign('u1', { ...photo, supportsPut: true }),
+      ).rejects.toMatchObject({ status: 503 });
+      const { service, deps } = make({ r2: true });
+      await service.presign('u1', { ...photo, supportsPut: true });
+      expect(deps.storage.presignPut).toHaveBeenCalledWith(
+        expect.objectContaining({ bucket: 'lawbid-r2' }),
+      );
+    });
+
+    it('R2 down: private files still go to AWS as before', async () => {
+      const { service, deps } = make({ r2Down: true });
+      await service.presign('u1', {
+        purpose: 'chat_attachment',
+        mime: 'image/jpeg',
+        sizeBytes: 500,
+        sha256: SHA,
+        supportsPut: true,
+      });
+      expect(deps.storage.presignPost).toHaveBeenCalledWith(
+        expect.objectContaining({ bucket: 'lawbid-documents' }),
+      );
     });
 
     it.each([
@@ -690,9 +758,19 @@ describe('FilesService', () => {
     });
 
     describe('AVIF twins (owner 2026-10-25)', () => {
-      const withSettings = (on: boolean, since: string, created: Date) => {
+      const withSettings = (
+        on: boolean,
+        since: string,
+        created: Date,
+        twins = true,
+      ) => {
         const m = make({
-          file: { width: 1024, mime: 'image/webp', created_at: created },
+          file: {
+            width: 1024,
+            mime: 'image/webp',
+            created_at: created,
+            avif_twins: twins,
+          },
         });
         (m.deps.settings as Record<string, unknown>).boolean = jest.fn(() =>
           Promise.resolve(on),
@@ -719,6 +797,20 @@ describe('FilesService', () => {
           'media',
           'avatar/u1/f1_w256.avif',
           3600,
+        );
+      });
+
+      // Owner 2026-11-09: an AVIF that came out no smaller than the WebP is
+      // not stored; such a file must never be linked as .avif (404).
+      it('a file whose AVIF twins were not stored keeps WebP links', async () => {
+        const { service, deps } = withSettings(true, since, after, false);
+        await asAvifClient(() => service.avatarUrls('f1'));
+        const keys = deps.storage.signedGetUrl.mock.calls.map(
+          (c: unknown[]) => c[1],
+        );
+        expect(keys).toContain('avatar/u1/f1');
+        expect(keys.some((k: unknown) => String(k).endsWith('.avif'))).toBe(
+          false,
         );
       });
 
@@ -1312,6 +1404,22 @@ describe('confirm keeps a copy no upload link can write (security audit 2026-11-
   const copiedKey = (deps: ReturnType<typeof make>['deps']): string =>
     (deps.storage.copy.mock.calls[0] as string[])[2];
 
+  // Security audit 2026-11-08 (L6): the whole-file read of confirm goes
+  // through the process's byte budget, so parallel confirms can't take
+  // the memory.
+  it('the whole-file read waits for the read budget', async () => {
+    const { service, read } = setup();
+    const budget = (
+      service as unknown as {
+        readBudget: { run: (b: number, w: () => Promise<unknown>) => unknown };
+      }
+    ).readBudget;
+    const run = jest.spyOn(budget, 'run');
+    await service.confirm('u1', 'f1');
+    expect(run).toHaveBeenCalledWith(pdf.length, expect.any(Function));
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
   it('checks and stores the copy, then drops the upload key', async () => {
     const { service, deps, create, read } = setup();
     await service.confirm('u1', 'f1');
@@ -1319,6 +1427,9 @@ describe('confirm keeps a copy no upload link can write (security audit 2026-11-
       'lawbid-documents',
       UPLOAD_KEY,
       expect.stringMatching(new RegExp(`^${FINAL_KEY}_s[0-9a-f]{8}$`)),
+      // L5: the staging object was `no-store`; the stored copy gets the
+      // bucket's own Cache-Control and the checked type.
+      { contentType: 'application/pdf', cacheControl: 'private, max-age=300' },
     );
     const key = copiedKey(deps);
     expect(key.startsWith('staging/')).toBe(false);
@@ -1383,6 +1494,134 @@ describe('confirm keeps a copy no upload link can write (security audit 2026-11-
     deps.prisma.file.findUnique.mockResolvedValue(null);
     expect(await code(service.confirm('u1', 'f1'))).toBe('FILE_NOT_UPLOADED');
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe('confirm of a small upload with one read (owner 2026-11-09, files_confirm_direct)', () => {
+  const jpeg = Buffer.concat([
+    Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+    Buffer.alloc(300, 0x11),
+  ]);
+  const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+  const UPLOAD_KEY = 'post_image/s0/2026/11/f1';
+  const setup = (
+    opts: { stored?: Buffer | null; claimed?: string; flag?: boolean } = {},
+  ) => {
+    const { service, deps } = make();
+    const intent = {
+      userId: 'u1',
+      purpose: 'post_image',
+      mime: 'image/jpeg',
+      size: jpeg.length,
+      sha256: opts.claimed ?? sha(jpeg),
+      bucket: 'lawbid-media',
+      key: UPLOAD_KEY,
+    };
+    const create = jest.fn().mockResolvedValue({});
+    Object.assign(deps.flags, {
+      isEnabled: jest.fn((k: string) =>
+        Promise.resolve(k === 'files_confirm_direct' && (opts.flag ?? true)),
+      ),
+    });
+    Object.assign(deps.redis, {
+      get: jest.fn().mockResolvedValue(JSON.stringify(intent)),
+      del: jest.fn().mockResolvedValue(1),
+      zrem: jest.fn().mockResolvedValue(1),
+    });
+    const storage = {
+      readUpTo: jest
+        .fn()
+        .mockResolvedValue(opts.stored === undefined ? jpeg : opts.stored),
+      head: jest.fn().mockResolvedValue({ size: jpeg.length }),
+      read: jest.fn().mockResolvedValue(jpeg),
+      put: jest.fn().mockResolvedValue(undefined),
+    };
+    Object.assign(deps.storage, storage);
+    Object.assign(deps.prisma.file, { create });
+    deps.prisma.file.findUnique.mockResolvedValue({
+      id: 'f1',
+      owner_user_id: 'u1',
+      purpose: 'post_image',
+      mime: 'image/jpeg',
+      size_bytes: BigInt(jpeg.length),
+      scan_status: 'pending',
+      s3_bucket: 'lawbid-media',
+      s3_key: `${UPLOAD_KEY}_sabc`,
+      deleted_at: null,
+      created_at: new Date(),
+    });
+    return { service, deps, storage, create };
+  };
+
+  it('one ranged read, no HEAD and no copy; the checked bytes go to the server key', async () => {
+    const { service, deps, storage, create } = setup();
+    await service.confirm('u1', 'f1');
+    expect(storage.readUpTo).toHaveBeenCalledWith(
+      'lawbid-media',
+      UPLOAD_KEY,
+      jpeg.length + 1,
+    );
+    expect(storage.head).not.toHaveBeenCalled();
+    expect(deps.storage.copy).not.toHaveBeenCalled();
+    expect(storage.read).not.toHaveBeenCalled();
+    const [bucket, key, body, mime] = storage.put.mock.calls[0] as [
+      string,
+      string,
+      Buffer,
+      string,
+    ];
+    expect([bucket, mime]).toEqual(['lawbid-media', 'image/jpeg']);
+    expect(key).toMatch(new RegExp(`^${UPLOAD_KEY}_s[0-9a-f]{8}$`));
+    expect(body.equals(jpeg)).toBe(true);
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        s3_key: key,
+        source_sha256: sha(jpeg),
+        size_bytes: BigInt(jpeg.length),
+      }),
+    });
+    expect(deps.scans.enqueueScan).toHaveBeenCalledWith('f1', 'u1');
+  });
+
+  it('a false hash or a longer object is refused and nothing is stored', async () => {
+    for (const t of [
+      setup({ claimed: 'b'.repeat(64) }),
+      setup({ stored: Buffer.concat([jpeg, Buffer.from([0])]) }),
+    ]) {
+      expect(await code(t.service.confirm('u1', 'f1'))).toBe(
+        'FILE_CHECKSUM_MISMATCH',
+      );
+      expect(t.storage.put).not.toHaveBeenCalled();
+      expect(t.create).not.toHaveBeenCalled();
+    }
+  });
+
+  it('another type inside is refused before anything is stored', async () => {
+    const pdf = Buffer.concat([
+      Buffer.from('%PDF-1.7'),
+      Buffer.alloc(jpeg.length - 8, 0x20),
+    ]);
+    const t = setup({ stored: pdf, claimed: sha(pdf) });
+    expect(await code(t.service.confirm('u1', 'f1'))).toBe(
+      'FILE_TYPE_NOT_ALLOWED',
+    );
+    expect(t.storage.put).not.toHaveBeenCalled();
+  });
+
+  it('no object: "not uploaded"', async () => {
+    const t = setup({ stored: null });
+    t.deps.prisma.file.findUnique.mockResolvedValue(null);
+    expect(await code(t.service.confirm('u1', 'f1'))).toBe('FILE_NOT_UPLOADED');
+    expect(t.storage.put).not.toHaveBeenCalled();
+  });
+
+  it('flag off: HEAD and the copy, as before', async () => {
+    const t = setup({ flag: false });
+    await t.service.confirm('u1', 'f1');
+    expect(t.storage.readUpTo).not.toHaveBeenCalled();
+    expect(t.storage.head).toHaveBeenCalled();
+    expect(t.deps.storage.copy).toHaveBeenCalled();
+    expect(t.storage.put).not.toHaveBeenCalled();
   });
 });
 
