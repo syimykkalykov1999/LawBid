@@ -144,6 +144,49 @@ describe('FileScanProcessor', () => {
     expect(storage.read).not.toHaveBeenCalled();
   });
 
+  // Owner 2026-11-09 («фото обрабатываются долго»): the row is still pending,
+  // so the processed main is stored together with its variants (one trip to
+  // R2), and the placeholder is made from the smallest picture.
+  it('a post photo: main and variants are stored at once', async () => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]);
+    const { processor, images, storage } = make({
+      scanner: new DevEicarScanner(),
+      data: jpeg,
+      purpose: 'post_image',
+    });
+    const pic = (w: number) => ({
+      data: Buffer.from(`webp-${w}`),
+      mime: 'image/webp',
+      width: w,
+      height: w,
+    });
+    images.process.mockResolvedValue({
+      main: pic(1440),
+      variants: new Map([
+        [320, pic(320)],
+        [1080, pic(1080)],
+      ]),
+      width: 1440,
+      height: 1440,
+    });
+    const started: string[] = [];
+    const finish: Array<() => void> = [];
+    storage.put.mockImplementation(
+      (_b: string, key: string) =>
+        new Promise<void>((resolve) => {
+          started.push(key);
+          finish.push(resolve);
+        }),
+    );
+    const run = processor.run('f1', false);
+    for (let i = 0; i < 20 && started.length < 3; i++) {
+      await new Promise((r) => setImmediate(r));
+    }
+    expect([...started].sort()).toEqual(['k', 'k_w1080', 'k_w320']);
+    finish.forEach((f) => f());
+    expect(await run).toBe('clean');
+  });
+
   describe('after a light confirm (R-252): source_sha256 is empty', () => {
     const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
     const row = (over: Record<string, unknown>) => ({

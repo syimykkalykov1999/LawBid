@@ -108,10 +108,11 @@ describe('FilesService resumable (multipart) uploads', () => {
       contentType: 'video/mp4',
     });
     expect(store.get(multipartKey('f1'))).toBe('UP1');
-    expect(plan.partSizeBytes).toBe(8 * MIB);
-    expect(plan.partCount).toBe(3);
+    // Owner 2026-11-09: 5 MiB parts (the S3 minimum) for a new upload.
+    expect(plan.partSizeBytes).toBe(5 * MIB);
+    expect(plan.partCount).toBe(4);
     expect(plan.uploadedParts).toEqual([]);
-    expect(plan.parts.map((p) => p.partNumber)).toEqual([1, 2, 3]);
+    expect(plan.parts.map((p) => p.partNumber)).toEqual([1, 2, 3, 4]);
     // The longer window keeps the upload (and its cleanup record) alive.
     expect(redis.expire).toHaveBeenCalledWith('files:upload:f1', 24 * 3600);
   });
