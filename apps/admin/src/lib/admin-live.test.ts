@@ -72,6 +72,28 @@ describe('admin live channel (speed matrix §3 #5)', () => {
     expect(socket.disconnect).toHaveBeenCalled();
   });
 
+  it('owner 2026-11-10: the first connect re-reads only what was not just fetched, a reconnect everything', async () => {
+    const qc = new QueryClient();
+    const fresh = qc.getQueryCache().build(qc, { queryKey: ['fresh'], refetchInterval: livePoll() } as never);
+    fresh.setData('x', { updatedAt: Date.now(), manual: false });
+    const old = qc.getQueryCache().build(qc, { queryKey: ['old'], refetchInterval: livePoll() } as never);
+    old.setData('y', { updatedAt: Date.now() - 60_000, manual: false });
+    const inv = vi.spyOn(qc, 'invalidateQueries').mockResolvedValue();
+    const { io, socket } = fakeIo();
+    const stop = startAdminLive(qc, { fetchTicket: () => Promise.resolve(ticket()), io });
+    await flush();
+    const picked = () => {
+      const pred = (inv.mock.calls.at(-1)![0] as { predicate: (q: unknown) => boolean }).predicate;
+      return [fresh, old].filter((q) => pred(q)).map((q) => q.queryKey[0]);
+    };
+    socket.fire('connect');
+    expect(picked()).toEqual(['old']);
+    socket.fire('disconnect');
+    socket.fire('connect');
+    expect(picked()).toEqual(['fresh', 'old']);
+    stop();
+  });
+
   it('a reconnect asks for a fresh one-shot ticket', async () => {
     const qc = new QueryClient();
     const tickets = [ticket(), ticket({ ticket: 'second-ticket-second-ticket-0001' })];
