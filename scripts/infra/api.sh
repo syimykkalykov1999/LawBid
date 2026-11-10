@@ -20,7 +20,11 @@ API=${LAWBID_API_URL:?LAWBID_API_URL}
 : "${ACTIONS_ID_TOKEN_REQUEST_URL:?the job needs permissions: id-token: write}"
 TOKEN=$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
   "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=lawbid-infra-apply" | jq -r '.value')
-echo "::add-mask::${TOKEN}"
+# 2026-11-10: to STDERR. The callers keep this script's stdout as the API's
+# JSON (`> job.json`, `| jq`); the mask line on stdout made every automatic
+# cloud change fail at «start» (jq: parse error at line 1, column 1). The
+# runner reads workflow commands from stderr too.
+echo "::add-mask::${TOKEN}" >&2
 OUT=$(mktemp)
 ARGS=(-sS -o "$OUT" -w '%{http_code}' -X "$METHOD"
   -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json'
