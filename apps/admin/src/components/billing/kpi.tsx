@@ -1,7 +1,7 @@
 'use client';
 
 import type { Icon } from '@phosphor-icons/react';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { AnimatedNumber } from '@/components/ui/animated-number';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';

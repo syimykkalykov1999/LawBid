@@ -20,19 +20,17 @@ vi.mock("next/link", () => ({
     <a href={String(href)}>{children}</a>
   ),
 }));
-vi.mock("motion/react", () => ({
-  m: new Proxy(
-    {},
-    {
-      get: () => ({ children, ...rest }: { children?: ReactNode } & Record<string, unknown>) => {
-        const dom = Object.fromEntries(
-          Object.entries(rest).filter(([k]) => !["initial", "animate", "transition", "layout", "layoutId"].includes(k)),
-        );
-        return <div {...dom}>{children}</div>;
-      },
-    },
-  ),
-}));
+vi.mock("motion/react-m", () => {
+  const Plain = ({ children, ...rest }: { children?: ReactNode } & Record<string, unknown>) => {
+    const dom = Object.fromEntries(
+      Object.entries(rest).filter(([k]) => !["initial", "animate", "transition", "layout", "layoutId"].includes(k)),
+    );
+    return <div {...dom}>{children}</div>;
+  };
+  // Every m.<tag> renders as a plain element, as the old motion/react mock did.
+  const tags = ["div", "span", "p", "a", "ul", "li", "tr", "td", "button", "section", "header", "nav", "aside", "main", "form", "label", "h1", "h2", "h3", "img", "svg", "path"];
+  return Object.fromEntries(tags.map((t) => [t, Plain]));
+});
 vi.mock("@/lib/api/client", () => ({
   errorText: (e: unknown) => String(e),
   api: {

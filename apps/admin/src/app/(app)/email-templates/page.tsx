@@ -2,7 +2,7 @@
 
 import { ArrowRight, BracketsCurly, EnvelopeSimple } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { LOCALE_LABEL, type EmailTemplateSummary } from '@/components/email/email-utils';
 import { ErrorNote, PageHeader } from '@/components/page-header';

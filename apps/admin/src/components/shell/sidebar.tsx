@@ -1,7 +1,7 @@
 'use client';
 
 import { CaretDoubleLeft } from '@phosphor-icons/react';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { usePathname } from 'next/navigation';
 import type { Me } from '@/lib/hooks';

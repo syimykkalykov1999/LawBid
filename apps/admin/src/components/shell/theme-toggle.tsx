@@ -1,7 +1,8 @@
 'use client';
 
 import { Desktop, MoonStars, Sun } from '@phosphor-icons/react';
-import { AnimatePresence, m } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useTheme, type ThemePref } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 

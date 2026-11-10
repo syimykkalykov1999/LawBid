@@ -2,7 +2,7 @@
 
 import { Article, Briefcase, CursorClick, Eye, FilmStrip, HandTap, IdentificationCard, UsersThree } from '@phosphor-icons/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { m as motion } from 'motion/react';
+import * as motion from 'motion/react-m';
 import { useState } from 'react';
 import { fadeUp } from '@/components/billing/shared';
 import { growthError } from '@/components/growth/errors';

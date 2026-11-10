@@ -1,6 +1,6 @@
 'use client';
 
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useId } from 'react';
 import { cn } from '@/lib/utils';
 

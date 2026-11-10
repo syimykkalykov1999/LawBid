@@ -16,7 +16,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { m } from "motion/react";
+import * as m from "motion/react-m";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Kpi, KpiSkeletons } from "@/components/billing/kpi";

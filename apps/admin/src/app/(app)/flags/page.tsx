@@ -2,7 +2,7 @@
 
 import { Key } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge, Card } from '@/components/ui/card';

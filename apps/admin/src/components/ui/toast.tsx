@@ -1,7 +1,8 @@
 'use client';
 
 import { CheckCircle, Info, WarningCircle, X } from '@phosphor-icons/react';
-import { AnimatePresence, m } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import * as m from 'motion/react-m';
 import { createContext, useCallback, useContext, useState } from 'react';
 import { errorText } from '@/lib/api/client';
 

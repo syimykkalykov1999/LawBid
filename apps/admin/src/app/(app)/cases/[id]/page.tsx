@@ -2,7 +2,7 @@
 
 import { Archive, ArrowCounterClockwise, ArrowLeft, EyeSlash, Flag, LockSimple, RocketLaunch, Scales, WarningCircle } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { DossierChecklist } from '@/components/cases/dossier';
