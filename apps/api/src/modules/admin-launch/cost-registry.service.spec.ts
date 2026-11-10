@@ -145,9 +145,10 @@ describe('CostRegistryService status dots', () => {
     const { svc, ops } = make();
     const r = await svc.report(NOW);
     const by = (id: string) => r.rows.find((x) => x.id === id)!.status;
+    // Owner 2026-11-09: the Bunny upload stop is off by default.
     expect(by('vendor.bunny')).toMatchObject({
       live: 'attention',
-      state: 'auto',
+      state: 'off',
     });
     expect(by('vendor.bunny').reason).toContain('Bunny');
     expect(by('aws.db_autoscale').live).toBe('idle');

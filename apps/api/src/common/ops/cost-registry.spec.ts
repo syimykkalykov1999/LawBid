@@ -129,6 +129,14 @@ describe('cost registry: content rules', () => {
   it('an item that is OFF by default costs nothing at launch and says what it adds', () => {
     for (const e of COST_REGISTRY) {
       if (e.defaultState !== 'off') continue;
+      // Owner 2026-11-09: a money stop that is off means «never stop»;
+      // the vendor behind it still bills (Bunny's $1 minimum).
+      if (
+        e.control?.type === 'app-setting' &&
+        /_hardstop\.mode$/.test(e.control.key)
+      ) {
+        continue;
+      }
       expect(mid(e.usd.launch)).toBe(0);
     }
     const offWithAdd = COST_REGISTRY.filter(

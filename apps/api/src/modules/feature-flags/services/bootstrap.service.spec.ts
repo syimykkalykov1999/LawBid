@@ -108,12 +108,20 @@ describe('BootstrapService.build: S20-9 reel warm-up switch', () => {
     ];
   };
 
-  it('auto: Wi-Fi 3, mobile data 1; 0 while Bunny traffic is over its warning level', async () => {
-    expect(await prefetch({})).toEqual([3, 1]);
+  it('owner 2026-11-09: default on — 3 ahead on Wi-Fi and mobile data, even over the Bunny warning', async () => {
+    expect(await prefetch({})).toEqual([3, 3]);
     expect(await prefetch({}, { bunny: { bandwidthLevel: 'warn' } })).toEqual([
-      0, 0,
+      3, 3,
     ]);
-    expect(await prefetch({}, { bunny: { bandwidthLevel: 'ok' } })).toEqual([
+  });
+
+  it('auto (admin choice): Wi-Fi 3, mobile data 1; 0 while Bunny traffic is over its warning level', async () => {
+    const auto = { 'client.video_prefetch_mode': 'auto' };
+    expect(await prefetch(auto)).toEqual([3, 1]);
+    expect(await prefetch(auto, { bunny: { bandwidthLevel: 'warn' } })).toEqual(
+      [0, 0],
+    );
+    expect(await prefetch(auto, { bunny: { bandwidthLevel: 'ok' } })).toEqual([
       3, 1,
     ]);
   });
@@ -308,7 +316,7 @@ describe('BootstrapService.build', () => {
       'client.guest_browse_web_enabled': true,
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
       'client.video_prefetch_ahead': 3,
-      'client.video_prefetch_cellular': 1,
+      'client.video_prefetch_cellular': 3,
     });
     expect(result.languages).toEqual([EN]);
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });
