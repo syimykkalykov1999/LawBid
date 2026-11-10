@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_session/audio_session.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -8,6 +9,7 @@ import 'package:lawbid/core/audio/proximity_screen.dart';
 import 'package:lawbid/core/audio/safe_play.dart';
 import 'package:lawbid/core/cache/voice_web_cache.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
+import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/platform/blob_url.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
