@@ -748,11 +748,22 @@ class _CasesClient implements CasesClient {
   @override
   Future<WorkspaceFileListEnvelope> listCaseFiles({
     required String id,
+    num? limit,
+    String? cursor,
+    CaseFilesKind? kind,
+    CaseFilesSource? source,
+    bool? sample,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{
+      r'limit': limit,
+      r'cursor': cursor,
+      r'kind': kind?.toJson(),
+      r'source': source?.toJson(),
+      r'sample': sample,
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;

@@ -12,6 +12,8 @@ import '../models/case_deleted_envelope.dart';
 import '../models/case_detail_for_attorney_envelope.dart';
 import '../models/case_envelope.dart';
 import '../models/case_feed_item_list_envelope.dart';
+import '../models/case_files_kind.dart';
+import '../models/case_files_source.dart';
 import '../models/case_list_sort.dart';
 import '../models/case_summary_list_envelope.dart';
 import '../models/case_tasks_envelope.dart';
@@ -288,10 +290,27 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Case files with notes and where they came from
+  /// Case files with notes and where they came from.
+  ///
+  /// With `limit`: one page, oldest first, meta.nextCursor for the next one; filters `kind`, `source`, `sample`. Without it: every file (apps released before 2026-11-10).
+  ///
+  /// [limit] - Page size. Absent: every file (older apps).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [kind] - media: photos and videos; documents: everything else.
+  ///
+  /// [source] - Only the files sent with tasks / with updates.
+  ///
+  /// [sample] - Only the samples (forms / examples).
   @GET('/cases/{id}/files')
   Future<WorkspaceFileListEnvelope> listCaseFiles({
     @Path('id') required String id,
+    @Query('limit') num? limit,
+    @Query('cursor') String? cursor,
+    @Query('kind') CaseFilesKind? kind,
+    @Query('source') CaseFilesSource? source,
+    @Query('sample') bool? sample,
     @Extras() Map<String, dynamic>? extras,
   });
 

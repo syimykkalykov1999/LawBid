@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/keep_alive_for.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/cases/workspace/case_files_outbox.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
     show socialRepositoryProvider;
+import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-13: the case workspace's data — files, tasks, updates and
@@ -40,6 +42,106 @@ final caseFilesProvider =
         .data;
   },
   retry: _noRetry,
+);
+
+/// One Files / Photos tab of a case with its filter chip: 0 all, 1 from
+/// tasks, 2 from updates, 3 samples.
+typedef CaseFilesView = ({String caseId, bool media, int filter});
+
+/// Owner 2026-11-10 (load in parts, like Telegram's shared media): a case's
+/// files a page at a time, filtered by the server, the next page asked for
+/// before the end of the list ([PagedNotifier]).
+class CaseFilesNotifier extends PagedNotifier<api.WorkspaceFileDto> {
+  CaseFilesNotifier(this.view);
+
+  final CaseFilesView view;
+
+  static const pageSize = 30;
+
+  @override
+  Duration? get keepAliveFor => KeepWindows.workspace;
+
+  @override
+  Object idOf(api.WorkspaceFileDto item) => item.fileId;
+
+  @override
+  Future<CursorPage<api.WorkspaceFileDto>> fetch(String? cursor) =>
+      ref.read(caseFilesRemoteProvider).page(view, cursor, pageSize);
+}
+
+final caseFilesPagedProvider = AsyncNotifierProvider.autoDispose.family<
+    CaseFilesNotifier, PaginatedList<api.WorkspaceFileDto>, CaseFilesView>(
+  CaseFilesNotifier.new,
+  retry: _noRetry,
+);
+
+/// Whether a tab has any sample (the «Samples» chip): one row is enough.
+final caseFilesHaveSamplesProvider = FutureProvider.autoDispose
+    .family<bool, ({String caseId, bool media})>((ref, v) async {
+  ref.keepAliveFor(KeepWindows.workspace);
+  return ref
+      .watch(caseFilesRemoteProvider)
+      .hasSamples(v.caseId, media: v.media);
+});
+
+/// The server side of [CaseFilesNotifier] (tests put their own files here).
+abstract interface class CaseFilesRemote {
+  Future<CursorPage<api.WorkspaceFileDto>> page(
+    CaseFilesView view,
+    String? cursor,
+    int limit,
+  );
+
+  Future<bool> hasSamples(String caseId, {required bool media});
+}
+
+class ApiCaseFilesRemote implements CaseFilesRemote {
+  const ApiCaseFilesRemote(this._client);
+
+  final api.CasesClient _client;
+
+  static api.CaseFilesKind _kind(bool media) =>
+      media ? api.CaseFilesKind.media : api.CaseFilesKind.documents;
+
+  @override
+  Future<CursorPage<api.WorkspaceFileDto>> page(
+    CaseFilesView view,
+    String? cursor,
+    int limit,
+  ) async {
+    final env = await guardApiCall(
+      () => _client.listCaseFiles(
+        id: view.caseId,
+        limit: limit,
+        cursor: cursor,
+        kind: _kind(view.media),
+        source: switch (view.filter) {
+          1 => api.CaseFilesSource.task,
+          2 => api.CaseFilesSource.update,
+          _ => null,
+        },
+        sample: view.filter == 3 ? true : null,
+      ),
+    );
+    return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
+  }
+
+  @override
+  Future<bool> hasSamples(String caseId, {required bool media}) async {
+    final env = await guardApiCall(
+      () => _client.listCaseFiles(
+        id: caseId,
+        limit: 1,
+        kind: _kind(media),
+        sample: true,
+      ),
+    );
+    return env.data.isNotEmpty;
+  }
+}
+
+final caseFilesRemoteProvider = Provider<CaseFilesRemote>(
+  (ref) => ApiCaseFilesRemote(ref.watch(caseWorkspaceClientProvider)),
 );
 
 final caseTasksProvider =

@@ -14,6 +14,7 @@ import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 import '../../helpers/ux_harness.dart';
+import 'support/fake_case_files_remote.dart';
 
 /// App audit 2026-10-26 A9 / A16: a failed read of a case tab (Files,
 /// History = updates + activity, Tasks, Time) showed a bare line of text
@@ -66,7 +67,9 @@ void main() {
   testWidgets('Files: error with Retry', (tester) async {
     final reads = _Reads();
     await pump(tester, const FilesTab(caseId: 'c1', isAttorney: true), [
-      caseFilesProvider('c1').overrideWith((ref) => reads.next()),
+      caseFilesRemoteProvider.overrideWithValue(
+        FakeCaseFilesRemote(const [], onPage: reads.next),
+      ),
     ]);
     await retry(tester, reads);
   });

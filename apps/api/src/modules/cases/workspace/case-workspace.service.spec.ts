@@ -293,4 +293,107 @@ describe('CaseWorkspaceService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(m.prisma.caseTask.update).not.toHaveBeenCalled();
   });
+
+  // Owner 2026-11-10 (load in parts, like Telegram's shared media).
+  describe('Files tab in pages', () => {
+    const photo = (n: number) => ({
+      id: `00000000-0000-4000-8000-00000000000${n}`,
+      case_id: 'k',
+      file_id: `f${n}`,
+      source: 'case',
+      source_id: null,
+      source_item_id: null,
+      description: null,
+      is_sample: false,
+      added_by: CLIENT,
+      created_at: new Date(`2026-10-24T10:0${n}:00Z`),
+    });
+    const withUrls = (m: ReturnType<typeof make>) =>
+      (m.files.casePhotoUrls as jest.Mock).mockImplementation((ids: string[]) =>
+        Promise.resolve(
+          ids.map((fileId) => ({
+            fileId,
+            url: 'u',
+            previewUrl: 'p',
+            mime: 'image/jpeg',
+            sizeBytes: 1,
+          })),
+        ),
+      );
+
+    it('one page of `limit` files and a cursor that continues after the last', async () => {
+      const m = make({ accepted: true });
+      withUrls(m);
+      m.prisma.casePhoto.findMany.mockResolvedValue([
+        photo(1),
+        photo(2),
+        photo(3),
+      ] as never);
+      const page = await m.svc.listFilesPage(as(CLIENT), 'k', { limit: 2 });
+      expect(page.items.map((f) => f.fileId)).toEqual(['f1', 'f2']);
+      expect(page.items[0]).not.toHaveProperty('rowId');
+      expect(m.prisma.casePhoto.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          take: 3,
+          orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+        }),
+      );
+      m.prisma.casePhoto.findMany.mockResolvedValue([photo(3)] as never);
+      const next = await m.svc.listFilesPage(as(CLIENT), 'k', {
+        limit: 2,
+        cursor: page.nextCursor!,
+      });
+      expect(next.items.map((f) => f.fileId)).toEqual(['f3']);
+      expect(next.nextCursor).toBeNull();
+      const where = (
+        m.prisma.casePhoto.findMany.mock.calls.at(-1) as unknown as [
+          { where: Record<string, unknown> },
+        ]
+      )[0].where;
+      expect(where.OR).toEqual([
+        { created_at: { gt: photo(2).created_at } },
+        { created_at: photo(2).created_at, id: { gt: photo(2).id } },
+      ]);
+    });
+
+    it('the tab filters go to the database', async () => {
+      const m = make({ accepted: true });
+      await m.svc.listFilesPage(as(CLIENT), 'k', {
+        limit: 20,
+        kind: 'media',
+        source: 'task',
+        sample: true,
+      });
+      expect(m.prisma.casePhoto.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            case_id: 'k',
+            source: 'task',
+            is_sample: true,
+            file: {
+              OR: [
+                { mime: { startsWith: 'image/' } },
+                { mime: { startsWith: 'video/' } },
+              ],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('without limit the whole list comes back as before', async () => {
+      const m = make({ accepted: true });
+      withUrls(m);
+      m.prisma.casePhoto.findMany.mockResolvedValue([
+        photo(1),
+        photo(2),
+        photo(3),
+      ] as never);
+      const all = await m.svc.listFiles(as(CLIENT), 'k');
+      expect(all.map((f) => f.fileId)).toEqual(['f1', 'f2', 'f3']);
+      expect(m.prisma.casePhoto.findMany).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ take: expect.anything() }),
+      );
+    });
+  });
 });

@@ -827,6 +827,8 @@ export 'models/contact_issue_report_envelope.dart';
 export 'models/workspace_file_dto.dart';
 export 'models/case_workspace_dto.dart';
 export 'models/case_workspace_envelope.dart';
+export 'models/case_files_kind.dart';
+export 'models/case_files_source.dart';
 export 'models/workspace_file_list_envelope.dart';
 export 'models/case_task_event_dto.dart';
 export 'models/case_task_item_dto.dart';
