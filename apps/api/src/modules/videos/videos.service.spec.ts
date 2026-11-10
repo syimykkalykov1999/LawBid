@@ -12,11 +12,16 @@ function setup(video: Record<string, unknown> | null) {
       findMany: jest.fn(() => Promise.resolve(updatedAt.rows)),
     },
     videoAsset: {
-      update: jest.fn((args: { data: object }) =>
-        Promise.resolve({ id: 'a1', ...args.data }),
-      ),
+      // refresh stores a change only from the status it read (updateMany),
+      // then reads the row back.
+      updateMany: jest.fn((args: { data: object }) => {
+        last = { id: 'a1', ...args.data };
+        return Promise.resolve({ count: 1 });
+      }),
+      findUnique: jest.fn(() => Promise.resolve(last)),
     },
   };
+  let last: object | null = null;
   const bunny = { getVideo: jest.fn().mockResolvedValue(video) };
   const settings = {
     number: jest.fn((key: string) =>

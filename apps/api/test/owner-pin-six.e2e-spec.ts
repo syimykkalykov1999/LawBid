@@ -9,7 +9,8 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { ensurePostPractices } from './support/post-practices';
 
 /** Owner 2026-10-28: up to six pinned posts per profile list (was three);
- * the profile shows them first, in slot order 1..6. */
+ * owner 2026-11-09: up to ten. The profile shows them first, in slot
+ * order 1..10. */
 jest.setTimeout(120_000);
 
 describe('Six pinned posts (e2e)', () => {
@@ -54,7 +55,7 @@ describe('Six pinned posts (e2e)', () => {
     })}`,
   });
 
-  it('pins into 1..6, refuses 7, lists them first in slot order', async () => {
+  it('pins into 1..10, refuses 11, lists them first in slot order', async () => {
     const u = await prisma.user.create({
       data: { role: 'attorney', first_name: 'Pin', last_name: 'Six' },
     });
@@ -70,7 +71,7 @@ describe('Six pinned posts (e2e)', () => {
     });
     const author = auth(u.id, 'attorney');
     const ids: string[] = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 11; i++) {
       const made = await api()
         .post('/api/v1/posts')
         .set(author)
@@ -80,7 +81,7 @@ describe('Six pinned posts (e2e)', () => {
       ids.push(made.body.data.id as string);
     }
     // Pinned in reverse so the list order comes from the slot, not the date.
-    for (let slot = 6; slot >= 1; slot--) {
+    for (let slot = 10; slot >= 1; slot--) {
       const pinned = await api()
         .post(`/api/v1/posts/${ids[slot - 1]}/pin`)
         .set(author)
@@ -88,11 +89,11 @@ describe('Six pinned posts (e2e)', () => {
       expect(pinned.status).toBe(201);
       expect(pinned.body.data.pinSlot).toBe(slot);
     }
-    const seven = await api()
-      .post(`/api/v1/posts/${ids[6]}/pin`)
+    const eleven = await api()
+      .post(`/api/v1/posts/${ids[10]}/pin`)
       .set(author)
-      .send({ slot: 7 });
-    expect(seven.status).toBe(400);
+      .send({ slot: 11 });
+    expect(eleven.status).toBe(400);
 
     const viewer = await prisma.user.create({ data: { role: 'client' } });
     const list = await api()
@@ -100,17 +101,19 @@ describe('Six pinned posts (e2e)', () => {
       .set(auth(viewer.id, 'client'));
     expect(list.status).toBe(200);
     const items = list.body.data as { id: string; pinSlot: number | null }[];
-    expect(items.slice(0, 6).map((p) => p.pinSlot)).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(items.slice(0, 6).map((p) => p.id)).toEqual(ids.slice(0, 6));
+    expect(items.slice(0, 10).map((p) => p.pinSlot)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+    ]);
+    expect(items.slice(0, 10).map((p) => p.id)).toEqual(ids.slice(0, 10));
 
-    // The database check is 1..6 too (checked where the row lives: with
+    // The database check is 1..10 too (checked where the row lives: with
     // E2E_TWO_DB the default client may not hold this shard).
     const here = await prisma.$queryRaw<{ n: number }[]>`
-      SELECT COUNT(*)::INT AS n FROM posts WHERE id = ${ids[6]}::UUID`;
+      SELECT COUNT(*)::INT AS n FROM posts WHERE id = ${ids[10]}::UUID`;
     if (here[0]?.n === 1) {
       await expect(
-        prisma.$executeRaw`UPDATE posts SET pin_slot = 7, pin_group = 'grid'
-                           WHERE id = ${ids[6]}::UUID`,
+        prisma.$executeRaw`UPDATE posts SET pin_slot = 11, pin_group = 'grid'
+                           WHERE id = ${ids[10]}::UUID`,
       ).rejects.toThrow();
     }
   });

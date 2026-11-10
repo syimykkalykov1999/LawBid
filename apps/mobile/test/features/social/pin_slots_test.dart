@@ -9,8 +9,8 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import '../../helpers/ux_harness.dart';
 import 'social_fakes.dart';
 
-/// Owner 2026-10-28: up to six pinned posts — the pin sheet shows the
-/// circles 1..6 in two rows of three; any of them pins.
+/// Owner 2026-10-28: up to six pinned posts; owner 2026-11-09: up to ten —
+/// the pin sheet shows the circles 1..10 in rows of three; any of them pins.
 void main() {
   setUpAll(initializeDateFormatting);
 
@@ -57,12 +57,12 @@ void main() {
     await t.pumpAndSettle();
   }
 
-  testWidgets('six slots in two rows of three', (t) async {
+  testWidgets('ten slots in rows of three', (t) async {
     await pumpSheet(t, _PinRepo());
-    for (var s = 1; s <= 6; s++) {
+    for (var s = 1; s <= 10; s++) {
       expect(find.byKey(ValueKey('pin-slot-$s')), findsOneWidget);
     }
-    expect(find.byKey(const ValueKey('pin-slot-7')), findsNothing);
+    expect(find.byKey(const ValueKey('pin-slot-11')), findsNothing);
     final one = t.getRect(find.byKey(const ValueKey('pin-slot-1')));
     final three = t.getRect(find.byKey(const ValueKey('pin-slot-3')));
     final four = t.getRect(find.byKey(const ValueKey('pin-slot-4')));
@@ -72,12 +72,12 @@ void main() {
     expect(t.takeException(), isNull);
   });
 
-  testWidgets('slot 5 pins to 5', (t) async {
+  testWidgets('slot 10 pins to 10', (t) async {
     final repo = _PinRepo();
     await pumpSheet(t, repo);
-    await t.tap(find.byKey(const ValueKey('pin-slot-5')));
+    await t.tap(find.byKey(const ValueKey('pin-slot-10')));
     await t.pumpAndSettle();
-    expect(repo.pins, [('p1', 5)]);
+    expect(repo.pins, [('p1', 10)]);
   });
 }
 

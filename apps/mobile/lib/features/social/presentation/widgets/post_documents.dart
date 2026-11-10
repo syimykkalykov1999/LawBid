@@ -11,7 +11,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
-    show openCaseDocument;
+    show openKeptDocument;
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show docLook, fileSizeLabel;
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -427,7 +427,11 @@ class PostDocumentsList extends ConsumerWidget {
             label: t.t('post.docs.open', {'name': d.fileName}),
             excludeSemantics: true,
             child: AppPressable(
-              onTap: () => openCaseDocument(d.url),
+              onTap: () => openKeptDocument(
+                fileId: d.fileId,
+                url: d.url,
+                mime: d.mime,
+              ),
               child: Container(
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(

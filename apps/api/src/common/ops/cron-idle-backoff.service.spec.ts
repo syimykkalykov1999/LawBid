@@ -87,3 +87,15 @@ describe('CronIdleBackoffService (S20-6)', () => {
     expect(await svc.shouldSkip(JOB)).toBe(false);
   });
 });
+
+describe('owner 2026-11-09: the video sweep never backs off', () => {
+  it('videos.sweep is not eligible: an uploaded reel must not wait 5 minutes', async () => {
+    expect(CronIdleBackoffService.eligible('videos.sweep')).toBe(false);
+    const { svc, store } = make('auto', 1, 5);
+    store.set(
+      'ops:cron_idle:videos.sweep',
+      JSON.stringify({ empty: 99, lastRunAt: new Date().toISOString() }),
+    );
+    expect(await svc.shouldSkip('videos.sweep')).toBe(false);
+  });
+});

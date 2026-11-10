@@ -138,7 +138,9 @@ void main() {
     expect(first.items.map((x) => x.id), ['old'], reason: 'the copy, at once');
     await Future<void>.delayed(const Duration(milliseconds: 100));
     final live = c.read(myCasesProvider(MyCasesFilter.active)).value!;
-    expect(live.items.map((x) => x.id), ['a', 'b'], reason: 'then the page');
+    // Owner 2026-11-09: «Active» sorts by stage, activity, then id (as the
+    // server does); these two tie on everything but the id.
+    expect(live.items.map((x) => x.id), ['b', 'a'], reason: 'then the page');
     expect(pageReads(repo), 1, reason: 'one network read, not two');
     expect(
       repo.changedCalls,

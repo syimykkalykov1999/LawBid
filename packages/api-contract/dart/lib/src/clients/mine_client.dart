@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/case_conversation_envelope.dart';
+import '../models/case_list_sort.dart';
 import '../models/filter2.dart';
 import '../models/filter3.dart';
 import '../models/my_bid_item_list_envelope.dart';
@@ -24,6 +25,10 @@ abstract class MineClient {
   ///
   /// [q] - Words of the case: title, description, city, state, topic (any language).
   ///
+  /// [stages] - Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.
+  ///
+  /// [awaiting] - Only the cases waiting for me (client: open with bids, or pending completion).
+  ///
   /// [cursor] - meta.nextCursor of the previous page.
   ///
   /// [type] - Posts arrive with docs/05.
@@ -34,6 +39,9 @@ abstract class MineClient {
     @Query('q') String? q,
     @Query('practice') String? practice,
     @Query('state') String? state,
+    @Query('stages') List<num>? stages,
+    @Query('awaiting') bool? awaiting,
+    @Query('sort') CaseListSort? sort,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -49,6 +57,10 @@ abstract class MineClient {
   ///
   /// [q] - Words of the case: title, description, city, state, topic (any language).
   ///
+  /// [stages] - Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.
+  ///
+  /// [awaiting] - Only the cases waiting for me (client: open with bids, or pending completion).
+  ///
   /// [cursor] - meta.nextCursor of the previous page.
   ///
   /// [updatedSince] - Owner 2026-10-22 (client economy plan, package E): only my bids changed since (ISO); meta.deletedIds = bids that left this tab; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.
@@ -59,6 +71,9 @@ abstract class MineClient {
     @Query('q') String? q,
     @Query('practice') String? practice,
     @Query('state') String? state,
+    @Query('stages') List<num>? stages,
+    @Query('awaiting') bool? awaiting,
+    @Query('sort') CaseListSort? sort,
     @Query('cursor') String? cursor,
     @Query('updatedSince') DateTime? updatedSince,
     @Extras() Map<String, dynamic>? extras,
@@ -67,6 +82,10 @@ abstract class MineClient {
   /// "In progress" / "Completed" (attorney, §11.2).
   ///
   /// [q] - Words of the case: title, description, city, state, topic (any language).
+  ///
+  /// [stages] - Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.
+  ///
+  /// [awaiting] - Only the cases waiting for me (client: open with bids, or pending completion).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   ///
@@ -78,6 +97,9 @@ abstract class MineClient {
     @Query('q') String? q,
     @Query('practice') String? practice,
     @Query('state') String? state,
+    @Query('stages') List<num>? stages,
+    @Query('awaiting') bool? awaiting,
+    @Query('sort') CaseListSort? sort,
     @Query('cursor') String? cursor,
     @Query('updatedSince') DateTime? updatedSince,
     @Extras() Map<String, dynamic>? extras,

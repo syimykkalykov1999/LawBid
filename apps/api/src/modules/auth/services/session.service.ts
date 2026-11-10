@@ -424,6 +424,9 @@ export class SessionService {
         'aes-256-gcm',
         this.replayKeyBytes(),
         iv,
+        // Semgrep gcm-no-tag-length (pass 2026-11-08): only the full
+        // 16-byte tag; a truncated one is refused, not accepted.
+        { authTagLength: 16 },
       );
       decipher.setAuthTag(tag);
       const text = Buffer.concat([

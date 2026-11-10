@@ -255,14 +255,17 @@ describe('SmsComplianceService', () => {
     expect(await svc.isSuppressed(PHONE)).toBe(true);
   });
 
-  it('HELP answers only when switched on', async () => {
+  // Security audit 2026-11-08 (L8): a TwiML reply is an outgoing SMS
+  // outside the two allowed cases — never, even with the switch on.
+  it('HELP is never answered by SMS, even with the switch on', async () => {
     expect(
       (await build().svc.handleInbound({ from: PHONE, body: 'HELP' })).reply,
     ).toBeNull();
     const on = build({ 'compliance.sms.reply_to_help': true });
-    expect(
-      (await on.svc.handleInbound({ from: PHONE, body: 'help' })).reply,
-    ).toBe('Help text');
+    expect(await on.svc.handleInbound({ from: PHONE, body: 'help' })).toEqual({
+      keyword: 'help',
+      reply: null,
+    });
   });
 
   it('ordinary replies do nothing', async () => {
@@ -282,7 +285,7 @@ describe('SmsComplianceService', () => {
     expect(await svc.isSuppressed(PHONE)).toBe(true);
   });
 
-  it('sendNonOtp sends with a STOP notice only when allowed', async () => {
+  it('sendNonOtp never texts (owner rule: two SMS cases only)', async () => {
     const { svc } = build();
     const sendText = jest.fn().mockResolvedValue(undefined);
     const denied = await svc.sendNonOtp(
@@ -298,11 +301,14 @@ describe('SmsComplianceService', () => {
       disclosureVersion: 'sms-v1',
       source: 'app',
     });
-    await svc.sendNonOtp(
+    // L8 (2026-11-08): consent recorded and the switch on, still no text —
+    // SMS only at registration and «Забыл пароль».
+    const allowed = await svc.sendNonOtp(
       { sendText },
       { phone: PHONE, purpose: 'marketing', body: 'Hi', now: noon },
     );
-    expect(sendText).toHaveBeenCalledWith(PHONE, 'Hi Reply STOP to opt out.');
+    expect(allowed).toEqual({ allowed: false, reason: 'two_cases_only' });
+    expect(sendText).not.toHaveBeenCalled();
   });
 
   it('imports Twilio opt-outs', async () => {

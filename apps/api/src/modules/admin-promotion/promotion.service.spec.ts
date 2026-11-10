@@ -67,29 +67,34 @@ describe('promotion catalog', () => {
     expect(keys).toEqual([...keys].sort());
   });
 
-  it('everything is off by default', () => {
+  it('checklist ticks are off; the SEO switches are ON (owner 2026-11-07: «SEO all ON»)', () => {
     for (const id of CHECKLIST_IDS)
       expect(APP_SETTINGS[checklistKey(id) as keyof typeof APP_SETTINGS]).toBe(
         false,
       );
-    expect(APP_SETTINGS['seo.sitemap_index_enabled']).toBe(false);
-    expect(APP_SETTINGS['seo.ramp_per_day']).toBe(0);
+    for (const key of SEO_SWITCH_KEYS) {
+      if (key === 'seo.ramp_per_day' || key === 'seo.generator_mode') continue;
+      expect(APP_SETTINGS[key as keyof typeof APP_SETTINGS]).toBe(true);
+    }
+    expect(APP_SETTINGS['seo.ramp_per_day']).toBe(200);
+    expect(APP_SETTINGS['seo.generator_mode']).toBe('nightly+events');
   });
 });
 
 describe('PromotionService.publicSettings (what the generator reads)', () => {
-  it('is null for every switch the admin never decided', async () => {
+  it('is the catalog default (owner 2026-11-07: all ON, ramp 200) where the admin never decided', async () => {
     expect(await make().svc.publicSettings()).toEqual({
-      incremental: null,
-      sitemapIndex: null,
-      robotsAi: null,
-      llms: null,
-      qualityGate: null,
-      rampPerDay: null,
-      pagesCities: null,
-      pagesPosts: null,
-      pagesQa: null,
+      incremental: true,
+      sitemapIndex: true,
+      robotsAi: true,
+      llms: true,
+      qualityGate: true,
+      rampPerDay: 200,
+      pagesCities: true,
+      pagesPosts: true,
+      pagesQa: true,
     });
+    expect(APP_SETTINGS['seo.generator_mode']).toBe('nightly+events');
   });
 
   it('returns what is stored, including an explicit OFF and a zero', async () => {
@@ -105,10 +110,11 @@ describe('PromotionService.publicSettings (what the generator reads)', () => {
       sitemapIndex: true,
       llms: false,
       rampPerDay: 0,
-      robotsAi: null,
+      // a text is not a usable value: the default applies
+      robotsAi: true,
       pagesQa: true,
       pagesPosts: false,
-      pagesCities: null,
+      pagesCities: true,
     });
   });
 
@@ -140,7 +146,7 @@ describe('PromotionService.overview / update', () => {
     const inc = o.switches.find((s) => s.key === 'seo.incremental_enabled');
     expect(inc).toMatchObject({ value: true, stored: true, type: 'boolean' });
     const llms = o.switches.find((s) => s.key === 'seo.llms_enabled');
-    expect(llms).toMatchObject({ value: false, stored: false });
+    expect(llms).toMatchObject({ value: true, stored: false });
     expect(o.switches.find((s) => s.key === 'seo.ramp_per_day')?.type).toBe(
       'integer',
     );

@@ -512,9 +512,16 @@ export class CaseWorkspaceService {
     return this.listTasks(user, caseId);
   }
 
-  private async taskOf(caseId: string, taskId: string) {
+  /** Audit 2026-11-08 (L9): a task set by someone who is no longer a side
+   * of the case (an attorney before a take-over) is not this pair's to
+   * change. CaseTask has no attorney column: `created_by` is the side. */
+  private async taskOf(s: Side, caseId: string, taskId: string) {
     const t = await this.prisma.caseTask.findFirst({
-      where: { id: taskId, case_id: caseId },
+      where: {
+        id: taskId,
+        case_id: caseId,
+        created_by: { in: [s.attorneyId, s.clientId] },
+      },
       include: { items: true },
     });
     if (!t) throw caseNotFound();
@@ -531,7 +538,7 @@ export class CaseWorkspaceService {
     done: boolean,
   ): Promise<CaseTasksDto> {
     const s = await this.side(user, caseId, 'tasks');
-    const t = await this.taskOf(caseId, taskId);
+    const t = await this.taskOf(s, caseId, taskId);
     // A shared task: the attorney only; a joint one: either side; a
     // for-client task: the client marks it done (once every line is
     // ticked); the attorney (or the client who set it) takes the mark off.
@@ -588,7 +595,7 @@ export class CaseWorkspaceService {
     done: boolean,
   ): Promise<CaseTasksDto> {
     const s = await this.side(user, caseId, 'tasks');
-    const t = await this.taskOf(caseId, taskId);
+    const t = await this.taskOf(s, caseId, taskId);
     const item = t.items.find((i) => i.id === itemId);
     if (!item) throw caseNotFound();
     const allowed =
@@ -612,7 +619,7 @@ export class CaseWorkspaceService {
   ): Promise<CaseTasksDto> {
     const s = await this.side(user, caseId, 'tasks');
     if (s.role !== 'attorney') throw this.denied('Only the attorney.');
-    const t = await this.taskOf(caseId, taskId);
+    const t = await this.taskOf(s, caseId, taskId);
     if (t.kind !== 'for_client') {
       throw new ConflictException({
         code: ErrorCode.VALIDATION_ERROR,
@@ -645,7 +652,7 @@ export class CaseWorkspaceService {
     dto: TaskSubmissionDto,
   ): Promise<CaseTasksDto> {
     const s = await this.side(user, caseId, 'tasks');
-    const t = await this.taskOf(caseId, taskId);
+    const t = await this.taskOf(s, caseId, taskId);
     if (s.role === 'client') {
       if (t.kind !== 'for_client') {
         throw this.denied('Only the attorney can add to this task.');

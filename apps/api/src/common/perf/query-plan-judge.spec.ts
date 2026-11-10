@@ -89,9 +89,15 @@ describe('query-plan-judge (user-facing perf guard)', () => {
 
   it('inflates tables, their indexes and id-like distinct counts', () => {
     const sql = inflateStatisticsSql(100);
-    expect(sql).toHaveLength(3);
+    expect(sql).toHaveLength(4);
     expect(sql.join('\n')).toContain('reltuples * 100');
-    expect(sql[1]).toContain('stadistinct * 100');
+    // the most-common-values frequencies of id-like columns shrink by the
+    // factor (every slot that holds an MCV list), kind columns keep theirs
+    expect(sql[1]).toContain('stakind1 = 1');
+    expect(sql[1]).toContain('stakind5 = 1');
+    expect(sql[1]).toContain('x / 100');
+    expect(sql[1]).toContain('stadistinct < 0');
+    expect(sql[2]).toContain('stadistinct * 100');
     expect(() => inflateStatisticsSql(0)).toThrow();
   });
 

@@ -12,6 +12,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { UpdatedSinceQuery } from '../../common/sync/sync.util';
 import { CallPeerDto } from './calls.dto';
 
 /** Owner 2026-10-21: «Calls» next to «Contacts» (WhatsApp's calls tab). */
@@ -29,6 +30,11 @@ export class CallHistoryQueryDto {
   @Min(1)
   @Max(50)
   limit?: number;
+
+  @UpdatedSinceQuery(
+    'B-c7 (2026-11-09, Telegram getDifference as /groups): only the calls that reached my list or changed since (ISO); meta.deletedIds = calls I deleted from my list since («delete», «clear»); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD (first page again). `cursor` and `limit` are ignored with it.',
+  )
+  updatedSince?: string;
 }
 
 /** One finished call as the viewer saw it. */
@@ -108,6 +114,10 @@ export class OngoingGroupCallDto {
 export interface CallHistoryPage {
   items: CallHistoryItemDto[];
   nextCursor: string | null;
+  /** With `updatedSince`: calls that left my list (ResponseInterceptor → meta). */
+  deletedIds?: string[];
+  /** With `updatedSince`: the newest stamp of the answer (→ meta.syncedAt). */
+  syncedAt?: string;
 }
 
 /** Owner 2026-10-21 (WhatsApp): calls deleted from my own list. */

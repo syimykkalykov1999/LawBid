@@ -24,6 +24,7 @@ class _CallsClient implements CallsClient {
   Future<CallHistoryItemListEnvelope> callHistory({
     String? cursor,
     int? limit,
+    DateTime? updatedSince,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -31,6 +32,7 @@ class _CallsClient implements CallsClient {
     final queryParameters = <String, dynamic>{
       r'cursor': cursor,
       r'limit': limit,
+      r'updatedSince': updatedSince?.toIso8601String(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

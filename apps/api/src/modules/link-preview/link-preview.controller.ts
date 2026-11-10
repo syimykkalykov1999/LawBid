@@ -13,6 +13,7 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { LinkPreviewDto, LinkPreviewQueryDto } from './link-preview.dto';
 import { LinkPreviewService } from './link-preview.service';
+import { AssistantAllowed } from '../auth/assistant/assistant-context';
 
 /** Owner 2026-10-22: chat link cards (title, text, picture, site). */
 @ApiTags('link-preview')
@@ -22,6 +23,7 @@ import { LinkPreviewService } from './link-preview.service';
 export class LinkPreviewController {
   constructor(private readonly service: LinkPreviewService) {}
 
+  @AssistantAllowed()
   @Get()
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({

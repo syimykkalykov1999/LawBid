@@ -56,11 +56,19 @@ import {
  * PERF_OUT=<file.json> writes the full result (plans' problems, timings).
  */
 const RUN = process.env.PERF_USER === '1';
-// Must be set before AppModule builds PrismaService.
+/**
+ * The perf client's User-Agent, unique to the run. Only requests carrying
+ * it skip the rate limits (the global one and a route's own @Throttle:
+ * search, tags, ice-servers allow 30/min and this suite makes 43 calls per
+ * endpoint in under a minute). @nestjs/throttler's `ignoreUserAgents`,
+ * fed from THROTTLE_IGNORE_USER_AGENT (src/throttler/throttle-limits.ts);
+ * every other caller keeps every limit, so a 429 here is a real finding.
+ */
+const PERF_UA = `lawbid-perf-guard/${randomUUID()}`;
+// Must be set before AppModule builds PrismaService / ThrottlerModule.
 if (RUN) {
   process.env.PRISMA_QUERY_TAP = '1';
-  // ~1 000 requests from one address and four accounts in a few minutes.
-  process.env.THROTTLE_LIMIT = '1000000';
+  process.env.THROTTLE_IGNORE_USER_AGENT = PERF_UA;
   // Reels are measured with the dev fake Bunny (no network): the flag
   // and the keys are what turns the route on, the SQL is the real one.
   process.env.DEV_FAKE_BUNNY = 'true';
@@ -139,26 +147,47 @@ interface Fx {
 // md5 ids of the older generators (loadtest/sql/loadtest-extra.sql).
 const V4 = `~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab]'`;
 
+/**
+ * The fixtures are the same rows in every run. loadtest-extra.sql gives
+ * chats, posts, cases and bids RANDOM v4 ids (gen_random_uuid()), so
+ * `ORDER BY id` picked a different attorney, post and case each run: on
+ * 2026-11-09 one run measured a pending attorney (search cases returned
+ * nothing, 1 statement) and another a verified one (22 statements), and
+ * the case feed's plan costs moved with the attorney. People keep their
+ * md5 ids from the generators, so every pick below orders by the people
+ * involved (and created_at / title, which the generators derive from
+ * their counters), never by a random id.
+ */
 async function fixtures(db: PrismaClient): Promise<Fx> {
   const one = async (sql: string): Promise<Record<string, string>> => {
     const rows = await db.$queryRawUnsafe<Record<string, string>[]>(sql);
     if (!rows[0]) throw new Error(`perf-user: no fixture for ${sql}`);
     return rows[0];
   };
+  // A verified attorney: an unverified one may not search or see the
+  // case feed (both return nothing), so nothing would be measured.
   const conv = await one(`
     SELECT c.id::text, c.attorney_id::text, c.client_id::text, ap.username
     FROM conversations c JOIN attorney_profiles ap ON ap.user_id = c.attorney_id
     WHERE c.id::text ${V4} AND c.last_message_id IS NOT NULL
+      AND ap.verification_status = 'verified'
       AND EXISTS (SELECT 1 FROM calls k WHERE k.conversation_id = c.id)
-    ORDER BY c.id LIMIT 1`);
+    ORDER BY c.attorney_id, c.client_id, c.created_at LIMIT 1`);
   const author = await one(`
     SELECT ap.user_id::text FROM attorney_profiles ap
     WHERE ap.user_id::text ${V4} AND EXISTS (SELECT 1 FROM posts p WHERE p.author_id = ap.user_id)
     ORDER BY ap.user_id LIMIT 1`);
+  // A post every viewer may open (VISIBLE_POST_WHERE of post-presenter):
+  // published, not archived, its author active and not a suspended
+  // attorney — the seed also holds archived / hidden ones, which answer 404.
   const post = await one(`
-    SELECT p.id::text FROM posts p WHERE p.id::text ${V4} AND p.deleted_at IS NULL
+    SELECT p.id::text FROM posts p JOIN users u ON u.id = p.author_id
+    LEFT JOIN attorney_profiles ap ON ap.user_id = u.id
+    WHERE p.id::text ${V4} AND p.deleted_at IS NULL AND p.archived_at IS NULL
+      AND p.status = 'published' AND u.status = 'active'
+      AND (u.role = 'client' OR ap.verification_status IS DISTINCT FROM 'suspended')
       AND EXISTS (SELECT 1 FROM comments c WHERE c.post_id = p.id)
-    ORDER BY p.id LIMIT 1`);
+    ORDER BY p.author_id, p.created_at LIMIT 1`);
   const comment = await one(`
     SELECT parent_comment_id::text AS id FROM comments
     WHERE parent_comment_id IS NOT NULL AND parent_comment_id::text ${V4}
@@ -166,10 +195,12 @@ async function fixtures(db: PrismaClient): Promise<Fx> {
   const kase = await one(`
     SELECT c.id::text, c.client_id::text FROM cases c
     WHERE c.id::text ${V4} AND EXISTS (SELECT 1 FROM bids b WHERE b.case_id = c.id)
-    ORDER BY c.id LIMIT 1`);
+    ORDER BY c.client_id, c.created_at, c.title LIMIT 1`);
   const bid = await one(`
-    SELECT b.id::text, b.attorney_id::text, b.case_id::text FROM bids b
-    WHERE b.id::text ${V4} AND b.case_id::text ${V4} ORDER BY b.id LIMIT 1`);
+    SELECT b.id::text, b.attorney_id::text, b.case_id::text
+    FROM bids b JOIN cases c ON c.id = b.case_id
+    WHERE b.id::text ${V4} AND b.case_id::text ${V4}
+    ORDER BY b.attorney_id, c.client_id, c.created_at, c.title LIMIT 1`);
   const group = await one(`
     SELECT m.group_id::text, m.user_id::text FROM chat_group_members m
     WHERE m.left_at IS NULL ORDER BY m.group_id LIMIT 1`);
@@ -432,6 +463,7 @@ interface Result {
       roles[r.id] = r.role === 'attorney' ? 'attorney' : 'client';
     }
     const auth = (id: string) => ({
+      'User-Agent': PERF_UA,
       Authorization: `Bearer ${tokens.signAccessToken({
         sub: id,
         role: roles[id] ?? 'client',
@@ -480,6 +512,8 @@ interface Result {
         { params: string; rounds: Set<number>; prelude: TappedQuery[] }
       >();
       let status = 0;
+      // every status that was not a success, with the first body seen
+      const badStatuses = new Map<number, string>();
       const colds: number[] = [];
       let coldSql: string[] = [];
       let maxQueries = 0;
@@ -541,11 +575,14 @@ interface Result {
         for (const [sql, n] of repeats) {
           if (n > N1_MAX) n1.set(sql, [...(n1.get(sql) ?? []), n]);
         }
-        if (status >= 300 && i === COLD_ROUNDS) {
-          problems.push(
-            `status ${status}: ${JSON.stringify(res.body).slice(0, 200)}`,
-          );
+        // Any call that is not a success (a 429 from a limiter, a 500) was
+        // not measured: its timing and SQL are not the endpoint's.
+        if ((status < 200 || status >= 300) && !badStatuses.has(status)) {
+          badStatuses.set(status, JSON.stringify(res.body).slice(0, 200));
         }
+      }
+      for (const [code, body] of badStatuses) {
+        problems.push(`status ${code}: ${body}`);
       }
       // A statement belongs to the endpoint when the cold call sent it, or
       // when two or more calls did; one stray statement in one warm call is

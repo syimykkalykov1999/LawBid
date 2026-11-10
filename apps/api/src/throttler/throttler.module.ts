@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule as NestThrottlerModule } from '@nestjs/throttler';
 import { RedisThrottlerStorageService } from './redis-throttler-storage.service';
-import { userThrottleLimit } from './throttle-limits';
+import { throttleIgnoreUserAgents, userThrottleLimit } from './throttle-limits';
 
 @Module({
   providers: [RedisThrottlerStorageService],
@@ -25,6 +25,10 @@ class RedisThrottlerStorageModule {}
             limit: userThrottleLimit(),
           },
         ],
+        // THROTTLE_IGNORE_USER_AGENT (perf guard, test machines): one exact
+        // User-Agent skips every limit, route @Throttle included; unset in
+        // production = nobody is exempt (throttle-limits.ts).
+        ignoreUserAgents: throttleIgnoreUserAgents(),
         storage,
       }),
     }),

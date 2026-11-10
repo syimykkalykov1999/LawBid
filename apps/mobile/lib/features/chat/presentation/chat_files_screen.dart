@@ -8,7 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
-    show openCaseDocument;
+    show openCaseDocument, openKeptDocument;
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
@@ -575,7 +575,11 @@ class SharedDocsTab extends ConsumerWidget {
                       ? null
                       : onOpen != null
                           ? () => onOpen!(m)
-                          : () => openCaseDocument(a.url!),
+                          : () => openKeptDocument(
+                                fileId: a.fileId,
+                                url: a.url!,
+                                mime: a.mime ?? chatMimeForName(a.name),
+                              ),
                 );
               },
             ),

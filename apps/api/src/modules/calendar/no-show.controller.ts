@@ -36,6 +36,7 @@ import {
   ResolveNoShowDto,
 } from './calendar.dto';
 import { NoShowService } from './no-show.service';
+import { RequiresDuty } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const ERRORS = {
@@ -53,6 +54,7 @@ const ERRORS = {
 export class NoShowController {
   constructor(private readonly noShows: NoShowService) {}
 
+  @RequiresDuty('tasks')
   @Get(':id/no-show')
   @ApiOperation({
     summary: 'No-show marks of a consultation (both sides see them)',
@@ -66,6 +68,7 @@ export class NoShowController {
     return this.noShows.list(user, p.id);
   }
 
+  @RequiresDuty('tasks')
   @Post(':id/no-show')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -81,6 +84,7 @@ export class NoShowController {
     return this.noShows.mark(user, p.id);
   }
 
+  @RequiresDuty('tasks')
   @Post(':id/no-show/dispute')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'I was there: dispute the mark against me' })
@@ -94,6 +98,7 @@ export class NoShowController {
     return this.noShows.dispute(user, p.id, dto.reason);
   }
 
+  @RequiresDuty('tasks')
   @Post(':id/no-show/withdraw')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Take back my own mark' })

@@ -434,6 +434,14 @@ export const envSchema = z
       s3BucketPattern,
       'S3_BUCKET_MEDIA must be a valid S3 bucket name',
     ),
+    // C-c11 (2026-11-09): days of COMPLIANCE Object Lock retention the API
+    // puts on sealed deal-record PDFs. Set by Terraform only while the
+    // documents bucket has Object Lock (documents_object_lock); 0 / unset =
+    // no retention headers (a bucket without Object Lock refuses them).
+    S3_OBJECT_LOCK_RETENTION_DAYS: optionalMatching(
+      /^\d{1,5}$/,
+      'S3_OBJECT_LOCK_RETENTION_DAYS must be a whole number of days',
+    ),
     // docs/06 §6.1: media (post images, avatars) served through CloudFront
     // when set (https base URL of the distribution, no trailing slash);
     // unset (dev/e2e) keeps short-lived signed S3 links. Documents never

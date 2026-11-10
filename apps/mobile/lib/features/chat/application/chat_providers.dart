@@ -785,7 +785,7 @@ class ChatThreadState {
     this.pins = const [],
     this.editWindowMin = 15,
     this.deleteForAllHours = 48,
-    this.maxPins = 3,
+    this.maxPins = 10,
     this.unreadFromId,
     this.unreadCount = 0,
   });

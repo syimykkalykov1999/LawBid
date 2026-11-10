@@ -94,7 +94,7 @@ export class AttorneyBriefService {
         'case_attachment',
         pdf,
         'application/pdf',
-        id,
+        { fixedId: id },
       );
     } catch (error) {
       // A parallel open stored it first: same id, same bytes.

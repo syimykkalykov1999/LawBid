@@ -50,6 +50,7 @@ import {
 } from './calendar.dto';
 import { buildIcs } from './ics-builder';
 import { FEED_CACHE_SECONDS, IcsFeedService } from './ics-feed.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const esc = (s: string): string =>
@@ -73,6 +74,7 @@ export class CalendarController {
 
   @ApiBearerAuth()
   @ApiErrors(AUTHENTICATED_ERRORS)
+  @AttorneyOnly()
   @Get('feed')
   @ApiOperation({
     summary:
@@ -94,6 +96,7 @@ export class CalendarController {
   @ApiBearerAuth()
   @ApiErrors({ ...AUTHENTICATED_ERRORS, 403: [E.FEATURE_DISABLED] })
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @AttorneyOnly()
   @Post('feed')
   @ApiOperation({
     summary:
@@ -113,6 +116,7 @@ export class CalendarController {
 
   @ApiBearerAuth()
   @ApiErrors(AUTHENTICATED_ERRORS)
+  @AttorneyOnly()
   @Delete('feed')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Revoke the calendar link' })
@@ -219,6 +223,7 @@ export class CalendarController {
 
   @ApiBearerAuth()
   @ApiErrors(AUTHENTICATED_ERRORS)
+  @AttorneyOnly()
   @Get('connections')
   @ApiOperation({
     summary: 'Linked Google / Outlook calendars and which links are on',
@@ -242,6 +247,7 @@ export class CalendarController {
     503: [E.INTEGRATIONS_NOT_CONFIGURED],
   })
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @AttorneyOnly()
   @Post('connections/:provider/start')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -257,6 +263,7 @@ export class CalendarController {
 
   @ApiBearerAuth()
   @ApiErrors({ ...AUTHENTICATED_ERRORS, 404: [E.NOT_FOUND] })
+  @AttorneyOnly()
   @Patch('connections/:provider')
   @ApiOperation({
     summary: 'Choose what the link does (busy time / write events)',
@@ -272,6 +279,7 @@ export class CalendarController {
 
   @ApiBearerAuth()
   @ApiErrors(AUTHENTICATED_ERRORS)
+  @AttorneyOnly()
   @Delete('connections/:provider')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

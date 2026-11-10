@@ -20,7 +20,10 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
-import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 import {
   FirmEmailConfirmDto,
   FirmEmailRequestDto,
@@ -97,6 +100,7 @@ export class TrustController {
     return toOwnTrust(snap, await this.links(user.sub));
   }
 
+  @AssistantAllowed()
   @Get('attorneys/:attorneyId')
   @ApiOperation({
     summary:

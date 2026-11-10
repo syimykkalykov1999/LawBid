@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/calls/domain/call_history_models.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -9,6 +10,13 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 abstract interface class CallHistoryRepository {
   /// My finished calls, newest first; [cursor] null = the first page.
   Future<CursorPage<CallHistoryEntry>> history({String? cursor, int? limit});
+
+  /// B-c7 (2026-11-09, Telegram getDifference as the groups list): only the
+  /// calls that reached or changed on my list since [since] (server time),
+  /// `deletedIds` = the ones I deleted from it, `syncedAt` = pass it back
+  /// next time. Throws [ApiException] `SYNC_TOO_OLD` (409) after a gap of
+  /// more than 7 days: the caller reads the first page again.
+  Future<SyncedPage<CallHistoryEntry>> changed(DateTime since);
 
   /// Group calls running now in my groups.
   Future<List<OngoingGroupCall>> ongoing();
@@ -36,6 +44,18 @@ class ApiCallHistoryRepository implements CallHistoryRepository {
     return CursorPage(
       items: [for (final d in env.data) _entry(d)],
       nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<SyncedPage<CallHistoryEntry>> changed(DateTime since) async {
+    final env = await guardApiCall(
+      () => _api.callHistory(updatedSince: since.toUtc()),
+    );
+    return SyncedPage(
+      items: [for (final d in env.data) _entry(d)],
+      deletedIds: env.meta?.deletedIds ?? const [],
+      syncedAt: env.meta?.syncedAt,
     );
   }
 
