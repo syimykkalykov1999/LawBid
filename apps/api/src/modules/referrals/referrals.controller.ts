@@ -42,6 +42,7 @@ const E = ErrorCode;
 export class ReferralsController {
   constructor(private readonly referrals: ReferralsService) {}
 
+  @AttorneyOnly()
   @Get('me')
   @ApiOperation({
     summary: 'My referral code, share link, invite counts and rewards',

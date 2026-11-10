@@ -43,7 +43,10 @@ import {
   type QuestionPage,
 } from './legal-qa.dto';
 import { LegalQaService } from './legal-qa.service';
-import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const IDEMPOTENCY_HEADER = { name: 'Idempotency-Key', required: false };
@@ -56,6 +59,7 @@ const IDEMPOTENCY_HEADER = { name: 'Idempotency-Key', required: false };
 export class LegalQaController {
   constructor(private readonly qa: LegalQaService) {}
 
+  @AssistantAllowed()
   @Get()
   @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Public questions to lawyers (search, filters)' })
@@ -68,6 +72,7 @@ export class LegalQaController {
     return this.qa.list(user, query);
   }
 
+  @AttorneyOnly()
   @Post()
   @UseInterceptors(IdempotencyInterceptor)
   @LegalDisclaimerNotice('qa')
@@ -83,6 +88,7 @@ export class LegalQaController {
     return this.qa.ask(user, dto);
   }
 
+  @AssistantAllowed()
   @Get('summary')
   @ApiOperation({
     summary: 'Attorney: fresh unanswered questions in my practice',
@@ -93,6 +99,7 @@ export class LegalQaController {
   }
 
   // R-401: declared before ':id'.
+  @AssistantAllowed()
   @Get('recommended')
   @LegalDisclaimerNotice('qa')
   @ApiOperation({
@@ -105,6 +112,7 @@ export class LegalQaController {
     return this.qa.recommended(user);
   }
 
+  @AssistantAllowed()
   @Get(':id')
   @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'A question with its answers' })
@@ -117,6 +125,7 @@ export class LegalQaController {
     return this.qa.get(user, p.id);
   }
 
+  @AttorneyOnly()
   @Put(':id/close')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Close my question' })
@@ -128,6 +137,7 @@ export class LegalQaController {
     return this.qa.close(user, p.id);
   }
 
+  @AttorneyOnly()
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my question' })
@@ -176,6 +186,7 @@ export class LegalQaController {
     return this.qa.removeAnswer(user, p.id);
   }
 
+  @AttorneyOnly('qa_answers')
   @Put(':id/answers/:answerId/like')
   @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Like an answer' })
@@ -188,6 +199,7 @@ export class LegalQaController {
     return this.qa.like(user, p.id, p.answerId);
   }
 
+  @AttorneyOnly('qa_answers')
   @Delete(':id/answers/:answerId/like')
   @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Remove my like' })
@@ -200,6 +212,7 @@ export class LegalQaController {
     return this.qa.unlike(user, p.id, p.answerId);
   }
 
+  @AttorneyOnly()
   @Put(':id/best')
   @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Mark the best answer (the question author)' })
@@ -213,6 +226,7 @@ export class LegalQaController {
     return this.qa.markBest(user, p.id, dto.answerId);
   }
 
+  @AttorneyOnly()
   @Delete(':id/best')
   @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Clear the best-answer mark' })

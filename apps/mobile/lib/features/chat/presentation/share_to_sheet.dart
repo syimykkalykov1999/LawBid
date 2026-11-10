@@ -269,10 +269,10 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
         : ref.watch(
             searchConversationsProvider((folder: ChatListFolder.all, q: _q)),
           );
-    final items = [
+    final items = onePerPerson([
       for (final c in list.value?.items ?? const <Conversation>[])
         if (_canWrite(c)) c,
-    ];
+    ]);
     // Owner 2026-10-21 (inbox 25b, Instagram): anyone in the app by name or
     // @username, under the matching chats.
     final searching = peopleSuggestQuery(_q).length >= peopleSuggestMinChars;

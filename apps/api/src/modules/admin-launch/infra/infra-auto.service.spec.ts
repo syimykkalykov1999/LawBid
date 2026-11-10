@@ -12,6 +12,8 @@ function make(
   o: {
     pressures?: string[];
     budgetRatio?: number | null;
+    /** economy.aws_cap_usd; the older cases ran with a sum typed. */
+    awsCap?: number;
     configured?: boolean;
     autoMode?: string;
     seen?: Record<string, number>;
@@ -69,7 +71,9 @@ function make(
           ? 72
           : k === 'infra.auto_max_usd_month'
             ? 100
-            : 50_000_000,
+            : k === 'economy.aws_cap_usd'
+              ? (o.awsCap ?? 450)
+              : 50_000_000,
     ),
   };
   const prisma = {
@@ -147,6 +151,18 @@ describe('InfraAutoService (dry run with fakes)', () => {
     store.delete('ops:infra-auto:lock');
     await svc.check(later(10));
     expect(push.enqueueOpsAlert).toHaveBeenCalledTimes(1);
+  });
+
+  it('owner 2026-11-09: no AWS money ceiling typed = money never holds a switch-on', async () => {
+    const { svc, infra } = make({
+      awsCap: 0,
+      pressures: ['db_connections'],
+      budgetRatio: 0.98,
+      seen: { 'aws.pgbouncer:on': T0.getTime() - 3600_000 },
+    });
+    const r = await svc.check(T0);
+    expect(r.started).toMatchObject({ id: 'aws.pgbouncer', to: 'on' });
+    expect(infra.create).toHaveBeenCalled();
   });
 
   it('without the GitHub App it never silently skips: it says why', async () => {

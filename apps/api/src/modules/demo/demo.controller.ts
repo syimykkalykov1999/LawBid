@@ -33,6 +33,7 @@ import {
   RedeemDemoInviteDto,
 } from './demo.dto';
 import { DemoService } from './demo.service';
+import { AssistantSelf } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -45,6 +46,7 @@ const E = ErrorCode;
 export class DemoController {
   constructor(private readonly demo: DemoService) {}
 
+  @AssistantSelf()
   @Get('me')
   @ApiOperation({ summary: 'My demo accounts and whether I may create one' })
   @ApiEnvelopeResponse(DemoMeDto)
@@ -52,6 +54,7 @@ export class DemoController {
     return this.demo.me(user.sub);
   }
 
+  @AssistantSelf()
   @Post('accounts')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -72,6 +75,7 @@ export class DemoController {
     return this.demo.create(user.sub, dto, device(req), meta(req));
   }
 
+  @AssistantSelf()
   @Post('accounts/:id/session')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Enter one of my demo accounts again' })
@@ -89,6 +93,7 @@ export class DemoController {
     return this.demo.enter(user.sub, p.id, device(req), meta(req));
   }
 
+  @AssistantSelf()
   @Delete('accounts/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete one of my demo accounts and its data' })
@@ -120,6 +125,7 @@ export class DemoController {
     return this.demo.redeem(dto.code, device(req), meta(req));
   }
 
+  @AssistantSelf()
   @Get('session')
   @ApiOperation({
     summary: 'The demo account I am in right now (demo session only)',

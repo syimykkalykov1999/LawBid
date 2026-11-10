@@ -253,8 +253,14 @@ describe('Storage like Telegram (e2e)', () => {
       .expect(200);
     const stored = await row(p.fileId);
     const uploadKey = p.upload.fields.key as string;
+    // D-c1 (2026-11-09): the link writes only under staging/; the stored
+    // copy lives outside it, at the final key plus the random tail.
+    expect(uploadKey.startsWith('staging/')).toBe(true);
     expect(stored.s3_key).not.toBe(uploadKey);
-    expect(stored.s3_key.startsWith(`${uploadKey}_s`)).toBe(true);
+    expect(stored.s3_key.startsWith('staging/')).toBe(false);
+    expect(
+      stored.s3_key.startsWith(`${uploadKey.slice('staging/'.length)}_s`),
+    ).toBe(true);
     expect(await storage.head(stored.s3_bucket, uploadKey)).toBeNull();
 
     // Same size, other bytes, through the same still-valid link.
@@ -264,6 +270,8 @@ describe('Storage like Telegram (e2e)', () => {
     );
     expect(evil.length).toBe(bytes.length);
     await put(p, evil);
+    // The reused link landed in staging/ again, never on the stored key.
+    expect(await storage.head(stored.s3_bucket, uploadKey)).not.toBeNull();
     expect(
       (await storage.read(stored.s3_bucket, stored.s3_key)).equals(bytes),
     ).toBe(true);

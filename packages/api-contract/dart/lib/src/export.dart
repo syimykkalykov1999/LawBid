@@ -791,6 +791,7 @@ export 'models/case_deleted_envelope.dart';
 export 'models/still_needed_answer.dart';
 export 'models/still_needed_answer_dto.dart';
 export 'models/case_summary_dto.dart';
+export 'models/case_list_sort.dart';
 export 'models/case_summary_list_envelope.dart';
 export 'models/case_practice_area_dto.dart';
 export 'models/case_budget_dto.dart';

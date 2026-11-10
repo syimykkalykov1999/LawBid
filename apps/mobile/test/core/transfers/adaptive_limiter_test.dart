@@ -5,6 +5,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/transfers/adaptive_limiter.dart';
+import 'package:lawbid/core/transfers/transfer_limits.dart';
 
 void main() {
   group('AdaptiveLimiter', () {
@@ -89,6 +90,78 @@ void main() {
           clock.elapse(const Duration(seconds: 3));
           expect(l.limit, greaterThanOrEqualTo(1));
         }
+      });
+    });
+  });
+
+  // Owner 2026-11-09: how many parts at once is not a fixed four. It starts
+  // at four, climbs while the total speed keeps growing (up to the admin
+  // ceiling, 8), and a failure drops it to the floor (2).
+  group('ThroughputClimb', () {
+    const part = 1000000;
+
+    /// Runs [rounds] rounds; [roundSeconds] says how long a round of n parts
+    /// at once takes on the simulated link. Returns the limits seen.
+    List<int> drive(
+      AdaptiveLimiter l,
+      double Function(int n) roundSeconds, {
+      int rounds = 12,
+    }) {
+      var t = DateTime(2026, 11, 9);
+      final climb = ThroughputClimb(l, now: () => t);
+      final seen = <int>[];
+      for (var r = 0; r < rounds; r++) {
+        final n = l.limit;
+        seen.add(n);
+        for (var i = 0; i < n; i++) {
+          climb.started();
+        }
+        t = t.add(
+          Duration(microseconds: (roundSeconds(n) * 1e6).round()),
+        );
+        for (var i = 0; i < n; i++) {
+          climb.finished(part);
+        }
+      }
+      return seen;
+    }
+
+    AdaptiveLimiter limiter() =>
+        AdaptiveLimiter(() => 8, start: () => 4, floor: () => 2);
+
+    test('a fast link (more at once = more speed) climbs from 4 to 8', () {
+      final l = limiter();
+      final seen = drive(l, (n) => 1.0);
+      expect(seen.first, 4);
+      expect(l.limit, 8);
+      expect(seen.reduce(math.max), 8, reason: 'never past the ceiling');
+    });
+
+    test('a full link (same speed at any number) stays at the start', () {
+      final l = limiter();
+      final seen = drive(l, (n) => n.toDouble());
+      expect(seen.first, 4);
+      expect(l.limit, 4, reason: 'the extra part gave nothing: back to 4');
+      expect(seen.reduce(math.max), lessThanOrEqualTo(5));
+    });
+
+    test('a failing link drops to the floor of two, never under it', () {
+      fakeAsync((clock) {
+        final l = limiter();
+        for (var i = 0; i < 5; i++) {
+          l.rateLimit(const Duration(milliseconds: 10));
+          expect(l.limit, 2);
+          clock.elapse(const Duration(milliseconds: 20));
+          expect(l.limit, greaterThanOrEqualTo(2));
+        }
+      });
+    });
+
+    test('no climbing while a failure is being waited out', () {
+      fakeAsync((clock) {
+        final l = limiter()..rateLimit(const Duration(seconds: 1));
+        expect(l.raise(), isFalse);
+        expect(l.limit, 2);
       });
     });
   });
@@ -223,6 +296,43 @@ void main() {
       });
       expect(ClientTuning.uploadsAtOnce, 4);
       expect(ClientTuning.downloadsAtOnce, 1);
+    });
+
+    test('parts at once: start 4, ceiling 8, floor 2 by default (auto)', () {
+      ClientTuning.reset();
+      expect(ClientTuning.uploadPartsStart, 4);
+      expect(ClientTuning.uploadPartsCeiling, 8);
+      expect(ClientTuning.uploadPartsFloor, 2);
+      ClientTuning.apply(const {
+        'client.upload_parts_max': '99',
+        'client.upload_parts_min': '0',
+      });
+      expect(ClientTuning.uploadPartsCeiling, 16);
+      expect(ClientTuning.uploadPartsFloor, 1);
+      ClientTuning.apply(const {'client.upload_parts_mode': 'fixed'});
+      expect(ClientTuning.uploadPartsCeiling, 4, reason: 'fixed, as before');
+      expect(ClientTuning.uploadPartsFloor, 1);
+    });
+
+    // Owner 2026-11-09: mobile data is not capped; the climb decides and a
+    // failure drops to the floor. A weak phone keeps its own cap of two.
+    test('mobile data starts at four like everywhere; a failure drops to 2',
+        () {
+      fakeAsync((clock) {
+        ClientTuning.reset();
+        ClientTuning.metered = true;
+        expect(ClientTuning.uploadPartsStart, 4);
+        expect(ClientTuning.uploadPartsCeiling, 8);
+        expect(ClientTuning.uploadPartsFloor, 2);
+        final l = TransferLimits.newUploadLimiter();
+        expect(l.limit, 4);
+        l.rateLimit(const Duration(milliseconds: 10));
+        expect(l.limit, 2);
+        ClientTuning.metered = false;
+        ClientTuning.weakDevice = true;
+        expect(ClientTuning.uploadPartsCeiling, 2);
+        expect(ClientTuning.uploadPartsStart, 2);
+      });
     });
 
     test('mobile data and a weak phone keep to two', () {

@@ -89,6 +89,7 @@ export class SaveBidPacksDto {
 export class BidPacksController {
   constructor(private readonly packs: BidPacksService) {}
 
+  @AttorneyOnly()
   @Get()
   @ApiOperation({ summary: 'Packs on offer and the credit balance' })
   @ApiEnvelopeResponse(BidPacksDto)
@@ -118,6 +119,7 @@ export class BidPacksController {
     return this.packs.buy(user.sub, packId, apiBaseOf(req));
   }
 
+  @AttorneyOnly()
   @Get('purchases/:id')
   @ApiOperation({ summary: 'A purchase after the payment page' })
   @ApiEnvelopeResponse(BidPackPurchaseDto)

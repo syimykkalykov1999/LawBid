@@ -1,6 +1,10 @@
 import type { AddressInfo, Server } from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import {
+  INestApplication,
+  NotFoundException,
+  ValidationPipe,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
@@ -9,6 +13,8 @@ import { PAYMENT_PROVIDER } from '../src/modules/billing/billing.constants';
 import type { FakePaymentProvider } from '../src/modules/billing/fake-payment.provider';
 import { FLAG_CATALOG } from '../src/modules/feature-flags/flag-catalog';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
+import { SubscriptionsService } from '../src/modules/billing/subscriptions.service';
+import type { RequestUser } from '../src/modules/auth/decorators/current-user.decorator';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { adminSession } from './support/admin-login';
 
@@ -172,6 +178,27 @@ describe('Automatic refund of a bank inquiry (e2e, fake provider)', () => {
       where: { dispute_id: disputeId },
     });
 
+  // Sweep B-c3 (2026-11-09): a «disputed» subscription without a bank —
+  // the attorney cancels within days of the first charge.
+  const cancelAs = (userId: string) =>
+    app
+      .get(SubscriptionsService)
+      .cancel({ sub: userId } as unknown as RequestUser);
+  const firstPaymentOf = (userId: string) =>
+    prisma.payment.findFirstOrThrow({
+      where: { user_id: userId },
+      orderBy: { created_at: 'asc' },
+    });
+
+  it('B-c3, switch off: a cancel right after the first charge refunds nothing', async () => {
+    const a = await paidAttorney(30_000);
+    await cancelAs(a.userId);
+    const pay = await firstPaymentOf(a.userId);
+    expect(await row(`cancel:${pay.id}`)).toBeNull();
+    expect(moneyOut(a.intentId)).toHaveLength(0);
+    expect(fake.subscriptions.get(a.subId)?.cancelAtPeriodEnd).toBe(true);
+  });
+
   it('the switch is off by default: nothing is refunded', async () => {
     expect(FLAG_CATALOG.find((f) => f.key === FLAG)?.enabled).toBe(false);
     const a = await paidAttorney();
@@ -229,6 +256,51 @@ describe('Automatic refund of a bank inquiry (e2e, fake provider)', () => {
           (n) => (n.payload as { kind?: string }).kind === 'dispute_refund',
         ),
       ).toHaveLength(1);
+    });
+
+    it('B-c3: a cancel within days of the first and only charge refunds it once; access ends now', async () => {
+      const a = await paidAttorney(30_000);
+      await cancelAs(a.userId);
+      const pay = await firstPaymentOf(a.userId);
+      const ref = `cancel:${pay.id}`;
+      expect(await row(ref)).toMatchObject({
+        status: 'refunded',
+        amount_cents: 30_000,
+      });
+      expect(moneyOut(a.intentId)).toHaveLength(1);
+      expect(fake.subscriptions.get(a.subId)?.status).toBe('canceled');
+      // a repeated cancel never pays twice
+      await expect(cancelAs(a.userId)).rejects.toThrow(NotFoundException);
+      expect(moneyOut(a.intentId)).toHaveLength(1);
+    });
+
+    it('B-c3: a second charge, or a first charge older than the window, is not refunded by itself', async () => {
+      const a = await paidAttorney(30_000);
+      // the second month was paid too
+      await prisma.payment.create({
+        data: {
+          user_id: a.userId,
+          stripe_invoice_id: `in_rfd_${randomUUID().slice(0, 10)}`,
+          amount_cents: 30_000,
+          currency: 'usd',
+          status: 'succeeded',
+          paid_at: new Date(),
+        },
+      });
+      await cancelAs(a.userId);
+      const pay = await firstPaymentOf(a.userId);
+      expect(await row(`cancel:${pay.id}`)).toBeNull();
+      expect(moneyOut(a.intentId)).toHaveLength(0);
+
+      const old = await paidAttorney(30_000);
+      const oldPay = await firstPaymentOf(old.userId);
+      await prisma.payment.update({
+        where: { id: oldPay.id },
+        data: { created_at: new Date(Date.now() - 30 * DAY * 1000) },
+      });
+      await cancelAs(old.userId);
+      expect(await row(`cancel:${oldPay.id}`)).toBeNull();
+      expect(moneyOut(old.intentId)).toHaveLength(0);
     });
 
     it('a chargeback is never refunded: the bank already took the money', async () => {

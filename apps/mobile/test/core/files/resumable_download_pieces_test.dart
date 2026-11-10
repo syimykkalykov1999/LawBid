@@ -257,7 +257,14 @@ void main() {
       ..ranges.clear();
     await downloader(pieces: 2).fetch(storage.url, target);
     expectWhole();
-    expect(storage.ranges, hasLength(5), reason: 'still the 4 pieces + probe');
+    // A request cancelled in the first try may still reach the server after
+    // the clear (KNOWN_ERRORS): it repeats one of the same 4 ranges, so the
+    // distinct ranges are what shows the cut was kept.
+    expect(
+      storage.ranges.toSet(),
+      hasLength(5),
+      reason: 'still the 4 pieces + probe',
+    );
   });
 
   test('a download begun as one stream goes on as one stream', () async {

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { VideoAsset } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VideosService } from '../videos/videos.service';
 import { PostsService } from './posts.service';
@@ -24,14 +25,18 @@ export class PostVideosService {
     private readonly prisma: PrismaService,
     private readonly videos: VideosService,
     private readonly posts: PostsService,
-  ) {}
+  ) {
+    // Prod 2026-11-09: whoever asks Bunny (webhook, sweep, the phone's
+    // GET /videos/:id or GET /posts/:id), a stored change reaches the post.
+    this.videos.onStatusChange((a) => this.onAssetChanged(a.id));
+  }
 
-  /** The Bunny webhook: never trust the payload — ask Bunny. */
+  /** The Bunny webhook: never trust the payload — ask Bunny. The change
+   * reaches the post through [VideosService.onStatusChange]. */
   async onWebhook(guid: string): Promise<void> {
     const asset = await this.videos.findByExternalId(guid);
     if (!asset) return;
-    const next = await this.videos.refresh(asset);
-    if (next.status !== asset.status) await this.onAssetChanged(next.id);
+    await this.videos.refresh(asset);
   }
 
   /** Publishes / flags the post that waits for this asset. */
@@ -54,6 +59,11 @@ export class PostVideosService {
       return;
     }
     if (asset.status === 'failed' || asset.status === 'rejected') {
+      // Prod 2026-11-09: said in the log, so a post that never goes live
+      // shows why (too_long, too_large, encoding_failed, upload_expired…).
+      this.logger.warn(
+        `video post ${post.id} not published: video ${asset.id} ${asset.status} (${asset.failure_reason ?? 'no reason'})`,
+      );
       await this.posts.notifyVideoFailed(post, asset.failure_reason);
     }
   }
@@ -61,7 +71,9 @@ export class PostVideosService {
   /** Cron `videos.sweep` (every minute). */
   async sweep(): Promise<Record<string, number>> {
     const now = Date.now();
-    const stats = { expired: 0, polled: 0, purged: 0, orphans: 0 };
+    const stats = { expired: 0, polled: 0, purged: 0, orphans: 0, healed: 0 };
+    // Bunny calls us when a video is ready (polling below is the backup).
+    await this.videos.ensureWebhook(now);
     // (a) uploads that never arrived.
     const expired = await this.prisma.videoAsset.findMany({
       where: {
@@ -72,14 +84,16 @@ export class PostVideosService {
       take: BATCH,
     });
     for (const a of expired) {
-      const next = await this.videos.refresh(a).catch(() => a);
+      const next = await this.videos
+        .refresh(a)
+        .catch((e) => this.pollFailed(a, e));
       if (next.status === 'awaiting_upload') {
-        await this.prisma.videoAsset.update({
-          where: { id: a.id },
+        const { count } = await this.prisma.videoAsset.updateMany({
+          where: { id: a.id, status: 'awaiting_upload' },
           data: { status: 'failed', failure_reason: 'upload_expired' },
         });
+        if (count === 1) await this.onAssetChanged(a.id);
       }
-      await this.onAssetChanged(a.id);
       stats.expired++;
     }
     // (b) encoding with no webhook yet. A post already waiting on an
@@ -99,18 +113,49 @@ export class PostVideosService {
       take: BATCH,
     });
     for (const a of stuck) {
-      let next = await this.videos.refresh(a).catch(() => a);
+      // A stored change publishes / flags the post (onStatusChange).
+      const next = await this.videos
+        .refresh(a)
+        .catch((e) => this.pollFailed(a, e));
       if (
         next.status === 'processing' &&
         a.created_at.getTime() < now - GIVE_UP_MS
       ) {
-        next = await this.prisma.videoAsset.update({
-          where: { id: a.id },
+        const { count } = await this.prisma.videoAsset.updateMany({
+          where: { id: a.id, status: 'processing' },
           data: { status: 'failed', failure_reason: 'encoding_timeout' },
         });
+        if (count === 1) await this.onAssetChanged(a.id);
       }
-      if (next.status !== a.status) await this.onAssetChanged(a.id);
       stats.polled++;
+    }
+    // (b2) Prod 2026-11-09: a post still `processing` next to a video that
+    // is already ready (a crash between the two writes, a post created
+    // while the phone's poll marked the video ready) — the polls above
+    // never see a ready video again, so publish it here. Two plain
+    // queries: posts and videos live in different shard families.
+    const waiting = await this.prisma.post.findMany({
+      where: {
+        status: 'processing',
+        deleted_at: null,
+        video_asset_id: { not: null },
+      },
+      select: { video_asset_id: true },
+      orderBy: { created_at: 'asc' },
+      take: BATCH,
+    });
+    const ids = waiting
+      .map((p) => p.video_asset_id)
+      .filter((id): id is string => id != null);
+    if (ids.length > 0) {
+      const ready = await this.prisma.videoAsset.findMany({
+        where: { id: { in: ids }, status: 'ready' },
+        select: { id: true },
+      });
+      for (const a of ready) {
+        await this.onAssetChanged(a.id);
+        stats.healed++;
+      }
     }
     // (c) uploads nobody attached to a post.
     const orphans = await this.prisma.videoAsset.findMany({
@@ -141,5 +186,14 @@ export class PostVideosService {
       this.logger.log(`videos.sweep ${JSON.stringify(stats)}`);
     }
     return stats;
+  }
+
+  /** A Bunny call that failed is retried next minute — but said once, so
+   * a wrong key or an outage is not a silent "processing" forever. */
+  private pollFailed(a: VideoAsset, e: unknown): VideoAsset {
+    this.logger.warn(
+      `videos.sweep: Bunny poll of ${a.id} failed: ${e instanceof Error ? e.message : String(e)}`,
+    );
+    return a;
   }
 }

@@ -92,6 +92,18 @@ mixin CaseListSync<T> on SyncedListNotifier<T> {
   @override
   DateTime? updatedAtOf(T item) => null;
 
+  /// Owner 2026-11-09: every page of a case list (the live one, the
+  /// phone's copy, a next page) is shown in [order] — the copy and the
+  /// rows agree with the server even when the copy was saved under the
+  /// older date order. Only the case lists: other synced lists keep the
+  /// server's page order as before.
+  @override
+  List<T> arrange(List<T> items) {
+    final sort = order;
+    if (sort == null) return items;
+    return [...items]..sort(sort);
+  }
+
   /// Call from [build] before `super.build()`.
   void listenForChanges() {
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
@@ -115,6 +127,64 @@ final casesLocalDatabaseProvider = Provider<CasesLocalDatabase>((ref) {
   return db;
 });
 
+// --- Owner 2026-11-09: the order of the stage lists -------------------------
+
+int _desc(DateTime a, DateTime b) => b.compareTo(a);
+
+/// The order the server gives «My cases» (apps/api `listMine`): «Active»
+/// by stage — the most advanced first, the newest activity first inside a
+/// stage, the id last — or by the case's date when the «Дата» filter says
+/// so; the other tabs keep their date order. Null = no re-sort needed
+/// (the server's order as is).
+int Function(CaseSummary, CaseSummary)? caseSummaryOrder(
+  MyCasesFilter filter,
+  MineSearch search,
+) {
+  final sort = search.sort == CasesSort.stage && filter != MyCasesFilter.active
+      ? CasesSort.newest
+      : search.sort;
+  return switch (sort) {
+    CasesSort.stage => (a, b) {
+        final byStage = caseStageOf(b.status, b.bidsCount)
+            .compareTo(caseStageOf(a.status, a.bidsCount));
+        if (byStage != 0) return byStage;
+        final byTime = _desc(a.lastActivityAt, b.lastActivityAt);
+        return byTime != 0 ? byTime : b.id.compareTo(a.id);
+      },
+    CasesSort.newest => (a, b) {
+        final byTime = _desc(a.createdAt, b.createdAt);
+        return byTime != 0 ? byTime : b.id.compareTo(a.id);
+      },
+    CasesSort.oldest => (a, b) {
+        final byTime = a.createdAt.compareTo(b.createdAt);
+        return byTime != 0 ? byTime : a.id.compareTo(b.id);
+      },
+  };
+}
+
+/// The same for the attorney's work (apps/api `myWork`): «Active» by
+/// stage (wrapping up, then in progress; the newest case activity first);
+/// a date order comes from the server as is (null).
+int Function(WorkItem, WorkItem)? workItemOrder(
+  WorkFilter filter,
+  MineSearch search,
+) {
+  if (filter != WorkFilter.active || search.sort != CasesSort.stage) {
+    return null;
+  }
+  DateTime at(WorkItem w) =>
+      w.lastActivityAt ??
+      w.acceptedAt ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+  return (a, b) {
+    final byStage =
+        caseStageOf(b.status, 0).compareTo(caseStageOf(a.status, 0));
+    if (byStage != 0) return byStage;
+    final byTime = _desc(at(a), at(b));
+    return byTime != 0 ? byTime : b.caseId.compareTo(a.caseId);
+  };
+}
+
 // --- Client: "Мои кейсы" (docs/04 §11.1) ------------------------------------
 
 class MyCasesNotifier extends SyncedListNotifier<CaseSummary>
@@ -128,6 +198,10 @@ class MyCasesNotifier extends SyncedListNotifier<CaseSummary>
 
   @override
   bool get catchesUp => ref.read(casesSyncProvider) != null;
+
+  @override
+  int Function(CaseSummary, CaseSummary)? get order =>
+      caseSummaryOrder(filter, const MineSearch());
 
   @override
   Future<PaginatedList<CaseSummary>> build() {
@@ -425,17 +499,30 @@ class FeedNotifier extends PagedNotifier<FeedCase> {
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  // Owner 2026-11-08 (speed everywhere, SPEED_MATRIX §3 №2): the feed opens
+  // on the phone's copy of its first page at once (cold start, offline, a
+  // tab switch after the 5-minute hold), the live page replaces it — the
+  // same `phoneCopy` as «Мои дела».
+  @override
+  Future<CursorPage<FeedCase>?> cachedFirstPage() {
+    final repo = ref.read(casesRepositoryProvider);
+    return phoneCopy(() => _page(repo, null));
+  }
+
   @override
   Future<CursorPage<FeedCase>> fetch(String? cursor) =>
-      ref.read(casesRepositoryProvider).feed(
-            cursor: cursor,
-            practiceCategory: filter.practiceCategory,
-            states: [
-              for (final c in (filter.state ?? '').split(','))
-                if (c.isNotEmpty) c,
-            ],
-            mineOnly: filter.mineOnly,
-          );
+      _page(ref.read(casesRepositoryProvider), cursor);
+
+  Future<CursorPage<FeedCase>> _page(CasesRepository repo, String? cursor) =>
+      repo.feed(
+        cursor: cursor,
+        practiceCategory: filter.practiceCategory,
+        states: [
+          for (final c in (filter.state ?? '').split(','))
+            if (c.isNotEmpty) c,
+        ],
+        mineOnly: filter.mineOnly,
+      );
 
   @override
   Object idOf(FeedCase item) => item.id;
@@ -464,17 +551,28 @@ class ExploreCasesNotifier extends PagedNotifier<FeedCase> {
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  // Owner 2026-11-08 (SPEED_MATRIX §3 №2): «Исследовать» opens on the
+  // phone's copy of the first page of this filter; the live page follows.
+  @override
+  Future<CursorPage<FeedCase>?> cachedFirstPage() {
+    final repo = ref.read(casesRepositoryProvider);
+    return phoneCopy(() => _page(repo, null));
+  }
+
   @override
   Future<CursorPage<FeedCase>> fetch(String? cursor) =>
-      ref.read(casesRepositoryProvider).feed(
-            cursor: cursor,
-            practiceCategory: key.practiceCategory,
-            state: key.state,
-            extras: key.extras,
-            // Audit 2026-10-04: "All" here matches the feed's "All" —
-            // every open case, not just the licensed states.
-            mineOnly: false,
-          );
+      _page(ref.read(casesRepositoryProvider), cursor);
+
+  Future<CursorPage<FeedCase>> _page(CasesRepository repo, String? cursor) =>
+      repo.feed(
+        cursor: cursor,
+        practiceCategory: key.practiceCategory,
+        state: key.state,
+        extras: key.extras,
+        // Audit 2026-10-04: "All" here matches the feed's "All" —
+        // every open case, not just the licensed states.
+        mineOnly: false,
+      );
 
   @override
   Object idOf(FeedCase item) => item.id;
@@ -510,6 +608,10 @@ class MyWorkNotifier extends SyncedListNotifier<WorkItem>
 
   @override
   bool get catchesUp => ref.read(casesSyncProvider) != null;
+
+  @override
+  int Function(WorkItem, WorkItem)? get order =>
+      workItemOrder(filter, const MineSearch());
 
   @override
   Future<PaginatedList<WorkItem>> build() {
@@ -588,6 +690,10 @@ class MineCasesNotifier extends SyncedListNotifier<CaseSummary>
   @override
   bool get catchesUp =>
       key.search.isEmpty && ref.read(casesSyncProvider) != null;
+
+  @override
+  int Function(CaseSummary, CaseSummary)? get order =>
+      caseSummaryOrder(key.filter, key.search);
 
   @override
   Future<PaginatedList<CaseSummary>> build() {
@@ -726,6 +832,10 @@ class MineWorkNotifier extends SyncedListNotifier<WorkItem>
   @override
   bool get catchesUp =>
       key.search.isEmpty && ref.read(casesSyncProvider) != null;
+
+  @override
+  int Function(WorkItem, WorkItem)? get order =>
+      workItemOrder(key.filter, key.search);
 
   @override
   Future<PaginatedList<WorkItem>> build() {

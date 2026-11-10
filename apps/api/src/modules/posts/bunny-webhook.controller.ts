@@ -95,7 +95,9 @@ export class BunnyWebhookController {
   ): Promise<{ received: true }> {
     const keys = await this.bunny.keys();
     if (!keys) throw this.notFound();
-    const signingKey = keys.webhookSigningKey;
+    // Audit 2026-11-08 (L10): also the key read from Bunny with the account
+    // API key, so the leaked-path token stops working without an admin step.
+    const signingKey = await this.bunny.webhookSigningKey(keys);
     if (signingKey) {
       // The raw body is required: re-serialised JSON would not match.
       if (!rawBody || !bunnySignatureValid(rawBody, signature, signingKey)) {

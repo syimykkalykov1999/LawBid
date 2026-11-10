@@ -270,9 +270,21 @@ export class CaseBillingService {
   }
 
   /** An entry that is already on an invoice is frozen. */
-  private async openEntry(caseId: string, entryId: string): Promise<Entry> {
+  /** Audit 2026-11-08 (L9): a row is found by its case AND its attorney,
+   * so an attorney who later takes over a case can't edit the time,
+   * expenses or invoices of the attorney before. */
+  private async openEntry(
+    caseId: string,
+    entryId: string,
+    attorneyId: string,
+  ): Promise<Entry> {
     const e = await this.prisma.caseTimeEntry.findFirst({
-      where: { id: entryId, case_id: caseId, deleted_at: null },
+      where: {
+        id: entryId,
+        case_id: caseId,
+        attorney_id: attorneyId,
+        deleted_at: null,
+      },
     });
     if (!e) throw notFound('Entry');
     if (e.invoice_id) {
@@ -291,7 +303,7 @@ export class CaseBillingService {
     dto: UpdateTimeDto,
   ): Promise<CaseBillingDto> {
     await this.attorneySide(user, caseId);
-    const e = await this.openEntry(caseId, entryId);
+    const e = await this.openEntry(caseId, entryId, user.sub);
     if (e.running_since) {
       throw new ConflictException({
         code: ErrorCode.VALIDATION_ERROR,
@@ -315,7 +327,7 @@ export class CaseBillingService {
     entryId: string,
   ): Promise<CaseBillingDto> {
     await this.attorneySide(user, caseId);
-    const e = await this.openEntry(caseId, entryId);
+    const e = await this.openEntry(caseId, entryId, user.sub);
     await this.prisma.caseTimeEntry.update({
       where: { id: e.id },
       data: { deleted_at: new Date(), running_since: null },
@@ -357,7 +369,12 @@ export class CaseBillingService {
   ): Promise<CaseBillingDto> {
     await this.attorneySide(user, caseId);
     const e = await this.prisma.caseExpense.findFirst({
-      where: { id: expenseId, case_id: caseId, deleted_at: null },
+      where: {
+        id: expenseId,
+        case_id: caseId,
+        attorney_id: user.sub,
+        deleted_at: null,
+      },
     });
     if (!e) throw notFound('Expense');
     if (e.invoice_id) {
@@ -385,6 +402,7 @@ export class CaseBillingService {
       this.prisma.caseTimeEntry.findMany({
         where: {
           case_id: caseId,
+          attorney_id: s.attorneyId,
           deleted_at: null,
           invoice_id: null,
           running_since: null,
@@ -393,7 +411,12 @@ export class CaseBillingService {
         orderBy: [{ worked_on: 'asc' }, { created_at: 'asc' }],
       }),
       this.prisma.caseExpense.findMany({
-        where: { case_id: caseId, deleted_at: null, invoice_id: null },
+        where: {
+          case_id: caseId,
+          attorney_id: s.attorneyId,
+          deleted_at: null,
+          invoice_id: null,
+        },
         orderBy: [{ spent_on: 'asc' }, { created_at: 'asc' }],
       }),
       this.prisma.caseBilling.findUnique({ where: { case_id: caseId } }),
@@ -557,9 +580,13 @@ export class CaseBillingService {
     return chat;
   }
 
-  private async invoiceOf(caseId: string, invoiceId: string) {
+  private async invoiceOf(
+    caseId: string,
+    invoiceId: string,
+    attorneyId: string,
+  ) {
     const inv = await this.prisma.caseInvoice.findFirst({
-      where: { id: invoiceId, case_id: caseId },
+      where: { id: invoiceId, case_id: caseId, attorney_id: attorneyId },
     });
     if (!inv) throw notFound('Invoice');
     return inv;
@@ -572,7 +599,7 @@ export class CaseBillingService {
     invoiceId: string,
   ): Promise<CaseBillingDto> {
     const s = await this.attorneySide(user, caseId);
-    const inv0 = await this.invoiceOf(caseId, invoiceId);
+    const inv0 = await this.invoiceOf(caseId, invoiceId, user.sub);
     const notDraft = () =>
       new ConflictException({
         code: ErrorCode.CASE_INVALID_STATE,
@@ -618,7 +645,7 @@ export class CaseBillingService {
     invoiceId: string,
   ): Promise<CaseBillingDto> {
     const s = await this.attorneySide(user, caseId);
-    const inv0 = await this.invoiceOf(caseId, invoiceId);
+    const inv0 = await this.invoiceOf(caseId, invoiceId, user.sub);
     const refused = () =>
       new ConflictException({
         code: ErrorCode.CASE_INVALID_STATE,
@@ -671,7 +698,7 @@ export class CaseBillingService {
     dto: RecordInvoicePaymentDto,
   ): Promise<CaseBillingDto> {
     await this.attorneySide(user, caseId);
-    await this.invoiceOf(caseId, invoiceId);
+    await this.invoiceOf(caseId, invoiceId, user.sub);
     const refused = () =>
       new ConflictException({
         code: ErrorCode.CASE_INVALID_STATE,
@@ -717,7 +744,7 @@ export class CaseBillingService {
     invoiceId: string,
   ): Promise<CaseBillingDto> {
     const s = await this.attorneySide(user, caseId);
-    const inv = await this.invoiceOf(caseId, invoiceId);
+    const inv = await this.invoiceOf(caseId, invoiceId, user.sub);
     if (!isOpenInvoice(inv.status)) {
       throw new ConflictException({
         code: ErrorCode.CASE_INVALID_STATE,

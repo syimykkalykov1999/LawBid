@@ -25,6 +25,10 @@ import {
 } from './admin-compliance.dto';
 import { AgeGateService } from './age-gate.service';
 import { SmsComplianceService } from './sms-compliance.service';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 /**
  * 2026-10-25: what the app needs to show (and send) for the 18+ checkbox
@@ -56,6 +60,7 @@ export class ComplianceController {
     };
   }
 
+  @AssistantAllowed()
   @Get('sms-consent/disclosure')
   @ApiOperation({
     summary: 'The wording shown next to the text-message consent',
@@ -65,6 +70,7 @@ export class ComplianceController {
     return this.sms.disclosure();
   }
 
+  @AttorneyOnly()
   @Post('sms-consent')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -93,6 +99,7 @@ export class ComplianceController {
     return { recorded: true, blockedUntilStart: r.blockedUntilStart };
   }
 
+  @AttorneyOnly()
   @Delete('sms-consent')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Withdraw consent to text messages' })

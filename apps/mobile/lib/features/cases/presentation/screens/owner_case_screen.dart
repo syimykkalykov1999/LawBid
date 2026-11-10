@@ -17,8 +17,6 @@ import 'package:lawbid/features/cases/deals/deal_record_card.dart';
 import 'package:lawbid/features/cases/deals/deal_record_data.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
-import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
-    show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/attorney_view_preview.dart';
 import 'package:lawbid/features/cases/presentation/widgets/bid_accept_flow.dart';

@@ -24,6 +24,7 @@ import {
 } from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  AssistantAllowed,
   AssistantSelf,
   AttorneyOnly,
 } from '../auth/assistant/assistant-context';
@@ -197,6 +198,7 @@ export class AssistantsController {
 
   // --- approval requests ----------------------------------------------------
 
+  @AssistantAllowed()
   @Post('team/requests')
   @ApiOperation({
     summary: 'Assistant: ask the attorney to publish / apply something',
@@ -210,6 +212,7 @@ export class AssistantsController {
     return this.assistants.createRequest(user, dto);
   }
 
+  @AssistantAllowed()
   @Get('team/requests')
   @ApiOperation({
     summary: 'Approval requests (an assistant sees only their own)',
@@ -250,6 +253,7 @@ export class AssistantsController {
 
   // --- tasks ---------------------------------------------------------------
 
+  @AssistantAllowed()
   @Post('tasks')
   @ApiOperation({ summary: 'Set a task for the attorney' })
   @ApiEnvelopeResponse(TaskDto)
@@ -267,6 +271,7 @@ export class AssistantsController {
     return this.tasks.create(user, dto);
   }
 
+  @AssistantAllowed()
   @Get('tasks')
   @ApiOperation({ summary: "The attorney's tasks (calendar order)" })
   @ApiEnvelopeResponse(TaskDto, { isArray: true })
@@ -278,6 +283,7 @@ export class AssistantsController {
   }
 
   // Owner 2026-10-05: declared before `tasks/:id` (literal segments).
+  @AssistantAllowed()
   @Get('tasks/places')
   @ApiOperation({ summary: 'Addresses already used in this planner' })
   @ApiEnvelopeResponse(TaskPlaceSuggestionDto, { isArray: true })
@@ -287,6 +293,7 @@ export class AssistantsController {
     return this.tasks.places(user);
   }
 
+  @AssistantAllowed()
   @Get('tasks/people')
   @ApiOperation({
     summary: 'People to add to a task (team, chats, contacts, attorneys)',
@@ -299,6 +306,7 @@ export class AssistantsController {
     return this.tasks.peopleSuggestions(user, q.q);
   }
 
+  @AssistantAllowed()
   @Post('tasks/bulk')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -314,6 +322,7 @@ export class AssistantsController {
     return this.tasks.bulk(user, dto);
   }
 
+  @AssistantAllowed()
   @Get('tasks/:id')
   @ApiOperation({ summary: 'One task' })
   @ApiEnvelopeResponse(TaskDto)
@@ -325,6 +334,7 @@ export class AssistantsController {
     return this.tasks.get(user, p.id);
   }
 
+  @AssistantAllowed()
   @Patch('tasks/:id/status')
   @ApiIfMatchVersion()
   @ApiOperation({
@@ -346,6 +356,7 @@ export class AssistantsController {
   }
 
   // Owner 2026-10-01: a planner card stays editable and deletable.
+  @AssistantAllowed()
   @Patch('tasks/:id')
   @ApiIfMatchVersion()
   @ApiOperation({ summary: 'Edit a task' })
@@ -365,6 +376,7 @@ export class AssistantsController {
     return this.tasks.update(user, p.id, dto, expectedVersion);
   }
 
+  @AssistantAllowed()
   @Delete('tasks/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a task (with its steps)' })
@@ -377,6 +389,7 @@ export class AssistantsController {
   }
 
   // Owner 2026-10-01: a task's checklist steps.
+  @AssistantAllowed()
   @Post('tasks/:id/steps')
   @ApiOperation({ summary: "Add a step to a task's checklist" })
   @ApiEnvelopeResponse(TaskDto)
@@ -393,6 +406,7 @@ export class AssistantsController {
     return this.tasks.addStep(user, p.id, dto);
   }
 
+  @AssistantAllowed()
   @Patch('tasks/:id/steps/:stepId')
   @ApiOperation({ summary: 'Check a step off / move it to another time' })
   @ApiEnvelopeResponse(TaskDto)
@@ -409,6 +423,7 @@ export class AssistantsController {
     return this.tasks.updateStep(user, p.id, p.stepId, dto);
   }
 
+  @AssistantAllowed()
   @Delete('tasks/:id/steps/:stepId')
   @ApiOperation({ summary: 'Remove a step' })
   @ApiEnvelopeResponse(TaskDto)

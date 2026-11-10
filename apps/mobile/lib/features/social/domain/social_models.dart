@@ -336,7 +336,7 @@ class Post {
   /// repost; null otherwise (and while the API does not send it).
   final PostReposter? repostedBy;
 
-  /// Owner 2026-10-12: 1..3 when the author pinned it to the top of their
+  /// Owner 2026-10-12: 1..10 (was 1..3) when the author pinned it to the top of their
   /// profile list.
   final int? pinSlot;
 

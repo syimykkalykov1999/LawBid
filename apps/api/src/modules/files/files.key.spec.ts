@@ -1,4 +1,11 @@
-import { newFileKey, variantKey } from './files.policy';
+import {
+  finalKeyOf,
+  isStagingKey,
+  newFileKey,
+  stagingKey,
+  storedKey,
+  variantKey,
+} from './files.policy';
 import { newShardedId } from '../../sharding/shard-id';
 
 describe('newFileKey (owner-independent object keys)', () => {
@@ -40,6 +47,36 @@ describe('newFileKey (owner-independent object keys)', () => {
     // a pre-change row keeps working: nothing parses the key
     expect(variantKey('avatar/old-user/old-file', 320)).toBe(
       'avatar/old-user/old-file_w320',
+    );
+  });
+});
+
+/**
+ * D-c1 (2026-11-09, OWASP «upload to a separate location»): a presigned
+ * link writes only under `staging/`; the stored copy never carries it.
+ */
+describe('staging keys (D-c1)', () => {
+  const final = 'post_image/s3/2026/11/5c0f7a5e-0000-4000-8000-000000000001';
+
+  it('the upload key is the final key under staging/', () => {
+    expect(stagingKey(final)).toBe(`staging/${final}`);
+    expect(isStagingKey(stagingKey(final))).toBe(true);
+    expect(isStagingKey(final)).toBe(false);
+  });
+
+  it('the stored copy leaves staging/ and gets the random tail', () => {
+    expect(storedKey(stagingKey(final), 'abcd1234')).toBe(`${final}_sabcd1234`);
+    expect(finalKeyOf(stagingKey(final))).toBe(final);
+  });
+
+  it('an upload key from before the prefix is kept as it was', () => {
+    expect(storedKey(final, 'abcd1234')).toBe(`${final}_sabcd1234`);
+    expect(finalKeyOf(final)).toBe(final);
+  });
+
+  it('a demo upload keeps its demo/ prefix inside staging/', () => {
+    expect(storedKey(stagingKey(`demo/${final}`), 'ab')).toBe(
+      `demo/${final}_sab`,
     );
   });
 });

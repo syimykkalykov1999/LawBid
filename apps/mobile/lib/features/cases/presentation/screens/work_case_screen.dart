@@ -16,8 +16,6 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
     show routeSubscriptionError;
-import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
-    show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_close_block.dart';
@@ -450,7 +448,11 @@ class _TermsLine extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bid = ref.watch(bidProvider(bidId)).value;
+    final async = ref.watch(bidProvider(bidId));
+    // Audit 2026-11-08 (L2): a refused bid (assistant without the duty)
+    // leaves the line out instead of a skeleton that never ends.
+    if (async.hasError && !async.hasValue) return const SizedBox.shrink();
+    final bid = async.value;
     if (bid == null) return const AppSkeleton(height: AppSpacing.xl);
     return AppCard(
       onTap: () => context.push(AppRoutes.bid(bidId)),

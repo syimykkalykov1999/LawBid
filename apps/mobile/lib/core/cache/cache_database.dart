@@ -164,9 +164,10 @@ class ChatMediaFiles extends Table {
   Set<Column> get primaryKey => {url};
 }
 
-/// The cache database (`lawbid_cache`). On the web build it lives only in
-/// the tab's memory (plan §5: a shared or private computer keeps nothing
-/// of the account on disk); on phones it is a file the OS protects.
+/// The cache database (`lawbid_cache`). On phones it is a file the OS
+/// protects; on the web build the browser's storage (owner 2026-11-08, speed
+/// everywhere; it lived only in the tab's memory before), wiped on sign-out
+/// like every account row (`CacheMaintenance.clearAccountData`).
 @DriftDatabase(
   tables: [
     HttpCache,

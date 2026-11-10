@@ -45,7 +45,10 @@ import {
 } from './promotions.dto';
 import { BoostActions } from './boost-actions.service';
 import { PromotionsService } from './promotions.service';
-import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 import type { Request } from 'express';
 
@@ -68,6 +71,7 @@ export class PromotionsController {
     private readonly actions: BoostActions,
   ) {}
 
+  @AttorneyOnly()
   @Get('promotions/quote')
   @ApiOperation({ summary: 'Price of promoting a case for N days' })
   @ApiEnvelopeResponse(PromotionQuoteDto)
@@ -86,6 +90,7 @@ export class PromotionsController {
     );
   }
 
+  @AttorneyOnly()
   @Get('cases/:id/promotion')
   @ApiOperation({
     summary: "My case's current / last promotion and a quote (case owner)",
@@ -137,6 +142,7 @@ export class PromotionsController {
     return this.promotions.create(user.sub, p.id, dto, apiBaseOf(req));
   }
 
+  @AttorneyOnly()
   @Get('posts/:id/promotion')
   @ApiOperation({
     summary: "My post's current / last promotion and a quote (author)",
@@ -185,6 +191,7 @@ export class PromotionsController {
     return this.promotions.createPost(user.sub, p.id, dto, apiBaseOf(req));
   }
 
+  @AttorneyOnly()
   @Get('me/promotions')
   @ApiOperation({ summary: 'My promotions with reach, clicks and progress' })
   @ApiEnvelopeResponse(MyPromotionDto, { isArray: true })
@@ -196,6 +203,7 @@ export class PromotionsController {
     return this.promotions.mine(user.sub, q.cursor);
   }
 
+  @AttorneyOnly()
   @Get('promotions/:id/stats')
   @ApiOperation({ summary: 'One promotion with its numbers by day' })
   @ApiEnvelopeResponse(PromotionStatsDto)
@@ -219,6 +227,7 @@ export class PromotionsController {
     return this.promotions.stop(user.sub, p.id);
   }
 
+  @AssistantAllowed()
   @Post('promotions/:id/click')
   @ApiOperation({ summary: 'A promoted post / case was opened (stats)' })
   @ApiEnvelopeResponse(PromotionClickResultDto)
@@ -229,6 +238,7 @@ export class PromotionsController {
     return this.promotions.click(user.sub, p.id);
   }
 
+  @AssistantAllowed()
   @Post('promotions/:id/action')
   @ApiOperation({
     summary:

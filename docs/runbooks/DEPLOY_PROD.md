@@ -454,6 +454,37 @@ API расшифровывает его один раз при старте (`km
   `apply` в `plan` должно быть `update in-place` для `aws_ecs_service`, а не
   `must be replaced`.
 
+### Database Insights вместо Performance Insights (B-c17, 2026-11-09)
+
+AWS закрывает **Performance Insights 31.07.2026** и переводит базы в **CloudWatch Database Insights**
+([документация](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PerfInsights.Overview.html)).
+Режим **standard** — то же, что сегодня: бесплатно, история 7 дней. Режим **advanced** — платный,
+≈ $0,0125 за vCPU-час (t4g.micro = 2 vCPU ≈ $18 в месяц; копии чтения считаются отдельно) и история 465 дней.
+В Terraform у всех баз явно записано `database_insights_mode = standard` и срок 7 дней
+(`infra/modules/postgres`, `infra/modules/stack` для принятой базы, копии чтения в `infra/modules/growth`).
+Если кто-то переключит режим в консоли, `terraform plan` покажет расхождение и `apply` вернёт бесплатный режим.
+Платный режим — только одной строкой `database_insights_advanced = true` в `terraform.tfvars` (срок станет 465)
+и только на время расследования. Строка в лестнице расходов: «Расширенная диагностика базы».
+
+## Object Lock для подписанных записей о сделке (C-c11, 2026-11-09)
+
+Выключено по умолчанию (`documents_object_lock = false`): план чистый, ничего не меняется. Что делает
+включение (**необратимо** — Object Lock с бакета снять нельзя; версии и так включены):
+
+1. На бакет документов ставится `aws_s3_bucket_object_lock_configuration` **без правила по умолчанию**:
+   обычные документы остаются удаляемыми (удаление аккаунта, GDPR).
+2. API получает `S3_OBJECT_LOCK_RETENTION_DAYS` (= `sealed_records_retention_days`, по умолчанию 2555 = 7 лет)
+   и право `s3:PutObjectRetention`; **только** запечатанный PDF записи о сделке (две подписи,
+   `deal-record.runner.ts` → `storeGenerated({ sealed: true })`) пишется в режиме **COMPLIANCE** с датой
+   «хранить до». Его не удалит и не перезапишет никто, включая root, до этой даты. Остальные файлы — как раньше.
+3. Срок хранения — решение владельца после юриста (`docs/dev/BID_TERMS_AGREEMENT_RESEARCH_2026-10-27.md` §3.5);
+   укоротить срок уже записанного файла нельзя, удлинить — можно.
+
+Как включить: `documents_object_lock = true` (и при желании `sealed_records_retention_days = …`) в
+`infra/envs/prod/terraform.tfvars` → `terraform plan` (ожидается: 1 ресурс Object Lock, новая версия task
+definition API/воркера с одной переменной, одна IAM-строка) → `apply` → деплой подхватит переменную.
+Локально, на MinIO и в R2 переменная пустая — заголовков Object Lock нет.
+
 ## Очистка тестовых данных (R-374, 2026-11-04)
 
 Команда `apps/api/src/cli/purge-test-data.ts` удаляет пользователей приложения

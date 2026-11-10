@@ -87,6 +87,9 @@ export interface CleanupResult {
   rowsRemoved: number;
 }
 
+/** B-c7: SYNC_MAX_AGE_MS (7 days) plus a day of slack. */
+const TOMBSTONE_DAYS = 8;
+
 const EMPTY: CleanupResult = {
   pendingUploadsRemoved: 0,
   orphansFound: 0,
@@ -172,6 +175,15 @@ export class StorageCleanupService {
     const result: CleanupResult = { ...EMPTY };
 
     result.pendingUploadsRemoved = await this.sweepPendingUploads(now);
+    // B-c7: unfollow tombstones older than the sync window are of no use
+    // (an older `updatedSince` is 409 SYNC_TOO_OLD → the list reloads).
+    await this.prisma.followTombstone.deleteMany({
+      where: {
+        unfollowed_at: {
+          lt: new Date(now.getTime() - TOMBSTONE_DAYS * DAY_MS),
+        },
+      },
+    });
 
     for (let i = 0; i < MAX_BATCHES; i += 1) {
       const ids = await this.unused(

@@ -64,7 +64,11 @@ import {
 import { PostAttachmentsPolicy } from './post-attachments.policy';
 import { PostsService } from './posts.service';
 import { PostAttachmentsAllowedDto } from './dto/posts.dto';
-import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+  RequiresDuty,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -82,6 +86,7 @@ export class PostsController {
     private readonly versionEtag: VersionEtagService,
   ) {}
 
+  @AssistantAllowed()
   @Get('posts/attachments-allowed')
   @ApiOperation({
     summary:
@@ -164,6 +169,7 @@ export class PostsController {
 
   // Owner 2026-10-15: every author (clients post too) switches their own
   // counters, like Instagram's "Hide like count".
+  @AttorneyOnly('publish')
   @Patch('posts/:id/counters')
   @ApiOperation({
     summary: 'Hide or show the like / view counter of an own post',
@@ -291,6 +297,7 @@ export class PostsController {
     return this.posts.listByAttorney(user, p.id, q);
   }
 
+  @AttorneyOnly('publish')
   @Post('posts/:id/like')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Like a post (idempotent, docs/05 §4)' })
@@ -302,6 +309,7 @@ export class PostsController {
     return this.engagement.like(user.sub, p.id);
   }
 
+  @AssistantAllowed()
   @Post('posts/:id/share')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Count a completed share (OQ-037)' })
@@ -315,6 +323,7 @@ export class PostsController {
 
   // Owner 2026-10-22 (client economy plan, package A): kept for older
   // apps; new apps batch views through POST /posts/events (kind 'view').
+  @AssistantAllowed()
   @Post('posts/:id/view')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
@@ -335,6 +344,7 @@ export class PostsController {
   // Owner 2026-10-18: impressions of cards the viewer saw in a list (≥ 50 %
   // on screen for about a second) and profile visits made from a post, in
   // batches; one per viewer + post + kind per 24 h, never the author's own.
+  @AssistantAllowed()
   @Post('posts/events')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
@@ -369,6 +379,7 @@ export class PostsController {
     return this.insightsService.insights(user, p.id, q.tzOffset ?? 0);
   }
 
+  @AttorneyOnly('publish')
   @Delete('posts/:id/like')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove a like (idempotent, docs/05 §4)' })
@@ -379,6 +390,7 @@ export class PostsController {
     return this.engagement.unlike(user.sub, p.id);
   }
 
+  @AttorneyOnly('publish')
   @Post('posts/:id/repost')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
@@ -397,6 +409,7 @@ export class PostsController {
     return this.engagement.repost(user.sub, p.id);
   }
 
+  @AttorneyOnly('publish')
   @Delete('posts/:id/repost')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Undo a repost (idempotent, owner 2026-10-07)' })
@@ -407,6 +420,7 @@ export class PostsController {
     return this.engagement.unrepost(user.sub, p.id);
   }
 
+  @AssistantAllowed()
   @Get('posts/:id/likes')
   @ApiOperation({
     summary: 'Who liked a post, newest first (owner 2026-10-20)',
@@ -421,6 +435,7 @@ export class PostsController {
     return this.engagement.listLikers(user.sub, p.id, q.cursor);
   }
 
+  @AssistantAllowed()
   @Get('posts/:id/reposts')
   @ApiOperation({
     summary: 'Who reposted a post, newest first (owner 2026-10-18)',
@@ -435,6 +450,7 @@ export class PostsController {
     return this.engagement.listReposters(user.sub, p.id, q.cursor);
   }
 
+  @AssistantAllowed()
   @Get('users/:id/reposts')
   @ApiOperation({
     summary: "A user's Reposts profile tab, newest first (owner 2026-10-18)",
@@ -449,6 +465,7 @@ export class PostsController {
     return this.engagement.listUserReposts(user.sub, p.id, q.cursor);
   }
 
+  @RequiresDuty('cases')
   @Get('saved-items/posts')
   @ApiOperation({ summary: 'Saved posts (docs/05 §4, "Моё → Сохранённое")' })
   @ApiEnvelopeResponse(SavedPostItemDto, { isArray: true })
