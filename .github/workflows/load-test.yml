@@ -26,10 +26,10 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: "smoke (~$1, 10 min) | m1 (1M daily users) | m10 (10M daily users) | calls-smoke | calls-full. Local runs on the Mac, not here."
+        description: "smoke (~$1, 10 min) | m1 (1M daily users) | m10 (10M daily users) | u1k / u10k / u100k (owner order 11: 1 000 / 10 000 / 100 000 people online, 15 min each, docs/dev/LOAD_TEST_PLAN_2026-11-09.md) | calls-smoke | calls-full. Local runs on the Mac, not here."
         type: choice
         required: true
-        options: [smoke, m1, m10, calls-smoke, calls-full]
+        options: [smoke, m1, m10, u1k, u10k, u100k, calls-smoke, calls-full]
       confirm_cost:
         description: "The most you accept to pay for this run, in US dollars (whole number). The run stops before creating anything if the estimate's upper bound is higher."
         type: string
@@ -77,7 +77,7 @@ jobs:
           node-version: "26.12.1"
       - name: Profile is allowed on AWS and caps are consistent
         run: |
-          case "$PROFILE" in smoke|m1|m10|calls-smoke|calls-full) ;; *) echo "::error::profile $PROFILE cannot run here (local = loadtest/run-local.sh on the Mac)"; exit 1;; esac
+          case "$PROFILE" in smoke|m1|m10|u1k|u10k|u100k|calls-smoke|calls-full) ;; *) echo "::error::profile $PROFILE cannot run here (local = loadtest/run-local.sh on the Mac)"; exit 1;; esac
           node loadtest/scripts/check-profiles.mjs
           case "$GAMEDAY" in none) ;; ecs|redis|rds|all)
             [ "$PROFILE" = smoke ] && [ "$GAMEDAY" = all ] && { echo "::error::smoke is too short for gameday=all (one experiment at a time on smoke; use m1 for all)"; exit 1; }
@@ -106,7 +106,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           need=""
-          case "$PROFILE" in m1|m10) need="smoke";; calls-full) need="calls-smoke";; esac
+          case "$PROFILE" in m1|m10|u1k) need="smoke";; u10k) need="u1k";; u100k) need="u10k";; calls-full) need="calls-smoke";; esac
           [ -z "$need" ] && { echo "no gate for $PROFILE"; exit 0; }
           since="$(date -u -d '3 days ago' +%FT%TZ)"
           n="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow load-test.yml --status success --limit 50 --json displayTitle,createdAt \

@@ -55,6 +55,24 @@ BEGIN
   END IF;
 END $$;
 
+--   * owner order 11 (2026-11-09): the test stack has NO account budget
+--     (ephemeral = true), so the API's own money brakes work on estimates:
+--     economy.guard (auto mode) lets the API ceiling grow only +5 tasks per
+--     5 minutes above what the spare "money" pays for, and ops.cost-check
+--     would hold autoscaling at the minimum at 100 % of a budget. Both would
+--     measure the brake, not the servers. Manual ceilings = the Terraform
+--     hard caps of the profile (manualCeiling() clamps to them), budget brake
+--     off, and the per-IP socket limit raised: the generators are 1-6 IPs
+--     (2026-11-02: ws_connected 4.8 % was this limit, not the server).
+--     Values are the raw JSON of app_config.value (string / number / boolean).
+INSERT INTO app_config (key, value, updated_at) VALUES
+  ('economy.ceiling_mode', '"manual"', now()),
+  ('economy.manual_api_max', '48', now()),
+  ('economy.manual_worker_max', '12', now()),
+  ('ops.auto_scale_down_on_budget', 'false', now()),
+  ('realtime.max_connects_per_ip_per_minute', '200000', now())
+ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = now();
+
 ANALYZE;
 SELECT 'users' AS t, count(*) FROM users
 UNION ALL SELECT 'conversations_unlocked', count(*) FROM conversations WHERE contacts_unlocked
