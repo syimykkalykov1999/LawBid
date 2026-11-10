@@ -1,15 +1,12 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:lawbid/core/audio/proximity_screen.dart';
 import 'package:lawbid/core/audio/safe_play.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
-import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
@@ -365,27 +362,9 @@ class VoicePlayer extends Notifier<VoicePlayback> {
 
   /// Telegram-style: a note is downloaded once into the cache and played
   /// from the file (replays work offline; the signed link may expire).
-  /// Storage links carry no app headers ([storageDioProvider]).
-  Future<String?> _cached(String messageId, String? url) async {
-    if (url == null) return null;
-    final target = await voiceCachePath(messageId);
-    if (target == null) return null;
-    final file = File(target);
-    // ignore: avoid_slow_async_io
-    if (await file.exists() && await file.length() > 0) return file.path;
-    final res = await ref.read(storageDioProvider).get<List<int>>(
-          url,
-          options: Options(responseType: ResponseType.bytes),
-        );
-    final data = res.data;
-    if (data == null || data.isEmpty) return null;
-    // Written beside and renamed: a half-written file is never taken as the
-    // finished note.
-    final part = File('${file.path}.part');
-    await part.writeAsBytes(data, flush: true);
-    await part.rename(file.path);
-    return file.path;
-  }
+  /// Owner 2026-11-08: the download resumes after a cut (`downloadVoiceNote`).
+  Future<String?> _cached(String messageId, String? url) =>
+      downloadVoiceNote(messageId, url);
 
   /// The preview of a recording not sent yet (lock mode): same player, same
   /// fades, never two sounds at once. [kVoiceDraftId] marks it.

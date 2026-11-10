@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/core/files/resumable_download.dart';
 import 'package:path_provider/path_provider.dart';
 
 Future<void> deleteVoiceFile(String? path) async {
@@ -36,4 +37,21 @@ Future<void> adoptVoiceFileAsCache(String? path, String messageId) async {
   } on Object {
     // The note just downloads when it is played.
   }
+}
+
+/// Owner 2026-11-08 (speed everywhere, SPEED_MATRIX §3 №10): a note not on
+/// the phone yet is downloaded with the same [ResumableDownload] as a case
+/// file — a cut connection keeps the bytes in `.part` and the next try asks
+/// the storage for the rest (`Range: bytes=N-`) instead of starting over;
+/// two taps share one transfer. Returns the kept file's path, or null when
+/// there is no link, no cache directory (web) or the download failed.
+Future<String?> downloadVoiceNote(String messageId, String? url) async {
+  if (url == null) return null;
+  final target = await voiceCachePath(messageId);
+  if (target == null) return null;
+  final file = File(target);
+  // ignore: avoid_slow_async_io
+  if (await file.exists() && await file.length() > 0) return file.path;
+  final got = await ResumableDownload.instance.fetch(url, file);
+  return got.lengthSync() > 0 ? got.path : null;
 }

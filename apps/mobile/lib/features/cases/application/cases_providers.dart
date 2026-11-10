@@ -499,17 +499,30 @@ class FeedNotifier extends PagedNotifier<FeedCase> {
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  // Owner 2026-11-08 (speed everywhere, SPEED_MATRIX §3 №2): the feed opens
+  // on the phone's copy of its first page at once (cold start, offline, a
+  // tab switch after the 5-minute hold), the live page replaces it — the
+  // same `phoneCopy` as «Мои дела».
+  @override
+  Future<CursorPage<FeedCase>?> cachedFirstPage() {
+    final repo = ref.read(casesRepositoryProvider);
+    return phoneCopy(() => _page(repo, null));
+  }
+
   @override
   Future<CursorPage<FeedCase>> fetch(String? cursor) =>
-      ref.read(casesRepositoryProvider).feed(
-            cursor: cursor,
-            practiceCategory: filter.practiceCategory,
-            states: [
-              for (final c in (filter.state ?? '').split(','))
-                if (c.isNotEmpty) c,
-            ],
-            mineOnly: filter.mineOnly,
-          );
+      _page(ref.read(casesRepositoryProvider), cursor);
+
+  Future<CursorPage<FeedCase>> _page(CasesRepository repo, String? cursor) =>
+      repo.feed(
+        cursor: cursor,
+        practiceCategory: filter.practiceCategory,
+        states: [
+          for (final c in (filter.state ?? '').split(','))
+            if (c.isNotEmpty) c,
+        ],
+        mineOnly: filter.mineOnly,
+      );
 
   @override
   Object idOf(FeedCase item) => item.id;
@@ -538,17 +551,28 @@ class ExploreCasesNotifier extends PagedNotifier<FeedCase> {
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  // Owner 2026-11-08 (SPEED_MATRIX §3 №2): «Исследовать» opens on the
+  // phone's copy of the first page of this filter; the live page follows.
+  @override
+  Future<CursorPage<FeedCase>?> cachedFirstPage() {
+    final repo = ref.read(casesRepositoryProvider);
+    return phoneCopy(() => _page(repo, null));
+  }
+
   @override
   Future<CursorPage<FeedCase>> fetch(String? cursor) =>
-      ref.read(casesRepositoryProvider).feed(
-            cursor: cursor,
-            practiceCategory: key.practiceCategory,
-            state: key.state,
-            extras: key.extras,
-            // Audit 2026-10-04: "All" here matches the feed's "All" —
-            // every open case, not just the licensed states.
-            mineOnly: false,
-          );
+      _page(ref.read(casesRepositoryProvider), cursor);
+
+  Future<CursorPage<FeedCase>> _page(CasesRepository repo, String? cursor) =>
+      repo.feed(
+        cursor: cursor,
+        practiceCategory: key.practiceCategory,
+        state: key.state,
+        extras: key.extras,
+        // Audit 2026-10-04: "All" here matches the feed's "All" —
+        // every open case, not just the licensed states.
+        mineOnly: false,
+      );
 
   @override
   Object idOf(FeedCase item) => item.id;
