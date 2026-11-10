@@ -43,6 +43,8 @@
 
 - **«migrate-from-previous FAILED: … a new migration sorts before an already-released one» (09.11, #880).** Ветка создана раньше, чем в main вышли миграции с более поздней датой. Перед пушем: имя папки новой миграции должно быть позже последней в `origin/main` (`git ls-tree --name-only origin/main apps/api/prisma/migrations | tail`); переименовать папку, содержимое не трогать.
 
+- **Деплой встал на «Wait for green CI»: Admin Lighthouse /users медиана TBT 307–317 мс при пороге 300 (10.11, #886).** Тот же код на main даёт 197–841 мс за 5 прогонов: страница держится у порога, шумный прогон краснеет и блокирует выкатку. Лечение сейчас: перезапуск упавшей проверки, затем `gh run rerun <deploy run>`. Настоящее лечение — облегчить загрузку /users (основной кусок ~235 КБ, ~850 мс скрипта при CPU x4), порог не трогать.
+
 ## B. Деплой и прод
 12. **Сайт 503 с 24.10:** CloudFront function опубликована со старым кодом (`cf.kvs(имя)` вместо ID хранилища). После любого Terraform apply проверять `curl -s -o /dev/null -w "%{http_code}" https://lawbid.dev/` = 200 и `aws cloudfront test-function` на LIVE-стадии.
 13. **Terraform apply оборвался на сохранении state:** короткий `aws login` истёк в конце apply → state ушёл в errored.tfstate. Перед apply обновлять вход; при обрыве — `terraform state push errored.tfstate`, а не повторный apply.
