@@ -173,4 +173,7 @@ class StubAuthRepository implements AuthRepository {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     return const AccountDeletionResult.success();
   }
+
+  @override
+  Future<void> clearAfterDeletion() async {}
 }

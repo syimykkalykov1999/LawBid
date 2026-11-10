@@ -48,13 +48,26 @@ function build(
     bundleVersions?: { lang: string; version: number }[];
     redis?: MemoryRedis;
     config?: Record<string, unknown>;
+    flags?: Record<string, boolean>;
+    googleKey?: string;
   } = {},
 ) {
   const flags = {
     getFlags: jest
       .fn()
-      .mockResolvedValue({ apple_login: true, video_posts: false }),
+      .mockResolvedValue(
+        opts.flags ?? { apple_login: true, video_posts: false },
+      ),
   } as unknown as FeatureFlagsService;
+  const secrets = {
+    get: jest.fn((id: string) =>
+      Promise.resolve(
+        id === 'google_translate' && opts.googleKey
+          ? { fields: { apiKey: opts.googleKey } }
+          : null,
+      ),
+    ),
+  };
   const appConfig = {
     getConfig: jest
       .fn()
@@ -78,6 +91,7 @@ function build(
     flags,
     appConfig,
     redis as never,
+    secrets as never,
   );
   return { service, prisma, redis };
 }
@@ -94,12 +108,20 @@ describe('BootstrapService.build: S20-9 reel warm-up switch', () => {
     ];
   };
 
-  it('auto: Wi-Fi 3, mobile data 1; 0 while Bunny traffic is over its warning level', async () => {
-    expect(await prefetch({})).toEqual([3, 1]);
+  it('owner 2026-11-09: default on — 3 ahead on Wi-Fi and mobile data, even over the Bunny warning', async () => {
+    expect(await prefetch({})).toEqual([3, 3]);
     expect(await prefetch({}, { bunny: { bandwidthLevel: 'warn' } })).toEqual([
-      0, 0,
+      3, 3,
     ]);
-    expect(await prefetch({}, { bunny: { bandwidthLevel: 'ok' } })).toEqual([
+  });
+
+  it('auto (admin choice): Wi-Fi 3, mobile data 1; 0 while Bunny traffic is over its warning level', async () => {
+    const auto = { 'client.video_prefetch_mode': 'auto' };
+    expect(await prefetch(auto)).toEqual([3, 1]);
+    expect(await prefetch(auto, { bunny: { bandwidthLevel: 'warn' } })).toEqual(
+      [0, 0],
+    );
+    expect(await prefetch(auto, { bunny: { bandwidthLevel: 'ok' } })).toEqual([
       3, 1,
     ]);
   });
@@ -124,6 +146,132 @@ describe('BootstrapService.build deal-record switches', () => {
     }).service.build();
     expect(r.app_config['deal_record.enabled']).toBe(false);
     expect(r.app_config['bids.rich_terms_enabled']).toBe(true);
+  });
+});
+
+describe('BootstrapService.build translation: one control (owner 2026-11-08)', () => {
+  const KEY = 'test-google-key';
+  const zones = async (
+    flagOn: boolean,
+    config: Record<string, unknown> = {},
+    googleKey = KEY,
+  ) => {
+    const r = await build({
+      flags: { chat_translate: flagOn },
+      config,
+      googleKey,
+    }).service.build();
+    const f = r.flags;
+    return {
+      master: f.chat_translate,
+      chat: f.translate_chat,
+      posts: f.translate_posts,
+      cases: f.translate_cases,
+      reviews: f.translate_reviews,
+      profiles: f.translate_profiles,
+    };
+  };
+  const all = (v: boolean) => ({
+    master: v,
+    chat: v,
+    posts: v,
+    cases: v,
+    reviews: v,
+    profiles: v,
+  });
+
+  it('master off: nothing anywhere, whatever the zone settings say', async () => {
+    expect(
+      await zones(false, {
+        'translate.scope': 'all',
+        'translate.chat': true,
+        'translate.posts': true,
+      }),
+    ).toEqual(all(false));
+  });
+
+  it('master on with the key, «Везде»: every zone on', async () => {
+    expect(await zones(true, { 'translate.scope': 'all' })).toEqual(all(true));
+  });
+
+  it('master on without the key: nothing (the paid path cannot run)', async () => {
+    expect(await zones(true, {}, '')).toEqual(all(false));
+  });
+
+  it('«Только выбранные» without chats: chats off, every other zone stays on', async () => {
+    expect(
+      await zones(true, {
+        'translate.scope': 'zones',
+        'translate.chat': false,
+      }),
+    ).toEqual({ ...all(true), chat: false });
+  });
+
+  it('«Только выбранные»: each zone follows its own switch only', async () => {
+    expect(
+      await zones(true, {
+        'translate.scope': 'zones',
+        'translate.posts': false,
+        'translate.profiles': false,
+      }),
+    ).toEqual({ ...all(true), posts: false, profiles: false });
+  });
+
+  it('«Везде» ignores a zone switched off earlier', async () => {
+    expect(
+      await zones(true, { 'translate.scope': 'all', 'translate.chat': false }),
+    ).toEqual(all(true));
+  });
+
+  it('other flags are untouched by the translation gate', async () => {
+    const r = await build({
+      flags: { chat_translate: true, apple_login: true, stories: false },
+      googleKey: KEY,
+    }).service.build();
+    expect(r.flags.apple_login).toBe(true);
+    expect(r.flags.stories).toBe(false);
+  });
+});
+
+describe('BootstrapService.build app-side limits (feature reality 2026-11-08)', () => {
+  it('a stored story length and channel photo limit reach the app', async () => {
+    const r = await build({
+      config: {
+        'stories.max_video_sec': 30,
+        'channels.max_post_media': 4,
+        // Server-only limits stay private.
+        'stories.max_active_per_user': 5,
+        'channels.max_owned': 2,
+      },
+    }).service.build();
+    expect(r.app_config['stories.max_video_sec']).toBe(30);
+    expect(r.app_config['channels.max_post_media']).toBe(4);
+    expect(r.app_config['stories.max_active_per_user']).toBeUndefined();
+    expect(r.app_config['channels.max_owned']).toBeUndefined();
+  });
+});
+
+describe('BootstrapService.build SMS consent wording (FR D-c2)', () => {
+  it('never decided: only the version (its default); the app keeps its translated text', async () => {
+    const r = await build({ config: {} }).service.build();
+    expect(r.app_config['compliance.sms.disclosure_version']).toBe('sms-v1');
+    expect(r.app_config['compliance.sms.disclosure_text']).toBeUndefined();
+    expect(r.app_config['compliance.sms.help_text']).toBeUndefined();
+  });
+
+  it('the admin wording, its version and the HELP text reach the app; blank text does not', async () => {
+    const r = await build({
+      config: {
+        'compliance.sms.disclosure_version': 'sms-v2',
+        'compliance.sms.disclosure_text': '  Reply STOP to cancel.  ',
+        'compliance.sms.help_text': '   ',
+      },
+    }).service.build();
+    expect(r.app_config['compliance.sms.disclosure_version']).toBe('sms-v2');
+    expect(r.app_config['compliance.sms.disclosure_text']).toBe(
+      'Reply STOP to cancel.',
+    );
+    expect(r.app_config['compliance.sms.help_text']).toBeUndefined();
   });
 });
 
@@ -168,6 +316,7 @@ describe('BootstrapService.build', () => {
       // Owner 2026-10-05: one flag per translation zone, off without the
       // translator flag and the Google key.
       chat_translate: false,
+      translate_chat: false,
       translate_posts: false,
       translate_cases: false,
       translate_reviews: false,
@@ -191,7 +340,10 @@ describe('BootstrapService.build', () => {
       'client.guest_browse_web_enabled': true,
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
       'client.video_prefetch_ahead': 3,
-      'client.video_prefetch_cellular': 1,
+      'client.video_prefetch_cellular': 3,
+      // FR D-c2: the SMS consent wording version, always sent; the text
+      // only once the admin stored one.
+      'compliance.sms.disclosure_version': 'sms-v1',
     });
     expect(result.languages).toEqual([EN]);
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });

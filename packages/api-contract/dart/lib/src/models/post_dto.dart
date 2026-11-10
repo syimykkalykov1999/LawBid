@@ -125,7 +125,7 @@ class PostDto {
   /// "Изменено" (§3.3).
   final String? editedAt;
 
-  /// Owner 2026-10-12: 1..6 (was 1..3 until 2026-10-28) when pinned to the.
+  /// Owner 2026-10-12: 1..10 (1..3, then 1..6 until 2026-11-09) when pinned to the.
   /// top of the author's list.
   final int? pinSlot;
 

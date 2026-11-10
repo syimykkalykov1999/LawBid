@@ -43,7 +43,12 @@ export type CostControl =
    * (`on` | `dry-run` | `off`). Выкл = off, Вкл = dry-run (the Lambda only
    * e-mails what it would do), Авто = on.
    */
-  | { type: 'ssm-mode'; target: 'db' | 'redis' }
+  | {
+      type: 'ssm-mode';
+      /** G2 (2026-11-08): `both` = the database AND the Redis Lambda
+       * (the «Запуски автомасштабов» row): one switch writes both. */
+      target: 'db' | 'redis' | 'both';
+    }
   /** Infra-only: a Terraform variable. Read-only here; steps are shown. */
   | {
       type: 'tfvars';
@@ -465,6 +470,31 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ],
   },
   {
+    id: 'aws.redis_cache',
+    name: 'Отдельный Redis для кэша',
+    purpose:
+      'Кэш уходит из основного Redis (очереди, чаты) в свой узел, когда основному тесно по памяти.',
+    kind: 'aws',
+    control: tf(['redis_cache_node'], {
+      off: 'redis_cache_node = false',
+      on: 'redis_cache_node = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      'cache.t4g.micro ≈ $0,016 в час (≈ $12 в месяц)',
+      U.cache,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(12, 25) },
+    ifOnUsd: R(12, 25),
+    needed: 'later',
+    neededNote:
+      'G5 (2026-11-08): включается само (cache.redis_mode = Авто), когда основному Redis долго не хватает памяти. Само не выключается: без него память снова кончится.',
+    alarm: null,
+  },
+  {
     id: 'aws.redis_autoscale',
     name: 'Автомасштаб размера Redis',
     purpose:
@@ -501,7 +531,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       map: { off: 'off', auto: 'auto' },
     },
     states: ['off', 'auto'],
-    defaultState: 'auto',
+    defaultState: 'off',
     ceiling: setCeil(
       'economy.max_spend_percent',
       'Допустимый расход: процент выручки и минимум в долларах (Экономика)',
@@ -1219,6 +1249,37 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: null,
   },
   {
+    // B-c17 (2026-11-09): Performance Insights закрывается 31.07.2026 и
+    // становится CloudWatch Database Insights. Стандартный режим — как
+    // сегодня, бесплатно (7 дней); расширенный — платный за vCPU-час,
+    // история 465 дней. Terraform держит стандартный и возвращает его,
+    // если кто-то переключил в консоли.
+    id: 'aws.database_insights_advanced',
+    name: 'Расширенная диагностика базы (Database Insights Advanced)',
+    purpose:
+      'Планы запросов и разбор «что тормозит» за 15 месяцев истории. Стандартный режим (бесплатно, 7 дней) остаётся и после закрытия Performance Insights 31.07.2026; Terraform сторожит, чтобы платный режим не включился сам.',
+    kind: 'aws',
+    control: tf(['database_insights_advanced'], {
+      off: 'database_insights_advanced = false',
+      on: 'database_insights_advanced = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'mixed',
+      '≈ $0,0125 за vCPU-час базы (t4g.micro 2 vCPU ≈ $18 в месяц; копии чтения — отдельно); стандартный режим $0',
+      U.cw,
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(18, 150),
+    needed: 'later',
+    neededNote:
+      'Не нужно: стандартный режим бесплатен и показывает то же, что Performance Insights сегодня. Включать только на время расследования, потом выключать.',
+    alarm: null,
+  },
+  {
     id: 'aws.turn_own',
     name: 'Свой сервер звонков (coturn)',
     purpose:
@@ -1827,7 +1888,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       map: { off: 'off', on: 'on', auto: 'auto' },
     },
     states: ['off', 'on', 'auto'],
-    defaultState: 'auto',
+    defaultState: 'off',
     ceiling: setCeil(
       'budget.video.monthly_max',
       'Лимит минут видео в месяц (админка → Лимиты); порог паузы: usage.bunny_bandwidth_crit_gb и usage.bunny_storage_crit_gb (админка → Настройки)',
@@ -1859,7 +1920,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       map: { off: 'off', on: 'on', auto: 'auto' },
     },
     states: ['off', 'on', 'auto'],
-    defaultState: 'auto',
+    defaultState: 'off',
     ceiling: setCeil(
       'usage.cloudflare_egress_crit_gb',
       'Срочный порог трафика звонков в ГБ в месяц (по умолчанию 950 из 1000 бесплатных)',
@@ -1963,7 +2024,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Сверяет номер лицензии и имя с реестром штата после присяги и раз в месяц. Выключено у всех штатов, кроме готовых открытых данных Нью-Йорка.',
     kind: 'vendor',
     control: fixed(
-      'Включается по штатам: Админка → Система → Ключи и сервисы → «Реестры адвокатов по штатам». Старый общий флаг auto_bar_check больше не читается.',
+      'Включается по штатам: Админка → Система → Ключи и сервисы → «Реестры адвокатов по штатам». Общий флаг auto_bar_check («Флаги» → «Автопроверка лицензии адвоката») — главный: выключен — реестры не запрашиваются нигде.',
     ),
     states: ['off', 'on'],
     defaultState: 'off',
@@ -2332,7 +2393,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     purpose:
       'Две функции Lambda смотрят нагрузку; ночью проверяют, можно ли уменьшить.',
     kind: 'aws',
-    control: { type: 'ssm-mode', target: 'db' },
+    control: { type: 'ssm-mode', target: 'both' },
     states: ['off', 'on', 'auto'],
     defaultState: 'auto',
     ceiling: null,
@@ -2344,7 +2405,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(0), m1: R(0) },
     needed: 'auto',
     neededNote:
-      'Нагрузка: 576 запусков в сутки на двоих. Те же переключатели, что у строк «Автомасштаб базы / Redis» выше (здесь показан переключатель базы).',
+      'Нагрузка: 576 запусков в сутки на двоих. Те же переключатели, что у строк «Автомасштаб базы / Redis» выше: этот меняет оба сразу.',
     alarm: null,
   },
   {
@@ -2662,6 +2723,13 @@ export const STATE_LABEL: Record<CostState, string> = {
 };
 
 /** Entries on the day-1 bill: everything that is not switched off by default. */
+/** The Lambda switches an `ssm-mode` control stands for (G2). */
+export function ssmTargets(
+  target: 'db' | 'redis' | 'both',
+): ('db' | 'redis')[] {
+  return target === 'both' ? ['db', 'redis'] : [target];
+}
+
 export function dayOneEntries(): CostEntry[] {
   return COST_REGISTRY.filter(
     (e) => e.defaultState !== 'off' && mid(e.usd.launch) > 0,

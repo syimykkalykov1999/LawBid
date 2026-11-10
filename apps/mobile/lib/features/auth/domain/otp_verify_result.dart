@@ -29,6 +29,10 @@ sealed class OtpVerifyResult with _$OtpVerifyResult {
       OtpVerifyRateLimited;
   const factory OtpVerifyResult.networkError() = OtpVerifyNetworkError;
 
+  /// Sweep C-c13 D5: the account is blocked or deleted
+  /// (ACCOUNT_SUSPENDED / ACCOUNT_DELETED) — said so, not «No connection».
+  const factory OtpVerifyResult.unavailable() = OtpVerifyUnavailable;
+
   /// The server answered with something this screen has no text for, or the
   /// session could not be stored: a generic error, not «offline».
   const factory OtpVerifyResult.failed() = OtpVerifyFailed;

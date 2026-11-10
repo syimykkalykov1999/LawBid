@@ -102,6 +102,8 @@ enum ErrorCode {
   i18nImportInvalid('I18N_IMPORT_INVALID'),
   @JsonValue('PROVIDER_BUDGET_EXCEEDED')
   providerBudgetExceeded('PROVIDER_BUDGET_EXCEEDED'),
+  @JsonValue('IDENTITY_PROVIDER_UNAVAILABLE')
+  identityProviderUnavailable('IDENTITY_PROVIDER_UNAVAILABLE'),
   @JsonValue('PHONE_COUNTRY_NOT_SUPPORTED')
   phoneCountryNotSupported('PHONE_COUNTRY_NOT_SUPPORTED'),
   @JsonValue('REVIEW_CASE_NOT_CLOSED')
@@ -532,6 +534,8 @@ enum ErrorCode {
   roleSwitchBlocked('ROLE_SWITCH_BLOCKED'),
   @JsonValue('ROLE_SWITCH_NOT_ALLOWED')
   roleSwitchNotAllowed('ROLE_SWITCH_NOT_ALLOWED'),
+  @JsonValue('EMAIL_SEND_FAILED')
+  emailSendFailed('EMAIL_SEND_FAILED'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

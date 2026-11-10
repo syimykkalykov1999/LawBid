@@ -15,6 +15,7 @@ import {
   type RequestUser,
 } from '../../auth/decorators/current-user.decorator';
 import { FeatureFlagsService } from '../services/feature-flags.service';
+import { AssistantAllowed } from '../../auth/assistant/assistant-context';
 
 export class MyFlagsDto {
   @ApiProperty({
@@ -37,6 +38,7 @@ export class MyFlagsDto {
 export class MyFlagsController {
   constructor(private readonly flags: FeatureFlagsService) {}
 
+  @AssistantAllowed()
   @Get('flags')
   @Header('Cache-Control', 'private, no-store')
   @ApiBearerAuth()

@@ -27,6 +27,7 @@ import type Redis from 'ioredis';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { opsCredentials } from './ops-credentials';
+import { OpsStateService } from './ops-state.service';
 
 export type HaAction =
   | 'db_multi_az_on'
@@ -63,6 +64,32 @@ export interface HaFacts {
    * (prod 08.11). Busy = add the copies first, whatever the online count.
    */
   pressure?: { db: boolean; redis: boolean };
+  /**
+   * G10 (2026-11-08): money. `limited` = the economy guard is in its
+   * «limited» state (projected third-party spend over the allowance);
+   * `budgetLeftUsd` = AWS budget minus this month's forecast (null =
+   * unknown). Read from the economy job's and the cost check's snapshots.
+   */
+  money?: { limited: boolean; budgetLeftUsd: number | null };
+}
+
+/** What the copies cost a month (Multi-AZ of db.t4g.micro + one Redis node). */
+export const HA_USD_MONTH = 26;
+
+/**
+ * G10, pure: in «Авто» the copies are not ADDED while money says no — the
+ * economy guard is limited, or the AWS month would end over its budget with
+ * them. Removing is never held back by money, and «Вкл» (the owner's own
+ * choice) is not touched. Same rule as the infra automation (money_budget).
+ */
+export function haMoneyHold(f: HaFacts): string | null {
+  if (f.mode !== 'auto' || !f.money) return null;
+  if (f.money.limited) return 'economy guard is limited';
+  const left = f.money.budgetLeftUsd;
+  if (left !== null && left < HA_USD_MONTH) {
+    return `AWS budget left ${Math.round(left)} USD < ${HA_USD_MONTH} USD a month for the copies`;
+  }
+  return null;
 }
 
 /** Line and window of the «busy» signal (the size autoscaler's own up line). */
@@ -112,6 +139,11 @@ export function wantedHa(f: HaFacts): Dir | null {
  */
 export function decideHa(f: HaFacts): HaAction[] {
   if (f.mode === 'off') return [];
+  const out = decideHaSteps(f);
+  return haMoneyHold(f) ? out.filter((a) => dirOf(a) === 'down') : out;
+}
+
+function decideHaSteps(f: HaFacts): HaAction[] {
   const load = wantedHa(f);
   // A started Redis sequence is finished in its own direction for 24 h even
   // if the load drifted into the band between the two thresholds, so the
@@ -196,6 +228,8 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
     @Optional() private readonly settings?: AppSettingsService,
+    // G10: the economy state and the AWS budget reading (both in Redis).
+    @Optional() private readonly ops?: OpsStateService,
   ) {}
 
   private env(name: string): string | undefined {
@@ -272,11 +306,18 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       db,
       redis,
       pressure: { db: dbBusy, redis: redisBusy },
+      money: await soft('money', undefined as HaFacts['money'], () =>
+        this.money(),
+      ),
       last: {
         db: await this.lastStep('db'),
         redis: await this.lastStep('redis'),
       },
     };
+    const hold = haMoneyHold(facts);
+    if (hold && decideHaSteps(facts).some((a) => dirOf(a) === 'up')) {
+      this.log.warn(`ha-auto: copies wanted but held back: ${hold}`);
+    }
     const done: HaAction[] = [];
     for (const a of decideHa(facts)) {
       try {
@@ -298,6 +339,26 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       }
     }
     return done;
+  }
+
+  /** G10: the money facts from the snapshots the other jobs keep. */
+  private async money(): Promise<HaFacts['money']> {
+    if (!this.ops) return undefined;
+    // Owner 2026-11-09: no money hold unless he typed an AWS ceiling.
+    const capUsd = (await this.settings?.number('economy.aws_cap_usd')) ?? 0;
+    if (!(Number.isFinite(capUsd) && capUsd > 0)) return undefined;
+    const [econ, cost] = await Promise.all([
+      this.ops.economy(),
+      this.ops.cost(),
+    ]);
+    const spent = cost ? (cost.forecastUsd ?? cost.actualUsd) : null;
+    return {
+      limited: econ?.guard === 'limited',
+      budgetLeftUsd:
+        cost && spent !== null && cost.limitUsd > 0
+          ? cost.limitUsd - spent
+          : null,
+    };
   }
 
   private async lastStep(r: 'db' | 'redis'): Promise<HaFacts['last']['db']> {

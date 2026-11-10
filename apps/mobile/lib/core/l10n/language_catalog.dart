@@ -1,4 +1,5 @@
 import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/language_display_names.dart';
 
 /// One row of the language picker (see `widgets/language_picker_sheet.dart`).
 ///
@@ -199,3 +200,24 @@ const Map<String, String> kLanguageEnglishNames = {
   'zh-tw': 'Chinese (Traditional)',
   'zu': 'Zulu',
 };
+
+/// Sweep C-c6 (SYSTEMS_CHECKLIST §16 «names in the interface language»):
+/// [code]'s name in the app language [uiCode], from Unicode CLDR
+/// (`language_display_names.dart`) — the second line of the pickers,
+/// as in Telegram («Español» / «Испанский» in a Russian app). Falls back
+/// to the English name, then to null.
+String? languageNameIn(String uiCode, String code) {
+  final row = kLanguageDisplayNames[uiCode.toLowerCase()];
+  if (row != null) {
+    final i = kLanguageDisplayCodes.indexOf(code.toLowerCase());
+    if (i >= 0 && row[i].isNotEmpty) return row[i];
+  }
+  return kLanguageEnglishNames[code.toLowerCase()];
+}
+
+/// The picker's second line for [code]: its name in [uiCode], or null when
+/// that is the same as the language's own name (nothing to add).
+String? languageSublabel(String uiCode, String code, String nativeName) {
+  final name = languageNameIn(uiCode, code);
+  return name == null || name == nativeName ? null : name;
+}

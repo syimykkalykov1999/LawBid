@@ -120,6 +120,28 @@ Web в dev: тот же флаг включает `WebDebugProvider` (токен
 3. Сервер оставить в `monitor`, через неделю смотреть журнал (выше) и
    переключать на `enforce`.
 
+## Разбор 2026-11-08: на проде все вердикты `missing`
+
+Что нашли:
+1. В `ios/Runner/Runner.entitlements` не было права App Attest
+   (`com.apple.developer.devicecheck.appattest-environment`): iPhone не
+   проходил аттестацию и не получал токен. Добавлено (`production`).
+2. CORS API не разрешал заголовки `X-Firebase-AppCheck` и
+   `X-Turnstile-Token`: как только сайт начнёт слать токен, браузер
+   сорвёт предварительный запрос и вход на сайте сломается. Добавлены.
+3. Секрета GitHub `FIREBASE_WEB_RECAPTCHA_KEY` нет: сайт App Check не
+   включает (это ожидаемо, пока ключ не создан).
+4. Сервер проверяет правильный проект (`lawbid-6e5ff`, строка
+   `App Check verifier ready` в журнале).
+
+Теперь телефон без токена шлёт `X-Firebase-AppCheck-Status` (коротко,
+на каком шаге сбой: `off: …` запуск, `error: …` токен), а сервер пишет
+его в журнал как `clientStatus` вместе с `platform` и `appVersion`:
+
+```
+filter metric = "app_check" | stats count(*) by verdict, platform, clientStatus
+```
+
 ## График перехода на enforce (решение 2026-10-24)
 
 Мобильное приложение защищает только App Check; Turnstile для него не

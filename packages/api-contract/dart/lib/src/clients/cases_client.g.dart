@@ -462,6 +462,9 @@ class _CasesClient implements CasesClient {
     String? q,
     String? practice,
     String? state,
+    List<num>? stages,
+    bool? awaiting,
+    CaseListSort? sort,
     DateTime? updatedSince,
     String? cursor,
     Map<String, dynamic>? extras,
@@ -474,6 +477,9 @@ class _CasesClient implements CasesClient {
       r'q': q,
       r'practice': practice,
       r'state': state,
+      r'stages': stages,
+      r'awaiting': awaiting,
+      r'sort': sort?.toJson(),
       r'updatedSince': updatedSince?.toIso8601String(),
       r'cursor': cursor,
     };
@@ -1160,6 +1166,30 @@ class _CasesClient implements CasesClient {
       rethrow;
     }
     return _value;
+  }
+
+  @override
+  Future<void> getAttorneyBrief({
+    required String id,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<void>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/cases/${id}/attorney-brief.pdf',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    await _dio.fetch<void>(_options);
   }
 
   @override

@@ -239,19 +239,26 @@ export const envSchema = z
       .int()
       .positive()
       .default(20),
+    // Click audit 2026-11-08: 60 per address made every account behind one
+    // shared address (office NAT, a carrier's CGNAT) share 60 refreshes an
+    // hour — about 15 active people — after which the app showed «You're
+    // offline». The per-session cap below is what stops a stolen token.
     AUTH_REFRESH_LIMIT_PER_IP_PER_HOUR: z.coerce
       .number()
       .int()
       .positive()
-      .default(60),
+      .default(1200),
     // Per session chain (one device's login): an access token lives 15
-    // min (docs/01 §10.4), so a well-behaved client refreshes ~4x/hour;
-    // 30 leaves room for retries while capping a stolen-token refresh loop.
+    // min (docs/01 §10.4), so a phone refreshes ~4x/hour. The website
+    // refreshes on every page load / new tab (the refresh token is an
+    // HttpOnly cookie, the access token lives only in the tab), so 30 ran
+    // out after 30 reloads (click audit 2026-11-08); 120 = 2/min still caps
+    // a stolen-token refresh loop.
     AUTH_REFRESH_LIMIT_PER_SESSION_PER_HOUR: z.coerce
       .number()
       .int()
       .positive()
-      .default(30),
+      .default(120),
     // docs/01 §10.2 E / §12: https base of the universal-link domain
     // (e.g. https://lawbid.app). Optional: when unset, emails carry only
     // the lawbid:// deep link. No trailing slash.
@@ -433,6 +440,14 @@ export const envSchema = z
     S3_BUCKET_MEDIA: optionalMatching(
       s3BucketPattern,
       'S3_BUCKET_MEDIA must be a valid S3 bucket name',
+    ),
+    // C-c11 (2026-11-09): days of COMPLIANCE Object Lock retention the API
+    // puts on sealed deal-record PDFs. Set by Terraform only while the
+    // documents bucket has Object Lock (documents_object_lock); 0 / unset =
+    // no retention headers (a bucket without Object Lock refuses them).
+    S3_OBJECT_LOCK_RETENTION_DAYS: optionalMatching(
+      /^\d{1,5}$/,
+      'S3_OBJECT_LOCK_RETENTION_DAYS must be a whole number of days',
     ),
     // docs/06 §6.1: media (post images, avatars) served through CloudFront
     // when set (https base URL of the distribution, no trailing slash);
@@ -991,6 +1006,15 @@ export const envSchema = z
     PERSONA_API_KEY: z.preprocess(
       blankToUndefined,
       z.string().min(8).optional(),
+    ),
+    // Owner 2026-11-08: the rest of the Persona card (admin wins over env).
+    PERSONA_TEMPLATE_ID: z.preprocess(
+      blankToUndefined,
+      z.string().min(8).optional(),
+    ),
+    PERSONA_WEBHOOK_SECRET: z.preprocess(
+      blankToUndefined,
+      z.string().min(16).optional(),
     ),
     // Optional Socrata app token of the NY attorney registry (data.ny.gov).
     NY_OPEN_DATA_APP_TOKEN: z.preprocess(

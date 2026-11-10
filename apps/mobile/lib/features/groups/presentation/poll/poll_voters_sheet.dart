@@ -67,6 +67,54 @@ class _VotersSheetState extends ConsumerState<_VotersSheet> {
   Object? _error;
   bool _loading = true;
 
+  /// Sweep B-c1: the first list holds up to 50 voters per option; the rest
+  /// of an option come page by page when its list scrolls to the end.
+  final Map<String, List<api.GroupPersonDto>> _more = {};
+  final Map<String, String?> _next = {};
+  final Set<String> _loadingMore = {};
+
+  void _loadMore(String optionId, int shown) {
+    if (_loadingMore.contains(optionId)) return;
+    if (_next.containsKey(optionId) && _next[optionId] == null) return;
+    _loadingMore.add(optionId);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final cursor = _next[optionId];
+        // The first extra page starts from the top (the 50 shown come
+        // again and are skipped), later ones from the server's cursor.
+        final page = await ref.read(groupRepositoryProvider).optionVoters(
+              widget.groupId,
+              widget.poll.id,
+              optionId,
+              cursor: cursor,
+              limit: cursor == null ? shown + 50 : 50,
+            );
+        if (!mounted) return;
+        setState(() {
+          _more.putIfAbsent(optionId, () => []).addAll(page.items);
+          _next[optionId] = page.nextCursor;
+        });
+      } on Object {
+        // The next scroll to the end tries again.
+      } finally {
+        _loadingMore.remove(optionId);
+      }
+    });
+  }
+
+  List<api.GroupPersonDto> _votersOf(
+    String optionId,
+    List<api.GroupPersonDto> first,
+  ) {
+    final more = _more[optionId];
+    if (more == null || more.isEmpty) return first;
+    final seen = <String>{};
+    return [
+      for (final p in [...first, ...more])
+        if (seen.add(p.userId)) p,
+    ];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -171,75 +219,95 @@ class _VotersSheetState extends ConsumerState<_VotersSheet> {
       for (final o in _data ?? const <api.PollVoterOptionDto>[])
         o.optionId: o.voters,
     };
-    return ListView(
+    // Sweep B-c1: one lazy list of rows (header, voters, divider per
+    // option), so only what is on screen is built; the last row of an
+    // option with more votes asks for the next page.
+    final rows = <Widget Function()>[];
+    for (final option in widget.poll.options) {
+      final voters = _votersOf(
+        option.id,
+        byOption[option.id] ?? const <api.GroupPersonDto>[],
+      );
+      final total = option.votes.toInt() > voters.length
+          ? option.votes.toInt()
+          : voters.length;
+      rows.add(
+        () => _OptionHeader(title: option.text, count: total),
+      );
+      if (voters.isEmpty) {
+        rows.add(() => _NoVotes(t: t));
+      }
+      for (var i = 0; i < voters.length; i++) {
+        final p = voters[i];
+        final last = i == voters.length - 1;
+        rows.add(() {
+          if (last && voters.length < total) {
+            _loadMore(option.id, voters.length);
+          }
+          return _VoterRow(person: p, t: t);
+        });
+      }
+      rows.add(() => Divider(height: AppSpacing.xl, color: colors.border));
+    }
+    return ListView.builder(
       padding: const EdgeInsets.only(bottom: AppSpacing.xl),
-      children: [
-        for (final option in widget.poll.options)
-          _OptionSection(
-            title: option.text,
-            voters: byOption[option.id] ?? const <api.GroupPersonDto>[],
-            t: t,
-          ),
-      ],
+      itemCount: rows.length,
+      itemBuilder: (context, i) => rows[i](),
     );
   }
 }
 
-class _OptionSection extends StatelessWidget {
-  const _OptionSection({
-    required this.title,
-    required this.voters,
-    required this.t,
-  });
+class _OptionHeader extends StatelessWidget {
+  const _OptionHeader({required this.title, required this.count});
 
   final String title;
-  final List<api.GroupPersonDto> voters;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: typography.body.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            context.digits(count),
+            style: typography.bodySmall.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoVotes extends StatelessWidget {
+  const _NoVotes({required this.t});
+
   final Translator t;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: typography.body.copyWith(
-                    color: colors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                context.digits(voters.length),
-                style: typography.bodySmall.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (voters.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Text(
-              t.t('poll.noVotes'),
-              style: typography.bodySmall.copyWith(
-                color: colors.textSecondary,
-              ),
-            ),
-          )
-        else
-          for (final p in voters) _VoterRow(person: p, t: t),
-        Divider(height: AppSpacing.xl, color: colors.border),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Text(
+        t.t('poll.noVotes'),
+        style: typography.bodySmall.copyWith(color: colors.textSecondary),
+      ),
     );
   }
 }

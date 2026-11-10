@@ -60,3 +60,13 @@ aa2454bc6d4843a3af822f3add4ce6d2a1315bdb:apps/api/test/owner-subscription-alerts
 3109c388daa97afc7d43669729c573e3a979b68a:.github/workflows/time-bomb-nightly.yml:generic-api-key:32
 # 2026-11-02 (#647): fake PEM text in a unit test in the first commit; removed in the next commit (no force-push). Not a secret.
 4228121effa8010a7fba450d39d0cb887603eb94:apps/admin/src/lib/key-file.test.ts:private-key:9
+# Test-only placeholder Bunny keys in the security-low specs (commit b97e386), renamed to test-… in the next commit.
+b97e386773b684945bf2b2594f5413cc82297754:apps/api/src/modules/posts/bunny-webhook.controller.spec.ts:generic-api-key:155
+b97e386773b684945bf2b2594f5413cc82297754:apps/api/src/modules/videos/bunny-stream.signing-key.spec.ts:generic-api-key:12
+b97e386773b684945bf2b2594f5413cc82297754:apps/api/src/modules/videos/bunny-stream.signing-key.spec.ts:generic-api-key:33
+b97e386773b684945bf2b2594f5413cc82297754:apps/api/src/modules/videos/bunny-stream.signing-key.spec.ts:generic-api-key:43
+b97e386773b684945bf2b2594f5413cc82297754:apps/api/src/modules/videos/bunny-stream.signing-key.spec.ts:generic-api-key:63
+# Owner 2026-11-08 (PR #845): a test object path of the avatar-reuse spec in
+# commit f664e10 ("avatar/s1/2026/11/mine"), not a secret; replaced by
+# "avatar/me/mine" in the next commit.
+f664e10bea6316ed309c03b4d6dd573523bd63e3:apps/api/src/modules/files/files.service.spec.ts:generic-api-key:1085

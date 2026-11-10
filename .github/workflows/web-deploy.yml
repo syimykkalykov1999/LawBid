@@ -40,16 +40,32 @@
 #                          sends no App Check token (docs/runbooks/APP_CHECK.md)
 name: Web deploy
 
+# OPEN_ITEMS_SWEEP 2026-11-09 C-c10: the gate used to poll check-runs from a
+# runner for the whole Mobile CI (29–39 min idle per deploy in the last five
+# runs: 42597606967 38 min, 42589806475 39, 42574841162 43, 42568997786 32,
+# 42563660041 29). Now the workflow STARTS when «Mobile CI» finishes on main
+# (`workflow_run`, the GitHub pattern) and the gate only confirms the rest
+# (gitleaks, CodeQL, Build check) with the same require-green.sh rules —
+# same gate, minutes of waiting instead of tens. The app code paths are
+# exactly Mobile CI's paths; the deploy-only files below (release scripts, this
+# workflow) do not run Mobile CI, so they keep a plain `push` trigger, and
+# `trigger` below skips that run when the same commit also changed app code
+# (Mobile CI will complete and start the workflow_run copy — no double deploy).
 on:
+  workflow_run:
+    workflows: ["Mobile CI"]
+    types: [completed]
+    branches: [main]
   push:
     branches: [main]
     paths:
-      - "apps/mobile/**"
       - "packages/api-client/**"
       - ".github/workflows/web-deploy.yml"
       - "scripts/deploy/web-release.sh"
       - "scripts/deploy/web-sourcemaps.sh"
       - "scripts/deploy/web-boot-check.mjs"
+      - "scripts/deploy/web-size-budget.sh"
+      - "scripts/deploy/web-size-budget.json"
   workflow_dispatch:
 
 permissions:
@@ -60,26 +76,71 @@ concurrency:
   group: web-deploy
   cancel-in-progress: false
 
+# The commit being released: on workflow_run GitHub's own `github.sha` is the
+# head of main at trigger time, not the commit Mobile CI tested — so every step
+# reads RELEASE_SHA instead (push / dispatch: the same as github.sha).
+env:
+  RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
 jobs:
+  # Decides whether this run deploys at all: a workflow_run of a red / cancelled
+  # Mobile CI never deploys (its own notify already fired), and a plain push that
+  # also changed app code leaves the work to the workflow_run copy.
+  trigger:
+    name: Which run deploys
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
+    outputs:
+      go: ${{ steps.decide.outputs.go }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 2
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          set -eu
+          if [ "$EVENT" = "workflow_run" ]; then
+            if [ "$CONCLUSION" = "success" ]; then echo "go=yes"; else echo "Mobile CI ended $CONCLUSION — no deploy"; echo "go=no"; fi | tee -a "$GITHUB_OUTPUT"
+          elif [ "$EVENT" = "push" ]; then
+            # The same paths Mobile CI listens to (.github/workflows/mobile-ci.yml):
+            # if they changed, Mobile CI runs and ITS completion deploys this commit.
+            if git diff --name-only HEAD~1 HEAD | grep -Eq '^(apps/mobile/|packages/api-contract/|\.github/workflows/mobile-ci\.yml|\.github/pub-audit-allowlist\.json|scripts/ci/pub-.*\.mjs|scripts/ci/check-web-.*\.sh)'; then
+              echo "app code changed too — the workflow_run of Mobile CI deploys this commit"; echo "go=no" >> "$GITHUB_OUTPUT"
+            else
+              echo "go=yes" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+          fi
+
   # S11-1: this workflow publishes the app straight from main, so it first waits
   # for every CI check of the commit (mobile analyze/test/builds, scans) to be green.
+  # After workflow_run Mobile CI is already done; the wait is for the short ones.
   gate:
     name: Wait for green CI
+    needs: [trigger]
     runs-on: ubuntu-latest
     timeout-minutes: 50
-    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
+    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' && needs.trigger.outputs.go == 'yes' }}
     permissions:
       contents: read
       checks: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
       - name: Every CI check of this commit is green
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          scripts/ci/require-green.sh "$GITHUB_SHA" \
+          scripts/ci/require-green.sh "$RELEASE_SHA" \
             '^(Analyze, lint|Build check|gitleaks|CodeQL)' \
-            '^(Wait for green CI|Build and publish|Build & push|Deploy|Notify|API |Admin|Build image|Dependency audit \(OSV)'
+            '^(Which run deploys|Wait for green CI|Build and publish|Build & push|Deploy|Notify|API |Admin|Build image|Dependency audit \(OSV)'
 
   deploy:
     name: Build and publish the web app
@@ -89,6 +150,8 @@ jobs:
     if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' && needs.gate.result == 'success' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
       # Before the 30-minute WebAssembly build: an empty value would be baked in
       # silently (API_BASE_URL) or fail only at the S3 step. The Firebase web
       # values stay optional (owner pastes them after the Firebase step).
@@ -137,7 +200,7 @@ jobs:
           flutter build web --wasm -t lib/main_prod.dart
           --no-web-resources-cdn
           --source-maps
-          --dart-define=BUILD_SHA=${{ github.sha }}
+          --dart-define=BUILD_SHA=${{ env.RELEASE_SHA }}
           --dart-define=WEB_ENABLED=true
           --dart-define=API_BASE_URL=${{ secrets.WEB_API_BASE_URL }}
           --dart-define=DEEP_LINK_HOST=${{ secrets.WEB_DEEP_LINK_HOST }}
@@ -186,17 +249,27 @@ jobs:
           # version WITH the build number (1.2.3+45): SentryReporter sends
           # release lawbid@<version>+<build>.
           VERSION=$(sed -n 's/^version: *\([^ ]*\).*/\1/p' apps/mobile/pubspec.yaml | head -1)
-          scripts/deploy/web-sourcemaps.sh apps/mobile/build/web "${{ github.sha }}" "$VERSION" "$RUNNER_TEMP/web-maps"
+          scripts/deploy/web-sourcemaps.sh apps/mobile/build/web "${{ env.RELEASE_SHA }}" "$VERSION" "$RUNNER_TEMP/web-maps"
 
       # S17-3: boot_head.js pre-downloads the build the loader will choose;
       # fail the deploy if the pinned Flutter's loader decides differently.
       - name: boot_head.js matches the Flutter loader
         run: node scripts/deploy/web-boot-check.mjs apps/mobile/build/web/flutter_bootstrap.js apps/mobile/web/boot_head.js "${{ steps.fv.outputs.v }}"
 
+      # B-c13: the engine's fallback Noto fonts (Chinese, Arabic, Hindi, ...)
+      # from our own host once it serves them under /s/* (infra/modules/web
+      # `font_fallback_proxy`); fonts.gstatic.com is blocked in China and Iran.
+      # Until the live host answers a font there, the release stays on gstatic.
+      - name: Where the fallback fonts come from
+        id: fonts
+        env:
+          WEB_HOST: ${{ secrets.WEB_DEEP_LINK_HOST }}
+        run: echo "base=$(bash scripts/deploy/web-font-base.sh "$WEB_HOST" "$FLUTTER_ROOT")" >> "$GITHUB_OUTPUT"
+
       # Owner 2026-10-23: app, engine and assets under v/<sha>/ (see above).
       - name: Move the heavy files under v/<sha>/
         working-directory: apps/mobile
-        run: python3 ../../scripts/deploy/web-immutable.py build/web "${{ github.sha }}"
+        run: python3 ../../scripts/deploy/web-immutable.py build/web "${{ env.RELEASE_SHA }}" "${{ steps.fonts.outputs.base }}"
 
       # The engine (CanvasKit / skwasm) is served from our own domain: the
       # page's CSP allows fetches only to 'self' and the API, and a fetch to
@@ -204,7 +277,7 @@ jobs:
       - name: The bundle has what the app needs
         working-directory: apps/mobile
         run: |
-          V=build/web/v/${{ github.sha }}
+          V=build/web/v/${{ env.RELEASE_SHA }}
           test -s $V/canvaskit/skwasm.wasm
           test -s build/web/index.html
           # Owner 2026-10-22: the page's scripts are files (strict CSP).
@@ -235,10 +308,16 @@ jobs:
       - name: Install brotli (for the .br twins)
         run: command -v brotli >/dev/null || sudo apt-get install -y -qq brotli
 
+      # OPEN_ITEMS_SWEEP 2026-11-09 A-c4: the bundle must not grow unnoticed.
+      # Brotli sizes of our code and of the whole first load, printed every
+      # time, against scripts/deploy/web-size-budget.json (live baseline + 5 %).
+      - name: Web bundle size budget (brotli, prints the numbers)
+        run: scripts/deploy/web-size-budget.sh apps/mobile/build/web/v/${{ env.RELEASE_SHA }}
+
       - name: Upload this release to releases/<sha>/
         working-directory: apps/mobile/build/web
         env:
-          DEST: s3://${{ secrets.WEB_BUCKET }}/releases/${{ github.sha }}
+          DEST: s3://${{ secrets.WEB_BUCKET }}/releases/${{ env.RELEASE_SHA }}
         run: |
           # App screens read spa.html (marked noindex), the home page index.html.
           cp index.html spa.html
@@ -268,7 +347,7 @@ jobs:
         if: steps.store.outputs.arn != ''
         env:
           ARN: ${{ steps.store.outputs.arn }}
-          SHA: ${{ github.sha }}
+          SHA: ${{ env.RELEASE_SHA }}
           B: s3://${{ secrets.WEB_BUCKET }}
         run: |
           R=scripts/deploy/web-release.sh

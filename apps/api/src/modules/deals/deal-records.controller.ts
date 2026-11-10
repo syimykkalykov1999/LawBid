@@ -53,6 +53,7 @@ import {
   DeclineDealRecordDto,
   SignDealRecordDto,
 } from './dto/deal-record.dto';
+import { RequiresDuty } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const ERR = {
@@ -88,6 +89,7 @@ function requestMeta(req: Request): RequestMeta {
 export class DealRecordsController {
   constructor(private readonly deals: DealRecordsService) {}
 
+  @RequiresDuty('cases')
   @Post('deal-records')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(IdempotencyInterceptor)
@@ -106,6 +108,7 @@ export class DealRecordsController {
     return this.deals.start(user, dto, requestMeta(req));
   }
 
+  @RequiresDuty('cases')
   @Get('deal-records/:id')
   @ApiOperation({ summary: 'A deal record (both parties)' })
   @ApiEnvelopeResponse(DealRecordDto)
@@ -117,6 +120,7 @@ export class DealRecordsController {
     return this.deals.get(user, p.id);
   }
 
+  @RequiresDuty('cases')
   @Get('cases/:id/deal-record')
   @ApiOperation({
     summary:
@@ -157,6 +161,7 @@ export class DealRecordsController {
       .send(page.html);
   }
 
+  @RequiresDuty('cases')
   @Post('deal-records/:id/sign')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -174,6 +179,7 @@ export class DealRecordsController {
     return this.deals.sign(user, p.id, dto, requestMeta(req));
   }
 
+  @RequiresDuty('cases')
   @Post('deal-records/:id/decline')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -190,6 +196,7 @@ export class DealRecordsController {
     return this.deals.decline(user, p.id, dto);
   }
 
+  @RequiresDuty('cases')
   @Post('deal-records/:id/agreement')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

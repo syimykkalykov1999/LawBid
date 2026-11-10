@@ -89,6 +89,16 @@ variable "database_monitoring_interval" {
   default     = 0
   description = "RDS Enhanced Monitoring interval in seconds (0 = off, 60 = cheapest on)."
 }
+# B-c17 (2026-11-09): Performance Insights ends 31.07.2026 and becomes
+# CloudWatch Database Insights. `standard` keeps today's free 7-day view;
+# `advanced` is billed per vCPU-hour (≈ $0.0125 → ≈ $18 a month for a
+# 2-vCPU t4g.micro, replicas included) and forces 465-day retention.
+# Declared on every instance so a console click to Advanced shows as drift.
+variable "database_insights_advanced" {
+  type        = bool
+  default     = false
+  description = "CloudWatch Database Insights Advanced mode (paid, per vCPU-hour; retention 465 days). Off = standard mode, free 7-day retention, same as Performance Insights today."
+}
 variable "database_log_group_class" {
   type        = string
   default     = "STANDARD"
@@ -980,8 +990,10 @@ module "s3" {
   cors_allowed_origins         = local.web_cors_origins
   media_web_acl_arn            = module.cdn_waf.web_acl_arn
   documents_cdn_public_key_pem = var.documents_cdn_public_key_pem
+  documents_object_lock        = var.documents_object_lock && !var.ephemeral
   force_destroy                = var.ephemeral
   access_log_bucket            = try(module.audit_logs[0].bucket, "")
+  access_log_enabled           = var.audit_logs_enabled && !var.ephemeral
   replicate_media              = var.replicate_media && !var.ephemeral
   cdn_additional_metrics       = var.cdn_additional_metrics && !var.ephemeral
 }
@@ -996,6 +1008,21 @@ variable "replicate_media" {
   type        = bool
   default     = false
   description = "S4-5: replicate the media bucket to the replica Region (no delete markers). Prod: true. Never on load-test stacks."
+}
+# C-c11 (2026-11-09): sealed deal records that nobody can delete or rewrite.
+variable "documents_object_lock" {
+  type        = bool
+  default     = false
+  description = "S3 Object Lock on the documents bucket (irreversible). Off = nothing changes. On = the API writes sealed deal-record PDFs with COMPLIANCE retention of sealed_records_retention_days and gets s3:PutObjectRetention. Guide: docs/runbooks/DEPLOY_PROD.md «Object Lock»."
+}
+variable "sealed_records_retention_days" {
+  type        = number
+  default     = 2555
+  description = "Per-object COMPLIANCE retention of sealed deal-record PDFs when documents_object_lock is on (docs/dev/BID_TERMS_AGREEMENT_RESEARCH_2026-10-27.md §3.5: 7 years = 2555 days, the owner's counsel confirms)."
+  validation {
+    condition     = var.sealed_records_retention_days >= 1 && var.sealed_records_retention_days <= 36500
+    error_message = "sealed_records_retention_days must be 1..36500."
+  }
 }
 
 # Security & legal pass 2026-10-24: the access logs that prove who touched
@@ -1156,6 +1183,7 @@ module "postgres" {
   auto_minor_version_upgrade = var.database_auto_minor_upgrade
   rds_logical_replication    = var.database_logical_replication
   monitoring_interval        = var.database_monitoring_interval
+  database_insights_advanced = var.database_insights_advanced
   log_group_class            = var.database_log_group_class
   tags                       = local.tags
 
@@ -1246,15 +1274,18 @@ resource "aws_db_instance" "existing" {
   instance_class = var.database_instance_class
 
   # Declared, drift-checked attributes.
-  multi_az                              = var.database_multi_az
-  backup_retention_period               = var.database_backup_retention_days
-  deletion_protection                   = var.database_deletion_protection
-  storage_encrypted                     = true
-  publicly_accessible                   = false
-  copy_tags_to_snapshot                 = true
-  auto_minor_version_upgrade            = true
-  performance_insights_enabled          = true
-  performance_insights_retention_period = 7
+  multi_az                     = var.database_multi_az
+  backup_retention_period      = var.database_backup_retention_days
+  deletion_protection          = var.database_deletion_protection
+  storage_encrypted            = true
+  publicly_accessible          = false
+  copy_tags_to_snapshot        = true
+  auto_minor_version_upgrade   = true
+  performance_insights_enabled = true
+  # B-c17: standard = free 7 days; advanced = paid and 465 days. Drift-checked
+  # so nothing turns paid without a change here.
+  database_insights_mode                = var.database_insights_advanced ? "advanced" : "standard"
+  performance_insights_retention_period = var.database_insights_advanced ? 465 : 7
   skip_final_snapshot                   = false
   final_snapshot_identifier             = "${local.name}-postgres-final"
 
@@ -1721,7 +1752,39 @@ locals {
     var.livekit_enabled ? module.livekit[0].secret_arns : {},
     var.ops_role_split ? { OPS_ROLE_EXTERNAL_ID = aws_secretsmanager_secret.ops_external_id[0].arn } : {},
     var.alarm_incident_hook_enabled ? { ALARM_HOOK_TOKEN = aws_secretsmanager_secret.alarm_hook[0].arn } : {},
+    var.contacts_pepper_enabled ? { CONTACTS_PEPPER = aws_secretsmanager_secret_version.contacts_pepper[0].arn } : {},
   )
+}
+
+# Automation audit 2026-11-08: every worker boot logged «CONTACTS_PEPPER is not
+# set: phone-book hashes are stored without a pepper». Generated here like
+# ALARM_HOOK_TOKEN (no manual step); the api and the worker get it, and the
+# existing `contacts.pepper-backfill` job re-seals the stored hashes by itself.
+# Never rotated by Terraform (keepers fixed): a new value would orphan the hashes.
+variable "contacts_pepper_enabled" {
+  type        = bool
+  default     = false
+  description = "Generate CONTACTS_PEPPER (phone-book hash pepper, 48 chars) into Secrets Manager and give it to api and worker. The pepper backfill job re-seals existing rows."
+}
+
+resource "random_password" "contacts_pepper" {
+  count   = var.contacts_pepper_enabled ? 1 : 0
+  length  = 48
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "contacts_pepper" {
+  count                   = var.contacts_pepper_enabled ? 1 : 0
+  name                    = "${local.name}/CONTACTS_PEPPER"
+  kms_key_id              = module.kms.key_arn
+  recovery_window_in_days = var.ephemeral ? 0 : 30
+  tags                    = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "contacts_pepper" {
+  count         = var.contacts_pepper_enabled ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.contacts_pepper[0].id
+  secret_string = random_password.contacts_pepper[0].result
 }
 
 # --- automatic secret rotation (owner 2026-10-25, docs/runbooks/secrets-rotation.md) --
@@ -1765,6 +1828,9 @@ locals {
   # With key rotation the active kids are injected as secrets (changed by the
   # follow-up after the grace period), not baked into the task definition.
   api_env_effective = { for k, v in local.api_env : k => v if !(var.secret_rotation.keys_enabled && contains(keys(local.rot_active_kids), k)) }
+  # C-c11: the env var exists only while Object Lock is on, so an off stack
+  # has no task-definition change at all.
+  object_lock_env = var.documents_object_lock && !var.ephemeral ? { S3_OBJECT_LOCK_RETENTION_DAYS = tostring(var.sealed_records_retention_days) } : {}
 
   # The admin «Здоровье системы» shows last / next rotation per secret from the
   # metrics the follow-up Lambda publishes (the task role already reads
@@ -1910,7 +1976,7 @@ module "ecs" {
   kms_key_arn                     = module.kms.key_arn
   tracing_enabled                 = var.tracing_enabled
   tracing_sample_ratio            = var.tracing_sample_ratio
-  api_env                         = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env)
+  api_env                         = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env, local.object_lock_env)
   worker_db_pool_size             = local.worker_db_pool_size
   cloudfront_invalidation_enabled = true
   cloudfront_invalidation_arns = concat(
@@ -1989,6 +2055,14 @@ data "aws_iam_policy_document" "task" {
   statement {
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload"]
     resources = ["${module.s3.documents_bucket_arn}/*", "${module.s3.media_bucket_arn}/*"]
+  }
+  # C-c11: a PutObject with x-amz-object-lock-* headers also needs this.
+  dynamic "statement" {
+    for_each = var.documents_object_lock && !var.ephemeral ? [1] : []
+    content {
+      actions   = ["s3:PutObjectRetention"]
+      resources = ["${module.s3.documents_bucket_arn}/*"]
+    }
   }
   dynamic "statement" {
     for_each = module.status_page

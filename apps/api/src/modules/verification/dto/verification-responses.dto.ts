@@ -109,7 +109,19 @@ export class VerificationRequestDto {
 
   @ApiProperty({ type: OwnVerificationDocumentDto, isArray: true })
   documents!: OwnVerificationDocumentDto[];
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Owner 2026-11-08: the identity check of this request was started in ' +
+      "Persona's hosted flow (it then replaces the ID + selfie uploads).",
+  })
+  identityCheckStarted!: boolean;
 }
+
+/** Who checks the ID + selfie of a new request (owner 2026-11-08). */
+export const IDENTITY_PROVIDERS = ['manual', 'persona'] as const;
+export type IdentityProviderKind = (typeof IDENTITY_PROVIDERS)[number];
 
 /** GET /verification/me — status screen (§8.6). */
 export class VerificationOverviewDto {
@@ -136,6 +148,18 @@ export class VerificationOverviewDto {
   barDocumentRequired!: boolean;
 
   @ApiProperty({
+    required: false,
+    enum: IDENTITY_PROVIDERS,
+    enumName: 'IdentityProviderKind',
+    description:
+      'Owner 2026-11-08: `manual` = upload the ID + selfie for staff (default, ' +
+      "as before); `persona` = only while the admin's Persona card has a key, " +
+      "template and webhook secret and is switched on: the app opens Persona's " +
+      'hosted flow (POST /verification/requests/{id}/identity-check) instead.',
+  })
+  identityProvider!: IdentityProviderKind;
+
+  @ApiProperty({
     type: 'integer',
     description:
       'Owner 2026-10-18: seconds until a bar number can be added again after ' +
@@ -149,6 +173,18 @@ export class VerificationOverviewDto {
 
   @ApiProperty({ type: 'integer' })
   maxSubmissions30Days!: number;
+}
+
+/** Owner 2026-11-08: Persona's hosted flow for this request. */
+export class IdentityCheckLinkDto {
+  @ApiProperty({ description: 'Persona inquiry id (inq_…).' })
+  inquiryId!: string;
+
+  @ApiProperty({
+    description:
+      "Persona's hosted verification page; open it in the in-app browser.",
+  })
+  url!: string;
 }
 
 /** Owner 2026-10-28: a one-time selfie capture token (the app asks for it

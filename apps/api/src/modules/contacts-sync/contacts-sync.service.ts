@@ -34,6 +34,17 @@ import {
  * book is never locked out.
  */
 export const HASHES_PER_ACCOUNT_PER_DAY = 2 * CONTACT_BOOK_MAX;
+/**
+ * Security audit 2026-11-08 (L4, like Signal's contact discovery allowance:
+ * a whole book once, then a slow trickle). An ordinary day allows this many
+ * NEW distinct numbers; the big daily cap above is a "book day" an account
+ * gets once per BOOK_DAY_EVERY_SECONDS (first sync, a new phone). Numbers
+ * already in the stored book are never counted, so re-syncing, old builds
+ * re-sending the whole book and reinstalls cost nothing. Guessing attorneys'
+ * numbers drops from ~40,000 a day to ~1,000 a day per verified account.
+ */
+export const NEW_NUMBERS_PER_DAY = 1000;
+export const BOOK_DAY_EVERY_SECONDS = 30 * 86400;
 /** The same per client address (a carrier NAT hides many phones). */
 export const HASHES_PER_IP_PER_DAY = 100000;
 /** The day keys live a little longer than the day they count. */
@@ -169,8 +180,14 @@ export class ContactsSyncService {
     });
   }
 
-  /** Adds [hashes] to the day's distinct set behind [key]; 429 past [limit]. */
-  private async charge(key: string, hashes: string[], limit: number) {
+  /** Adds [hashes] to the day's distinct set behind [key]; 429 past
+   * [limit]. With [bookDay], past NEW_NUMBERS_PER_DAY only on a book day. */
+  private async charge(
+    key: string,
+    hashes: string[],
+    limit: number,
+    bookDay?: () => Promise<boolean>,
+  ) {
     if (hashes.length === 0) return;
     // In parts: one command with tens of thousands of arguments is heavy.
     for (let i = 0; i < hashes.length; i += 5000) {
@@ -178,7 +195,12 @@ export class ContactsSyncService {
     }
     await this.redis.expire(key, KEY_TTL_SECONDS);
     const used = await this.redis.pfcount(key);
-    if (used > limit) {
+    const over =
+      used > limit ||
+      (bookDay !== undefined &&
+        used > NEW_NUMBERS_PER_DAY &&
+        !(await bookDay()));
+    if (over) {
       throw new HttpException(
         {
           code: ErrorCode.RATE_LIMITED,
@@ -189,17 +211,52 @@ export class ContactsSyncService {
     }
   }
 
+  /** True when today is this account's "book day" (or it may start one). */
+  private async bookDay(userId: string, day: string): Promise<boolean> {
+    const key = `contacts:book-day:u:${userId}`;
+    const set = await this.redis.set(
+      key,
+      day,
+      'EX',
+      BOOK_DAY_EVERY_SECONDS,
+      'NX',
+    );
+    if (set === 'OK') return true;
+    return (await this.redis.get(key)) === day;
+  }
+
+  /** [hashes] that are not in the stored book yet (both pepper forms). */
+  private async notInBook(userId: string, hashes: string[]): Promise<string[]> {
+    if (hashes.length === 0) return [];
+    const have = new Set<string>();
+    for (let i = 0; i < hashes.length; i += 5000) {
+      const part = hashes.slice(i, i + 5000);
+      const present = await this.prisma.contactBookHash.findMany({
+        where: { owner_id: userId, ...this.pepper.where(part) },
+        select: { phone_hash: true },
+      });
+      const back = this.pepper.unsealMap(part);
+      for (const p of present) {
+        const h = back.get(p.phone_hash);
+        if (h) have.add(h);
+      }
+    }
+    return hashes.filter((h) => !have.has(h));
+  }
+
   private async chargeAll(userId: string, hashes: string[], ip?: string) {
     const day = new Date().toISOString().slice(0, 10);
+    const fresh = await this.notInBook(userId, hashes);
     await this.charge(
       `contacts:distinct:u:${userId}:${day}`,
-      hashes,
+      fresh,
       HASHES_PER_ACCOUNT_PER_DAY,
+      () => this.bookDay(userId, day),
     );
     if (ip) {
       await this.charge(
         `contacts:distinct:ip:${ip}:${day}`,
-        hashes,
+        fresh,
         HASHES_PER_IP_PER_DAY,
       );
     }

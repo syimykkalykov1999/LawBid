@@ -10757,6 +10757,123 @@
         ]
       }
     },
+    "/verification/requests/{id}/identity-check": {
+      "post": {
+        "operationId": "startIdentityCheck",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityCheckLinkEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_SUSPENDED, FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VERIFICATION_INVALID_STATUS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: IDENTITY_PROVIDER_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner 2026-11-08: Persona's hosted ID + selfie check for this editable request (only while the Persona card is set up); resumes the open inquiry or creates one",
+        "tags": [
+          "verification"
+        ]
+      }
+    },
     "/verification/handoff": {
       "post": {
         "operationId": "createVerificationHandoff",
@@ -30100,6 +30217,16 @@
               "maxLength": 100,
               "type": "string"
             }
+          },
+          {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "B-c7 (2026-11-09, Telegram getDifference as /groups): only the people I started following since (ISO); meta.deletedIds = the ones I unfollowed since; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD (first page again). `cursor` and `q` are ignored with it.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -32574,6 +32701,132 @@
             "bearer": []
           }
         ],
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/me/phone": {
+      "post": {
+        "operationId": "changePhone",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Resource-creating POST: a retry with the same key and body is applied once (see IdempotencyInterceptor).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "Single-use token from POST /auth/reauth (password) or /auth/passkeys/reauth; required to replace a verified phone, and to add the first one unless this session signed in within the last 10 minutes.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePhoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactVerifiedEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, PHONE_COUNTRY_NOT_SUPPORTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CONTACT_ALREADY_EXISTS, IDEMPOTENCY_KEY_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner rule (memory sms-two-cases): an SMS code goes out only at\nregistration and «Забыл пароль», so the phone is set or changed with\nthe account password or a passkey: `POST /auth/reauth`\n(`method: password`) or `POST /auth/passkeys/reauth` → single-use\nX-Reauth-Token → this route. Replacing a verified phone always needs\nthat token; adding the first phone also accepts a sign-in made on this\nsession minutes ago (onboarding). No code, no SMS.",
         "tags": [
           "users"
         ]
@@ -35765,6 +36018,39 @@
             }
           },
           {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
+            }
+          },
+          {
             "name": "filter",
             "required": false,
             "in": "query",
@@ -36284,6 +36570,39 @@
             "schema": {
               "example": "IL",
               "type": "string"
+            }
+          },
+          {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
             }
           },
           {
@@ -39149,6 +39468,86 @@
         ]
       }
     },
+    "/cases/{id}/attorney-brief.pdf": {
+      "get": {
+        "operationId": "getAttorneyBrief",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF file."
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Accepted attorney only: PDF with the client contacts, the accepted terms and up to 9 case photos",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
     "/admin/contact-issues/{id}/resolve": {
       "post": {
         "operationId": "resolveContactIssue",
@@ -39968,6 +40367,39 @@
             }
           },
           {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -40125,6 +40557,39 @@
             "schema": {
               "example": "IL",
               "type": "string"
+            }
+          },
+          {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
             }
           },
           {
@@ -49813,6 +50278,240 @@
           }
         ],
         "summary": "Step 1 of a template upload (PDF, Word): presigned POST (then POST the file to S3)",
+        "tags": [
+          "admin-document-templates"
+        ]
+      }
+    },
+    "/admin/document-templates/uploads/{fileId}/multipart": {
+      "post": {
+        "operationId": "multipartPlanAdminTemplateUpload",
+        "parameters": [
+          {
+            "name": "fileId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultipartPlanEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: FILE_STORAGE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Step 1b (big files): part links for a resumable upload; ask again after an interruption",
+        "tags": [
+          "admin-document-templates"
+        ]
+      }
+    },
+    "/admin/document-templates/uploads/{fileId}/multipart/complete": {
+      "post": {
+        "operationId": "multipartCompleteAdminTemplateUpload",
+        "parameters": [
+          {
+            "name": "fileId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultipartCompleteEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FILE_NOT_UPLOADED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: FILE_STORAGE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Step 1c (big files): assemble the parts; then confirm as usual",
         "tags": [
           "admin-document-templates"
         ]
@@ -99540,6 +100239,83 @@
         ]
       }
     },
+    "/admin/realtime/ticket": {
+      "post": {
+        "operationId": "ticket",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRealtimeTicketEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One-shot ticket for the admin live-updates socket (namespace /admin)",
+        "tags": [
+          "admin-realtime"
+        ]
+      }
+    },
     "/conversations": {
       "get": {
         "operationId": "listConversations",
@@ -102815,6 +103591,16 @@
               "maximum": 50,
               "type": "integer"
             }
+          },
+          {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "B-c7 (2026-11-09, Telegram getDifference as /groups): only the calls that reached my list or changed since (ISO); meta.deletedIds = calls I deleted from my list since («delete», «clear»); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD (first page again). `cursor` and `limit` are ignored with it.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -102884,7 +103670,7 @@
             "bearer": []
           }
         ],
-        "summary": "My finished calls, newest first (cursor)",
+        "summary": "My finished calls, newest first (cursor; ?updatedSince = delta)",
         "tags": [
           "calls"
         ]
@@ -107063,9 +107849,9 @@
         ]
       }
     },
-    "/groups/{id}/invite/reset": {
-      "post": {
-        "operationId": "resetGroupInvite",
+    "/groups/{id}/members": {
+      "get": {
+        "operationId": "listGroupMembers",
         "parameters": [
           {
             "name": "id",
@@ -107075,6 +107861,27 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 400,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
           }
         ],
         "responses": {
@@ -107083,7 +107890,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GroupDetailEnvelope"
+                  "$ref": "#/components/schemas/GroupMemberListEnvelope"
                 }
               }
             }
@@ -107154,13 +107961,11 @@
             "bearer": []
           }
         ],
-        "summary": "New join link (the old one stops working)",
+        "summary": "Sweep B-c1: members page by page (owner, admins, then by join time)",
         "tags": [
           "groups"
         ]
-      }
-    },
-    "/groups/{id}/members": {
+      },
       "post": {
         "operationId": "addGroupMembers",
         "parameters": [
@@ -107272,6 +108077,103 @@
           }
         ],
         "summary": "Add people (admins, or everyone if the rule says)",
+        "tags": [
+          "groups"
+        ]
+      }
+    },
+    "/groups/{id}/invite/reset": {
+      "post": {
+        "operationId": "resetGroupInvite",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDetailEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: GROUP_FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "New join link (the old one stops working)",
         "tags": [
           "groups"
         ]
@@ -109483,6 +110385,142 @@
           }
         ],
         "summary": "Close a poll (its author, or an admin)",
+        "tags": [
+          "groups"
+        ]
+      }
+    },
+    "/groups/{id}/polls/{pollId}/options/{optionId}/voters": {
+      "get": {
+        "operationId": "listGroupPollOptionVoters",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "pollId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "optionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 400,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupPersonListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: GROUP_FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sweep B-c1: one option's voters page by page (open polls only, oldest vote first)",
         "tags": [
           "groups"
         ]
@@ -134476,6 +135514,7 @@
           "I18N_LANGUAGE_NOT_FOUND",
           "I18N_IMPORT_INVALID",
           "PROVIDER_BUDGET_EXCEEDED",
+          "IDENTITY_PROVIDER_UNAVAILABLE",
           "PHONE_COUNTRY_NOT_SUPPORTED",
           "REVIEW_CASE_NOT_CLOSED",
           "REVIEW_NO_ACCEPTED_BID",
@@ -134689,7 +135728,8 @@
           "PAYMENT_TERMS_DISABLED",
           "PAYMENT_TERMS_INVALID",
           "ROLE_SWITCH_BLOCKED",
-          "ROLE_SWITCH_NOT_ALLOWED"
+          "ROLE_SWITCH_NOT_ALLOWED",
+          "EMAIL_SEND_FAILED"
         ]
       },
       "ErrorBodyDto": {
@@ -139209,6 +140249,10 @@
             "items": {
               "$ref": "#/components/schemas/OwnVerificationDocumentDto"
             }
+          },
+          "identityCheckStarted": {
+            "type": "boolean",
+            "description": "Owner 2026-11-08: the identity check of this request was started in Persona's hosted flow (it then replaces the ID + selfie uploads)."
           }
         },
         "required": [
@@ -139224,6 +140268,14 @@
           "licenses",
           "documents"
         ]
+      },
+      "IdentityProviderKind": {
+        "type": "string",
+        "enum": [
+          "manual",
+          "persona"
+        ],
+        "description": "Owner 2026-11-08: `manual` = upload the ID + selfie for staff (default, as before); `persona` = only while the admin's Persona card has a key, template and webhook secret and is switched on: the app opens Persona's hosted flow (POST /verification/requests/{id}/identity-check) instead."
       },
       "VerificationOverviewDto": {
         "type": "object",
@@ -139252,6 +140304,14 @@
           "barDocumentRequired": {
             "type": "boolean",
             "description": "A photo of the bar card is required per license (setting verification.require_bar_document, off by default)."
+          },
+          "identityProvider": {
+            "description": "Owner 2026-11-08: `manual` = upload the ID + selfie for staff (default, as before); `persona` = only while the admin's Persona card has a key, template and webhook secret and is switched on: the app opens Persona's hosted flow (POST /verification/requests/{id}/identity-check) instead.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IdentityProviderKind"
+              }
+            ]
           },
           "barAttemptsRetryAfterSeconds": {
             "type": "integer",
@@ -139510,6 +140570,37 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/SelfieCaptureTokenDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "IdentityCheckLinkDto": {
+        "type": "object",
+        "properties": {
+          "inquiryId": {
+            "type": "string",
+            "description": "Persona inquiry id (inq_…)."
+          },
+          "url": {
+            "type": "string",
+            "description": "Persona's hosted verification page; open it in the in-app browser."
+          }
+        },
+        "required": [
+          "inquiryId",
+          "url"
+        ]
+      },
+      "IdentityCheckLinkEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/IdentityCheckLinkDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -149891,7 +150982,7 @@
           "pinSlot": {
             "type": "integer",
             "nullable": true,
-            "description": "Owner 2026-10-12: 1..6 (was 1..3 until 2026-10-28) when pinned to the\ntop of the author's list."
+            "description": "Owner 2026-10-12: 1..10 (1..3, then 1..6 until 2026-11-09) when pinned to the\ntop of the author's list."
           },
           "promotionId": {
             "type": "string",
@@ -150160,7 +151251,7 @@
           "slot": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 6
+            "maximum": 10
           }
         },
         "required": [
@@ -153096,6 +154187,19 @@
           "data"
         ]
       },
+      "ChangePhoneDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$",
+            "example": "+13125550123"
+          }
+        },
+        "required": [
+          "phone"
+        ]
+      },
       "ConsentsSavedDto": {
         "type": "object",
         "properties": {
@@ -154325,6 +155429,14 @@
           "lastActivityAt",
           "stillNeededPending",
           "canMakeNotUrgent"
+        ]
+      },
+      "CaseListSort": {
+        "type": "string",
+        "enum": [
+          "stage",
+          "newest",
+          "oldest"
         ]
       },
       "CaseSummaryListEnvelope": {
@@ -157004,6 +158116,11 @@
           "closedAt": {
             "type": "string",
             "nullable": true
+          },
+          "lastActivityAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-11-09: the case's last activity — the order inside a\nstage of «Active» (the app re-sorts its rows by it). Optional: an\nolder server does not send it."
           },
           "coverUrl": {
             "type": "string",
@@ -169720,6 +170837,21 @@
           "checkedAt": {
             "type": "string",
             "nullable": true
+          },
+          "csamReportStatus": {
+            "type": "string",
+            "nullable": true,
+            "description": "The latest CyberTipline report of this check: pending | submitted | manual_required | failed (null = none)."
+          },
+          "csamExternalReportId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The NCMEC report id once submitted."
+          },
+          "csamReportError": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why the last report failed (the admin can send it again)."
           }
         },
         "required": [
@@ -169739,7 +170871,10 @@
           "decision",
           "previewUrl",
           "createdAt",
-          "checkedAt"
+          "checkedAt",
+          "csamReportStatus",
+          "csamExternalReportId",
+          "csamReportError"
         ]
       },
       "MediaCheckPageDto": {
@@ -175930,6 +177065,7 @@
               "http",
               "realtime",
               "breakers",
+              "email",
               "cloudflare_usage",
               "bunny_usage",
               "table_growth",
@@ -176803,6 +177939,26 @@
           "indexes"
         ]
       },
+      "SearchAutoStepDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "step": {
+            "type": "string",
+            "description": "search:set_mode:shadow | search:start_reindex | search:swap | search:set_mode:engine | search:set_mode:postgres"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "step",
+          "reason"
+        ]
+      },
       "SearchIndexStatusDto": {
         "type": "object",
         "properties": {
@@ -176906,6 +178062,13 @@
             "items": {
               "$ref": "#/components/schemas/SearchIndexEntityDto"
             }
+          },
+          "autoSteps": {
+            "description": "The last steps «Авто» took by itself, newest first (up to 5).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchAutoStepDto"
+            }
           }
         },
         "required": [
@@ -176927,7 +178090,8 @@
           "canStart",
           "canSwap",
           "canRollback",
-          "entities"
+          "entities",
+          "autoSteps"
         ]
       },
       "SearchIndexStatusEnvelope": {
@@ -177549,6 +178713,13 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          },
+          "weights": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Formula weight overrides this variant applies on its surface (e.g. case_feed: { urgency: 0.3 }); control has none."
           }
         },
         "required": [
@@ -177882,7 +179053,27 @@
           },
           "projectedUsd": {
             "type": "number",
-            "description": "Projected third-party spend for the month."
+            "description": "Projected spend for the month, both brakes together (third-party + AWS)."
+          },
+          "thirdPartyMonthToDateUsd": {
+            "type": "number",
+            "description": "Third-party brake: metered external services (SMS, Bunny video, translation, ID checks, Cloudflare) spent so far this month."
+          },
+          "thirdPartyProjectedUsd": {
+            "type": "number",
+            "description": "Third-party brake: projected for the month; compared with allowedUsd."
+          },
+          "awsMonthToDateUsd": {
+            "type": "number",
+            "description": "AWS brake: the AWS bill (SES, Rekognition included) so far."
+          },
+          "awsProjectedUsd": {
+            "type": "number",
+            "description": "AWS brake: projected AWS bill; compared with awsLimitUsd."
+          },
+          "awsLimitUsd": {
+            "type": "number",
+            "description": "The AWS budget (AWS Budgets); allowedUsd when it cannot be read."
           }
         },
         "required": [
@@ -177891,7 +179082,12 @@
           "allowedUsd",
           "lines",
           "monthToDateUsd",
-          "projectedUsd"
+          "projectedUsd",
+          "thirdPartyMonthToDateUsd",
+          "thirdPartyProjectedUsd",
+          "awsMonthToDateUsd",
+          "awsProjectedUsd",
+          "awsLimitUsd"
         ]
       },
       "EconomySettingsDto": {
@@ -189541,6 +190737,48 @@
           "data"
         ]
       },
+      "AdminRealtimeTicketDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "false: the switch `realtime.admin_events_enabled` is off — keep polling."
+          },
+          "ticket": {
+            "type": "object",
+            "nullable": true,
+            "description": "One-shot handshake ticket (`auth.ticket`), valid `ttlSec` seconds; null when disabled."
+          },
+          "namespace": {
+            "type": "string",
+            "description": "The Socket.IO namespace to connect to."
+          },
+          "ttlSec": {
+            "type": "number",
+            "description": "Seconds the ticket stays redeemable."
+          }
+        },
+        "required": [
+          "enabled",
+          "ticket",
+          "namespace",
+          "ttlSec"
+        ]
+      },
+      "AdminRealtimeTicketEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminRealtimeTicketDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "ConversationCounterpartDto": {
         "type": "object",
         "properties": {
@@ -193274,10 +194512,16 @@
             "type": "string"
           },
           "members": {
+            "description": "Sweep B-c1: up to 100 members. A bigger group sends the first page (owner, admins, then by join time) and membersNextCursor for GET /groups/{id}/members.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GroupMemberDto"
             }
+          },
+          "membersNextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Sweep B-c1: more members than `members` holds — pass it as `cursor` to GET /groups/{id}/members. Null/absent: `members` is everyone."
           },
           "invited": {
             "description": "Owner 2026-10-21: people invited and not answered yet (only for those who can invite).",
@@ -193634,6 +194878,23 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/GroupInvitePreviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GroupMemberListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupMemberDto"
+            }
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -194277,6 +195538,23 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/PollDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GroupPersonListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupPersonDto"
+            }
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

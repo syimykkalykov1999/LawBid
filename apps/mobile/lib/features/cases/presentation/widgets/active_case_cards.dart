@@ -14,16 +14,10 @@ import 'package:lawbid/features/cases/presentation/widgets/case_stale_banner.dar
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
-/// Owner 2026-10-15: the five stages of a case, each tied to a real case
-/// status: 1 published (open, no bids) · 2 bids (open, at least one bid) ·
-/// 3 in progress · 4 wrapping up (pending completion / disputed) ·
-/// 5 completed (closed, archived).
-int caseStageOf(CaseStatus status, int bids) => switch (status) {
-      CaseStatus.open => bids > 0 ? 1 : 0,
-      CaseStatus.inProgress => 2,
-      CaseStatus.pendingCompletion || CaseStatus.disputed => 3,
-      _ => 4,
-    };
+// Owner 2026-11-09: `caseStageOf` lives in the domain (the lists sort by
+// it); the screens keep importing it from here.
+export 'package:lawbid/features/cases/domain/case_models.dart'
+    show caseStageOf;
 
 String caseStageLabel(Translator t, int stage) =>
     t.t('mine.stage.short', {'n': '${stage + 1}'});

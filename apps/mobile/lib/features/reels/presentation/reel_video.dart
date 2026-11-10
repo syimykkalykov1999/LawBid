@@ -75,6 +75,12 @@ ImageProvider reelPosterProvider(String url) => ResizeImage.resizeIfNeeded(
 /// before it counts as held by a refused audio focus.
 const Duration kReelStallAfter = Duration(seconds: 3);
 
+/// App audit 2026-10-26 C16 (Instagram): how long a reel may stay off screen
+/// for real ([PlaybackVisibility.playbackOffstage]: its tab hidden, the app
+/// in the background) before its player — the video decoder — is freed. A
+/// quick look elsewhere keeps it; back later, it opens again at the spot.
+const Duration kReelReleaseWhenHidden = Duration(seconds: 2);
+
 /// Tests: forgets that the phone refused the audio focus (R-373).
 @visibleForTesting
 void debugResetReelFocus() => _ReelVideoState._focusRefusedAt = null;
@@ -165,6 +171,9 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
 
   /// Checks that a player told to play really moves (see [_watchStall]).
   Timer? _stall;
+
+  /// Frees the player once it has been off screen for a while (C16).
+  Timer? _release;
 
   /// When the phone last refused the audio focus to a reel: for a minute
   /// after it every new reel opens silent at once, no second freeze.
@@ -342,7 +351,11 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     if (old.muted && !widget.muted && widget.active && _c != null) {
       _pauseVoiceNote();
     }
-    if ((widget.active || widget.warm) && _c == null && !widget.deferOpen) {
+    // C16: a player freed off screen opens again only when back on screen.
+    if ((widget.active || widget.warm) &&
+        _c == null &&
+        !widget.deferOpen &&
+        !playbackOffstage) {
       _open();
     }
     _apply();
@@ -366,6 +379,29 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   @override
   void didChangePlaybackVisibility({required bool visible}) => _apply();
 
+  @override
+  void didChangePlaybackOffstage({required bool offstage}) {
+    _release?.cancel();
+    if (offstage) {
+      _release = Timer(kReelReleaseWhenHidden, _releaseOffstage);
+    } else if ((widget.active || widget.warm) &&
+        _c == null &&
+        !widget.deferOpen) {
+      _open();
+    }
+  }
+
+  /// App audit 2026-10-26 C16: off screen for a while — the decoder goes
+  /// back (weak Android phones hold only a few); the spot is kept.
+  void _releaseOffstage() {
+    final c = _c;
+    if (!mounted || !playbackOffstage || c == null) return;
+    final at = c.value.isInitialized ? c.value.position : null;
+    _close();
+    _resumeAt = at;
+    setState(() {});
+  }
+
   Future<void> _open() async {
     final url = widget.video.playerUrl(web: kIsWeb, hlsOnly: _hlsOnly);
     if (url == null) return;
@@ -376,8 +412,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     // R-373: during a call, or right after the phone refused the focus, the
     // reel opens silent and mixing (it never asks for the focus).
     if (_focusRecentlyRefused) _silentMix = true;
-    final options =
-        VideoPlayerOptions(mixWithOthers: widget.muted || _silent);
+    final options = VideoPlayerOptions(mixWithOthers: widget.muted || _silent);
     _asksFocus = !options.mixWithOthers;
     final c = debugReelPlayerFactory?.call(Uri.parse(url), options) ??
         VideoPlayerController.networkUrl(
@@ -602,6 +637,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
 
   @override
   void dispose() {
+    _release?.cancel();
     _callSub?.close();
     _close();
     _viewGate.dispose();

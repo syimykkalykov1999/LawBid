@@ -46,7 +46,9 @@ export class CallHistoryController {
   // Declared before `calls/:id` (CallsController) matters not: these paths
   // are fixed words, but the route order is kept explicit by the module.
   @Get('history')
-  @ApiOperation({ summary: 'My finished calls, newest first (cursor)' })
+  @ApiOperation({
+    summary: 'My finished calls, newest first (cursor; ?updatedSince = delta)',
+  })
   @ApiEnvelopeResponse(CallHistoryItemDto, { isArray: true })
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
   async callHistory(
@@ -55,6 +57,11 @@ export class CallHistoryController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<CallHistoryPage | undefined> {
+    // B-c7 (2026-11-09): a catch-up after a gap brings only what changed
+    // and the ids that left my list — never the whole page again.
+    if (q.updatedSince) {
+      return this.history.changed(user, q.updatedSince);
+    }
     // R-385: the first page answers 304 from a cheap tag when nothing
     // changed (the «Calls» tab re-syncs it, #728).
     return conditionalGet(

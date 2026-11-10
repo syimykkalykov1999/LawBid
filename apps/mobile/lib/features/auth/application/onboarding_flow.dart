@@ -188,6 +188,7 @@ class OnboardingFlow extends _$OnboardingFlow {
           fail(t.t('error.api.retryAfter', {'seconds': '$retryAfterSeconds'})),
       networkError: () => fail(t.t('error.api.NETWORK_ERROR')),
       failed: () => fail(t.t('error.default.message')),
+      unavailable: () => fail(t.t('error.api.ACCOUNT_SUSPENDED')),
     );
   }
 
@@ -229,6 +230,7 @@ class OnboardingFlow extends _$OnboardingFlow {
           _fail(t.t('error.api.retryAfter', {'seconds': '$retryAfterSeconds'})),
       networkError: () => _fail(t.t('error.api.NETWORK_ERROR')),
       failed: () => _fail(t.t('error.default.message')),
+      unavailable: () => _fail(t.t('error.api.ACCOUNT_SUSPENDED')),
     );
   }
 
@@ -247,6 +249,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       rateLimited: (_) => _fail(t.t('assistant.code.tooMany')),
       networkError: () => _fail(t.t('error.api.NETWORK_ERROR')),
       failed: () => _fail(t.t('error.default.message')),
+      unavailable: () => _fail(t.t('error.api.ACCOUNT_SUSPENDED')),
     );
   }
 

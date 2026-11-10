@@ -238,6 +238,8 @@ const file06Ru = <String, String>{
   'chat.voice.duringCall': 'Нельзя во время звонка',
   'chat.voice.noMic':
       'Нет доступа к микрофону. Разрешите его в настройках телефона.',
+  'chat.voice.noMicWeb':
+      'Нет доступа к микрофону. Разрешите его в настройках сайта в браузере.',
   // --- Подписка (docs/06 §1.7 п.1–2) ---
   'subscription.title': 'Подписка',
   'subscription.plan.badge': 'LawBid для адвокатов',
@@ -464,7 +466,7 @@ const file06Ru = <String, String>{
   'client.tab.reviews': 'Отзывы',
   'client.reviews.private': 'Отзывы адвокатов видят только адвокаты и вы.',
   'client.reviews.empty': 'Пока нет отзывов адвокатов.',
-  'client.posts.empty': 'Пока нет постов.',
+  'client.posts.empty': 'Фото пока нет.',
   'client.counter.posts': 'Посты',
   'client.counter.followers': 'Подписчики',
   'client.counter.following': 'Подписки',
@@ -774,6 +776,8 @@ const file06En = <String, String>{
   'chat.voice.stop': 'Stop playback',
   'chat.voice.duringCall': 'Not available during a call',
   'chat.voice.noMic': 'No microphone access. Allow it in your phone settings.',
+  'chat.voice.noMicWeb':
+      "No microphone access. Allow it in your browser's site settings.",
   // --- Subscription (docs/06 §1.7 items 1–2) ---
   'subscription.title': 'Subscription',
   'subscription.plan.badge': 'LawBid for attorneys',
@@ -1003,7 +1007,7 @@ const file06En = <String, String>{
   'client.reviews.private':
       "Attorneys' reviews are visible to attorneys and to you only.",
   'client.reviews.empty': 'No reviews from attorneys yet.',
-  'client.posts.empty': 'No posts yet.',
+  'client.posts.empty': 'No photos yet.',
   'client.counter.posts': 'Posts',
   'client.counter.followers': 'Followers',
   'client.counter.following': 'Following',

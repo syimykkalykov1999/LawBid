@@ -30,6 +30,7 @@ import {
   TemplatesQueryDto,
 } from './document-templates.dto';
 import { DocumentTemplatesService } from './document-templates.service';
+import { RequiresDuty } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 type Page<T> = { items: T[]; nextCursor: string | null };
@@ -44,6 +45,7 @@ export class DocumentTemplatesController {
 
   // Owner 2026-10-22 (client economy plan, package D): reference data —
   // cacheable in the browser, revalidated in the background.
+  @RequiresDuty('cases')
   @Get()
   @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @LegalDisclaimerNotice('template')
@@ -60,6 +62,7 @@ export class DocumentTemplatesController {
     return this.templates.list(user, q);
   }
 
+  @RequiresDuty('cases')
   @Get(':id')
   @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @LegalDisclaimerNotice('template')
@@ -77,6 +80,7 @@ export class DocumentTemplatesController {
     return this.templates.get(user, p.id);
   }
 
+  @RequiresDuty('cases')
   @Post(':id/download')
   @HttpCode(HttpStatus.OK)
   @LegalDisclaimerNotice('template')
@@ -96,6 +100,7 @@ export class DocumentTemplatesController {
     return this.templates.download(user, p.id);
   }
 
+  @RequiresDuty('cases')
   @Post(':id/copy')
   @LegalDisclaimerNotice('template')
   @ApiOperation({

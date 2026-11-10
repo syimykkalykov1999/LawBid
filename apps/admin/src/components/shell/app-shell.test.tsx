@@ -130,6 +130,22 @@ describe('AppShell (staff package T2)', () => {
     expect(screen.getByText('Такой страницы нет.')).toBeTruthy();
   });
 
+  it('sweep C-c14: before `me` loads, a gated page shows nothing (no flash of an owner-only page)', () => {
+    pathname = '/audit-log';
+    currentMe = undefined;
+    shell();
+    expect(screen.queryByText('page body')).toBeNull();
+    expect(screen.queryByText('Такой страницы нет.')).toBeNull();
+  });
+
+  it('sweep C-c14: a direct link to an owner-only page shows «Такой страницы нет» (the guide says the same)', () => {
+    pathname = '/audit-log';
+    currentMe = base({ permissions: { ...SUPPORT_RIGHTS }, workspacesEnabled: false });
+    shell();
+    expect(screen.queryByText('page body')).toBeNull();
+    expect(screen.getByText('Такой страницы нет.')).toBeTruthy();
+  });
+
   it('switch on, head: also the desk, with the team page among the tabs', () => {
     currentMe = base({ permissions: { ...SUPPORT_RIGHTS }, workspacesEnabled: true, workspace: 'mass', workspaceHead: true });
     shell();

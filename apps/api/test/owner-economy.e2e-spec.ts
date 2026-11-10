@@ -5,6 +5,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { EconomyService } from '../src/common/economy/economy.service';
 import { OpsStateService } from '../src/common/ops/ops-state.service';
+import { SpendService } from '../src/common/ops/spend/spend.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
@@ -69,6 +70,10 @@ describe('Economy (e2e)', () => {
       },
     });
     await flags.invalidate();
+    // 09.11: perf-admin (same shard) opens the card first and leaves the
+    // shared copy (`economy:report`, fresh for 30 s) built with the guard
+    // off; replace it, as the service does after a button.
+    await app.get(EconomyService).report();
   });
 
   afterAll(async () => {
@@ -215,7 +220,7 @@ describe('Economy (e2e)', () => {
       .expect(400);
   });
 
-  it('guard cycle: over the rule floors the caps, back under restores them', async () => {
+  it('guard cycle: third-party spend over the rule floors the caps, back under restores them; the AWS bill alone never does (owner 2026-11-08)', async () => {
     const admin = await adminSession(base, prisma, 'super_admin');
     // The suite lifts the SMS caps to 1 000 000 (e2e-setup-env), which is
     // the floor of the automatic cap; a cap above it is what the guard cuts.
@@ -233,16 +238,44 @@ describe('Economy (e2e)', () => {
         .expect(200);
 
     // No AWS budget off AWS → the fallback amount stands for the AWS bill.
-    const over = data(await set(400));
-    expect(over.guard).toBe('limited');
-    const floored = await prisma.appConfig.findUnique({ where: { key } });
-    expect(Number(floored?.value)).toBe(1_000_000);
-    expect(await ops.isEconomyLimited(Date.now() + 60_000)).toBe(true);
+    // Two brakes: a high AWS bill alone limits no third-party service.
+    const awsOnly = data(await set(400));
+    expect(awsOnly.guard).toBe('ok');
+    const untouched = await prisma.appConfig.findUnique({ where: { key } });
+    expect(Number(untouched?.value)).toBe(5_000_000);
+    expect(await ops.isEconomyLimited(Date.now() + 60_000)).toBe(false);
 
-    const under = data(await set(50));
-    expect(under.guard).toBe('ok');
-    const back = await prisma.appConfig.findUnique({ where: { key } });
-    expect(Number(back?.value)).toBe(5_000_000);
+    // Third-party spend (a fresh Twilio reading) above the rule.
+    const spend = app.get(SpendService);
+    const twilio = (forecastUsd: number) => ({
+      vendors: [
+        {
+          id: 'twilio',
+          status: 'ok',
+          monthToDateUsd: forecastUsd / 2,
+          forecastUsd,
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+    });
+    const report = jest
+      .spyOn(spend, 'report')
+      .mockResolvedValue(twilio(5_000) as never);
+    try {
+      const over = data(await set(50));
+      expect(over.guard).toBe('limited');
+      const floored = await prisma.appConfig.findUnique({ where: { key } });
+      expect(Number(floored?.value)).toBe(1_000_000);
+      expect(await ops.isEconomyLimited(Date.now() + 60_000)).toBe(true);
+
+      report.mockResolvedValue(twilio(1) as never);
+      const under = data(await set(50));
+      expect(under.guard).toBe('ok');
+      const back = await prisma.appConfig.findUnique({ where: { key } });
+      expect(Number(back?.value)).toBe(5_000_000);
+    } finally {
+      report.mockRestore();
+    }
 
     await prisma.appConfig.deleteMany({ where: { key } });
     await flags.invalidate();

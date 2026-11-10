@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __setLastInput } from '../activity';
 import createClient from 'openapi-fetch';
-import { ApiError, toProxy } from './client';
+import { ApiError, errorText, toProxy } from './client';
 
 // jsdom's Request wants absolute URLs; the browser resolves '/' itself.
 const api = createClient<Record<string, never>>({
@@ -61,5 +61,29 @@ describe('admin api client (S18-12)', () => {
     __setLastInput(Date.now() - 10 * 60_000);
     await api.POST('/admin/x' as never, { body: {} } as never);
     expect(f.mock.calls[0]![0].headers.get('x-background')).toBeNull();
+  });
+});
+
+// Click audit 2026-11-09: a refused setting's English server sentence is
+// shown in Russian; an unknown field message is still shown as sent.
+describe('errorText for a refused setting', () => {
+  it('says in Russian that Cloudflare is not connected', () => {
+    const text = errorText(
+      new ApiError(
+        400,
+        'VALIDATION_ERROR',
+        'Cloudflare is not configured: add Integrations → Cloudflare TURN (and Cloudflare SFU for groups) first, or keep auto.',
+        { field: 'value' },
+      ),
+    );
+    expect(text).toContain('Cloudflare не подключён');
+    expect(text).not.toContain('is not configured');
+  });
+
+  it('keeps an unknown field message as the server sent it', () => {
+    const text = errorText(
+      new ApiError(400, 'VALIDATION_ERROR', 'Webhook signing secret is required.', { field: 'secret' }),
+    );
+    expect(text).toBe('Проверьте введённые данные. Webhook signing secret is required.');
   });
 });

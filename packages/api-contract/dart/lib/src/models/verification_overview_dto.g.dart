@@ -23,6 +23,9 @@ VerificationOverviewDto _$VerificationOverviewDtoFromJson(
       : VerificationRequestDto.fromJson(
           json['request'] as Map<String, dynamic>,
         ),
+  identityProvider: json['identityProvider'] == null
+      ? null
+      : IdentityProviderKind.fromJson(json['identityProvider'] as String),
 );
 
 Map<String, dynamic> _$VerificationOverviewDtoToJson(
@@ -32,6 +35,7 @@ Map<String, dynamic> _$VerificationOverviewDtoToJson(
   'request': ?instance.request?.toJson(),
   'identityRequired': instance.identityRequired,
   'barDocumentRequired': instance.barDocumentRequired,
+  'identityProvider': ?instance.identityProvider?.toJson(),
   'barAttemptsRetryAfterSeconds': instance.barAttemptsRetryAfterSeconds,
   'submissionsLast30Days': instance.submissionsLast30Days,
   'maxSubmissions30Days': instance.maxSubmissions30Days,

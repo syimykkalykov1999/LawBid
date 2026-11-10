@@ -92,6 +92,11 @@ export interface EconomySettings {
   manualApi: number;
   manualWorker: number;
   awsFallbackUsd: number;
+  /** Owner 2026-11-09: the AWS money ceiling the owner typed, $ a month.
+   * 0 (default) = none: containers, the database and Redis grow by load up
+   * to their Terraform maximum; above 0 they grow only as far as this sum
+   * pays, and the AWS brake holds them at the minimum over it. */
+  awsCapUsd: number;
   /** S9-4: the daily money brake = allowed / 30 × this many days. */
   dailyBrakeDays: number;
 }
@@ -119,11 +124,32 @@ export interface SpendLine {
 export interface EconomyFigures {
   revenue30dUsd: number;
   revenueMonthUsd: number;
+  /** What the rule allows for THIRD-PARTY services this month. */
   allowedUsd: number;
   lines: SpendLine[];
+  /** Both brakes together (third-party + AWS). */
   monthToDateUsd: number;
   projectedUsd: number;
+  /** Owner 2026-11-08: two brakes, each braking only what it controls.
+   * Third-party: metered external services (SMS, Bunny video, translation,
+   * ID checks, Cloudflare) against [allowedUsd]. */
+  thirdPartyMonthToDateUsd: number;
+  thirdPartyProjectedUsd: number;
+  /** AWS: the AWS bill (SES and Rekognition included) against the AWS
+   * budget (AWS Budgets, `OPS_BUDGET_NAME`); caps only AWS resources. */
+  awsMonthToDateUsd: number;
+  awsProjectedUsd: number;
+  /** The AWS budget; when Budgets cannot be read, [allowedUsd]. */
+  awsLimitUsd: number;
 }
+
+/** Spend lines that are AWS products (on the AWS bill); the rest is the
+ * third-party brake's. */
+export const AWS_SPEND_KEYS: ReadonlySet<SpendLine['key']> = new Set([
+  'aws',
+  'email',
+  'image_moderation',
+]);
 
 export interface ContainerReport {
   running: number | null;
@@ -180,11 +206,13 @@ const usd = (n: number) => Math.round(n * 100) / 100;
  * payments, third-party spend estimates, the rule) and one `tick()` the
  * `economy.guard` cron runs every 5 minutes:
  *
- * - projected spend above the rule → «limited»: provider caps to their
- *   floors, new video uploads paused, SMS only for sign-in / reset,
- *   autoscaling at the minimum; back under 90 % → everything restored;
- * - otherwise the autoscaling ceiling follows what the rule can pay for
- *   (or the owner's manual number), within the Terraform cap;
+ * - owner 2026-11-08, two brakes, each braking only what it controls:
+ *   third-party spend (SMS, Bunny video, translation, ID checks, Cloudflare)
+ *   above the rule → «limited»: those providers' caps to their floors, new
+ *   video uploads paused, SMS only for sign-in / reset; back under 90 % →
+ *   restored. The AWS bill against the AWS budget → container ceiling and
+ *   DB / Redis growth only (minimum while over, the budget's headroom
+ *   otherwise, or the owner's manual number), within the Terraform cap;
  * - database / Redis under pressure → an event (and a log alert → e-mail);
  *   the admin raises the tier in one click.
  *
@@ -227,6 +255,7 @@ export class EconomyService {
       manualWorker,
       awsFallbackUsd,
       dailyBrakeDays,
+      awsCapUsd,
     ] = await Promise.all([
       s.number('economy.max_spend_percent'),
       s.number('economy.min_threshold_usd'),
@@ -235,6 +264,7 @@ export class EconomyService {
       s.number('economy.manual_worker_max'),
       s.number('economy.aws_fallback_usd'),
       s.number('economy.daily_brake_days'),
+      s.number('economy.aws_cap_usd'),
     ]);
     return {
       percent,
@@ -244,6 +274,7 @@ export class EconomyService {
       manualWorker,
       awsFallbackUsd,
       dailyBrakeDays,
+      awsCapUsd: Number.isFinite(awsCapUsd) && awsCapUsd > 0 ? awsCapUsd : 0,
     };
   }
 
@@ -378,15 +409,25 @@ export class EconomyService {
       });
     }
     const counts = lines.filter((l) => !l.coveredBy);
+    const sum = (ls: SpendLine[], k: 'monthToDateUsd' | 'projectedUsd') =>
+      usd(ls.reduce((s, l) => s + l[k], 0));
+    const awsLines = counts.filter((l) => AWS_SPEND_KEYS.has(l.key));
+    const vendorLines = counts.filter((l) => !AWS_SPEND_KEYS.has(l.key));
+    const allowedUsd = usd(
+      allowedSpendUsd(revenue30dUsd, c.percent, c.thresholdUsd),
+    );
     return {
       revenue30dUsd: usd(revenue30dUsd),
       revenueMonthUsd: usd(revenueMonthUsd),
-      allowedUsd: usd(
-        allowedSpendUsd(revenue30dUsd, c.percent, c.thresholdUsd),
-      ),
+      allowedUsd,
       lines,
-      monthToDateUsd: usd(counts.reduce((s, l) => s + l.monthToDateUsd, 0)),
-      projectedUsd: usd(counts.reduce((s, l) => s + l.projectedUsd, 0)),
+      monthToDateUsd: sum(counts, 'monthToDateUsd'),
+      projectedUsd: sum(counts, 'projectedUsd'),
+      thirdPartyMonthToDateUsd: sum(vendorLines, 'monthToDateUsd'),
+      thirdPartyProjectedUsd: sum(vendorLines, 'projectedUsd'),
+      awsMonthToDateUsd: sum(awsLines, 'monthToDateUsd'),
+      awsProjectedUsd: sum(awsLines, 'projectedUsd'),
+      awsLimitUsd: cost && cost.limitUsd > 0 ? usd(cost.limitUsd) : allowedUsd,
     };
   }
 
@@ -408,35 +449,49 @@ export class EconomyService {
     const active = state?.guard === 'limited';
     if (!(await this.isEnabled())) {
       if (active) await this.release(now, 'выключено флагом economy_guard');
-      return { skipped: 'flag economy_guard is off' };
+      // Owner 2026-11-09: «Автоматика выключена — ничего не ограничивается»
+      // must be true in AWS too: before, a switched-off tick returned here
+      // and the small ceilings written while it was on stayed for good.
+      const lifted = await this.liftCeilings(now).catch((e: unknown) =>
+        this.fail('lift_ceilings', e),
+      );
+      return { skipped: 'flag economy_guard is off', lifted };
     }
     const cfg = await this.settings();
     const f = await this.figures(now, cfg);
     await this.writeDailyBrake(f.allowedUsd, cfg.dailyBrakeDays);
     await this.publishScaleControls();
-    const next = nextGuardActive(active, f.projectedUsd, f.allowedUsd);
+    // Owner 2026-11-08: the third-party brake counts only metered external
+    // services and limits only them; the AWS bill has its own brake below.
+    const next = nextGuardActive(
+      active,
+      f.thirdPartyProjectedUsd,
+      f.allowedUsd,
+    );
     if (next && !active) await this.enter(f, now);
     else if (!next && active)
       await this.release(now, 'расходы вернулись в норму', f);
     else if (active && state) {
       await this.ops.setEconomy({
         ...state,
-        projectedUsd: f.projectedUsd,
+        projectedUsd: f.thirdPartyProjectedUsd,
         allowedUsd: f.allowedUsd,
       });
     }
     const out: Record<string, unknown> = {
       limited: next,
-      projectedUsd: f.projectedUsd,
+      projectedUsd: f.thirdPartyProjectedUsd,
       allowedUsd: f.allowedUsd,
+      awsProjectedUsd: f.awsProjectedUsd,
+      awsLimitUsd: f.awsLimitUsd,
     };
-    out.ceilings = await this.applyCeilings(f, cfg, next, now).catch(
-      (e: unknown) => this.fail('ceilings', e),
+    out.ceilings = await this.applyCeilings(f, cfg, now).catch((e: unknown) =>
+      this.fail('ceilings', e),
     );
     out.pressure = await this.checkPressure(now).catch((e: unknown) =>
       this.fail('pressure', e),
     );
-    out.capacityCeiling = await this.applyCapacityCeilings(f).catch(
+    out.capacityCeiling = await this.applyCapacityCeilings(cfg).catch(
       (e: unknown) => this.fail('capacity_ceiling', e),
     );
     return out;
@@ -450,12 +505,15 @@ export class EconomyService {
    * off = hands off (the Terraform ceiling alone stays).
    */
   private async applyCapacityCeilings(
-    f: EconomyFigures,
+    cfg: Pick<EconomySettings, 'awsCapUsd'>,
   ): Promise<Record<string, unknown> | null> {
     if (!this.ssm?.available) return null;
     const mode = await this.settingsSvc.string('scale.capacity_ceiling.mode');
-    if (mode === 'off')
-      return { skipped: 'scale.capacity_ceiling.mode is off' };
+    // Owner 2026-11-09: no money ceiling unless he typed a sum (and the
+    // switch is not off): the largest size, so the Lambda's own Terraform
+    // maximum is the only cap. Writing it (not «hands off») also lifts a
+    // small ceiling an earlier tick left in SSM.
+    const capped = mode !== 'off' && cfg.awsCapUsd > 0;
     const out: Record<string, unknown> = {};
     const plan: [CapacityTarget, readonly Tier[], number][] = [
       ['db', DB_TIERS, DB_CEILING_SHARE],
@@ -464,7 +522,9 @@ export class EconomyService {
     for (const [target, tiers, share] of plan) {
       const param = this.ssm.maxClassParam(target);
       if (!param) continue;
-      const want = affordableTier(tiers, f.allowedUsd, share);
+      const want = capped
+        ? affordableTier(tiers, cfg.awsCapUsd, share)
+        : tiers[tiers.length - 1];
       const have = await this.ssm.get(param);
       if (have === want.name) {
         out[target] = { ceiling: want.name, changed: false };
@@ -472,7 +532,7 @@ export class EconomyService {
       }
       await this.ssm.put(param, want.name);
       this.logger.info(
-        { target, from: have, to: want.name, allowedUsd: f.allowedUsd },
+        { target, from: have, to: want.name, awsCapUsd: cfg.awsCapUsd },
         'autoscale money ceiling updated',
       );
       out[target] = { ceiling: want.name, changed: true, was: have };
@@ -559,18 +619,18 @@ export class EconomyService {
     await this.ops.setEconomy({
       guard: 'limited',
       since: now.toISOString(),
-      projectedUsd: f.projectedUsd,
+      projectedUsd: f.thirdPartyProjectedUsd,
       allowedUsd: f.allowedUsd,
       savedCaps,
     });
     const text =
-      `Расходы на сторонние сервисы за месяц ≈ $${f.projectedUsd} при допустимых $${f.allowedUsd}. ` +
-      'Включены ограничения: лимиты сервисов на минимум, новые видео на паузе, SMS только для входа и сброса пароля, контейнеры на минимуме.';
+      `Расходы на сторонние платные сервисы (SMS, видео Bunny, перевод, проверка личности, Cloudflare) за месяц ≈ $${f.thirdPartyProjectedUsd} при допустимых $${f.allowedUsd}. ` +
+      'Ограничены только они: лимиты этих сервисов на минимум, новые видео на паузе, SMS только для входа и сброса пароля. Серверы, база и Redis AWS этот тормоз не трогает.';
     await this.event('guard_on', text, now);
     this.logger.warn(
       {
         alert: 'economy_guard_on',
-        projectedUsd: f.projectedUsd,
+        projectedUsd: f.thirdPartyProjectedUsd,
         allowedUsd: f.allowedUsd,
       },
       text,
@@ -603,26 +663,66 @@ export class EconomyService {
     await this.ops.setEconomy({
       guard: 'ok',
       since: now.toISOString(),
-      projectedUsd: f?.projectedUsd ?? state?.projectedUsd ?? 0,
+      projectedUsd: f?.thirdPartyProjectedUsd ?? state?.projectedUsd ?? 0,
       allowedUsd: f?.allowedUsd ?? state?.allowedUsd ?? 0,
       savedCaps: {},
     });
-    const text = `Ограничения сняты (${why}): лимиты сервисов, видео, SMS и потолок контейнеров восстановлены.`;
+    const text = `Ограничения сняты (${why}): лимиты сторонних сервисов, видео и SMS восстановлены.`;
     await this.event('guard_off', text, now);
     this.logger.info({ alert: 'economy_guard_off' }, text);
   }
 
-  /** The autoscaling ceiling: minimum while limited, else the rule's. */
+  /** Economy switched off: the container ceilings go back to the Terraform
+   * maximum (an economy «min» is released; an owner's own «min» stays) and
+   * the DB / Redis autoscalers get the largest size as their ceiling. */
+  private async liftCeilings(now: Date): Promise<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    if (this.aws.available) {
+      const mode = await this.ops.scaleMode();
+      if (mode?.mode === 'min' && mode.source !== 'economy') {
+        out.containers = { skipped: 'scaling capped by owner or AWS budget' };
+      } else {
+        const target = {
+          api: this.aws.hardCap('api'),
+          worker: this.aws.hardCap('worker'),
+        };
+        await this.aws.setCeilings(target);
+        if (mode?.mode === 'min') {
+          await this.ops.setScaleMode({
+            mode: 'normal',
+            by: 'auto',
+            at: now.toISOString(),
+            source: 'economy',
+          });
+        }
+        out.containers = target;
+      }
+    }
+    out.capacity = await this.applyCapacityCeilings({ awsCapUsd: 0 });
+    return out;
+  }
+
+  /** The AWS brake (owner 2026-11-08): the container ceiling follows the
+   * AWS budget, never the third-party spend. The AWS forecast over the
+   * budget → containers at the minimum (released below 90 %, the same
+   * hysteresis as the third-party brake); otherwise the ceiling is what the
+   * budget's headroom pays for (or the owner's manual number). Video and
+   * SMS are never touched here. */
   private async applyCeilings(
     f: EconomyFigures,
     cfg: EconomySettings,
-    limited: boolean,
     now: Date,
   ): Promise<Record<string, unknown> | null> {
     if (!this.aws.available) return null;
     const mode = await this.ops.scaleMode();
-    if (limited) {
-      if (!(mode?.mode === 'min' && mode.source === 'economy')) {
+    const awsHeld = mode?.mode === 'min' && mode.source === 'economy';
+    // Owner 2026-11-09: the AWS brake and the money ceiling only with a sum
+    // he typed (economy.aws_cap_usd); none = grow by load to Terraform's max.
+    const capUsd = cfg.awsCapUsd;
+    const awsOver =
+      capUsd > 0 && nextGuardActive(awsHeld, f.awsProjectedUsd, capUsd);
+    if (awsOver) {
+      if (!awsHeld) {
         await this.aws.setScale('min');
         await this.ops.setScaleMode({
           mode: 'min',
@@ -630,8 +730,13 @@ export class EconomyService {
           at: now.toISOString(),
           source: 'economy',
         });
+        await this.event(
+          'ceiling',
+          `Счёт AWS за месяц ≈ $${f.awsProjectedUsd} при потолке $${capUsd}: серверов не больше минимума, база и Redis не растут. Видео и SMS этот тормоз не трогает.`,
+          now,
+        );
       }
-      return { mode: 'min' };
+      return { mode: 'min', awsProjectedUsd: f.awsProjectedUsd };
     }
     // An owner's or the AWS-budget cap stays until they lift it.
     if (mode?.mode === 'min' && mode.source !== 'economy') {
@@ -648,11 +753,14 @@ export class EconomyService {
         api: manualCeiling(cfg.manualApi, min, hard.api),
         worker: manualCeiling(cfg.manualWorker, min, hard.worker),
       };
+    } else if (capUsd <= 0) {
+      // No sum typed: the ceiling is the Terraform maximum at once.
+      target = { api: hard.api, worker: hard.worker };
     } else {
       const counts = await this.aws.taskCounts();
       if (!counts) return null;
       const want = affordableCeilings({
-        headroomUsd: f.allowedUsd - f.projectedUsd,
+        headroomUsd: capUsd - f.awsProjectedUsd,
         apiRunning: counts.api.running,
         workerRunning: counts.worker.running,
         apiTaskUsd: this.aws.taskUsd('api'),

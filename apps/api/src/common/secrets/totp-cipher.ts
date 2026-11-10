@@ -59,6 +59,9 @@ export class SecretCipher {
       'aes-256-gcm',
       this.legacyKey,
       Buffer.from(iv, 'base64url'),
+      // Semgrep gcm-no-tag-length (pass 2026-11-08): only the full
+      // 16-byte tag; a truncated one is refused, not accepted.
+      { authTagLength: 16 },
     );
     decipher.setAuthTag(Buffer.from(tag, 'base64url'));
     return Buffer.concat([

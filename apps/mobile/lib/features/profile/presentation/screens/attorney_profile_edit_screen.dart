@@ -9,12 +9,12 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
-import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
@@ -256,13 +256,6 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     }.contains(_usernameStatus)) {
       return;
     }
-    // Owner 2026-11-08: a photo still on its way is finished (attached)
-    // before the screen closes; the button keeps its spinner meanwhile.
-    if (ref.read(avatarUploadControllerProvider).busy) {
-      setState(() => _saving = true);
-      await ref.read(avatarUploadControllerProvider.notifier).settled;
-      if (!mounted) return;
-    }
     final languagesChanged = _languages.length != p.languages.length ||
         !_languages.containsAll(p.languages);
     final patch = AttorneyProfilePatch(
@@ -276,7 +269,6 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
           : _username.text.trim(),
     );
     if (patch.isEmpty) {
-      setState(() => _saving = false);
       Navigator.of(context).maybePop();
       return;
     }
@@ -513,8 +505,11 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
                 PickerOption(
                   value: l.code,
                   label: l.nativeName,
-                  sublabel:
-                      l.englishName == l.nativeName ? null : l.englishName,
+                  sublabel: languageSublabel(
+                    ref.read(languageControllerProvider).value?.code ?? 'en',
+                    l.code,
+                    l.nativeName,
+                  ),
                 ),
             ],
             initial: _languages,

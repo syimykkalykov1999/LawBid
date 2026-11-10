@@ -55,6 +55,17 @@ export class SearchIndexVerifyDto {
   @ApiPropertyOptional() note?: string;
 }
 
+/** One automatic step of search «Авто» (infra-auto searchPass). */
+export class SearchAutoStepDto {
+  @ApiProperty() at!: string;
+  @ApiProperty({
+    description:
+      'search:set_mode:shadow | search:start_reindex | search:swap | search:set_mode:engine | search:set_mode:postgres',
+  })
+  step!: string;
+  @ApiProperty() reason!: string;
+}
+
 export class SearchIndexStatusDto {
   @ApiProperty() engineConfigured!: boolean;
   @ApiProperty({ description: 'Mapping revision in the code.' })
@@ -91,9 +102,18 @@ export class SearchIndexStatusDto {
   @ApiProperty() canRollback!: boolean;
   @ApiProperty({ type: [SearchIndexEntityDto] })
   entities!: SearchIndexEntityDto[];
+  @ApiProperty({
+    type: [SearchAutoStepDto],
+    description:
+      'The last steps «Авто» took by itself, newest first (up to 5).',
+  })
+  autoSteps!: SearchAutoStepDto[];
 }
 
-export function toSearchIndexStatusDto(s: ReindexStatus): SearchIndexStatusDto {
+export function toSearchIndexStatusDto(
+  s: ReindexStatus,
+  autoSteps: SearchAutoStepDto[] = [],
+): SearchIndexStatusDto {
   const st = s.state;
   return {
     engineConfigured: s.engineConfigured,
@@ -117,5 +137,6 @@ export function toSearchIndexStatusDto(s: ReindexStatus): SearchIndexStatusDto {
     canSwap: s.can.swap,
     canRollback: s.can.rollback,
     entities: s.entities,
+    autoSteps,
   };
 }

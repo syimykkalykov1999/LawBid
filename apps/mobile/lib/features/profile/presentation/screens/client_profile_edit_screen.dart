@@ -8,12 +8,12 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
-import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_edit_screen.dart';
@@ -209,13 +209,6 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
     }.contains(_usernameStatus)) {
       return;
     }
-    // Owner 2026-11-08: a photo still on its way is finished (attached)
-    // before the screen closes; the button keeps its spinner meanwhile.
-    if (ref.read(avatarUploadControllerProvider).busy) {
-      setState(() => _saving = true);
-      await ref.read(avatarUploadControllerProvider.notifier).settled;
-      if (!mounted) return;
-    }
     setState(() => _saving = true);
     // Audit C17: the providers are refreshed from here even when the screen
     // is gone or only the first of the two writes went through.
@@ -382,8 +375,11 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
                 PickerOption(
                   value: l.code,
                   label: l.nativeName,
-                  sublabel:
-                      l.englishName == l.nativeName ? null : l.englishName,
+                  sublabel: languageSublabel(
+                    ref.read(languageControllerProvider).value?.code ?? 'en',
+                    l.code,
+                    l.nativeName,
+                  ),
                 ),
             ],
             initial: _languages,

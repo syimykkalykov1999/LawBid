@@ -28,6 +28,7 @@ import {
   type ImageFormat,
 } from '../processing/image-processor';
 import { MediaModerationQueue } from '../../media-moderation/media-moderation.queue';
+import { ReadBudget, SCAN_READ_BUDGET_MB } from '../read-budget';
 
 export type ScanOutcome =
   | 'clean'
@@ -51,6 +52,10 @@ export type ScanOutcome =
  * No scanner (staging/production without CLAMAV_HOST) → the file stays
  * `pending` and is never attachable.
  */
+/** Owner 2026-11-08: a check at least this slow writes where its time
+ * went (`files_scan_slow`: read, scan, process, store in ms). */
+const SCAN_SLOW_MS = 1500;
+
 @Injectable()
 export class FileScanProcessor {
   constructor(
@@ -67,9 +72,30 @@ export class FileScanProcessor {
     this.logger.setContext(FileScanProcessor.name);
   }
 
+  /** Audit 2026-11-08 (L6): bytes of whole files this worker holds at once. */
+  private readonly readBudget = new ReadBudget(SCAN_READ_BUDGET_MB);
+
   async run(fileId: string, finalAttempt: boolean): Promise<ScanOutcome> {
+    const started = Date.now();
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     if (!file || file.scan_status !== 'pending') return 'skipped:not-pending';
+    // The job holds the whole file from the read to the end: it waits until
+    // its megabytes fit the worker's budget.
+    return this.readBudget.run(Number(file.size_bytes), () =>
+      this.scanPending(file, finalAttempt, started),
+    );
+  }
+
+  private async scanPending(
+    file: File,
+    finalAttempt: boolean,
+    started: number,
+  ): Promise<ScanOutcome> {
+    const fileId = file.id;
+    const laps: Record<string, number> = {};
+    const lap = (name: string) => {
+      laps[name] = Date.now() - started;
+    };
     // R-252: confirmed without reading the file (flag `files_confirm_light`):
     // the checks `confirm` left are done first, before the dedup can look at
     // the hash.
@@ -95,7 +121,9 @@ export class FileScanProcessor {
     let data: Buffer;
     try {
       data = held ?? (await this.storage.read(file.s3_bucket, file.s3_key));
+      lap('read');
       const verdict = await this.scanner.scan(data);
+      lap('scan');
       if (verdict.infected) {
         await this.storage.remove(file.s3_bucket, [file.s3_key]);
         await this.setStatus(fileId, 'infected');
@@ -150,13 +178,25 @@ export class FileScanProcessor {
 
     try {
       const main = processed.main;
-      // Placeholder for the app while the picture loads (never blocks).
-      const blurhash = main ? await computeBlurhash(main.data) : null;
-      await putProcessedObjects(this.storage, this.logger, file, processed);
+      lap('process');
+      // Owner 2026-11-09 («фото обрабатываются долго»): the row is still
+      // pending, so the main is stored together with its variants (one trip
+      // to R2), and the placeholder for the app (never blocks) is made from
+      // the smallest picture meanwhile — the same 32 px look, a fraction of
+      // the decoding.
+      const smallest = [...processed.variants].sort(([a], [b]) => a - b)[0];
+      const [blurhash, stored] = await Promise.all([
+        main ? computeBlurhash((smallest?.[1] ?? main).data) : null,
+        putProcessedObjects(this.storage, this.logger, file, processed, {
+          original: { data, mime: mime ?? file.mime },
+        }),
+      ]);
+      lap('store');
       await this.prisma.file.updateMany({
         where: { id: fileId, scan_status: 'pending' },
         data: {
           scan_status: 'clean',
+          avif_twins: stored.avifTwins,
           ...(blurhash ? { blurhash } : {}),
           // Owner 2026-10-18: videos get their shown size too (the app
           // draws the bubble at that shape before the video loads).
@@ -173,6 +213,24 @@ export class FileScanProcessor {
         },
       });
       await this.moderation?.enqueueFile(fileId, file.purpose);
+      // Owner 2026-11-08 (R2 speed): where a slow check spends its time.
+      const totalMs = Date.now() - started;
+      if (totalMs >= SCAN_SLOW_MS) {
+        this.logger.warn(
+          {
+            metric: 'files_scan_slow',
+            fileId,
+            purpose: file.purpose,
+            store: this.storage.isPublicStoreBucket(file.s3_bucket)
+              ? 'r2'
+              : 'aws',
+            sizeBytes: Number(file.size_bytes),
+            totalMs,
+            laps,
+          },
+          'slow file check',
+        );
+      }
       return 'clean';
     } catch (err) {
       if (!finalAttempt) throw err;
@@ -265,6 +323,7 @@ export class FileScanProcessor {
         width: twin.width,
         height: twin.height,
         blurhash: twin.blurhash,
+        avif_twins: twin.avif_twins,
         scan_status: 'clean',
       },
     });

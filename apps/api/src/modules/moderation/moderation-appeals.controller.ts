@@ -40,6 +40,10 @@ import {
 import { LEASE_PORT, type LeasePort } from '../staff-core/lease.port';
 import { closeStaffDecision } from '../staff-core/staff-decision';
 import { ModerationAppealsService } from './moderation-appeals.service';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -51,6 +55,7 @@ const E = ErrorCode;
 export class ModerationNoticesController {
   constructor(private readonly appeals: ModerationAppealsService) {}
 
+  @AssistantAllowed()
   @Get('notices')
   @ApiOperation({
     summary: 'Moderation decisions on my posts, comments and messages',
@@ -62,6 +67,7 @@ export class ModerationNoticesController {
     return this.appeals.notices(user.sub);
   }
 
+  @AttorneyOnly()
   @Post('appeals')
   @ApiOperation({ summary: 'Ask moderation to look at a decision again' })
   @ApiEnvelopeResponse(ModerationNoticeDto)
@@ -86,6 +92,7 @@ export class ModerationNoticesController {
 export class MyReportsController {
   constructor(private readonly appeals: ModerationAppealsService) {}
 
+  @AssistantAllowed()
   @Get('mine')
   @ApiOperation({ summary: 'My reports and where they stand (last 50)' })
   @ApiEnvelopeResponse(MyReportDto, { isArray: true })

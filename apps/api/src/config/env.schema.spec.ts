@@ -292,3 +292,14 @@ describe('envSchema — credentials', () => {
     ).toEqual(['S3_ENDPOINT']);
   });
 });
+
+// Click audit 2026-11-08: the website refreshes on every page load and many
+// people can share one address (NAT / CGNAT): the old 60 per address and
+// 30 per session locked active users out («You're offline»).
+describe('refresh rate limits (defaults)', () => {
+  it('leave room for shared addresses and web reloads', () => {
+    const env = envSchema.parse({ ...base });
+    expect(env.AUTH_REFRESH_LIMIT_PER_IP_PER_HOUR).toBe(1200);
+    expect(env.AUTH_REFRESH_LIMIT_PER_SESSION_PER_HOUR).toBe(120);
+  });
+});

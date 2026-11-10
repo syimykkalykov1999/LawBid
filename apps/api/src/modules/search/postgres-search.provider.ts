@@ -1148,6 +1148,11 @@ export class PostgresSearchProvider implements SearchProvider {
    * … with no post) and only then were counted, so the popular ones never
    * showed. Now the first [TAG_CANDIDATES] by name are ranked by their
    * published posts, so a short prefix is still one cheap index range.
+   * Perf guard 2026-11-08: ranked by the tag's post links alone (an
+   * index-only count on post_tags (tag_id, post_id), capped at 1 000): the
+   * join to posts to skip unpublished ones cost up to 300 × 1 000 random
+   * reads of posts for a short prefix (193 ms at 100k posts, seconds at
+   * 100M). Only the order of the few suggestions can change.
    */
   async searchTags(prefix: string, limit: number): Promise<string[]> {
     const like = `${escapeLike(prefix)}%`;
@@ -1160,9 +1165,7 @@ export class PostgresSearchProvider implements SearchProvider {
         LIMIT ${TAG_CANDIDATES}) c
       ORDER BY (
         SELECT count(*) FROM (
-          SELECT 1 FROM post_tags pt JOIN posts p ON p.id = pt.post_id
-          WHERE pt.tag_id = c.id AND p.status = 'published'
-            AND p.deleted_at IS NULL AND p.archived_at IS NULL
+          SELECT 1 FROM post_tags pt WHERE pt.tag_id = c.id
           LIMIT 1000) n) DESC,
         c.tag_lower
       LIMIT ${limit}`;

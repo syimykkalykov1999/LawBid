@@ -66,3 +66,6 @@ __pycache__/
 
 # Binary translations seed is not kept in git (KNOWN_ERRORS #39); the source is apps/api/prisma/seed/translations/*.json
 *.xlsx
+
+# Lighthouse CI output (admin-ci.yml job lighthouse)
+.lighthouseci/

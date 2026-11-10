@@ -1,10 +1,11 @@
 'use client';
 
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
+import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
 import { MotionRow } from '@/components/legacy/fade-in';
+import { VirtualRows } from '@/components/ui/virtual-rows';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
@@ -13,6 +14,7 @@ import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { formatDateTime } from '@/lib/utils';
+import { LazyImg } from '@/components/ui/lazy-img';
 
 type Filter = 'all' | 'hidden' | 'flagged' | 'csam_match' | 'skipped';
 
@@ -30,6 +32,14 @@ const STATUS: Record<string, { tone: 'danger' | 'gold' | 'neutral'; text: string
   csam_match: { tone: 'danger', text: 'CSAM (совпадение)' },
   skipped: { tone: 'neutral', text: 'не проверено' },
   error: { tone: 'neutral', text: 'ошибка' },
+};
+
+/** Owner 2026-11-08: where the CyberTipline report stands. */
+const NCMEC: Record<string, string> = {
+  pending: 'отправляется',
+  submitted: 'отправлено',
+  manual_required: 'подать вручную (не подключено или выключено)',
+  failed: 'ошибка, можно отправить снова',
 };
 
 const SKIP: Record<string, string> = {
@@ -100,7 +110,7 @@ export default function MediaModerationPage() {
       const ok = await confirm({
         title: 'Сообщить в NCMEC?',
         description:
-          'Картинка скрывается везде и сохраняется как доказательство. Пока нет доступа к API NCMEC, сообщение надо подать вручную на report.cybertip.org.',
+          'Картинка скрывается везде и сохраняется как доказательство. Если в «Ключи и сервисы» заполнена карточка NCMEC и включена отправка, отчёт с файлом уходит в CyberTipline сам; иначе («не подключено») его надо подать вручную на report.cybertip.org.',
         confirm: 'Сообщить',
         danger: true,
       });
@@ -146,12 +156,12 @@ export default function MediaModerationPage() {
         <tbody>
           {q.isPending ? <TableEmpty colSpan={6} loading /> : null}
           {!q.isPending && rows.length === 0 ? <TableEmpty colSpan={6}>Ничего не ждёт решения.</TableEmpty> : null}
-          {rows.map((r, i) => (
-            <MotionRow key={r.id} i={i}>
+          <VirtualRows rows={rows} colSpan={6} estimateSize={104}>
+            {(r, i, vp) => (
+            <MotionRow key={r.id} i={i} {...vp}>
               <Td className="w-28">
                 {r.previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.previewUrl} alt="" className="h-20 w-20 rounded object-cover blur-sm hover:blur-none" />
+                  <LazyImg src={r.previewUrl} alt="" className="h-20 w-20 rounded object-cover blur-sm hover:blur-none" />
                 ) : (
                   <span className="text-xs text-muted">{r.status === 'csam_match' ? 'не показывается' : '—'}</span>
                 )}
@@ -168,6 +178,13 @@ export default function MediaModerationPage() {
                   </div>
                 ) : null}
                 {r.skipReason ? <div className="mt-1 text-muted">{SKIP[r.skipReason] ?? r.skipReason}</div> : null}
+                {r.csamReportStatus ? (
+                  <div className="mt-1 text-muted">
+                    NCMEC: {NCMEC[r.csamReportStatus] ?? r.csamReportStatus}
+                    {r.csamExternalReportId ? ` № ${r.csamExternalReportId}` : ''}
+                    {r.csamReportStatus === 'failed' && r.csamReportError ? ` (${r.csamReportError})` : ''}
+                  </div>
+                ) : null}
               </Td>
               <Td className="text-xs">
                 <Link href={`/users/${r.ownerUserId}`} className="text-gold-600 hover:underline">
@@ -191,7 +208,8 @@ export default function MediaModerationPage() {
                 </div>
               </Td>
             </MotionRow>
-          ))}
+            )}
+          </VirtualRows>
         </tbody>
       </Table>
       {q.hasNextPage ? (

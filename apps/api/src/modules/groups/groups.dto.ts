@@ -99,6 +99,13 @@ export class GroupPollParamDto extends GroupIdParamDto {
   pollId!: string;
 }
 
+/** Sweep B-c1: one option of a poll (its voters, page by page). */
+export class GroupPollOptionParamDto extends GroupPollParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  optionId!: string;
+}
+
 export class GroupInviteIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
@@ -372,6 +379,23 @@ export class GroupMessagesQueryDto {
   @IsInt()
   @Min(1)
   @Max(50)
+  limit?: number;
+}
+
+/** Sweep B-c1: a page of members / voters (keyset, like messages). */
+export class GroupPageQueryDto {
+  @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  cursor?: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
   limit?: number;
 }
 
@@ -964,8 +988,20 @@ export class GroupDto {
 }
 
 export class GroupDetailDto extends GroupDto {
-  @ApiProperty({ type: [GroupMemberDto] })
+  @ApiProperty({
+    type: [GroupMemberDto],
+    description:
+      'Sweep B-c1: up to 100 members. A bigger group sends the first page (owner, admins, then by join time) and membersNextCursor for GET /groups/{id}/members.',
+  })
   members!: GroupMemberDto[];
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Sweep B-c1: more members than `members` holds — pass it as `cursor` to GET /groups/{id}/members. Null/absent: `members` is everyone.',
+  })
+  membersNextCursor?: string | null;
 
   @ApiProperty({
     type: [GroupPersonDto],
@@ -1290,6 +1326,16 @@ export class GroupCardDto {
   @ApiProperty({ format: 'date-time' })
   updatedAt!: Date;
 }
+export interface GroupMemberPage {
+  items: GroupMemberDto[];
+  nextCursor: string | null;
+}
+
+export interface GroupPersonPage {
+  items: GroupPersonDto[];
+  nextCursor: string | null;
+}
+
 export interface GroupMessagePage {
   items: GroupMessageDto[];
   nextCursor: string | null;

@@ -11,8 +11,15 @@ ExperimentVariantDto _$ExperimentVariantDtoFromJson(
 ) => ExperimentVariantDto(
   key: json['key'] as String,
   weight: (json['weight'] as num).toInt(),
+  weights: (json['weights'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, e as num),
+  ),
 );
 
 Map<String, dynamic> _$ExperimentVariantDtoToJson(
   ExperimentVariantDto instance,
-) => <String, dynamic>{'key': instance.key, 'weight': instance.weight};
+) => <String, dynamic>{
+  'key': instance.key,
+  'weight': instance.weight,
+  'weights': ?instance.weights,
+};

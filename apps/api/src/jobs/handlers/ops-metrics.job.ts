@@ -114,6 +114,25 @@ export interface BusinessCounters {
  * job age per queue (every minute) and the business counters of the
  * Grafana dashboard (every 10 minutes; all index-range counts).
  */
+/**
+ * How long a waiting job has been RUNNABLE, in seconds. 08.11 (G8): BullMQ
+ * job schedulers create the next run at once as a delayed job
+ * (`timestamp` = creation, `delay` = until it is due), so `now - timestamp`
+ * counted the whole schedule period as waiting: prod showed the `cron` lane's
+ * oldest job at exactly 59 / 119 / 299 / 599 / 3599 s (the 1, 2, 5, 10 and
+ * 60 minute schedules) and the queue-backlog alarm (> 300 s) flapped all day
+ * although nothing was stuck; the same number fed the worker autoscaling.
+ * The age counts from the moment the job was due: `timestamp + delay`.
+ */
+export function waitingAgeSeconds(
+  job: { timestamp: number; delay?: number; opts?: { delay?: number } },
+  now: Date,
+): number {
+  const delay = Number(job.delay ?? job.opts?.delay ?? 0);
+  const due = job.timestamp + (Number.isFinite(delay) && delay > 0 ? delay : 0);
+  return Math.max(0, Math.floor((now.getTime() - due) / 1000));
+}
+
 @Injectable()
 export class OpsMetricsJob implements OnModuleDestroy {
   private queues?: Queue[];
@@ -155,9 +174,7 @@ export class OpsMetricsJob implements OnModuleDestroy {
         delayed: counts.delayed ?? 0,
         failed: counts.failed ?? 0,
         failed5m: await this.failedLast5m(q),
-        oldestAgeSeconds: oldest
-          ? Math.max(0, Math.floor((now.getTime() - oldest.timestamp) / 1000))
-          : 0,
+        oldestAgeSeconds: oldest ? waitingAgeSeconds(oldest, now) : 0,
       };
       out.push(row);
       this.logger.info({ metric: 'queue_depth', ...row }, 'queue depth');

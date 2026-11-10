@@ -59,7 +59,10 @@ import {
 } from './stars.dto';
 import { StarsService, type Page } from './stars.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
-import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -87,6 +90,7 @@ class GiftIdParamDto {
 export class StarsController {
   constructor(private readonly stars: StarsService) {}
 
+  @AttorneyOnly()
   @Get()
   @ApiOperation({ summary: 'Stars balance and the packs on offer' })
   @ApiEnvelopeResponse(StarsOverviewDto)
@@ -94,6 +98,7 @@ export class StarsController {
     return this.stars.overview(user.sub);
   }
 
+  @AttorneyOnly()
   @Get('history')
   @ApiOperation({ summary: 'My stars history, newest first' })
   @ApiEnvelopeResponse(StarLedgerItemDto, { isArray: true })
@@ -126,6 +131,7 @@ export class StarsController {
     return this.stars.buy(user.sub, p.packId, apiBaseOf(req));
   }
 
+  @AttorneyOnly()
   @Get('purchases/:id')
   @ApiOperation({ summary: 'A stars purchase after the payment page' })
   @ApiEnvelopeResponse(StarsPurchaseDto)
@@ -137,6 +143,7 @@ export class StarsController {
     return this.stars.purchase(user.sub, p.id);
   }
 
+  @AssistantAllowed()
   @Get('gifts')
   @ApiOperation({ summary: 'The gift catalog' })
   @ApiEnvelopeResponse(GiftDto, { isArray: true })
@@ -165,6 +172,7 @@ export class StarsController {
     return this.stars.sendToProfile(user.sub, p.giftId, dto);
   }
 
+  @AssistantAllowed()
   @Get('users/:id/gifts')
   @ApiOperation({ summary: "A profile's gifts (the owner sees all of theirs)" })
   @ApiEnvelopeResponse(GiftSendDto, { isArray: true })

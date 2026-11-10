@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { shardContext } from '../../sharding/shard-context';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
+import { RankingEventsService } from '../experiments/ranking-events.service';
 
 /** Owner 2026-10-18: what happened to a post, for its counters and the
  * author's statistics (Instagram Insights, author only). */
@@ -28,6 +29,9 @@ export class PostEventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly counters: CounterAggregator,
+    // Owner 2026-11-08: opening / watching a post served in a ranked list
+    // (the Search grid) is a click on its place there.
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
 
   /** Returns true when a new event row was written. */
@@ -39,6 +43,9 @@ export class PostEventsService {
   }): Promise<boolean> {
     const { postId, authorId, viewerId, kind } = input;
     if (viewerId !== null && viewerId === authorId) return false;
+    if (viewerId !== null && kind === 'view') {
+      void this.rankingEvents?.logClicks(viewerId, [postId]);
+    }
     let inserted: number;
     if (viewerId === null) {
       await this.prisma.postViewEvent.create({

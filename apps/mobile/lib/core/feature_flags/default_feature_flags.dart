@@ -19,6 +19,7 @@
 /// showing a button for a method that then 403s.
 const Map<String, bool> defaultFeatureFlags = {
   // Owner 2026-10-05: «Перевести» per zone (the API computes the real values).
+  'translate_chat': false,
   'translate_posts': false,
   'translate_cases': false,
   'translate_reviews': false,
@@ -46,7 +47,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'video_calls': false,
   'calls_group': false,
   'stories': false,
-  'channels': true,
+  'channels': false,
   'consultations': true,
   'legal_qa': true,
   'deadline_calculator': false,
@@ -67,7 +68,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'video_cache_parallel': true,
   'payments_in_app': false,
   'chat_translate': false,
-  'auto_bar_check': false,
+  'auto_bar_check': true,
   'news_posts': false,
   'phone_login': true,
   'demo_code_login': true,

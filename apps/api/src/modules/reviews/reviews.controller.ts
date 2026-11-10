@@ -50,7 +50,12 @@ import {
   type ReviewPage,
 } from './dto/review-responses.dto';
 import { ReviewsService } from './reviews.service';
-import { AssistantSelf } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AssistantSelf,
+  AttorneyOnly,
+  RequiresDuty,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -65,6 +70,7 @@ const E = ErrorCode;
 export class ReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
 
+  @AttorneyOnly()
   @Post('cases/:caseId/review')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
@@ -97,6 +103,7 @@ export class ReviewsController {
     return this.reviews.create(user, params.caseId, dto);
   }
 
+  @RequiresDuty('cases')
   @Get('cases/:caseId/review')
   @ApiOperation({
     summary: "The client's own review of a case (to edit it)",
@@ -110,6 +117,7 @@ export class ReviewsController {
     return this.reviews.getForCase(user, params.caseId);
   }
 
+  @AttorneyOnly()
   @Patch('reviews/:id')
   @ApiOperation({
     summary: 'Edit own review within review.edit_window_days (client)',
@@ -128,6 +136,7 @@ export class ReviewsController {
     return this.reviews.update(user, params.id, dto);
   }
 
+  @AssistantAllowed()
   @Get('attorneys/:id/reviews')
   @ApiOperation({ summary: 'Published reviews of an attorney, newest first' })
   @ApiEnvelopeResponse(PublicReviewDto, { isArray: true })
@@ -140,6 +149,7 @@ export class ReviewsController {
     return this.reviews.list(params.id, query, user.sub);
   }
 
+  @AssistantAllowed()
   @Get('attorneys/:id/reviews/summary')
   @ApiOperation({
     summary: 'Average rating, count and per-star distribution of an attorney',
@@ -196,6 +206,7 @@ export class ReviewsController {
   }
 
   // Owner 2026-10-01 (Google-style): the attorney's public reply.
+  @AttorneyOnly('publish')
   @Put('reviews/:id/reply')
   @ApiOperation({ summary: "The reviewed attorney's public reply" })
   @ApiEnvelopeResponse(PublicReviewDto)
@@ -208,6 +219,7 @@ export class ReviewsController {
     return this.reviews.reply(user, params.id, dto.body);
   }
 
+  @AttorneyOnly('publish')
   @Delete('reviews/:id/reply')
   @ApiOperation({ summary: 'Remove my reply' })
   @ApiEnvelopeResponse(PublicReviewDto)

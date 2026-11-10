@@ -684,6 +684,7 @@ export class SearchService {
         offset,
       );
       const slice = ids.slice(offset, offset + PAGE);
+      void this.recommendations.logServed(user.sub, 'post', slice, offset);
       return {
         items: await this.presentPosts(slice, user.sub, contentClass),
         nextCursor: offset + PAGE < ids.length ? String(offset + PAGE) : null,

@@ -97,6 +97,7 @@ module "stack" {
   clamav_image                    = var.clamav_image
   db_pooler_enabled               = var.db_pooler_enabled
   partition_role_enabled          = var.partition_role_enabled
+  contacts_pepper_enabled         = var.contacts_pepper_enabled
   pgbouncer_image                 = var.pgbouncer_image
   pgbouncer_max_tasks             = var.pgbouncer_max_tasks
   pgbouncer_db_tls_mode           = var.pgbouncer_db_tls_mode
@@ -197,6 +198,9 @@ module "stack" {
   worker_jobs_per_task                   = var.worker_jobs_per_task
   adopt_existing_database                = var.adopt_existing_database
   replicate_media                        = var.replicate_media
+  documents_object_lock                  = var.documents_object_lock
+  sealed_records_retention_days          = var.sealed_records_retention_days
+  database_insights_advanced             = var.database_insights_advanced
   database_deletion_protection           = var.database_deletion_protection
   rds_cross_region_backups               = var.rds_cross_region_backups
   rds_cross_region_backup_retention_days = var.rds_cross_region_backup_retention_days

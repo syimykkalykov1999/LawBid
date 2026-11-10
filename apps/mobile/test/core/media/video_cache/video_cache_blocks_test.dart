@@ -26,6 +26,7 @@ void main() {
   var now = 0;
   var most = 0;
   var requests = 0;
+  var servedBytes = 0;
   var latency = const Duration(milliseconds: 20);
   var failAt = (int n) => false;
 
@@ -41,6 +42,7 @@ void main() {
     } else if (m != null) {
       final s = int.parse(m.group(1)!);
       final e = math.min(int.parse(m.group(2)!), total - 1);
+      servedBytes += e + 1 - s;
       req.response
         ..statusCode = 206
         ..headers.set(HttpHeaders.contentRangeHeader, 'bytes $s-$e/$total')
@@ -77,6 +79,7 @@ void main() {
     now = 0;
     most = 0;
     requests = 0;
+    servedBytes = 0;
     latency = const Duration(milliseconds: 20);
     failAt = (_) => false;
     cdn = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -115,6 +118,29 @@ void main() {
     requests = 0;
     expect(await play(range: 'bytes=0-${head - 1}'), hasLength(head));
     expect(requests, 0);
+  });
+
+  // SPEED_MATRIX 2026-11-09 §3 №17: the traffic of two views of one clip,
+  // measured at the CDN (the number PR #402 did not have). First view: the
+  // whole clip comes over the network; second view: only the part past
+  // the cached head — the head (what a reel shows while the person
+  // decides to stay) costs nothing again.
+  test('traffic: the second view downloads only what is past the head',
+      () async {
+    await start(4);
+    expect(await play(), hasLength(total));
+    final firstView = servedBytes;
+    // The whole clip (a byte of overlap at a block edge at most).
+    expect(firstView, inInclusiveRange(total, total + 16));
+    servedBytes = 0;
+    requests = 0;
+    expect(await play(), hasLength(total));
+    final secondView = servedBytes;
+    // Only the part past the cached head, the head itself cost nothing.
+    expect(secondView, inInclusiveRange(total - head, total - head + 16));
+    expect(secondView / firstView, closeTo(1 / 3, 0.01));
+    // The head came from the disk: one request for the tail at most.
+    expect(requests, lessThanOrEqualTo(1));
   });
 
   test('a range in the middle of the head is exact', () async {

@@ -1,6 +1,6 @@
 import { EconomyService } from './economy.service';
 
-type Fig = { allowedUsd: number };
+type Fig = { awsLimitUsd: number };
 
 function make(
   mode: string,
@@ -33,15 +33,15 @@ function make(
     undefined, // storage (#370)
     ssm as never,
   );
-  const run = (f: Fig) =>
+  const run = (f: Fig, cap = f.awsLimitUsd) =>
     (
       svc as unknown as {
-        applyCapacityCeilings: (
-          f: Fig,
-        ) => Promise<Record<string, unknown> | null>;
+        applyCapacityCeilings: (cfg: {
+          awsCapUsd: number;
+        }) => Promise<Record<string, unknown> | null>;
       }
-    ).applyCapacityCeilings(f);
-  return { run, ssm, stored, f: { allowedUsd: allowed } };
+    ).applyCapacityCeilings({ awsCapUsd: cap });
+  return { run, ssm, stored, f: { awsLimitUsd: allowed } };
 }
 
 describe('EconomyService.applyCapacityCeilings (cost registry V4)', () => {
@@ -57,20 +57,29 @@ describe('EconomyService.applyCapacityCeilings (cost registry V4)', () => {
     });
   });
 
-  it('raises the ceiling when the allowance grows, and writes nothing when unchanged', async () => {
+  it('raises the ceiling when the AWS budget grows, and writes nothing when unchanged', async () => {
     const { run, ssm, stored } = make('auto', 350, {
       '/p/db/max': 'db.t4g.medium',
       '/p/redis/max': 'cache.t4g.small',
     });
-    await run({ allowedUsd: 350 });
+    await run({ awsLimitUsd: 350 });
     expect(ssm.put).not.toHaveBeenCalled();
-    await run({ allowedUsd: 1000 });
+    await run({ awsLimitUsd: 1000 });
     expect(stored['/p/db/max']).toBe('db.r7g.large');
   });
 
-  it('off = hands off', async () => {
-    const { run, ssm, f } = make('off', 350, {});
-    expect(await run(f)).toMatchObject({ skipped: expect.any(String) });
-    expect(ssm.put).not.toHaveBeenCalled();
+  it('owner 2026-11-09: off, or no sum typed, lifts both ceilings to the largest size', async () => {
+    for (const [mode, cap] of [
+      ['off', 350],
+      ['auto', 0],
+    ] as const) {
+      const { run, stored, f } = make(mode, 350, {
+        '/p/db/max': 'db.t4g.medium',
+        '/p/redis/max': 'cache.t4g.small',
+      });
+      await run(f, cap);
+      expect(stored['/p/db/max']).toBe('db.r7g.2xlarge');
+      expect(stored['/p/redis/max']).toBe('cache.r7g.2xlarge');
+    }
   });
 });

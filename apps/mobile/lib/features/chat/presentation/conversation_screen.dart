@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -906,6 +907,7 @@ class _MessageListState extends ConsumerState<_MessageList> {
   int? _stickyTop;
   Timer? _hideSticky;
   ValueNotifier<bool>? _scrolling;
+  final _anchor = ChatScrollAnchor();
 
   @override
   void initState() {
@@ -960,9 +962,19 @@ class _MessageListState extends ConsumerState<_MessageList> {
     _away.value = away;
     if (!away) _fresh.value = 0;
     // The date chip follows the scroll and fades out when it stops.
-    final top = _c.topIndex(_listKey.currentContext ?? context);
+    final topEntry = _c.topEntry(_listKey.currentContext ?? context);
+    final top = topEntry?.index;
     final entries = _entries;
-    if (top != null && top < entries.length) {
+    if (top != null &&
+        top < entries.length &&
+        _startsDay(entries, top) &&
+        topEntry!.top > -_dayChipExtent()) {
+      // Audit 26.10 W5 (Telegram): the day's own chip at the top of the
+      // list is still on screen, so the floating copy stays hidden.
+      final shown = _sticky.value;
+      _stickyTop = null;
+      if (shown.shown) _sticky.value = (label: shown.label, shown: false);
+    } else if (top != null && top < entries.length) {
       final shown = _sticky.value;
       if (top != _stickyTop || !shown.shown) {
         _stickyTop = top;
@@ -992,6 +1004,26 @@ class _MessageListState extends ConsumerState<_MessageList> {
     }
   }
 
+  /// Whether entry [i] is the first of its day (it carries a date chip).
+  static bool _startsDay(List<ChatListEntry> entries, int i) {
+    if (i + 1 >= entries.length) return true;
+    return !DateUtils.isSameDay(
+      entries[i + 1].newest.createdAt.toLocal(),
+      entries[i].oldest.createdAt.toLocal(),
+    );
+  }
+
+  /// The height of a day chip in the list with its padding (W5): a caption
+  /// line, the pill's padding and border, and the gaps above and below.
+  double _dayChipExtent() {
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final line = MediaQuery.textScalerOf(context).scale(
+          type.caption.fontSize ?? 12,
+        ) *
+        (type.caption.height ?? 1.3);
+    return line + 10 + AppSpacing.md * 2;
+  }
+
   void _onScrollingChanged() {
     if (_scrolling?.value ?? false) {
       _hideSticky?.cancel();
@@ -1017,6 +1049,14 @@ class _MessageListState extends ConsumerState<_MessageList> {
     if (newest != null && _newestId != null && newest.id != _newestId) {
       final me = ref.read(currentUserIdProvider);
       if (_c.away && newest.senderId != me) _fresh.value++;
+      // Audit 26.10 B3: reading above — the new row comes in below
+      // without moving the text on screen.
+      if (_c.scroll.hasClients) {
+        _anchor.hold(
+          _c.sliverOf(_listKey.currentContext ?? context),
+          _c.scroll.position.pixels,
+        );
+      }
     }
     _newestId = newest?.id;
   }
@@ -1080,144 +1120,162 @@ class _MessageListState extends ConsumerState<_MessageList> {
       // a scroll frame does not repaint the pattern under it.
       painter: _WallpaperPainter(ChatColors.of(context).pattern),
       child: RepaintBoundary(
-        child: ListView.builder(
+        // Audit 26.10 B3: a custom scroll view so the anchor sliver can
+        // keep what is read in place when a message comes in below.
+        child: CustomScrollView(
           key: _listKey,
           controller: _c.scroll,
           reverse: true,
           scrollCacheExtent: const ScrollCacheExtent.viewport(1),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenSide,
-            vertical: AppSpacing.md,
-          ),
-          itemCount: entries.length + (state.nextCursor != null ? 1 : 0),
-          // S16-6: rows are keyed by their newest message; when messages
-          // come in at the bottom the others move one index and Flutter
-          // finds them by key instead of rebuilding their elements.
-          findChildIndexCallback: (key) {
-            final byKey = _indexByKey ??= {
-              for (var i = 0; i < entries.length; i++)
-                _c.keyFor(entries[i].newest.id): i,
-            };
-            return byKey[key];
-          },
-          itemBuilder: (context, i) {
-            if (i == entries.length) {
-              if (state.loadMoreFailed) {
-                return Center(
-                  child: TextButton(
-                    onPressed: onMore,
-                    child: Text(t.t('error.retry')),
-                  ),
-                );
-              }
-              // Ask for the older page after this frame (never during build).
-              if (!state.loadingMore) {
-                WidgetsBinding.instance.addPostFrameCallback((_) => onMore());
-              }
-              return const Padding(
-                padding: EdgeInsets.all(AppSpacing.md),
-                child: Center(
-                  child: SizedBox.square(
-                    dimension: AppSizes.footerSpinner,
-                    child: CircularProgressIndicator(
-                      strokeWidth: AppSizes.footerSpinnerStroke,
-                    ),
-                  ),
-                ),
-              );
-            }
-            BuildCounter.hit('chat.row');
-            // Prefetch the older page ~8 rows before the top, so history
-            // is already there when the user scrolls up (Telegram-style).
-            if (i >= entries.length - 8 &&
-                state.nextCursor != null &&
-                !state.loadingMore &&
-                !state.loadMoreFailed &&
-                !_prefetchQueued) {
-              _prefetchQueued = true;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _prefetchQueued = false;
-                unawaited(onMore());
-              });
-            }
-            final entry = entries[i];
-            final m = entry.newest;
-            final older = i + 1 < entries.length ? entries[i + 1].newest : null;
-            final newDay = older == null ||
-                !DateUtils.isSameDay(
-                  older.createdAt.toLocal(),
-                  entry.oldest.createdAt.toLocal(),
-                );
-            final seen = layout.seen(i) && m.senderId == me;
-            final row = Column(
-              // Stretch: a bubble sits at the right (mine) or left (theirs)
-              // edge like Telegram, never centered (owner 2026-09-29).
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (newDay) ChatDateChip(label: _dayLabel(t, f, m.createdAt)),
-                if (i == unreadEntry) UnreadDivider(count: state.unreadCount),
-                if (m.kind == MessageKind.system &&
-                    consultationIdOfSystemLine(m.body) != null)
-                  // Owner 2026-10-20: a booking's card (tap opens it, a call
-                  // button at the appointed time).
-                  ConsultationChatCard(
-                    consultationId: consultationIdOfSystemLine(m.body)!,
-                  )
-                else if (m.kind == MessageKind.system)
-                  _SystemMessage(
-                    text: isDisappearLine(m.body)
-                        ? disappearLineText(
-                            t,
-                            m.body,
-                            name: m.senderId == me
-                                ? t.t('chat.you')
-                                : (state.conversation?.counterpart
-                                        .displayName ??
-                                    state.conversation?.counterpart.username ??
-                                    ''),
-                          )
-                        : systemLineText(t, m.body, formats: f),
-                    // Owner 2026-10-19: a tap opens what the line is about.
-                    target: _systemTarget(
-                      m.body,
-                      caseId: state.conversation?.caseId,
-                      attorney: ref.read(actsAsAttorneyProvider),
-                    ),
-                  )
-                else if (m.kind == MessageKind.call && m.callLog != null)
-                  CallLogEntry(
-                    message: m,
-                    mine: m.senderId == me,
-                    conversation: state.conversation,
-                  )
-                else
-                  _Bubble(
-                    message: m,
-                    group: entry.isGroup ? entry.messages : null,
-                    mine: m.senderId == me,
-                    seen: seen,
-                    delivered: layout.delivered(i) && m.senderId == me,
-                    showSeenLabel: i == layout.seenLabelEntry,
-                    threadId: state.conversation?.id ?? m.conversationId,
-                    // Owner 2026-10-01: the client sees "Assistant of <the
-                    // attorney>", not the assistant's own account.
-                    attorneyName: m.senderId == me
-                        ? null
-                        : state.conversation?.counterpart.displayName,
-                  ),
-              ],
-            );
-            // Keyed by its newest message (jump to a quoted message), and
-            // flashed while it is the jump target.
-            return KeyedSubtree(
-              key: _c.keyFor(m.id),
-              child: ChatHighlight(
-                controller: _c,
-                ids: {for (final x in entry.messages) x.id},
-                child: row,
+          semanticChildCount: entries.length,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.screenSide,
+                vertical: AppSpacing.md,
               ),
-            );
-          },
+              sliver: SliverList.builder(
+                itemCount: entries.length + (state.nextCursor != null ? 1 : 0),
+                // S16-6: rows are keyed by their newest message; when messages
+                // come in at the bottom the others move one index and Flutter
+                // finds them by key instead of rebuilding their elements.
+                findChildIndexCallback: (key) {
+                  final byKey = _indexByKey ??= {
+                    for (var i = 0; i < entries.length; i++)
+                      _c.keyFor(entries[i].newest.id): i,
+                  };
+                  return byKey[key];
+                },
+                itemBuilder: (context, i) {
+                  if (i == entries.length) {
+                    if (state.loadMoreFailed) {
+                      return Center(
+                        child: TextButton(
+                          onPressed: onMore,
+                          child: Text(t.t('error.retry')),
+                        ),
+                      );
+                    }
+                    // Ask for the older page after this frame (never during
+                    // build).
+                    if (!state.loadingMore) {
+                      WidgetsBinding.instance
+                          .addPostFrameCallback((_) => onMore());
+                    }
+                    return const Padding(
+                      padding: EdgeInsets.all(AppSpacing.md),
+                      child: Center(
+                        child: SizedBox.square(
+                          dimension: AppSizes.footerSpinner,
+                          child: CircularProgressIndicator(
+                            strokeWidth: AppSizes.footerSpinnerStroke,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  BuildCounter.hit('chat.row');
+                  // Prefetch the older page ~8 rows before the top, so history
+                  // is already there when the user scrolls up (Telegram-style).
+                  if (i >= entries.length - 8 &&
+                      state.nextCursor != null &&
+                      !state.loadingMore &&
+                      !state.loadMoreFailed &&
+                      !_prefetchQueued) {
+                    _prefetchQueued = true;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _prefetchQueued = false;
+                      unawaited(onMore());
+                    });
+                  }
+                  final entry = entries[i];
+                  final m = entry.newest;
+                  final older =
+                      i + 1 < entries.length ? entries[i + 1].newest : null;
+                  final newDay = older == null ||
+                      !DateUtils.isSameDay(
+                        older.createdAt.toLocal(),
+                        entry.oldest.createdAt.toLocal(),
+                      );
+                  final seen = layout.seen(i) && m.senderId == me;
+                  final row = Column(
+                    // Stretch: a bubble sits at the right (mine) or left
+                    // (theirs) edge like Telegram, never centered (owner
+                    // 2026-09-29).
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (newDay)
+                        ChatDateChip(label: _dayLabel(t, f, m.createdAt)),
+                      if (i == unreadEntry)
+                        UnreadDivider(count: state.unreadCount),
+                      if (m.kind == MessageKind.system &&
+                          consultationIdOfSystemLine(m.body) != null)
+                        // Owner 2026-10-20: a booking's card (tap opens it, a
+                        // call button at the appointed time).
+                        ConsultationChatCard(
+                          consultationId: consultationIdOfSystemLine(m.body)!,
+                        )
+                      else if (m.kind == MessageKind.system)
+                        _SystemMessage(
+                          text: isDisappearLine(m.body)
+                              ? disappearLineText(
+                                  t,
+                                  m.body,
+                                  name: m.senderId == me
+                                      ? t.t('chat.you')
+                                      : (state.conversation?.counterpart
+                                              .displayName ??
+                                          state.conversation?.counterpart
+                                              .username ??
+                                          ''),
+                                )
+                              : systemLineText(t, m.body, formats: f),
+                          // Owner 2026-10-19: a tap opens what the line is
+                          // about.
+                          target: _systemTarget(
+                            m.body,
+                            caseId: state.conversation?.caseId,
+                            attorney: ref.read(actsAsAttorneyProvider),
+                          ),
+                        )
+                      else if (m.kind == MessageKind.call && m.callLog != null)
+                        CallLogEntry(
+                          message: m,
+                          mine: m.senderId == me,
+                          conversation: state.conversation,
+                        )
+                      else
+                        _Bubble(
+                          message: m,
+                          group: entry.isGroup ? entry.messages : null,
+                          mine: m.senderId == me,
+                          seen: seen,
+                          delivered: layout.delivered(i) && m.senderId == me,
+                          showSeenLabel: i == layout.seenLabelEntry,
+                          threadId: state.conversation?.id ?? m.conversationId,
+                          // Owner 2026-10-01: the client sees "Assistant of
+                          // <the attorney>", not the assistant's own account.
+                          attorneyName: m.senderId == me
+                              ? null
+                              : state.conversation?.counterpart.displayName,
+                        ),
+                    ],
+                  );
+                  // Keyed by its newest message (jump to a quoted message), and
+                  // flashed while it is the jump target.
+                  return KeyedSubtree(
+                    key: _c.keyFor(m.id),
+                    child: ChatHighlight(
+                      controller: _c,
+                      ids: {for (final x in entry.messages) x.id},
+                      child: row,
+                    ),
+                  );
+                },
+              ),
+            ),
+            ChatAnchorSliver(anchor: _anchor),
+          ],
         ),
       ),
     );
@@ -1570,17 +1628,17 @@ class _Bubble extends ConsumerWidget {
         !(m.unreadable && m.body.isEmpty) &&
         (m.kind == MessageKind.text) &&
         firstUrlIn(m.body) == null;
-    final metaWidth = inlineMeta
-        ? chatMetaWidth(
-            context,
-            labels: [
-              if (m.editedAt != null) t.t('chat.edited'),
-              f.time(m.createdAt),
-            ],
-            style: type.caption,
-            icons: (showTicks ? 1 : 0) + (m.pinned ? 1 : 0),
-          )
-        : 0.0;
+    // Measured where the row is drawn (inside the message's full text
+    // scale, audit 26.10 W4), so the reserved room matches the time.
+    double metaWidth(BuildContext ctx) => chatMetaWidth(
+          ctx,
+          labels: [
+            if (m.editedAt != null) t.t('chat.edited'),
+            f.time(m.createdAt),
+          ],
+          style: type.caption,
+          icons: (showTicks ? 1 : 0) + (m.pinned ? 1 : 0),
+        );
 
     // Owner 2026-10-01: a sticker stands alone, like Telegram — the time
     // and ticks on a small chip under it.
@@ -1969,7 +2027,7 @@ class _MessageText extends ConsumerWidget {
     required this.spans,
     required this.style,
     this.meta,
-    this.metaWidth = 0,
+    this.metaWidth,
   });
 
   final ChatMessage message;
@@ -1978,7 +2036,7 @@ class _MessageText extends ConsumerWidget {
 
   /// Set: the time row sits at the end of the last line.
   final Widget? meta;
-  final double metaWidth;
+  final double Function(BuildContext context)? metaWidth;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1989,12 +2047,14 @@ class _MessageText extends ConsumerWidget {
     // in full, past the app shell's 1.3x cap.
     return FullTextScale(
       child: meta != null
-          ? ChatTextWithMeta(
-              spans:
-                  translation == null ? spans : [TextSpan(text: translation)],
-              style: style,
-              meta: meta!,
-              metaWidth: metaWidth,
+          ? Builder(
+              builder: (ctx) => ChatTextWithMeta(
+                spans:
+                    translation == null ? spans : [TextSpan(text: translation)],
+                style: style,
+                meta: meta!,
+                metaWidth: metaWidth?.call(ctx) ?? 0,
+              ),
             )
           : translation == null
               ? Text.rich(TextSpan(children: spans), style: style)
@@ -2614,7 +2674,12 @@ class _ComposerState extends ConsumerState<_Composer> {
       return;
     }
     if (!ok) {
-      showAppSnackBar(context, t.t('chat.voice.noMic'));
+      // Sweep C-c12 W7: in a browser the permission lives in the site
+      // settings, not the phone's (Telegram Web / WhatsApp Web).
+      showAppSnackBar(
+        context,
+        t.t(kIsWeb ? 'chat.voice.noMicWeb' : 'chat.voice.noMic'),
+      );
       return;
     }
     if (!_pressed) {

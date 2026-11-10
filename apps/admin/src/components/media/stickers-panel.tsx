@@ -23,6 +23,7 @@ import { formatDateTime } from '@/lib/utils';
 import { StickerUploader } from './sticker-uploader';
 import { collectIds, type Noun } from '@/lib/bulk';
 import { BulkBar, bulkData, PageSelectBox, RowSelectBox, useBulkRun, useSelection } from '@/components/bulk/bulk-controls';
+import { LazyImg } from '@/components/ui/lazy-img';
 
 const PACKS: Noun = ['набор', 'набора', 'наборов'];
 
@@ -361,8 +362,7 @@ function PackDialog({ id, canWrite, onClose }: { id: string; canWrite: boolean; 
                   .map((s) => (
                     <div key={s.id} className="group relative aspect-square rounded-xl border border-line bg-surface-2 p-1.5">
                       {s.url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={s.url} alt={s.emoji} className="h-full w-full object-contain" loading="lazy" />
+                        <LazyImg src={s.url} alt={s.emoji} className="h-full w-full object-contain" />
                       ) : (
                         <span className="grid h-full place-items-center text-xs text-faint">нет файла</span>
                       )}

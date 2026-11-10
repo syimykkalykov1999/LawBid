@@ -71,11 +71,11 @@ PgBouncer/RDS Proxy), Neon или Supabase (проще и дешевле на с
   стартует на staging/production без TLS в `DATABASE_URL`);
 - автоматические бэкапы и восстановление на любую минуту (PITR), хранение
   не меньше 30 дней;
-- роли: `lawbid_migrator` (миграции), `lawbid_app`, `lawbid_retention`,
+- роли: `lawbid_admin` (мастер RDS, под ним идут миграции; `lawbid_migrator` — план, пока не используется), `lawbid_app`, `lawbid_retention`,
   `lawbid_readonly`; таймауты ролей — `infra/postgres/role-settings.sql`
   (выполнить один раз: `psql "$MIGRATOR_URL" -f infra/postgres/role-settings.sql`).
 
-После выбора: создать базу `lawbid_prod`, пользователя `lawbid_migrator`
+После выбора: создать базу `lawbid_prod`, пользователя миграций (`lawbid_admin`, см. `infra/postgres/migration-role.txt`; `lawbid_migrator` — план)
 с паролем и скопировать строку подключения (в ней пароль). Строку **не
 присылать в чат** — её спросит скрипт на шаге 6.
 

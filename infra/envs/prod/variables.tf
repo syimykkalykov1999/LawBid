@@ -273,6 +273,12 @@ variable "create_anomaly_monitor" {
   default     = true
   description = "false when the AWS account already has a service-level Cost Anomaly monitor (one allowed per account)."
 }
+# Automation audit 2026-11-08: generated phone-book pepper (see the stack).
+variable "contacts_pepper_enabled" {
+  type    = bool
+  default = false
+}
+
 # Automation audit 2026-11-08: the stack had this switch, prod never passed
 # it, so partition.*_mode = auto could not be made to work from tfvars.
 # true = Terraform generates the lawbid_partition login (PARTITION_DB_PASSWORD)
@@ -812,6 +818,28 @@ variable "replicate_media" {
   type        = bool
   default     = true
   description = "S4-5: copy new media objects to the replica Region (delete markers stay behind). Costs the media storage in us-west-2."
+}
+
+# C-c11 (2026-11-09): sealed deal-record PDFs nobody can delete or rewrite.
+variable "documents_object_lock" {
+  type        = bool
+  default     = false
+  description = "S3 Object Lock on the documents bucket — IRREVERSIBLE once applied. Off = nothing changes. On = the API writes sealed deal-record PDFs with COMPLIANCE retention (sealed_records_retention_days). Owner only, after counsel confirms the term (docs/runbooks/DEPLOY_PROD.md «Object Lock»)."
+}
+variable "sealed_records_retention_days" {
+  type        = number
+  default     = 2555
+  description = "Retention of sealed deal records in days when documents_object_lock is on (7 years by default; BID_TERMS_AGREEMENT_RESEARCH §3.5)."
+}
+
+# B-c17 (2026-11-09): Performance Insights → CloudWatch Database Insights
+# (EOL 31.07.2026). Off = standard mode, free 7 days, today's view. On =
+# advanced mode, billed per vCPU-hour (≈ $18 a month on t4g.micro, replicas
+# too), 465-day retention. Terraform reverts a console switch to Advanced.
+variable "database_insights_advanced" {
+  type        = bool
+  default     = false
+  description = "CloudWatch Database Insights Advanced mode for the database (paid). Keep false: standard mode is free."
 }
 
 # S4-7 / S4-8 / S4-10 (audit 2026-10-25): load balancer and edge rules.

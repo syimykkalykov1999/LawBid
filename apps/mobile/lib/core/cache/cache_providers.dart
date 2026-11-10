@@ -187,11 +187,12 @@ bool isPublicReferenceKey(String key) {
       path.endsWith('/config/bootstrap');
 }
 
-/// Owner 2026-10-23 (web pass): on the web the HTTP cache lives in the
-/// tab's memory (a shared computer keeps nothing of an account), so every
-/// reload downloaded the bootstrap, languages, bundles and countries again.
-/// Those few answers are public, so they alone go to a persistent store
-/// (IndexedDB, like the phone's file); everything else stays in memory.
+/// Owner 2026-10-23 (web pass): on the web the HTTP cache lived in the
+/// tab's memory, so every reload downloaded the bootstrap, languages,
+/// bundles and countries again. Those few answers are public, so they go to
+/// their own persistent store, kept across accounts (the private database
+/// is wiped on sign-out; since 2026-11-08 it is persistent on the web too,
+/// see `appDriftCacheDatabase`).
 class PublicRoutedHttpCacheStore implements HttpCacheStore {
   PublicRoutedHttpCacheStore({
     required HttpCacheStore public,
@@ -233,9 +234,9 @@ final publicCacheDatabaseProvider = Provider<CacheDatabase>((ref) {
 });
 
 /// The HTTP cache interceptor `dioProvider` installs (memory + disk).
-/// On the phones the disk layer is a file; on the web it is the tab's
-/// memory database (plan §5), except the public reference answers
-/// ([PublicRoutedHttpCacheStore]).
+/// On the phones the disk layer is a file; on the web the browser's storage
+/// (`appDriftCacheDatabase`), with the public reference answers in their own
+/// database ([PublicRoutedHttpCacheStore]).
 final httpCacheInterceptorProvider = Provider<HttpCacheInterceptor>((ref) {
   int limit() => ref.read(cacheLimitsProvider).limitBytes(CacheStore.http);
   final main = DriftHttpCacheStore(ref.watch(cacheDatabaseProvider), limit);

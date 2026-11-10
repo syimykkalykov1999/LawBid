@@ -140,6 +140,23 @@ describe('AdminEmailTemplatesService', () => {
     expect(email.sendEmail).not.toHaveBeenCalled();
   });
 
+  // Click audit 2026-11-08: a refused send was a bare 500 in the admin.
+  it('test send the provider refuses → 502 EMAIL_SEND_FAILED with the reason', async () => {
+    const { service, email } = setup();
+    email.sendEmail.mockRejectedValueOnce(
+      new Error('Email address is not verified.'),
+    );
+    await expect(
+      service.sendTest(ADMIN, 'login_otp', 'en', {}),
+    ).rejects.toMatchObject({
+      status: 502,
+      response: {
+        code: ErrorCode.EMAIL_SEND_FAILED,
+        message: expect.stringContaining('not verified'),
+      },
+    });
+  });
+
   it('reset deletes the override row', async () => {
     const { service, prisma } = setup();
     await service.reset('new_device', 'en');

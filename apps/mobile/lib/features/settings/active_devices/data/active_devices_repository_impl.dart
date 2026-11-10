@@ -7,6 +7,7 @@ import 'package:lawbid/features/settings/active_devices/data/device_session_mapp
 import 'package:lawbid/features/settings/active_devices/domain/active_devices_repository.dart';
 import 'package:lawbid/features/settings/active_devices/domain/device_session_info.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// `GET /auth/sessions` with cursor support (docs/01 §7 `meta.nextCursor`).
 ///
@@ -39,7 +40,8 @@ class ActiveDevicesApiClient {
       return CursorPage(
         items: data
             .cast<Map<String, dynamic>>()
-            .map(DeviceSession.fromJson)
+            // Sweep B-c9: the generated contract model, not a hand parser.
+            .map((j) => DeviceSession.fromDto(api.SessionDto.fromJson(j)))
             .toList(growable: false),
         nextCursor: next is String && next.isNotEmpty ? next : null,
       );

@@ -35,6 +35,7 @@ import {
   type PublicPlanDto,
 } from './plans.dto';
 import { highlights, PlansService, text } from './plans.service';
+import { AssistantAllowed } from '../auth/assistant/assistant-context';
 
 /** A new BUILD (not a new process) changes the plans ETag: the deploy tag is
  * the same on every task, so a phone landing on another task still gets a
@@ -91,6 +92,7 @@ export class PlansController {
 
   @ApiBearerAuth()
   @ApiErrors(AUTHENTICATED_ERRORS)
+  @AssistantAllowed()
   @Get('me/entitlements')
   @ApiOperation({ summary: "The signed-in user's plan and entitlements" })
   @ApiEnvelopeResponse(MyEntitlementsDto)

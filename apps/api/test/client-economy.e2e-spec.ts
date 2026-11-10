@@ -707,7 +707,10 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
 
   // ------------------------------------------------------------ package I
 
-  it('I: a presigned upload carries the immutable Cache-Control field', async () => {
+  // Audit 2026-11-08 (L5): the upload is a staging object and is never
+  // cached; confirm's copy (the object the app is served) gets the
+  // immutable header (files.service.spec, s3-storage.upload-staging.spec).
+  it('I: a presigned upload is staged no-store; the confirmed copy is immutable', async () => {
     const cl = await client();
     const res = await api()
       .post('/api/v1/files/presign')
@@ -720,7 +723,7 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
       });
     if (res.status === 201 || res.status === 200) {
       expect(res.body.data.upload.fields['Cache-Control']).toBe(
-        'public, max-age=31536000, immutable',
+        'private, no-store',
       );
     } else {
       // No object storage in this environment: the route says so, the

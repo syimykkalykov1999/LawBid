@@ -14,7 +14,6 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
-import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
@@ -24,6 +23,7 @@ import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show PickedChatFile, droppedChatFiles;
+import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
@@ -68,6 +68,8 @@ class GroupConversationScreen extends ConsumerStatefulWidget {
 class _GroupConversationScreenState
     extends ConsumerState<GroupConversationScreen> {
   final _scroll = ScrollController();
+  // Audit 26.10 B3: keeps what is read in place when a message comes in.
+  final _anchor = ChatScrollAnchor();
   final _text = TextEditingController();
   final Map<String, GlobalKey> _keys = {};
   StreamSubscription<Object?>? _events;
@@ -355,7 +357,7 @@ class _GroupConversationScreenState
       }
       // R-251: several files go up together, then the messages in order. With
       // the flag off, one after another as before.
-      await uploadThenSendInOrder(
+      await thread.uploadAndSend(
         items: files,
         atOnce: ref
                 .read(featureFlagsControllerProvider)
@@ -363,7 +365,6 @@ class _GroupConversationScreenState
             ? ClientTuning.uploadsAtOnce
             : 1,
         upload: (f) => chat.uploadAttachment(f.bytes, f.mime),
-        alive: () => mounted,
         send: (i, f, fileId) => thread.sendAttachment(
           fileId: fileId,
           fileName: f.name,
@@ -788,6 +789,9 @@ class _GroupConversationScreenState
         if (!newest.mine && _scroll.hasClients && _scroll.offset > 120) {
           setState(() => _unreadAway++);
         }
+        // Audit 26.10 B3 (Telegram): reading above, the new row comes in
+        // below without moving the text on screen.
+        _anchor.holdFor(_scroll);
       },
     );
     if (s.removed) return _gone(t);
@@ -817,6 +821,7 @@ class _GroupConversationScreenState
         state: s,
         detail: detail,
         controller: _scroll,
+        anchor: _anchor,
         keyFor: _keyFor,
         highlightId: _highlightId,
         canWrite: canWrite,
@@ -1121,6 +1126,7 @@ class _MessageList extends ConsumerWidget {
     required this.state,
     required this.detail,
     required this.controller,
+    required this.anchor,
     required this.keyFor,
     required this.highlightId,
     required this.canWrite,
@@ -1138,6 +1144,7 @@ class _MessageList extends ConsumerWidget {
   final GroupThreadState state;
   final api.GroupDetailDto detail;
   final ScrollController controller;
+  final ChatScrollAnchor anchor;
   final GlobalKey Function(String id) keyFor;
   final String? highlightId;
   final bool canWrite;
@@ -1177,88 +1184,105 @@ class _MessageList extends ConsumerWidget {
           ];
     final pending = state.pending;
     final extra = state.hasMore ? 1 : 0;
-    return ListView.builder(
+    Map<Key, int>? byKey;
+    // Audit 26.10 B3: a custom scroll view so the anchor sliver can keep
+    // what is read in place; rows are found by key when a message comes in
+    // below (the rest move one index, their elements are kept).
+    return CustomScrollView(
       reverse: true,
       controller: controller,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.screenSide,
-        vertical: AppSpacing.md,
-      ),
-      itemCount: pending.length + messages.length + extra,
-      itemBuilder: (context, i) {
-        if (i < pending.length) {
-          final p = pending[pending.length - 1 - i];
-          return GroupPendingBubble(
-            pending: p,
-            onRetry: () => onRetry(p.clientMessageId),
-            onDiscard: () => onDiscard(p.clientMessageId),
-          );
-        }
-        final k = i - pending.length;
-        if (k >= messages.length) {
-          // Ask for the older page after this frame (never during build).
-          if (!state.loadingMore) {
-            WidgetsBinding.instance.addPostFrameCallback((_) => onMore());
-          }
-          return const Padding(
-            padding: EdgeInsets.all(AppSpacing.md),
-            child: Center(
-              child: SizedBox.square(
-                dimension: AppSizes.footerSpinner,
-                child: CircularProgressIndicator(
-                  strokeWidth: AppSizes.footerSpinnerStroke,
-                ),
-              ),
-            ),
-          );
-        }
-        final m = messages[k];
-        final older = k + 1 < messages.length ? messages[k + 1] : null;
-        final newer = k > 0 ? messages[k - 1] : null;
-        final newDay = older == null ||
-            !DateUtils.isSameDay(
-              older.createdAt.toLocal(),
-              m.createdAt.toLocal(),
-            );
-        bool sameRun(api.GroupMessageDto? other) =>
-            other != null &&
-            !other.isSystem &&
-            other.sender?.userId == m.sender?.userId &&
-            other.mine == m.mine;
-        final startsRun = newDay || !sameRun(older);
-        final endsRun = !sameRun(newer);
+      semanticChildCount: pending.length + messages.length,
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenSide,
+            vertical: AppSpacing.md,
+          ),
+          sliver: SliverList.builder(
+            itemCount: pending.length + messages.length + extra,
+            findChildIndexCallback: (key) => (byKey ??= {
+              for (var k = 0; k < messages.length; k++)
+                keyFor(messages[k].id): pending.length + k,
+            })[key],
+            itemBuilder: (context, i) {
+              if (i < pending.length) {
+                final p = pending[pending.length - 1 - i];
+                return GroupPendingBubble(
+                  pending: p,
+                  onRetry: () => onRetry(p.clientMessageId),
+                  onDiscard: () => onDiscard(p.clientMessageId),
+                );
+              }
+              final k = i - pending.length;
+              if (k >= messages.length) {
+                // Ask for the older page after this frame (never during build).
+                if (!state.loadingMore) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) => onMore());
+                }
+                return const Padding(
+                  padding: EdgeInsets.all(AppSpacing.md),
+                  child: Center(
+                    child: SizedBox.square(
+                      dimension: AppSizes.footerSpinner,
+                      child: CircularProgressIndicator(
+                        strokeWidth: AppSizes.footerSpinnerStroke,
+                      ),
+                    ),
+                  ),
+                );
+              }
+              final m = messages[k];
+              final older = k + 1 < messages.length ? messages[k + 1] : null;
+              final newer = k > 0 ? messages[k - 1] : null;
+              final newDay = older == null ||
+                  !DateUtils.isSameDay(
+                    older.createdAt.toLocal(),
+                    m.createdAt.toLocal(),
+                  );
+              bool sameRun(api.GroupMessageDto? other) =>
+                  other != null &&
+                  !other.isSystem &&
+                  other.sender?.userId == m.sender?.userId &&
+                  other.mine == m.mine;
+              final startsRun = newDay || !sameRun(older);
+              final endsRun = !sameRun(newer);
 
-        final Widget item;
-        if (m.isSystem) {
-          item = GroupSystemLine(text: groupSystemText(t, m));
-        } else {
-          item = GroupMessageBubble(
-            message: m,
-            groupId: detail.id,
-            showName: startsRun,
-            showAvatar: endsRun,
-            canClose: m.mine || detail.canDeleteOthers,
-            highlighted: highlightId == m.id,
-            selected: selected.contains(m.id),
-            onTap: onToggle == null ? null : () => onToggle!(m),
-            protectContent: detail.isProtected,
-            onMenu: () => onMenu(m),
-            onReply: canWrite && !m.deleted && onToggle == null
-                ? () => onReply(m)
-                : null,
-            onJump: onJump,
-            onPollChanged: (p) => onPollChanged(m, p),
-          );
-        }
-        return Column(
-          key: keyFor(m.id),
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (newDay) _DaySeparator(label: _dayLabel(t, f, m.createdAt)),
-            item,
-          ],
-        );
-      },
+              final Widget item;
+              if (m.isSystem) {
+                item = GroupSystemLine(text: groupSystemText(t, m));
+              } else {
+                item = GroupMessageBubble(
+                  message: m,
+                  groupId: detail.id,
+                  showName: startsRun,
+                  showAvatar: endsRun,
+                  canClose: m.mine || detail.canDeleteOthers,
+                  highlighted: highlightId == m.id,
+                  selected: selected.contains(m.id),
+                  onTap: onToggle == null ? null : () => onToggle!(m),
+                  protectContent: detail.isProtected,
+                  onMenu: () => onMenu(m),
+                  onReply: canWrite && !m.deleted && onToggle == null
+                      ? () => onReply(m)
+                      : null,
+                  onJump: onJump,
+                  onPollChanged: (p) => onPollChanged(m, p),
+                );
+              }
+              return Column(
+                key: keyFor(m.id),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (newDay)
+                    _DaySeparator(label: _dayLabel(t, f, m.createdAt)),
+                  item,
+                ],
+              );
+            },
+          ),
+        ),
+        ChatAnchorSliver(anchor: anchor),
+      ],
     );
   }
 }

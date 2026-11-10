@@ -19,8 +19,10 @@ import '../models/group_invite_preview_list_envelope.dart';
 import '../models/group_join_request_list_envelope.dart';
 import '../models/group_join_result_envelope.dart';
 import '../models/group_list_envelope.dart';
+import '../models/group_member_list_envelope.dart';
 import '../models/group_message_envelope.dart';
 import '../models/group_message_list_envelope.dart';
+import '../models/group_person_list_envelope.dart';
 import '../models/group_read_result_envelope.dart';
 import '../models/group_shared_kind.dart';
 import '../models/group_topic_envelope.dart';
@@ -149,10 +151,14 @@ abstract class GroupsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// New join link (the old one stops working)
-  @POST('/groups/{id}/invite/reset')
-  Future<GroupDetailEnvelope> resetGroupInvite({
+  /// Sweep B-c1: members page by page (owner, admins, then by join time).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/groups/{id}/members')
+  Future<GroupMemberListEnvelope> listGroupMembers({
     @Path('id') required String id,
+    @Query('limit') num? limit = 50,
+    @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -161,6 +167,13 @@ abstract class GroupsClient {
   Future<GroupDetailEnvelope> addGroupMembers({
     @Path('id') required String id,
     @Body() required AddGroupMembersDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// New join link (the old one stops working)
+  @POST('/groups/{id}/invite/reset')
+  Future<GroupDetailEnvelope> resetGroupInvite({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -334,6 +347,19 @@ abstract class GroupsClient {
   Future<PollEnvelope> closeGroupPoll({
     @Path('id') required String id,
     @Path('pollId') required String pollId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Sweep B-c1: one option's voters page by page (open polls only, oldest vote first).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/groups/{id}/polls/{pollId}/options/{optionId}/voters')
+  Future<GroupPersonListEnvelope> listGroupPollOptionVoters({
+    @Path('id') required String id,
+    @Path('pollId') required String pollId,
+    @Path('optionId') required String optionId,
+    @Query('limit') num? limit = 50,
+    @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -4,6 +4,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { RankingEventsService } from '../experiments/ranking-events.service';
 import { normalizeTerm, SYNONYMS_VERSION_KEY } from './search-synonyms.service';
 
 export type SearchScope = 'people' | 'cases' | 'posts' | 'practices';
@@ -30,6 +31,8 @@ export class SearchLogService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-11-08: searches and result opens feed the A/B report.
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {
     this.logger.setContext(SearchLogService.name);
   }
@@ -43,6 +46,12 @@ export class SearchLogService {
   ): void {
     const q = normalizeTerm(rawQuery).slice(0, 100);
     if (q.length < 3) return;
+    void this.rankingEvents?.logUserAction('search', {
+      userId,
+      surface: 'search',
+      itemId: scope,
+      value: results,
+    });
     void this.writeQuery(userId, scope, q, results).catch((e: unknown) =>
       this.logger.warn({ err: String(e) }, 'search query log skipped'),
     );
@@ -74,6 +83,7 @@ export class SearchLogService {
   ): Promise<void> {
     // Stability sweep 2026-11-02: three 500s on POST /search/clicks in a
     // week. A click is analytics; it must never fail the app's request.
+    void this.rankingEvents?.logClicks(userId, [targetId]);
     try {
       await this.writeClick(userId, rawQuery, targetType, targetId);
     } catch (e: unknown) {

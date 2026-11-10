@@ -179,7 +179,10 @@ resource "aws_db_instance" "replica" {
   deletion_protection        = var.rds_deletion_protection
   auto_minor_version_upgrade = true
 
-  performance_insights_enabled          = true
+  performance_insights_enabled = true
+  # B-c17: replicas stay in the free standard mode of Database Insights; the
+  # paid advanced mode is a primary-side decision (stack database_insights_advanced).
+  database_insights_mode                = "standard"
   performance_insights_retention_period = 7 # free tier
   performance_insights_kms_key_id       = var.rds_kms_key_arn != "" ? var.rds_kms_key_arn : var.kms_key_arn
   monitoring_interval                   = 60

@@ -13,6 +13,7 @@ import 'package:lawbid/features/cases/presentation/widgets/reauth_gate_view.dart
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/profile/application/delete_account_controller.dart';
 import 'package:lawbid/features/profile/domain/delete_account_step.dart';
+import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart';
 import 'package:lawbid/features/settings/data_export/application/data_export_providers.dart';
 import 'package:lawbid/features/settings/data_export/data/data_export_repository.dart';
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
@@ -32,6 +33,10 @@ class _Repo extends StubAuthRepository {
   int demoCalls = 0;
   final List<String> otpRequests = [];
   String? deletedWith;
+  int clearedAfterDeletion = 0;
+
+  @override
+  Future<void> clearAfterDeletion() async => clearedAfterDeletion++;
 
   @override
   Future<ReauthResult> reauthDemo() async {
@@ -195,6 +200,28 @@ void main() {
         c.read(deleteAccountControllerProvider).step,
         DeleteAccountStep.done,
       );
+    });
+
+    test(
+        'sweep C-c13 D8: the session is dropped only after the «deleted» '
+        'screen, once', () async {
+      final repo = _Repo();
+      final c = container(repo, demo: true);
+      final ctrl = c.read(deleteAccountControllerProvider.notifier);
+      await ctrl.acknowledgeWarning();
+      expect(await ctrl.submitDeletion(), isTrue);
+      expect(repo.clearedAfterDeletion, 0);
+      await ctrl.finishDeletion();
+      await ctrl.finishDeletion();
+      expect(repo.clearedAfterDeletion, 1);
+    });
+
+    test('sweep C-c13 D1: the code goes to a number of any country', () {
+      expect(deleteReauthE164('2015550123'), '+12015550123');
+      expect(deleteReauthE164('996555123456'), '+996555123456');
+      expect(deleteReauthE164('12015550123'), '+12015550123');
+      expect(deleteReauthE164('12345'), isNull);
+      expect(deleteReauthE164('1234567890123456'), isNull);
     });
 
     test('demo: a refused or expired token goes back to the warning', () async {

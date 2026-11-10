@@ -160,14 +160,24 @@ class ChatTextWithMeta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final span = TextSpan(children: spans, style: style);
+    // Audit 26.10 W4: measure exactly what `Text.rich` draws — the span
+    // under the screen's default text style (Material's body style adds
+    // letter spacing), else the last line comes out wider than measured
+    // and runs under the time.
+    final base = DefaultTextStyle.of(context);
     return LayoutBuilder(
       builder: (context, c) {
         final max =
             c.maxWidth.isFinite ? c.maxWidth : MediaQuery.sizeOf(context).width;
         final tp = TextPainter(
-          text: span,
+          text: TextSpan(style: base.style, children: [span]),
+          textAlign: base.textAlign ?? TextAlign.start,
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
+          locale: Localizations.maybeLocaleOf(context),
+          textWidthBasis: base.textWidthBasis,
+          textHeightBehavior: base.textHeightBehavior ??
+              DefaultTextHeightBehavior.maybeOf(context),
         )..layout(maxWidth: max);
         final lines = tp.computeLineMetrics();
         final lastW = lines.isEmpty ? 0.0 : lines.last.width;
@@ -213,9 +223,11 @@ double chatMetaWidth(
   double iconSize = 15,
 }) {
   var w = 0.0;
+  // The labels are drawn as `Text`, under the default text style (W4).
+  final base = DefaultTextStyle.of(context).style.merge(style);
   for (final l in labels) {
     final p = TextPainter(
-      text: TextSpan(text: l, style: style),
+      text: TextSpan(text: l, style: base),
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
       maxLines: 1,

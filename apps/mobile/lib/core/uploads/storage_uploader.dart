@@ -252,16 +252,25 @@ class StorageUploader {
 
   /// Files at least this big go in parts that can be continued after an
   /// interruption (server flag `files_multipart`; mirrors the server's
-  /// MIN_MULTIPART_BYTES).
-  static const resumableThresholdBytes = 16 * 1024 * 1024;
+  /// MIN_MULTIPART_BYTES). Owner 2026-11-09: every file S3 / R2 can cut —
+  /// over one 5 MiB part (the S3 minimum part size); up to 5 MiB one PUT is
+  /// the fastest.
+  static const resumableThresholdBytes = 5 * 1024 * 1024 + 1;
 
-  /// R-251 / R-253: the most parts in flight at once, the default of AWS's
+  /// R-251 / R-253: where the parts in flight start, the default of AWS's
   /// own uploader (`queueSize` in @aws-sdk/lib-storage, Apache-2.0), which is
   /// the model of the loop in [putResumable]. The real number comes from
   /// [AdaptiveLimiter]: the admin's `client.uploads_at_once`, less on mobile
-  /// data, a weak phone or after a failure. A file body streams each part
-  /// from disk, so this does not grow the phone's memory.
+  /// data, a weak phone or after a failure, and (owner 2026-11-09) more —
+  /// up to `client.upload_parts_max` — while the speed keeps growing
+  /// ([ThroughputClimb]). A file body streams each part from disk, so this
+  /// does not grow the phone's memory.
   static const partsAtOnce = 4;
+
+  /// Whole files a screen sends at once, app-wide (`client.uploads_at_once`,
+  /// lowered on a weak network like the parts).
+  static final AdaptiveLimiter filesAtOnce =
+      AdaptiveLimiter(() => ClientTuning.uploadsAtOnce);
   final Duration scanPoll;
   final int scanMaxPolls;
 
@@ -272,6 +281,44 @@ class StorageUploader {
     required int sizeBytes,
     required String sha256,
     bool acceptsExisting = false,
+  }) async {
+    // Owner 2026-11-08: public photos never go to AWS once the switch is R2;
+    // while R2 is not ready the server answers 503 FILE_STORAGE_UNAVAILABLE
+    // with a wait. The photo waits here quietly a few times (the queue keeps
+    // retrying after that) instead of failing at once.
+    for (var attempt = 0;; attempt++) {
+      try {
+        return await _presignOnce(
+          purpose: purpose,
+          mime: mime,
+          sizeBytes: sizeBytes,
+          sha256: sha256,
+          acceptsExisting: acceptsExisting,
+        );
+      } on ApiException catch (e) {
+        if (e.code != ApiErrorCodes.fileStorageUnavailable ||
+            attempt >= storageBusyRetries) {
+          rethrow;
+        }
+        final s = (e.details?['retryAfterSeconds'] as num?)?.toInt() ?? 30;
+        await Future<void>.delayed(storageBusyWait(s));
+      }
+    }
+  }
+
+  /// Quiet waits for a busy photo storage before the error is shown.
+  static int storageBusyRetries = 3;
+
+  /// How long one wait lasts (at most 30 s); overridable in tests.
+  static Duration Function(int seconds) storageBusyWait =
+      (s) => Duration(seconds: s.clamp(1, 30));
+
+  Future<StorageTarget> _presignOnce({
+    required api.FilePurpose purpose,
+    required String mime,
+    required int sizeBytes,
+    required String sha256,
+    required bool acceptsExisting,
   }) async {
     final d = (await guardApiCall(
       () => _files.presign(
@@ -391,6 +438,7 @@ class StorageUploader {
   }) async {
     final partSize = plan.partSizeBytes.toInt();
     final next = plan.parts.iterator;
+    final climb = ThroughputClimb(_limiter);
     final inFlight = <int, int>{};
     var finished = plan.uploadedParts.length * partSize;
     void report() {
@@ -420,11 +468,13 @@ class StorageUploader {
             start,
             end,
             cancel: stop,
+            onStart: climb.started,
             onBytes: (n) {
               inFlight[number] = n;
               report();
             },
           );
+          climb.finished(end - start);
         } on Object {
           if (!stop.isCancelled) stop.cancel('another part failed');
           rethrow;
@@ -436,7 +486,9 @@ class StorageUploader {
     }
 
     await Future.wait([
-      for (var i = 0; i < math.min(partsAtOnce, plan.parts.length); i++)
+      // As many workers as the ceiling: the limiter decides how many of them
+      // send at a time.
+      for (var i = 0; i < math.min(_limiter.ceiling, plan.parts.length); i++)
         worker(),
     ]);
     // The caller's cancel while the last part was finishing still counts.
@@ -458,20 +510,24 @@ class StorageUploader {
     int end, {
     CancelToken? cancel,
     void Function(int sent)? onBytes,
+    void Function()? onStart,
     int attempts = 4,
   }) async {
     for (var failures = 0;; failures++) {
       try {
         await _limiter.run(
-          () => storage.put<void>(
-            url,
-            data: body.openRange(start, end),
-            options: Options(
-              headers: {Headers.contentLengthHeader: end - start},
-            ),
-            cancelToken: cancel,
-            onSendProgress: (sent, _) => onBytes?.call(sent),
-          ),
+          () {
+            onStart?.call();
+            return storage.put<void>(
+              url,
+              data: body.openRange(start, end),
+              options: Options(
+                headers: {Headers.contentLengthHeader: end - start},
+              ),
+              cancelToken: cancel,
+              onSendProgress: (sent, _) => onBytes?.call(sent),
+            );
+          },
         );
         _partsWorked = true;
         return;
@@ -615,10 +671,7 @@ class StorageUploader {
         final forget = _forgetTransfer;
         final nothingThere = e.code == ApiErrorCodes.fileNotUploaded ||
             e.code == ApiErrorCodes.notFound;
-        if (!nothingThere ||
-            attempt > 0 ||
-            taskId == null ||
-            forget == null) {
+        if (!nothingThere || attempt > 0 || taskId == null || forget == null) {
           rethrow;
         }
         await forget(taskId);
@@ -641,25 +694,38 @@ class StorageUploader {
   }) async {
     // A big file goes in resumable parts when the server offers it (and the
     // caller did not pick its own transport, e.g. the background queue).
-    final resumed = transport == null &&
-        _partsGate == null &&
-        await putResumable(
-          target.fileId,
+    Future<void> send() async {
+      final resumed = transport == null &&
+          _partsGate == null &&
+          await putResumable(
+            target.fileId,
+            body,
+            onProgress: onProgress,
+            cancel: cancel,
+          );
+      if (!resumed) {
+        await put(
+          target,
           body,
+          mime: mime,
+          filename: filename,
           onProgress: onProgress,
           cancel: cancel,
+          transport: transport,
+          taskId: taskId,
         );
-    if (!resumed) {
-      await put(
-        target,
-        body,
-        mime: mime,
-        filename: filename,
-        onProgress: onProgress,
-        cancel: cancel,
-        transport: transport,
-        taskId: taskId,
-      );
+      }
+    }
+
+    // Owner 2026-11-08: files a screen sends (post and review photos, case
+    // and support files) travel at most `client.uploads_at_once` at a time,
+    // app-wide; the rest wait their turn. Queue jobs have their own limit.
+    // Only the bytes hold a place, the server's check does not.
+    if (transport == null && taskId == null) {
+      filesAtOnce.restoreIfIdle();
+      await filesAtOnce.run(send);
+    } else {
+      await send();
     }
     await waitClean(
       target.fileId,

@@ -672,3 +672,22 @@ String systemLineText(Translator t, String body, {L10nFormats? formats}) {
       '\$${(cents / 100).toStringAsFixed(2)}';
   return t.t('chat.system.$key', {'amount': amount});
 }
+
+/// Instagram / Telegram: one entry per person, however many chats (a direct
+/// one and case chats) we have with them; the most recent chat wins. Chats
+/// with no known person id stay as they are. Used by the share and forward
+/// sheets.
+List<Conversation> onePerPerson(List<Conversation> chats) {
+  DateTime at(Conversation c) => c.lastMessageAt ?? c.updatedAt;
+  final newest = <String, Conversation>{};
+  for (final c in chats) {
+    final id = c.counterpart.id;
+    if (id == null) continue;
+    final cur = newest[id];
+    if (cur == null || at(c).isAfter(at(cur))) newest[id] = c;
+  }
+  return [
+    for (final c in chats)
+      if (c.counterpart.id == null || identical(newest[c.counterpart.id], c)) c,
+  ];
+}

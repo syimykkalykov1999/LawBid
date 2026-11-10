@@ -92,6 +92,7 @@ export function AttorneysList({ canManage }: { canManage: boolean }) {
         min: 3,
         max: TRUST_NOTE_MAX,
         confirm: 'Сменить статус',
+        textRequired: true,
       });
       if (!a) return null;
       const next = (a.choice ?? MANUAL_STATUSES[0]) as ManualStatus;

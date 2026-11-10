@@ -100,6 +100,8 @@ abstract final class ApiErrorCodes {
   static const roleSwitchBlocked = 'ROLE_SWITCH_BLOCKED';
   static const roleSwitchNotAllowed = 'ROLE_SWITCH_NOT_ALLOWED';
   static const notImplemented = 'NOT_IMPLEMENTED';
+  // Admin «send a test e-mail to myself»: the mail provider refused (502).
+  static const emailSendFailed = 'EMAIL_SEND_FAILED';
 
   // i18n (docs/01 §9, stage 1.6)
   static const i18nLanguageNotFound = 'I18N_LANGUAGE_NOT_FOUND';
@@ -107,6 +109,7 @@ abstract final class ApiErrorCodes {
 
   // Cost protection (docs/COST_PROTECTION.md)
   static const providerBudgetExceeded = 'PROVIDER_BUDGET_EXCEEDED';
+  static const identityProviderUnavailable = 'IDENTITY_PROVIDER_UNAVAILABLE';
   static const phoneCountryNotSupported = 'PHONE_COUNTRY_NOT_SUPPORTED';
 
   // Countries (owner 2026-10-05): LawBid is not open there yet.
@@ -416,9 +419,11 @@ abstract final class ApiErrorCodes {
     roleSwitchBlocked,
     roleSwitchNotAllowed,
     notImplemented,
+    emailSendFailed,
     i18nLanguageNotFound,
     i18nImportInvalid,
     providerBudgetExceeded,
+    identityProviderUnavailable,
     phoneCountryNotSupported,
     countryNotAvailable,
     reviewCaseNotClosed,

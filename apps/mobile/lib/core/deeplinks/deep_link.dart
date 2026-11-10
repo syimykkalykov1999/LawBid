@@ -260,10 +260,60 @@ String? _sharedPostId(Uri uri) {
 ///   (for the custom scheme the "host" is the first path segment);
 /// - `https://<host>/auth/email-code?…`, `https://<host>/case/<id>` … where
 ///   `<host>` is [host] or `www.<host>` (universal / App Links).
+///
+/// Web (owner 2026-11-08, like Instagram and Telegram Web): when [webTabs]
+/// and [appLocation] are given, any other address the app itself can show
+/// (a settings page, a chat, a case …) is kept as a [TabDeepLink] too, so
+/// a reload or a typed / bookmarked address opens that screen after the
+/// splash instead of the feed. [appLocation] answers whether the router
+/// has a screen for a path; sign-in, onboarding and the splash are never
+/// restored (the guard owns them).
 DeepLink? parseDeepLink(
   Uri uri, {
   required String host,
   bool webTabs = false,
+  bool Function(String path)? appLocation,
+}) {
+  final known = _parseKnown(uri, host: host, webTabs: webTabs);
+  if (known != null || !webTabs || appLocation == null) return known;
+  return _webLocation(uri, host: host, appLocation: appLocation);
+}
+
+/// Entry screens the guard decides on its own; never restored from an
+/// address.
+const _notRestored = [
+  '/splash',
+  '/auth',
+  '/onboarding',
+  '/welcome',
+  '/legal-accept',
+];
+
+DeepLink? _webLocation(
+  Uri uri, {
+  required String host,
+  required bool Function(String path) appLocation,
+}) {
+  final scheme = uri.scheme.toLowerCase();
+  if (scheme != 'https' && !(scheme == 'http' && _isLoopback(uri.host))) {
+    return null;
+  }
+  final linkHost = uri.host.toLowerCase();
+  final expected = host.toLowerCase();
+  if (linkHost != expected && linkHost != 'www.$expected') return null;
+  final path = uri.path;
+  if (path.isEmpty || path == '/' || path.length > 512) return null;
+  if (_notRestored.any((p) => path == p || path.startsWith('$p/'))) {
+    return null;
+  }
+  if (!appLocation(path)) return null;
+  return TabDeepLink(uri.hasQuery ? '$path?${uri.query}' : path);
+}
+
+DeepLink? _parseKnown(
+  Uri uri, {
+  required String host,
+  required bool webTabs,
 }) {
   final List<String> segments;
   final scheme = uri.scheme.toLowerCase();

@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart' show Size;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -237,7 +237,8 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
     required ReelCut cut,
     String? jobId,
   }) async {
-    if (kIsWeb) return null;
+    // Owner 2026-11-08: the browser re-encodes too (WebCodecs), or keeps the
+    // original when it cannot.
     final limits = videoLimitsOf(ref.read(featureFlagsControllerProvider));
     final need = needsVideoCompression(
       shortSide: math.min(previewSize.width, previewSize.height).round(),
@@ -460,7 +461,10 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
     var post = created;
     final until = DateTime.now().add(const Duration(minutes: 20));
     while (post.video != null && !post.video!.ready) {
-      if (post.video!.status == 'failed') {
+      // Prod 2026-11-09: `rejected` (too long / too large) is final too;
+      // before, it spun «processing» until the 20-minute limit.
+      final status = post.video!.status;
+      if (status == 'failed' || status == 'rejected') {
         throw StateError('video processing failed');
       }
       if (DateTime.now().isAfter(until)) {
