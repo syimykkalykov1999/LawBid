@@ -19,6 +19,8 @@ interface Opts {
   awsForecast?: number | null;
   /** The AWS budget (AWS Budgets limit), default $200. */
   awsBudget?: number;
+  /** economy.aws_cap_usd (owner 2026-11-09); 0 = no money ceiling. */
+  awsCap?: number;
   /** Owner 2026-11-08: a fresh Twilio reading with this month forecast,
    * the simplest third-party spend. */
   thirdPartyForecast?: number;
@@ -106,6 +108,8 @@ function setup(o: Opts = {}) {
     'scale.endpoints.mode': 'auto',
     'scale.endpoints.ceiling': 4,
     'economy.aws_fallback_usd': 150,
+    // The owner's sum; the older cases ran with the AWS budget as the cap.
+    'economy.aws_cap_usd': o.awsCap ?? o.awsBudget ?? 200,
   };
   const settings = {
     number: jest.fn(async (k: string) => settingValues[k] as number),
@@ -510,8 +514,22 @@ describe('EconomyService.tick', () => {
     (on.svc as unknown as { flags: { isEnabled: jest.Mock } }).flags.isEnabled =
       jest.fn(async () => false);
     const res = await on.svc.tick(NOW);
-    expect(res).toEqual({ skipped: 'flag economy_guard is off' });
+    expect(res).toMatchObject({ skipped: 'flag economy_guard is off' });
     expect(on.state()?.guard).toBe('ok');
+  });
+
+  it('owner 2026-11-09: switched off, it lifts the ceilings it left behind to the Terraform maximum', async () => {
+    const t = setup({ awsActual: 50, awsForecast: 100 });
+    await t.ops.setCeiling({
+      api: 3,
+      worker: 1,
+      mode: 'auto',
+      at: NOW.toISOString(),
+    });
+    (t.svc as unknown as { flags: { isEnabled: jest.Mock } }).flags.isEnabled =
+      jest.fn(async () => false);
+    await t.svc.tick(NOW);
+    expect(t.aws.setCeilings).toHaveBeenLastCalledWith({ api: 50, worker: 20 });
   });
 
   it('leaves a ceiling the owner or the AWS budget capped alone', async () => {
@@ -553,6 +571,23 @@ describe('EconomyService.tick', () => {
     });
     await t.svc.tick(NOW);
     expect(t.aws.setCeilings).toHaveBeenLastCalledWith({ api: 9, worker: 7 });
+  });
+
+  it('owner 2026-11-09: no sum typed = the Terraform maximum at once, no AWS brake', async () => {
+    const t = setup({
+      awsCap: 0,
+      awsActual: 400,
+      awsForecast: 900, // far over the $200 AWS Budgets alert
+    });
+    await t.ops.setCeiling({
+      api: 3,
+      worker: 1,
+      mode: 'auto',
+      at: NOW.toISOString(),
+    });
+    await t.svc.tick(NOW);
+    expect(t.aws.setScale).not.toHaveBeenCalledWith('min');
+    expect(t.aws.setCeilings).toHaveBeenLastCalledWith({ api: 50, worker: 20 });
   });
 
   it('manual mode: the owner number, clamped to the Terraform cap', async () => {
@@ -673,8 +708,8 @@ describe('EconomyService: two brakes, each braking only what it controls (owner 
     expect(t.scale()).toMatchObject({ mode: 'normal', source: 'economy' });
   });
 
-  it('DB / Redis money ceilings follow the AWS budget, not the third-party allowance', async () => {
-    const t = setup({ awsActual: 50, awsForecast: 100, awsBudget: 450 });
+  it('DB / Redis money ceilings follow the owner sum, not the third-party allowance', async () => {
+    const t = setup({ awsActual: 50, awsForecast: 100, awsCap: 450 });
     const ssm = {
       available: true,
       maxClassParam: jest.fn((target: string) => `/p/${target}`),
@@ -687,7 +722,7 @@ describe('EconomyService: two brakes, each braking only what it controls (owner 
     ).settingsSvc.string = jest.fn(async () => 'auto');
     await t.svc.tick(NOW);
     expect(t.logger.info).toHaveBeenCalledWith(
-      expect.objectContaining({ awsLimitUsd: 450 }),
+      expect.objectContaining({ awsCapUsd: 450 }),
       'autoscale money ceiling updated',
     );
   });

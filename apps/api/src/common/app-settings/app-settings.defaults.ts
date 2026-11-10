@@ -1306,8 +1306,10 @@ export const OWNER_OPS_SETTINGS = {
   'db.bloat_mode': 'auto',
   'db.bloat_scan_max_mb': 256,
   /** AWS spend reached the monthly budget → api/worker autoscaling capped
-   * at the minimum until the next month (or until the owner lifts it). */
-  'ops.auto_scale_down_on_budget': true,
+   * at the minimum until the next month (or until the owner lifts it).
+   * Owner 2026-11-09: off — no money stop he did not order; the AWS Budgets
+   * alert still e-mails. His own sum is economy.aws_cap_usd. */
+  'ops.auto_scale_down_on_budget': false,
   /** The newest database backup (provider API) older than this → alert. */
   'ops.backup_max_age_hours': 26,
   /** Hidden-cost switches (Round 20, 2026-10-25). Each is off | on | auto;
@@ -1358,6 +1360,10 @@ export const OWNER_OPS_SETTINGS = {
   /** Autoscaling ceiling: 'auto' (follows the rule above) or 'manual'
    * (the numbers below, always within the Terraform cap). */
   'economy.ceiling_mode': 'auto',
+  /** Owner 2026-11-09: the AWS money ceiling, $ a month. 0 = none — the
+   * servers, the database and Redis grow by load up to the Terraform
+   * maximum. A sum here caps that growth to what it pays for. */
+  'economy.aws_cap_usd': 0,
   'economy.manual_api_max': 4,
   'economy.manual_worker_max': 2,
   /** S9-4: the global daily money brake = allowed spend / 30 × this many
