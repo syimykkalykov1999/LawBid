@@ -781,6 +781,13 @@ export class S3StorageService implements OnModuleDestroy {
     key: string,
     body: Buffer,
     contentType: string,
+    /**
+     * C-c11 (2026-11-09): S3 Object Lock retention of this one object
+     * (COMPLIANCE: nobody, root included, deletes or shortens it before
+     * the date). Only for a bucket with Object Lock enabled (Terraform
+     * documents_object_lock); S3 refuses the headers otherwise.
+     */
+    lock?: { retainUntil: Date },
   ): Promise<void> {
     await this.refresh();
     const client = this.clientFor(bucket);
@@ -791,6 +798,12 @@ export class S3StorageService implements OnModuleDestroy {
         Body: body,
         ContentType: contentType,
         CacheControl: this.cacheControlFor(bucket),
+        ...(lock
+          ? {
+              ObjectLockMode: 'COMPLIANCE' as const,
+              ObjectLockRetainUntilDate: lock.retainUntil,
+            }
+          : {}),
       }),
     );
   }

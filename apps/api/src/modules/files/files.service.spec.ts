@@ -277,6 +277,8 @@ describe('FilesService', () => {
           bucket: 'lawbid-r2',
           size: 500,
           contentType: 'image/jpeg',
+          // D-c1: the link writes under staging/ only.
+          key: expect.stringMatching(/^staging\/post_image\//),
         }),
       );
       expect(deps.storage.presignPost).not.toHaveBeenCalled();
@@ -411,8 +413,11 @@ describe('FilesService', () => {
       });
       expect(deps.storage.presignPost).toHaveBeenCalledWith({
         bucket: 'lawbid-documents',
+        // D-c1: the link writes under staging/ only.
         key: expect.stringMatching(
-          new RegExp(`^verification_document/s0/\\d{4}/\\d{2}/${res.fileId}$`),
+          new RegExp(
+            `^staging/verification_document/s0/\\d{4}/\\d{2}/${res.fileId}$`,
+          ),
         ),
         contentType: 'application/pdf',
         size: 1234,
@@ -445,7 +450,7 @@ describe('FilesService', () => {
         expect.any(Number),
         expect.stringMatching(
           new RegExp(
-            `^${res.fileId}\\|lawbid-documents\\|verification_document/s0/\\d{4}/\\d{2}/${res.fileId}$`,
+            `^${res.fileId}\\|lawbid-documents\\|staging/verification_document/s0/\\d{4}/\\d{2}/${res.fileId}$`,
           ),
         ),
       );
@@ -1355,7 +1360,9 @@ describe('confirm keeps a copy no upload link can write (security audit 2026-11-
     Buffer.alloc(200, 0x20),
   ]);
   const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
-  const UPLOAD_KEY = 'chat_attachment/s0/2026/11/f1';
+  // D-c1: the link wrote under staging/; the copy lives outside it.
+  const FINAL_KEY = 'chat_attachment/s0/2026/11/f1';
+  const UPLOAD_KEY = `staging/${FINAL_KEY}`;
   const setup = (opts: { data?: Buffer; claimed?: string } = {}) => {
     const { service, deps } = make();
     const data = opts.data ?? pdf;
@@ -1419,12 +1426,13 @@ describe('confirm keeps a copy no upload link can write (security audit 2026-11-
     expect(deps.storage.copy).toHaveBeenCalledWith(
       'lawbid-documents',
       UPLOAD_KEY,
-      expect.stringMatching(new RegExp(`^${UPLOAD_KEY}_s[0-9a-f]{8}$`)),
+      expect.stringMatching(new RegExp(`^${FINAL_KEY}_s[0-9a-f]{8}$`)),
       // L5: the staging object was `no-store`; the stored copy gets the
       // bucket's own Cache-Control and the checked type.
       { contentType: 'application/pdf', cacheControl: 'private, max-age=300' },
     );
     const key = copiedKey(deps);
+    expect(key.startsWith('staging/')).toBe(false);
     expect(read).toHaveBeenCalledWith('lawbid-documents', key);
     expect(create).toHaveBeenCalledWith({
       data: expect.objectContaining({ s3_key: key }),
@@ -1684,5 +1692,74 @@ describe('confidential file links (security & legal pass 2026-10-24)', () => {
     expect(access.recordViews).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'c1', owner_user_id: 'owner' }),
     ]);
+  });
+});
+
+/**
+ * C-c11 (2026-11-09): with S3 Object Lock on the documents bucket
+ * (Terraform documents_object_lock → env S3_OBJECT_LOCK_RETENTION_DAYS)
+ * the sealed deal-record PDF is written with a COMPLIANCE retention; any
+ * other generated file, and every file while the switch is off, is not.
+ */
+describe('storeGenerated({ sealed }) and Object Lock (C-c11)', () => {
+  const pdf = Buffer.from('%PDF-1.7\nsealed\n');
+  const withLockDays = (days: string | undefined) => {
+    const { service, deps } = make();
+    deps.config.get.mockImplementation((k: string) =>
+      k === 'S3_OBJECT_LOCK_RETENTION_DAYS' ? days : undefined,
+    );
+    Object.assign(deps.storage, {
+      put: jest.fn().mockResolvedValue(undefined),
+    });
+    Object.assign(deps.prisma.file, {
+      create: jest.fn().mockResolvedValue({ id: 'f' }),
+    });
+    return { service, deps };
+  };
+  const lockArg = (deps: ReturnType<typeof make>['deps']): unknown =>
+    (deps.storage as unknown as { put: jest.Mock }).put.mock.calls[0][4];
+
+  it('a sealed record gets COMPLIANCE retention of the configured days', async () => {
+    const { service, deps } = withLockDays('2555');
+    const before = Date.now();
+    await service.storeGenerated(
+      'u1',
+      'case_attachment',
+      pdf,
+      'application/pdf',
+      {
+        sealed: true,
+      },
+    );
+    const lock = lockArg(deps) as { retainUntil: Date };
+    const days = (lock.retainUntil.getTime() - before) / 86_400_000;
+    expect(days).toBeGreaterThan(2554.9);
+    expect(days).toBeLessThan(2555.1);
+  });
+
+  it('an ordinary generated file is never locked', async () => {
+    const { service, deps } = withLockDays('2555');
+    await service.storeGenerated(
+      'u1',
+      'case_attachment',
+      pdf,
+      'application/pdf',
+    );
+    expect(lockArg(deps)).toBeUndefined();
+  });
+
+  it('switch off (no env): a sealed record is stored as any other file', async () => {
+    const { service, deps } = withLockDays(undefined);
+    await service.storeGenerated(
+      'u1',
+      'case_attachment',
+      pdf,
+      'application/pdf',
+      {
+        sealed: true,
+      },
+    );
+    expect(lockArg(deps)).toBeUndefined();
+    expect(service.objectLockRetentionDays()).toBe(0);
   });
 });

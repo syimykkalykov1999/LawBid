@@ -51,6 +51,7 @@ import {
   mayUsePublicStore,
   UPLOAD_INTENT_TTL_SEC,
   newFileKey,
+  stagingKey,
   storedKey,
   variantKey,
   avifKey,
@@ -278,9 +279,12 @@ export class FilesService {
     await this.assertDemoQuota(userId, dto.sizeBytes);
 
     const fileId = randomUUID();
-    const key =
+    // D-c1 (2026-11-09): the link writes only under `staging/`; the object
+    // the row points at is the copy `confirm` makes outside it (storedKey).
+    const key = stagingKey(
       demoKeyPrefix() +
-      newFileKey({ purpose: dto.purpose, ownerId: userId, fileId });
+        newFileKey({ purpose: dto.purpose, ownerId: userId, fileId }),
+    );
     const target = {
       bucket,
       key,
@@ -1556,6 +1560,14 @@ export class FilesService {
     purpose: FilePurpose,
     data: Buffer,
     mime: FileMime,
+    /**
+     * C-c11 (2026-11-09): `sealed` = a record nobody may delete or rewrite
+     * (the signed deal-record PDF). With S3 Object Lock on the documents
+     * bucket (Terraform documents_object_lock → env
+     * S3_OBJECT_LOCK_RETENTION_DAYS) the object gets a COMPLIANCE retention
+     * of that many days; without it the file is stored as any other.
+     */
+    opts: { sealed?: boolean } = {},
   ): Promise<File> {
     const rule = PURPOSE_RULES[purpose];
     const fileId = randomUUID();
@@ -1573,7 +1585,16 @@ export class FilesService {
     await this.costGuard.consume('storage');
     const key =
       demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
-    await this.storage.put(bucket, key, data, mime);
+    const retainDays = opts.sealed ? this.objectLockRetentionDays() : 0;
+    await this.storage.put(
+      bucket,
+      key,
+      data,
+      mime,
+      retainDays > 0
+        ? { retainUntil: new Date(Date.now() + retainDays * 86_400_000) }
+        : undefined,
+    );
     const sha256 = createHash('sha256').update(data).digest('hex');
     return this.prisma.file.create({
       data: {
@@ -1589,6 +1610,15 @@ export class FilesService {
         scan_status: 'clean',
       },
     });
+  }
+
+  /** C-c11: days of Object Lock retention for sealed records; 0 = the
+   * documents bucket has no Object Lock (local, MinIO, R2, or the Terraform
+   * switch off). */
+  objectLockRetentionDays(): number {
+    const raw = this.config.get<string>('S3_OBJECT_LOCK_RETENTION_DAYS');
+    const days = Number.parseInt(raw ?? '', 10);
+    return Number.isFinite(days) && days > 0 ? days : 0;
   }
 
   /** The bytes of a live, clean file (server-side reads: hashing a PDF
