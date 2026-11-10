@@ -360,6 +360,66 @@ class ApiSocialRepository implements SocialRepository {
   static const _scanPoll = Duration(seconds: 1);
   static const _scanMaxPolls = 30;
 
+  // --- Posts deleted on this phone (app audit 2026-10-26 C20) -------------
+  //
+  // The feed and a profile tab open on the phone's copy of their first page,
+  // saved before a delete; after a restart the deleted post came back for a
+  // second. Their ids are kept on the disk for a week (longer than any copy
+  // lives) and left out of every such page.
+  static const _goneFor = Duration(days: 7);
+  Future<Map<String, DateTime>>? _gone;
+
+  String? get _goneKey => _ownerId == null ? null : 'deleted-posts:$_ownerId';
+
+  Future<Map<String, DateTime>> _goneIds() => _gone ??= _readGone();
+
+  Future<Map<String, DateTime>> _readGone() async {
+    final key = _goneKey;
+    if (key == null) return {};
+    try {
+      final json = await _local.pageJson(key);
+      if (json == null) return {};
+      final now = DateTime.now();
+      return {
+        for (final e in (jsonDecode(json) as Map<String, dynamic>).entries)
+          if (DateTime.tryParse('${e.value}') case final at?
+              when now.difference(at) < _goneFor)
+            e.key: at,
+      };
+    } on Object {
+      return {};
+    }
+  }
+
+  Future<void> _rememberGone(String id) async {
+    final key = _goneKey;
+    if (key == null) return;
+    try {
+      final gone = await _goneIds();
+      gone[id] = DateTime.now();
+      await _local.savePage(
+        key,
+        jsonEncode({
+          for (final e in gone.entries) e.key: e.value.toIso8601String(),
+        }),
+      );
+    } on Object catch (e) {
+      debugPrint('deleted posts write: $e');
+    }
+  }
+
+  Future<CursorPage<Post>> _withoutGone(CursorPage<Post> page) async {
+    final gone = await _goneIds();
+    if (gone.isEmpty) return page;
+    final kept = [
+      for (final p in page.items)
+        if (!gone.containsKey(p.id)) p,
+    ];
+    return kept.length == page.items.length
+        ? page
+        : CursorPage(items: kept, nextCursor: page.nextCursor);
+  }
+
   @override
   Future<CursorPage<Post>> feed({String? cursor}) async {
     final env = await guardApiCall(() => _feed.getFeed(cursor: cursor));
@@ -404,7 +464,9 @@ class ApiSocialRepository implements SocialRepository {
         jsonDecode(json) as Map<String, dynamic>,
       );
       // Offline: no next page to load.
-      return CursorPage(items: env.data.map(SocialMappers.post).toList());
+      return await _withoutGone(
+        CursorPage(items: env.data.map(SocialMappers.post).toList()),
+      );
     } on Object {
       return null;
     }
@@ -440,9 +502,12 @@ class ApiSocialRepository implements SocialRepository {
         },
       ),
     );
-    return CursorPage(
-      items: env.data.map(SocialMappers.post).toList(),
-      nextCursor: env.meta?.nextCursor,
+    // C20: also the phone's copy of a profile tab (readFromPhoneOnly).
+    return _withoutGone(
+      CursorPage(
+        items: env.data.map(SocialMappers.post).toList(),
+        nextCursor: env.meta?.nextCursor,
+      ),
     );
   }
 
@@ -634,8 +699,10 @@ class ApiSocialRepository implements SocialRepository {
       );
 
   @override
-  Future<void> deletePost(String id) =>
-      guardApiCall(() => _posts.deletePost(id: id));
+  Future<void> deletePost(String id) async {
+    await guardApiCall(() => _posts.deletePost(id: id));
+    await _rememberGone(id);
+  }
 
   @override
   Future<Post> pinPost(String id, int slot) async => SocialMappers.post(

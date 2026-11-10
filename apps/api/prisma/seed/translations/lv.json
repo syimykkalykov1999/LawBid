@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Turiet nospiestu mikrofona pogu, lai ierakstītu",
   "chat.voice.label": "Balss ziņa",
   "chat.voice.noMic": "Nav piekļuves mikrofonam. Atļaujiet to tālruņa iestatījumos.",
+  "chat.voice.noMicWeb": "Nav piekļuves mikrofonam. Atļaujiet to pārlūka vietnes iestatījumos.",
   "chat.voice.pause": "Pauze",
   "chat.voice.pauseRec": "Pauzēt ierakstīšanu",
   "chat.voice.play": "Atskaņot",

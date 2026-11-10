@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Palaikykite mikrofono mygtuką, kad įrašytumėte",
   "chat.voice.label": "Balso žinutė",
   "chat.voice.noMic": "Nėra prieigos prie mikrofono. Leiskite ją telefono nustatymuose.",
+  "chat.voice.noMicWeb": "Nėra prieigos prie mikrofono. Leiskite ją naršyklės svetainės nustatymuose.",
   "chat.voice.pause": "Pauzė",
   "chat.voice.pauseRec": "Pristabdyti įrašymą",
   "chat.voice.play": "Leisti",

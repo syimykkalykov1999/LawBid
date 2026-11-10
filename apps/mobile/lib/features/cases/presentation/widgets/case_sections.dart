@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart'
+    show SliverMinExtent;
 
 /// Where a case link opens (`?tab=`): the section and, in a case in work, the
 /// tab inside it. Owner 2026-11-05: Overview = Case + Activity, Files =
@@ -144,6 +146,7 @@ class CaseSubTabs extends StatefulWidget {
     required this.index,
     required this.onChanged,
     this.minHeight = 0,
+    this.sliverTabs = const {},
     super.key,
   });
 
@@ -152,6 +155,10 @@ class CaseSubTabs extends StatefulWidget {
   final int index;
   final ValueChanged<int> onChanged;
   final double minHeight;
+
+  /// App audit 2026-10-26 A16: the tabs whose builder gives a sliver (a long
+  /// list built lazily, row by row, as it scrolls in); the others give a box.
+  final Set<int> sliverTabs;
 
   @override
   State<CaseSubTabs> createState() => _CaseSubTabsState();
@@ -230,20 +237,24 @@ class _CaseSubTabsState extends State<CaseSubTabs>
             ),
           ),
         ),
-        SliverToBoxAdapter(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: widget.minHeight),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final i in _opened.toList()..sort())
-                  Visibility(
-                    visible: i == widget.index,
-                    maintainState: true,
-                    child: Builder(builder: widget.builders[i]),
-                  ),
-              ],
-            ),
+        // The same page as a ConstrainedBox(minHeight) around the tabs'
+        // Column, as slivers: a long list's rows are built only as they
+        // scroll in (A16), the hidden tabs are kept.
+        SliverMinExtent(
+          minExtent: widget.minHeight,
+          sliver: SliverMainAxisGroup(
+            slivers: [
+              for (final i in _opened.toList()..sort())
+                SliverVisibility(
+                  visible: i == widget.index,
+                  maintainState: true,
+                  sliver: widget.sliverTabs.contains(i)
+                      ? Builder(builder: widget.builders[i])
+                      : SliverToBoxAdapter(
+                          child: Builder(builder: widget.builders[i]),
+                        ),
+                ),
+            ],
           ),
         ),
       ],

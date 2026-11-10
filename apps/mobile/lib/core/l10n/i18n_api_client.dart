@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// One row of `GET /i18n/languages` (docs/01_FOUNDATION_AUTH.md §9.3) —
 /// field-for-field the backend's `i18n_languages` table
@@ -18,13 +19,18 @@ class I18nLanguageDto {
     required this.isRtl,
     required this.sort,
   });
+
+  /// Sweep B-c9: parsed by the generated contract model
+  /// (packages/api-contract/dart, json_serializable), not by hand.
   factory I18nLanguageDto.fromJson(Map<String, dynamic> json) =>
-      I18nLanguageDto(
-        code: json['code'] as String,
-        nameNative: json['name_native'] as String,
-        isActive: json['is_active'] as bool,
-        isRtl: json['is_rtl'] as bool,
-        sort: json['sort'] as int,
+      I18nLanguageDto.fromApi(api.I18nLanguageDto.fromJson(json));
+
+  factory I18nLanguageDto.fromApi(api.I18nLanguageDto d) => I18nLanguageDto(
+        code: d.code,
+        nameNative: d.nameNative,
+        isActive: d.isActive,
+        isRtl: d.isRtl,
+        sort: d.sort,
       );
 
   /// ISO 639-1 code, e.g. `en`, `ru` (file 01 §9.2).
@@ -47,14 +53,16 @@ class I18nBundleResult {
     required this.version,
     required this.translations,
   });
-  factory I18nBundleResult.fromJson(Map<String, dynamic> json) =>
-      I18nBundleResult(
-        lang: json['lang'] as String,
-        version: json['version'] as int,
-        translations: (json['translations'] as Map<String, dynamic>).map(
-          (key, value) => MapEntry(key, value as String),
-        ),
-      );
+
+  /// Sweep B-c9: the generated contract model does the parsing.
+  factory I18nBundleResult.fromJson(Map<String, dynamic> json) {
+    final d = api.I18nBundleDto.fromJson(json);
+    return I18nBundleResult(
+      lang: d.lang,
+      version: d.version,
+      translations: d.translations,
+    );
+  }
 
   final String lang;
   final int version;

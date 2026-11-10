@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Shikilia kitufe cha maikrofoni ili kurekodi",
   "chat.voice.label": "Ujumbe wa sauti",
   "chat.voice.noMic": "Hakuna ufikiaji wa maikrofoni. Iruhusu katika mipangilio ya simu yako.",
+  "chat.voice.noMicWeb": "Hakuna ruhusa ya maikrofoni. Iruhusu katika mipangilio ya tovuti ya kivinjari chako.",
   "chat.voice.pause": "Sitisha",
   "chat.voice.pauseRec": "Sitisha kurekodi",
   "chat.voice.play": "Cheza",

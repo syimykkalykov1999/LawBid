@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Haltu inni hljóðnemahnappnum til að taka upp",
   "chat.voice.label": "Talskilaboð",
   "chat.voice.noMic": "Enginn aðgangur að hljóðnema. Leyfðu hann í stillingum símans.",
+  "chat.voice.noMicWeb": "Enginn aðgangur að hljóðnema. Leyfðu hann í vefsvæðisstillingum vafrans.",
   "chat.voice.pause": "Setja á bið",
   "chat.voice.pauseRec": "Gera hlé á upptöku",
   "chat.voice.play": "Spila",

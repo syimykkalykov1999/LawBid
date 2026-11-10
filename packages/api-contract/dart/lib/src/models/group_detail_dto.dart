@@ -18,52 +18,53 @@ part 'group_detail_dto.g.dart';
 @JsonSerializable()
 class GroupDetailDto {
   const GroupDetailDto({
-    required this.callsMuted,
+    required this.inviteEnabled,
     required this.title,
     required this.memberCount,
     required this.type,
-    required this.whoCanEditInfo,
+    required this.whoCanCall,
     required this.joinApproval,
     required this.topicsEnabled,
     required this.pendingRequests,
     required this.whoCanPost,
     required this.whoCanAdd,
+    required this.whoCanEditInfo,
     required this.id,
-    required this.whoCanCall,
     required this.whoCanMedia,
     required this.whoCanPoll,
     required this.whoCanPin,
     required this.myRights,
     required this.showServiceMessages,
-    required this.isAdmin,
     required this.slowModeS,
     required this.canPost,
     required this.canAdd,
     required this.canEditInfo,
     required this.canCall,
-    required this.inviteEnabled,
+    required this.isAdmin,
+    required this.unreadMentions,
+    required this.pinned,
     required this.invited,
     required this.members,
     required this.createdAt,
     required this.updatedAt,
-    required this.pinned,
+    required this.callsMuted,
     required this.unreadCount,
-    required this.unreadMentions,
     this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
     this.lastMessageAt,
     this.notAdded,
-    this.protectContent,
-    this.mutedUntil,
     this.username,
+    this.mutedUntil,
+    this.disappearAfterS,
     this.ongoingCall,
     this.myRole,
     this.generalTopicId,
     this.avatarFullUrl,
     this.avatarUrl,
+    this.membersNextCursor,
     this.description,
-    this.disappearAfterS,
+    this.protectContent,
   });
 
   factory GroupDetailDto.fromJson(Map<String, Object?> json) =>
@@ -146,7 +147,12 @@ class GroupDetailDto {
   final bool pinned;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// Sweep B-c1: up to 100 members. A bigger group sends the first page (owner, admins, then by join time) and membersNextCursor for GET /groups/{id}/members.
   final List<GroupMemberDto> members;
+
+  /// Sweep B-c1: more members than `members` holds — pass it as `cursor` to GET /groups/{id}/members. Null/absent: `members` is everyone.
+  final String? membersNextCursor;
 
   /// Owner 2026-10-21: people invited and not answered yet (only for those who can invite).
   final List<GroupPersonDto> invited;

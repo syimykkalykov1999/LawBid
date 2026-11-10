@@ -433,30 +433,35 @@ class _GroupsClient implements GroupsClient {
   }
 
   @override
-  Future<GroupDetailEnvelope> resetGroupInvite({
+  Future<GroupMemberListEnvelope> listGroupMembers({
     required String id,
+    num? limit = 50,
+    String? cursor,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{
+      r'limit': limit,
+      r'cursor': cursor,
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<GroupDetailEnvelope>(
-      Options(method: 'POST', headers: _headers, extra: _extra)
+    final _options = _setStreamType<GroupMemberListEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/groups/${id}/invite/reset',
+            '/groups/${id}/members',
             queryParameters: queryParameters,
             data: _data,
           )
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late GroupDetailEnvelope _value;
+    late GroupMemberListEnvelope _value;
     try {
-      _value = GroupDetailEnvelope.fromJson(_result.data!);
+      _value = GroupMemberListEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -482,6 +487,38 @@ class _GroupsClient implements GroupsClient {
           .compose(
             _dio.options,
             '/groups/${id}/members',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late GroupDetailEnvelope _value;
+    try {
+      _value = GroupDetailEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<GroupDetailEnvelope> resetGroupInvite({
+    required String id,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<GroupDetailEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/groups/${id}/invite/reset',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -1158,6 +1195,45 @@ class _GroupsClient implements GroupsClient {
     late PollEnvelope _value;
     try {
       _value = PollEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<GroupPersonListEnvelope> listGroupPollOptionVoters({
+    required String id,
+    required String pollId,
+    required String optionId,
+    num? limit = 50,
+    String? cursor,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{
+      r'limit': limit,
+      r'cursor': cursor,
+    };
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<GroupPersonListEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/groups/${id}/polls/${pollId}/options/${optionId}/voters',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late GroupPersonListEnvelope _value;
+    try {
+      _value = GroupPersonListEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

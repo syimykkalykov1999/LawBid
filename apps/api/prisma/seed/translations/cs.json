@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Podržte tlačítko mikrofonu a nahrávejte",
   "chat.voice.label": "Hlasová zpráva",
   "chat.voice.noMic": "Žádný přístup k mikrofonu. Povolte jej v nastavení telefonu.",
+  "chat.voice.noMicWeb": "Bez přístupu k mikrofonu. Povolte ho v nastavení webu v prohlížeči.",
   "chat.voice.pause": "Pozastavit",
   "chat.voice.pauseRec": "Pozastavit nahrávání",
   "chat.voice.play": "Přehrát",

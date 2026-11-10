@@ -1569,11 +1569,14 @@ export class FilesService {
      * bucket (Terraform documents_object_lock → env
      * S3_OBJECT_LOCK_RETENTION_DAYS) the object gets a COMPLIANCE retention
      * of that many days; without it the file is stored as any other.
+     *
+     * Sweep A-c1: `fixedId` (a name-based id) makes the file one per
+     * subject — a second store of the same id fails on the primary key.
      */
-    opts: { sealed?: boolean } = {},
+    opts: { sealed?: boolean; fixedId?: string } = {},
   ): Promise<File> {
     const rule = PURPOSE_RULES[purpose];
-    const fileId = randomUUID();
+    const fileId = opts.fixedId ?? randomUUID();
     if (
       mayUsePublicStore(purpose) &&
       (await this.storage.publicStoreState()) === 'r2_unavailable'

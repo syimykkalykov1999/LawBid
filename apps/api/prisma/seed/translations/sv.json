@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Håll in mikrofonknappen för att spela in",
   "chat.voice.label": "Röstmeddelande",
   "chat.voice.noMic": "Ingen åtkomst till mikrofonen. Tillåt den i telefonens inställningar.",
+  "chat.voice.noMicWeb": "Ingen åtkomst till mikrofonen. Tillåt den i webbläsarens webbplatsinställningar.",
   "chat.voice.pause": "Pausa",
   "chat.voice.pauseRec": "Pausa inspelningen",
   "chat.voice.play": "Spela upp",

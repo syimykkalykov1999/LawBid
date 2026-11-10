@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Mbani të shtypur butonin e mikrofonit për të regjistruar",
   "chat.voice.label": "Mesazh zanor",
   "chat.voice.noMic": "Nuk ka qasje te mikrofoni. Lejojeni te cilësimet e telefonit.",
+  "chat.voice.noMicWeb": "Nuk ka qasje te mikrofoni. Lejoje në cilësimet e sajtit të shfletuesit.",
   "chat.voice.pause": "Pusho",
   "chat.voice.pauseRec": "Ndërprit regjistrimin",
   "chat.voice.play": "Luaj",

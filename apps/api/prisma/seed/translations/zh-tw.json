@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "按住麥克風按鈕進行錄音",
   "chat.voice.label": "語音訊息",
   "chat.voice.noMic": "無法使用麥克風。請在手機設定中允許訪問。",
+  "chat.voice.noMicWeb": "無法使用麥克風。請在瀏覽器的網站設定中允許存取。",
   "chat.voice.pause": "暫停",
   "chat.voice.pauseRec": "暫停錄音",
   "chat.voice.play": "播放",

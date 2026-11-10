@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Țineți apăsat butonul microfonului pentru a înregistra",
   "chat.voice.label": "Mesaj vocal",
   "chat.voice.noMic": "Fără acces la microfon. Permiteți-l în setările telefonului.",
+  "chat.voice.noMicWeb": "Nu există acces la microfon. Permite-l în setările site-ului din browser.",
   "chat.voice.pause": "Pauză",
   "chat.voice.pauseRec": "Pauză înregistrare",
   "chat.voice.play": "Redați",

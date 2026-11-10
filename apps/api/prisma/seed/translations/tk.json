@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Ýazmak üçin mikrofon düwmesini basyp saklaň",
   "chat.voice.label": "Ses habary",
   "chat.voice.noMic": "Mikrofona girelge ýok. Telefon sazlamalarynda rugsat beriň.",
+  "chat.voice.noMicWeb": "Mikrofona rugsat ýok. Ony brauzeriň sahypa sazlamalarynda rugsat beriň.",
   "chat.voice.pause": "Pauza",
   "chat.voice.pauseRec": "Ýazgyny saklat",
   "chat.voice.play": "Oýnatmak",

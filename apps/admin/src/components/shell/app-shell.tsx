@@ -74,6 +74,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (toDesk && home) router.replace(home);
   }, [toDesk, home, router]);
   const hidden = (!!me && !!sectionFor(pathname) && !canOpen(me, pathname)) || (deskOn && outsideDesk(me, pathname, true));
+  // Sweep C-c14 (QS P3): until `me` is known a gated page is not drawn, so
+  // an owner-only page never flashes before «Такой страницы нет».
+  const waiting = !me && !!sectionFor(pathname);
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -147,7 +150,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="text-5xl font-semibold text-faint">404</div>
                 <p className="mt-3 text-sm text-muted">Такой страницы нет.</p>
               </div>
-            ) : toDesk ? null : (
+            ) : toDesk || waiting ? null : (
               children
             )}
           </m.div>

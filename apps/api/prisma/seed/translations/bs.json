@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Držite dugme mikrofona za snimanje",
   "chat.voice.label": "Glasovna poruka",
   "chat.voice.noMic": "Nema pristupa mikrofonu. Dozvolite ga u postavkama telefona.",
+  "chat.voice.noMicWeb": "Nema pristupa mikrofonu. Dozvolite ga u postavkama stranice u pregledniku.",
   "chat.voice.pause": "Pauziraj",
   "chat.voice.pauseRec": "Pauziraj snimanje",
   "chat.voice.play": "Reproduciraj",

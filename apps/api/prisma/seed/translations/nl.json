@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Houd de microfoonknop ingedrukt om op te nemen",
   "chat.voice.label": "Spraakbericht",
   "chat.voice.noMic": "Geen toegang tot de microfoon. Sta dit toe in de instellingen van uw telefoon.",
+  "chat.voice.noMicWeb": "Geen toegang tot de microfoon. Sta het toe in de site-instellingen van je browser.",
   "chat.voice.pause": "Pauzeren",
   "chat.voice.pauseRec": "Opname pauzeren",
   "chat.voice.play": "Afspelen",

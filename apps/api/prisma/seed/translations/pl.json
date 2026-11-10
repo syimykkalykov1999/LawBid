@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Przytrzymaj przycisk mikrofonu, aby nagrywać",
   "chat.voice.label": "Wiadomość głosowa",
   "chat.voice.noMic": "Brak dostępu do mikrofonu. Zezwól na niego w ustawieniach telefonu.",
+  "chat.voice.noMicWeb": "Brak dostępu do mikrofonu. Zezwól na niego w ustawieniach strony w przeglądarce.",
   "chat.voice.pause": "Pauza",
   "chat.voice.pauseRec": "Wstrzymaj nagrywanie",
   "chat.voice.play": "Odtwórz",

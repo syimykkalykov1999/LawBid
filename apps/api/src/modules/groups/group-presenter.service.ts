@@ -113,21 +113,26 @@ export class GroupPresenter {
     return out;
   }
 
-  async members(rows: ChatGroupMember[]): Promise<GroupMemberDto[]> {
+  /** [keepOrder] (sweep B-c1): a keyset page keeps the order it was read
+   * in, so the pages join up; otherwise owner, admins, then by name. */
+  async members(
+    rows: ChatGroupMember[],
+    opts: { keepOrder?: boolean } = {},
+  ): Promise<GroupMemberDto[]> {
     const people = await this.people(rows.map((r) => r.user_id));
     const order: Record<string, number> = { owner: 0, admin: 1, member: 2 };
-    return rows
-      .flatMap((r) => {
-        const p = people.get(r.user_id);
-        return p
-          ? [{ ...p, role: r.role, rights: rightsOf(r), joinedAt: r.joined_at }]
-          : [];
-      })
-      .sort(
-        (a, b) =>
-          order[a.role] - order[b.role] ||
-          (a.displayName ?? '').localeCompare(b.displayName ?? ''),
-      );
+    const out = rows.flatMap((r) => {
+      const p = people.get(r.user_id);
+      return p
+        ? [{ ...p, role: r.role, rights: rightsOf(r), joinedAt: r.joined_at }]
+        : [];
+    });
+    if (opts.keepOrder) return out;
+    return out.sort(
+      (a, b) =>
+        order[a.role] - order[b.role] ||
+        (a.displayName ?? '').localeCompare(b.displayName ?? ''),
+    );
   }
 
   /** Polls of [messageIds] for [viewerId]. */

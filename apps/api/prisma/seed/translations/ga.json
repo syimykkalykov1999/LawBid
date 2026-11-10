@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Coinnigh an cnaipe micreafóin síos chun taifeadadh",
   "chat.voice.label": "Teachtaireacht ghutha",
   "chat.voice.noMic": "Gan rochtain ar mhicreafón. Ceadaigh é i socruithe do ghutháin.",
+  "chat.voice.noMicWeb": "Níl rochtain ar an micreafón. Ceadaigh é i socruithe suímh do bhrabhsálaí.",
   "chat.voice.pause": "Cuir ar sos",
   "chat.voice.pauseRec": "Cuir an taifeadadh ar sos",
   "chat.voice.play": "Seinn",

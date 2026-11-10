@@ -19,6 +19,7 @@
 10. **Деплой-проверки читают ответ API в обёртке `{data:…}`:** `/health/ready` → `.data.version`.
 11. **Деплой запускается сам только при изменениях в apps/api, apps/admin, packages, package*.json или deploy.yml.** Правка в scripts/deploy/ или infra/ НЕ создаёт новый деплой: после такой правки нужен ручной запуск `gh workflow run deploy.yml --ref main` (кнопка владельцу), а ждущий старый деплой со старыми скриптами — отменить.
 
+- **e2e 500 «column `bids.…` does not exist» у всех помощников (09.11, app-leftovers).** `prisma generate` в worktree с симлинком `node_modules` переписывает ОБЩИЙ клиент Prisma (`admin-speed/node_modules/.prisma`): пробная правка схемы попала всем, хотя в БД колонки нет. Схему в таком worktree не генерировать, пока миграция не нужна по-настоящему; после отказа от правки сразу `prisma generate` из схемы origin/main. Для `nest build` / `openapi:export` в таком worktree нужен свой tsconfig с `"preserveSymlinks": true` (иначе ложный TS2883).
 - **Admin CI: «window is not defined» после всех тестов (05.11).** В админке нет vitest globals, поэтому Testing Library сама не размонтирует: рендер из последнего теста доигрывал уже без DOM, тесты зелёные, а прогон красный. В таком файле нужен `afterEach(() => cleanup())`.
 
 - **«a new migration sorts before an already-released one» (05.11, #745).** PR долго ждал очереди, а в main вышли миграции с более поздней датой. Лечение: переименовать свою, ещё не выпущенную миграцию на дату после последней в main (`git mv`), перед слиянием сверять хвост `prisma/migrations`.

@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "ለመቅዳት የማይክ አዝራሩን ተጭነው ይያዙ",
   "chat.voice.label": "የድምጽ መልዕክት",
   "chat.voice.noMic": "የማይክሮፎን መዳረሻ የለም። በስልክ ቅንብሮችዎ ውስጥ ይፍቀዱ።",
+  "chat.voice.noMicWeb": "የማይክሮፎን መዳረሻ የለም። በአሳሽዎ የጣቢያ ቅንብሮች ውስጥ ይፍቀዱ።",
   "chat.voice.pause": "ለአፍታ አቁም",
   "chat.voice.pauseRec": "ቀረጻን አቁም",
   "chat.voice.play": "አጫውት",

@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Salvestamiseks hoidke mikrofoninuppu all",
   "chat.voice.label": "Häälsõnum",
   "chat.voice.noMic": "Juurdepääs mikrofonile puudub. Lubage see telefoni seadetes.",
+  "chat.voice.noMicWeb": "Mikrofonile pole juurdepääsu. Lubage see brauseri saidi seadetes.",
   "chat.voice.pause": "Peata",
   "chat.voice.pauseRec": "Peata salvestus",
   "chat.voice.play": "Esita",

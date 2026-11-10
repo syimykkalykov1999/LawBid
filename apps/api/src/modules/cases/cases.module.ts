@@ -35,6 +35,8 @@ import { CaseLifecycleModule } from './lifecycle/case-lifecycle.module';
 import { CaseAccessPolicy } from './policies/case-access.policy';
 import { CaseWorkspaceController } from './workspace/case-workspace.controller';
 import { CaseWorkspaceService } from './workspace/case-workspace.service';
+import { AttorneyBriefController } from './brief/attorney-brief.controller';
+import { AttorneyBriefService } from './brief/attorney-brief.service';
 import { CaseViewTrackingService } from './services/case-view-tracking.service';
 import { CasesFeedService } from './services/cases-feed.service';
 import { ClientActivityService } from './services/client-activity.service';
@@ -85,6 +87,8 @@ import { PresenceModule } from '../presence/presence.module';
     CaseInvitesController,
     CaseContactsController,
     CaseWorkspaceController,
+    // Sweep A-c1: the attorney's case brief PDF.
+    AttorneyBriefController,
     ContactIssuesAdminController,
     CaseLifecycleController,
     CaseDisputesAdminController,
@@ -95,6 +99,7 @@ import { PresenceModule } from '../presence/presence.module';
     // OQ-031: case photos.
     CasePhotosService,
     CaseWorkspaceService,
+    AttorneyBriefService,
     CaseStateMachine,
     CaseAccessPolicy,
     CasesFeedService,

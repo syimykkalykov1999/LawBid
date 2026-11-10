@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Hou die mikrofoonknoppie om op te neem",
   "chat.voice.label": "Stemboodskap",
   "chat.voice.noMic": "Geen mikrofoontoegang nie. Laat dit toe in jou foon se instellings.",
+  "chat.voice.noMicWeb": "Geen toegang tot die mikrofoon nie. Laat dit toe in jou blaaier se werfinstellings.",
   "chat.voice.pause": "Onderbreek",
   "chat.voice.pauseRec": "Onderbreek opname",
   "chat.voice.play": "Speel",

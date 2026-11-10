@@ -1591,15 +1591,19 @@ class ChatThread extends Notifier<ChatThreadState> {
     final cmid = local.clientMessageId;
     if (owner == null || cmid == null) return;
     final db = ref.read(socialLocalDatabaseProvider);
-    await db.sent(cmid);
-    await db.enqueue(
-      clientMessageId: cmid,
-      ownerId: owner,
-      conversationId: id,
-      body: local.body,
-      replyToId: local.replyTo?.id,
-      forwarded: local.forwarded,
-    );
+    // Audit 26.10 B23: one transaction, so the outbox list changes once
+    // (failed → sending) and the bubble never blinks out and back.
+    await db.transaction(() async {
+      await db.sent(cmid);
+      await db.enqueue(
+        clientMessageId: cmid,
+        ownerId: owner,
+        conversationId: id,
+        body: local.body,
+        replyToId: local.replyTo?.id,
+        forwarded: local.forwarded,
+      );
+    });
     unawaited(ref.read(outboxSenderProvider).drain());
   }
 

@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "마이크 버튼을 길게 눌러 녹음하세요",
   "chat.voice.label": "음성 메시지",
   "chat.voice.noMic": "마이크 접근 권한이 없습니다. 휴대전화 설정에서 허용해 주세요.",
+  "chat.voice.noMicWeb": "마이크에 접근할 수 없습니다. 브라우저의 사이트 설정에서 허용하세요.",
   "chat.voice.pause": "일시정지",
   "chat.voice.pauseRec": "녹음 일시정지",
   "chat.voice.play": "재생",

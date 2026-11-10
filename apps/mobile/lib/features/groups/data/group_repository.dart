@@ -187,6 +187,18 @@ class GroupRepository {
       ))
           .data;
 
+  /// Sweep B-c1: the members after [cursor] (the card carries the first
+  /// 100 and `membersNextCursor`), owner, admins, then by join time.
+  Future<CursorPage<api.GroupMemberDto>> members(
+    String id, {
+    required String cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _c.listGroupMembers(id: id, cursor: cursor),
+    );
+    return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
+  }
+
   // --- messages -------------------------------------------------------------
 
   Future<CursorPage<api.GroupMessageDto>> messages(
@@ -327,8 +339,28 @@ class GroupRepository {
       (await guardApiCall(() => _c.closeGroupPoll(id: id, pollId: pollId)))
           .data;
 
-  /// Who voted for what (open polls only).
+  /// Who voted for what (open polls only): the first 50 of each option.
   Future<List<api.PollVoterOptionDto>> voters(String id, String pollId) async =>
       (await guardApiCall(() => _c.listGroupPollVoters(id: id, pollId: pollId)))
           .data;
+
+  /// Sweep B-c1: one option's voters after [cursor], oldest vote first.
+  Future<CursorPage<api.GroupPersonDto>> optionVoters(
+    String id,
+    String pollId,
+    String optionId, {
+    String? cursor,
+    int limit = 50,
+  }) async {
+    final env = await guardApiCall(
+      () => _c.listGroupPollOptionVoters(
+        id: id,
+        pollId: pollId,
+        optionId: optionId,
+        cursor: cursor,
+        limit: limit,
+      ),
+    );
+    return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
+  }
 }

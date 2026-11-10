@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Pindutin nang matagal ang mic button para mag-record",
   "chat.voice.label": "Mensaheng boses",
   "chat.voice.noMic": "Walang access sa mikropono. Payagan ito sa mga setting ng iyong telepono.",
+  "chat.voice.noMicWeb": "Walang access sa mikropono. Payagan ito sa site settings ng iyong browser.",
   "chat.voice.pause": "I-pause",
   "chat.voice.pauseRec": "I-pause ang pag-record",
   "chat.voice.play": "I-play",

@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Nauhoita pitämällä mikrofonipainiketta painettuna",
   "chat.voice.label": "Ääniviesti",
   "chat.voice.noMic": "Ei pääsyä mikrofoniin. Salli se puhelimen asetuksissa.",
+  "chat.voice.noMicWeb": "Ei pääsyä mikrofoniin. Salli se selaimen sivustoasetuksista.",
   "chat.voice.pause": "Tauko",
   "chat.voice.pauseRec": "Keskeytä tallennus",
   "chat.voice.play": "Toista",

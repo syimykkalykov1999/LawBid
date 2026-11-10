@@ -1410,6 +1410,7 @@
   "chat.voice.hold": "Żomm il-buttuna tal-mikrofonu biex tirrekordja",
   "chat.voice.label": "Messaġġ vokali",
   "chat.voice.noMic": "Ebda aċċess għall-mikrofonu. Ippermettih fis-settings tat-telefon tiegħek.",
+  "chat.voice.noMicWeb": "M'hemmx aċċess għall-mikrofonu. Ippermettih fis-settings tas-sit tal-browser.",
   "chat.voice.pause": "Pawża",
   "chat.voice.pauseRec": "Waqqaf ir-reġistrazzjoni",
   "chat.voice.play": "Ħaddem",

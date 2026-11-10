@@ -118,12 +118,19 @@ class ChatListController extends ChangeNotifier {
 
   /// The index of the entry crossing the TOP edge of the viewport, from
   /// the list's render tree (null when nothing is laid out).
-  int? topIndex(BuildContext listContext) {
+  int? topIndex(BuildContext listContext) => topEntry(listContext)?.index;
+
+  /// [topIndex] with where that entry's top edge is, in pixels from the
+  /// viewport's top (0 or less: it starts at or above the edge). Audit
+  /// 26.10 W5: the floating date hides while the day's own chip, drawn at
+  /// the top of its first entry, is still on screen.
+  ({int index, double top})? topEntry(BuildContext listContext) {
     if (!scroll.hasClients) return null;
     final s = _sliverOf(listContext);
     if (s == null) return null;
     final edge = scroll.position.pixels + scroll.position.viewportDimension;
     int? best;
+    var bestTop = 0.0;
     var child = s.firstChild;
     while (child != null) {
       final pd = child.parentData! as SliverMultiBoxAdaptorParentData;
@@ -131,16 +138,22 @@ class ChatListController extends ChangeNotifier {
       final start = pd.layoutOffset ?? 0;
       if (index != null && start <= edge && (best == null || index > best)) {
         best = index;
+        // Reverse list: the entry's far end is its top on screen.
+        bestTop = edge - (start + child.size.height);
       }
       child = s.childAfter(child);
     }
-    return best;
+    return best == null ? null : (index: best, top: bestTop);
   }
 
   /// Owner 2026-10-26 (smoothness): the list's sliver is found once and
   /// kept while it stays in the tree, instead of walking the render tree
   /// on every scroll frame.
   RenderSliverMultiBoxAdaptor? _sliver;
+
+  /// The list's sliver (null before the first layout).
+  RenderSliverMultiBoxAdaptor? sliverOf(BuildContext listContext) =>
+      _sliverOf(listContext);
 
   RenderSliverMultiBoxAdaptor? _sliverOf(BuildContext listContext) {
     final cached = _sliver;
@@ -323,5 +336,119 @@ class ScrollToBottomPill extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Audit 26.10 B3 (Telegram / WhatsApp): while the person reads older
+/// messages, a message that comes in at the bottom of the reversed list
+/// must not move the text under the finger. [hold] remembers a laid-out
+/// row and where it was; on the next layout [ChatAnchorSliver] (the list's
+/// last sliver) asks the viewport to shift the scroll offset by as much as
+/// that row moved, so the viewport lays out again in the same frame and the
+/// row is painted where it was (the same idea as the "keep position" chat
+/// observers: anchor a reference item, correct by its offset change).
+class ChatScrollAnchor {
+  RenderBox? _row;
+  double _offset = 0;
+  RenderChatAnchorSliver? _sliver;
+
+  /// Remembers the lowest row on screen of [list] (scrolled [pixels] up
+  /// from the newest message). Call before the change is laid out.
+  void hold(RenderSliverMultiBoxAdaptor? list, double pixels) {
+    _row = null;
+    if (list == null || pixels <= 0.5) return;
+    var child = list.firstChild;
+    RenderBox? best;
+    var bestOffset = double.infinity;
+    while (child != null) {
+      final pd = child.parentData! as SliverMultiBoxAdaptorParentData;
+      final at = pd.layoutOffset;
+      if (at != null && at >= pixels && at < bestOffset) {
+        best = child;
+        bestOffset = at;
+      }
+      child = list.childAfter(child);
+    }
+    if (best == null) return;
+    _row = best;
+    _offset = bestOffset;
+    _sliver?.markNeedsLayout();
+  }
+
+  /// [hold] for the list [scroll] drives (its first sliver list).
+  void holdFor(ScrollController scroll) {
+    if (!scroll.hasClients) return;
+    final position = scroll.position;
+    final root = position.context.notificationContext?.findRenderObject();
+    RenderSliverMultiBoxAdaptor? found;
+    void visit(RenderObject o) {
+      if (found != null) return;
+      if (o is RenderSliverMultiBoxAdaptor) {
+        found = o;
+        return;
+      }
+      o.visitChildren(visit);
+    }
+
+    if (root != null) visit(root);
+    hold(found, position.pixels);
+  }
+
+  /// How far the held row moved since [hold] (once; 0 when nothing held).
+  double _take() {
+    final row = _row;
+    _row = null;
+    if (row == null || !row.attached) return 0;
+    final pd = row.parentData;
+    if (pd is! SliverMultiBoxAdaptorParentData) return 0;
+    final at = pd.layoutOffset;
+    return at == null ? 0 : at - _offset;
+  }
+}
+
+/// The zero-size last sliver of a chat list that applies [anchor].
+class ChatAnchorSliver extends LeafRenderObjectWidget {
+  const ChatAnchorSliver({required this.anchor, super.key});
+
+  final ChatScrollAnchor anchor;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      RenderChatAnchorSliver(anchor);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderChatAnchorSliver renderObject,
+  ) =>
+      renderObject.anchor = anchor;
+}
+
+/// The render object of [ChatAnchorSliver].
+class RenderChatAnchorSliver extends RenderSliver {
+  RenderChatAnchorSliver(ChatScrollAnchor anchor) : _anchor = anchor {
+    anchor._sliver = this;
+  }
+
+  ChatScrollAnchor _anchor;
+  ChatScrollAnchor get anchor => _anchor;
+  set anchor(ChatScrollAnchor value) {
+    if (identical(value, _anchor)) return;
+    if (identical(_anchor._sliver, this)) _anchor._sliver = null;
+    _anchor = value.._sliver = this;
+  }
+
+  @override
+  void detach() {
+    if (identical(_anchor._sliver, this)) _anchor._row = null;
+    super.detach();
+  }
+
+  @override
+  void performLayout() {
+    final moved = _anchor._take();
+    geometry = moved.abs() > 0.01
+        ? SliverGeometry(scrollOffsetCorrection: moved)
+        : SliverGeometry.zero;
   }
 }
