@@ -39,6 +39,8 @@
 
 - **Экономия на фоновой задаче остановила рилсы (09.11).** `videos.sweep` стоял в списке «реже при простое» (ops.cron_idle_backoff, 25.10): если вебхук Bunny не дошёл, новый рилс ждал до 5 минут. Задачи, от которых зависит то, что видит пользователь (публикация видео, доставка), в «реже при простое» не класть.
 
+- **«migrate-from-previous FAILED: … a new migration sorts before an already-released one» (09.11, #880).** Ветка создана раньше, чем в main вышли миграции с более поздней датой. Перед пушем: имя папки новой миграции должно быть позже последней в `origin/main` (`git ls-tree --name-only origin/main apps/api/prisma/migrations | tail`); переименовать папку, содержимое не трогать.
+
 ## B. Деплой и прод
 12. **Сайт 503 с 24.10:** CloudFront function опубликована со старым кодом (`cf.kvs(имя)` вместо ID хранилища). После любого Terraform apply проверять `curl -s -o /dev/null -w "%{http_code}" https://lawbid.dev/` = 200 и `aws cloudfront test-function` на LIVE-стадии.
 13. **Terraform apply оборвался на сохранении state:** короткий `aws login` истёк в конце apply → state ушёл в errored.tfstate. Перед apply обновлять вход; при обрыве — `terraform state push errored.tfstate`, а не повторный apply.
