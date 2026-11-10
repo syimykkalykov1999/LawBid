@@ -1127,11 +1127,26 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100,
   };
-  // Programmatic SEO (2026-10-27): the page generator job. Off by default.
+  // Owner rule (Выкл / Вкл / Авто): new-case alerts in waves.
+  out['case_fanout.enabled'] = {
+    ...out['case_fanout.enabled'],
+    description:
+      'off | on | auto (default). New-case alerts: off = one push to everyone matching at once (as before); on = waves and the smart order; auto = waves while the case-fanout queue is reachable and has at most case_fanout.auto_max_waiting jobs waiting, else one wave at once.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['case_fanout.auto_max_waiting'] = {
+    ...out['case_fanout.auto_max_waiting'],
+    description:
+      'Авто of case_fanout.enabled: more waiting wave jobs than this = the queue is behind, the case goes out in one wave right away.',
+    min: 0,
+    max: 100000,
+  };
+  // Programmatic SEO (2026-10-27): the page generator job.
+  // Owner 2026-11-07 («SEO all ON»): nightly+events by default.
   out['seo.generator_mode'] = {
     ...out['seo.generator_mode'],
     description:
-      'Public SEO pages built by the API: off (default, nothing runs) | nightly (after the nightly snapshot jobs) | nightly+events (also a minute after an attorney is published or removed).',
+      'Public SEO pages built by the API: off (nothing runs) | nightly (after the nightly snapshot jobs) | nightly+events (default; also a minute after an attorney is published or removed).',
     pattern: /^(off|nightly|nightly\+events)$/,
   };
   out['seo.generator_debounce_seconds'] = {

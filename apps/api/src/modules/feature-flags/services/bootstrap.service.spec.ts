@@ -251,6 +251,30 @@ describe('BootstrapService.build app-side limits (feature reality 2026-11-08)', 
   });
 });
 
+describe('BootstrapService.build SMS consent wording (FR D-c2)', () => {
+  it('never decided: only the version (its default); the app keeps its translated text', async () => {
+    const r = await build({ config: {} }).service.build();
+    expect(r.app_config['compliance.sms.disclosure_version']).toBe('sms-v1');
+    expect(r.app_config['compliance.sms.disclosure_text']).toBeUndefined();
+    expect(r.app_config['compliance.sms.help_text']).toBeUndefined();
+  });
+
+  it('the admin wording, its version and the HELP text reach the app; blank text does not', async () => {
+    const r = await build({
+      config: {
+        'compliance.sms.disclosure_version': 'sms-v2',
+        'compliance.sms.disclosure_text': '  Reply STOP to cancel.  ',
+        'compliance.sms.help_text': '   ',
+      },
+    }).service.build();
+    expect(r.app_config['compliance.sms.disclosure_version']).toBe('sms-v2');
+    expect(r.app_config['compliance.sms.disclosure_text']).toBe(
+      'Reply STOP to cancel.',
+    );
+    expect(r.app_config['compliance.sms.help_text']).toBeUndefined();
+  });
+});
+
 describe('BootstrapService.build guest browsing (dedup D-12)', () => {
   const guest = async (config: Record<string, unknown>) => {
     const r = await build({ config }).service.build();
@@ -317,6 +341,9 @@ describe('BootstrapService.build', () => {
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
       'client.video_prefetch_ahead': 3,
       'client.video_prefetch_cellular': 3,
+      // FR D-c2: the SMS consent wording version, always sent; the text
+      // only once the admin stored one.
+      'compliance.sms.disclosure_version': 'sms-v1',
     });
     expect(result.languages).toEqual([EN]);
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });

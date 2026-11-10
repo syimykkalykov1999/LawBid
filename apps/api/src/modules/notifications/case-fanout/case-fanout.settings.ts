@@ -1,10 +1,21 @@
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { APP_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
+import {
+  parseSwitchMode,
+  readSwitchMode,
+  type SwitchMode,
+} from '../../../common/app-settings/switch-mode';
 
 export type FraudAction = 'normal' | 'small' | 'none';
 
 export interface FanoutSettings {
+  /** `case_fanout.enabled` as the owner set it: off | on | auto. */
+  mode: SwitchMode;
+  /** Waves on for this run: `on`, or `auto` with a healthy queue
+   * (the `wavesAuto` signal passed by the caller; false when none). */
   enabled: boolean;
+  /** Авто: waiting wave jobs above this = the queue is behind. */
+  autoMaxWaiting: number;
   firstWaveSize: number;
   waveSize: number;
   waveIntervalMinutes: number;
@@ -32,7 +43,9 @@ export interface FanoutSettings {
 
 /** The built-in defaults (no admin changes): today's reach. */
 export const DEFAULT_FANOUT_SETTINGS: FanoutSettings = {
-  enabled: APP_SETTINGS['case_fanout.enabled'],
+  mode: parseSwitchMode(APP_SETTINGS['case_fanout.enabled']),
+  enabled: false,
+  autoMaxWaiting: APP_SETTINGS['case_fanout.auto_max_waiting'],
   firstWaveSize: APP_SETTINGS['case_fanout.first_wave_size'],
   waveSize: APP_SETTINGS['case_fanout.wave_size'],
   waveIntervalMinutes: APP_SETTINGS['case_fanout.wave_interval_minutes'],
@@ -55,16 +68,32 @@ function action(raw: string, fallback: FraudAction): FraudAction {
   return raw === 'normal' || raw === 'small' || raw === 'none' ? raw : fallback;
 }
 
+/** `enabled` for a run from the owner's mode and the auto signal. */
+export function wavesOn(mode: SwitchMode, wavesAuto: boolean): boolean {
+  return mode === 'on' || (mode === 'auto' && wavesAuto);
+}
+
 /** Reads every `case_fanout.*` setting (AppConfig caches the table, so
- * this is one cache read). Without a settings service: the defaults. */
+ * this is one cache read). Without a settings service: the defaults.
+ * [wavesAuto] is the Авто signal (the fan-out queue is reachable and not
+ * behind); without it `auto` behaves as off for this run. */
 export async function loadFanoutSettings(
   settings?: AppSettingsService,
+  wavesAuto = false,
 ): Promise<FanoutSettings> {
-  if (!settings) return DEFAULT_FANOUT_SETTINGS;
+  if (!settings) {
+    return {
+      ...DEFAULT_FANOUT_SETTINGS,
+      enabled: wavesOn(DEFAULT_FANOUT_SETTINGS.mode, wavesAuto),
+    };
+  }
   const n = async (k: keyof typeof APP_SETTINGS): Promise<number> =>
     Math.max(0, await settings.number(k));
+  const mode = await readSwitchMode(settings, 'case_fanout.enabled');
   return {
-    enabled: await settings.boolean('case_fanout.enabled'),
+    mode,
+    enabled: wavesOn(mode, wavesAuto),
+    autoMaxWaiting: await n('case_fanout.auto_max_waiting'),
     firstWaveSize: Math.max(1, await n('case_fanout.first_wave_size')),
     waveSize: Math.max(1, await n('case_fanout.wave_size')),
     waveIntervalMinutes: Math.max(

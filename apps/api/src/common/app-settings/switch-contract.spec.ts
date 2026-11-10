@@ -34,7 +34,7 @@ const settingsWith = (stored: Record<string, unknown> = {}) =>
 describe('switch contract: defaults (a)', () => {
   const table: Array<[keyof typeof APP_SETTINGS, unknown]> = [
     ['images.avif_enabled', false],
-    ['case_fanout.enabled', false],
+    ['case_fanout.enabled', 'auto'],
     ['billing.stripe_tax_enabled', false],
     ['rewards.enabled', false],
     ['security.turnstile.mode', 'off'],
@@ -50,7 +50,7 @@ describe('switch contract: defaults (a)', () => {
     ['trust.enabled', true],
     ['ops.auto_pause_heavy_jobs', true],
     ['ops.auto_scale_down_on_budget', false],
-    ['seo.generator_mode', 'off'],
+    ['seo.generator_mode', 'nightly+events'],
     ['deal_record.enabled', true],
     ['bids.rich_terms_enabled', true],
     ['bids.confirmation_required', true],
@@ -86,11 +86,22 @@ describe('images.avif_enabled', () => {
 });
 
 describe('case_fanout.enabled', () => {
-  it('follows the switch and clamps its ceilings', async () => {
+  it('auto (the default) follows the queue signal; off / on ignore it; old booleans still read', async () => {
+    expect((await loadFanoutSettings(settingsWith())).mode).toBe('auto');
     expect((await loadFanoutSettings(settingsWith())).enabled).toBe(false);
+    expect((await loadFanoutSettings(settingsWith(), true)).enabled).toBe(true);
+    const off = settingsWith({ 'case_fanout.enabled': 'off' });
+    expect((await loadFanoutSettings(off, true)).enabled).toBe(false);
+    const legacyOff = settingsWith({ 'case_fanout.enabled': false });
+    expect((await loadFanoutSettings(legacyOff, true)).enabled).toBe(false);
+    const legacyOn = settingsWith({ 'case_fanout.enabled': true });
+    expect((await loadFanoutSettings(legacyOn, false)).enabled).toBe(true);
+    expect((await loadFanoutSettings(settingsWith())).autoMaxWaiting).toBe(500);
+  });
+  it('follows the switch and clamps its ceilings', async () => {
     const on = await loadFanoutSettings(
       settingsWith({
-        'case_fanout.enabled': true,
+        'case_fanout.enabled': 'on',
         'case_fanout.new_quota_percent': 900,
         'case_fanout.wave_size': 0,
       }),
@@ -330,8 +341,11 @@ describe('seo.generator_mode (off | nightly | nightly+events)', () => {
       directory,
     };
   };
-  it('off (the default) and a typo: the job returns before it reads anything', async () => {
-    for (const stored of [{}, { 'seo.generator_mode': 'nightlyy' }]) {
+  it('off and a typo: the job returns before it reads anything', async () => {
+    for (const stored of [
+      { 'seo.generator_mode': 'off' },
+      { 'seo.generator_mode': 'nightlyy' },
+    ]) {
       const t = job(stored);
       await expect(t.job.run()).resolves.toEqual({ skipped: 'off' });
       expect(t.directory.attorneys).not.toHaveBeenCalled();
