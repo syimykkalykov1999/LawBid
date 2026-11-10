@@ -43,7 +43,7 @@ infra/
    §6.1/§6.4; e.g. AWS RDS, Neon or Supabase — the owner picks the host,
    see docs/runbooks/PROD_LAUNCH.md step 4) is created in the host's
    console (or in RDS), not here. Create the
-   roles of docs/02 §6.3 (`lawbid_migrator`, `lawbid_app`,
+   roles of docs/02 §6.3 (`lawbid_admin` runs the migrations today, `lawbid_migrator` is planned, `lawbid_app`,
    `lawbid_retention`, `lawbid_readonly`) and allow the VPC's NAT IPs.
 
 ## Надёжность, 2026-10-22 (решения владельца) — что изменилось
@@ -139,7 +139,7 @@ After the first apply:
 1. Fill the secrets printed by `terraform output secrets_to_fill`
    (`aws secretsmanager put-secret-value --secret-id lawbid-staging/<NAME> …`):
    the three PostgreSQL connection strings (TLS required) (`DATABASE_URL` = `lawbid_app`,
-   `MIGRATOR_DATABASE_URL` = `lawbid_migrator`, `RETENTION_DATABASE_URL` =
+   `MIGRATOR_DATABASE_URL` = `lawbid_admin` (the RDS master user; `lawbid_migrator` is planned, not in use — infra/postgres/migration-role.txt), `RETENTION_DATABASE_URL` =
    `lawbid_retention`), `JWT_KEYS`, the OTP/auth peppers,
    `ADMIN_TOTP_ENC_KEY`, `SECRETS_MASTER_KEYS` (`k1:<random 48+ chars>`),
    `MESSAGE_ENC_KEYS` (`m1:<random 48+ chars>`, chat texts at rest; keep it

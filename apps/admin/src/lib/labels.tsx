@@ -517,14 +517,23 @@ export function StatusPill({ map, value }: { map: Record<string, string>; value:
   );
 }
 
+/** One formatter per digit count (building an Intl formatter per call is the
+ * expensive part — same reason as `formatDateTime`). */
+const USD = new Map<number, Intl.NumberFormat>();
+
 export function usd(cents: number | null | undefined, digits = 0): string {
   if (cents == null) return '—';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(cents / 100);
+  let f = USD.get(digits);
+  if (!f) {
+    f = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+    USD.set(digits, f);
+  }
+  return f.format(cents / 100);
 }
 
 // ---- Added by the legacy-pages restyle (append-only) ----

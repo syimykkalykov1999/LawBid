@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { VirtualRows } from "@/components/ui/virtual-rows";
 import { api, errorText } from "@/lib/api/client";
 import { useMe } from "@/lib/hooks";
 import { AUDIT_TARGET, auditActionLabel } from "@/lib/labels";
@@ -154,13 +155,14 @@ export default function AuditLogPage() {
         </thead>
         <tbody>
           {q.isPending ? <TableEmpty colSpan={7} loading /> : null}
-          {rows.map((r, i) => {
+          <VirtualRows rows={rows} colSpan={7} estimateSize={72}>
+            {(r, i, vp) => {
             const failed =
               !!r.after &&
               typeof r.after === "object" &&
               (r.after as { outcome?: unknown }).outcome === "failed";
             return (
-              <MotionRow key={r.id} i={i}>
+              <MotionRow key={r.id} i={i} {...vp}>
                 <Td className="whitespace-nowrap text-muted">
                   {formatDateTime(r.createdAt)}
                 </Td>
@@ -199,7 +201,8 @@ export default function AuditLogPage() {
                 <Td className="font-mono text-xs text-muted">{r.ip ?? ""}</Td>
               </MotionRow>
             );
-          })}
+          }}
+          </VirtualRows>
           {!q.isPending && rows.length === 0 ? (
             <TableEmpty colSpan={7}>Записей нет под эти фильтры</TableEmpty>
           ) : null}

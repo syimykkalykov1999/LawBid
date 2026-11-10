@@ -254,7 +254,7 @@ GitHub, `main` защищён (только через PR, обязательн�
 5. Сборка Docker-образа и Android/iOS-сборок (проверка, без публикации).
 
 ### 7.3 Деплой бэкенда и админки
-`main` → сборка образа → деплой на **staging** → автоматические smoke-тесты → **ручное подтверждение** → задача миграций БД (`prisma migrate deploy`, роль `lawbid_migrator`, до выката) → rolling-деплой на **prod** (без простоя) → smoke-тесты → автоматический откат сервиса при провале health-check. Миграции только обратно совместимые (expand/contract, файл 2, раздел 7.1).
+`main` → сборка образа → деплой на **staging** → автоматические smoke-тесты → **ручное подтверждение** → задача миграций (под `lawbid_admin`, не `lawbid_migrator` — см. `infra/postgres/migration-role.txt`) БД (`prisma migrate deploy`, роль `lawbid_migrator`, до выката) → rolling-деплой на **prod** (без простоя) → smoke-тесты → автоматический откат сервиса при провале health-check. Миграции только обратно совместимые (expand/contract, файл 2, раздел 7.1).
 
 ### 7.4 Мобильные релизы
 Fastlane + GitHub Actions: сборки `dev/staging/prod` (flavors), загрузка в TestFlight и Google Play Internal Testing по тегу, семантическое версионирование, автоматический номер сборки, релизные заметки из Conventional Commits. Подписи и ключи только в GitHub Secrets / Secrets Manager.
