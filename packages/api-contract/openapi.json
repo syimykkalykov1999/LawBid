@@ -135162,7 +135162,8 @@
           "PAYMENT_TERMS_DISABLED",
           "PAYMENT_TERMS_INVALID",
           "ROLE_SWITCH_BLOCKED",
-          "ROLE_SWITCH_NOT_ALLOWED"
+          "ROLE_SWITCH_NOT_ALLOWED",
+          "EMAIL_SEND_FAILED"
         ]
       },
       "ErrorBodyDto": {

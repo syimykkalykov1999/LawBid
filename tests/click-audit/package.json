@@ -1,0 +1,13 @@
+{
+  "name": "lawbid-click-audit",
+  "private": true,
+  "description": "Click-through smoke audit of the admin panel and the Flutter web app against a LOCAL seeded stack (never prod). See README.md.",
+  "scripts": {
+    "admin": "playwright test admin",
+    "web": "playwright test web",
+    "report": "node report.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0"
+  }
+}

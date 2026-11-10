@@ -147,7 +147,10 @@ function Form({ initial, canEdit }: { initial: Settings; canEdit: boolean }) {
           <Field label="Добавить штат (NY, NJ…)" htmlFor="aa-code">
             <Input id="aa-code" maxLength={2} value={newCode} onChange={(e) => setNewCode(e.target.value)} />
           </Field>
-          <Button variant="ghost" onClick={add}>Добавить</Button>
+          {/* Click audit 2026-11-08: an empty or wrong code used to be a silent no-op. */}
+          <Button variant="ghost" onClick={add} disabled={!/^[A-Za-z]{2}$/.test(newCode.trim()) || Boolean(states[newCode.trim().toUpperCase()])}>
+            Добавить
+          </Button>
         </div>
       ) : null}
       <div className="mt-4 flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-line p-3">

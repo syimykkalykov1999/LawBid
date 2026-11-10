@@ -223,12 +223,28 @@ export class AdminEmailTemplatesService {
     const rendered = await this.renderForTest(entry, locale, dto);
     await this.costGuard?.consume('email');
     // No `template` field: the content is already final.
-    await this.email.sendEmail({
-      to: admin.email,
-      subject: `[Test] ${rendered.subject}`,
-      text: rendered.text,
-      ...(rendered.html ? { html: rendered.html } : {}),
-    });
+    try {
+      await this.email.sendEmail({
+        to: admin.email,
+        subject: `[Test] ${rendered.subject}`,
+        text: rendered.text,
+        ...(rendered.html ? { html: rendered.html } : {}),
+      });
+    } catch (e) {
+      // Click audit 2026-11-08: a refused send (SES sandbox «not verified»,
+      // SMTP down) surfaced as a bare 500 «server did not answer».
+      const reason =
+        e instanceof Error && e.message
+          ? e.message
+          : String((e as { code?: string })?.code ?? 'unknown error');
+      throw new HttpException(
+        {
+          code: ErrorCode.EMAIL_SEND_FAILED,
+          message: `The mail provider did not send the test: ${reason.slice(0, 200)}`,
+        },
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
     return { sentTo: maskEmail(admin.email) };
   }
 

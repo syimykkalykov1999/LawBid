@@ -86,6 +86,8 @@ const COLD_ROUNDS = Number(process.env.PERF_COLD_ROUNDS ?? 3);
 const COLD_BUDGET_MS = Number(process.env.PERF_COLD_BUDGET_MS ?? 300);
 const BUDGET_MS = Number(process.env.PERF_BUDGET_MS ?? 300);
 const N1_MAX = Number(process.env.PERF_N1_MAX ?? 5);
+/** Writes the app sends without awaiting them (telemetry), never an endpoint's own. */
+const ASYNC_TELEMETRY = /"search_query_log"/;
 const COST_MAX = Number(process.env.PERF_COST_MAX ?? 100_000);
 const COST_HARD_MAX = Number(process.env.PERF_COST_HARD_MAX ?? 1_000_000);
 const INFLATE = (process.env.PERF_INFLATE ?? '100,1000')
@@ -549,7 +551,14 @@ interface Result {
               );
           colds.push(ms);
         } else times.push(ms);
-        const mine = seen.filter((q) => !background.has(q.query));
+        // The search query log is written fire-and-forget (SearchLogService
+        // `void this.writeQuery`): under load the writes of earlier calls
+        // land together inside a later one and looked like an N+1 (09.11:
+        // «INSERT INTO search_query_log … 8–11× in one request» on three
+        // unrelated branches). It is not on the request's path.
+        const mine = seen.filter(
+          (q) => !background.has(q.query) && !ASYNC_TELEMETRY.test(q.query),
+        );
         maxQueries = Math.max(maxQueries, mine.length);
         const repeats = new Map<string, number>();
         // `SELECT set_config(..., true)` before a statement in the same
