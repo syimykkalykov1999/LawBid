@@ -1,7 +1,7 @@
 'use client';
 
 import { CaretRight, UserCircle } from '@phosphor-icons/react';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { StatusPill, ROLE_TEXT, TICKET_STATUS } from '@/lib/labels';
 import { cn, formatDateTime } from '@/lib/utils';

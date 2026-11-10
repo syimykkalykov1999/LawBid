@@ -2,7 +2,7 @@
 
 import { ArrowCounterClockwise, ArrowsClockwise, ListBullets, MagnifyingGlass, Plus, Ticket, Trash } from '@phosphor-icons/react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useState } from 'react';
 import {
   CopyButton,

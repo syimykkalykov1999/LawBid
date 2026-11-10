@@ -1,6 +1,6 @@
 'use client';
 
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 
 /** Subtle entrance: fade + 10px rise, small stagger by index. */
 export function FadeIn({

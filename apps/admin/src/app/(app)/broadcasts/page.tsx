@@ -2,7 +2,7 @@
 
 import { BellRinging, Megaphone, PaperPlaneTilt, UsersThree } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useState } from 'react';
 import { PushPreview } from '@/components/email/push-preview';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';

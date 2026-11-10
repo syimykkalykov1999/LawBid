@@ -5,7 +5,7 @@ import {
   UserPlus, Users, UsersThree, Wallet, type Icon,
 } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { AnimatedNumber } from '@/components/ui/animated-number';

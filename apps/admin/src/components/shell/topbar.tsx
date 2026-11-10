@@ -3,7 +3,8 @@
 import { CaretDown, List, MagnifyingGlass, ShieldCheck, SignOut } from '@phosphor-icons/react';
 import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { useQueryClient } from '@tanstack/react-query';
-import { AnimatePresence, m } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import * as m from 'motion/react-m';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { clearPersistedQueries } from '@/lib/persist';

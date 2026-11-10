@@ -2,7 +2,7 @@
 
 import { Archive, ArrowsClockwise, PencilSimple, Plus, Stack, Trash, UsersThree, X } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useMemo, useState } from 'react';
 import { AppPricePreview, DiscountBadge, previewDiscount } from '@/components/billing/app-price-preview';
 import { dollarsToCents, fadeUp, plural, useBillingRole } from '@/components/billing/shared';

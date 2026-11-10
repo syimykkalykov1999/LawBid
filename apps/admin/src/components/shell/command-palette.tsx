@@ -1,7 +1,8 @@
 'use client';
 
 import { ArrowRight, MagnifyingGlass, MoonStars, Sun, User } from '@phosphor-icons/react';
-import { AnimatePresence, m } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
