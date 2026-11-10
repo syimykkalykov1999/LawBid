@@ -353,8 +353,9 @@ describe('Document templates (e2e, owner 2026-10-05)', () => {
     it('plan → PUT parts → complete → confirm, under the admin session; a small file is refused', async () => {
       await setFlag(true);
       await setMaxMb(64);
-      // 20 MiB = 3 parts (8 + 8 + 4 MiB); a PDF header so the type check passes.
-      const big = Buffer.alloc(20 * 1024 * 1024, 0x20);
+      // 12 MiB = 3 parts of the 5 MiB plan (5 + 5 + 2 MiB, #889); a PDF
+      // header so the type check passes.
+      const big = Buffer.alloc(12 * 1024 * 1024, 0x20);
       PDF.copy(big, 0);
       const sha256 = createHash('sha256').update(big).digest('hex');
       const presigned = await api()
