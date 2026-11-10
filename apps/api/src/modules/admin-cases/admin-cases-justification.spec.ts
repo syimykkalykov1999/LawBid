@@ -39,9 +39,12 @@ describe('admin case detail reads need a justification', () => {
 
   describe('private_details visibility on the case card', () => {
     const card = jest.fn().mockResolvedValue({});
-    const controller = new AdminCaseManagementController({
-      card,
-    } as unknown as AdminCaseManagementService);
+    const controller = new AdminCaseManagementController(
+      {
+        card,
+      } as unknown as AdminCaseManagementService,
+      {} as never,
+    );
     const actor = (
       adminRole: AdminActor['adminRole'],
       justification: string | null,

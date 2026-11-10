@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/calls/data/call_history_repository.dart';
@@ -74,6 +75,10 @@ class _Repo implements CallHistoryRepository {
       nextCursor: i + 1 < pages.length ? '${i + 1}' : null,
     );
   }
+
+  @override
+  Future<SyncedPage<CallHistoryEntry>> changed(DateTime since) async =>
+      const SyncedPage(items: []);
 
   @override
   Future<List<OngoingGroupCall>> ongoing() async => running;

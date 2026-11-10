@@ -15,13 +15,17 @@ What it does, in a built `build/web`:
      entrypointBaseUrl / canvasKitBaseUrl / assetBase config)
   3. fills the version placeholder in boot_head.js (__LB_V__), which injects
      the preload hints
+  4. (optional third argument, B-c13) sets the engine's fontFallbackBaseUrl:
+     the fallback Noto fonts from our own host (scripts/deploy/web-font-base.sh
+     prints "/s/" once the host serves them); empty = engine default
+     (fonts.gstatic.com)
 
 Stays at the root (asked again each time, small): index.html, spa.html,
 flutter_bootstrap.js, flutter.js, manifest.json, version.json, boot_*.js,
 sqlite3.wasm / drift_worker.js (the database's files; Dart refers to them
 by name), icons/, pay.*, firebase-messaging-sw.js, passkeys_bundle.js.
 
-Usage: scripts/deploy/web-immutable.py apps/mobile/build/web <version>
+Usage: scripts/deploy/web-immutable.py apps/mobile/build/web <version> [font base]
 """
 import os
 import re
@@ -31,8 +35,13 @@ import sys
 
 def main() -> None:
     root, version = sys.argv[1], sys.argv[2]
+    font_base = sys.argv[3] if len(sys.argv) > 3 else ""
     if not re.fullmatch(r"[0-9A-Za-z._-]{6,64}", version):
         sys.exit(f"bad version: {version!r}")
+    # A path ("/s/") or an https URL ending in "/", nothing that could leave
+    # the JS string it is written into.
+    if font_base and not re.fullmatch(r"(/|https://[0-9A-Za-z.-]+/)[0-9A-Za-z._/-]*/", font_base):
+        sys.exit(f"bad font base: {font_base!r}")
     vdir = os.path.join(root, "v", version)
     os.makedirs(vdir, exist_ok=True)
 
@@ -57,7 +66,8 @@ def main() -> None:
         f'entrypointBaseUrl:"{prefix}/",'
         f'canvasKitBaseUrl:"{prefix}/canvaskit",'
         f'assetBase:"{prefix}/"'
-        "},"
+        + (f',fontFallbackBaseUrl:"{font_base}"' if font_base else "")
+        + "},"
     )
     if "_flutter.loader.load({" not in boot:
         sys.exit("flutter_bootstrap.js: no _flutter.loader.load({ call")

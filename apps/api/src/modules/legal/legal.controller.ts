@@ -32,7 +32,10 @@ import {
   LegalPublicDto,
 } from './legal.dto';
 import { LegalService } from './legal.service';
-import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 /** Owner 2026-10-05 (legal): the app's legal texts, the DMCA agent and
  * DMCA notices filed from the app. */
@@ -46,6 +49,7 @@ export class LegalController {
     private readonly dmca: DmcaService,
   ) {}
 
+  @AssistantAllowed()
   @Get('settings')
   @ApiOperation({
     summary:
@@ -86,6 +90,7 @@ export class LegalController {
     return this.dmca.create(user.sub, dto);
   }
 
+  @AttorneyOnly()
   @Get('dmca/mine')
   @ApiOperation({
     summary: 'My DMCA notices and the notices against my content',

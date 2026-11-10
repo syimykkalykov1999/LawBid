@@ -106,6 +106,18 @@ void main() {
     );
   });
 
+  test(
+      'sweep C-c13 D5: a blocked / deleted account signing in by code is '
+      '«account unavailable», not «No connection»', () async {
+    for (final code in ['ACCOUNT_SUSPENDED', 'ACCOUNT_DELETED']) {
+      expect(
+        await assistant((_) async => apiError(403, code)),
+        const OtpVerifyResult.unavailable(),
+        reason: code,
+      );
+    }
+  });
+
   test('wrong password -> invalidCredentials', () async {
     final r = await signIn(
       (_) async => apiError(401, 'AUTH_INVALID_CREDENTIALS'),

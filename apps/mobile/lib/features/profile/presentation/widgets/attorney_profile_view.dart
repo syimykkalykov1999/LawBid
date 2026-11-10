@@ -19,7 +19,6 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/cases/presentation/widgets/offer_case_sheet.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
-import 'package:lawbid/features/chat/presentation/profile_video_call.dart';
 import 'package:lawbid/features/consultations/application/consultations_providers.dart';
 import 'package:lawbid/features/consultations/presentation/booking_sheet.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
@@ -1333,20 +1332,8 @@ class _Actions extends ConsumerWidget {
         ],
         if (blocked) const Spacer(),
         if (!blocked) const SizedBox(width: AppSpacing.sm),
-        // R-012: video call, only where the chat itself allows it.
-        if (!isSelf && !blocked)
-          ProfileVideoCallButton(
-            userId: attorneyId,
-            builder: (label, onTap) => Padding(
-              padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-              child: ProfileIconSquare(
-                key: const ValueKey('profile-video-call'),
-                icon: AppIcons.videoCameraOutlined,
-                semanticLabel: label,
-                onTap: onTap,
-              ),
-            ),
-          ),
+        // Owner 2026-11-09: no video-call button on the profile (calls stay
+        // in the chat header only).
         // Share as a small icon square (Instagram-style), full tap target.
         ProfileIconSquare(
           icon: AppIcons.iosShareRounded,

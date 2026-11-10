@@ -70,6 +70,53 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
 
   /// The group is gone or I am no longer in it.
   bool _gone = false;
+
+  /// Sweep B-c1: a big group's card carries the first 100 members and a
+  /// cursor; the rest come page by page as the list scrolls (Telegram).
+  final List<api.GroupMemberDto> _moreMembers = [];
+  String? _moreFrom;
+  String? _moreCursor;
+  bool _moreLoading = false;
+
+  /// The card's members plus the pages loaded so far; a new card (another
+  /// first page) starts the pages again.
+  List<api.GroupMemberDto> _members(api.GroupDetailDto d) {
+    if (d.membersNextCursor != _moreFrom) {
+      _moreMembers.clear();
+      _moreFrom = d.membersNextCursor;
+      _moreCursor = d.membersNextCursor;
+    }
+    if (_moreMembers.isEmpty) return d.members;
+    final seen = {for (final m in d.members) m.userId};
+    return [
+      ...d.members,
+      for (final m in _moreMembers)
+        if (!seen.contains(m.userId)) m,
+    ];
+  }
+
+  void _loadMoreMembers() {
+    final cursor = _moreCursor;
+    if (cursor == null || _moreLoading) return;
+    _moreLoading = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final page = await ref
+            .read(groupRepositoryProvider)
+            .members(_id, cursor: cursor);
+        if (!mounted || _moreCursor != cursor) return;
+        setState(() {
+          _moreMembers.addAll(page.items);
+          _moreCursor = page.nextCursor;
+        });
+      } on Object {
+        // The next scroll to the end tries again.
+      } finally {
+        _moreLoading = false;
+      }
+    });
+  }
+
   StreamSubscription<Object?>? _events;
 
   String get _id => widget.groupId;
@@ -644,6 +691,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
 
   Widget _content(api.GroupDetailDto d, Translator t) {
     final me = ref.watch(currentUserIdProvider);
+    final members = _members(d);
     final muted = _isMuted(d);
     final closedWithApproval = d.type == api.GroupType.closed && d.joinApproval;
     final owner = d.myRole == api.GroupRole.owner;
@@ -964,7 +1012,12 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               AppSpacing.sm,
             ),
             child: Text(
-              t.plural('group.info.members', d.members.length),
+              t.plural(
+                'group.info.members',
+                d.membersNextCursor == null
+                    ? members.length
+                    : d.memberCount.toInt(),
+              ),
               key: const ValueKey('group-members-title'),
               style: Theme.of(context)
                   .extension<AppTypographyTokens>()!
@@ -987,9 +1040,11 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               border: Border.all(color: colors.border),
             ),
             sliver: SliverList.builder(
-              itemCount: d.members.length,
+              itemCount: members.length,
               itemBuilder: (context, i) {
-                final m = d.members[i];
+                // Sweep B-c1: near the end, the next page of members.
+                if (i >= members.length - 15) _loadMoreMembers();
+                final m = members[i];
                 final manage = _canManage(d, m, me);
                 return GroupInfoMemberTile(
                   key: ValueKey('member-${m.userId}'),

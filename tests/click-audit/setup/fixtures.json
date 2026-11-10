@@ -1,0 +1,10 @@
+{
+  "_comment": "TEST-ONLY values for the LOCAL click audit stack (tests/click-audit). Never real credentials, never prod. The owner admin binds its authenticator on the first UI sign-in; the secret lands in .auth/ (git-ignored).",
+  "admin": {
+    "email": "audit-owner@lawbid-e2e.test",
+    "login": "audit-owner",
+    "password": "Audit-owner-pass-2026"
+  },
+  "client": { "phone": "+14155550101", "password": "Demo1234!" },
+  "attorney": { "phone": "+14155550102", "password": "Demo1234!" }
+}

@@ -16,10 +16,18 @@ import { GroupPresenter, NOBODY } from './group-presenter.service';
 import {
   type CreatePollDto,
   type GroupMessageDto,
+  type GroupPersonPage,
   type PollDto,
   type PollVoterOptionDto,
 } from './groups.dto';
 import { GroupsService } from './groups.service';
+import {
+  decodeCursor,
+  encodeCursor,
+} from '../../common/pagination/cursor.util';
+
+/** Sweep B-c1: voters per option in GET …/voters; the rest are paged. */
+export const VOTERS_PER_OPTION = 50;
 
 /**
  * Owner 2026-10-20: polls in a group, Telegram-style. One or several
@@ -212,11 +220,20 @@ export class GroupPollsService {
         message: 'This poll is anonymous.',
       });
     }
-    const votes = await this.prisma.chatGroupPollVote.findMany({
-      where: { poll_id: pollId },
-      orderBy: { created_at: 'asc' },
-      select: { option_id: true, user_id: true },
-    });
+    // Sweep B-c1: never every vote at once — the first VOTERS_PER_OPTION of
+    // each option here, the rest through votersPage (one option, paged).
+    const votes = (
+      await Promise.all(
+        poll.options.map((o) =>
+          this.prisma.chatGroupPollVote.findMany({
+            where: { option_id: o.id },
+            orderBy: [{ created_at: 'asc' }, { user_id: 'asc' }],
+            take: VOTERS_PER_OPTION,
+            select: { option_id: true, user_id: true },
+          }),
+        ),
+      )
+    ).flat();
     const people = await this.presenter.people(votes.map((v) => v.user_id));
     return poll.options.map((o) => ({
       optionId: o.id,
@@ -227,6 +244,62 @@ export class GroupPollsService {
           return p ? [p] : [];
         }),
     }));
+  }
+
+  /** GET /groups/:id/polls/:pollId/options/:optionId/voters — sweep B-c1:
+   * one option's voters page by page (oldest vote first, keyset). */
+  async votersPage(
+    user: RequestUser,
+    groupId: string,
+    pollId: string,
+    optionId: string,
+    cursor?: string,
+    limit = 50,
+  ): Promise<GroupPersonPage> {
+    await this.groups.requireMember(user.sub, groupId);
+    const poll = await this.load(groupId, pollId);
+    if (poll.anonymous) {
+      throw new ForbiddenException({
+        code: ErrorCode.GROUP_FORBIDDEN,
+        message: 'This poll is anonymous.',
+      });
+    }
+    if (!poll.options.some((o) => o.id === optionId)) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Poll option not found.',
+      });
+    }
+    const after = cursor ? decodeCursor(cursor) : null;
+    const rows = await this.prisma.chatGroupPollVote.findMany({
+      where: {
+        option_id: optionId,
+        ...(after
+          ? {
+              OR: [
+                { created_at: { gt: after.createdAt } },
+                { created_at: after.createdAt, user_id: { gt: after.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'asc' }, { user_id: 'asc' }],
+      take: limit + 1,
+      select: { user_id: true, created_at: true },
+    });
+    const page = rows.slice(0, limit);
+    const people = await this.presenter.people(page.map((v) => v.user_id));
+    const last = page[page.length - 1];
+    return {
+      items: page.flatMap((v) => {
+        const p = people.get(v.user_id);
+        return p ? [p] : [];
+      }),
+      nextCursor:
+        rows.length > limit && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.user_id })
+          : null,
+    };
   }
 
   private async load(groupId: string, pollId: string) {

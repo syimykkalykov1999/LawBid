@@ -18,6 +18,7 @@ import 'package:lawbid/core/l10n/strings/case_signing_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_tools_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_workspace_strings.dart';
+import 'package:lawbid/core/l10n/strings/cases_filter_strings.dart';
 import 'package:lawbid/core/l10n/strings/channels_strings.dart';
 import 'package:lawbid/core/l10n/strings/chat_note_strings.dart';
 import 'package:lawbid/core/l10n/strings/chat_ux_strings.dart';
@@ -1078,9 +1079,9 @@ class StaticTranslatorRu extends _MapTranslator {
         'profile.share.copied': 'Ссылка на профиль скопирована.',
         'profile.tab.posts': 'Посты',
         'profile.tab.reviews': 'Отзывы',
-        'profile.posts.empty.title': 'Постов пока нет',
-        'profile.posts.empty.self': 'Здесь появятся ваши посты.',
-        'profile.posts.empty.other': 'Адвокат пока ничего не публиковал.',
+        'profile.posts.empty.title': 'Фото пока нет',
+        'profile.posts.empty.self': 'Опубликуйте фото или файл — они появятся здесь.',
+        'profile.posts.empty.other': 'Здесь пока нет постов с фото или файлом.',
         'profile.verifyBanner.body':
             'Получите синюю галочку и доступ к кейсам.',
         'profile.error': 'Не удалось загрузить профиль.',
@@ -1209,6 +1210,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...consultationRu,
         ...legalQaRu,
         ...deadlineRu,
+        ...casesFilterRu,
         ...storageRu,
         ...storageScreenRu,
         ...supportRu,
@@ -2538,9 +2540,9 @@ class StaticTranslatorEn extends _MapTranslator {
         'profile.share.copied': 'Profile link copied.',
         'profile.tab.posts': 'Posts',
         'profile.tab.reviews': 'Reviews',
-        'profile.posts.empty.title': 'No posts yet',
-        'profile.posts.empty.self': 'Your posts will appear here.',
-        'profile.posts.empty.other': "This attorney hasn't posted yet.",
+        'profile.posts.empty.title': 'No photos yet',
+        'profile.posts.empty.self': 'Post a photo or file and it will appear here.',
+        'profile.posts.empty.other': 'No posts with a photo or file here yet.',
         'profile.verifyBanner.body': 'Get the blue check and access to cases.',
         'profile.error': "Couldn't load the profile.",
         'profile.unavailable.title': 'Profile unavailable',
@@ -2669,6 +2671,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...consultationEn,
         ...legalQaEn,
         ...deadlineEn,
+        ...casesFilterEn,
         ...storageEn,
         ...storageScreenEn,
         ...supportEn,

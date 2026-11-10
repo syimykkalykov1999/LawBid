@@ -110,9 +110,15 @@ abstract interface class AuthRepository {
   /// period. Requires a fresh, unused [reauthToken] from [reauthWithOtp].
   /// On [AccountDeletionResult.success], the server has already revoked
   /// every session for this account (including the caller's own) — the
-  /// caller must clear local session state and route to Welcome, it will
+  /// caller must call [clearAfterDeletion] and route to Welcome, it will
   /// NOT get a chance to make another authenticated call first.
   Future<AccountDeletionResult> deleteAccount({required String reauthToken});
+
+  /// Sweep C-c13 D8: clears the local session after a successful
+  /// [deleteAccount] — called when the person leaves the «deleted, 30 days
+  /// to restore» screen, so that screen is actually seen (clearing at once
+  /// sent the router straight to Welcome).
+  Future<void> clearAfterDeletion();
 
   /// Owner 2026-10-13: signs in with a phone number or e-mail ([identifier],
   /// E.164 / lower-case) and the password — no SMS. Applies the session on

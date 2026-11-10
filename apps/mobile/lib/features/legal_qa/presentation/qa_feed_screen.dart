@@ -330,7 +330,15 @@ class _QaPage extends ConsumerWidget {
               child: NotificationListener<ScrollNotification>(
                 onNotification: (n) {
                   if (n.metrics.extentAfter < 400) {
-                    unawaited(notifier.loadMore());
+                    if (page.loadMoreError == null) {
+                      unawaited(notifier.loadMore());
+                    } else if (n is ScrollStartNotification &&
+                        n.dragDetails != null) {
+                      // App audit 2026-10-26 A6 (Instagram / Telegram): after
+                      // a failed page the next drag down tries again — once
+                      // per drag, not on every scroll frame.
+                      unawaited(notifier.retryLoadMore());
+                    }
                   }
                   return false;
                 },
@@ -341,16 +349,33 @@ class _QaPage extends ConsumerWidget {
                     AppSpacing.screenSide,
                     88,
                   ),
-                  itemCount: page.items.length + (page.isLoadingMore ? 1 : 0),
+                  itemCount: page.items.length +
+                      (page.isLoadingMore || page.loadMoreError != null
+                          ? 1
+                          : 0),
                   separatorBuilder: (_, __) =>
                       const SizedBox(height: AppSpacing.md),
                   itemBuilder: (_, i) => i >= page.items.length
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: AppSpacing.md,
-                          ),
-                          child: AppContentCardSkeleton(),
-                        )
+                      ? page.loadMoreError != null
+                          // A6: the shared pagination error row with Retry
+                          // where the list stopped (it never stops for good).
+                          ? AppPaginationFooter(
+                              status: AppPaginationStatus.error,
+                              labels: AppPaginationLabels(
+                                loadingMore: t.t('pagination.loadingMore'),
+                                error: t.t('pagination.error'),
+                                retry: t.t('error.retry'),
+                                end: t.t('pagination.end'),
+                              ),
+                              onRetry: () =>
+                                  unawaited(notifier.retryLoadMore()),
+                            )
+                          : const Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: AppSpacing.md,
+                              ),
+                              child: AppContentCardSkeleton(),
+                            )
                       : QuestionCard(
                           question: page.items[i],
                           attorney: attorney,

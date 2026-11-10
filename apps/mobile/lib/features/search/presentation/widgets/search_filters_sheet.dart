@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
@@ -189,7 +190,11 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
           PickerOption(
             value: l.code,
             label: l.nativeName,
-            sublabel: l.englishName == l.nativeName ? null : l.englishName,
+            sublabel: languageSublabel(
+              ref.read(languageControllerProvider).value?.code ?? 'en',
+              l.code,
+              l.nativeName,
+            ),
           ),
       ],
       initial: {if (_f.language != null) _f.language!},

@@ -40,6 +40,7 @@ import {
 import {
   AssistantSelf,
   AttorneyOnly,
+  RequiresDuty,
 } from '../auth/assistant/assistant-context';
 import { ClientReviewsService } from './client-reviews.service';
 
@@ -70,6 +71,7 @@ export class ClientReviewsController {
     return this.reviews.upsert(user, p.id, dto);
   }
 
+  @RequiresDuty('cases')
   @Get('cases/:id/client-review')
   @ApiOperation({ summary: 'My review of the case client, or null' })
   @ApiEnvelopeResponse(ClientReviewDto)

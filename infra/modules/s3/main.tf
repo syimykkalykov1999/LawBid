@@ -66,6 +66,20 @@ variable "documents_edge_min_ttl" {
   }
 }
 
+# C-c11 (2026-11-09): S3 Object Lock on the documents bucket, OFF by default.
+# Enabled only ever (the setting cannot be undone), with NO default retention
+# rule: ordinary documents stay deletable (account deletion, GDPR). Only the
+# sealed deal-record PDFs are written with a per-object COMPLIANCE retention
+# (files.service.ts storeGenerated({ sealed: true }), env
+# S3_OBJECT_LOCK_RETENTION_DAYS) — nobody, root included, can delete or
+# shorten them before the date. Versioning is already on (a prerequisite).
+# Owner's step before `true`: docs/runbooks/DEPLOY_PROD.md «Object Lock».
+variable "documents_object_lock" {
+  type        = bool
+  default     = false
+  description = "Enable S3 Object Lock on the documents bucket (no default rule; sealed deal records get per-object COMPLIANCE retention). Irreversible once applied."
+}
+
 variable "cors_allowed_origins" {
   type        = list(string)
   default     = ["https://syimykkalykov1999.github.io"]
@@ -95,6 +109,16 @@ resource "aws_s3_bucket" "documents_replica" {
 resource "aws_s3_bucket_versioning" "documents" {
   bucket = aws_s3_bucket.documents.id
   versioning_configuration { status = "Enabled" }
+}
+
+# C-c11: Object Lock on the existing, versioned documents bucket (the
+# provider enables it on an existing bucket; no `rule` = no default
+# retention; per-object retention comes from the API).
+resource "aws_s3_bucket_object_lock_configuration" "documents" {
+  count               = var.documents_object_lock ? 1 : 0
+  bucket              = aws_s3_bucket.documents.id
+  object_lock_enabled = "Enabled"
+  depends_on          = [aws_s3_bucket_versioning.documents]
 }
 
 # Who touched which object: requester, key, operation, status (delivered
@@ -529,6 +553,21 @@ data "aws_iam_policy_document" "media_cf" {
       test     = "StringEquals"
       variable = "AWS:SourceArn"
       values   = [aws_cloudfront_distribution.media.arn]
+    }
+  }
+  # D-c1 (2026-11-09, OWASP File Upload Cheat Sheet): a presigned upload
+  # writes under `staging/` only; confirm copies the checked bytes to the
+  # object the File row points at (files.policy.ts storedKey). The edge
+  # never serves the staging object, so nothing unchecked is ever public.
+  # (The same rule for the Cloudflare R2 domain: docs/architecture/R2_PUBLIC_MEDIA.md.)
+  statement {
+    sid       = "DenyStagingAtTheEdge"
+    effect    = "Deny"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.media.arn}/staging/*"]
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
     }
   }
 }

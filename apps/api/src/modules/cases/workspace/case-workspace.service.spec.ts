@@ -267,4 +267,30 @@ describe('CaseWorkspaceService', () => {
     await back.svc.setDone(as(ATTORNEY), 'k', 't', false);
     expect(back.notifications.emit).not.toHaveBeenCalled();
   });
+  // Security audit 2026-11-08 (L9): CaseTask has no attorney column; a
+  // task set by someone who is no longer a side of the case is not found.
+  it('a task set by an earlier attorney is not this pair’s to change', async () => {
+    const m = make({ accepted: true });
+    const row = {
+      id: 't1',
+      case_id: 'k',
+      kind: 'shared',
+      created_by: 'a0',
+      closed_at: null,
+      items: [],
+    };
+    m.prisma.caseTask.findFirst.mockImplementation(((args: {
+      where: { created_by?: { in: string[] } };
+    }) =>
+      Promise.resolve(
+        !args.where.created_by ||
+          args.where.created_by.in.includes(row.created_by)
+          ? row
+          : null,
+      )) as never);
+    await expect(
+      m.svc.setDone(as(ATTORNEY), 'k', 't1', true),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(m.prisma.caseTask.update).not.toHaveBeenCalled();
+  });
 });

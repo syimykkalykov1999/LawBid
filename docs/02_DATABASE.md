@@ -460,7 +460,7 @@ Prisma `@@index/@@unique` создаёт обычные индексы. Част
 ### 6.3 Роли БД
 | Роль | Права |
 |---|---|
-| `lawbid_migrator` | DDL, только в CI/CD при деплое |
+| `lawbid_admin` | DDL: миграции при деплое (`prisma migrate deploy`, секрет `MIGRATOR_DATABASE_URL`). Это мастер-пользователь RDS и владелец всех таблиц; роль `lawbid_migrator` создана как план с меньшими правами и пока **не используется** — под ней первая же миграция упадёт «must be owner of table» (`docs/runbooks/TF_CATCHUP.md`). Истина в одном месте: `infra/postgres/migration-role.txt`, проверка `scripts/ci/migration-role-check.mjs` |
 | `lawbid_app` | DML на рабочие таблицы, только INSERT/SELECT на append-only |
 | `lawbid_retention` | DELETE только на `case_journal` (`retain_until < now()`) |
 | `lawbid_readonly` | SELECT для аналитики (без таблиц с документами и контактами) |

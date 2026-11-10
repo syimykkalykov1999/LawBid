@@ -558,4 +558,39 @@ void main() {
     expect(m.replyTo, isNull);
     expect(m.reactions, isEmpty);
   });
+  test('B23: Retry keeps the unsent bubble, it never leaves and comes back',
+      () async {
+    final s = _setup(_Chat(const []));
+    final owner = s.c.read(currentUserIdProvider)!;
+    final db = s.c.read(socialLocalDatabaseProvider);
+    await db.enqueue(
+      clientMessageId: 'cm-1',
+      ownerId: owner,
+      conversationId: 'c1',
+      body: 'try me',
+    );
+    await db.attempted('cm-1', failedCode: 'CHAT_CLOSED');
+    // Every list the screen is shown: the unsent copy, then the sent one.
+    final seen = <List<String>>[];
+    final sub = s.c.listen(
+      chatThreadProvider('c1'),
+      (_, next) => seen.add([
+        for (final m in next.all)
+          if (m.clientMessageId != null) m.clientMessageId!,
+      ]),
+    );
+    addTearDown(sub.close);
+    await _settle();
+    final failed = s.c.read(chatThreadProvider('c1')).outbox.single;
+    expect(failed.delivery, DeliveryState.failed);
+    seen.clear();
+
+    await s.c.read(chatThreadProvider('c1').notifier).retry(failed);
+    await _settle();
+    expect(
+      seen.where((ids) => !ids.contains('cm-1')),
+      isEmpty,
+      reason: 'the bubble blinked out: $seen',
+    );
+  });
 }

@@ -264,3 +264,58 @@ describe('AdminSummaryService.board (2026-11-08: boards never rebuild inside the
     expect(compute).toHaveBeenCalledTimes(2);
   });
 });
+
+/** Speed matrix 2026-11-09 (§3 #5): change announcements for the admin socket. */
+describe('AdminSummaryService change announcements', () => {
+  function withPublish() {
+    const redis = fakeRedis() as ReturnType<typeof fakeRedis> & {
+      publish: jest.Mock<Promise<number>, [string, string]>;
+    };
+    redis.publish = jest.fn<Promise<number>, [string, string]>(() =>
+      Promise.resolve(1),
+    );
+    return redis;
+  }
+
+  it('announces a refresh only when the stored data changed', async () => {
+    const redis = withPublish();
+    const svc = new AdminSummaryService(redis as never);
+    let n = 1;
+    const compute = jest.fn(() => Promise.resolve({ n }));
+    await svc.refresh('counts', compute);
+    expect(redis.publish).toHaveBeenCalledWith('adm:changed', 'counts');
+    redis.publish.mockClear();
+    await svc.refresh('counts', compute); // same numbers
+    expect(redis.publish).not.toHaveBeenCalled();
+    n = 2;
+    await svc.refresh('counts', compute);
+    expect(redis.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('a scoped copy is announced under its family; drop / put announce too', async () => {
+    const redis = withPublish();
+    const svc = new AdminSummaryService(redis as never);
+    await svc.getScoped(
+      'admin-counts',
+      'US',
+      () => Promise.resolve({ q: 1 }),
+      30,
+    );
+    expect(redis.publish).toHaveBeenCalledWith('adm:changed', 'admin-counts');
+    redis.publish.mockClear();
+    await svc.drop('board');
+    await svc.put('other', { x: 1 });
+    await svc.dropFamily('admin-counts');
+    expect(redis.publish.mock.calls.map((c) => c[1])).toEqual([
+      'board',
+      'other',
+      'admin-counts',
+    ]);
+  });
+
+  it('a Redis client without publish (tests, doubles) is simply quiet', async () => {
+    const svc = new AdminSummaryService(fakeRedis() as never);
+    await expect(svc.put('k', { a: 1 })).resolves.toBeUndefined();
+    svc.notifyChanged('k');
+  });
+});

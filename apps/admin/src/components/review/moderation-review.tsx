@@ -15,6 +15,7 @@ import { formatDateTime } from '@/lib/utils';
 import { Lightbox } from './lightbox';
 import { ReviewShell, type ReviewAction } from './review-shell';
 import { useReviewFlow } from './use-review-flow';
+import { LazyImg } from '@/components/ui/lazy-img';
 
 type ModCard = components['schemas']['ModerationCardDto'];
 type Action = ModCard['availableActions'][number];
@@ -159,6 +160,9 @@ export function ModerationReview() {
 function ModerationBody({ card: c }: { card: ModCard }) {
   const [zoom, setZoom] = useState(false);
   const file = typeof c.context.fileUrl === 'string' ? c.context.fileUrl : null;
+  // The 320 px copy and the blurhash of a reported photo (chat attachments).
+  const filePreview = typeof c.context.filePreviewUrl === 'string' ? c.context.filePreviewUrl : null;
+  const fileBlurhash = typeof c.context.fileBlurhash === 'string' ? c.context.fileBlurhash : null;
   const voice = typeof c.context.voiceUrl === 'string' ? c.context.voiceUrl : null;
   const [fileIsImage, setFileIsImage] = useState(true);
   const reasons = Array.from(new Set(c.reports.map((r) => r.reason)));
@@ -196,8 +200,15 @@ function ModerationBody({ card: c }: { card: ModCard }) {
           {c.text ? <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-xl bg-surface-2 p-3 font-sans text-ink">{c.text}</pre> : <p className="text-muted">Без текста</p>}
           {file && fileIsImage ? (
             <button type="button" onClick={() => setZoom(true)} className="block w-full cursor-zoom-in overflow-hidden rounded-xl bg-surface-2" aria-label="Открыть фото">
-              {/* eslint-disable-next-line @next/next/no-img-element -- a short signed link, not a static asset */}
-              <img src={file} alt="Файл из жалобы" className="mx-auto h-[40vh] min-h-48 w-full object-contain" onError={() => setFileIsImage(false)} />
+              <LazyImg
+                src={file}
+                sources={{ url: file, previewUrl: filePreview }}
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                blurhash={fileBlurhash}
+                alt="Файл из жалобы"
+                className="mx-auto h-[40vh] min-h-48 w-full object-contain"
+                onError={() => setFileIsImage(false)}
+              />
             </button>
           ) : null}
           {file && !fileIsImage ? (

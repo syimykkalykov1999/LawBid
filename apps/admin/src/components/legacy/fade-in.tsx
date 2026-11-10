@@ -30,14 +30,21 @@ export function MotionRow({
   i = 0,
   className,
   onClick,
+  ref,
+  'data-index': dataIndex,
 }: {
   children: React.ReactNode;
   i?: number;
   className?: string;
   onClick?: () => void;
+  /** Set by VirtualRows (measured row heights). */
+  ref?: React.Ref<HTMLTableRowElement>;
+  'data-index'?: number;
 }) {
   return (
     <m.tr
+      ref={ref}
+      data-index={dataIndex}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(i, 12) * 0.03, ease: [0.16, 1, 0.3, 1] }}

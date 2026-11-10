@@ -1,5 +1,6 @@
 # docs/06 §7.3 — main → images → staging → smoke → manual approval →
-# migrations (one-off ECS task, lawbid_migrator) → prod rolling deploy →
+# migrations (one-off ECS task under MIGRATOR_DATABASE_URL = lawbid_admin;
+# lawbid_migrator is planned, not in use — infra/postgres/migration-role.txt) → prod rolling deploy →
 # smoke. Rollback of a bad rollout is automatic: the ECS deployment circuit
 # breaker AND the CloudWatch alarms (ALB 5xx / p95 / unhealthy hosts) that ECS
 # watches during the rollout (infra/modules/ecs, docs/runbooks/DEPLOY_SAFETY.md).

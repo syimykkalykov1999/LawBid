@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -504,8 +505,11 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
                 PickerOption(
                   value: l.code,
                   label: l.nativeName,
-                  sublabel:
-                      l.englishName == l.nativeName ? null : l.englishName,
+                  sublabel: languageSublabel(
+                    ref.read(languageControllerProvider).value?.code ?? 'en',
+                    l.code,
+                    l.nativeName,
+                  ),
                 ),
             ],
             initial: _languages,

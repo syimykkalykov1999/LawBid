@@ -293,7 +293,34 @@ export function newFileKey(input: {
  * parallel confirms of one upload apart.
  */
 export function storedKey(uploadKey: string, nonce: string): string {
-  return `${uploadKey}_s${nonce}`;
+  return `${finalKeyOf(uploadKey)}_s${nonce}`;
+}
+
+/**
+ * D-c1 (2026-11-09, OWASP File Upload Cheat Sheet «upload to a separate
+ * location»): every presigned link writes under this one prefix and
+ * nowhere else. No File row ever points here, the API signs no read of it,
+ * and one edge rule (Cloudflare / CloudFront: deny `staging/*`) keeps the
+ * public R2 domain from serving it before confirm. `confirm` copies the
+ * checked bytes out of it ([storedKey]); the upload sweep deletes the rest.
+ */
+export const UPLOAD_STAGING_PREFIX = 'staging/';
+
+/** Where the presigned link of a new upload writes: `staging/<final key>`. */
+export function stagingKey(finalKey: string): string {
+  return `${UPLOAD_STAGING_PREFIX}${finalKey}`;
+}
+
+/** The key layout a stored object gets: the upload key without `staging/`
+ * (an upload key from before 2026-11-09 has no prefix and is kept as is). */
+export function finalKeyOf(uploadKey: string): string {
+  return uploadKey.startsWith(UPLOAD_STAGING_PREFIX)
+    ? uploadKey.slice(UPLOAD_STAGING_PREFIX.length)
+    : uploadKey;
+}
+
+export function isStagingKey(key: string): boolean {
+  return key.startsWith(UPLOAD_STAGING_PREFIX);
 }
 
 /** `<key>_w256` — never `<key>/256`: MinIO forbids an object whose name

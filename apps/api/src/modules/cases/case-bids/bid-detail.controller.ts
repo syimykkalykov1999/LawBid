@@ -14,6 +14,7 @@ import { BidsService } from '../../bids/bids.service';
 import { BidIdParamDto } from '../../bids/dto/bid-requests.dto';
 import { BidDto } from '../../bids/dto/bid-responses.dto';
 import { CaseBidsService } from './case-bids.service';
+import { RequiresDuty } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -30,6 +31,7 @@ export class BidDetailController {
     private readonly caseBids: CaseBidsService,
   ) {}
 
+  @RequiresDuty('cases', 'bids', 'bid_drafts')
   @Get('bids/:id')
   @ApiOperation({
     summary: 'Bid details, full negotiation history and the attorney summary',

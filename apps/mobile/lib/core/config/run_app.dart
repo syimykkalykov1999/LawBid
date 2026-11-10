@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/app.dart';
 import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
@@ -60,6 +61,11 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // `/#/lawyer/anna` — links, reload and the back button all work. A no-op
   // on the phone.
   usePathUrlStrategy();
+  // Owner 2026-11-08 (web, like Instagram / Telegram Web): a screen opened
+  // with push (settings, a chat, a profile) puts its own address in the
+  // bar, so reload / bookmark / share keep it (go_router's documented
+  // switch; DeepLinkController restores the address after the splash).
+  if (kIsWeb) GoRouter.optionURLReflectsImperativeAPIs = true;
   // Owner 2026-10-23: tab visibility / online / page freeze events for the
   // connectivity and realtime code (core/platform/web_lifecycle.dart).
   if (kIsWeb) WebLifecycle.attach();

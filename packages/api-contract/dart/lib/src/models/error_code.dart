@@ -534,6 +534,8 @@ enum ErrorCode {
   roleSwitchBlocked('ROLE_SWITCH_BLOCKED'),
   @JsonValue('ROLE_SWITCH_NOT_ALLOWED')
   roleSwitchNotAllowed('ROLE_SWITCH_NOT_ALLOWED'),
+  @JsonValue('EMAIL_SEND_FAILED')
+  emailSendFailed('EMAIL_SEND_FAILED'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

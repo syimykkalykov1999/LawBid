@@ -37,6 +37,8 @@ Conversation _conv(
   ConversationStatus status = ConversationStatus.active,
   bool blocked = false,
   MessageRequest request = MessageRequest.none,
+  String? person,
+  DateTime? at,
 }) =>
     Conversation(
       id: id,
@@ -47,11 +49,11 @@ Conversation _conv(
       counterpart: Counterpart(
         isAttorney: true,
         verified: false,
-        id: 'u-$id',
+        id: person ?? 'u-$id',
         displayName: name,
       ),
       unreadCount: 0,
-      updatedAt: DateTime(2026),
+      updatedAt: at ?? DateTime(2026),
       isDirect: true,
       blocked: blocked,
       request: request,
@@ -70,6 +72,11 @@ class _Chats implements ChatRepository {
   }) async {
     queries.add(q);
     final all = [
+      // One person in three chats (a direct one and two case chats): the
+      // newest one must be the only tile.
+      _conv('s1', 'Syimyk Kalykov', person: 'syimyk', at: DateTime(2026, 3)),
+      _conv('s2', 'Syimyk Kalykov', person: 'syimyk', at: DateTime(2026, 5)),
+      _conv('s3', 'Syimyk Kalykov', person: 'syimyk', at: DateTime(2026, 4)),
       _conv('a', 'Anna Petrova-Konstantinopoulou'),
       _conv('b', 'Boris Ivanov'),
       _conv('c', 'Closed Carl', status: ConversationStatus.closed),
@@ -245,6 +252,15 @@ void main() {
   }
 
   Finder chat(String id) => find.byKey(ValueKey('share-to-chat-$id'));
+
+  testWidgets('one person in several chats is one tile: the newest chat',
+      (tester) async {
+    await open(tester);
+    expect(chat('s2'), findsOneWidget);
+    expect(chat('s1'), findsNothing);
+    expect(chat('s3'), findsNothing);
+    expect(find.text('Syimyk Kalykov'), findsOneWidget);
+  });
 
   testWidgets(
       'pick two chats, a group and a channel, add a note, send: one card '

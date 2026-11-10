@@ -38,6 +38,7 @@ import {
   UpdateDeadlineRuleDto,
 } from './deadlines.dto';
 import { DeadlinesService } from './deadlines.service';
+import { AssistantAllowed } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -51,6 +52,7 @@ export class DeadlinesController {
 
   // Owner 2026-10-22 (client economy plan, package D): reference data —
   // cacheable in the browser, revalidated in the background.
+  @AssistantAllowed()
   @Get('rules')
   @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @LegalDisclaimerNotice('deadline')
@@ -61,6 +63,7 @@ export class DeadlinesController {
     return this.deadlines.rules(q);
   }
 
+  @AssistantAllowed()
   @Get('holidays')
   @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @LegalDisclaimerNotice('deadline')
@@ -71,6 +74,7 @@ export class DeadlinesController {
     return this.deadlines.holidays(q);
   }
 
+  @AssistantAllowed()
   @Get('calculate')
   @LegalDisclaimerNotice('deadline')
   @ApiOperation({

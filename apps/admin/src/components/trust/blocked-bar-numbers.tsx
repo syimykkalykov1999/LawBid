@@ -76,6 +76,7 @@ export function BlockedBarNumbers({ canManage }: { canManage: boolean }) {
         min: 3,
         max: TRUST_NOTE_MAX,
         confirm: 'Разблокировать',
+        textRequired: true,
       });
       if (!a) return null;
       return api.POST('/admin/trust/blocked-bar-numbers/{id}/unblock', { params: { path: { id: b.id } }, body: { reason: a.text } });

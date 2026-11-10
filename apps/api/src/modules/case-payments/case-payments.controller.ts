@@ -29,6 +29,7 @@ import {
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  AssistantAllowed,
   AttorneyOnly,
   RequiresDuty,
 } from '../auth/assistant/assistant-context';
@@ -75,6 +76,7 @@ type Page<T> = { items: T[]; nextCursor: string | null };
 export class CasePaymentsController {
   constructor(private readonly payments: CasePaymentsService) {}
 
+  @AssistantAllowed()
   @Get('payments/settings')
   @ApiOperation({ summary: 'Are in-app payments on, fee rules, limits' })
   @ApiEnvelopeResponse(PaymentSettingsPublicDto)
@@ -82,6 +84,7 @@ export class CasePaymentsController {
     return this.payments.publicSettings();
   }
 
+  @AssistantAllowed()
   @Get('payments/quote')
   @ApiOperation({ summary: 'What the client pays for an amount, fees split' })
   @ApiEnvelopeResponse(PaymentQuoteDto)
@@ -108,6 +111,7 @@ export class CasePaymentsController {
     return this.payments.payoutAccount(user);
   }
 
+  @AttorneyOnly()
   @Put('payout-account/preferences')
   @ApiOperation({
     summary: "Who covers Stripe's fee on my invoices by default (attorney)",
@@ -125,6 +129,7 @@ export class CasePaymentsController {
     return this.payments.updatePreferences(user, dto);
   }
 
+  @AttorneyOnly()
   @Post('payout-account/onboarding')
   @ApiOperation({
     summary: 'Start or continue Stripe onboarding; returns the page to open',
@@ -145,6 +150,7 @@ export class CasePaymentsController {
     return this.payments.startOnboarding(user);
   }
 
+  @AttorneyOnly()
   @Post('payout-account/dashboard')
   @ApiOperation({ summary: 'One-time link to the Stripe Express dashboard' })
   @ApiEnvelopeResponse(PayoutAccountLinkDto, { status: 201 })
@@ -181,6 +187,7 @@ export class CasePaymentsController {
   // Security research #5 (2026-10-22), A11: card testing — a stolen-card
   // script creating checkouts in a loop (each attempt costs a Stripe fee).
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @AttorneyOnly()
   @Post('cases/:id/payments')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
@@ -265,6 +272,7 @@ export class CasePaymentsController {
     return this.payments.cancelRequest(user, p.id);
   }
 
+  @AttorneyOnly()
   @Post('payment-requests/:id/fee-payer')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -366,6 +374,7 @@ export class CasePaymentsController {
     return this.payments.getPayment(user, p.id);
   }
 
+  @AttorneyOnly()
   @Post('payments/:id/cancel')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Drop a payment that was not completed (client)' })
@@ -378,6 +387,7 @@ export class CasePaymentsController {
     return this.payments.cancel(user, p.id);
   }
 
+  @AttorneyOnly()
   @Post('payments/:id/refund')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

@@ -24,6 +24,7 @@ import { formatDateTime } from '@/lib/utils';
 import { Lightbox, type LightboxImage } from './lightbox';
 import { ReviewShell, type ReviewAction } from './review-shell';
 import { useReviewFlow } from './use-review-flow';
+import { LazyImg } from '@/components/ui/lazy-img';
 
 type Card = components['schemas']['AdminVerificationRequestDto'];
 type Doc = components['schemas']['AdminDocumentDto'];
@@ -367,8 +368,7 @@ function Picture({ doc, url, loading, onOpen }: { doc: Doc; url: string | undefi
             </span>
           </span>
         ) : (
-          /* eslint-disable-next-line @next/next/no-img-element -- a short signed link, not a static asset */
-          <img src={url} alt={title} className="mx-auto h-[38vh] min-h-48 w-full object-contain" />
+          <LazyImg src={url} alt={title} className="mx-auto h-[38vh] min-h-48 w-full object-contain" />
         )}
       </button>
       <figcaption className="mt-1 text-xs text-muted">{title}</figcaption>

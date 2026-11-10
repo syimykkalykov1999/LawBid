@@ -15,6 +15,7 @@ export function proxy(req: NextRequest) {
     nonce,
     dev: process.env.NODE_ENV !== 'production',
     connectSrc: process.env.ADMIN_CONNECT_SRC,
+    socketOrigin: process.env.ADMIN_SOCKET_ORIGIN || process.env.API_BASE_URL,
   });
   const withCsp = (res: NextResponse) => {
     res.headers.set('Content-Security-Policy', csp);

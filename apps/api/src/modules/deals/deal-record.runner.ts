@@ -274,11 +274,14 @@ export class DealRecordRunner
       title: (await this.texts.pdf()).title,
     });
     const hash = sha256(pdf);
+    // C-c11: the sealed record is written with Object Lock retention when
+    // the documents bucket has it (nobody can delete or rewrite it).
     const file = await this.files.storeGenerated(
       row.initiator_id,
       'case_attachment',
       pdf,
       'application/pdf',
+      { sealed: true },
     );
     const requestId = row.sign_request.id;
     const chat: ChatChange[] = [];

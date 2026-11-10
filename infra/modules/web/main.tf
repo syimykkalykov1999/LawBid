@@ -99,6 +99,23 @@ variable "app_connect_src" {
   description = "Hosts the app itself calls besides the API (storage, media, video, fonts, Stripe)."
 }
 
+# Owner list B-c13 (I18N_GLYPHS 2026-11-02 §15): Flutter's web engine downloads
+# the Noto fonts for scripts the app does not bundle (Chinese, Arabic, Hindi,
+# Thai, ...) from fonts.gstatic.com, which is blocked in China and Iran, so
+# those users saw squares. With this on, the distribution serves the same
+# files from our own host under /s/* (the exact gstatic path, so the engine's
+# `fontFallbackBaseUrl` is just "/s/"): CloudFront fetches each file once
+# from fonts.gstatic.com (outside the block) and keeps it for a year (the
+# files are versioned and immutable; Noto is SIL OFL 1.1, redistribution
+# allowed). The web deploy switches the app to it only after the live host
+# answers a font there (scripts/deploy/web-font-base.sh), so the order of
+# terraform apply and deploy does not matter.
+variable "font_fallback_proxy" {
+  type        = bool
+  default     = true
+  description = "Serve the engine's fallback Noto fonts from this host under /s/* (proxied from fonts.gstatic.com and cached), for users who cannot reach gstatic."
+}
+
 variable "stripe_script_src" {
   type        = list(string)
   default     = ["https://js.stripe.com", "https://*.js.stripe.com", "https://maps.googleapis.com"]
@@ -503,6 +520,21 @@ resource "aws_cloudfront_distribution" "web" {
     origin_access_control_id = aws_cloudfront_origin_access_control.web.id
   }
 
+  # B-c13: the engine's fallback fonts from our host (see `font_fallback_proxy`).
+  dynamic "origin" {
+    for_each = var.font_fallback_proxy ? ["fonts.gstatic.com"] : []
+    content {
+      domain_name = origin.value
+      origin_id   = "fonts"
+      custom_origin_config {
+        http_port              = 80
+        https_port             = 443
+        origin_protocol_policy = "https-only"
+        origin_ssl_protocols   = ["TLSv1.2"]
+      }
+    }
+  }
+
   # S17-1: the API behind the same host (see `api_proxy_host`).
   dynamic "origin" {
     for_each = var.api_proxy_host == "" ? [] : [var.api_proxy_host]
@@ -557,6 +589,24 @@ resource "aws_cloudfront_distribution" "web" {
       compress                 = false
       cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
       origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+    }
+  }
+
+  # B-c13: /s/* is the gstatic path itself (the origin gets the same path).
+  # CachingOptimized keeps each font for the year gstatic asks for and sends
+  # no viewer headers or cookies to Google. No viewer functions: these are
+  # plain files, never an app screen. Same-origin for the page, so the
+  # engine's fetch needs no CORS and only connect-src 'self'.
+  dynamic "ordered_cache_behavior" {
+    for_each = var.font_fallback_proxy ? [1] : []
+    content {
+      path_pattern           = "/s/*"
+      target_origin_id       = "fonts"
+      viewer_protocol_policy = "redirect-to-https"
+      allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+      cached_methods         = ["GET", "HEAD"]
+      compress               = true
+      cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6"
     }
   }
 

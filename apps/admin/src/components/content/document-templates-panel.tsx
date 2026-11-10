@@ -24,6 +24,7 @@ import { collectIds, count, type Noun, resultText, runInBatches } from '@/lib/bu
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { US_STATES } from '@/lib/us-states';
+import { putResumable, sendToStorage } from '@/lib/storage-upload';
 import { formatDateTime } from '@/lib/utils';
 
 type Template = components['schemas']['AdminDocumentTemplateDto'];
@@ -269,23 +270,40 @@ export function DocumentTemplatesPanel() {
   );
 }
 
-/** Upload one file through presign → S3 → confirm → wait for a clean scan. */
+/** The server says parts are not for this file (flag off, too small, gone). */
+function noParts(e: unknown): boolean {
+  const code = (e as { code?: string } | null)?.code;
+  const status = (e as { status?: number } | null)?.status;
+  return code === 'FEATURE_DISABLED' || code === 'VALIDATION_ERROR' || status === 404;
+}
+
+/**
+ * Upload one file: presign → storage (with progress and retries; a big
+ * file ≥ 16 MiB goes in resumable parts through the server's multipart
+ * plan, the app's path) → confirm → wait for a clean scan.
+ */
 async function uploadTemplate(file: File, mime: Mime, onStep: (text: string) => void): Promise<string> {
   onStep('Считаем контрольную сумму…');
   const sha256 = await sha256Hex(file);
   onStep('Готовим загрузку…');
   const presigned = (await api.POST('/admin/document-templates/uploads', { body: { mime, sizeBytes: file.size, sha256 } })).data!.data;
+  const progress = (f: number) => onStep(`Загружаем файл… ${Math.round(f * 100)} %`);
   onStep('Загружаем файл…');
-  const form = new FormData();
-  for (const [k, v] of Object.entries(presigned.upload.fields)) form.append(k, v);
-  form.append('file', file); // S3 POST policy: the file goes last
-  let res: Response;
-  try {
-    res = await fetch(presigned.upload.url, { method: 'POST', body: form });
-  } catch {
-    throw new Error('Не удалось отправить файл в хранилище (сеть или CORS).');
-  }
-  if (!res.ok) throw new Error(`Хранилище отклонило файл (HTTP ${res.status}).`);
+  const fileId = presigned.fileId;
+  const inParts = await putResumable(file, {
+    plan: async () => {
+      try {
+        return (await api.POST('/admin/document-templates/uploads/{fileId}/multipart', { params: { path: { fileId } } })).data!.data;
+      } catch (e) {
+        if (noParts(e)) return null;
+        throw e;
+      }
+    },
+    complete: async () => {
+      await api.POST('/admin/document-templates/uploads/{fileId}/multipart/complete', { params: { path: { fileId } } });
+    },
+  }, { onProgress: progress });
+  if (!inParts) await sendToStorage(presigned.upload, file, { onProgress: progress });
   onStep('Проверка на вирусы…');
   for (let i = 0; i < POLL_TRIES; i++) {
     const f = (await api.POST('/admin/document-templates/uploads/{fileId}/confirm', { params: { path: { fileId: presigned.fileId } } })).data!.data;

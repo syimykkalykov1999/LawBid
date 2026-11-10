@@ -1,6 +1,7 @@
 import { fileMime, sha256Hex, sleep } from '@/components/media/media-utils';
 import { api } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
+import { sendToStorage } from '@/lib/storage-upload';
 
 type Mime = components['schemas']['AdminSupportUploadDto']['mime'];
 
@@ -25,16 +26,11 @@ export async function uploadSupportFile(file: File, onStep?: (text: string) => v
   // A refusal (type, size) throws an ApiError the caller shows as is.
   const presigned = (await api.POST('/admin/support/uploads', { body: { mime, sizeBytes: file.size, sha256 } })).data!.data;
   onStep?.('Загружаем файл…');
-  const form = new FormData();
-  for (const [k, v] of Object.entries(presigned.upload.fields)) form.append(k, v);
-  form.append('file', file); // S3 POST policy: the file goes last
-  let res: Response;
-  try {
-    res = await fetch(presigned.upload.url, { method: 'POST', body: form });
-  } catch {
-    throw new Error('Не удалось отправить файл в хранилище (сеть или CORS).');
-  }
-  if (!res.ok) throw new Error(`Хранилище отклонило файл (HTTP ${res.status}).`);
+  // Progress and the app's retry rule (a lost connection or a busy storage
+  // is tried again, a refusal is not); StorageUploadError carries the text.
+  await sendToStorage(presigned.upload, file, {
+    onProgress: (f) => onStep?.(`Загружаем файл… ${Math.round(f * 100)} %`),
+  });
   onStep?.('Проверка на вирусы…');
   for (let i = 0; i < POLL_TRIES; i++) {
     const c = (

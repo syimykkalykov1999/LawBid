@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Call, Prisma } from '@prisma/client';
 import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { timeBucket, weakEtag } from '../../common/sync/cheap-etag';
+import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
 import { viewerContext } from '../../common/viewer/viewer-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashShard } from '../../sharding/shard-id';
@@ -19,6 +20,8 @@ import type {
 import { CALL_SILENT_MS } from './calls.service';
 
 const DEFAULT_LIMIT = 30;
+/** B-c7: rows one catch-up carries at most (as the groups' 500). */
+const CHANGED_MAX = 500;
 const NEWEST_FIRST: Prisma.CallOrderByWithRelationInput[] = [
   { created_at: 'desc' },
   { id: 'desc' },
@@ -122,7 +125,55 @@ export class CallHistoryService {
         ? encodeCursor({ createdAt: last.created_at, id: last.id })
         : null;
     if (page.length === 0) return { items: [], nextCursor: null };
+    return { items: await this.present(me, page), nextCursor };
+  }
 
+  /**
+   * B-c7 (2026-11-09, Telegram getDifference, as GET /groups?updatedSince):
+   * the finished calls of mine that appeared or changed since [sinceRaw]
+   * (a call ends → its row's updated_at moves), plus `deletedIds` — the
+   * calls I took off my list since («delete», «clear» write a hidden row
+   * with its time). syncedAt = the newest stamp of the answer; the app
+   * passes it back next time and never reloads the whole list.
+   */
+  async changed(user: RequestUser, sinceRaw: string): Promise<CallHistoryPage> {
+    const me = user.sub;
+    const since = parseUpdatedSince(sinceRaw) as Date;
+    const [rows, hidden] = await Promise.all([
+      this.newestMine(
+        me,
+        { updated_at: { gte: since } },
+        CHANGED_MAX,
+        (where) =>
+          this.prisma.call.findMany({
+            where,
+            orderBy: NEWEST_FIRST,
+            take: CHANGED_MAX,
+          }),
+      ),
+      this.prisma.callLogHidden.findMany({
+        where: { user_id: me, created_at: { gte: since } },
+        select: { call_id: true, created_at: true },
+        take: CHANGED_MAX,
+      }),
+    ]);
+    const items = rows.length === 0 ? [] : await this.present(me, rows);
+    return {
+      items,
+      nextCursor: null,
+      deletedIds: hidden.map((h) => h.call_id),
+      syncedAt: syncedAt(
+        [...rows.map((r) => r.updated_at), ...hidden.map((h) => h.created_at)],
+        since,
+      ),
+    };
+  }
+
+  /** The rows as the viewer sees them (names, photos, groups in one pass). */
+  private async present(
+    me: string,
+    page: Call[],
+  ): Promise<CallHistoryItemDto[]> {
     return viewerContext.run(me, async () => {
       const peerIds = [
         ...new Set(
@@ -164,7 +215,7 @@ export class CallHistoryService {
       const userById = new Map(users.map((u) => [u.id, u]));
       const groupById = new Map(groups.map((g) => [g.id, g]));
 
-      const items = page.map((r): CallHistoryItemDto => {
+      return page.map((r): CallHistoryItemDto => {
         const peerId = r.caller_id === me ? r.callee_id : r.caller_id;
         const u = userById.get(peerId);
         const g = r.group_id ? groupById.get(r.group_id) : undefined;
@@ -194,7 +245,6 @@ export class CallHistoryService {
           durationSec: r.duration_sec,
         };
       });
-      return { items, nextCursor };
     });
   }
 

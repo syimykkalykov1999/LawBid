@@ -21,7 +21,10 @@ import {
 } from '../../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { IdempotencyInterceptor } from '../../../idempotency/idempotency.interceptor';
-import { AttorneyOnly } from '../../auth/assistant/assistant-context';
+import {
+  AttorneyOnly,
+  RequiresDuty,
+} from '../../auth/assistant/assistant-context';
 import {
   CurrentUser,
   type RequestUser,
@@ -48,6 +51,7 @@ const E = ErrorCode;
 export class CaseInvitesController {
   constructor(private readonly invites: CaseInvitesService) {}
 
+  @AttorneyOnly()
   @Post('cases/:id/invites')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Offer my open case to an attorney (client)' })
@@ -73,6 +77,7 @@ export class CaseInvitesController {
     return this.invites.create(user, params.id, dto);
   }
 
+  @RequiresDuty('cases')
   @Get('cases/:id/invites')
   @ApiOperation({
     summary:
@@ -104,6 +109,7 @@ export class CaseInvitesController {
     return this.invites.listForAttorney(user, query);
   }
 
+  @RequiresDuty('cases')
   @Get('invites/:id')
   @ApiOperation({ summary: 'One invite (its client or attorney)' })
   @ApiEnvelopeResponse(CaseInviteDto)
@@ -136,6 +142,7 @@ export class CaseInvitesController {
     return this.invites.decline(user, params.id, dto);
   }
 
+  @RequiresDuty('cases')
   @Post('invites/:id/cancel')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Cancel my pending invite (client)' })

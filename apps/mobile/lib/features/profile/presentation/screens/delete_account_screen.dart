@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_step_up.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/delete_account_controller.dart';
 import 'package:lawbid/features/profile/domain/delete_account_step.dart';
 
@@ -25,6 +28,16 @@ import 'package:lawbid/features/profile/domain/delete_account_step.dart';
 /// item doesn't apply to a destructive confirmation flow — the safe
 /// default on any interruption is to start over at the warning, which a
 /// single screen gives for free).
+/// Sweep C-c13 D1 (audit 26.10): the number the reauth code goes to, in
+/// E.164. Ten digits are a US/Canada number (the field's hint); 11–15
+/// digits already carry their country code (E.164 allows up to 15), so an
+/// account from any country can confirm. Anything else: null.
+String? deleteReauthE164(String digits) {
+  if (digits.length == 10) return '+1$digits';
+  if (digits.length >= 11 && digits.length <= 15) return '+$digits';
+  return null;
+}
+
 class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
 
@@ -36,6 +49,33 @@ class DeleteAccountScreen extends ConsumerStatefulWidget {
 class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   final _phoneController = TextEditingController();
   final _phraseController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Sweep C-c13 D1: the code goes to the account's own number (as in
+    // WhatsApp / Telegram), filled in — a number of any country.
+    try {
+      final phone = ref.read(currentUserControllerProvider).user?.phone;
+      if (phone != null) {
+        _phoneController.text = phone.replaceAll(RegExp(r'\D'), '');
+      }
+    } on Object {
+      // no user loaded yet: the field stays empty
+    }
+  }
+
+  @override
+  void deactivate() {
+    // Sweep C-c13 D8: leaving the «deleted» screen any other way (back)
+    // also ends the local session.
+    final notifier = ref.read(deleteAccountControllerProvider.notifier);
+    if (ref.read(deleteAccountControllerProvider).step ==
+        DeleteAccountStep.done) {
+      unawaited(notifier.finishDeletion());
+    }
+    super.deactivate();
+  }
 
   @override
   void dispose() {
@@ -347,10 +387,10 @@ class _ReauthPhoneStep extends ConsumerWidget {
         label: t.t('deleteAccount.reauth.sendCode'),
         isLoading: state.isSubmitting,
         disabledHint: t.t('form.disabled.required'),
-        isEnabled: digits.length == 10,
-        onPressed: digits.length == 10
-            ? () => notifier.submitPhone('+1$digits')
-            : null,
+        isEnabled: deleteReauthE164(digits) != null,
+        onPressed: deleteReauthE164(digits) == null
+            ? null
+            : () => notifier.submitPhone(deleteReauthE164(digits)!),
       ),
     );
   }
@@ -505,9 +545,16 @@ class _DoneStep extends StatelessWidget {
           style: typography.body.copyWith(color: colors.textSecondary),
         ),
       ],
-      action: AppButton(
-        label: t.t('deleteAccount.success.action'),
-        onPressed: () => context.go(AuthRoutes.welcome),
+      action: Consumer(
+        builder: (context, ref, _) => AppButton(
+          label: t.t('deleteAccount.success.action'),
+          onPressed: () async {
+            await ref
+                .read(deleteAccountControllerProvider.notifier)
+                .finishDeletion();
+            if (context.mounted) context.go(AuthRoutes.welcome);
+          },
+        ),
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart'
     show caseThreadId;
@@ -33,6 +34,11 @@ class _CaseCommentsScreenState extends ConsumerState<CaseCommentsScreen> {
   void dispose() {
     _focus.dispose();
     super.dispose();
+  }
+
+  static bool _refusedForAssistant(AsyncValue<Object?> comments) {
+    final e = comments.error;
+    return e is ApiException && e.code == ApiErrorCodes.assistantNotAllowed;
   }
 
   void _reply(ReplyTarget target) {
@@ -102,12 +108,16 @@ class _CaseCommentsScreenState extends ConsumerState<CaseCommentsScreen> {
               ),
             ),
           ),
-          CommentComposer(
-            postId: _thread,
-            replyTo: _replyTo,
-            focusNode: _focus,
-            onClearReply: () => setState(() => _replyTo = null),
-          ),
+          // Click audit 2026-11-09: the server refused the thread to an
+          // assistant without the «cases» duty — no composer whose send
+          // could only fail the same way.
+          if (!_refusedForAssistant(comments))
+            CommentComposer(
+              postId: _thread,
+              replyTo: _replyTo,
+              focusNode: _focus,
+              onClearReply: () => setState(() => _replyTo = null),
+            ),
         ],
       ),
     );
