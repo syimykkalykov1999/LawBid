@@ -83,10 +83,12 @@ export const CLIENT_TUNING_DEFS = {
   },
   // S20-9 (2026-10-25): 3-state switch over the number above.
   'client.video_prefetch_mode': {
-    default: 'auto',
+    // Owner 2026-11-09: no limiter he did not order — reels warm up the
+    // same on Wi-Fi and mobile data (Instagram / TikTok do), always.
+    default: 'on',
     pattern: /^(off|on|auto)$/,
     description:
-      'Reel warm-up switch. off = never warm up; on = always the numbers below, whatever the network; auto (default) = «ahead» on Wi-Fi, «cellular» on mobile data, and 0 while Bunny video traffic this month is over its warning level (Usage alarms).',
+      'Reel warm-up switch. off = never warm up; on (default) = «ahead» on any network; auto = «ahead» on Wi-Fi, «cellular» on mobile data, and 0 while Bunny video traffic this month is over its warning level (Usage alarms).',
   },
   'client.video_prefetch_cellular': {
     default: 1,

@@ -177,8 +177,15 @@ async function fixtures(db: PrismaClient): Promise<Fx> {
     SELECT ap.user_id::text FROM attorney_profiles ap
     WHERE ap.user_id::text ${V4} AND EXISTS (SELECT 1 FROM posts p WHERE p.author_id = ap.user_id)
     ORDER BY ap.user_id LIMIT 1`);
+  // A post every viewer may open (VISIBLE_POST_WHERE of post-presenter):
+  // published, not archived, its author active and not a suspended
+  // attorney — the seed also holds archived / hidden ones, which answer 404.
   const post = await one(`
-    SELECT p.id::text FROM posts p WHERE p.id::text ${V4} AND p.deleted_at IS NULL
+    SELECT p.id::text FROM posts p JOIN users u ON u.id = p.author_id
+    LEFT JOIN attorney_profiles ap ON ap.user_id = u.id
+    WHERE p.id::text ${V4} AND p.deleted_at IS NULL AND p.archived_at IS NULL
+      AND p.status = 'published' AND u.status = 'active'
+      AND (u.role = 'client' OR ap.verification_status IS DISTINCT FROM 'suspended')
       AND EXISTS (SELECT 1 FROM comments c WHERE c.post_id = p.id)
     ORDER BY p.author_id, p.created_at LIMIT 1`);
   const comment = await one(`

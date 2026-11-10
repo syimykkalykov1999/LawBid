@@ -174,9 +174,30 @@ class _ForwardTargetSheetState extends ConsumerState<ForwardTargetSheet> {
             const <Channel>[]
         : const <Channel>[];
 
+    final allChats = chatsAsync.value?.items ?? const <Conversation>[];
+    bool canSend(Conversation c) =>
+        c.status != ConversationStatus.closed &&
+        !(c.request == MessageRequest.declined && c.requestedByMe);
+    // One entry per person: the newest chat I can send to, and a greyed one
+    // only for a person with no such chat.
+    final open = onePerPerson([
+      for (final c in allChats)
+        if (canSend(c)) c,
+    ]);
+    final openIds = {
+      for (final c in open)
+        if (c.counterpart.id != null) c.counterpart.id!,
+    };
+    final shown = {
+      ...open,
+      ...onePerPerson([
+        for (final c in allChats)
+          if (!canSend(c) && !openIds.contains(c.counterpart.id)) c,
+      ]),
+    };
     final chats = [
-      for (final c in chatsAsync.value?.items ?? const <Conversation>[])
-        if (_matches(_chatTitle(c)))
+      for (final c in allChats)
+        if (shown.contains(c) && _matches(_chatTitle(c)))
           _Row(
             target: ForwardTarget(ForwardTargetKind.conversation, c.id),
             title: _chatTitle(c),

@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
+import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   SEO_LAST_RUN_KEY,
@@ -404,10 +405,13 @@ export class SeoGenerateJob {
   }
 
   /** The admin's choice («Продвижение») wins; never decided = the variable. */
+  /** Admin value, else the catalog default (owner 2026-11-07: ON), else the env. */
   private async pageSwitch(key: string, envName: string): Promise<boolean> {
     const stored = await this.settings!.raw(key);
-    return typeof stored === 'boolean'
-      ? stored
+    if (typeof stored === 'boolean') return stored;
+    const fallback = APP_SETTINGS[key as keyof typeof APP_SETTINGS];
+    return typeof fallback === 'boolean'
+      ? fallback
       : truthy(this.config.get<string>(envName));
   }
 

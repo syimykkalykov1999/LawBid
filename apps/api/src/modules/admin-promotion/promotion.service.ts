@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AuditLogService } from '../admin-access/audit-log.service';
@@ -178,21 +179,23 @@ export class PromotionService {
 
   /**
    * What the generator reads (GET /public/seo-settings): the stored value
-   * of each switch, or null when the admin never decided. Public-safe:
-   * booleans/integers only, no personal data. Reads the cached app_config map
-   * (no query of its own).
+   * of each switch, or — where the admin never decided — the catalog default
+   * (owner 2026-11-07: «SEO all ON», so the default is the decision and no
+   * repository variable is needed). null only for a key with no usable
+   * default. Public-safe: booleans/integers only, no personal data. Reads
+   * the cached app_config map (no query of its own).
    */
   async publicSettings(): Promise<PublicSeoSettingsDto> {
     const out: Record<string, boolean | number | null> = {};
+    const usable = (v: unknown): v is boolean | number =>
+      typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v));
     for (const [field, key] of Object.entries(PUBLIC_SEO_FIELDS) as [
       PublicSeoField,
       string,
     ][]) {
-      const v = await this.settings.raw(key);
-      out[field] =
-        typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v))
-          ? v
-          : null;
+      const stored = await this.settings.raw(key);
+      const fallback = APP_SETTINGS[key as keyof typeof APP_SETTINGS];
+      out[field] = usable(stored) ? stored : usable(fallback) ? fallback : null;
     }
     return out as unknown as PublicSeoSettingsDto;
   }
