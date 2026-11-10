@@ -144,6 +144,32 @@ describe('admin live channel (speed matrix §3 #5)', () => {
     expect(inv).toHaveBeenCalledTimes(1);
   });
 
+  it('owner 2026-11-10: a change is re-read only by what was answered before it', async () => {
+    vi.useFakeTimers();
+    const qc = new QueryClient();
+    const t0 = Date.now();
+    const before = qc.getQueryCache().build(qc, { queryKey: ['before'], refetchInterval: livePoll() } as never);
+    before.setData('x', { updatedAt: t0 - 3_000, manual: false });
+    const after = qc.getQueryCache().build(qc, { queryKey: ['after'], refetchInterval: livePoll() } as never);
+    after.setData('y', { updatedAt: t0, manual: false });
+    const inv = vi.spyOn(qc, 'invalidateQueries').mockResolvedValue();
+    const { io, socket } = fakeIo();
+    startAdminLive(qc, { fetchTicket: () => Promise.resolve(ticket()), io });
+    await vi.advanceTimersByTimeAsync(0);
+    socket.fire('connect');
+    inv.mockClear();
+    // The page's own visit recomputed a summary a second before its answer.
+    socket.fire('admin:changed', { key: 'dashboard', at: new Date(t0 - 1_000).toISOString() });
+    await vi.advanceTimersByTimeAsync(LIVE_DEBOUNCE_MS);
+    const pred = (inv.mock.calls.at(-1)![0] as { predicate: (q: unknown) => boolean }).predicate;
+    expect([before, after].filter((q) => pred(q)).map((q) => q.queryKey[0])).toEqual(['before']);
+    // An event without a time re-reads every live query, as before.
+    socket.fire('admin:changed', { key: 'dashboard' });
+    await vi.advanceTimersByTimeAsync(LIVE_DEBOUNCE_MS);
+    const all = (inv.mock.calls.at(-1)![0] as { predicate: (q: unknown) => boolean }).predicate;
+    expect([before, after].filter((q) => all(q)).map((q) => q.queryKey[0])).toEqual(['before', 'after']);
+  });
+
   it('livePoll: the minute timer stops while the socket is up, faster polls keep running', () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     const q = { state: { error: null, data: undefined } };
