@@ -49,7 +49,7 @@ describe('switch contract: defaults (a)', () => {
     ['fraud.enabled', true],
     ['trust.enabled', true],
     ['ops.auto_pause_heavy_jobs', true],
-    ['ops.auto_scale_down_on_budget', true],
+    ['ops.auto_scale_down_on_budget', false],
     ['seo.generator_mode', 'nightly+events'],
     ['deal_record.enabled', true],
     ['bids.rich_terms_enabled', true],

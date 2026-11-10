@@ -27,6 +27,24 @@ export function userThrottleLimit(env = process.env.THROTTLE_LIMIT): number {
 }
 
 /**
+ * `THROTTLE_IGNORE_USER_AGENT` (test machines and the CI perf guard only,
+ * never set on a production container): requests whose User-Agent header is
+ * EXACTLY this string skip every rate limit, the global one and a route's
+ * own `@Throttle`. It is @nestjs/throttler's own `ignoreUserAgents` option
+ * (docs.nestjs.com/security/rate-limiting); the perf guard
+ * (test/perf-user.e2e-spec.ts) sets it to a value unique to the run so
+ * only its client is exempt and every other caller keeps the limits.
+ * Unset = nothing is ignored.
+ */
+export function throttleIgnoreUserAgents(
+  env = process.env.THROTTLE_IGNORE_USER_AGENT,
+): RegExp[] {
+  const ua = env?.trim();
+  if (!ua) return [];
+  return [new RegExp(`^${ua.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)];
+}
+
+/**
  * The admin limit: `ADMIN_THROTTLE_LIMIT` when set (the way back in after
  * a bad save), else the setting clamped to [MIN, MAX], never below the
  * user limit.

@@ -277,31 +277,34 @@ describe('Chat message actions (e2e, owner 2026-10-20)', () => {
     expect(after?.reactions).toEqual([{ emoji: '❤️', count: 1, mine: true }]);
   });
 
-  it('pins at most three per chat and lists them', async () => {
+  // Owner 2026-11-09: ten pins per chat (was three, WhatsApp's number).
+  it('pins at most ten per chat and lists them', async () => {
     const c = await chat();
     const ids: string[] = [];
-    for (let i = 0; i < 4; i++) ids.push((await send(c, 'client', `m${i}`)).id);
-    for (const id of ids.slice(0, 3)) {
+    for (let i = 0; i < 11; i++)
+      ids.push((await send(c, 'client', `m${i}`)).id);
+    for (const id of ids.slice(0, 10)) {
       await api()
         .post(url(c, id, '/pin'))
         .set(c.attorney.auth)
         .expect(200);
     }
     await api()
-      .post(url(c, ids[3], '/pin'))
+      .post(url(c, ids[10], '/pin'))
       .set(c.attorney.auth)
       .expect(409);
     const pins = await api()
       .get(`/api/v1/conversations/${c.id}/pins`)
       .set(c.client.auth)
       .expect(200);
-    expect(pins.body.data.items).toHaveLength(3);
+    expect(pins.body.data.items).toHaveLength(10);
+    expect(pins.body.data.maxPins).toBe(10);
     await api()
       .delete(url(c, ids[0], '/pin'))
       .set(c.client.auth)
       .expect(200);
     await api()
-      .post(url(c, ids[3], '/pin'))
+      .post(url(c, ids[10], '/pin'))
       .set(c.client.auth)
       .expect(200);
     // A message deleted for everyone leaves the pins.
@@ -313,7 +316,7 @@ describe('Chat message actions (e2e, owner 2026-10-20)', () => {
       .get(`/api/v1/conversations/${c.id}/pins`)
       .set(c.attorney.auth)
       .expect(200);
-    expect(left.body.data.items).toHaveLength(2);
+    expect(left.body.data.items).toHaveLength(9);
   });
   /** A second chat of the same client (another attorney, another case). */
   async function sibling(c: Awaited<ReturnType<typeof chat>>) {

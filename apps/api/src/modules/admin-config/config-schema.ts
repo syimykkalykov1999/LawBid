@@ -1220,6 +1220,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 50,
     max: 10_000,
   };
+  out['economy.aws_cap_usd'] = {
+    ...out['economy.aws_cap_usd'],
+    min: 0,
+    max: 1_000_000,
+  };
   for (const key of ['economy.manual_api_max', 'economy.manual_worker_max']) {
     out[key] = { ...out[key], min: 1, max: 1000 };
   }

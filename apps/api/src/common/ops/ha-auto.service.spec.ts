@@ -242,3 +242,30 @@ describe('HaAutoService', () => {
     await expect(svc.check()).resolves.toEqual([]);
   });
 });
+
+describe('owner 2026-11-09: money holds the copies only with a sum he typed', () => {
+  const money = (cap: number) => {
+    const ops = {
+      economy: jest.fn(() => Promise.resolve({ guard: 'limited' })),
+      cost: jest.fn(() =>
+        Promise.resolve({ limitUsd: 450, forecastUsd: 449, actualUsd: 100 }),
+      ),
+    };
+    const settings = { number: jest.fn(() => Promise.resolve(cap)) };
+    const svc = new HaAutoService(
+      { get: () => undefined } as never,
+      undefined,
+      settings as never,
+      ops as never,
+    );
+    return (svc as unknown as { money(): Promise<unknown> }).money();
+  };
+
+  it('no sum (0): no money facts, so nothing holds the copies back', async () => {
+    expect(await money(0)).toBeUndefined();
+  });
+
+  it('a sum typed: the economy and AWS budget readings count again', async () => {
+    expect(await money(300)).toEqual({ limited: true, budgetLeftUsd: 1 });
+  });
+});
