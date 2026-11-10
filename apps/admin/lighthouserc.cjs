@@ -15,9 +15,11 @@ module.exports = {
   ci: {
     collect: {
       url: [`${base}/users`, `${base}/audit-log`, `${base}/cases`],
-      // 5 runs, median: with 3 the cold first run (1418 ms TBT on 2026-11-09)
-      // moved the median by tens of ms.
-      numberOfRuns: 5,
+      // 9 runs, median: with 3 the cold first run (1418 ms TBT on 2026-11-09)
+      // moved the median by tens of ms; with 5 the same /users code gave
+      // 197-1016 ms on the 2-core runner and the median crossed 300 by chance
+      // (10.11, KNOWN_ERRORS). The threshold stays 300 ms.
+      numberOfRuns: 9,
       settings: {
         preset: 'desktop',
         formFactor: 'desktop',

@@ -206,7 +206,7 @@ jobs:
           for p in users audit-log cases; do curl -fsS -o /dev/null -H "Cookie: lawbid_admin=$LHCI_ADMIN_TOKEN" "http://localhost:3001/$p" || true; done
       # Blocking: the Total Blocking Time budget is an error (lighthouserc.cjs);
       # the stand steps above stay non-blocking (an infra hiccup skips this).
-      - name: Lighthouse (5 runs per page, median)
+      - name: Lighthouse (9 runs per page, median)
         if: steps.admin.outcome == 'success'
         working-directory: apps/admin
         env:
