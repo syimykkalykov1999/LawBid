@@ -184,8 +184,9 @@ export interface ResumableApi {
   complete(): Promise<void>;
 }
 
-/** Files at least this big go in parts (the server's MIN_MULTIPART_BYTES). */
-export const RESUMABLE_THRESHOLD_BYTES = 16 * 1024 * 1024;
+/** Files at least this big go in parts (the server's MIN_MULTIPART_BYTES:
+ * one 5 MiB part plus a byte since #889; it refuses a plan for less). */
+export const RESUMABLE_THRESHOLD_BYTES = 5 * 1024 * 1024 + 1;
 /** Parts in flight at once (the default `queueSize` of @aws-sdk/lib-storage). */
 export const PARTS_AT_ONCE = 4;
 const PLAN_ROUNDS = 3;

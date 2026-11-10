@@ -112,7 +112,7 @@ describe('putResumable (the app\'s parts loop, copied for the admin)', () => {
     const plan = vi.fn();
     expect(await putResumable(new Blob(['x']), { plan, complete: vi.fn() })).toBe(false);
     expect(plan).not.toHaveBeenCalled();
-    expect(RESUMABLE_THRESHOLD_BYTES).toBe(16 * MIB);
+    expect(RESUMABLE_THRESHOLD_BYTES).toBe(5 * MIB + 1);
   });
 
   it('server refuses parts (null plan) → false, nothing sent', async () => {
