@@ -10,7 +10,12 @@ import { ConfigService } from '@nestjs/config';
 import type { NotificationType } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
+import { APP_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import {
+  parseSwitchMode,
+  readSwitchMode,
+} from '../../../common/app-settings/switch-mode';
 import { demoContext } from '../../../common/demo/demo-context';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { shardCarry, shardKeyOf } from '../../../sharding/shard-context';
@@ -69,6 +74,10 @@ export interface CaseFanoutJob {
   mode?: 'urgent_top_up' | 'rebroadcast';
   /** Part of the job id of an extra round (e.g. `24h`). */
   tag?: string;
+  /** Owner rule (Авто): the waves decision taken when the round started
+   * (queue healthy → waves; else one wave to all), so every wave job of
+   * the round and the worker agree with the API that queued it. */
+  waves?: boolean;
 }
 
 /**
@@ -159,6 +168,65 @@ export class CaseFanoutService
   }
 
   /**
+   * The Авто signal of `case_fanout.enabled` (owner rule Выкл / Вкл / Авто):
+   * waves need the queue, so Авто = the `case-fanout` queue is there, its
+   * Redis is connected and at most `case_fanout.auto_max_waiting` wave jobs
+   * wait. Anything else (no Redis, a disconnect, an error, a backlog) = the
+   * one wave to everyone right away. Costs one Redis call (LLEN) and only
+   * when the mode is `auto`.
+   */
+  /** How long the Авто probe waits for the queue's answer (a disconnected
+   * Redis makes BullMQ queue the command instead of failing). */
+  private autoProbeMs = 1_500;
+
+  async wavesAuto(): Promise<boolean> {
+    const mode = this.settings
+      ? await readSwitchMode(this.settings, 'case_fanout.enabled')
+      : parseSwitchMode(APP_SETTINGS['case_fanout.enabled']);
+    if (mode !== 'auto' || !this.queue) return false;
+    // `case_fanout.queue_mode` = off is the owner saying «no queue for the
+    // alerts» (they go inside the request): waves cannot run there.
+    if (
+      this.settings &&
+      (await this.settings.string('case_fanout.queue_mode')) === 'off'
+    ) {
+      return false;
+    }
+    try {
+      const max = Math.max(
+        0,
+        this.settings
+          ? await this.settings.number('case_fanout.auto_max_waiting')
+          : APP_SETTINGS['case_fanout.auto_max_waiting'],
+      );
+      let timer: NodeJS.Timeout | undefined;
+      const waiting = await Promise.race([
+        this.queue.getWaitingCount(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('queue probe timed out')),
+            this.autoProbeMs,
+          );
+        }),
+      ]).finally(() => clearTimeout(timer));
+      if (waiting > max) {
+        this.logger.warn(
+          { metric: 'case_fanout_auto_fallback', waiting, max },
+          'case fan-out Авто: the queue is behind, one wave at once',
+        );
+        return false;
+      }
+      return true;
+    } catch (e) {
+      this.logger.warn(
+        { err: e instanceof Error ? e.message : String(e) },
+        'case fan-out Авто: the queue could not be read, one wave at once',
+      );
+      return false;
+    }
+  }
+
+  /**
    * An extra one-off round (see CaseFanoutJob.mode). Queued with retries
    * when Redis is there (job id per case, generation, mode and tag), else
    * run here. Returns the alerts sent right here (0 when queued).
@@ -168,7 +236,7 @@ export class CaseFanoutService
     mode: 'urgent_top_up' | 'rebroadcast',
     tag = '',
   ): Promise<number> {
-    const s = await loadFanoutSettings(this.settings);
+    const s = await loadFanoutSettings(this.settings, await this.wavesAuto());
     const kase = await this.prisma.case.findUnique({
       where: { id: caseId },
       select: { alert_generation: true },
@@ -179,6 +247,7 @@ export class CaseFanoutService
       wave: 1,
       generation: kase.alert_generation,
       mode,
+      waves: s.enabled,
       ...(tag ? { tag } : {}),
     };
     if (!this.queue || (!s.enabled && s.queueMode === 'off')) {
@@ -193,7 +262,7 @@ export class CaseFanoutService
    * of alerts sent right here (no Redis, or queue_mode off while the waves
    * are off), 0 when queued. */
   async start(caseId: string): Promise<number> {
-    const s = await loadFanoutSettings(this.settings);
+    const s = await loadFanoutSettings(this.settings, await this.wavesAuto());
     let delayMs = 0;
     if (s.enabled) {
       const g = await this.gate(caseId, s);
@@ -209,6 +278,7 @@ export class CaseFanoutService
       caseId,
       wave: 1,
       generation: kase.alert_generation,
+      waves: s.enabled,
     };
     // Algo audit 2026-10-27 (H-1): with Redis, the work always goes
     // through the queue (3 attempts, backoff) — also while the waves switch
@@ -370,7 +440,12 @@ export class CaseFanoutService
   /** One wave. Safe to run twice: people already alerted are skipped. */
   async runWave(job: CaseFanoutJob): Promise<WaveOutcome> {
     const { caseId, wave } = job;
-    const s = await loadFanoutSettings(this.settings);
+    // Авто: the decision taken when the round started travels in the job;
+    // an old job without it (queued before this release) decides here.
+    const s = await loadFanoutSettings(
+      this.settings,
+      job.waves ?? (await this.wavesAuto()),
+    );
     const kase = await this.prisma.case.findUnique({
       where: { id: caseId },
       select: {
@@ -539,6 +614,7 @@ export class CaseFanoutService
           wave: wave + 1,
           firstBidLogged: bidsFirst,
           generation: kase.alert_generation,
+          waves: s.enabled,
         },
         s.waveIntervalMinutes * 60_000,
       );

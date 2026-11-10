@@ -1057,6 +1057,10 @@ model File {
   /// BlurHash (4x3) of a clean image, drawn by the app as a placeholder
   /// while the picture loads. Null for non-images / not yet computed.
   blurhash           String?            @db.VarChar(40)
+  /// Owner 2026-11-09: every size of this image has its AVIF twin in storage
+  /// (an AVIF no smaller than the WebP is not kept). Only then is a client
+  /// that asked for AVIF given `.avif` links; false = WebP / JPEG links.
+  avif_twins         Boolean            @default(false)
   scan_status        ScanStatus         @default(pending)
   is_public          Boolean            @default(false)
   deleted_at         DateTime?          @db.Timestamptz

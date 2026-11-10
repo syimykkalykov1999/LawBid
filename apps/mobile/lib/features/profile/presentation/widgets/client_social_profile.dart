@@ -13,7 +13,6 @@ import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.d
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
-import 'package:lawbid/features/chat/presentation/profile_video_call.dart';
 import 'package:lawbid/features/profile/application/review_outbox.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
@@ -319,20 +318,8 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                     ),
                   ),
                 ],
-                // R-012: video call, only where the chat itself allows it.
-                ProfileVideoCallButton(
-                  userId: p.id,
-                  builder: (label, onTap) => Padding(
-                    padding:
-                        const EdgeInsetsDirectional.only(start: AppSpacing.sm),
-                    child: ProfileIconSquare(
-                      key: const ValueKey('profile-video-call'),
-                      icon: AppIcons.videoCameraOutlined,
-                      semanticLabel: label,
-                      onTap: onTap,
-                    ),
-                  ),
-                ),
+                // Owner 2026-11-09: no video-call button on the profile
+                // (calls stay in the chat header only).
               ],
             ),
           const SizedBox(height: AppSpacing.md),

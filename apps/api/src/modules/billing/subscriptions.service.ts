@@ -65,6 +65,7 @@ import type {
   ProviderSubscription,
 } from './payment-provider';
 import { SubscriptionSyncService } from './subscription-sync.service';
+import { DisputeRefundService } from './dispute-refund.service';
 import { DuplicateSubscriptionsService } from './duplicate-subscriptions.service';
 
 const PAYMENTS_PAGE = 20;
@@ -120,6 +121,9 @@ export class SubscriptionsService implements OnModuleDestroy {
     @Optional() private readonly settings?: AppSettingsService,
     // Algo audit M-4 (owner 2026-10-28): duplicate subscriptions.
     @Optional() private readonly duplicates?: DuplicateSubscriptionsService,
+    // R-237 / sweep B-c3: a cancel right after the first charge may refund
+    // it (behind `dispute_auto_refund`, off).
+    @Optional() private readonly disputeRefunds?: DisputeRefundService,
   ) {
     this.portalReturnUrl =
       config.get<string>('STRIPE_PORTAL_RETURN_URL') ??
@@ -1069,6 +1073,14 @@ export class SubscriptionsService implements OnModuleDestroy {
       true,
     );
     await this.sync.apply(remote);
+    // Sweep B-c3: cancelled within days of the first charge → that charge
+    // may go back by itself (then access ends now) or wait for a person;
+    // off by default, and a failure here never undoes the cancel.
+    try {
+      await this.disputeRefunds?.onFirstChargeCancel(user.sub);
+    } catch (e) {
+      this.logger.warn(`first-charge refund after cancel failed: ${String(e)}`);
+    }
     return this.me(user);
   }
 

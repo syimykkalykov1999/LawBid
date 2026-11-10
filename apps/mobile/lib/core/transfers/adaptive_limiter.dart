@@ -14,10 +14,36 @@ import 'dart:collection' show Queue;
 /// and the floor never goes under 1.
 ///
 /// No Flutter import: the video cache proxy runs it in its own isolate.
+///
+/// Owner 2026-11-09: an optional `start` (where a new file begins, under the
+/// ceiling) and `floor` (never under it after a failure), and [raise] /
+/// [settle] for [ThroughputClimb].
 class AdaptiveLimiter {
-  AdaptiveLimiter(this._maximum) : limit = _atLeastOne(_maximum());
+  AdaptiveLimiter(this._maximum, {int Function()? start, int Function()? floor})
+      : _start = start,
+        _floor = floor,
+        limit = 1 {
+    limit = startLimit;
+  }
 
   final int Function() _maximum;
+  final int Function()? _start;
+  final int Function()? _floor;
+
+  /// The most this limiter ever allows (the admin ceiling).
+  int get ceiling => _atLeastOne(_maximum());
+
+  /// Where a new file starts.
+  int get startLimit {
+    final s = _start?.call() ?? ceiling;
+    return s.clamp(floorLimit, ceiling);
+  }
+
+  /// The lowest the limit falls after failures.
+  int get floorLimit {
+    final f = _atLeastOne(_floor?.call() ?? 1);
+    return f > ceiling ? ceiling : f;
+  }
 
   /// Requests allowed at once right now.
   int limit;
@@ -71,8 +97,23 @@ class AdaptiveLimiter {
     _pauseTimer?.cancel();
     _paused = false;
     _upperLimit = null;
-    _downLimit = 1;
-    limit = _atLeastOne(_maximum());
+    _downLimit = floorLimit;
+    limit = startLimit;
+  }
+
+  /// One more at once, when nothing is being waited out and the ceiling is
+  /// not reached. True when the limit grew.
+  bool raise() {
+    if (_paused || (_rateLimitingTimer?.isActive ?? false)) return false;
+    if (limit >= ceiling) return false;
+    limit++;
+    _next();
+    return true;
+  }
+
+  /// One fewer at once (the last [raise] gave no speed), not under the floor.
+  void settle() {
+    if (limit > floorLimit) limit--;
   }
 
   void _resume() {
@@ -88,9 +129,9 @@ class AdaptiveLimiter {
     _paused = true;
     _pauseTimer?.cancel();
     _pauseTimer = Timer(duration, _resume);
-    if (limit > 1) {
+    if (limit > floorLimit) {
       _upperLimit = limit - 1;
-      limit = _atLeastOne(_downLimit);
+      limit = _downLimit < floorLimit ? floorLimit : _downLimit;
       _rateLimitingTimer = Timer(duration, _increaseLimit);
     }
   }
@@ -107,8 +148,62 @@ class AdaptiveLimiter {
     if (upper - _downLimit > 3) {
       _rateLimitingTimer = Timer(const Duration(seconds: 2), _increaseLimit);
     } else {
-      _downLimit = _atLeastOne(_downLimit ~/ 2);
+      final half = _downLimit ~/ 2;
+      _downLimit = half < floorLimit ? floorLimit : half;
     }
+  }
+}
+
+/// Owner 2026-11-09 («почему только 4 куска»): the parts of one upload climb
+/// while the total speed keeps growing, like the hill climb of TCP slow start
+/// and the auto-tuned part concurrency of the big resumable uploaders. Each
+/// round is [AdaptiveLimiter.limit] finished parts; a round at least [gain]
+/// faster than the last one adds one more part at once ([AdaptiveLimiter.
+/// raise], never past the ceiling); a round that is not faster takes that
+/// part back ([AdaptiveLimiter.settle]) and the climb stops for this file.
+/// Failures are the limiter's own business ([AdaptiveLimiter.rateLimit]
+/// drops to the floor).
+class ThroughputClimb {
+  ThroughputClimb(this._limiter, {DateTime Function()? now, this.gain = 1.1})
+      : _now = now ?? DateTime.now;
+
+  final AdaptiveLimiter _limiter;
+  final DateTime Function() _now;
+
+  /// How much faster a round must be to keep climbing.
+  final double gain;
+
+  DateTime? _since;
+  int _bytes = 0;
+  int _parts = 0;
+  double? _best;
+  bool _done = false;
+
+  /// A part starts (the first one starts the clock).
+  void started() => _since ??= _now();
+
+  /// A part of [bytes] arrived.
+  void finished(int bytes) {
+    final since = _since;
+    if (_done || since == null) return;
+    _bytes += bytes;
+    _parts++;
+    if (_parts < _limiter.limit) return;
+    final now = _now();
+    final seconds = now.difference(since).inMicroseconds / 1e6;
+    if (seconds <= 0) return;
+    final rate = _bytes / seconds;
+    final best = _best;
+    if (best == null || rate >= best * gain) {
+      _best = rate;
+      if (!_limiter.raise()) _done = _limiter.limit >= _limiter.ceiling;
+    } else {
+      _limiter.settle();
+      _done = true;
+    }
+    _since = now;
+    _bytes = 0;
+    _parts = 0;
   }
 }
 

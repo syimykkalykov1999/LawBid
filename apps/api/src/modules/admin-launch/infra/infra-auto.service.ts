@@ -175,6 +175,10 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       }),
     ]);
     const maxUsd = await this.settings.number('infra.auto_max_usd_month');
+    // Owner 2026-11-09: money holds an automatic switch-on back only when he
+    // typed an AWS money ceiling (economy.aws_cap_usd); none = never.
+    const capUsd = await this.settings.number('economy.aws_cap_usd');
+    const moneyCap = Number.isFinite(capUsd) && capUsd > 0;
     // Switch-offs first: they only save money.
     const ordered = [...due].sort((a, b) =>
       a.to === b.to ? 0 : a.to === 'off' ? -1 : 1,
@@ -192,9 +196,9 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
         activeCount,
         last24h,
         dailyCap: g.dailyCap,
-        budgetRatio: signals.budgetRatio,
+        budgetRatio: moneyCap ? signals.budgetRatio : null,
         costHighUsd: high,
-        maxUsdMonth: maxUsd,
+        maxUsdMonth: moneyCap ? maxUsd : Number.POSITIVE_INFINITY,
       });
       if (refusal) {
         // Waiting for a free slot or the quiet hours is normal; the rest

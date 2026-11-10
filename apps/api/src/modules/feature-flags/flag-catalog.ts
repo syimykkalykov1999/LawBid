@@ -108,8 +108,10 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
   },
   {
     // Owner 2026-10-20: Telegram-style channels of attorneys and companies.
+    // Owner 2026-11-07 (switch decisions): communities / channels are OFF and
+    // invisible to users by default; the code stays, the admin toggle stays.
     key: 'channels',
-    enabled: true,
+    enabled: false,
     app: true,
     description: 'Channels: posts from admins to subscribers',
   },
@@ -280,6 +282,16 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: true,
     app: false,
     description: 'Big uploads are confirmed without reading them into the API',
+  },
+  {
+    // Owner 2026-11-09 («фото обрабатываются долго»): on, `confirm` of a file
+    // under 8 MiB reads the upload once and stores exactly the checked bytes
+    // (GET + PUT) instead of HEAD + server-side copy + GET (≈0.5 s less on
+    // R2). Off = the copy, as before.
+    key: 'files_confirm_direct',
+    enabled: true,
+    app: false,
+    description: 'Small uploads are confirmed with one read instead of a copy',
   },
   {
     // R-251: on, the app sends a reel to Bunny in 4 pieces at once and asks
