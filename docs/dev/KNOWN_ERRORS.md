@@ -27,6 +27,7 @@
 - **iOS-сборка: «failed downloading … WebRTC.xcframework» (05.11, main, #755, #779).** Файл качается с релиза GitHub и часто обрывается. В CI кэш Swift-пакетов и до 3 попыток только на этой ошибке.
 
 - **`resumable_download_pieces_test`: «an expired link» иногда падает (05.11, #755).** Запрос, отменённый в первой попытке, доходил до тестового сервера уже после очистки списка. Порядок запросов при параллельной работе в тестах не проверять; проверять наличие.
+- **`resumable_download_pieces_test`: «the cut of an earlier try is kept when the admin number changed» — длина 8 вместо 5 (09.11, #862, run 42554319308).** Та же причина, что выше: отменённые части первой попытки дошли до сервера после очистки списка (повторы тех же диапазонов). Проверяется число разных диапазонов (`toSet()`), а не длина списка.
 
 - **`dart format` до `flutter pub get` (09.11, ветка cases-sort-pins).** Без `.dart_tool` форматтер не видит `formatter: trailing_commas: preserve` из analysis_options.yaml, снимает запятые и переписывает целые файлы (15 файлов, +3600 строк). В свежем worktree сначала `flutter pub get` и `dart run build_runner build`, потом `dart format` только своих файлов; `flutter analyze` без codegen показывает тысячи ложных ошибок.
 - **swagger_parser нумерует безымянные enum по порядку (09.11).** Новый query-параметр `enum` без `enumName` сдвигает `Sort` → `Sort2` → `Sort3` во всём Dart-клиенте и ломает приложение. Каждому новому enum в `@ApiPropertyOptional` давать `enumName`.

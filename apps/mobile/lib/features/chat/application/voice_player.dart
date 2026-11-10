@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:lawbid/core/audio/proximity_screen.dart';
 import 'package:lawbid/core/audio/safe_play.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/network/dio_client.dart';
@@ -13,7 +14,6 @@ import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
-import 'package:proximity_sensor/proximity_sensor.dart';
 
 /// The id the player shows while a not-yet-sent recording is previewed.
 const kVoiceDraftId = '__draft__';
@@ -112,11 +112,13 @@ class VoicePlayer extends Notifier<VoicePlayback> {
   }
 
   int _load = 0;
-  StreamSubscription<int>? _proximity;
+  StreamSubscription<bool>? _proximity;
   bool _earpiece = false;
+  late ProximityScreen _screen;
 
   @override
   VoicePlayback build() {
+    final screen = _screen = ref.read(proximityScreenProvider);
     ref.listen(
       audioTakeoverProvider,
       (_, __) => unawaited(pauseForOtherAudio()),
@@ -126,7 +128,8 @@ class VoicePlayer extends Notifier<VoicePlayback> {
         s.cancel();
       }
       unawaited(_proximity?.cancel());
-      if (!kIsWeb) unawaited(ProximitySensor.setProximityScreenOff(false));
+      _proximity = null;
+      unawaited(screen.release(this));
       _player?.dispose();
     });
     // A call (ringing or talking) takes the audio: the note stops.
@@ -282,23 +285,32 @@ class VoicePlayer extends Notifier<VoicePlayback> {
   }
 
   /// WhatsApp: held to the ear the note moves to the earpiece and the
-  /// screen goes dark; taken away it returns to the loudspeaker.
+  /// screen goes dark; taken away it returns to the loudspeaker. While a
+  /// note plays the screen-off lock is held ([ProximityScreen]): the
+  /// screen goes dark exactly when the phone is near, which is when the
+  /// sound moves to the earpiece.
   void _watchProximity() {
     if (kIsWeb || _proximity != null) return;
-    try {
-      _proximity = ProximitySensor.events.listen(
-        (near) => unawaited(_setEarpiece(near > 0)),
-        onError: (Object _) {},
-      );
-    } on Object {
-      // No sensor: the loudspeaker stays.
-    }
+    _proximity = _screen.near.listen(
+      (near) => unawaited(_setEarpiece(near)),
+      onError: (Object _) {},
+    );
+    unawaited(_screen.hold(this));
   }
+
+  @visibleForTesting
+  void debugWatchProximity() => _watchProximity();
+
+  @visibleForTesting
+  bool get debugEarpiece => _earpiece;
 
   void _unwatchProximity() {
     final sub = _proximity;
     _proximity = null;
-    if (sub != null) unawaited(sub.cancel());
+    if (sub != null) {
+      unawaited(sub.cancel());
+      unawaited(_screen.release(this));
+    }
     if (_earpiece) unawaited(_setEarpiece(false));
   }
 
@@ -321,7 +333,6 @@ class VoicePlayer extends Notifier<VoicePlayback> {
       }
       final session = await AudioSession.instance;
       await session.configure(on ? _earpieceConfig : _music);
-      await ProximitySensor.setProximityScreenOff(on);
       // The route is switched: only now does the flag change.
       _earpiece = on;
       if (wasPlaying && p != null && ref.mounted && gen == _gen) {
