@@ -134,7 +134,9 @@ describe('AppShell (staff package T2)', () => {
     pathname = '/audit-log';
     currentMe = undefined;
     shell();
-    expect(screen.queryByText('page body')).toBeNull();
+    // Mounted (its data loads in parallel with /auth/me) but not shown.
+    const body = screen.getByText('page body').closest('[aria-hidden="true"]');
+    expect(body?.className).toContain('invisible');
     expect(screen.queryByText('Такой страницы нет.')).toBeNull();
   });
 

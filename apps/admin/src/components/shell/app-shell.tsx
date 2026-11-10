@@ -75,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (toDesk && home) router.replace(home);
   }, [toDesk, home, router]);
   const hidden = (!!me && !!sectionFor(pathname) && !canOpen(me, pathname)) || (deskOn && outsideDesk(me, pathname, true));
-  // Sweep C-c14 (QS P3): until `me` is known a gated page is not drawn, so
+  // Sweep C-c14 (QS P3): until `me` is known a gated page is not shown, so
   // an owner-only page never flashes before «Такой страницы нет».
   const waiting = !me && !!sectionFor(pathname);
 
@@ -151,8 +151,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="text-5xl font-semibold text-faint">404</div>
                 <p className="mt-3 text-sm text-muted">Такой страницы нет.</p>
               </div>
-            ) : toDesk || waiting ? null : (
-              children
+            ) : toDesk ? null : (
+              // 2026-11-10: while `me` is unknown the page is already mounted,
+              // so its data is asked for together with /auth/me (Lighthouse
+              // reports: since C-c14 every page asked 60-120 ms after /auth/me
+              // answered, before it 40-60 ms before), but it is invisible: an
+              // owner-only page still never flashes, and its data stays the
+              // server's to refuse. Same element either way: no remount.
+              <div className={waiting ? 'contents invisible' : 'contents'} aria-hidden={waiting || undefined}>
+                {children}
+              </div>
             )}
           </m.div>
         </main>
