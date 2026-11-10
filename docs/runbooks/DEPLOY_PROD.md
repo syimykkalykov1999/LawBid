@@ -13,7 +13,7 @@ sts:AssumeRoleWithWebIdentity`, диагноз: `/mnt/project-files/plan/deploy-
 | База | Terraform `envs/prod` **не управляет** базой: `create_database` по умолчанию `false` и из `envs/prod` не передаётся. `apply` её не создаёт, не меняет, не удаляет. Если база всё же RDS из Terraform, у неё `deletion_protection = true` и финальный снимок | `modules/stack` (переменная), `modules/postgres` |
 | Секреты | Terraform создаёт только «оболочки» секретов Secrets Manager без значений (`aws_secretsmanager_secret`, нет `_version`). Значения (в т. ч. `SECRETS_MASTER_KEYS`) `apply` не перезаписывает; `prod-secrets.sh` существующее не заменяет | `modules/secrets`, `scripts/deploy/prod-secrets.sh` |
 | Деплой из GitHub | `roll-services.sh` берёт текущее описание задачи, меняет только образ и `APP_VERSION`; `secrets` и `environment` остаются как были | `scripts/deploy/roll-services.sh` |
-| Миграции | Только отдельной задачей `lawbid-prod-migrate` (`prisma migrate deploy`, роль `lawbid_migrator`) до выкладки сервисов. API и worker сами схему не меняют | `run-migrations.sh`, `Dockerfile` |
+| Миграции | Только отдельной задачей `lawbid-prod-migrate` (`prisma migrate deploy`, пользователь `lawbid_admin` из секрета `MIGRATOR_DATABASE_URL`; роль `lawbid_migrator` — план, не используется) до выкладки сервисов. API и worker сами схему не меняют | `run-migrations.sh`, `Dockerfile` |
 | Откат | Circuit breaker ECS возвращает прошлую ревизию; вручную: Actions → Rollback production | `modules/ecs`, `rollback.yml` |
 
 **Ловушки (исправлены или описаны ниже):**

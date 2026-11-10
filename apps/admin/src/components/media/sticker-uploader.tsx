@@ -9,9 +9,9 @@ import { useToast } from '@/components/ui/toast';
 import { growthError } from '@/components/growth/errors';
 import { api } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
-import { fileMime, sha256Hex, sleep } from './media-utils';
-import { shrinkForUpload } from '@/lib/image-shrink';
-import { sendToStorage } from '@/lib/storage-upload';
+import { fileMime, formatBytes, sha256Hex, sleep } from './media-utils';
+import { compressSticker } from '@/lib/image-compress';
+import { sendToStorage, StorageUploadError } from '@/lib/storage-upload';
 
 type Pack = components['schemas']['AdminStickerPackDto'];
 type Mime = components['schemas']['AdminStickerUploadDto']['mime'];
@@ -20,9 +20,10 @@ const MIMES: Mime[] = ['image/png', 'image/webp', 'image/jpeg', 'image/gif'];
 const POLL_MS = 2000;
 const POLL_TRIES = 30; // ~1 minute
 
-type Phase = 'idle' | 'hash' | 'presign' | 'upload' | 'confirm' | 'scan' | 'add' | 'done' | 'error' | 'timeout';
+type Phase = 'idle' | 'compress' | 'hash' | 'presign' | 'upload' | 'confirm' | 'scan' | 'add' | 'done' | 'error' | 'timeout';
 
 const STEPS: { phase: Phase; text: string }[] = [
+  { phase: 'compress', text: 'Сжимаем картинку…' },
   { phase: 'hash', text: 'Считаем контрольную сумму…' },
   { phase: 'presign', text: 'Готовим загрузку…' },
   { phase: 'upload', text: 'Загружаем файл…' },
@@ -32,9 +33,11 @@ const STEPS: { phase: Phase; text: string }[] = [
 ];
 
 /**
- * Admin sticker upload: SHA-256 in the browser → presign → POST to the
- * presigned target (url + form fields) → confirm → wait for a clean scan
- * (confirm is idempotent and returns the file) → add to the pack.
+ * Admin sticker upload: shrink in the browser (browser-image-compression,
+ * 512 px, same format; GIF / animated WEBP untouched) → SHA-256 → presign →
+ * send to the presigned target with progress and retries → confirm → wait
+ * for a clean scan (confirm is idempotent and returns the file) → add to
+ * the pack.
  */
 export function StickerUploader({ packId, onAdded }: { packId: string; onAdded: (p: Pack) => void }) {
   const toast = useToast();
@@ -44,6 +47,8 @@ export function StickerUploader({ packId, onAdded }: { packId: string; onAdded: 
   const [phase, setPhase] = useState<Phase>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const [pendingFileId, setPendingFileId] = useState<string | null>(null);
+  const [sent, setSent] = useState(0);
+  const [saved, setSaved] = useState<string | null>(null);
 
   const busy = STEPS.some((s) => s.phase === phase);
   const stepIndex = STEPS.findIndex((s) => s.phase === phase);
@@ -76,7 +81,7 @@ export function StickerUploader({ packId, onAdded }: { packId: string; onAdded: 
   }
 
   function fail(e: unknown) {
-    const text = e instanceof Error && !('code' in e) ? e.message : growthError(e);
+    const text = e instanceof StorageUploadError || (e instanceof Error && !('code' in e)) ? e.message : growthError(e);
     setPhase('error');
     setMessage(text);
     toast.error(text);
@@ -86,28 +91,24 @@ export function StickerUploader({ packId, onAdded }: { packId: string; onAdded: 
     if (!file) return;
     setMessage(null);
     try {
+      setPhase('compress');
+      const shrunk = await compressSticker(file);
+      const upload = shrunk.file;
+      setSaved(shrunk.compressed ? `${formatBytes(shrunk.originalBytes)} → ${formatBytes(upload.size)}` : null);
+
       setPhase('hash');
-      // SPEED_MATRIX 2026-11-09 §3 №8: shrunk to the app's 512 px in the
-      // browser first (lib/image-shrink.ts); animated pictures pass as is.
-      const mime = fileMime(file) as Mime;
-      const upload = await shrinkForUpload(file, mime);
       const sha256 = await sha256Hex(upload);
 
       setPhase('presign');
       const presigned = (
         await api.POST('/admin/media/sticker-uploads', {
-          body: { mime, sizeBytes: upload.size, sha256 },
+          body: { mime: fileMime(upload) as Mime, sizeBytes: upload.size, sha256 },
         })
       ).data!.data;
 
       setPhase('upload');
-      let uploaded: Response;
-      try {
-        uploaded = await sendToStorage(presigned.upload, upload);
-      } catch {
-        throw new Error('Не удалось отправить файл в хранилище (сеть или CORS).');
-      }
-      if (!uploaded.ok) throw new Error(`Хранилище отклонило файл (HTTP ${uploaded.status}).`);
+      setSent(0);
+      await sendToStorage(presigned.upload, upload, { onProgress: setSent });
 
       setPhase('confirm');
       await api.POST('/admin/media/sticker-uploads/{fileId}/confirm', { params: { path: { fileId: presigned.fileId } } });
@@ -158,6 +159,7 @@ export function StickerUploader({ packId, onAdded }: { packId: string; onAdded: 
               setPhase('idle');
               setMessage(null);
               setPendingFileId(null);
+              setSaved(null);
             }}
           />
         </Field>
@@ -177,13 +179,16 @@ export function StickerUploader({ packId, onAdded }: { packId: string; onAdded: 
       {badType ? <p className="mt-2 text-xs text-danger">Этот формат не подходит.</p> : null}
       {busy ? (
         <div className="mt-3 space-y-1.5">
-          <ProgressBar value={(stepIndex + 1) / (STEPS.length + 1)} />
-          <p className="text-xs text-muted">{STEPS[stepIndex]?.text}</p>
+          <ProgressBar value={(stepIndex + (phase === 'upload' ? sent : 1)) / (STEPS.length + 1)} />
+          <p className="text-xs text-muted">
+            {STEPS[stepIndex]?.text}
+            {phase === 'upload' && sent > 0 ? ` ${Math.round(sent * 100)} %` : ''}
+          </p>
         </div>
       ) : null}
       {phase === 'done' ? (
         <p className="mt-3 flex items-center gap-1.5 text-xs text-success">
-          <CheckCircle size={14} weight="fill" /> Стикер добавлен в набор.
+          <CheckCircle size={14} weight="fill" /> Стикер добавлен в набор.{saved ? ` Сжато: ${saved}.` : ''}
         </p>
       ) : null}
       {message ? (

@@ -31,25 +31,21 @@ export function MotionRow({
   className,
   onClick,
   ref,
-  animateIn = true,
   'data-index': dataIndex,
 }: {
   children: React.ReactNode;
   i?: number;
   className?: string;
   onClick?: () => void;
-  /** Virtual lists (lib/virtual-rows.tsx) measure the row through it. */
+  /** Set by VirtualRows (measured row heights). */
   ref?: React.Ref<HTMLTableRowElement>;
-  /** False for a row that was on screen before and only comes back into
-   * view (a virtual list): it appears as it was, without the entrance. */
-  animateIn?: boolean;
   'data-index'?: number;
 }) {
   return (
     <m.tr
       ref={ref}
       data-index={dataIndex}
-      initial={animateIn ? { opacity: 0, y: 6 } : false}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(i, 12) * 0.03, ease: [0.16, 1, 0.3, 1] }}
       className={className}

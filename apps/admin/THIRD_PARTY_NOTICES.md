@@ -7,7 +7,7 @@ the code; here they are.
 ## browser-image-compression 2.0.2 — MIT
 
 Shrinks sticker / gift pictures in the browser before upload
-(`src/lib/image-shrink.ts`). https://github.com/Donaldcwl/browser-image-compression
+(`src/lib/image-compress.ts`). https://github.com/Donaldcwl/browser-image-compression
 
 MIT License — Copyright (c) 2019 Donald Chan
 
@@ -30,9 +30,9 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 MIT License — Copyright (c) 2018 Photopea. Same permission notice as above.
 
-## @tanstack/react-virtual 3.13.12, @tanstack/virtual-core 3.13.12 — MIT
+## @tanstack/react-virtual 3.14.25, @tanstack/virtual-core 3.19.10 — MIT
 
-Window-scroll virtualisation of long admin journals (`src/lib/virtual-rows.tsx`).
+Window-scroll virtualisation of long admin journals (`src/components/ui/virtual-rows.tsx`).
 https://github.com/TanStack/virtual
 
 MIT License — Copyright (c) 2021-present Tanner Linsley. Same permission

@@ -2,7 +2,7 @@
 
 import { ArrowCounterClockwise, MagnifyingGlass, Prohibit, SignOut } from '@phosphor-icons/react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
+import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
@@ -18,6 +18,7 @@ import {
 } from '@/components/bulk/bulk-controls';
 import { CsvButton } from '@/components/csv-button';
 import { MotionRow } from '@/components/legacy/fade-in';
+import { VirtualRows } from '@/components/ui/virtual-rows';
 import { MoreButton } from '@/components/legacy/more-button';
 import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
@@ -62,6 +63,11 @@ export default function UsersPage() {
   const [role, setRole] = useState<Role>('');
   const [status, setStatus] = useState<Status>('');
   const [stateCode, setStateCode] = useState('');
+  // The 51 states are 51 <option>s parsed, styled and hydrated on every visit
+  // although the list is opened rarely: render them on the first focus /
+  // pointer down (the native select opens after that event, so it opens full).
+  const [statesShown, setStatesShown] = useState(false);
+  const showStates = () => setStatesShown(true);
   const [dates, setDates] = useState<ListFilter>(EMPTY_FILTER);
   const search = useDebounced(text.trim(), 300);
   const filters = { q: search, role, status, stateCode, ...dayBounds(dates.from, dates.to) };
@@ -173,9 +179,16 @@ export default function UsersPage() {
         </div>
         <div className="w-44 space-y-1">
           <Label htmlFor="state">Штат</Label>
-          <Select id="state" value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
+          <Select
+            id="state"
+            value={stateCode}
+            onChange={(e) => setStateCode(e.target.value)}
+            onFocus={showStates}
+            onPointerDown={showStates}
+            onKeyDown={showStates}
+          >
             <option value="">любой</option>
-            {US_STATES.map((st) => (
+            {(statesShown ? US_STATES : US_STATES.filter((st) => st.code === stateCode)).map((st) => (
               <option key={st.code} value={st.code}>
                 {st.code} · {st.name}
               </option>
@@ -239,8 +252,9 @@ export default function UsersPage() {
           ) : rows.length === 0 ? (
             <TableEmpty colSpan={canWrite ? 6 : 5}>Никого не нашли. Измените запрос или фильтры.</TableEmpty>
           ) : (
-            rows.map((u, i) => (
-              <MotionRow key={u.id} i={i} className="cursor-pointer" onClick={() => router.push(`/users/${u.id}`)}>
+            <VirtualRows rows={rows} colSpan={canWrite ? 6 : 5}>
+              {(u, i, vp) => (
+              <MotionRow key={u.id} i={i} {...vp} className="cursor-pointer" onClick={() => router.push(`/users/${u.id}`)}>
                 {canWrite ? (
                   <Td>
                     <RowSelectBox selected={sel.selected} id={u.id} onToggle={(id) => {
@@ -280,7 +294,8 @@ export default function UsersPage() {
                 </Td>
                 <Td className="whitespace-nowrap text-muted">{formatDateTime(u.createdAt)}</Td>
               </MotionRow>
-            ))
+              )}
+            </VirtualRows>
           )}
         </tbody>
       </Table>

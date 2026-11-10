@@ -27,7 +27,12 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import { AdminBulkResultDto } from '../admin-content/admin-content.dto';
 import { eachId } from '../admin-content/bulk.util';
-import { FileDto, PresignedFileDto } from '../files/dto/files.dto';
+import {
+  FileDto,
+  MultipartCompleteDto,
+  MultipartPlanDto,
+  PresignedFileDto,
+} from '../files/dto/files.dto';
 import {
   AdminDocumentTemplateDto,
   AdminTemplateFileParamDto,
@@ -130,6 +135,52 @@ export class AdminDocumentTemplatesController {
     @Body() dto: AdminTemplateUploadDto,
   ): Promise<PresignedFileDto> {
     return this.templates.presignUpload(admin, dto);
+  }
+
+  /**
+   * Admin speed gaps 2026-11-09 (D-c4): a big template (≥ 16 MiB) goes in
+   * resumable parts — the same `files_multipart` plan the app uses, under
+   * the admin's session. After an interruption the plan is asked for again
+   * and only the missing parts are sent.
+   */
+  @Post('uploads/:fileId/multipart')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Step 1b (big files): part links for a resumable upload; ask again after an interruption',
+  })
+  @ApiEnvelopeResponse(MultipartPlanDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FEATURE_DISABLED],
+    404: [E.NOT_FOUND],
+    429: [E.RATE_LIMITED],
+    503: [E.FILE_STORAGE_UNAVAILABLE],
+  })
+  multipartPlanAdminTemplateUpload(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminTemplateFileParamDto,
+  ): Promise<MultipartPlanDto> {
+    return this.templates.multipartPlan(admin, p.fileId);
+  }
+
+  @Post('uploads/:fileId/multipart/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Step 1c (big files): assemble the parts; then confirm as usual',
+  })
+  @ApiEnvelopeResponse(MultipartCompleteDto)
+  @ApiErrors({
+    403: [E.FEATURE_DISABLED],
+    404: [E.NOT_FOUND],
+    409: [E.FILE_NOT_UPLOADED],
+    503: [E.FILE_STORAGE_UNAVAILABLE],
+  })
+  multipartCompleteAdminTemplateUpload(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminTemplateFileParamDto,
+  ): Promise<MultipartCompleteDto> {
+    return this.templates.multipartComplete(admin, p.fileId);
   }
 
   @Post('uploads/:fileId/confirm')

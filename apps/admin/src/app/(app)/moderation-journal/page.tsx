@@ -1,8 +1,9 @@
 'use client';
 
 import { useInfiniteQuery } from '@tanstack/react-query';
-import Link from 'next/link';
+import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { MotionRow } from '@/components/legacy/fade-in';
+import { VirtualRows } from '@/components/ui/virtual-rows';
 import { MoreButton } from '@/components/legacy/more-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/card';
@@ -10,7 +11,6 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { api, errorText } from '@/lib/api/client';
 import { MOD_ACTION, TARGET_TYPE } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
-import { SpacerRow, useVirtualRows } from '@/lib/virtual-rows';
 
 const APPEAL: Record<string, string> = {
   pending: 'обжалование ждёт',
@@ -32,9 +32,6 @@ export default function ModerationJournalPage() {
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
   const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
-  // SPEED_MATRIX 2026-11-09 §3 №12: only the rows around the viewport
-  // stay in the DOM (lib/virtual-rows.tsx).
-  const virtual = useVirtualRows(rows);
   return (
     <>
       <PageHeader
@@ -54,11 +51,11 @@ export default function ModerationJournalPage() {
             <Th>Обжалование</Th>
           </tr>
         </thead>
-        <tbody ref={virtual.bodyRef}>
+        <tbody>
           {q.isPending ? <TableEmpty colSpan={6} loading /> : null}
-          <SpacerRow height={virtual.paddingTop} />
-          {virtual.items.map(({ row: r, index: i, rowProps }) => (
-            <MotionRow key={r.id} i={i} {...rowProps}>
+          <VirtualRows rows={rows} colSpan={6}>
+            {(r, i, vp) => (
+            <MotionRow key={r.id} i={i} {...vp}>
               <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(r.createdAt)}</Td>
               <Td>
                 <Badge tone="neutral" dot>
@@ -74,8 +71,8 @@ export default function ModerationJournalPage() {
               <Td className="text-xs">{r.adminName ?? r.adminId}</Td>
               <Td className="text-xs">{r.appealStatus ? APPEAL[r.appealStatus] : '—'}</Td>
             </MotionRow>
-          ))}
-          <SpacerRow height={virtual.paddingBottom} />
+            )}
+          </VirtualRows>
           {!q.isPending && rows.length === 0 ? <TableEmpty colSpan={6}>Решений пока нет.</TableEmpty> : null}
         </tbody>
       </Table>

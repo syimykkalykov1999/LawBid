@@ -473,6 +473,23 @@ List<Widget> commentThreadSlivers(
           ),
         ),
       ],
+    // Click audit 2026-11-09 (#867 §L leftovers): a case's comments for an
+    // assistant without the «cases» duty — the same lock notice as the
+    // case lists, not a bare Retry that can only fail again.
+    AsyncError(:final error)
+        when error is ApiException &&
+            error.code == ApiErrorCodes.assistantNotAllowed =>
+      [
+        // Like PagedListBody: the state view measures itself with a
+        // LayoutBuilder, so it fills the rest of the scroll view.
+        SliverFillRemaining(
+          child: CasesErrorView(
+            error: error,
+            t: t,
+            onRetry: () => ref.invalidate(commentsProvider(threadId)),
+          ),
+        ),
+      ],
     AsyncError() => [
         SliverToBoxAdapter(
           child: Center(

@@ -10,11 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { VirtualRows } from "@/components/ui/virtual-rows";
 import { api, errorText } from "@/lib/api/client";
 import { useMe } from "@/lib/hooks";
 import { AUDIT_TARGET, auditActionLabel } from "@/lib/labels";
 import { formatDateTime } from "@/lib/utils";
-import { SpacerRow, useVirtualRows } from "@/lib/virtual-rows";
 
 interface Filters {
   adminId: string;
@@ -68,9 +68,6 @@ export default function AuditLogPage() {
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
   const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
-  // SPEED_MATRIX 2026-11-09 §3 №12: a long journal keeps only the rows
-  // around the viewport in the DOM (lib/virtual-rows.tsx).
-  const virtual = useVirtualRows(rows);
   const field = (k: keyof Filters, label: string) => (
     <div className="min-w-40 flex-1 space-y-1">
       <Label htmlFor={`f-${k}`} className="block whitespace-nowrap">
@@ -156,16 +153,16 @@ export default function AuditLogPage() {
             <Th>IP</Th>
           </tr>
         </thead>
-        <tbody ref={virtual.bodyRef}>
+        <tbody>
           {q.isPending ? <TableEmpty colSpan={7} loading /> : null}
-          <SpacerRow height={virtual.paddingTop} />
-          {virtual.items.map(({ row: r, index: i, rowProps }) => {
+          <VirtualRows rows={rows} colSpan={7} estimateSize={72}>
+            {(r, i, vp) => {
             const failed =
               !!r.after &&
               typeof r.after === "object" &&
               (r.after as { outcome?: unknown }).outcome === "failed";
             return (
-              <MotionRow key={r.id} i={i} {...rowProps}>
+              <MotionRow key={r.id} i={i} {...vp}>
                 <Td className="whitespace-nowrap text-muted">
                   {formatDateTime(r.createdAt)}
                 </Td>
@@ -204,8 +201,8 @@ export default function AuditLogPage() {
                 <Td className="font-mono text-xs text-muted">{r.ip ?? ""}</Td>
               </MotionRow>
             );
-          })}
-          <SpacerRow height={virtual.paddingBottom} />
+          }}
+          </VirtualRows>
           {!q.isPending && rows.length === 0 ? (
             <TableEmpty colSpan={7}>Записей нет под эти фильтры</TableEmpty>
           ) : null}
