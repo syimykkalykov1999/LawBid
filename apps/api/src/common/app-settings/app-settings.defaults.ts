@@ -1327,7 +1327,9 @@ export const OWNER_OPS_SETTINGS = {
   'ops.admin_summaries_mode': 'auto',
   // S20-6: every-minute sweeps that found nothing back off to
   // `ops.cron_idle_every_min` after `ops.cron_idle_after_runs` empty runs.
-  'ops.cron_idle_backoff': 'auto',
+  // Owner 2026-11-09: off — every sweep runs each minute (no limiter he
+  // did not order); auto / on stay available in the admin.
+  'ops.cron_idle_backoff': 'off',
   'ops.cron_idle_after_runs': 10,
   'ops.cron_idle_every_min': 5,
   // S20-8: ceiling of the message re-encryption pass, rows per minute
@@ -1862,9 +1864,11 @@ export const OWNER_PRIVACY_SETTINGS = {
  *   sweep only when an event waits; on = every tick; off = never.
  */
 export const OWNER_COST_REGISTRY_SETTINGS = {
-  'scale.capacity_ceiling.mode': 'auto',
-  'scale.bunny_hardstop.mode': 'auto',
-  'scale.cloudflare_hardstop.mode': 'auto',
+  // Owner 2026-11-09: no money stops by default — growth is automatic;
+  // the stops stay switchable on «Расходы».
+  'scale.capacity_ceiling.mode': 'off',
+  'scale.bunny_hardstop.mode': 'off',
+  'scale.cloudflare_hardstop.mode': 'off',
   'ops.outbox_sweep.mode': 'auto',
 };
 
