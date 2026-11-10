@@ -51,9 +51,19 @@ export function isLiveQuery(q: Pick<Query, 'options'>): boolean {
   return typeof (q.options as { refetchInterval?: unknown }).refetchInterval === 'function';
 }
 
-/** Refetch the live queries that are on screen now. */
-export function invalidateLiveQueries(qc: QueryClient): Promise<void> {
-  return qc.invalidateQueries({ predicate: (q) => isLiveQuery(q), refetchType: 'active' });
+/** Owner 2026-11-10 (every admin page asked for all its data twice): on
+ * the first connect of a tab only what is older than this is re-read — the
+ * page fetched the rest a moment ago. After a drop everything is. */
+export const FIRST_CONNECT_FRESH_MS = 5_000;
+
+/** Refetch the live queries that are on screen now (only those older than
+ * `olderThanMs` when given). */
+export function invalidateLiveQueries(qc: QueryClient, olderThanMs?: number): Promise<void> {
+  const before = olderThanMs === undefined ? Infinity : Date.now() - olderThanMs;
+  return qc.invalidateQueries({
+    predicate: (q) => isLiveQuery(q) && q.state.dataUpdatedAt < before,
+    refetchType: 'active',
+  });
 }
 
 export async function fetchLiveTicket(): Promise<LiveTicket | null> {
@@ -82,6 +92,8 @@ async function defaultDeps(): Promise<LiveDeps> {
  */
 export function startAdminLive(qc: QueryClient, given?: LiveDeps): () => void {
   let stopped = false;
+  // This tab has been connected before (a later `connect` is a reconnect).
+  let wasUp = false;
   let socket: Socket | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -123,8 +135,10 @@ export function startAdminLive(qc: QueryClient, given?: LiveDeps): () => void {
       socket.on('connect', () => {
         up = true;
         // The timers re-read their interval on the next state change; one
-        // refetch now also catches what moved while the socket was down.
-        void invalidateLiveQueries(qc);
+        // refetch now also catches what moved while the socket was down
+        // (on the first connect: only what was not just fetched).
+        void invalidateLiveQueries(qc, wasUp ? undefined : FIRST_CONNECT_FRESH_MS);
+        wasUp = true;
       });
       socket.on('disconnect', () => {
         up = false;
