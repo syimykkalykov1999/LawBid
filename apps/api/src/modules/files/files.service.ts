@@ -60,6 +60,11 @@ import {
   DEDUP_PROFILE,
   purposesOfProfile,
 } from './files.policy';
+import {
+  CONFIRM_READ_BUDGET_MB,
+  CONFIRM_READ_MAX_WAITING,
+  ReadBudget,
+} from './read-budget';
 import type {
   FileDto,
   MultipartCompleteDto,
@@ -149,6 +154,12 @@ const CONFIRM_SLOW_MS = 500;
 
 @Injectable()
 export class FilesService {
+  /** Audit 2026-11-08 (L6): bytes of whole-file confirm reads in flight. */
+  private readonly readBudget = new ReadBudget(
+    CONFIRM_READ_BUDGET_MB,
+    CONFIRM_READ_MAX_WAITING,
+  );
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
@@ -604,23 +615,73 @@ export class FilesService {
       intent.size < LIGHT_CONFIRM_MIN_BYTES &&
       (await this.flags.isEnabled('files_confirm_direct', true));
     const key = storedKey(intent.key, randomUUID().slice(0, 8));
-    let size: number;
-    let prefix: Buffer | null = null;
-    let data: Buffer;
-    if (direct) {
-      const got = await this.storage.readUpTo(
-        intent.bucket,
-        intent.key,
-        Math.min(intent.size, maxBytes) + 1,
-      );
-      lap('read');
-      if (!got) return this.notUploaded(userId, fileId);
-      size = got.length;
-      if (size > maxBytes) {
-        await this.reject(fileId, intent);
-        throw this.tooLarge(maxBytes);
+    // The content checks, on the whole file or (light confirm) on its start.
+    const checkData = async (
+      data: Buffer,
+      isPrefix: boolean,
+    ): Promise<{ sha256: string | null; detected: string }> => {
+      let sha256: string | null = null;
+      if (!isPrefix) {
+        sha256 = createHash('sha256').update(data).digest('hex');
+        if (data.length !== intent.size || sha256 !== intent.sha256) {
+          await this.reject(fileId, intent, key);
+          throw this.checksumMismatch();
+        }
       }
-      data = got;
+      const detected = detectMime(data, intent.mime);
+      if (
+        detected === null ||
+        detected !== intent.mime ||
+        !(await this.allowedMimes(intent.purpose)).includes(detected)
+      ) {
+        await this.reject(fileId, intent, key);
+        throw new BadRequestException({
+          code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
+          message: 'The file content does not match an allowed type.',
+          details: { declared: intent.mime, detected },
+        });
+      }
+      // Owner 2026-10-07: no program, macro or script hidden inside an
+      // allowed document (APK in a .docx, a macro, PDF JavaScript).
+      const danger = isPrefix ? null : dangerousContent(data, detected);
+      if (danger) {
+        await this.reject(fileId, intent, key);
+        throw new BadRequestException({
+          code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
+          message: 'The file contains content that is not allowed.',
+          details: { declared: intent.mime, detected, reason: danger },
+        });
+      }
+      return { sha256, detected };
+    };
+    let size: number;
+    let checked: { sha256: string | null; detected: string };
+    let directData: Buffer | null = null;
+    if (direct) {
+      // Security audit 2026-11-08 (L6): a whole-file read holds its bytes
+      // until the checks are done; the read budget caps how many megabytes
+      // all confirms of this process hold at once.
+      const read = await this.readBudget.run(
+        Math.min(intent.size, maxBytes) + 1,
+        async () => {
+          const got = await this.storage.readUpTo(
+            intent.bucket,
+            intent.key,
+            Math.min(intent.size, maxBytes) + 1,
+          );
+          lap('read');
+          if (!got) return null;
+          if (got.length > maxBytes) {
+            await this.reject(fileId, intent);
+            throw this.tooLarge(maxBytes);
+          }
+          return { got, ...(await checkData(got, false)) };
+        },
+      );
+      if (!read) return this.notUploaded(userId, fileId);
+      size = read.got.length;
+      directData = read.got;
+      checked = { sha256: read.sha256, detected: read.detected };
     } else {
       const head = await this.storage.head(intent.bucket, intent.key);
       lap('head');
@@ -639,7 +700,14 @@ export class FilesService {
       // the type, the hash, the content check, the scan, every download —
       // uses a server-side copy at a key no link can write, so bytes swapped
       // in after the checks never reach anyone. The copy is done by S3 / R2.
-      if (!(await this.storage.copy(intent.bucket, intent.key, key))) {
+      // L5: the copy gets the bucket's real Cache-Control; the staging object
+      // was written `no-store`.
+      if (
+        !(await this.storage.copy(intent.bucket, intent.key, key, {
+          contentType: intent.mime,
+          cacheControl: this.storage.cacheControlFor(intent.bucket),
+        }))
+      ) {
         return this.notUploaded(userId, fileId);
       }
       lap('copy');
@@ -648,6 +716,7 @@ export class FilesService {
       // inside the container move to the scan worker, which holds the file
       // anyway. The file stays `pending`, and only `clean` files can be
       // attached. A start the prefix cannot settle goes the full way.
+      let prefix: Buffer | null = null;
       if (
         head.size >= LIGHT_CONFIRM_MIN_BYTES &&
         (await this.flags.isEnabled('files_confirm_light', true))
@@ -659,44 +728,22 @@ export class FilesService {
         );
         if (detectMime(start, intent.mime) !== null) prefix = start;
       }
-      data = prefix ?? (await this.storage.read(intent.bucket, key));
-      lap('read');
-    }
-    let sha256: string | null = null;
-    if (!prefix) {
-      sha256 = createHash('sha256').update(data).digest('hex');
-      if (data.length !== intent.size || sha256 !== intent.sha256) {
-        await this.reject(fileId, intent, key);
-        throw this.checksumMismatch();
+      if (prefix) {
+        lap('read');
+        checked = await checkData(prefix, true);
+      } else {
+        checked = await this.readBudget.run(head.size, async () => {
+          const whole = await this.storage.read(intent.bucket, key);
+          lap('read');
+          return checkData(whole, false);
+        });
       }
     }
-    const detected = detectMime(data, intent.mime);
-    if (
-      detected === null ||
-      detected !== intent.mime ||
-      !(await this.allowedMimes(intent.purpose)).includes(detected)
-    ) {
-      await this.reject(fileId, intent, key);
-      throw new BadRequestException({
-        code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
-        message: 'The file content does not match an allowed type.',
-        details: { declared: intent.mime, detected },
-      });
-    }
-    // Owner 2026-10-07: no program, macro or script hidden inside an
-    // allowed document (APK in a .docx, a macro, PDF JavaScript).
-    const danger = prefix ? null : dangerousContent(data, detected);
-    if (danger) {
-      await this.reject(fileId, intent, key);
-      throw new BadRequestException({
-        code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
-        message: 'The file contains content that is not allowed.',
-        details: { declared: intent.mime, detected, reason: danger },
-      });
-    }
-    if (direct) {
-      // The checked bytes, and only they, go to the key no link can write.
-      await this.storage.put(intent.bucket, key, data, detected);
+    const { sha256, detected } = checked;
+    if (directData) {
+      // The checked bytes, and only they, go to the key no link can write
+      // (put sets the bucket's Cache-Control).
+      await this.storage.put(intent.bucket, key, directData, detected);
       lap('put');
     }
 

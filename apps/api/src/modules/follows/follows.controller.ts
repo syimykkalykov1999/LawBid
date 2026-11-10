@@ -34,6 +34,10 @@ import {
   PersonItemDto,
 } from './follows.dto';
 import { FollowsService } from './follows.service';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -48,6 +52,7 @@ export class FollowsController {
   // Owner 2026-10-22 (client economy plan, package D): both answers carry
   // {following, followersCount} (200) so the app edits the profile row
   // locally; older apps ignore the body.
+  @AttorneyOnly('publish')
   @Post('attorneys/:id/follow')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Follow an attorney (idempotent, docs/05 §6.1)' })
@@ -64,6 +69,7 @@ export class FollowsController {
     return this.follows.follow(user, p.id);
   }
 
+  @AttorneyOnly('publish')
   @Delete('attorneys/:id/follow')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unfollow (idempotent)' })
@@ -75,6 +81,7 @@ export class FollowsController {
     return this.follows.unfollow(user, p.id);
   }
 
+  @AssistantAllowed()
   @Get('attorneys/:id/followers')
   @ApiOperation({
     summary: 'Attorney followers — attorneys and clients (OQ-026)',
@@ -99,6 +106,7 @@ export class FollowsController {
     );
   }
 
+  @AssistantAllowed()
   @Get('attorneys/:id/following')
   @ApiOperation({
     summary: 'Whom a user follows — attorneys and clients (OQ-038)',
@@ -122,6 +130,7 @@ export class FollowsController {
     );
   }
 
+  @AssistantAllowed()
   @Get('users/me/following')
   @ApiOperation({ summary: 'My follows (docs/05 §6.2)' })
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
@@ -142,6 +151,7 @@ export class FollowsController {
     );
   }
 
+  @AssistantAllowed()
   @Get('suggestions/attorneys')
   @ApiOperation({ summary: 'Recommended attorneys (docs/05 §6.3)' })
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })

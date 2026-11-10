@@ -38,6 +38,7 @@ import {
   ListCaseHistoryQueryDto,
   type CaseHistoryPage,
 } from './dto/case-history.dto';
+import { RequiresDuty } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const Reauth = ApiHeader({
@@ -67,6 +68,7 @@ export class CaseHistoryController {
     private readonly reauth: ReauthVerifier,
   ) {}
 
+  @RequiresDuty('cases')
   @Get()
   @Reauth
   @ApiOperation({ summary: 'Case history list (docs/04 §12)' })
@@ -81,6 +83,7 @@ export class CaseHistoryController {
     return this.history.list(user, query, meta(req));
   }
 
+  @RequiresDuty('cases')
   @Post('export')
   @HttpCode(HttpStatus.ACCEPTED)
   @Reauth
@@ -96,6 +99,7 @@ export class CaseHistoryController {
     return this.exports.enqueue(user);
   }
 
+  @RequiresDuty('cases')
   @Get('export/:exportId')
   @Reauth
   @ApiOperation({
@@ -121,6 +125,7 @@ export class CaseHistoryController {
     return this.exports.status(user, params.exportId, { withLink: true });
   }
 
+  @RequiresDuty('cases')
   @Get(':caseId')
   @Reauth
   @ApiOperation({ summary: 'Case timeline from case_journal (docs/04 §12)' })

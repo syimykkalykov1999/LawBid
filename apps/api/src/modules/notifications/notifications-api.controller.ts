@@ -47,7 +47,11 @@ import {
 import { NotificationsApiService } from './notifications-api.service';
 import { PushTokensService } from './push/push-tokens.service';
 import { VoipTokensService } from './push/voip-tokens.service';
-import { AssistantSelf } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AssistantSelf,
+  RequiresDuty,
+} from '../auth/assistant/assistant-context';
 
 /** docs/05 §15 "Уведомления и push" (stage 5.8). */
 @ApiTags('notifications')
@@ -100,6 +104,7 @@ export class NotificationsApiController {
     return this.api.read(user.sub, dto);
   }
 
+  @AssistantAllowed()
   @Get('badges')
   @ApiOperation({ summary: 'Unread chats + notifications (§10)' })
   @ApiEnvelopeResponse(BadgesDto)
@@ -138,6 +143,7 @@ export class NotificationsApiController {
 
   // Owner 2026-10-01: which qualifications send "new case" alerts (the
   // attorney's account; an assistant sees and sets the attorney's).
+  @AssistantAllowed()
   @Get('notification-settings/new-cases')
   @ApiOperation({ summary: 'Qualifications for new-case alerts' })
   @ApiEnvelopeResponse(NewCaseAlertsDto)
@@ -146,6 +152,7 @@ export class NotificationsApiController {
     return this.api.newCaseAlerts(user.sub);
   }
 
+  @RequiresDuty('cases')
   @Put('notification-settings/new-cases')
   @ApiOperation({
     summary: "New-case alerts: the profile's qualifications or a chosen list",

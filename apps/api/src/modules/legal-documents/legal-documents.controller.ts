@@ -35,6 +35,10 @@ import {
   PendingLegalDocumentDto,
 } from './legal-documents.dto';
 import { LegalDocumentsService } from './legal-documents.service';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 /** Owner 2026-10-05 (legal documents): the current legal texts (public, for
  * lawbid.dev and the app) and the acceptance of the ones a user owes. */
@@ -83,6 +87,7 @@ export class LegalDocumentsController {
     return this.docs.currentText(params.type, q.locale);
   }
 
+  @AssistantAllowed()
   @Get('pending')
   @ApiBearerAuth()
   @ApiErrors(AUTHENTICATED_ERRORS)
@@ -97,6 +102,7 @@ export class LegalDocumentsController {
     return this.acceptance.pending(user.sub);
   }
 
+  @AttorneyOnly()
   @Post('accept')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()

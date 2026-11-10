@@ -34,6 +34,10 @@ import {
 } from '../posts/content-filter.service';
 import { PostDto, type PostPage } from '../posts/dto/posts.dto';
 import { FeedService } from './feed.service';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 /** §2.2.5: limit 10–20. */
 export class FeedQueryDto {
@@ -84,6 +88,7 @@ export class FeedController {
     return this.feed.page(user, q.cursor, q.limit ?? 20);
   }
 
+  @AssistantAllowed()
   @Get('preferences')
   @ApiOperation({
     summary: 'My feed content: every post or legal posts only',
@@ -95,6 +100,7 @@ export class FeedController {
     return { contentMode: await this.contentFilter.modeOf(user.sub) };
   }
 
+  @AttorneyOnly()
   @Put('preferences')
   @ApiOperation({ summary: 'Show every post or legal posts only' })
   @ApiEnvelopeResponse(FeedPreferencesDto)

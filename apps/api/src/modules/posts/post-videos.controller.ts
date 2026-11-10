@@ -17,7 +17,10 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 import {
   CurrentUser,
   type RequestUser,
@@ -71,6 +74,7 @@ export class PostVideosController {
     return this.videos.createUpload(user.sub, dto);
   }
 
+  @AssistantAllowed()
   @Get('videos/:id')
   @ApiOperation({ summary: 'My upload: status while Bunny encodes' })
   @ApiEnvelopeResponse(VideoAssetDto)

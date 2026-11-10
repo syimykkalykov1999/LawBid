@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { SMS_OTP_PURPOSES } from './services/otp.service';
+import { PLAIN_SMS_ALLOWED } from '../compliance/sms-compliance.service';
 
 /**
  * Owner rule (memory sms-two-cases, decided, never ask again): an SMS code
@@ -179,5 +180,7 @@ describe('SMS only at registration and «Забыл пароль» (owner rule)'
     ]);
     // SNS can text a phone number directly; only topic alarms are allowed.
     expect(filesMatching(/PhoneNumber\s*:/)).toEqual([]);
+    // Security audit 2026-11-08 (L8): even a future caller sends nothing.
+    expect(PLAIN_SMS_ALLOWED).toBe(false);
   });
 });

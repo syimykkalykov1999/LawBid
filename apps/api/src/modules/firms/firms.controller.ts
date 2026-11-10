@@ -22,7 +22,10 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 import {
   CurrentUser,
   type RequestUser,
@@ -83,6 +86,7 @@ export class FirmsController {
     return this.firms.create(user.sub, dto.name);
   }
 
+  @AssistantAllowed()
   @Get('me')
   @ApiOperation({ summary: 'My firm (or a pending invitation); 404 if none' })
   @ApiEnvelopeResponse(FirmDto)
@@ -138,6 +142,7 @@ export class FirmsController {
     return this.firms.eligibleForCase(user.sub, caseId);
   }
 
+  @AssistantAllowed()
   @Get(':id')
   @ApiOperation({ summary: 'A firm page: active members and their states' })
   @ApiEnvelopeResponse(FirmDto)

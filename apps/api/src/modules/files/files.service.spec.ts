@@ -101,6 +101,10 @@ function make(
       signedGetUrl: jest.fn().mockResolvedValue('http://signed'),
       // M3 (2026-11-08): confirm copies the upload to a server-owned key.
       copy: jest.fn().mockResolvedValue(true),
+      // L5 (2026-11-08): the copy gets the bucket's real Cache-Control.
+      cacheControlFor: jest.fn((b: string) =>
+        b === 'lawbid-documents' ? 'private, max-age=300' : 'public, immutable',
+      ),
       remove: jest.fn().mockResolvedValue(undefined),
       configured: true,
     },
@@ -1393,6 +1397,22 @@ describe('confirm keeps a copy no upload link can write (security audit 2026-11-
   const copiedKey = (deps: ReturnType<typeof make>['deps']): string =>
     (deps.storage.copy.mock.calls[0] as string[])[2];
 
+  // Security audit 2026-11-08 (L6): the whole-file read of confirm goes
+  // through the process's byte budget, so parallel confirms can't take
+  // the memory.
+  it('the whole-file read waits for the read budget', async () => {
+    const { service, read } = setup();
+    const budget = (
+      service as unknown as {
+        readBudget: { run: (b: number, w: () => Promise<unknown>) => unknown };
+      }
+    ).readBudget;
+    const run = jest.spyOn(budget, 'run');
+    await service.confirm('u1', 'f1');
+    expect(run).toHaveBeenCalledWith(pdf.length, expect.any(Function));
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
   it('checks and stores the copy, then drops the upload key', async () => {
     const { service, deps, create, read } = setup();
     await service.confirm('u1', 'f1');
@@ -1400,6 +1420,9 @@ describe('confirm keeps a copy no upload link can write (security audit 2026-11-
       'lawbid-documents',
       UPLOAD_KEY,
       expect.stringMatching(new RegExp(`^${UPLOAD_KEY}_s[0-9a-f]{8}$`)),
+      // L5: the staging object was `no-store`; the stored copy gets the
+      // bucket's own Cache-Control and the checked type.
+      { contentType: 'application/pdf', cacheControl: 'private, max-age=300' },
     );
     const key = copiedKey(deps);
     expect(read).toHaveBeenCalledWith('lawbid-documents', key);
