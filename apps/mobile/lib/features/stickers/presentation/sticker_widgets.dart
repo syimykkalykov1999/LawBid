@@ -47,6 +47,11 @@ class StickerImage extends StatelessWidget {
             )
           : CachedNetworkImage(
               imageUrl: url,
+              // SPEED_MATRIX 2026-11-09 §3 №15: kept under the file's
+              // address, not the signed link (the rule of every other
+              // picture, [stableImageCacheKey]) — a fresh link never
+              // downloads the same sticker again.
+              cacheKey: stableImageCacheKey(url) ?? url,
               cacheManager: AppImageCaches.feed,
               memCacheWidth: decodeWidthFor(size),
               fit: BoxFit.contain,

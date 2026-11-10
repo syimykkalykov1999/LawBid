@@ -8,6 +8,7 @@ import 'package:lawbid/core/cache/cache_eviction.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/media_cache_dir.dart';
+import 'package:lawbid/core/cache/voice_web_cache.dart';
 import 'package:lawbid/core/cache/web_storage.dart';
 import 'package:lawbid/core/files/resumable_download.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
@@ -193,10 +194,12 @@ class CacheMaintenance {
     MediaCacheDir? chatMedia,
     MediaCacheDir? video,
     PrefixedTempFiles? voiceNotes,
+    VoiceWebCache? voiceWeb,
     MediaCacheDir? caseFiles,
     Future<Set<String>> Function()? groupChatPaths,
     WebCaches? web,
   })  : _db = db,
+        _voiceWeb = voiceWeb,
         _groupChatPaths = groupChatPaths,
         _pages = pages,
         _limits = limits,
@@ -219,6 +222,10 @@ class CacheMaintenance {
   final MediaCacheDir _chatMedia;
   final MediaCacheDir _video;
   final PrefixedTempFiles _voiceNotes;
+
+  /// The site's copy of the voice notes (browser Cache Storage); null on
+  /// the phone.
+  final VoiceWebCache? _voiceWeb;
 
   /// Owner 2026-11-05: the downloaded case documents.
   final MediaCacheDir _caseFiles;
@@ -307,6 +314,7 @@ class CacheMaintenance {
       case CacheStore.chatMedia:
         await _chatMedia.clear();
         await _voiceNotes.clear();
+        await _voiceWeb?.clear();
         if (!isFlutterTest) await AppImageCaches.chatMedia.emptyCache();
         await _db.forgetAllChatMedia();
       case CacheStore.video:

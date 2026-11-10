@@ -1,11 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_maintenance.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/chat_media_providers.dart';
+import 'package:lawbid/core/cache/voice_web_cache.dart';
 import 'package:lawbid/core/cache/web_storage.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -40,6 +41,7 @@ final cacheMaintenanceProvider = Provider<CacheMaintenance>((ref) {
     pages: ref.watch(socialLocalDatabaseProvider),
     limits: () => ref.read(cacheLimitsProvider),
     http: ref.watch(httpCacheInterceptorProvider),
+    voiceWeb: kIsWeb ? ref.watch(voiceWebCacheProvider) : null,
     groupChatPaths: ref.watch(chatMediaIndexProvider).groupFilePaths,
   );
 });

@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
+import 'package:lawbid/features/social/application/comment_sender.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -59,8 +60,11 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     if (old.comment != widget.comment) _c = widget.comment;
   }
 
+  /// Not on the server yet: nothing to like, answer or delete.
+  bool get _pending => isPendingComment(_c);
+
   Future<void> _toggleLike() async {
-    if (_busy) return;
+    if (_busy || _pending) return;
     final before = _c;
     final liked = !before.likedByMe;
     // ignore: unawaited_futures
@@ -98,6 +102,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
   }
 
   Future<void> _menu() async {
+    if (_pending) return;
     final t = ref.read(translatorProvider);
     await showAppBottomSheet<void>(
       context: context,
@@ -267,12 +272,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                         children: [
                           Flexible(
                             child: TextButton(
-                              onPressed: () => widget.onReply(
-                                (
-                                  parentId: _c.parentId ?? _c.id,
-                                  name: a.username ?? a.displayName,
-                                ),
-                              ),
+                              onPressed: _pending ? null : _replyToThis,
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize:
@@ -367,6 +367,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
   }
 
   void _replyToThis() {
+    if (_pending) return;
     final a = _c.author;
     widget.onReply(
       (parentId: _c.parentId ?? _c.id, name: a.username ?? a.displayName),
@@ -723,19 +724,22 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
       }
       return;
     }
+    // SPEED_MATRIX 2026-11-09 §3 №14 (Instagram): the comment is under the
+    // post at once and the field is free for the next one; the server's
+    // row replaces the pending one, a refusal takes it away and brings the
+    // words back into the field.
+    _text.clear();
+    widget.onClearReply();
+    setState(() => _sending = false);
+    final sender = ref.read(commentSenderProvider.notifier);
     try {
-      final c = await ref.read(socialRepositoryProvider).addComment(
-            widget.postId,
-            body,
-            parentId: reply?.parentId,
-          );
+      await sender.send(
+        postId: widget.postId,
+        body: body,
+        parentId: reply?.parentId,
+      );
       if (!mounted) return;
-      _text.clear();
-      if (reply == null) {
-        ref.read(commentsProvider(widget.postId).notifier).add(c);
-      } else {
-        // Package F: the answer is the reply — under its parent at once.
-        ref.read(repliesProvider(reply.parentId).notifier).add(c);
+      if (reply != null) {
         // The parent's reply count lives in the comments page (no event
         // for it yet): that list is read again.
         ref.invalidate(commentsProvider(widget.postId));
@@ -746,11 +750,10 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
       if (!isCaseRef(widget.postId)) {
         await syncPostCounts(ref, widget.postId);
       }
-      widget.onClearReply();
     } on Object catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
-    } finally {
-      if (mounted) setState(() => _sending = false);
+      if (!mounted) return;
+      if (_text.text.trim().isEmpty) _text.text = body;
+      showAppSnackBar(context, errorText(t, e));
     }
   }
 
