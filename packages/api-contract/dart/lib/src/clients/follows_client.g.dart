@@ -156,11 +156,16 @@ class _FollowsClient implements FollowsClient {
   Future<AttorneyListItemListEnvelope> listMyFollowing({
     String? cursor,
     String? q,
+    DateTime? updatedSince,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{r'cursor': cursor, r'q': q};
+    final queryParameters = <String, dynamic>{
+      r'cursor': cursor,
+      r'q': q,
+      r'updatedSince': updatedSince?.toIso8601String(),
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;

@@ -13,6 +13,7 @@ import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { formatDateTime } from '@/lib/utils';
+import { LazyImg } from '@/components/ui/lazy-img';
 
 type Filter = 'all' | 'hidden' | 'flagged' | 'csam_match' | 'skipped';
 
@@ -158,8 +159,7 @@ export default function MediaModerationPage() {
             <MotionRow key={r.id} i={i}>
               <Td className="w-28">
                 {r.previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.previewUrl} alt="" className="h-20 w-20 rounded object-cover blur-sm hover:blur-none" />
+                  <LazyImg src={r.previewUrl} alt="" className="h-20 w-20 rounded object-cover blur-sm hover:blur-none" />
                 ) : (
                   <span className="text-xs text-muted">{r.status === 'csam_match' ? 'не показывается' : '—'}</span>
                 )}

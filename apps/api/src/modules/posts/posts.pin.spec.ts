@@ -3,7 +3,7 @@ import { validateSync } from 'class-validator';
 import { MAX_PIN_SLOT, PinPostDto } from './dto/posts.dto';
 import { PostsService } from './posts.service';
 
-// Owner 2026-10-12: pinning takes slot 1..6 (1..3 until 2026-10-28) of the post's own list; a taken
+// Owner 2026-10-12: pinning takes slot 1..10 (1..3, then 1..6 until 2026-11-09) of the post's own list; a taken
 // slot is handed over (swap) or freed, never refused.
 type Row = { id: string; pin_slot: number | null; pin_group: string | null };
 
@@ -114,10 +114,10 @@ describe('PostsService.pin', () => {
 describe('PinPostDto', () => {
   const check = (slot: unknown) =>
     validateSync(plainToInstance(PinPostDto, { slot })).length;
-  it('accepts 1..6, refuses 0 and 7', () => {
-    for (const s of [1, 2, 3, 4, 5, 6]) expect(check(s)).toBe(0);
+  it('owner 2026-11-09: accepts 1..10, refuses 0 and 11', () => {
+    for (let s = 1; s <= 10; s++) expect(check(s)).toBe(0);
     expect(check(0)).toBeGreaterThan(0);
-    expect(check(7)).toBeGreaterThan(0);
-    expect(MAX_PIN_SLOT).toBe(6);
+    expect(check(11)).toBeGreaterThan(0);
+    expect(MAX_PIN_SLOT).toBe(10);
   });
 });

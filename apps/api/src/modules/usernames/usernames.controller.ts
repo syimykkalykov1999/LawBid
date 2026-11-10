@@ -13,6 +13,7 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { UsernamePolicyService } from './username-policy.service';
 import { UsernameCheckDto, UsernameCheckQueryDto } from './usernames.dto';
+import { AssistantAllowed } from '../auth/assistant/assistant-context';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -26,6 +27,7 @@ export class UsernamesController {
   constructor(private readonly policy: UsernamePolicyService) {}
 
   /** Rate-limited: an enumeration aid otherwise. */
+  @AssistantAllowed()
   @Get('check')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiEnvelopeResponse(UsernameCheckDto)

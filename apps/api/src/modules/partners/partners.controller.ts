@@ -31,6 +31,7 @@ import { AttorneyOnly } from '../auth/assistant/assistant-context';
 export class PartnersController {
   constructor(private readonly partners: PartnersService) {}
 
+  @AttorneyOnly()
   @Get('me')
   @ApiOperation({
     summary:

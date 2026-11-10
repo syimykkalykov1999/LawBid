@@ -849,10 +849,117 @@ jobs:
           path: ${{ runner.temp }}/perf-user.json
           if-no-files-found: ignore
 
+  perf-admin:
+    # Speed matrix 2026-11-09 (§3 #13): the admin perf guard
+    # (test/perf-admin.e2e-spec.ts, docs/perf/ADMIN_ECONOMY_2026-10-23.md)
+    # ran only by hand (PERF_ADMIN=1); a regression on an admin list or board
+    # could reach prod unseen. Same seed as perf-user (25 000 people, plus the
+    # 50 000 audit rows the user guard skips), then every admin page is opened
+    # the way the browser opens it — all its GETs at once on DB_POOL_SIZE=3
+    # (prod's pool), stored boards aged to 20 min first (PERF_STALE) — and the
+    # job fails when any admin endpoint's p95 is over 300 ms. The single-
+    # endpoint table (cold / warm / bytes) is printed and uploaded too.
+    name: API perf guard (admin endpoints, p95 < 300 ms)
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 40 # ~15 min: npm ci 1 + migrate 0.1 + seed ~8 + pages ~4 + endpoints ~1
+    services:
+      postgres:
+        image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: lawbid
+          POSTGRES_DB: lawbid_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U root -d lawbid_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
+        ports:
+          - 6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Point the job at its service containers (random host ports)
+        env:
+          PG_PORT: ${{ job.services.postgres.ports['5432'] }}
+          REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
+        run: scripts/ci/service-env.sh
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.12.1"
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
+      - name: Restore the npm cache (self-hosted, read-only)
+        uses: ./.github/actions/npm-cache-restore
+
+      - name: Install dependencies (root workspace, hoisted)
+        run: npm ci
+
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: Migrate a clean database
+        working-directory: apps/api
+        run: npx prisma migrate deploy && node prisma/run-concurrent.mjs
+
+      - name: psql (seed generators)
+        run: command -v psql || (sudo apt-get update -q && sudo apt-get install -yq postgresql-client)
+
+      - name: Seed 25 000 people + audit log (repo generators x0.25, deterministic)
+        env:
+          PERF_SEED_SCALE: "0.25"
+          PERF_SEED_KEEP_AUDIT: "1"
+        run: apps/api/scripts/perf-user-seed.sh "$DATABASE_URL"
+
+      - name: Admin pages opened like the browser (3 connections, stale boards) - p95 <= 300 ms
+        working-directory: apps/api
+        env:
+          PERF_ADMIN: "1"
+          PERF_PAGES: "1"
+          PERF_STALE: "1"
+          DB_POOL_SIZE: "3"
+          PERF_BUDGET_MS: "300"
+          E2E_DATABASE_URL: ${{ env.DATABASE_URL }}
+          # NestJS 12 packages are ESM only (KNOWN_ERRORS 66): jest needs the flag.
+          NODE_OPTIONS: --experimental-vm-modules
+        run: npx jest --config test/jest-perf-admin.json --forceExit 2>&1 | tee "$RUNNER_TEMP/perf-admin-pages.txt"
+
+      - name: Admin endpoints one by one (cold / warm p50 p95 / bytes)
+        if: always()
+        working-directory: apps/api
+        env:
+          PERF_ADMIN: "1"
+          PERF_ROUNDS: "10"
+          E2E_DATABASE_URL: ${{ env.DATABASE_URL }}
+          NODE_OPTIONS: --experimental-vm-modules
+        run: npx jest --config test/jest-perf-admin.json --forceExit 2>&1 | tee "$RUNNER_TEMP/perf-admin-endpoints.txt"
+
+      - name: Upload the perf tables
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: perf-admin
+          path: |
+            ${{ runner.temp }}/perf-admin-pages.txt
+            ${{ runner.temp }}/perf-admin-endpoints.txt
+          if-no-files-found: ignore
+
   api-ci:
     name: API CI
     if: ${{ always() }}
-    needs: [static, e2e, two-db, n1, perf-user]
+    needs: [static, e2e, two-db, n1, perf-user, perf-admin]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

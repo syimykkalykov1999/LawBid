@@ -5,7 +5,9 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/transfers/transfer_limits.dart';
 import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -480,33 +482,78 @@ void main() {
         };
       }
 
-      test('never more than four parts at once, and four are reached',
+      // Owner 2026-11-09: not a fixed four. A fast link climbs while the
+      // total speed grows, never past the admin ceiling (8 by default).
+      // 6 MiB in 48 parts of 128 KiB (the server sets the part size).
+      const kib128 = 128 * 1024;
+      final huge = UploadBody.bytes(Uint8List(48 * kib128));
+      void serveParts(int count) {
+        var plans = 0;
+        final inner = apiAdapter.handler;
+        Map<String, Object?> plan(List<int> todo) => {
+              'data': {
+                'partSizeBytes': kib128,
+                'partCount': count,
+                'uploadedParts': [
+                  for (var n = 1; n <= count; n++)
+                    if (!todo.contains(n)) n,
+                ],
+                'parts': [
+                  for (final n in todo)
+                    {'partNumber': n, 'url': 'https://s3.test/p$n'},
+                ],
+                'expiresAt': '2026-11-01T12:00:00.000Z',
+              },
+            };
+        apiAdapter.handler = (o) async {
+          if (o.path == '/files/file-1/multipart') {
+            plans++;
+            return jsonBody(
+              plans == 1 ? plan(List.generate(count, (i) => i + 1)) : plan([]),
+            );
+          }
+          if (o.path == '/files/file-1/multipart/complete') {
+            return jsonBody({
+              'data': {'sizeBytes': count * kib128},
+            });
+          }
+          return inner(o);
+        };
+      }
+
+      test('starts at four and climbs on a fast link, never past eight',
           () async {
-        serveTenParts();
+        ClientTuning.reset();
+        serveParts(48);
         var now = 0;
         var most = 0;
+        final firstFour = <int>[];
         storage.handler = (o) async {
           most = math.max(most, ++now);
-          await Future<void>.delayed(const Duration(milliseconds: 5));
+          if (firstFour.length < 4) firstFour.add(now);
+          await Future<void>.delayed(const Duration(milliseconds: 20));
           now--;
           return ResponseBody.fromString('', 200);
         };
         final progress = <double>[];
         expect(
-          await resumable().putResumable(
-            'file-1',
-            large,
-            onProgress: progress.add,
-          ),
+          await StorageUploader(
+            apiDio: apiDio,
+            transport:
+                DioStorageTransport(storageDio, backoff: (_) => Duration.zero),
+            scanPoll: Duration.zero,
+            scanMaxPolls: 3,
+            storageDio: storageDio,
+            partBackoff: (_) => Duration.zero,
+            limiter: TransferLimits.newUploadLimiter(),
+          ).putResumable('file-1', huge, onProgress: progress.add),
           isTrue,
         );
-        expect(most, StorageUploader.partsAtOnce);
-        expect(storage.requests.map((r) => r.path).toSet(), hasLength(10));
+        expect(firstFour.reduce(math.max), 4, reason: 'starts at four');
+        expect(most, greaterThan(4));
+        expect(most, lessThanOrEqualTo(8));
+        expect(storage.requests.map((r) => r.path).toSet(), hasLength(48));
         expect(progress.last, 1);
-        expect(
-          apiAdapter.requests.last.path,
-          '/files/file-1/multipart/complete',
-        );
       });
 
       test('a refused part stops the rest and its error is what is seen',
@@ -553,6 +600,29 @@ void main() {
           ),
         );
       });
+    });
+
+    // Owner 2026-11-09: parts for every file S3 / R2 can cut — anything over
+    // one 5 MiB part (the S3 minimum part size). Up to 5 MiB one PUT is the
+    // fastest: parts would only add the plan and complete round trips.
+    test('the threshold is the S3 minimum part: over 5 MiB in parts', () async {
+      expect(StorageUploader.resumableThresholdBytes, 5 * mib + 1);
+      var plans = 0;
+      apiAdapter.handler = (o) async {
+        if (o.path == '/files/file-1/multipart') plans++;
+        return jsonBody(
+          {
+            'error': {'code': 'FEATURE_DISABLED', 'message': 'off'},
+          },
+          403,
+        );
+      };
+      await resumable()
+          .putResumable('file-1', UploadBody.bytes(Uint8List(5 * mib)));
+      expect(plans, 0, reason: 'exactly 5 MiB is one PUT');
+      await resumable()
+          .putResumable('file-1', UploadBody.bytes(Uint8List(6 * mib)));
+      expect(plans, 1, reason: '6 MiB asks for a part plan');
     });
 
     test('flag off or a small file: false, nothing sent to storage', () async {

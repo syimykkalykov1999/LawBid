@@ -3,12 +3,17 @@
 import { ArrowCounterClockwise, CaretLeft, CaretRight, MagnifyingGlassMinus, MagnifyingGlassPlus, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { LazyImg } from '@/components/ui/lazy-img';
 
 export interface LightboxImage {
   src: string;
   alt: string;
   /** A PDF is shown in a frame inside the lightbox (no zoom). */
   kind?: 'image' | 'pdf';
+  /** The server's 320 / 1080 px copies, when it made them (LazyImg srcset). */
+  sources?: { url: string; previewUrl?: string | null; mediumUrl?: string | null } | null;
+  /** Drawn until the picture loads. */
+  blurhash?: string | null;
 }
 
 const FOCUSABLE = 'a[href], button:not([disabled]), iframe, input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -156,9 +161,11 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
         {pdf ? (
           <iframe key={img.src} src={img.src} title={img.alt} className="absolute inset-y-2 left-16 right-16 h-[calc(100%-1rem)] w-[calc(100%-8rem)] rounded-lg bg-white" />
         ) : (
-          /* eslint-disable-next-line @next/next/no-img-element -- a short signed link, not a static asset */
-          <img
+          <LazyImg
             src={img.src}
+            sources={img.sources}
+            sizes="100vw"
+            blurhash={img.blurhash}
             alt={img.alt}
             draggable={false}
             onDoubleClick={() => (zoom === 1 ? setZoom(2.5) : reset())}

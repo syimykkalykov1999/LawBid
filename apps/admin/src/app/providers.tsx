@@ -1,11 +1,12 @@
 'use client';
 
-import { QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { LazyMotion, MotionConfig } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { SentryInit } from '@/components/sentry-init';
 import { ToastProvider, useToast } from '@/components/ui/toast';
 import { startActivityTracking } from '@/lib/activity';
+import { makePersister, PERSIST_BUSTER, PERSIST_MAX_AGE_MS, shouldPersistQuery } from '@/lib/persist';
 import { makeQueryClient } from '@/lib/query-client';
 import { ThemeProvider } from '@/lib/theme';
 
@@ -39,17 +40,28 @@ export function Providers({
   }, []);
   // R-385: data-class defaults (lib/query-client.ts).
   const [client] = useState(() => makeQueryClient(toastSink));
+  // Speed matrix 2026-11-09 (§3 #4): the cache is also kept in IndexedDB
+  // (lib/persist.ts), so a reload or a new tab opens from the stored copy.
+  const [persister] = useState(() => makePersister());
   return (
     <ThemeProvider>
       <MotionConfig reducedMotion="user">
         <LazyMotion features={loadMotionFeatures}>
-          <QueryClientProvider client={client}>
+          <PersistQueryClientProvider
+            client={client}
+            persistOptions={{
+              persister,
+              maxAge: PERSIST_MAX_AGE_MS,
+              buster: PERSIST_BUSTER,
+              dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
+            }}
+          >
             <ToastProvider>
               <ToastBridge sink={toastSink} />
               {children}
             </ToastProvider>
             <SentryInit dsn={sentryDsn} />
-          </QueryClientProvider>
+          </PersistQueryClientProvider>
         </LazyMotion>
       </MotionConfig>
     </ThemeProvider>

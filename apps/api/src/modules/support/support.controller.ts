@@ -37,6 +37,10 @@ import {
   SupportTicketIdParamDto,
 } from './support.dto';
 import { SupportService } from './support.service';
+import {
+  AssistantAllowed,
+  AssistantSelf,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 type Page<T> = { items: T[]; nextCursor: string | null };
@@ -49,6 +53,7 @@ type Page<T> = { items: T[]; nextCursor: string | null };
 export class SupportController {
   constructor(private readonly support: SupportService) {}
 
+  @AssistantSelf()
   @Post()
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Open a support ticket with the first message' })
@@ -71,6 +76,7 @@ export class SupportController {
     return this.support.create(user.sub, dto);
   }
 
+  @AssistantSelf()
   @Get()
   @ApiOperation({ summary: 'My tickets, latest activity first' })
   @ApiEnvelopeResponse(SupportTicketDto, { isArray: true })
@@ -82,6 +88,7 @@ export class SupportController {
     return this.support.list(user.sub, q.cursor);
   }
 
+  @AssistantSelf()
   @Get(':id')
   @ApiOperation({ summary: 'One of my tickets with its messages (marks read)' })
   @ApiEnvelopeResponse(SupportTicketDetailDto)
@@ -93,6 +100,7 @@ export class SupportController {
     return this.support.get(user.sub, p.id);
   }
 
+  @AssistantSelf()
   @Post(':id/messages')
   @ApiOperation({
     summary: 'Write to support (reopens a resolved ticket; closed → 409)',
@@ -112,6 +120,7 @@ export class SupportController {
     return this.support.reply(user.sub, p.id, dto.body, dto.attachments);
   }
 
+  @AssistantSelf()
   @Post(':id/close')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Close my ticket (no more replies)' })
@@ -134,6 +143,7 @@ export class SupportController {
 export class SupportInfoController {
   constructor(private readonly support: SupportService) {}
 
+  @AssistantAllowed()
   @Get('info')
   @ApiOperation({ summary: 'Support hours and the usual first answer time' })
   @ApiEnvelopeResponse(SupportInfoDto)

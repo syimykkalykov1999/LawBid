@@ -18,6 +18,7 @@ import 'package:lawbid/core/l10n/strings/case_signing_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_tools_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_workspace_strings.dart';
+import 'package:lawbid/core/l10n/strings/cases_filter_strings.dart';
 import 'package:lawbid/core/l10n/strings/channels_strings.dart';
 import 'package:lawbid/core/l10n/strings/chat_note_strings.dart';
 import 'package:lawbid/core/l10n/strings/chat_ux_strings.dart';
@@ -1209,6 +1210,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...consultationRu,
         ...legalQaRu,
         ...deadlineRu,
+        ...casesFilterRu,
         ...storageRu,
         ...storageScreenRu,
         ...supportRu,
@@ -2669,6 +2671,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...consultationEn,
         ...legalQaEn,
         ...deadlineEn,
+        ...casesFilterEn,
         ...storageEn,
         ...storageScreenEn,
         ...supportEn,

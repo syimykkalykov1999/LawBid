@@ -670,7 +670,7 @@ resource "aws_wafv2_web_acl" "this" {
     for_each = {
       # SizeRestrictions_BODY only counts (labels) here; the rule
       # "body-size" below blocks on that label outside the exempt paths.
-      common     = { priority = 10, name = "AWSManagedRulesCommonRuleSet", count_rules = ["SizeRestrictions_BODY"] }
+      common     = { priority = 10, name = "AWSManagedRulesCommonRuleSet", count_rules = ["SizeRestrictions_BODY", "NoUserAgent_HEADER"] }
       bad_inputs = { priority = 11, name = "AWSManagedRulesKnownBadInputsRuleSet", count_rules = [] }
       ip_rep     = { priority = 12, name = "AWSManagedRulesAmazonIpReputationList", count_rules = [] }
     }
@@ -804,6 +804,51 @@ resource "aws_wafv2_web_acl" "this" {
     visibility_config {
       cloudwatch_metrics_enabled = true
       metric_name                = "${var.name}-body-size"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # Prod 2026-11-09: Bunny Stream calls its video webhook WITHOUT a
+  # User-Agent, and NoUserAgent_HEADER (core rule set) blocked every call,
+  # so reels waited for the polling sweep. The rule only counts (labels)
+  # above; this one blocks on that label everywhere except the provider
+  # webhooks, which the API checks by a secret token or a signature.
+  rule {
+    name     = "no-user-agent"
+    priority = 14
+    action {
+      block {}
+    }
+    statement {
+      and_statement {
+        statement {
+          label_match_statement {
+            scope = "LABEL"
+            key   = "awswaf:managed:aws:core-rule-set:NoUserAgent_Header"
+          }
+        }
+        statement {
+          not_statement {
+            statement {
+              byte_match_statement {
+                search_string         = "/api/v1/webhooks/"
+                positional_constraint = "STARTS_WITH"
+                field_to_match {
+                  uri_path {}
+                }
+                text_transformation {
+                  priority = 0
+                  type     = "NONE"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.name}-no-user-agent"
       sampled_requests_enabled   = true
     }
   }

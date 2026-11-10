@@ -254,7 +254,10 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => openSettingsRoute(context, AppRoutes.myPromotions),
             ),
           // Owner 2026-10-02: referrals (shown only when the program is on).
-          if (ref.watch(referralMeProvider).value?.enabled ?? false)
+          // Audit 2026-11-08 (L2): the attorney's own programmes — not asked
+          // for an assistant (the server refuses them).
+          if (!ref.watch(isAssistantProvider) &&
+              (ref.watch(referralMeProvider).value?.enabled ?? false))
             AppListRow(
               icon: AppIcons.giftOutlined,
               label: t.t('referral.title'),
@@ -264,8 +267,9 @@ class SettingsScreen extends ConsumerWidget {
           // Owner 2026-10-05: partner program — partners and, while the
           // owner allows self-enrolment, everyone who may join. Hidden when
           // the program is switched off.
-          if (ref.watch(partnerMeProvider).value case final PartnerMe pm
-              when pm.enabled && (pm.isPartner || pm.canJoin))
+          if (!ref.watch(isAssistantProvider))
+            if (ref.watch(partnerMeProvider).value case final PartnerMe pm
+                when pm.enabled && (pm.isPartner || pm.canJoin))
             AppListRow(
               key: const ValueKey('settings-partner'),
               icon: AppIcons.handshakeOutlined,

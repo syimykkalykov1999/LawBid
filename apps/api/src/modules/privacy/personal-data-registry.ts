@@ -65,6 +65,8 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   ContactSyncSetting: ['user_id'],
   ContactBookHash: ['owner_id'],
   CallLogHidden: ['user_id'],
+  // B-c7: the unfollow journal (sync tombstones); both sides are a person.
+  FollowTombstone: ['follower_id', 'followee_id'],
   UserStickerPack: ['user_id'],
   UserRecentSticker: ['user_id'],
   ChatGroupTopicRead: ['user_id'],

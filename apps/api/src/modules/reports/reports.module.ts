@@ -11,6 +11,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
+import { RankingEventsService } from '../experiments/ranking-events.service';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -44,6 +45,7 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
+import { AssistantAllowed } from '../auth/assistant/assistant-context';
 
 /** docs/05 §12.1 targets reported from file 05 screens. */
 const REPORTABLE: ReportTargetType[] = [
@@ -105,6 +107,8 @@ export class ReportsService {
     // Owner 2026-10-27: a reporter whose reports were found unfounded can
     // be paused (DSA Art. 23 style).
     @Optional() private readonly reporters?: ReporterReputationService,
+    // Owner 2026-11-08: the «жалобы на 1000 показов» guardrail of A/B tests.
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
 
   async create(userId: string, dto: CreateReportDto): Promise<void> {
@@ -138,6 +142,11 @@ export class ReportsService {
         note: dto.note ?? null,
       },
     });
+    void this.rankingEvents?.logUserAction('report', {
+      userId,
+      surface: String(dto.targetType),
+      itemId: dto.targetId,
+    });
     // docs/06 §3.3: the third distinct reporter hides the object.
     await this.moderation.autoHideIfThreshold(dto.targetType, dto.targetId);
     // Owner 2026-10-05 (trust levels): a client's fraud / impersonation
@@ -156,6 +165,7 @@ export class ReportsService {
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
+  @AssistantAllowed()
   @Post()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

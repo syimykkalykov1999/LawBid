@@ -10,6 +10,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { UpdatedSinceQuery } from '../../common/sync/sync.util';
 import { RatingDto } from '../profiles/dto/attorney-profile.dto';
 import { ClientListItemDto } from '../profiles/dto/client-profile.dto';
 
@@ -56,6 +57,14 @@ export class PeopleListQueryDto extends FollowsQueryDto {
   @MinLength(1)
   @MaxLength(100)
   q?: string;
+}
+
+/** GET /users/me/following: the people lists' query plus the sync delta. */
+export class MyFollowingQueryDto extends PeopleListQueryDto {
+  @UpdatedSinceQuery(
+    'B-c7 (2026-11-09, Telegram getDifference as /groups): only the people I started following since (ISO); meta.deletedIds = the ones I unfollowed since; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD (first page again). `cursor` and `q` are ignored with it.',
+  )
+  updatedSince?: string;
 }
 
 /** Owner 2026-10-13: "More" sheet of Recommended — page size on top of the
@@ -133,6 +142,10 @@ export class AttorneyListItemDto {
 export interface AttorneyListPage {
   items: AttorneyListItemDto[];
   nextCursor: string | null;
+  /** With `updatedSince`: ids that left my list (ResponseInterceptor → meta). */
+  deletedIds?: string[];
+  /** With `updatedSince`: the newest stamp of the answer (→ meta.syncedAt). */
+  syncedAt?: string;
 }
 
 export const PERSON_ROLES = ['attorney', 'client'] as const;

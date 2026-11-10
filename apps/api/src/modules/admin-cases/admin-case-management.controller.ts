@@ -7,7 +7,12 @@ import {
   Param,
   Post,
   Query,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { conditionalGet } from '../../common/sync/cheap-etag';
+import { VersionEtagService } from '../../common/sync/version-etag.service';
 import { shardContext } from '../../sharding/shard-context';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -49,17 +54,29 @@ const ACTION_ERRORS = {
 @AdminEndpoint('super_admin', 'support', 'moderator')
 @Controller('admin/cases')
 export class AdminCaseManagementController {
-  constructor(private readonly cases: AdminCaseManagementService) {}
+  constructor(
+    private readonly cases: AdminCaseManagementService,
+    private readonly versionEtag: VersionEtagService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'All cases, newest first (filters + search)' })
   @ApiEnvelopeResponse(AdminCaseRowDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  listAdminCases(
+  async listAdminCases(
     @CurrentAdmin() admin: AdminActor,
     @Query() q: AdminCasesQueryDto,
-  ): Promise<Page<AdminCaseRowDto>> {
-    return this.cases.list(q, admin.countries);
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<Page<AdminCaseRowDto> | undefined> {
+    // Speed matrix 2026-11-09 (§3 #4): cheap tag before the list → 304.
+    return conditionalGet(
+      req,
+      res,
+      await this.versionEtag.adminCases(admin.countries ?? null),
+      () => Promise.resolve(),
+      () => this.cases.list(q, admin.countries),
+    );
   }
 
   // Owner 2026-10-28 (privilege): the card carries the client's private

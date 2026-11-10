@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/empty';
 import { DOC_TYPE } from '@/lib/labels';
 import { cardJustification, galleryRows, isPdf, isViewableDoc, type ReviewDoc } from '@/lib/review-flow';
 import { useDocLinks } from '@/lib/verification-doc-links';
+import { LazyImg } from '@/components/ui/lazy-img';
 
 export type GalleryDoc = ReviewDoc;
 
@@ -84,8 +85,7 @@ function Thumb({ doc, url, loading, onOpen }: { doc: GalleryDoc; url: string | u
             </span>
           </span>
         ) : (
-          /* eslint-disable-next-line @next/next/no-img-element -- a short signed link, not a static asset */
-          <img src={url} alt={title} className="h-full w-full object-contain" />
+          <LazyImg src={url} alt={title} className="h-full w-full object-contain" />
         )}
       </button>
     );

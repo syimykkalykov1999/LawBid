@@ -231,6 +231,7 @@ describe('CasesFeedService', () => {
         );
         const recommendations = {
           casesFor: jest.fn().mockResolvedValue(rankedIds),
+          logServed: jest.fn().mockResolvedValue(undefined),
         };
         const service = new CasesFeedService(
           deps.prisma as never,

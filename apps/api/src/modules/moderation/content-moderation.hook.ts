@@ -2,7 +2,16 @@
 export type ModerationVerdict = 'allow' | 'hold' | 'block';
 
 export interface ModerationContext {
-  kind: 'post' | 'comment';
+  /** Feature reality audit 2026-11-08: Q&A, reviews and channel posts go
+   * through the same hook as posts and comments. */
+  kind:
+    | 'post'
+    | 'comment'
+    | 'question'
+    | 'answer'
+    | 'review'
+    | 'client_review'
+    | 'channel_post';
   authorId: string;
 }
 

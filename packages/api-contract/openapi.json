@@ -30217,6 +30217,16 @@
               "maxLength": 100,
               "type": "string"
             }
+          },
+          {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "B-c7 (2026-11-09, Telegram getDifference as /groups): only the people I started following since (ISO); meta.deletedIds = the ones I unfollowed since; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD (first page again). `cursor` and `q` are ignored with it.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -36008,6 +36018,39 @@
             }
           },
           {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
+            }
+          },
+          {
             "name": "filter",
             "required": false,
             "in": "query",
@@ -36527,6 +36570,39 @@
             "schema": {
               "example": "IL",
               "type": "string"
+            }
+          },
+          {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
             }
           },
           {
@@ -40211,6 +40287,39 @@
             }
           },
           {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -40368,6 +40477,39 @@
             "schema": {
               "example": "IL",
               "type": "string"
+            }
+          },
+          {
+            "name": "stages",
+            "required": false,
+            "in": "query",
+            "description": "Only cases at these stages (0 published · 1 bids · 2 in progress · 3 wrapping up · 4 done); `0,1` or repeated.",
+            "schema": {
+              "example": [
+                0,
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "name": "awaiting",
+            "required": false,
+            "in": "query",
+            "description": "Only the cases waiting for me (client: open with bids, or pending completion).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CaseListSort"
             }
           },
           {
@@ -99783,6 +99925,83 @@
         ]
       }
     },
+    "/admin/realtime/ticket": {
+      "post": {
+        "operationId": "ticket",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRealtimeTicketEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One-shot ticket for the admin live-updates socket (namespace /admin)",
+        "tags": [
+          "admin-realtime"
+        ]
+      }
+    },
     "/conversations": {
       "get": {
         "operationId": "listConversations",
@@ -103058,6 +103277,16 @@
               "maximum": 50,
               "type": "integer"
             }
+          },
+          {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "B-c7 (2026-11-09, Telegram getDifference as /groups): only the calls that reached my list or changed since (ISO); meta.deletedIds = calls I deleted from my list since («delete», «clear»); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD (first page again). `cursor` and `limit` are ignored with it.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -103127,7 +103356,7 @@
             "bearer": []
           }
         ],
-        "summary": "My finished calls, newest first (cursor)",
+        "summary": "My finished calls, newest first (cursor; ?updatedSince = delta)",
         "tags": [
           "calls"
         ]
@@ -150186,7 +150415,7 @@
           "pinSlot": {
             "type": "integer",
             "nullable": true,
-            "description": "Owner 2026-10-12: 1..6 (was 1..3 until 2026-10-28) when pinned to the\ntop of the author's list."
+            "description": "Owner 2026-10-12: 1..10 (1..3, then 1..6 until 2026-11-09) when pinned to the\ntop of the author's list."
           },
           "promotionId": {
             "type": "string",
@@ -150455,7 +150684,7 @@
           "slot": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 6
+            "maximum": 10
           }
         },
         "required": [
@@ -154635,6 +154864,14 @@
           "canMakeNotUrgent"
         ]
       },
+      "CaseListSort": {
+        "type": "string",
+        "enum": [
+          "stage",
+          "newest",
+          "oldest"
+        ]
+      },
       "CaseSummaryListEnvelope": {
         "type": "object",
         "properties": {
@@ -157312,6 +157549,11 @@
           "closedAt": {
             "type": "string",
             "nullable": true
+          },
+          "lastActivityAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-11-09: the case's last activity — the order inside a\nstage of «Active» (the app re-sorts its rows by it). Optional: an\nolder server does not send it."
           },
           "coverUrl": {
             "type": "string",
@@ -176256,6 +176498,7 @@
               "http",
               "realtime",
               "breakers",
+              "email",
               "cloudflare_usage",
               "bunny_usage",
               "table_growth",
@@ -177903,6 +178146,13 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          },
+          "weights": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Formula weight overrides this variant applies on its surface (e.g. case_feed: { urgency: 0.3 }); control has none."
           }
         },
         "required": [
@@ -189911,6 +190161,48 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/MissedEventsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminRealtimeTicketDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "false: the switch `realtime.admin_events_enabled` is off — keep polling."
+          },
+          "ticket": {
+            "type": "object",
+            "nullable": true,
+            "description": "One-shot handshake ticket (`auth.ticket`), valid `ttlSec` seconds; null when disabled."
+          },
+          "namespace": {
+            "type": "string",
+            "description": "The Socket.IO namespace to connect to."
+          },
+          "ttlSec": {
+            "type": "number",
+            "description": "Seconds the ticket stays redeemable."
+          }
+        },
+        "required": [
+          "enabled",
+          "ticket",
+          "namespace",
+          "ttlSec"
+        ]
+      },
+      "AdminRealtimeTicketEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminRealtimeTicketDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

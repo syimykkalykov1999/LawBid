@@ -7,7 +7,17 @@ import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 /// pieces than these travel at once, so three queued videos do not become
 /// twelve connections on a weak phone.
 abstract final class TransferLimits {
-  static final uploads = AdaptiveLimiter(() => ClientTuning.uploadsAtOnce);
+  /// Owner 2026-11-09: parts start at `client.uploads_at_once`, climb up to
+  /// `client.upload_parts_max` while the speed grows (ThroughputClimb) and
+  /// fall to `client.upload_parts_min` after a failure.
+  static final uploads = newUploadLimiter();
+
+  /// A limiter with the upload rules (one for the app; tests make their own).
+  static AdaptiveLimiter newUploadLimiter() => AdaptiveLimiter(
+        () => ClientTuning.uploadPartsCeiling,
+        start: () => ClientTuning.uploadPartsStart,
+        floor: () => ClientTuning.uploadPartsFloor,
+      );
   static final downloads = AdaptiveLimiter(() => ClientTuning.downloadsAtOnce);
 
   static Future<void>? _checked;

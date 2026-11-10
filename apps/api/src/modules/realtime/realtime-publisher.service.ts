@@ -10,6 +10,13 @@ export const REALTIME_NAMESPACE = '/realtime';
 /** Owner 2026-10-22: the unauthenticated namespace the website waits on
  * for its QR sign-in (QrLoginGateway); one room per code. */
 export const QR_LOGIN_NAMESPACE = '/qr';
+/** Speed matrix 2026-11-09 (§3 #5): the admin panel's read-only namespace
+ * (AdminRealtimeGateway) — one room for every signed-in admin tab. */
+export const ADMIN_RT_NAMESPACE = '/admin';
+export const ADMINS_ROOM = 'admins';
+/** A one-shot socket ticket of an admin session (`POST /admin/realtime/ticket`). */
+export const adminTicketKey = (ticket: string) => `adm:rt:ticket:${ticket}`;
+export const ADMIN_TICKET_TTL_SEC = 60;
 export const qrRoom = (qrId: string) => `qr:${qrId}`;
 export const userRoom = (id: string) => `user:${id}`;
 export const conversationRoom = (id: string) => `conversation:${id}`;

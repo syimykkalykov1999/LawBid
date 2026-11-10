@@ -33,6 +33,7 @@ export class HealthItemDto {
       'http',
       'realtime',
       'breakers',
+      'email',
       'cloudflare_usage',
       'bunny_usage',
       'table_growth',

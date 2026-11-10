@@ -13,6 +13,7 @@
 # S=1 is ~3.5 GB on disk and 10 min, S=0.25 ~1 GB; mind the 8 GB free-disk rule on the Mac).
 # The admin generator's 200 000 audit rows are skipped: no user screen reads
 # them, and the append-only audit trigger makes them the slowest part.
+# PERF_SEED_KEEP_AUDIT=1 keeps them (the admin perf guard reads /admin/audit-log).
 set -euo pipefail
 DB="${1:?database url}"
 DB="${DB%%\?*}"   # psql does not take Prisma's ?schema=public
@@ -29,7 +30,9 @@ for f in scripts/ops/admin-load-gen.sql scripts/ops/user-load-gen.sql \
     cp "$repo/$f" "$out"
   fi
   # drop the audit_log statement (from its INSERT to the closing semicolon)
-  awk '/^INSERT INTO audit_log/{skip=1} !skip{print} skip&&/;[[:space:]]*$/{skip=0}' "$out" > "$out.tmp" && mv "$out.tmp" "$out"
+  if [ "${PERF_SEED_KEEP_AUDIT:-0}" != 1 ]; then
+    awk '/^INSERT INTO audit_log/{skip=1} !skip{print} skip&&/;[[:space:]]*$/{skip=0}' "$out" > "$out.tmp" && mv "$out.tmp" "$out"
+  fi
   echo "== $f $(date +%T)"
   psql "$DB" -v ON_ERROR_STOP=1 -q -f "$out" > /dev/null
 done

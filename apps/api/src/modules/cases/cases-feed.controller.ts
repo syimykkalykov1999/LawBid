@@ -148,6 +148,7 @@ export class CasesFeedController {
     await this.feed.recordViews(user.sub, dto.caseIds);
   }
 
+  @RequiresDuty('cases')
   @Post('saved-items')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Save a case (docs/04 §4.3 "Сохранить", §11.2)' })
@@ -164,6 +165,7 @@ export class CasesFeedController {
     await this.feed.save({ userId: user.sub, role: user.role }, dto);
   }
 
+  @RequiresDuty('cases')
   @Delete('saved-items')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Unsave a case' })

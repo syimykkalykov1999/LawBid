@@ -86,6 +86,18 @@ How limits stay enforced (S3 POST policy had `content-length-range`; PUT has no 
 
 Browser uploads (Flutter web, admin stickers and gifts) need a CORS rule on the R2 bucket allowing PUT from the app origins with `Content-Type`, `Cache-Control` headers.
 
+## Staging prefix (added 2026-11-09, D-c1 / security audit M3)
+
+The presigned link (PUT on R2, POST on AWS) writes only to `staging/<final key>`. `confirm` checks the object and
+copies it (server-side `CopyObject`) to the row's own key outside `staging/` (`files.policy.ts storedKey`); the
+staging object is deleted at confirm and again by the pending-upload sweep after the link expired. No File row
+ever points into `staging/`, and the API signs no read of it. On AWS the media bucket policy denies CloudFront
+`s3:GetObject` on `staging/*` (infra/modules/s3). On the R2 public domain the same rule is the owner's (the bucket
+domain serves every key): Cloudflare dashboard → the R2 custom domain's zone → **Security → WAF → Custom rules**
+→ «Create rule»: *Field* `URI Path`, *Operator* `starts with`, *Value* `/staging/`, *Action* `Block`. Until that
+rule exists the staging object is reachable only by its unguessable UUID key, for the five minutes before the
+sweep, and (#867, L5) is written `no-store`, so no edge keeps it.
+
 ## Fail-safe (added 2026-11-04)
 
 `media.public_store = r2` alone never sends a file to R2. `resolveBucket('media')` looks at R2 first (`storage/r2-readiness.ts`; cached 60 s when fine, 30 s when not; one look at a time; 4 s timeouts):

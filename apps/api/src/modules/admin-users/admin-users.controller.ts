@@ -7,7 +7,12 @@ import {
   Param,
   Post,
   Query,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { conditionalGet } from '../../common/sync/cheap-etag';
+import { VersionEtagService } from '../../common/sync/version-etag.service';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -68,6 +73,7 @@ export class AdminUsersController {
   constructor(
     private readonly users: AdminUsersService,
     private readonly auth: AdminAuthService,
+    private readonly versionEtag: VersionEtagService,
   ) {}
 
   // Audit 2026-10-02: finance reads user basics for subscriptions
@@ -79,11 +85,21 @@ export class AdminUsersController {
   })
   @ApiEnvelopeResponse(AdminUserListItemDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  searchUsers(
+  async searchUsers(
     @CurrentAdmin() admin: AdminActor,
     @Query() query: AdminUsersQueryDto,
-  ): Promise<AdminUsersPage> {
-    return this.users.search(query, admin.countries);
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AdminUsersPage | undefined> {
+    // Speed matrix 2026-11-09 (§3 #4): a cheap tag (newest updated_at) is
+    // read before the list; the panel's If-None-Match match is a 304.
+    return conditionalGet(
+      req,
+      res,
+      await this.versionEtag.adminUsers(admin.countries ?? null),
+      () => Promise.resolve(),
+      () => this.users.search(query, admin.countries),
+    );
   }
 
   // Audit 2026-10-02: read-only for finance (subscriptions) and verifiers

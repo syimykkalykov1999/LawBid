@@ -20,9 +20,25 @@ export const EXPERIMENT_KEY_RE = /^[a-z][a-z0-9_]{2,63}$/;
 export const VARIANT_KEY_RE = /^[a-z][a-z0-9_]{0,31}$/;
 export const SURFACE_RE = /^[a-z][a-z0-9_]{1,39}$/;
 
+/**
+ * A variant with the formula it applies (GrowthBook-style variation value):
+ * weight overrides of the surface's ranking formula, e.g. on `case_feed`
+ * `{ "urgency": 0.3 }` replaces the `reco.case.urgency` setting for the
+ * units in this variant. `control` never carries any (it is "as now").
+ */
+export interface VariantSpec extends VariantWeight {
+  weights?: Record<string, number>;
+}
+
+/** Most overrides one variant may carry, and their allowed range. */
+export const VARIANT_WEIGHTS_MAX = 30;
+export const VARIANT_WEIGHT_MIN = 0;
+export const VARIANT_WEIGHT_MAX = 10;
+const WEIGHT_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_]{0,39}$/;
+
 export interface DefinitionInput {
   key: string;
-  variants: VariantWeight[];
+  variants: VariantSpec[];
   guardrails?: Partial<Guardrails> | null;
 }
 
@@ -48,6 +64,8 @@ export function definitionProblem(d: DefinitionInput): string | null {
     if (!Number.isInteger(v.weight) || v.weight < 1) {
       return 'Доли вариантов — целые числа от 1';
     }
+    const wp = weightsProblem(v);
+    if (wp) return wp;
     sum += v.weight;
   }
   if (sum !== 100) return 'Доли вариантов должны дать ровно 100';
@@ -60,6 +78,33 @@ export function definitionProblem(d: DefinitionInput): string | null {
   }
   if (g.minImpressions < 100 || g.minImpressions > 1_000_000) {
     return 'Минимум показов для проверки: от 100 до 1 000 000';
+  }
+  return null;
+}
+
+function weightsProblem(v: VariantSpec): string | null {
+  if (v.weights === undefined || v.weights === null) return null;
+  if (typeof v.weights !== 'object' || Array.isArray(v.weights)) {
+    return `Веса варианта «${v.key}»: нужен список «имя = число»`;
+  }
+  const entries = Object.entries(v.weights);
+  if (entries.length === 0) return null;
+  if (v.key === 'control') {
+    return 'У control весов нет: он работает как сейчас';
+  }
+  if (entries.length > VARIANT_WEIGHTS_MAX) {
+    return `Веса варианта «${v.key}»: не больше ${VARIANT_WEIGHTS_MAX}`;
+  }
+  for (const [name, w] of entries) {
+    if (!WEIGHT_NAME_RE.test(name)) return `Вес «${name}» назван неверно`;
+    if (
+      typeof w !== 'number' ||
+      !Number.isFinite(w) ||
+      w < VARIANT_WEIGHT_MIN ||
+      w > VARIANT_WEIGHT_MAX
+    ) {
+      return `Вес «${name}»: число от ${VARIANT_WEIGHT_MIN} до ${VARIANT_WEIGHT_MAX}`;
+    }
   }
   return null;
 }
@@ -82,10 +127,10 @@ export function normalizeGuardrails(
   };
 }
 
-/** Reads the stored variants JSON defensively. */
-export function parseVariants(raw: unknown): VariantWeight[] {
+/** Reads the stored variants JSON defensively (weights kept when valid). */
+export function parseVariants(raw: unknown): VariantSpec[] {
   if (!Array.isArray(raw)) return [];
-  const out: VariantWeight[] = [];
+  const out: VariantSpec[] = [];
   for (const v of raw) {
     if (
       v &&
@@ -93,11 +138,34 @@ export function parseVariants(raw: unknown): VariantWeight[] {
       typeof (v as VariantWeight).key === 'string' &&
       typeof (v as VariantWeight).weight === 'number'
     ) {
-      out.push({
+      const spec: VariantSpec = {
         key: (v as VariantWeight).key,
         weight: (v as VariantWeight).weight,
-      });
+      };
+      const w = parseWeights((v as VariantSpec).weights);
+      if (w) spec.weights = w;
+      out.push(spec);
     }
   }
   return out;
+}
+
+function parseWeights(raw: unknown): Record<string, number> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out: Record<string, number> = {};
+  let n = 0;
+  for (const [k, w] of Object.entries(raw as Record<string, unknown>)) {
+    if (n >= VARIANT_WEIGHTS_MAX) break;
+    if (
+      WEIGHT_NAME_RE.test(k) &&
+      typeof w === 'number' &&
+      Number.isFinite(w) &&
+      w >= VARIANT_WEIGHT_MIN &&
+      w <= VARIANT_WEIGHT_MAX
+    ) {
+      out[k] = w;
+      n++;
+    }
+  }
+  return n > 0 ? out : null;
 }

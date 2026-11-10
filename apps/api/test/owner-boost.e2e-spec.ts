@@ -1,3 +1,5 @@
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import type { AddressInfo, Server } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
@@ -343,6 +345,15 @@ describe('Boost (e2e, owner 2026-10-15)', () => {
 
   it('a boosted reel comes 1 per 12 among the reels, and a running boost can be extended', async () => {
     await setSettings({ reelEveryN: 12 });
+    // Ad placement is checked on the newest-first reels: ranked reels
+    // (reco.reels_ranked, 2026-11-08) may show the ad's own reel on the
+    // page organically, and then the paid slot rightly skips it.
+    await prisma.appConfig.upsert({
+      where: { key: 'reco.reels_ranked' },
+      create: { key: 'reco.reels_ranked', value: false as never },
+      update: { value: false as never },
+    });
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
     const viewer = await user('attorney');
     const author = await user('attorney');
     const adOwner = await user('attorney');
@@ -401,6 +412,8 @@ describe('Boost (e2e, owner 2026-10-15)', () => {
     expect(ads[0].i).toBe(11); // the 12th place
     expect(ads[0].p.promotionId).toBe(promo.id);
     expect(ads[0].p.promotionCta).toMatchObject({ type: 'profile' });
+    await prisma.appConfig.deleteMany({ where: { key: 'reco.reels_ranked' } });
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
 
     // Extend: a running boost cannot be bought again, but can be extended.
     const buy = (body: Record<string, unknown>) =>

@@ -1107,7 +1107,7 @@ class SocialActions {
         refreshProfileCounters(_ref);
       });
 
-  /// Owner 2026-10-12: pin to slot 1..6 / unpin; the profile lists reload
+  /// Owner 2026-10-12: pin to slot 1..10 / unpin; the profile lists reload
   /// (pinned posts lead them).
   /// Owner 2026-10-15 (Instagram): the author hides / shows the like and
   /// view counters of an own post.

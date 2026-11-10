@@ -12,6 +12,7 @@ import {
 } from '../../auth/decorators/current-user.decorator';
 import { PublicClientProfileDto } from '../dto/client-profile.dto';
 import { ClientProfilesService } from '../services/client-profiles.service';
+import { AssistantAllowed } from '../../auth/assistant/assistant-context';
 
 /**
  * Owner decision 2026-09-29 (OQ-026): a client's public mini-profile by
@@ -24,6 +25,7 @@ import { ClientProfilesService } from '../services/client-profiles.service';
 export class ClientsController {
   constructor(private readonly clients: ClientProfilesService) {}
 
+  @AssistantAllowed()
   @Get(':username')
   @ApiOperation({ summary: 'Public client mini-profile (OQ-026)' })
   @ApiEnvelopeResponse(PublicClientProfileDto)
