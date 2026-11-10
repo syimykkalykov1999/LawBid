@@ -291,6 +291,38 @@ describe('envSchema — credentials', () => {
       }),
     ).toEqual(['S3_ENDPOINT']);
   });
+
+  it('owner 2026-11-10: an own S3-compatible store over https is allowed when deployed', () => {
+    expect(
+      issuePaths({
+        NODE_ENV: 'production',
+        ...twilio,
+        ...ses,
+        ...stripe,
+        S3_ENDPOINT: 'https://s3.storage.lawbid.internal',
+      }),
+    ).toEqual([]);
+  });
+
+  it('owner 2026-11-10: EMAIL_PROVIDER=smtp boots in production with a relay and a sender, no SES', () => {
+    const base = { NODE_ENV: 'production', ...twilio, ...stripe };
+    expect(
+      issuePaths({
+        ...base,
+        EMAIL_PROVIDER: 'smtp',
+        SMTP_HOST: 'mail.lawbid.internal',
+        SMTP_PORT: '587',
+        SMTP_FROM_ADDRESS: 'LawBid <no-reply@lawbid.dev>',
+      }),
+    ).toEqual([]);
+    expect(
+      issuePaths({
+        ...base,
+        EMAIL_PROVIDER: 'smtp',
+        SMTP_HOST: 'mail.lawbid.internal',
+      }),
+    ).toContain('SMTP_FROM_ADDRESS');
+  });
 });
 
 // Click audit 2026-11-08: the website refreshes on every page load and many

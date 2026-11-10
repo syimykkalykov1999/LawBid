@@ -331,7 +331,7 @@ export const envSchema = z
     // auto (default): ses once SES_REGION + SES_FROM_ADDRESS are set.
     EMAIL_PROVIDER: z.preprocess(
       blankToUndefined,
-      z.enum(['auto', 'mock', 'ses']).default('auto'),
+      z.enum(['auto', 'mock', 'ses', 'smtp']).default('auto'),
     ),
     SES_REGION: optionalMatching(
       awsRegionPattern,
@@ -357,6 +357,19 @@ export const envSchema = z
     // §15 stage 1.1: Mailhog is already part of docker-compose.yml).
     SMTP_HOST: z.string().default('localhost'),
     SMTP_PORT: z.coerce.number().int().positive().default(1025),
+    // Owner 2026-11-10 (own servers, EMAIL_PROVIDER=smtp): the login and
+    // sender of our own mail server; SMTP_SECURE=true = implicit TLS (465),
+    // otherwise STARTTLS is required.
+    SMTP_USER: z.preprocess(blankToUndefined, z.string().optional()),
+    SMTP_PASSWORD: z.preprocess(blankToUndefined, z.string().optional()),
+    SMTP_SECURE: z.preprocess(
+      blankToUndefined,
+      z.enum(['true', 'false']).default('false'),
+    ),
+    SMTP_FROM_ADDRESS: optionalMatching(
+      fromAddressPattern,
+      'SMTP_FROM_ADDRESS must be "no-reply@domain" or "Name <no-reply@domain>"',
+    ),
 
     // --- Social login (stage 1.4) ---
     // Comma-separated allowed audiences. Empty = that sign-in method
@@ -1223,11 +1236,14 @@ export const envSchema = z
           });
         }
       }
-      if (env.S3_ENDPOINT) {
+      // Owner 2026-11-10 (own servers, no AWS): an S3-compatible store of
+      // our own (MinIO, Ceph RGW) is allowed when deployed, over TLS only —
+      // the files and the presigned links must never travel in clear.
+      if (env.S3_ENDPOINT && !env.S3_ENDPOINT.startsWith('https://')) {
         ctx.addIssue({
           code: 'custom',
           path: ['S3_ENDPOINT'],
-          message: `S3_ENDPOINT is for local MinIO only; leave it empty in NODE_ENV=${env.NODE_ENV}`,
+          message: `S3_ENDPOINT must be https:// in NODE_ENV=${env.NODE_ENV} (own S3-compatible store over TLS); http:// is for local MinIO only`,
         });
       }
       for (const key of [
