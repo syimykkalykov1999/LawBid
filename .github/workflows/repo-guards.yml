@@ -64,6 +64,7 @@ jobs:
           node --test scripts/ci/flag-first-check.test.mjs scripts/ci/npm-audit-gate.test.mjs scripts/ci/rollout-guard.test.mjs
           bash scripts/ci/require-green.test.sh
           bash scripts/ci/require-secrets.test.sh
+          bash scripts/ci/wait-earlier-prod-change.test.sh
           bash scripts/deploy/current-tag.test.sh
           bash scripts/deploy/web-font-base.test.sh
           bash scripts/ci/require-ecr.test.sh
