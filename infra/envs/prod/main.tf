@@ -96,6 +96,7 @@ module "stack" {
   documents_cdn_public_key_pem    = var.documents_cdn_public_key_pem
   clamav_image                    = var.clamav_image
   db_pooler_enabled               = var.db_pooler_enabled
+  db_shards                       = var.db_shards
   partition_role_enabled          = var.partition_role_enabled
   contacts_pepper_enabled         = var.contacts_pepper_enabled
   pgbouncer_image                 = var.pgbouncer_image

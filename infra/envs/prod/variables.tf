@@ -295,6 +295,11 @@ variable "db_pooler_enabled" {
   type    = bool
   default = false
 }
+variable "db_shards" {
+  type        = number
+  default     = 0
+  description = "Extra database servers for the split (admin switch aws.db_shards; 0 = one database)."
+}
 variable "pgbouncer_image" {
   type        = string
   default     = ""

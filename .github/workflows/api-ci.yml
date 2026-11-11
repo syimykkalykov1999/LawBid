@@ -227,7 +227,7 @@ jobs:
       - name: Online DDL rules and the concurrent-migration folder
         # docs/architecture/ONLINE_DDL.md: new migrations must not lock big tables.
         working-directory: apps/api
-        run: node --test scripts/online-ddl.test.mjs scripts/ensure-partition-login.test.mjs
+        run: node --test scripts/online-ddl.test.mjs scripts/ensure-partition-login.test.mjs scripts/migrate-shards.test.mjs
 
       - name: Migrations are expand/contract and online-DDL safe (rolling deploy + rollback safe)
         # Squawk judges only the migration folders THIS change adds: on a PR the

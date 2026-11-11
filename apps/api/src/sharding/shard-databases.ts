@@ -49,3 +49,42 @@ export function parseShardDatabaseUrls(
   }
   return out;
 }
+
+/**
+ * Every physical database besides `primary`, from the environment:
+ *  - `DATABASE_URL_SHARDS` - full URLs (above), and
+ *  - `DB_SHARD_HOSTS='{"db1":"host"}'` - only hosts. Terraform sets it when
+ *    the admin's «Второй сервер базы» switch creates the server: the URL is
+ *    DATABASE_URL with that host and port 5432 (`DB_SHARD_PORT`), the same
+ *    role, password and database (the server is created with the primary's
+ *    master password and the migrate task gives the roles their passwords),
+ *    so no secret is filled by hand — like the read replica
+ *    (src/prisma/replica-url.ts). A full URL wins for its key.
+ */
+export function shardDatabaseUrlsFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  onError: (message: string) => void = () => undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const hosts = parseShardDatabaseUrls(env.DB_SHARD_HOSTS, (m) =>
+    onError(m.replace(/DATABASE_URL_SHARDS/g, 'DB_SHARD_HOSTS')),
+  );
+  const base = env.DATABASE_URL?.trim();
+  for (const [key, host] of Object.entries(hosts)) {
+    if (!base) continue;
+    try {
+      const url = new URL(base);
+      url.hostname = host;
+      url.port = env.DB_SHARD_PORT?.trim() || '5432';
+      out[key] = url.toString();
+    } catch {
+      onError(
+        `DB_SHARD_HOSTS entry "${key}": DATABASE_URL is not a URL; ignored`,
+      );
+    }
+  }
+  return {
+    ...out,
+    ...parseShardDatabaseUrls(env.DATABASE_URL_SHARDS, onError),
+  };
+}

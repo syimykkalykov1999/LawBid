@@ -53,6 +53,11 @@ variable "partition_database_url_secret_arn" {
   default     = ""
   description = "PARTITION_DATABASE_URL (role lawbid_partition) for the WORKER only: the online table partitioning (messages, notifications, ...) needs DDL rights the app role does not have. Empty = not injected, partitioning stays a status card. Never given to the api task."
 }
+variable "migrate_extra_secrets" {
+  type        = list(object({ name = string, valueFrom = string }))
+  default     = []
+  description = "Owner 2026-11-11 (second database server): extra secrets of the migrate task only — DB_SHARD_MASTER_<KEY> (the extra server's master login) and APP_DATABASE_URL / RETENTION_DATABASE_URL (the runtime logins prisma/migrate-shards.mjs gives the roles there). Empty = the task is exactly as before."
+}
 variable "partition_db_password_secret_arn" {
   type        = string
   default     = ""
@@ -373,7 +378,7 @@ resource "aws_iam_role_policy_attachment" "execution" {
 data "aws_iam_policy_document" "execution_secrets" {
   statement {
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = concat(values(var.secret_arns), [var.migrator_database_url_secret_arn], var.partition_database_url_secret_arn == "" ? [] : [var.partition_database_url_secret_arn], var.partition_db_password_secret_arn == "" ? [] : [var.partition_db_password_secret_arn])
+    resources = concat(values(var.secret_arns), [var.migrator_database_url_secret_arn], var.partition_database_url_secret_arn == "" ? [] : [var.partition_database_url_secret_arn], var.partition_db_password_secret_arn == "" ? [] : [var.partition_db_password_secret_arn], [for s in var.migrate_extra_secrets : s.valueFrom])
   }
   statement {
     actions   = ["kms:Decrypt"]
@@ -716,7 +721,8 @@ resource "aws_ecs_task_definition" "migrate" {
     essential = true
     # After the transactional migrations: prisma/concurrent/*.sql (CREATE INDEX
     # CONCURRENTLY cannot run inside a migration), docs/architecture/ONLINE_DDL.md.
-    command = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs && node prisma/ensure-partition-login.mjs"]
+    # Then every extra database server (DB_SHARD_HOSTS; nothing to do without it).
+    command = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs && node prisma/ensure-partition-login.mjs && node prisma/migrate-shards.mjs"]
     # npx / Prisma want a writable cache and home: both under /tmp.
     # No DB_POOLER_*: `prisma migrate` must reach the database directly
     # (docs/architecture/DB_POOLER.md).
@@ -726,7 +732,7 @@ resource "aws_ecs_task_definition" "migrate" {
       { name = "npm_config_update_notifier", value = "false" },
       { name = "CHECKPOINT_DISABLE", value = "1" },
     ])
-    secrets = concat([{ name = "DATABASE_URL", valueFrom = var.migrator_database_url_secret_arn }], local.partition_password_secret)
+    secrets = concat([{ name = "DATABASE_URL", valueFrom = var.migrator_database_url_secret_arn }], local.partition_password_secret, var.migrate_extra_secrets)
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
     # and forwards signals.
