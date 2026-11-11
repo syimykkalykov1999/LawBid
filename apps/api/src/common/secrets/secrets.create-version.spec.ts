@@ -24,7 +24,11 @@ function build() {
     public_config: { urls: 'turn:54.83.172.171:3478' },
     secret_enc: envelope.encrypt('{"secret":"s3cret"}', 'turn:2'),
   };
-  const created: { public_config?: Record<string, string>; secret_enc?: string; version?: number }[] = [];
+  const created: {
+    public_config?: Record<string, string>;
+    secret_enc?: string;
+    version?: number;
+  }[] = [];
   const prisma = {
     integrationCredential: {
       findFirst: () => Promise.resolve(row),
@@ -40,11 +44,17 @@ function build() {
   } as unknown as PrismaService;
   const config = {
     get: (k: string) =>
-      k === 'SECRETS_MASTER_KEYS' ? KEYS : k === 'SECRETS_ACTIVE_KID' ? 'k1' : undefined,
+      k === 'SECRETS_MASTER_KEYS'
+        ? KEYS
+        : k === 'SECRETS_ACTIVE_KID'
+          ? 'k1'
+          : undefined,
   } as unknown as ConfigService;
   const service = new SecretsService(prisma, config, {} as unknown as Redis);
   const secretOf = (i: number) =>
-    JSON.parse(envelope.decrypt(created[i].secret_enc!, `turn:${created[i].version}`)) as Record<string, string>;
+    JSON.parse(
+      envelope.decrypt(created[i].secret_enc!, `turn:${created[i].version}`),
+    ) as Record<string, string>;
   return { service, created, secretOf };
 }
 
@@ -52,7 +62,9 @@ describe('SecretsService.createVersion: blank vs cleared fields', () => {
   it('a field left out keeps its value; a blank secret keeps the secret', async () => {
     const { service, created, secretOf } = build();
     await service.createVersion('turn', { secret: '' }, null);
-    expect(created[0].public_config).toEqual({ urls: 'turn:54.83.172.171:3478' });
+    expect(created[0].public_config).toEqual({
+      urls: 'turn:54.83.172.171:3478',
+    });
     expect(secretOf(0)).toEqual({ secret: 's3cret' });
   });
 
