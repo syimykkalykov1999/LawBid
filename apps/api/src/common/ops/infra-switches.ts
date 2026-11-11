@@ -91,6 +91,7 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   cpu_architecture: choice('cpu_architecture', ['X86_64', 'ARM64']),
   api_spot: bool('api_spot'),
   worker_spot: bool('worker_spot'),
+  db_shards: int(['db_shards'], 0, 3),
   'growth.rds_read_replicas': int(
     [GROWTH_CONTAINER, 'rds_read_replicas'],
     0,
@@ -207,6 +208,15 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     },
     impact:
       'Без перерыва: копия базы создаётся 15–40 минут, приложение работает как обычно.',
+  },
+  {
+    id: 'aws.db_shards',
+    values: {
+      off: { db_shards: 0 },
+      on: { db_shards: 1 },
+    },
+    impact:
+      'Без перерыва: сервер создаётся 15–40 минут и стоит пустым; при следующей выкладке на нём сами появляются схема и роли. Данные переезжают только по кнопке «Разделить базу».',
   },
   {
     id: 'aws.opensearch',

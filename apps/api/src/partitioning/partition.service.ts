@@ -15,7 +15,7 @@ import {
   type PartitionSpec,
 } from './partition-runner';
 import { assessShardGrowth, type ShardGrowth } from '../sharding/shard-growth';
-import { parseShardDatabaseUrls } from '../sharding/shard-databases';
+import { shardDatabaseUrlsFromEnv } from '../sharding/shard-databases';
 import { buildMoveTables } from '../sharding/move/move-plan';
 import { prismaSql, sharedSql, type SqlDb } from './sql';
 import { partitionDatabaseUrl } from './partition-url';
@@ -494,7 +494,10 @@ export class PartitionService implements OnModuleDestroy {
       thresholdGb: gb,
       thresholdRows: rowsLimit,
       targets: Object.keys(
-        parseShardDatabaseUrls(this.config.get<string>('DATABASE_URL_SHARDS')),
+        shardDatabaseUrlsFromEnv({
+          ...process.env,
+          DATABASE_URL_SHARDS: this.config.get<string>('DATABASE_URL_SHARDS'),
+        }),
       ),
       shardsOnPrimary: onPrimary,
     });

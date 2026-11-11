@@ -18,7 +18,7 @@ import { parentShardLookup, shardExtension } from '../sharding/shard.extension';
 import { shardContext } from '../sharding/shard-context';
 import {
   ShardDatabaseNotConfiguredError,
-  parseShardDatabaseUrls,
+  shardDatabaseUrlsFromEnv,
 } from '../sharding/shard-databases';
 import {
   delegateInfo,
@@ -181,9 +181,8 @@ export class PrismaService
     // closure below.
     const real = extend(this) as unknown as PrismaService;
     const rawPrimary = this as PrismaClient;
-    const shardUrls = parseShardDatabaseUrls(
-      process.env.DATABASE_URL_SHARDS,
-      (m) => shardLog.error(m),
+    const shardUrls = shardDatabaseUrlsFromEnv(process.env, (m) =>
+      shardLog.error(m),
     );
     const shardClients = new Map<
       string,

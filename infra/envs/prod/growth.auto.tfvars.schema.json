@@ -43,6 +43,11 @@
     "db_pooler_enabled": {
       "type": "boolean"
     },
+    "db_shards": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
     "growth_switches": {
       "type": "object",
       "additionalProperties": false,

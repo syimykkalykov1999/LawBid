@@ -5,12 +5,11 @@ Design: `docs/architecture/SHARDING_READY.md` section 13. Read-only commands are
 ## When
 Primary CPU above 60 % for days after replicas and the pooler, a table above 500 GB, or write IOPS near the instance limit. Not before.
 
-## Owner checklist (once, before the first real split)
-1. Create the second RDS PostgreSQL 16 instance (same class as the primary, Multi-AZ if the primary is) with the same role setup as `infra/postgres/role-settings.sql`. Logical replication is NOT needed (and `rds.logical_replication` would need a reboot).
-2. Put its URL into the secret that feeds `DATABASE_URL_SHARDS`, as JSON: `{"db1":"postgresql://user:pass@host:5432/lawbid"}`. Redeploy API and worker (they read it at start). Until a shard is moved nothing uses it.
-3. Apply migrations to it: `DATABASE_URL=<db1 url> npx prisma migrate deploy` (apps/api). Repeat after every release that adds a migration, BEFORE deploying that release.
-4. Give db1 the same database role settings (statement timeouts, journal retention role) as the primary.
-5. Make sure there are no legacy random-id rows (seed/demo data): `plan` reports them.
+## Turn on the second server (one switch, owner 2026-11-11)
+Admin: Система, Облако, «Второй сервер базы» → Вкл (one 2FA code). Terraform (`db_shards = 1`) creates an EMPTY PostgreSQL 16 server like the primary (same class, Multi-AZ, encryption, network; deletion protection on) and gives the tasks only its host (`DB_SHARD_HOSTS`). The next deploy's migrate task runs `prisma/migrate-shards.mjs`: all migrations, the runtime roles with the primary's passwords, the role timeouts. Nothing is filled by hand. Until a shard is moved nothing uses it.
+- Re-check: `readiness db1` below says "migrations differ" until that deploy ran.
+- Off: refused while any shard lives there (deletion protection + the plan guard); move the shards back first.
+- Legacy random-id rows (seed/demo data): `plan` reports them.
 
 ## Check (changes nothing)
 ```
