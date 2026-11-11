@@ -1,4 +1,4 @@
-import { heldSql } from '../../common/privacy/legal-hold';
+import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
@@ -345,6 +345,7 @@ export class StorageCleanupService {
     where: Prisma.Sql,
     postCutoff: Date,
   ): Promise<string[]> {
+    const held = await heldSqlFor(this.prisma);
     if (readsAreSplit(this.prisma)) return this.unusedSplit(where, postCutoff);
     const exempt = [...CLEANUP_EXEMPT_PURPOSES];
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
@@ -352,7 +353,7 @@ export class StorageCleanupService {
       FROM files f
       WHERE ${where}
         AND f.purpose::TEXT <> ALL(${exempt}::TEXT[])
-        AND NOT ${heldSql('file', Prisma.sql`f.id`)}
+        AND NOT ${held('file', Prisma.sql`f.id`)}
         AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM verification_documents v WHERE v.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM data_export_jobs e WHERE e.file_id = f.id)
@@ -404,6 +405,7 @@ export class StorageCleanupService {
     where: Prisma.Sql,
     postCutoff: Date,
   ): Promise<string[]> {
+    const held = await heldSqlFor(this.prisma);
     const exempt = [...CLEANUP_EXEMPT_PURPOSES];
     const found: string[] = [];
     let after: { at: Date; id: string } | null = null;
@@ -418,7 +420,7 @@ export class StorageCleanupService {
         FROM files f
         WHERE ${where} ${paging}
           AND f.purpose::TEXT <> ALL(${exempt}::TEXT[])
-          AND NOT ${heldSql('file', Prisma.sql`f.id`)}
+          AND NOT ${held('file', Prisma.sql`f.id`)}
           AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM verification_documents v WHERE v.file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM data_export_jobs e WHERE e.file_id = f.id)

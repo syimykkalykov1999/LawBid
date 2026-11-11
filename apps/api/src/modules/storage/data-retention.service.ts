@@ -1,7 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { heldSql } from '../../common/privacy/legal-hold';
+import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -76,6 +76,7 @@ export class DataRetentionService implements OnModuleDestroy {
   }
 
   async run(now: Date = new Date()): Promise<RetentionResult | null> {
+    const held = await heldSqlFor(this.prisma);
     if (!(await this.settings.boolean('storage.auto_retention'))) return null;
     const [
       authDays,
@@ -103,7 +104,7 @@ export class DataRetentionService implements OnModuleDestroy {
     const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
     // Owner 2026-10-28: activity rows of a person under a legal hold stay.
     const ok = (col: string) =>
-      Prisma.sql`NOT ${heldSql('user', Prisma.raw(col))}`;
+      Prisma.sql`NOT ${held('user', Prisma.raw(col))}`;
     const result: RetentionResult = {
       authEvents: authDays > 0 ? await this.authEvents(before(authDays)) : 0,
       assistantActivity:
@@ -230,6 +231,7 @@ export class DataRetentionService implements OnModuleDestroy {
   /** auth_events has an explicit write shard (0..15): one shard at a time
    * keeps each DELETE on the (created_shard, created_at) index. */
   private async authEvents(before: Date): Promise<number> {
+    const held = await heldSqlFor(this.prisma);
     const db = this.retention();
     let total = 0;
     for (let shard = 0; shard < 16; shard += 1) {
@@ -239,7 +241,7 @@ export class DataRetentionService implements OnModuleDestroy {
           WHERE (id, created_at) IN (
             SELECT id, created_at FROM auth_events
             WHERE created_shard = ${shard} AND created_at < ${before}
-              AND (user_id IS NULL OR NOT ${heldSql('user', Prisma.sql`user_id`)})
+              AND (user_id IS NULL OR NOT ${held('user', Prisma.sql`user_id`)})
             ORDER BY created_at LIMIT ${limit})`,
       );
     }

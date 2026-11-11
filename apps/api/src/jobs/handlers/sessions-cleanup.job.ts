@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
-import { heldSql } from '../../common/privacy/legal-hold';
+import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /** Terminally revoked rows (logout, logout_all, reuse_detected, admin
@@ -64,6 +64,7 @@ export class SessionsCleanupJob {
     now: Date = new Date(),
     batchSize: number = SESSION_CLEANUP_BATCH,
   ): Promise<SessionsCleanupResult> {
+    const held = await heldSqlFor(this.prisma);
     const revokedBefore = new Date(
       now.getTime() - REVOKED_SESSION_RETENTION_DAYS * 24 * 60 * 60 * 1000,
     );
@@ -87,7 +88,7 @@ export class SessionsCleanupJob {
             WHERE (expires_at < ${now}
                OR (revoked_at < ${revokedBefore}
                    AND revoked_reason IS DISTINCT FROM 'rotated'))
-              AND NOT ${heldSql('user', Prisma.sql`batch.user_id`)}
+              AND NOT ${held('user', Prisma.sql`batch.user_id`)}
           )
           RETURNING id
         )

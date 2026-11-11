@@ -1,4 +1,5 @@
-import { heldIds, heldSql, isAnyHeld, isHeld } from './legal-hold';
+import { Prisma } from '@prisma/client';
+import { heldIds, heldSql, heldSqlFor, isAnyHeld, isHeld } from './legal-hold';
 
 describe('legal hold helper (privacy round 13, S13-6)', () => {
   const now = new Date('2026-10-25T00:00:00Z');
@@ -40,5 +41,37 @@ describe('legal hold helper (privacy round 13, S13-6)', () => {
     expect(sql.sql).toContain('EXISTS');
     expect(sql.sql).toContain('legal_holds');
     expect(sql.values).toContain('user');
+  });
+});
+
+describe('heldSqlFor (two databases)', () => {
+  const prisma = {
+    legalHold: {
+      findMany: jest
+        .fn()
+        .mockResolvedValue([
+          {
+            target_type: 'user',
+            target_id: '00000000-0000-4000-8000-000000000001',
+          },
+        ]),
+    },
+  } as unknown as Parameters<typeof heldSqlFor>[0];
+
+  afterEach(() => {
+    delete process.env.SHARD_SPLIT_READS;
+  });
+
+  it('is heldSql itself on one database', async () => {
+    expect(await heldSqlFor(prisma)).toBe(heldSql);
+  });
+
+  it('becomes an id list read on the primary when reads are split', async () => {
+    process.env.SHARD_SPLIT_READS = 'on';
+    const held = await heldSqlFor(prisma);
+    const user = held('user', Prisma.sql`m.sender_id`);
+    expect(user.sql).toContain('COALESCE(m.sender_id = ANY(');
+    expect(user.values).toEqual([['00000000-0000-4000-8000-000000000001']]);
+    expect(held('file', Prisma.sql`f.id`).sql).toBe('FALSE');
   });
 });

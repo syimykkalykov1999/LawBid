@@ -1,3 +1,5 @@
+import type { NotificationQuietHours } from '@prisma/client';
+import { readsAreSplit } from '../../../sharding/split-reads';
 import {
   ServerTextsService,
   fillVars,
@@ -610,6 +612,18 @@ export class PushDispatcher
     return p?.calls_muted ?? false;
   }
 
+  /** Two databases: quiet hours live with their user (user family), the
+   * user row on the primary — a nested read there finds none. */
+  private async withQuietHours<
+    T extends { quiet_hours: NotificationQuietHours | null },
+  >(userId: string, u: T | null): Promise<T | null> {
+    if (!u || !readsAreSplit(this.prisma)) return u;
+    const quiet = await this.prisma.notificationQuietHours.findUnique({
+      where: { user_id: userId },
+    });
+    return { ...u, quiet_hours: quiet };
+  }
+
   private async dispatchNotification(
     data: NotificationJobData,
     jobId: string,
@@ -638,6 +652,8 @@ export class PushDispatcher
         },
       },
     });
+    if (n?.user)
+      n.user = (await this.withQuietHours(n.user_id, n.user)) ?? n.user;
     if (!n) throw new NotificationNotCommittedError(data.notificationId);
     if (!n.user || n.user.status !== 'active') return 'no_user';
 
@@ -892,15 +908,17 @@ export class PushDispatcher
     shared?: GroupShared,
   ): Promise<{ result: DispatchResult; push?: PushMessage }> {
     const [user, member, message, group] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: data.recipientId },
-        select: {
-          status: true,
-          ui_language: true,
-          first_name: true,
-          quiet_hours: true,
-        },
-      }),
+      this.prisma.user
+        .findUnique({
+          where: { id: data.recipientId },
+          select: {
+            status: true,
+            ui_language: true,
+            first_name: true,
+            quiet_hours: true,
+          },
+        })
+        .then((u) => this.withQuietHours(data.recipientId, u)),
       this.prisma.chatGroupMember.findUnique({
         where: {
           group_id_user_id: {
@@ -1072,14 +1090,16 @@ export class PushDispatcher
     // in Redis (the same entry the icon badge and the topic switches of this
     // very push read), so two database reads are gone.
     const [user, part, message] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: data.recipientId },
-        select: {
-          status: true,
-          ui_language: true,
-          quiet_hours: true,
-        },
-      }),
+      this.prisma.user
+        .findUnique({
+          where: { id: data.recipientId },
+          select: {
+            status: true,
+            ui_language: true,
+            quiet_hours: true,
+          },
+        })
+        .then((u) => this.withQuietHours(data.recipientId, u)),
       this.prisma.conversationParticipant.findUnique({
         where: {
           conversation_id_user_id: {

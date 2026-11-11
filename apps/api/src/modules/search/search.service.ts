@@ -891,6 +891,7 @@ export class SearchService {
   }
 
   private async topOfTag(tagId: string): Promise<string[]> {
+    if (readsAreSplit(this.prisma)) return this.topOfTagSplit(tagId);
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       WITH recent AS (
         SELECT p.id FROM post_tags pt
@@ -913,6 +914,55 @@ export class SearchService {
         p.created_at DESC, p.id DESC
       LIMIT ${TAG_TOP_MAX}`;
     return rows.map((r) => r.id);
+  }
+
+  /** Two databases (SHARDING_READY step 8): the newest candidates of each
+   * database (posts and their tags live with the author), the authors
+   * checked on the primary, then the same score order across all. */
+  private async topOfTagSplit(tagId: string): Promise<string[]> {
+    type Row = { id: string; author: string; score: number; created_at: Date };
+    const cands = (
+      await forEachDatabase(
+        this.prisma,
+        () => this.prisma.$queryRaw<Row[]>`
+          SELECT p.id::TEXT AS id, p.author_id::TEXT AS author, p.created_at,
+            (p.like_count + 2 * p.comment_count + 2 * p.save_count)::FLOAT8
+              / power(GREATEST(EXTRACT(EPOCH FROM (now() - p.created_at)) / 3600, 0) + 2, 1.5)
+              AS score
+          FROM post_tags pt
+          JOIN posts p ON p.id = pt.post_id
+          WHERE pt.tag_id = ${tagId}::UUID
+            AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
+          ORDER BY p.created_at DESC
+          LIMIT ${TAG_TOP_CANDIDATES}`,
+      )
+    )
+      .flat()
+      .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
+      .slice(0, TAG_TOP_CANDIDATES);
+    if (cands.length === 0) return [];
+    const ok = new Set(
+      (
+        await shardContext.runOnPrimary(
+          () => this.prisma.$queryRaw<{ id: string }[]>`
+            SELECT u.id::TEXT AS id FROM users u
+            WHERE u.id = ANY(${[...new Set(cands.map((c) => c.author))]}::UUID[])
+              AND u.status = 'active'
+              AND NOT EXISTS (SELECT 1 FROM attorney_profiles sa
+                WHERE sa.user_id = u.id AND sa.verification_status = 'suspended')`,
+        )
+      ).map((r) => r.id),
+    );
+    return cands
+      .filter((c) => ok.has(c.author))
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          b.created_at.getTime() - a.created_at.getTime() ||
+          (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+      )
+      .slice(0, TAG_TOP_MAX)
+      .map((c) => c.id);
   }
 
   private async ranked(
