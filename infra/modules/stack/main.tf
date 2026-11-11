@@ -2043,7 +2043,7 @@ module "ecs" {
   kms_key_arn                     = module.kms.key_arn
   tracing_enabled                 = var.tracing_enabled
   tracing_sample_ratio            = var.tracing_sample_ratio
-  api_env                         = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env, local.object_lock_env, local.db_shard_env)
+  api_env                         = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env, local.object_lock_env, local.db_shard_env, local.db_replica_env)
   worker_db_pool_size             = local.worker_db_pool_size
   cloudfront_invalidation_enabled = true
   cloudfront_invalidation_arns = concat(
