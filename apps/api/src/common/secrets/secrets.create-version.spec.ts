@@ -22,7 +22,7 @@ function build() {
     kid: 'k1',
     fingerprint: 'fp',
     public_config: { urls: 'turn:54.83.172.171:3478' },
-    secret_enc: envelope.encrypt('{"secret":"s3cret"}', 'turn:2'),
+    secret_enc: envelope.encrypt('{"secret":"test-turn-shared-secret"}', 'turn:2'),
   };
   const created: {
     public_config?: Record<string, string>;
@@ -65,13 +65,13 @@ describe('SecretsService.createVersion: blank vs cleared fields', () => {
     expect(created[0].public_config).toEqual({
       urls: 'turn:54.83.172.171:3478',
     });
-    expect(secretOf(0)).toEqual({ secret: 's3cret' });
+    expect(secretOf(0)).toEqual({ secret: 'test-turn-shared-secret' });
   });
 
   it('a public field sent empty is cleared (TURN: on-demand relay instead of a fixed address)', async () => {
     const { service, created, secretOf } = build();
     await service.createVersion('turn', { urls: '' }, null);
     expect(created[0].public_config).toEqual({});
-    expect(secretOf(0)).toEqual({ secret: 's3cret' });
+    expect(secretOf(0)).toEqual({ secret: 'test-turn-shared-secret' });
   });
 });
