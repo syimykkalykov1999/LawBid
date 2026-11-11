@@ -466,7 +466,8 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
   /**
    * A new `pending` version of key set [slot] (default "main"; a new name
    * adds a set after the existing ones). A blank secret field keeps the
-   * value of the newest version of the same set.
+   * value of the newest version of the same set; a public field sent empty
+   * is cleared, one left out keeps its value.
    */
   async createVersion(
     provider: string,
@@ -497,7 +498,12 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     for (const f of def.fields) {
       const typed = cleanPasted(input[f.name] ?? '');
       const raw = typed && f.normalize ? f.normalize(typed) : typed;
-      const v = raw.length > 0 ? raw : (previous[f.name] ?? '');
+      // A blank SECRET keeps the stored one (it is never shown back). A
+      // public field the admin cleared on purpose is cleared (10.11: the
+      // TURN card could not drop a dead fixed address).
+      const cleared =
+        !f.secret && raw.length === 0 && Object.hasOwn(input, f.name);
+      const v = raw.length > 0 ? raw : cleared ? '' : (previous[f.name] ?? '');
       // details.reason lets the admin say in plain words what is wrong
       // under the exact field (owner 2026-10-06).
       if (!v) {
