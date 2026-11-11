@@ -20,7 +20,11 @@ import {
   ShardDatabaseNotConfiguredError,
   parseShardDatabaseUrls,
 } from '../sharding/shard-databases';
-import { delegateInfo } from '../sharding/shard-delegates';
+import {
+  delegateInfo,
+  rawSqlIsGlobalOnly,
+  rawSqlText,
+} from '../sharding/shard-delegates';
 import { PRIMARY_DB, ShardMapRow, ShardRouter } from '../sharding/shard-router';
 import { crossFamilyStitchExtension } from '../sharding/cross-family-stitch';
 import {
@@ -69,6 +73,13 @@ import { withGlobalFacade } from '../sharding/tx-global-facade';
  * prisma, ...)` and `prisma.$transaction` call keep compiling and behaving
  * as before.
  */
+const RAW_OPS: ReadonlySet<string> = new Set([
+  '$queryRaw',
+  '$queryRawUnsafe',
+  '$executeRaw',
+  '$executeRawUnsafe',
+]);
+
 export class DemoDatabaseUnavailableError extends Error {
   constructor(reason: string) {
     super(`Demo database unavailable: ${reason}`);
@@ -428,6 +439,28 @@ export class PrismaService
           ) {
             return argRouted(prop, info.model);
           }
+        }
+        // Step 8: hand-written SQL that names only global tables runs on the
+        // primary database (shard-delegates.ts rawSqlIsGlobalOnly); an
+        // explicit database (runOnPhysical / forEachDatabase) still wins.
+        if (
+          typeof prop === 'string' &&
+          RAW_OPS.has(prop) &&
+          multiDb() &&
+          !demoContext.isDemo()
+        ) {
+          return (...args: unknown[]) => {
+            const ctx = shardContext.current();
+            const target =
+              !ctx?.physical && rawSqlIsGlobalOnly(rawSqlText(args))
+                ? real
+                : pick(prop);
+            const c = target as unknown as Record<
+              string,
+              (...a: unknown[]) => unknown
+            >;
+            return c[prop](...args);
+          };
         }
         const client = pick(prop) as unknown as Record<PropertyKey, unknown>;
         const value = client[prop];
