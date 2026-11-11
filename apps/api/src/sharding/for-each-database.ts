@@ -16,8 +16,16 @@ import type { PrismaService } from '../prisma/prisma.service';
 export async function forEachDatabase<T>(
   prisma: PrismaService,
   fn: (database: string) => Promise<T>,
+  opts: { withPrimary?: boolean } = {},
 ): Promise<T[]> {
-  const keys = routingOf(prisma)?.router.physicalKeys() ?? [];
+  const shardKeys = routingOf(prisma)?.router.physicalKeys() ?? [];
+  // `withPrimary`: tables written in EVERY database, the primary included
+  // even when it holds no shard any more (the username registry: people's
+  // rows on the primary, channels' with their owner).
+  const keys =
+    opts.withPrimary && shardKeys.length > 0 && !shardKeys.includes(PRIMARY_DB)
+      ? [PRIMARY_DB, ...shardKeys]
+      : shardKeys;
   if (keys.length === 0 || (keys.length === 1 && keys[0] === PRIMARY_DB)) {
     return [await fn(PRIMARY_DB)];
   }

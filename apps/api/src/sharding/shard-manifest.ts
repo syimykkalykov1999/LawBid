@@ -64,9 +64,10 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
   ContactDisclosure: spec('case', parent('case_id', 'Case')),
   ContactIssueReport: spec('case', parent('case_id', 'Case')),
   CaseDispute: spec('case', parent('case_id', 'Case')),
-  Review: spec('case', parent('case_id', 'Case')),
+  // Owner 2026-09-30: a review may have no case; it lives with its author.
+  Review: spec('case', parent('case_id', 'Case'), owner('client_id')),
   ReviewHelpfulVote: spec('case', parent('review_id', 'Review')),
-  ClientReview: spec('case', parent('case_id', 'Case')),
+  ClientReview: spec('case', parent('case_id', 'Case'), owner('attorney_id')),
   ClientReviewHelpfulVote: spec('case', parent('review_id', 'ClientReview')),
   ClientReviewAppeal: spec('case', parent('review_id', 'ClientReview')),
   CasePhoto: spec('case', parent('case_id', 'Case')),

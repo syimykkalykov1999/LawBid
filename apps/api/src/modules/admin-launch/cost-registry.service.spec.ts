@@ -50,7 +50,10 @@ function make(
       },
     }),
   };
-  const settings = { raw: jest.fn((k: string) => Promise.resolve(stored[k])) };
+  const settings = {
+    raw: jest.fn((k: string) => Promise.resolve(stored[k])),
+    number: jest.fn((k: string) => Promise.resolve(stored[k] as number)),
+  };
   const ssmMode = opts.ssmMode === undefined ? 'on' : opts.ssmMode;
   const ssm = {
     modeParam: jest.fn(() => (ssmMode === null ? undefined : '/p/mode')),
@@ -341,5 +344,16 @@ describe('CostRegistryService cached report (R-370: «Реестр» opens at on
       (x) => x.id === 'aws.db_autoscale',
     )!;
     expect(db.state).toBe('off');
+  });
+});
+
+describe('CostRegistryService.signals: the CPU line from Admin → Настройки', () => {
+  it('a CPU line under the reading makes db_cpu (lowered to prove the read copy)', async () => {
+    const { svc } = make({ stored: { 'economy.db_cpu_limit_percent': 1 } });
+    expect((await svc.signals(NOW)).pressures).toContain('db_cpu');
+  });
+  it('the default line (70) leaves 10 % CPU calm', async () => {
+    const { svc } = make({ stored: {} });
+    expect((await svc.signals(NOW)).pressures).not.toContain('db_cpu');
   });
 });

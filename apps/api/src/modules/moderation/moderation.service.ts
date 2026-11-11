@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { CrossFamilyOutbox } from '../../sharding/outbox/cross-family-outbox';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { AUTO_HOLD_NOTE } from './auto-hold.service';
 import type { Prisma, ReportTargetType } from '@prisma/client';
@@ -63,6 +65,7 @@ export class ModerationService {
     // Owner 2026-10-27: reporter weights (absent = the old plain count).
     @Optional() private readonly reputation?: ReporterReputationService,
     @Optional() private readonly auto?: AutoModerationService,
+    @Optional() private readonly outbox?: CrossFamilyOutbox,
   ) {}
 
   async resolve(
@@ -609,7 +612,21 @@ export class ModerationService {
           data: { status: next },
         });
         const attorneyId = target.context.attorneyId;
-        if (attorneyId) await recalcAttorneyRating(tx, attorneyId);
+        // Two databases: the reviews of one attorney sit in several
+        // databases, so the rating goes through the cross-family outbox
+        // (as in reviews.service); one database: recalculated inline.
+        if (attorneyId && this.outbox) {
+          const outbox = this.outbox;
+          const ticket = await outbox.emit(
+            tx,
+            'attorney.rating.recalc',
+            { attorneyId },
+            `rating:${attorneyId}:${randomUUID()}`,
+          );
+          if (ticket) after.push(() => outbox.flush([ticket]));
+        } else if (attorneyId) {
+          await recalcAttorneyRating(tx, attorneyId);
+        }
         return target.status;
       }
       case 'legal_question': {

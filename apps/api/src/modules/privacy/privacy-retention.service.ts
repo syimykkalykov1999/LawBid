@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { heldSql, requestHeldSql } from '../../common/privacy/legal-hold';
+import { heldSqlFor, requestHeldSql } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
 
@@ -179,6 +179,7 @@ export class PrivacyRetentionService implements OnModuleDestroy {
    * costs one index lookup and no batch.
    */
   private async sessionIps(cut: Date): Promise<number> {
+    const held = await heldSqlFor(this.prisma);
     const [probe] = await this.prisma.$queryRaw<{ any: boolean }[]>(Prisma.sql`
       SELECT EXISTS (
         SELECT 1 FROM sessions
@@ -205,7 +206,7 @@ export class PrivacyRetentionService implements OnModuleDestroy {
           FROM batch b
           WHERE s.id = b.id
             AND s.updated_at < ${cut}
-            AND NOT ${heldSql('user', Prisma.sql`s.user_id`)}
+            AND NOT ${held('user', Prisma.sql`s.user_id`)}
           RETURNING s.id
         ),
         last AS (SELECT id, created_at FROM batch ORDER BY created_at DESC, id DESC LIMIT 1)
@@ -226,6 +227,7 @@ export class PrivacyRetentionService implements OnModuleDestroy {
   /** contact_disclosures sit on the case-family databases: one sweep per
    * database (a dedicated retention URL covers its own database only). */
   private async contactDisclosureIps(cut: Date): Promise<number> {
+    const held = await heldSqlFor(this.prisma);
     const db = this.retention();
     const sweep = (client: PrismaClient | PrismaService) =>
       this.batched(
@@ -236,9 +238,9 @@ export class PrivacyRetentionService implements OnModuleDestroy {
             SELECT d.ctid FROM contact_disclosures d
             WHERE d.disclosed_at < ${cut}
               AND (d.ip IS NOT NULL OR d.device_id IS NOT NULL)
-              AND NOT ${heldSql('case', Prisma.sql`d.case_id`)}
-              AND NOT ${heldSql('user', Prisma.sql`d.client_id`)}
-              AND NOT ${heldSql('user', Prisma.sql`d.attorney_id`)}
+              AND NOT ${held('case', Prisma.sql`d.case_id`)}
+              AND NOT ${held('user', Prisma.sql`d.client_id`)}
+              AND NOT ${held('user', Prisma.sql`d.attorney_id`)}
             LIMIT ${limit})`,
       );
     if (db !== this.prisma) return sweep(db);

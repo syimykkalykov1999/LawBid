@@ -1,3 +1,4 @@
+import { readsAreSplit } from '../../sharding/split-reads';
 import {
   ConflictException,
   Injectable,
@@ -115,12 +116,23 @@ export class AdminVideosService {
   }
 
   async takedown(admin: AdminActor, id: string, reason: string): Promise<void> {
-    const asset = await this.prisma.videoAsset.findFirst({
+    const postSelect = { id: true, status: true, deleted_at: true } as const;
+    // Two databases: the video is global, its post lives with the author
+    // (a join on the primary finds no post), so the post is looked up apart.
+    const split = readsAreSplit(this.prisma);
+    const found = await this.prisma.videoAsset.findFirst({
       where: withDeleted({ id }),
-      include: {
-        post: { select: { id: true, status: true, deleted_at: true } },
-      },
+      include: { post: split ? false : { select: postSelect } },
     });
+    const asset = found && {
+      ...found,
+      post: split
+        ? await this.prisma.post.findFirst({
+            where: withDeleted({ video_asset_id: found.id }),
+            select: postSelect,
+          })
+        : found.post,
+    };
     if (!asset) {
       throw new NotFoundException({
         code: ErrorCode.NOT_FOUND,

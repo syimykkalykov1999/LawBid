@@ -51,6 +51,7 @@ import { PromotionDeliveryService } from '../../promotions/promotion-delivery.se
 import { RankingEventsService } from '../../experiments/ranking-events.service';
 import { RecommendationsService } from '../../recommendations/recommendations.service';
 import {
+  clientIdsWithEntitlement,
   clientsWithEntitlementSql,
   EntitlementsService,
 } from '../../plans/entitlements.service';
@@ -283,11 +284,15 @@ export class CasesFeedService {
       .slice(0, slots);
     // Owner 2026-10-05: then the newest cases of clients on a plan with
     // "cases shown first" — same filters, same keyset exclusion.
+    // Two databases: the plan holders come from the primary first.
+    const prioritySql = readsAreSplit(this.prisma)
+      ? Prisma.sql`c.client_id = ANY(${await clientIdsWithEntitlement(this.prisma, 'priority_feed')}::UUID[])`
+      : PRIORITY_CLIENT_SQL;
     const priority = cursor
       ? []
       : (
           await run(
-            Prisma.sql`${extra} AND ${PRIORITY_CLIENT_SQL}
+            Prisma.sql`${extra} AND ${prioritySql}
               ${slot.length ? Prisma.sql`AND c.id <> ALL(${slot}::UUID[])` : Prisma.empty}`,
             undefined,
             PRIORITY_FEED_SLOTS,

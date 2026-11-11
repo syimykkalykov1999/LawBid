@@ -20,13 +20,19 @@ import {
   ShardDatabaseNotConfiguredError,
   parseShardDatabaseUrls,
 } from '../sharding/shard-databases';
-import { delegateInfo } from '../sharding/shard-delegates';
+import {
+  delegateInfo,
+  rawSqlIsGlobalOnly,
+  rawSqlText,
+} from '../sharding/shard-delegates';
 import { PRIMARY_DB, ShardMapRow, ShardRouter } from '../sharding/shard-router';
 import { crossFamilyStitchExtension } from '../sharding/cross-family-stitch';
 import {
   canScatter,
   mergeScatter,
   perDatabaseArgs,
+  stripSortColumns,
+  withSortColumns,
   runScatter,
 } from '../sharding/scatter-gather';
 import { shardFromArgs } from '../sharding/shard-args';
@@ -69,6 +75,13 @@ import { withGlobalFacade } from '../sharding/tx-global-facade';
  * prisma, ...)` and `prisma.$transaction` call keep compiling and behaving
  * as before.
  */
+const RAW_OPS: ReadonlySet<string> = new Set([
+  '$queryRaw',
+  '$queryRawUnsafe',
+  '$executeRaw',
+  '$executeRawUnsafe',
+]);
+
 export class DemoDatabaseUnavailableError extends Error {
   constructor(reason: string) {
     super(`Demo database unavailable: ${reason}`);
@@ -256,10 +269,15 @@ export class PrismaService
               // Names no shard: ask every database that holds one and merge
               // (scatter-gather, scatter-gather.ts); anything not exactly
               // mergeable keeps the context / primary routing.
-              if (shard === undefined && canScatter(op, args)) {
+              const sorted =
+                shard === undefined
+                  ? withSortColumns(op, args)
+                  : { args, added: [] };
+              if (shard === undefined && canScatter(op, sorted.args)) {
                 const keys = router.physicalKeys();
                 if (keys.length === 1 && keys[0] !== PRIMARY_DB) {
-                  // Every shard lives on one non-primary database.
+                  // Every shard lives on one non-primary database: the
+                  // query as it was (nothing to merge).
                   const c = clientFor(keys[0]) as unknown as Record<
                     string,
                     Record<string, unknown>
@@ -271,7 +289,7 @@ export class PrismaService
                 }
                 if (keys.length > 1) {
                   shardStats.scatter(model);
-                  const per = perDatabaseArgs(op, args);
+                  const per = perDatabaseArgs(op, sorted.args);
                   return runScatter(op, model, keys, (k) => {
                     const c = clientFor(k) as unknown as Record<
                       string,
@@ -280,7 +298,12 @@ export class PrismaService
                     return (
                       c[prop][op] as (a?: unknown) => Promise<unknown>
                     ).call(c[prop], per);
-                  }).then((results) => mergeScatter(op, args, results));
+                  }).then((results) =>
+                    stripSortColumns(
+                      mergeScatter(op, sorted.args, results),
+                      sorted.added,
+                    ),
+                  );
                 }
               }
               // A single-row write or OrThrow read that names no shard (a
@@ -428,6 +451,32 @@ export class PrismaService
           ) {
             return argRouted(prop, info.model);
           }
+        }
+        // Step 8: hand-written SQL that names only global tables runs on the
+        // primary database (shard-delegates.ts rawSqlIsGlobalOnly); an
+        // explicit database (runOnPhysical / forEachDatabase) still wins.
+        if (
+          typeof prop === 'string' &&
+          RAW_OPS.has(prop) &&
+          multiDb() &&
+          !demoContext.isDemo() &&
+          // A Jest spy on the client stays the spy (see the end of `get`).
+          !(real as unknown as Record<string, { _isMockFunction?: boolean }>)[
+            prop
+          ]?._isMockFunction
+        ) {
+          return (...args: unknown[]) => {
+            const ctx = shardContext.current();
+            const target =
+              !ctx?.physical && rawSqlIsGlobalOnly(rawSqlText(args))
+                ? real
+                : pick(prop);
+            const c = target as unknown as Record<
+              string,
+              (...a: unknown[]) => unknown
+            >;
+            return c[prop](...args);
+          };
         }
         const client = pick(prop) as unknown as Record<PropertyKey, unknown>;
         const value = client[prop];

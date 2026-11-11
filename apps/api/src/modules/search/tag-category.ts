@@ -1,4 +1,7 @@
 import type { PrismaService } from '../../prisma/prisma.service';
+import { readsAreSplit } from '../../sharding/split-reads';
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { shardContext } from '../../sharding/shard-context';
 
 /**
  * Owner 2026-10-15: a topic (hashtag) takes the cover of the practice its
@@ -11,9 +14,9 @@ export async function tagCategories(
   tags: string[],
 ): Promise<Map<string, string>> {
   if (tags.length === 0) return new Map();
-  const rows = await prisma.$queryRaw<
-    { tag: string; category: string | null }[]
-  >`
+  const rows = readsAreSplit(prisma)
+    ? await categoriesSplit(prisma, tags)
+    : await prisma.$queryRaw<{ tag: string; category: string | null }[]>`
     SELECT t.tag_lower AS tag, (
       SELECT COALESCE(cat.code, pa.code)
       FROM post_tags pt
@@ -63,4 +66,63 @@ export async function tagCategories(
     }
   }
   return out;
+}
+
+/** Two databases (SHARDING_READY step 8): the same «most used practice of
+ * the tag's posts» — posts counted per database (post_tags + posts live with
+ * the author), practice areas and tags read on the primary (global). */
+async function categoriesSplit(
+  prisma: PrismaService,
+  tags: string[],
+): Promise<{ tag: string; category: string | null }[]> {
+  const ids = await shardContext.runOnPrimary(
+    () => prisma.$queryRaw<{ id: string; tag: string }[]>`
+      SELECT id::TEXT AS id, tag_lower AS tag FROM tags
+      WHERE tag_lower = ANY(${tags}::TEXT[])`,
+  );
+  if (ids.length === 0) return [];
+  const tagOf = new Map(ids.map((r) => [r.id, r.tag]));
+  const perArea = (
+    await forEachDatabase(
+      prisma,
+      () =>
+        prisma.$queryRaw<{ id: string; area: string; n: bigint }[]>`
+        SELECT pt.tag_id::TEXT AS id, p.practice_area_id::TEXT AS area, count(*) AS n
+        FROM post_tags pt
+        JOIN posts p ON p.id = pt.post_id
+          AND p.status = 'published' AND p.deleted_at IS NULL
+          AND p.archived_at IS NULL AND p.practice_area_id IS NOT NULL
+        WHERE pt.tag_id = ANY(${[...tagOf.keys()]}::UUID[])
+        GROUP BY pt.tag_id, p.practice_area_id`,
+    )
+  ).flat();
+  const areas = [...new Set(perArea.map((r) => r.area))];
+  const codeOf = new Map(
+    areas.length === 0
+      ? []
+      : (
+          await shardContext.runOnPrimary(
+            () => prisma.$queryRaw<{ id: string; code: string }[]>`
+              SELECT pa.id::TEXT AS id, COALESCE(cat.code, pa.code) AS code
+              FROM practice_areas pa
+              LEFT JOIN practice_areas cat ON cat.id = pa.parent_id
+              WHERE pa.id = ANY(${areas}::UUID[])`,
+          )
+        ).map((r) => [r.id, r.code] as const),
+  );
+  const count = new Map<string, Map<string, number>>();
+  for (const r of perArea) {
+    const tag = tagOf.get(r.id)!;
+    const code = codeOf.get(r.area);
+    if (!code) continue;
+    const m = count.get(tag) ?? new Map<string, number>();
+    m.set(code, (m.get(code) ?? 0) + Number(r.n));
+    count.set(tag, m);
+  }
+  return ids.map(({ tag }) => {
+    const best = [...(count.get(tag) ?? new Map<string, number>())].sort(
+      (a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0),
+    )[0];
+    return { tag, category: best?.[0] ?? null };
+  });
 }

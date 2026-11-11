@@ -20,6 +20,9 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { shardContext } from '../../sharding/shard-context';
+import { readsAreSplit } from '../../sharding/split-reads';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -83,7 +86,9 @@ export class ModerationAppealsService {
     const since = new Date(Date.now() - NOTICE_DAYS * DAY_MS);
     // Candidate objects: the user's own posts / comments / messages that
     // moderation touched, plus warnings aimed at the user.
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+    const rows = readsAreSplit(this.prisma)
+      ? await this.noticeIdsSplit(userId, since)
+      : await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT a.id
       FROM moderation_actions a
       WHERE a.created_at >= ${since}
@@ -477,6 +482,68 @@ export class ModerationAppealsService {
   }
 
   // ----- helpers -----
+
+  /** Two databases (SHARDING_READY step 8): the decisions live on the
+   * primary, the posts / comments / messages with their owners, so the
+   * window's decisions come from the primary and each database keeps the
+   * ones on the user's own objects — the same rows as the one-database query. */
+  private async noticeIdsSplit(
+    userId: string,
+    since: Date,
+  ): Promise<{ id: string }[]> {
+    const acts = await shardContext.runOnPrimary(
+      () =>
+        this.prisma.$queryRaw<
+          {
+            id: string;
+            target_type: string;
+            target_id: string;
+            created_at: Date;
+          }[]
+        >`
+        SELECT id, target_type::TEXT AS target_type, target_id::TEXT AS target_id, created_at
+        FROM moderation_actions
+        WHERE created_at >= ${since}
+          AND ((target_type = 'user' AND target_id = ${userId}::UUID AND action = 'warn')
+            OR (target_type IN ('post','comment','case_comment','message')
+                AND action IN ('hide','remove','restore')))`,
+    );
+    const idsOf = (t: string) => [
+      ...new Set(
+        acts.filter((a) => a.target_type === t).map((a) => a.target_id),
+      ),
+    ];
+    const [posts, comments, caseComments, messages] = [
+      idsOf('post'),
+      idsOf('comment'),
+      idsOf('case_comment'),
+      idsOf('message'),
+    ];
+    const mine = new Set(
+      (
+        await forEachDatabase(
+          this.prisma,
+          () =>
+            this.prisma.$queryRaw<{ id: string }[]>`
+            SELECT id::TEXT AS id FROM posts
+            WHERE id = ANY(${posts}::UUID[]) AND author_id = ${userId}::UUID
+            UNION ALL SELECT id::TEXT FROM comments
+            WHERE id = ANY(${comments}::UUID[]) AND author_id = ${userId}::UUID
+            UNION ALL SELECT id::TEXT FROM case_comments
+            WHERE id = ANY(${caseComments}::UUID[]) AND author_id = ${userId}::UUID
+            UNION ALL SELECT id::TEXT FROM messages
+            WHERE id = ANY(${messages}::UUID[]) AND sender_id = ${userId}::UUID`,
+        )
+      )
+        .flat()
+        .map((r) => r.id),
+    );
+    return acts
+      .filter((a) => a.target_type === 'user' || mine.has(a.target_id))
+      .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
+      .slice(0, 50)
+      .map((a) => ({ id: a.id }));
+  }
 
   /** Only the newest hide / remove / restore of an object can be appealed. */
   private async isLatestAction(

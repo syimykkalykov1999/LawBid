@@ -1,4 +1,5 @@
 import { unreadMessagesSql } from '../groups/group-unread.sql';
+import { shardContext } from '../../sharding/shard-context';
 import { Inject, Injectable } from '@nestjs/common';
 import type { NotificationCategory, NotificationType } from '@prisma/client';
 import {
@@ -367,12 +368,17 @@ export class BadgesService {
   private async countNotifications(userId: string): Promise<number> {
     // Owner 2026-10-21 (inbox 30): per kind of notification.
     const muted = await this.mutedTypes(userId);
-    const [row] = await this.prisma.$queryRaw<{ n: bigint }[]>`
+    // Two databases: notifications live with their user, whoever asks (a
+    // follower's request, a worker job) — count in that user's database.
+    const [row] = await shardContext.runForUser(
+      userId,
+      () => this.prisma.$queryRaw<{ n: bigint }[]>`
       SELECT count(*) AS n FROM (
         SELECT 1 FROM notifications
         WHERE user_id = ${userId}::UUID AND read_at IS NULL
           AND NOT (type::TEXT = ANY(${muted}::TEXT[]))
-        LIMIT ${NOTIFS_CAP}) x`;
+        LIMIT ${NOTIFS_CAP}) x`,
+    );
     return Number(row?.n ?? 0);
   }
 
