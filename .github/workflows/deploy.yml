@@ -364,7 +364,7 @@ jobs:
       - name: Wait for an earlier cloud change from the admin
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/ci/wait-earlier-prod-change.sh infra-apply.yml
+        run: scripts/ci/wait-earlier-prod-change.sh infra-active
       - name: OIDC diagnostics (prints the token's sub, never the token)
         continue-on-error: true
         run: scripts/deploy/oidc-sub.sh
