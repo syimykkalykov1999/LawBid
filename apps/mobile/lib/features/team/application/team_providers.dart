@@ -147,6 +147,15 @@ final teamActivityProvider = AsyncNotifierProvider.autoDispose<
 );
 
 class TeamActivityNotifier extends PagedNotifier<ActivityEntry> {
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<ActivityEntry>?> cachedFirstPage() {
+    final repo = ref.read(teamRepositoryProvider);
+    return phoneCopy(repo.activity);
+  }
+
   @override
   Future<CursorPage<ActivityEntry>> fetch(String? cursor) =>
       ref.read(teamRepositoryProvider).activity(cursor: cursor);
@@ -163,6 +172,15 @@ final teamRequestsProvider = AsyncNotifierProvider.autoDispose<
 );
 
 class TeamRequestsNotifier extends PagedNotifier<AssistantRequest> {
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<AssistantRequest>?> cachedFirstPage() {
+    final repo = ref.read(teamRepositoryProvider);
+    return phoneCopy(repo.requests);
+  }
+
   @override
   Future<CursorPage<AssistantRequest>> fetch(String? cursor) =>
       ref.read(teamRepositoryProvider).requests(cursor: cursor);
