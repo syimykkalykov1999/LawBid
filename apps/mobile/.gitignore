@@ -48,3 +48,8 @@ app.*.map.json
 .widget_preview/
 
 # Browser preview shell, made by tool/web_preview/build.sh.
+
+# fastlane via bundler (Gemfile): local gems and the lock of one Mac stay out of git
+/vendor/
+/.bundle/
+/Gemfile.lock

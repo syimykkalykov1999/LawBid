@@ -1,0 +1,23 @@
+name: Play service-account key
+description: >-
+  Writes the Google Play service-account JSON to a temp file and points fastlane at it
+  (PLAY_JSON_KEY_FILE). An empty secret stops the job with the owner's one-time steps.
+inputs:
+  json:
+    description: The PLAY_SERVICE_ACCOUNT_JSON secret
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        JSON: ${{ inputs.json }}
+      run: |
+        if [ -z "$JSON" ]; then
+          echo "::error title=PLAY_SERVICE_ACCOUNT_JSON missing::The GitHub secret PLAY_SERVICE_ACCOUNT_JSON (environment release) is empty. Owner, once: Play Console -> Setup -> API access -> link a Google Cloud project -> Create new service account -> Google Cloud: Keys -> Add key -> JSON -> Play Console: Grant access, role Release manager for LawBid -> paste the whole JSON into the secret. docs/runbooks/mobile-staged-rollout.md (Play key)."
+          exit 1
+        fi
+        printf '%s' "$JSON" > "$RUNNER_TEMP/play.json"
+        jq -e '.type == "service_account" and (.private_key | length > 0)' "$RUNNER_TEMP/play.json" >/dev/null \
+          || { echo "::error title=PLAY_SERVICE_ACCOUNT_JSON invalid::The secret is not a Google service-account JSON key (type service_account with a private_key)."; exit 1; }
+        echo "PLAY_JSON_KEY_FILE=$RUNNER_TEMP/play.json" >> "$GITHUB_ENV"

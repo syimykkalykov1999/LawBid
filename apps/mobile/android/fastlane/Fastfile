@@ -3,6 +3,48 @@
 # variables (android/app/build.gradle.kts reads them) — never committed.
 default_platform(:android)
 
+require "json"
+
+# Store release in GitHub Actions (owner 2026-11-09, .github/workflows/store-release.yml):
+# the Play lanes need the service-account JSON. Without it every Play lane stops here
+# with the one-time steps, instead of an opaque Google API error.
+PLAY_KEY_HELP = "The GitHub secret PLAY_SERVICE_ACCOUNT_JSON is missing or not a service-account key " \
+  "(environment `release`). One-time, by the owner: Play Console -> Setup -> API access -> " \
+  "link a Google Cloud project -> Create new service account (Google Cloud: create a JSON key) -> " \
+  "back in Play Console: Grant access -> Release manager (releases + store listing) for LawBid -> " \
+  "paste the whole JSON into the secret. Steps: docs/runbooks/mobile-staged-rollout.md (Play key)."
+
+def require_play_key!
+  file = ENV["PLAY_JSON_KEY_FILE"].to_s
+  key = begin
+    JSON.parse(File.read(file)) if !file.empty? && File.exist?(file)
+  rescue JSON::ParserError
+    nil
+  end
+  UI.user_error!(PLAY_KEY_HELP) unless key.is_a?(Hash) && key["type"] == "service_account" && key["private_key"].to_s != ""
+end
+
+# Release notes in every language: fastlane/metadata/android/<locale>/changelogs/default.txt
+# (or <versionCode>.txt), the same folder that holds the 87-language listing. A locale without
+# its own file shows the en-US text (Play falls back to the default language); en-US/default.txt
+# is written from RELEASE_NOTES (the workflow's Conventional Commits notes) when it is missing.
+# Play allows 500 characters.
+def ensure_default_changelog!
+  dir = File.expand_path("metadata/android/en-US/changelogs", __dir__)
+  file = File.join(dir, "default.txt")
+  return if File.exist?(file)
+  notes = ENV["RELEASE_NOTES"].to_s.strip
+  notes = "Improvements and fixes." if notes.empty?
+  FileUtils.mkdir_p(dir)
+  File.write(file, notes[0, 500])
+end
+
+def rollout_fraction(percent)
+  {"5" => "0.05", "50" => "0.5", "100" => "1.0"}.fetch(percent.to_s) do
+    UI.user_error!("percent must be 5, 50 or 100 (got #{percent.inspect})")
+  end
+end
+
 platform :android do
   desc "Build the prod AAB (release). Env: ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, BUILD_NUMBER (optional; unset = automatic), DART_DEFINES_FILE"
   lane :build do |options|
@@ -33,6 +75,7 @@ platform :android do
 
   desc "Upload the prod AAB to Google Play Internal testing (docs/06 §11.2 closed beta). Owner decides when to run: workflow_dispatch with upload=true."
   lane :internal do
+    require_play_key!
     build(flavor: "prod")
     upload_to_play_store(
       track: "internal",
@@ -53,6 +96,7 @@ platform :android do
   # Production has the same Halt / Update-rollout buttons as a fallback).
   desc "Promote the internal build to the Play closed testing track (no rebuild)."
   lane :closed do
+    require_play_key!
     upload_to_play_store(
       track: "internal",
       track_promote_to: "alpha",
@@ -63,6 +107,7 @@ platform :android do
 
   desc "Promote the closed build to production at a small fraction (rollout:0.05)."
   lane :production do |options|
+    require_play_key!
     upload_to_play_store(
       track: "alpha",
       track_promote_to: "production",
@@ -74,6 +119,7 @@ platform :android do
 
   desc "Raise the running production rollout (rollout:0.2 / 0.5 / 1.0)."
   lane :promote do |options|
+    require_play_key!
     code = google_play_track_version_codes(track: "production").max
     UI.user_error!("no release on the production track") if code.nil?
     upload_to_play_store(
@@ -87,6 +133,7 @@ platform :android do
 
   desc "Halt the production rollout: no new users get the release; installed ones keep it."
   lane :halt do |options|
+    require_play_key!
     code = google_play_track_version_codes(track: "production").max
     UI.user_error!("no release on the production track") if code.nil?
     upload_to_play_store(
@@ -99,9 +146,58 @@ platform :android do
     )
   end
 
+  # --- store-release.yml: beta -> release (5 %) -> rollout 50 / 100, guard + halt -------------
+  desc "beta: build the prod AAB and upload it to Play Internal testing (alias of `internal`, key checked first)."
+  lane :beta do
+    require_play_key!
+    internal
+  end
+
+  desc "beta_upload: upload an AAB built elsewhere (store-release.yml: the Mobile release build) to Internal testing. Option aab:<path>."
+  lane :beta_upload do |options|
+    require_play_key!
+    upload_to_play_store(
+      track: "internal",
+      aab: options[:aab] || "../build/app/outputs/bundle/prodRelease/app-prod-release.aab",
+      release_status: "draft",
+      skip_upload_metadata: true, skip_upload_images: true, skip_upload_screenshots: true,
+    )
+  end
+
+  desc "release: the tested Internal build goes to production at 5 % with the release notes of every language (no rebuild). Option from:internal|alpha."
+  lane :release do |options|
+    require_play_key!
+    ensure_default_changelog!
+    upload_to_play_store(
+      track: (options[:from] || "internal").to_s,
+      track_promote_to: "production",
+      rollout: rollout_fraction(5),
+      metadata_path: "./fastlane/metadata/android",
+      skip_upload_aab: true, skip_upload_apk: true, skip_upload_metadata: true,
+      skip_upload_changelogs: false, skip_upload_images: true, skip_upload_screenshots: true,
+    )
+  end
+
+  desc "rollout: raise the running production release to percent:50 or percent:100 (100 completes it)."
+  lane :rollout do |options|
+    require_play_key!
+    percent = (options[:percent] || "50").to_s
+    UI.user_error!("rollout raises to 50 or 100; 5 % is the `release` lane") unless %w[50 100].include?(percent)
+    code = google_play_track_version_codes(track: "production").max
+    UI.user_error!("no release on the production track") if code.nil?
+    params = {
+      track: "production", version_code: code,
+      skip_upload_aab: true, skip_upload_apk: true, skip_upload_metadata: true,
+      skip_upload_changelogs: true, skip_upload_images: true, skip_upload_screenshots: true,
+    }
+    params[percent == "100" ? :release_status : :rollout] = percent == "100" ? "completed" : rollout_fraction(percent)
+    upload_to_play_store(**params)
+  end
+
   desc "Upload the store listing in every language (fastlane/metadata/android/<locale>/*.txt). " \
        "No bundle, no images. Needs PLAY_JSON_KEY_FILE and at least one uploaded build."
   lane :metadata do
+    require_play_key!
     upload_to_play_store(
       metadata_path: "./fastlane/metadata/android",
       skip_upload_aab: true,

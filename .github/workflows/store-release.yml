@@ -1,0 +1,294 @@
+# Store release from GitHub Actions, no Mac (owner 2026-11-09). fastlane lanes in
+# apps/mobile/{android,ios}/fastlane; the build and its signing are the existing
+# "Mobile release" workflow (called for action=beta), so the signing steps exist once.
+#
+#   action=beta     build prod (--flavor prod -t lib/main_prod.dart) and upload:
+#                   Play Internal testing + TestFlight
+#   action=release  the tested build goes out with the release notes of every language
+#                   (fastlane/metadata/.../changelogs/default.txt, release_notes.txt):
+#                   Play production at 5 %, App Store review with a 7-day phased release
+#   action=rollout  percent=50 or 100: first the rollout guard (scripts/ci/rollout-guard.mjs:
+#                   Sentry crash-free sessions and store ratings against the previous
+#                   version). Worse -> the rollout is HALTED by itself; too little data ->
+#                   nothing happens; no Sentry token -> refused unless skip_guard.
+#                   100 % waits for an approval in the `production` environment
+#                   (job "Approve 100 %"; gate ON by default, the owner may remove it).
+#   action=halt     halt now (Play: halted; App Store: phased release paused)
+# Every 6 hours (schedule, only when the repository variable STORE_WATCH is `true`) the
+# guard watches a running rollout and halts it when the new version is worse.
+# Secrets in the `release` environment: PLAY_SERVICE_ACCOUNT_JSON (not set yet: the Play
+# jobs stop with the owner's one-time steps), ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_CONTENT,
+# APPLE_TEAM_ID, SENTRY_AUTH_TOKEN; variables SENTRY_ORG, APP_STORE_ID.
+# Docs: docs/runbooks/mobile-staged-rollout.md.
+name: Store release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Which store"
+        type: choice
+        options: [both, android, ios]
+        default: both
+      action:
+        description: "beta / release / rollout / halt (see the header)"
+        type: choice
+        options: [beta, release, rollout, halt]
+        default: beta
+      percent:
+        description: "rollout: 50 or 100 (release is always 5 %)"
+        type: choice
+        options: ["50", "100"]
+        default: "50"
+      skip_guard:
+        description: "rollout without the guard (only when Sentry cannot be read)"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: store-release
+  cancel-in-progress: false
+
+env:
+  ACTION: ${{ inputs.action || 'watch' }}
+  PLATFORM: ${{ inputs.platform || 'both' }}
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.STORE_WATCH == 'true' }}
+    outputs:
+      android: ${{ steps.p.outputs.android }}
+      ios: ${{ steps.p.outputs.ios }}
+    steps:
+      - id: p
+        run: |
+          echo "android=$([ "$PLATFORM" != ios ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "ios=$([ "$PLATFORM" != android ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "store release: action=$ACTION platform=$PLATFORM percent=${{ inputs.percent }}"
+
+  # --- beta: the existing build + signing + upload ---------------------------------------
+  beta:
+    name: Beta (Mobile release, upload)
+    needs: [plan]
+    if: ${{ inputs.action == 'beta' }}
+    permissions:
+      contents: write
+      checks: read
+    uses: ./.github/workflows/mobile-release.yml
+    with:
+      upload: true
+      flavor: prod
+      stage: internal
+    secrets: inherit
+
+  notes:
+    name: Release notes (Conventional Commits)
+    needs: [plan]
+    if: ${{ inputs.action == 'release' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      body: ${{ steps.n.outputs.body }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { fetch-depth: 0 }
+      - id: n
+        run: |
+          prev=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          {
+            echo "body<<EOF"
+            git log --pretty='- %s' "$prev..HEAD" | grep -E '^- (feat|fix|perf)(\(.*\))?!?:' | sed -E 's/^- (feat|fix|perf)(\([^)]*\))?!?: /- /' | head -12 || true
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  # --- release: 5 % / phased ----------------------------------------------------------------
+  play-release:
+    name: Play production 5 %
+    needs: [plan, notes]
+    if: ${{ inputs.action == 'release' && needs.plan.outputs.android == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+      - name: Play key
+        uses: ./.github/actions/play-key
+        with:
+          json: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      - name: fastlane android release
+        working-directory: apps/mobile/android
+        env:
+          RELEASE_NOTES: ${{ needs.notes.outputs.body }}
+        run: bundle exec fastlane android release
+
+  ios-release:
+    name: App Store review + phased release
+    needs: [plan, notes]
+    if: ${{ inputs.action == 'release' && needs.plan.outputs.ios == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+      - name: fastlane ios release
+        working-directory: apps/mobile/ios
+        env:
+          RELEASE_NOTES: ${{ needs.notes.outputs.body }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+        run: bundle exec fastlane ios release
+
+  # --- the guard (rollout and the 6-hour watch) ---------------------------------------------
+  guard-android:
+    name: Guard (Android)
+    needs: [plan]
+    if: ${{ (inputs.action == 'rollout' || github.event_name == 'schedule') && needs.plan.outputs.android == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    outputs:
+      decision: ${{ steps.g.outputs.decision }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: "26.12.1" }
+      - run: node --test scripts/ci/rollout-guard.test.mjs
+      - name: Play key (ratings; optional for the guard)
+        env:
+          JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$JSON" ]; then printf '%s' "$JSON" > "$RUNNER_TEMP/play.json"; echo "PLAY_JSON_KEY_FILE=$RUNNER_TEMP/play.json" >> "$GITHUB_ENV"; fi
+      - id: g
+        env:
+          PLATFORM: android
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+        run: node scripts/ci/rollout-guard.mjs
+
+  guard-ios:
+    name: Guard (iOS)
+    needs: [plan]
+    if: ${{ (inputs.action == 'rollout' || github.event_name == 'schedule') && needs.plan.outputs.ios == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    outputs:
+      decision: ${{ steps.g.outputs.decision }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: "26.12.1" }
+      - id: g
+        env:
+          PLATFORM: ios
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+          APP_STORE_ID: ${{ vars.APP_STORE_ID }}
+        run: node scripts/ci/rollout-guard.mjs
+
+  # --- halt: asked for, or the guard found the new version worse ----------------------------
+  play-halt:
+    name: Play halt
+    needs: [plan, guard-android]
+    if: ${{ always() && needs.plan.outputs.android == 'true' && (inputs.action == 'halt' || needs.guard-android.outputs.decision == 'halt') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+      - uses: ./.github/actions/play-key
+        with:
+          json: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      - working-directory: apps/mobile/android
+        run: bundle exec fastlane android halt
+
+  ios-halt:
+    name: App Store pause phased release
+    needs: [plan, guard-ios]
+    if: ${{ always() && needs.plan.outputs.ios == 'true' && (inputs.action == 'halt' || needs.guard-ios.outputs.decision == 'halt') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+      - working-directory: apps/mobile/ios
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+        run: bundle exec fastlane ios halt
+
+  # --- rollout: only after an `ok` (or skip_guard over a blind guard, never over a halt) -----
+  # 100 % waits for the owner's approval: the protection rule of the `production`
+  # environment (required reviewers). The keys stay in `release`, so the approval job
+  # holds no secrets. Removing the gate later = removing the reviewers of `production`.
+  approve-100:
+    name: Approve 100 %
+    needs: [plan]
+    if: ${{ inputs.action == 'rollout' && inputs.percent == '100' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - run: echo "100 % approved by ${{ github.actor }}"
+
+  play-rollout:
+    name: Play rollout ${{ inputs.percent }} %
+    needs: [plan, guard-android, approve-100]
+    if: ${{ always() && inputs.action == 'rollout' && needs.plan.outputs.android == 'true' && (needs.approve-100.result == 'success' || needs.approve-100.result == 'skipped') && (needs.guard-android.outputs.decision == 'ok' || (inputs.skip_guard && needs.guard-android.outputs.decision == 'blind')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+      - uses: ./.github/actions/play-key
+        with:
+          json: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      - working-directory: apps/mobile/android
+        env:
+          PERCENT: ${{ inputs.percent }}
+        run: bundle exec fastlane android rollout percent:"$PERCENT"
+
+  ios-rollout:
+    name: App Store phased release ${{ inputs.percent == '100' && 'to everyone' || 'resume' }}
+    needs: [plan, guard-ios, approve-100]
+    if: ${{ always() && inputs.action == 'rollout' && needs.plan.outputs.ios == 'true' && (needs.approve-100.result == 'success' || needs.approve-100.result == 'skipped') && (needs.guard-ios.outputs.decision == 'ok' || (inputs.skip_guard && needs.guard-ios.outputs.decision == 'blind')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+      - working-directory: apps/mobile/ios
+        env:
+          PERCENT: ${{ inputs.percent }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+        run: bundle exec fastlane ios rollout percent:"$PERCENT"

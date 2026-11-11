@@ -61,7 +61,7 @@ jobs:
 
       - name: Self-tests of the CI helper scripts
         run: |
-          node --test scripts/ci/flag-first-check.test.mjs scripts/ci/npm-audit-gate.test.mjs
+          node --test scripts/ci/flag-first-check.test.mjs scripts/ci/npm-audit-gate.test.mjs scripts/ci/rollout-guard.test.mjs
           bash scripts/ci/require-green.test.sh
           bash scripts/ci/require-secrets.test.sh
           bash scripts/deploy/current-tag.test.sh
