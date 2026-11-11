@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
@@ -53,6 +54,7 @@ OwnerCase _case({int bids = 2}) => OwnerCase(
 
 class _Repo extends FakeCasesRepository implements CasesSyncRepository {
   List<CaseBid> bids = [_bid('b1'), _bid('b2')];
+  List<CaseBid>? copy;
   SyncedPage<CaseBid> changed = const SyncedPage(items: []);
   int listReads = 0;
   int deltaReads = 0;
@@ -64,6 +66,12 @@ class _Repo extends FakeCasesRepository implements CasesSyncRepository {
     BidsSort sort, {
     String? cursor,
   }) async {
+    // A phone-only read (the list's saved first page): [copy] or a miss.
+    if (readingFromPhoneOnly) {
+      final c = copy;
+      if (c == null) throw StateError(kNoPhoneCopy);
+      return CursorPage(items: c);
+    }
     listReads++;
     return CursorPage(items: bids);
   }
@@ -138,6 +146,23 @@ void main() {
         'bidId': bid['bidId'],
         'bid': bid,
       });
+
+  // Owner 2026-11-11 (speed): the bids open at once on the page this phone
+  // showed last time; the live page replaces it with one read.
+  test('opens on the phone copy, then the live page', () async {
+    final repo = _Repo()..copy = [_bid('b9')];
+    final c = make(repo);
+    final sub = c.listen(caseBidsProvider(key), (_, __) {});
+    addTearDown(sub.close);
+    final first = await c.read(caseBidsProvider(key).future);
+    expect(first.items.map((b) => b.id), ['b9']);
+    await wait();
+    expect(
+      c.read(caseBidsProvider(key)).value!.items.map((b) => b.id),
+      ['b1', 'b2'],
+    );
+    expect(repo.listReads, 1);
+  });
 
   test('a counter on a held bid edits the row: 0 requests', () async {
     final repo = _Repo();
@@ -240,7 +265,8 @@ void main() {
     expect(repo.listReads, 1);
   });
 
-  test('the owner card: a new bid moves the counter, a counter touches '
+  test(
+      'the owner card: a new bid moves the counter, a counter touches '
       'nothing, an acceptance re-reads', () async {
     final repo = _Repo();
     final c = make(repo);

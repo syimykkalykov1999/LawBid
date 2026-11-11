@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/features/plans/domain/plan_models.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
 import 'package:lawbid/features/subscription/data/payment_confirmer.dart';
@@ -318,6 +319,8 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
 
   @override
   Future<CursorPage<PaymentRecord>> payments({String? cursor}) async {
+    // A phone-only read (the list's saved first page): no copy here.
+    if (readingFromPhoneOnly) throw StateError(kNoPhoneCopy);
     calls.add('payments:$cursor');
     if (paymentPages.isEmpty) return const CursorPage(items: []);
     final index = cursor == null ? 0 : int.parse(cursor);
