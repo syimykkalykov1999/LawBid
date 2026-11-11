@@ -6,6 +6,7 @@ import request from 'supertest';
 import { io, type Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { forEachDatabase } from '../src/sharding/for-each-database';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { FilesService } from '../src/modules/files/files.service';
 import { CallsService } from '../src/modules/calls/calls.service';
@@ -359,7 +360,12 @@ describe('In-app calls (e2e, OQ-041)', () => {
         video: true,
       },
     });
-    await prisma.$executeRaw`UPDATE calls SET updated_at = now() - interval '4 minutes' WHERE id = ${stuck.id}::uuid`;
+    // The call lives in its conversation's database (two databases).
+    await forEachDatabase(
+      prisma,
+      () =>
+        prisma.$executeRaw`UPDATE calls SET updated_at = now() - interval '4 minutes' WHERE id = ${stuck.id}::uuid`,
+    );
     const fresh = await api()
       .post(`/api/v1/conversations/${c.id}/calls`)
       .set(c.client.auth)
