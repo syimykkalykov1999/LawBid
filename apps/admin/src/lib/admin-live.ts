@@ -97,14 +97,27 @@ export function startAdminLive(qc: QueryClient, given?: LiveDeps): () => void {
   let socket: Socket | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
+  // The newest change time (`at`) of the events in this debounce window;
+  // null = an event without a time: re-read everything, as before.
+  let changedAt: number | null | undefined;
+
   const flush = () => {
     timer = undefined;
+    const at = changedAt;
+    changedAt = undefined;
     // S18-1: nobody has touched the screen for 15 minutes — the session
     // must be allowed to run out; the first input brings the data back.
     if (idleMs() > IDLE_STOP_MS) return;
-    void invalidateLiveQueries(qc);
+    // Owner 2026-11-10 («Масштаб» asked for everything three times): a
+    // query that was answered after the change already shows it — only
+    // what was read before the change is read again (the page's own visit
+    // recomputes the summaries and announces them a moment later).
+    void invalidateLiveQueries(qc, typeof at === 'number' ? Math.max(0, Date.now() - at) : undefined);
   };
-  const schedule = () => {
+  const schedule = (event?: { at?: unknown }) => {
+    const t = typeof event?.at === 'string' ? Date.parse(event.at) : Number.NaN;
+    if (Number.isNaN(t)) changedAt = null;
+    else if (changedAt !== null) changedAt = Math.max(changedAt ?? 0, t);
     if (!timer) timer = setTimeout(flush, LIVE_DEBOUNCE_MS);
   };
 
