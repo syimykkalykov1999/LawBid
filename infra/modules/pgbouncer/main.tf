@@ -118,8 +118,8 @@ variable "cpu_target" {
 }
 variable "log_group_class" {
   type        = string
-  default     = "INFREQUENT_ACCESS"
-  description = "CloudWatch log class of the PgBouncer log (S20-11, cost registry row aws.cloudwatch_ia). INFREQUENT_ACCESS = half the ingest price; it has no metric filters / subscriptions, and nothing here uses them. STANDARD = old behaviour. Immutable in AWS: changing it replaces the group (its old lines are dropped)."
+  default     = "STANDARD"
+  description = "CloudWatch log class of the PgBouncer log. STANDARD (owner 2026-11-11): the metrics sidecar writes ServerConnections / ClientsWaiting as embedded metric format (EMF) lines into THIS log, and CloudWatch turns EMF into metrics only in the STANDARD class — with INFREQUENT_ACCESS (S20-11) the metrics never arrived and the pgbouncer-no-healthy / -unhealthy alarms fired with a healthy pool (KNOWN_ERRORS 96). Immutable in AWS: changing it replaces the group (its old lines are dropped; no data)."
   validation {
     condition     = contains(["STANDARD", "INFREQUENT_ACCESS"], var.log_group_class)
     error_message = "log_group_class must be STANDARD or INFREQUENT_ACCESS."
