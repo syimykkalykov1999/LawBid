@@ -1,3 +1,4 @@
+import { shardContext } from '../../../sharding/shard-context';
 import {
   ConflictException,
   Injectable,
@@ -343,90 +344,93 @@ export class CaseLifecycleService {
     note: string,
   ): Promise<Case> {
     const chat: ChatChange[] = [];
-    const resolved = await withTxRetry(this.prisma, async (tx) => {
-      chat.length = 0;
-      const dispute = await tx.caseDispute.findUnique({
-        where: { id: disputeId },
-        select: { case_id: true, status: true },
-      });
-      if (!dispute) {
-        throw new NotFoundException({
-          code: ErrorCode.NOT_FOUND,
-          message: 'Dispute not found.',
+    // Two databases: the transaction runs in the dispute's database.
+    const resolved = await shardContext.runForRow(disputeId, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        chat.length = 0;
+        const dispute = await tx.caseDispute.findUnique({
+          where: { id: disputeId },
+          select: { case_id: true, status: true },
         });
-      }
-      if (dispute.status !== 'open') {
-        throw new ConflictException({
-          code: ErrorCode.CASE_INVALID_STATE,
-          message: 'This dispute is already resolved.',
-        });
-      }
-      const caseId = dispute.case_id;
-      const { clientId, attorneyId } = await this.parties(tx, caseId);
-      const actor: Actor = { userId: admin.id, role: 'admin' };
-      const payload = { disputeId, decision, note };
-      let after: Case;
-      if (decision === 'closed') {
-        after = await this.closeInTx(tx, {
-          caseId,
-          clientId,
-          attorneyId,
-          action: 'admin_resolve_close',
-          actor,
-          payload,
-          chat,
-        });
-      } else {
-        const res = await this.caseMachine.apply(tx, {
-          caseId,
-          action: 'admin_resolve_reopen',
-        });
-        await this.journal.append(tx, {
-          caseId,
-          clientId,
-          attorneyId,
-          actor,
-          event: res.plan.event,
-          payload,
-        });
-        // docs/06 §2.3 item 5: both sides learn about the decision (the
-        // `closed` branch does it through closeInTx → case_closed).
-        for (const recipientId of [clientId, attorneyId]) {
-          if (!recipientId) continue;
-          await this.notifications.emit(
-            {
-              type: 'dispute_resolved',
-              recipientId,
-              payload: { caseId, disputeId, decision },
-            },
-            tx,
-          );
+        if (!dispute) {
+          throw new NotFoundException({
+            code: ErrorCode.NOT_FOUND,
+            message: 'Dispute not found.',
+          });
         }
-        after = res.case;
-      }
-      await tx.caseDispute.update({
-        where: { id: disputeId },
-        data: {
-          status: 'resolved',
-          resolved_by: admin.id,
-          resolved_at: new Date(),
-          resolution_note: note,
-        },
-      });
-      await this.audit.record(
-        {
-          adminId: admin.id,
-          action: DISPUTE_AUDIT.resolve,
-          targetType: 'case_dispute',
-          targetId: disputeId,
-          before: { status: 'open', caseStatus: 'disputed' },
-          after: { status: 'resolved', decision, note },
-          ip: admin.ip,
-        },
-        tx,
-      );
-      return after;
-    });
+        if (dispute.status !== 'open') {
+          throw new ConflictException({
+            code: ErrorCode.CASE_INVALID_STATE,
+            message: 'This dispute is already resolved.',
+          });
+        }
+        const caseId = dispute.case_id;
+        const { clientId, attorneyId } = await this.parties(tx, caseId);
+        const actor: Actor = { userId: admin.id, role: 'admin' };
+        const payload = { disputeId, decision, note };
+        let after: Case;
+        if (decision === 'closed') {
+          after = await this.closeInTx(tx, {
+            caseId,
+            clientId,
+            attorneyId,
+            action: 'admin_resolve_close',
+            actor,
+            payload,
+            chat,
+          });
+        } else {
+          const res = await this.caseMachine.apply(tx, {
+            caseId,
+            action: 'admin_resolve_reopen',
+          });
+          await this.journal.append(tx, {
+            caseId,
+            clientId,
+            attorneyId,
+            actor,
+            event: res.plan.event,
+            payload,
+          });
+          // docs/06 §2.3 item 5: both sides learn about the decision (the
+          // `closed` branch does it through closeInTx → case_closed).
+          for (const recipientId of [clientId, attorneyId]) {
+            if (!recipientId) continue;
+            await this.notifications.emit(
+              {
+                type: 'dispute_resolved',
+                recipientId,
+                payload: { caseId, disputeId, decision },
+              },
+              tx,
+            );
+          }
+          after = res.case;
+        }
+        await tx.caseDispute.update({
+          where: { id: disputeId },
+          data: {
+            status: 'resolved',
+            resolved_by: admin.id,
+            resolved_at: new Date(),
+            resolution_note: note,
+          },
+        });
+        await this.audit.record(
+          {
+            adminId: admin.id,
+            action: DISPUTE_AUDIT.resolve,
+            targetType: 'case_dispute',
+            targetId: disputeId,
+            before: { status: 'open', caseStatus: 'disputed' },
+            after: { status: 'resolved', decision, note },
+            ip: admin.ip,
+          },
+          tx,
+        );
+        return after;
+      }),
+    );
     this.chat.publish(chat);
     if (decision === 'closed') await this.onCompleted(resolved.client_id);
     return resolved;

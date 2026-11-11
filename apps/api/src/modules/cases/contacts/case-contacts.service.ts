@@ -1,3 +1,4 @@
+import { shardContext } from '../../../sharding/shard-context';
 import {
   ConflictException,
   ForbiddenException,
@@ -147,121 +148,124 @@ export class CaseContactsService {
     const threshold = await this.settings.number(
       'contacts.suspend_after_confirmed_reports',
     );
-    const result = await withTxRetry(this.prisma, async (tx) => {
-      const report = await tx.contactIssueReport.findUnique({
-        where: { id: reportId },
-      });
-      if (!report) {
-        throw new NotFoundException({
-          code: ErrorCode.NOT_FOUND,
-          message: 'Report not found.',
+    // Two databases: the transaction runs in the report's database.
+    const result = await shardContext.runForRow(reportId, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        const report = await tx.contactIssueReport.findUnique({
+          where: { id: reportId },
         });
-      }
-      if (report.status !== 'open') {
-        throw new ConflictException({
-          code: ErrorCode.CONTACT_ISSUE_INVALID_STATE,
-          message: 'This report has already been resolved.',
-          details: { status: report.status },
-        });
-      }
-      const now = new Date();
-      const resolved = await tx.contactIssueReport.update({
-        where: { id: reportId },
-        data: {
-          status: dto.decision,
-          resolved_by: admin.id,
-          resolved_at: now,
-          resolution_note: dto.note,
-        },
-      });
-      await this.audit.record(
-        {
-          adminId: admin.id,
-          action: CONTACT_ISSUE_AUDIT.resolve,
-          targetType: 'contact_issue_report',
-          targetId: reportId,
-          before: { status: 'open' },
-          after: { status: dto.decision, note: dto.note },
-          ip: admin.ip,
-        },
-        tx,
-      );
-      const base = {
-        reportId,
-        caseId: report.case_id,
-        bidId: report.bid_id,
-        decision: dto.decision,
-      };
-      for (const recipientId of [report.attorney_id, report.client_id]) {
-        await this.notifications.emit(
-          { type: 'contact_issue_update', recipientId, payload: base },
-          tx,
-        );
-      }
-
-      let confirmedReports = 0;
-      let clientSuspended = false;
-      if (dto.decision === 'confirmed') {
-        confirmedReports = await tx.contactIssueReport.count({
-          where: { client_id: report.client_id, status: 'confirmed' },
-        });
-        const client = await tx.user.findUniqueOrThrow({
-          where: { id: report.client_id },
-          select: { status: true, suspended_reason: true },
-        });
-        if (confirmedReports >= threshold && client.status === 'active') {
-          await tx.user.update({
-            where: { id: report.client_id },
-            data: {
-              status: 'suspended',
-              suspended_reason: SUSPENDED_REASON_CONTACT_ISSUES,
-            },
+        if (!report) {
+          throw new NotFoundException({
+            code: ErrorCode.NOT_FOUND,
+            message: 'Report not found.',
           });
-          await this.audit.record(
-            {
-              adminId: admin.id,
-              action: CONTACT_ISSUE_AUDIT.suspendClient,
-              targetType: 'user',
-              targetId: report.client_id,
-              before: {
-                status: client.status,
-                suspendedReason: client.suspended_reason,
-              },
-              after: {
-                status: 'suspended',
-                suspendedReason: SUSPENDED_REASON_CONTACT_ISSUES,
-                confirmedReports,
-                threshold,
-                triggerReportId: reportId,
-              },
-              ip: admin.ip,
-            },
-            tx,
-          );
-          clientSuspended = true;
         }
-        await this.notifications.emit(
+        if (report.status !== 'open') {
+          throw new ConflictException({
+            code: ErrorCode.CONTACT_ISSUE_INVALID_STATE,
+            message: 'This report has already been resolved.',
+            details: { status: report.status },
+          });
+        }
+        const now = new Date();
+        const resolved = await tx.contactIssueReport.update({
+          where: { id: reportId },
+          data: {
+            status: dto.decision,
+            resolved_by: admin.id,
+            resolved_at: now,
+            resolution_note: dto.note,
+          },
+        });
+        await this.audit.record(
           {
-            type: 'moderation_notice',
-            recipientId: report.client_id,
-            payload: {
-              reason: 'contact_issue_confirmed',
-              reportId,
-              caseId: report.case_id,
-              confirmedReports,
-              threshold,
-              accountSuspended: clientSuspended,
-            },
+            adminId: admin.id,
+            action: CONTACT_ISSUE_AUDIT.resolve,
+            targetType: 'contact_issue_report',
+            targetId: reportId,
+            before: { status: 'open' },
+            after: { status: dto.decision, note: dto.note },
+            ip: admin.ip,
           },
           tx,
         );
-      }
-      return {
-        report: toReportDto(resolved),
-        confirmedReports,
-        clientSuspended,
-      };
-    });
+        const base = {
+          reportId,
+          caseId: report.case_id,
+          bidId: report.bid_id,
+          decision: dto.decision,
+        };
+        for (const recipientId of [report.attorney_id, report.client_id]) {
+          await this.notifications.emit(
+            { type: 'contact_issue_update', recipientId, payload: base },
+            tx,
+          );
+        }
+
+        let confirmedReports = 0;
+        let clientSuspended = false;
+        if (dto.decision === 'confirmed') {
+          confirmedReports = await tx.contactIssueReport.count({
+            where: { client_id: report.client_id, status: 'confirmed' },
+          });
+          const client = await tx.user.findUniqueOrThrow({
+            where: { id: report.client_id },
+            select: { status: true, suspended_reason: true },
+          });
+          if (confirmedReports >= threshold && client.status === 'active') {
+            await tx.user.update({
+              where: { id: report.client_id },
+              data: {
+                status: 'suspended',
+                suspended_reason: SUSPENDED_REASON_CONTACT_ISSUES,
+              },
+            });
+            await this.audit.record(
+              {
+                adminId: admin.id,
+                action: CONTACT_ISSUE_AUDIT.suspendClient,
+                targetType: 'user',
+                targetId: report.client_id,
+                before: {
+                  status: client.status,
+                  suspendedReason: client.suspended_reason,
+                },
+                after: {
+                  status: 'suspended',
+                  suspendedReason: SUSPENDED_REASON_CONTACT_ISSUES,
+                  confirmedReports,
+                  threshold,
+                  triggerReportId: reportId,
+                },
+                ip: admin.ip,
+              },
+              tx,
+            );
+            clientSuspended = true;
+          }
+          await this.notifications.emit(
+            {
+              type: 'moderation_notice',
+              recipientId: report.client_id,
+              payload: {
+                reason: 'contact_issue_confirmed',
+                reportId,
+                caseId: report.case_id,
+                confirmedReports,
+                threshold,
+                accountSuspended: clientSuspended,
+              },
+            },
+            tx,
+          );
+        }
+        return {
+          report: toReportDto(resolved),
+          confirmedReports,
+          clientSuspended,
+        };
+      }),
+    );
     // docs/06 §3.4: a suspension revokes every session and archives the
     // client's open cases (after the commit — one transaction per case).
     if (result.clientSuspended) {
