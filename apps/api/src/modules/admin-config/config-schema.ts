@@ -1,4 +1,3 @@
-import { QUIET_HOURS_PATTERN } from '../admin-launch/infra/infra-change.logic';
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
 import {
@@ -565,7 +564,8 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   };
   out['db.shards_move_hours'] = {
     ...out['db.shards_move_hours'],
-    pattern: QUIET_HOURS_PATTERN,
+    // Same rule as infra.quiet_hours (infra-change.logic QUIET_HOURS_PATTERN).
+    pattern: /^$|^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/,
   };
   out['ai.assistant_mode'] = {
     ...out['ai.assistant_mode'],
