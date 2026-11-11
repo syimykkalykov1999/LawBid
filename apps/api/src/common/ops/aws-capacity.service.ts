@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 import {
   CloudWatchClient,
@@ -23,6 +24,13 @@ import {
   prevTier,
 } from '../economy/economy.rules';
 import { opsCredentials } from './ops-credentials';
+import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+import {
+  prometheusValue,
+  selfHostDbConnections,
+  selfHostRedisMemoryPercent,
+} from './selfhost-capacity';
 
 export type CapacityTarget = 'db' | 'redis';
 
@@ -56,7 +64,11 @@ export class AwsCapacityService {
   private rds?: RDSClient;
   private cache?: ElastiCacheClient;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    @Optional() private readonly prisma?: PrismaService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+  ) {}
 
   private env(name: string): string | undefined {
     const v = this.config.get<string>(name);
@@ -77,6 +89,13 @@ export class AwsCapacityService {
 
   get available(): boolean {
     return !!this.dbInstance || !!this.redisGroup;
+  }
+
+  /** The load can be read: on AWS (CloudWatch) or, without AWS, from the
+   * database and Redis themselves (selfhost-capacity.ts). Resizing stays
+   * `available` (RDS / ElastiCache). */
+  get readable(): boolean {
+    return this.available || !!this.prisma || !!this.redis;
   }
 
   private cwClient(): CloudWatchClient {
@@ -214,6 +233,20 @@ export class AwsCapacityService {
       const cls = await this.dbClass();
       const tier = DB_TIERS.find((t) => t.name === cls);
       out.dbMaxConnections = tier ? dbMaxConnections(tier.memoryGb) : null;
+    }
+    // Owner 2026-11-11 («Масштаб» без AWS): what CloudWatch does not cover
+    // is read from the services themselves.
+    if (!this.dbInstance && this.prisma) {
+      const c = await selfHostDbConnections(this.prisma.global());
+      out.dbConnections = c.connections;
+      out.dbMaxConnections = c.max;
+      out.dbCpuPercent = await prometheusValue(
+        this.env('OPS_PROMETHEUS_URL'),
+        this.env('OPS_DB_CPU_QUERY'),
+      );
+    }
+    if (!this.redisGroup) {
+      out.redisMemoryPercent = await selfHostRedisMemoryPercent(this.redis);
     }
     if (this.redisGroup) {
       const { primaryNode } = await this.redisGroupInfo();
