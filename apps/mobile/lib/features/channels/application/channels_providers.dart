@@ -210,6 +210,15 @@ final archivedChannelsProvider = FutureProvider.autoDispose<List<Channel>>(
 
 /// «Discover» with nothing typed: an endless list, ranked for me first.
 class RecommendedChannelsNotifier extends PagedNotifier<Channel> {
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<Channel>?> cachedFirstPage() {
+    final repo = ref.read(channelsRepositoryProvider);
+    return phoneCopy(repo.recommended);
+  }
+
   @override
   Future<CursorPage<Channel>> fetch(String? cursor) =>
       ref.read(channelsRepositoryProvider).recommended(cursor: cursor);

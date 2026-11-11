@@ -74,6 +74,15 @@ class QuestionsNotifier extends SyncedListNotifier<Question> {
     return super.build();
   }
 
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time, the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request); not while searching.
+  @override
+  Future<CursorPage<Question>?> cachedFirstPage() {
+    final repo = ref.read(legalQaRepositoryProvider);
+    return phoneCopy(() => repo.list(query), when: query.q.trim().isEmpty);
+  }
+
   @override
   Future<CursorPage<Question>> fetchPage(String? cursor) =>
       ref.read(legalQaRepositoryProvider).list(query, cursor: cursor);

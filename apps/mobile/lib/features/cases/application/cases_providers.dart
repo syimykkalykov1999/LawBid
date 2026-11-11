@@ -428,6 +428,15 @@ class CaseBidsNotifier extends SyncedListNotifier<CaseBid> {
         if (ref.mounted) ref.invalidate(seenBidCountsProvider);
       });
 
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<CaseBid>?> cachedFirstPage() {
+    final repo = ref.read(casesRepositoryProvider);
+    return phoneCopy(() => repo.caseBids(key.caseId, key.sort));
+  }
+
   @override
   Future<CursorPage<CaseBid>> fetchPage(String? cursor) async {
     final page = await ref

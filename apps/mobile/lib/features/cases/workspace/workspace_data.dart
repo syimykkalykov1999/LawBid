@@ -64,6 +64,15 @@ class CaseFilesNotifier extends PagedNotifier<api.WorkspaceFileDto> {
   @override
   Object idOf(api.WorkspaceFileDto item) => item.fileId;
 
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<api.WorkspaceFileDto>?> cachedFirstPage() {
+    final repo = ref.read(caseFilesRemoteProvider);
+    return phoneCopy(() => repo.page(view, null, pageSize));
+  }
+
   @override
   Future<CursorPage<api.WorkspaceFileDto>> fetch(String? cursor) =>
       ref.read(caseFilesRemoteProvider).page(view, cursor, pageSize);

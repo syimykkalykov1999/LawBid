@@ -1,3 +1,4 @@
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -21,6 +22,8 @@ class FakeCaseFilesRemote implements CaseFilesRemote {
     String? cursor,
     int limit,
   ) {
+    // A phone-only read (the list's saved first page): no copy here.
+    if (readingFromPhoneOnly) throw StateError(kNoPhoneCopy);
     if (onPage != null) return onPage!();
     final items = files
         .where((f) => _media(f) == view.media)
