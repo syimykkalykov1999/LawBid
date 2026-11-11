@@ -404,11 +404,10 @@ export class NotificationsService {
       }
       return null;
     }
-    // Two databases: a notification lives in its recipient's database; a
-    // transaction of another database cannot hold it, so it is written
-    // there right away (one database: inside the transaction, as before).
+    // Two databases: a notification lives in its recipient's database. A
+    // job pinned to another database (or a transaction of one, which cannot
+    // hold it) writes it there right away (one database: as before).
     if (
-      tx &&
       readsAreSplit(this.prisma) &&
       shardContext.current()?.shard !== hashShard(input.recipientId)
     ) {
