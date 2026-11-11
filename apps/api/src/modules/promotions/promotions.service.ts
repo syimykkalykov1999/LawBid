@@ -1,4 +1,6 @@
 import { AttorneyAdsService } from '../attorney-ads/attorney-ads.service';
+import { readsAreSplit } from '../../sharding/split-reads';
+import { shardContext } from '../../sharding/shard-context';
 import {
   BadRequestException,
   ConflictException,
@@ -1503,6 +1505,43 @@ export class PromotionsService {
    *   was released re-redeems, and never refuses money already taken.
    */
   private async redeemPromo(
+    tx: Prisma.TransactionClient,
+    promoId: string,
+    userId: string,
+    paymentId: string | null,
+    amountOffCents: number,
+    mode: 'strict' | 'paid',
+  ): Promise<void> {
+    // Two databases (SHARDING_READY step 7): promo codes and redemptions are
+    // global. Inside the user's transaction each global write would commit
+    // on the primary at once, so a loser's redemption row stayed while its
+    // promotion rolled back (a one-use code counted twice). The redemption
+    // is one primary transaction instead: it all commits, or nothing does.
+    if (readsAreSplit(this.prisma)) {
+      return shardContext.runOnPrimary(() =>
+        this.prisma.$transaction((g) =>
+          this.redeemPromoIn(
+            g,
+            promoId,
+            userId,
+            paymentId,
+            amountOffCents,
+            mode,
+          ),
+        ),
+      );
+    }
+    return this.redeemPromoIn(
+      tx,
+      promoId,
+      userId,
+      paymentId,
+      amountOffCents,
+      mode,
+    );
+  }
+
+  private async redeemPromoIn(
     tx: Prisma.TransactionClient,
     promoId: string,
     userId: string,
