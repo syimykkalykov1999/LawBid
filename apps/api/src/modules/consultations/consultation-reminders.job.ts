@@ -1,3 +1,4 @@
+import { shardContext } from '../../sharding/shard-context';
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -91,18 +92,21 @@ export class ConsultationRemindersJob {
     });
     let n = 0;
     for (const c of due) {
-      const row = await withTxRetry(this.prisma, async (tx) => {
-        const { count } = await tx.consultation.updateMany({
-          where: { id: c.id, status: 'pending' },
-          data: { status: 'declined', cancel_reason: 'expired' },
-        });
-        if (count === 0) return null;
-        const fresh = await tx.consultation.findUniqueOrThrow({
-          where: { id: c.id },
-        });
-        await this.consultations.syncMirrors(tx, fresh);
-        return fresh;
-      });
+      // Two databases: the transaction runs in the booking's database.
+      const row = await shardContext.runForRow(c.id, () =>
+        withTxRetry(this.prisma, async (tx) => {
+          const { count } = await tx.consultation.updateMany({
+            where: { id: c.id, status: 'pending' },
+            data: { status: 'declined', cancel_reason: 'expired' },
+          });
+          if (count === 0) return null;
+          const fresh = await tx.consultation.findUniqueOrThrow({
+            where: { id: c.id },
+          });
+          await this.consultations.syncMirrors(tx, fresh);
+          return fresh;
+        }),
+      );
       if (!row) continue;
       await this.consultations.notify(row.client_id, null, row, 'expired');
       n += 1;
