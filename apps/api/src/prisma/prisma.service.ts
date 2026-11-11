@@ -31,6 +31,8 @@ import {
   canScatter,
   mergeScatter,
   perDatabaseArgs,
+  stripSortColumns,
+  withSortColumns,
   runScatter,
 } from '../sharding/scatter-gather';
 import { shardFromArgs } from '../sharding/shard-args';
@@ -267,10 +269,15 @@ export class PrismaService
               // Names no shard: ask every database that holds one and merge
               // (scatter-gather, scatter-gather.ts); anything not exactly
               // mergeable keeps the context / primary routing.
-              if (shard === undefined && canScatter(op, args)) {
+              const sorted =
+                shard === undefined
+                  ? withSortColumns(op, args)
+                  : { args, added: [] };
+              if (shard === undefined && canScatter(op, sorted.args)) {
                 const keys = router.physicalKeys();
                 if (keys.length === 1 && keys[0] !== PRIMARY_DB) {
-                  // Every shard lives on one non-primary database.
+                  // Every shard lives on one non-primary database: the
+                  // query as it was (nothing to merge).
                   const c = clientFor(keys[0]) as unknown as Record<
                     string,
                     Record<string, unknown>
@@ -282,7 +289,7 @@ export class PrismaService
                 }
                 if (keys.length > 1) {
                   shardStats.scatter(model);
-                  const per = perDatabaseArgs(op, args);
+                  const per = perDatabaseArgs(op, sorted.args);
                   return runScatter(op, model, keys, (k) => {
                     const c = clientFor(k) as unknown as Record<
                       string,
@@ -291,7 +298,12 @@ export class PrismaService
                     return (
                       c[prop][op] as (a?: unknown) => Promise<unknown>
                     ).call(c[prop], per);
-                  }).then((results) => mergeScatter(op, args, results));
+                  }).then((results) =>
+                    stripSortColumns(
+                      mergeScatter(op, sorted.args, results),
+                      sorted.added,
+                    ),
+                  );
                 }
               }
               // A single-row write or OrThrow read that names no shard (a

@@ -4,6 +4,8 @@ import {
   perDatabaseArgs,
   runScatter,
   ScatterPartialFailureError,
+  stripSortColumns,
+  withSortColumns,
 } from './scatter-gather';
 
 describe('scatter-gather merge (shard-ready step 8)', () => {
@@ -155,5 +157,35 @@ describe('runScatter (DB-ops S5-10: partial failure of scatter writes)', () => {
         k === 'b' ? Promise.reject(new Error('x')) : Promise.resolve(1),
       ),
     ).rejects.toThrow('x');
+  });
+});
+
+describe('sort columns missing from select', () => {
+  it('adds them for the scatter and strips them from the merged rows', () => {
+    const args = {
+      where: { type: 'system' },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      select: { body: true, id: true },
+    };
+    const sorted = withSortColumns('findMany', args);
+    expect(sorted.added).toEqual(['created_at']);
+    expect(canScatter('findMany', args)).toBe(false);
+    expect(canScatter('findMany', sorted.args)).toBe(true);
+    const merged = mergeScatter('findMany', sorted.args, [
+      [{ body: 'b', id: '2', created_at: new Date(2) }],
+      [{ body: 'a', id: '1', created_at: new Date(1) }],
+    ]);
+    expect(stripSortColumns(merged, sorted.added)).toEqual([
+      { body: 'a', id: '1' },
+      { body: 'b', id: '2' },
+    ]);
+  });
+
+  it('leaves queries that select their sort columns (or no select) alone', () => {
+    const a = { orderBy: { id: 'asc' }, select: { id: true } };
+    expect(withSortColumns('findMany', a)).toEqual({ args: a, added: [] });
+    const b = { orderBy: { id: 'asc' } };
+    expect(withSortColumns('findMany', b)).toEqual({ args: b, added: [] });
+    expect(withSortColumns('count', a)).toEqual({ args: a, added: [] });
   });
 });

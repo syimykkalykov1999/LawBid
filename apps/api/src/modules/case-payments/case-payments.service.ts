@@ -953,33 +953,35 @@ export class CasePaymentsService {
     }
     const refunded = row.refunded_cents + amount;
     // The refund row, the payment totals and the ledger entry commit together.
-    const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.casePaymentRefund.update({
-        where: { id: refund.id },
-        data: {
-          status: result.status,
-          stripe_refund_id: result.id,
-          failure_reason: result.failureReason,
-        },
-      });
-      const next = await tx.casePayment.update({
-        where: { id: row.id },
-        data: {
-          refunded_cents: refunded,
-          status:
-            refunded >= row.client_total_cents
-              ? 'refunded'
-              : 'partially_refunded',
-        },
-      });
-      // A failed refund threw above; pending and succeeded both move money.
-      await this.ledger?.casePaymentRefunded(tx, next, {
-        refundId: refund.id,
-        cents: amount,
-        refundApplicationFee: true,
-      });
-      return next;
-    });
+    const updated = await shardContext.runForCase(row.case_id, () =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.casePaymentRefund.update({
+          where: { id: refund.id },
+          data: {
+            status: result.status,
+            stripe_refund_id: result.id,
+            failure_reason: result.failureReason,
+          },
+        });
+        const next = await tx.casePayment.update({
+          where: { id: row.id },
+          data: {
+            refunded_cents: refunded,
+            status:
+              refunded >= row.client_total_cents
+                ? 'refunded'
+                : 'partially_refunded',
+          },
+        });
+        // A failed refund threw above; pending and succeeded both move money.
+        await this.ledger?.casePaymentRefunded(tx, next, {
+          refundId: refund.id,
+          cents: amount,
+          refundApplicationFee: true,
+        });
+        return next;
+      }),
+    );
     await this.notify(row.client_id, 'case_payment_refunded', {
       caseId: row.case_id,
       paymentId: row.id,
@@ -1187,48 +1189,50 @@ export class CasePaymentsService {
     const won = status === 'won';
     const isNew = row.dispute_id !== dispute.id;
     // The status change, the chargeback refund row and the ledger entry commit together.
-    await this.prisma.$transaction(async (tx) => {
-      const next = await tx.casePayment.update({
-        where: { id: row.id },
-        data: {
-          dispute_status: status,
-          dispute_id: dispute.id,
-          dispute_reason: dispute.reason ?? row.dispute_reason ?? null,
-          dispute_amount_cents:
-            dispute.amount ?? row.dispute_amount_cents ?? null,
-          dispute_due_by: dispute.dueBy
-            ? new Date(dispute.dueBy * 1000)
-            : (row.dispute_due_by ?? null),
-          disputed_at: row.disputed_at ?? new Date(),
-          status: lost
-            ? 'refunded'
-            : won
-              ? row.refunded_cents > 0
-                ? 'partially_refunded'
-                : 'succeeded'
-              : 'disputed',
-          ...(lost ? { refunded_cents: row.client_total_cents } : {}),
-        },
-      });
-      if (lost && row.refunded_cents < row.client_total_cents) {
-        const lostCents = row.client_total_cents - row.refunded_cents;
-        const cb = await tx.casePaymentRefund.create({
+    await shardContext.runForCase(row.case_id, () =>
+      this.prisma.$transaction(async (tx) => {
+        const next = await tx.casePayment.update({
+          where: { id: row.id },
           data: {
-            payment_id: row.id,
-            amount_cents: lostCents,
-            reason: 'Dispute lost (chargeback)',
-            initiated_by_type: 'stripe',
-            status: 'succeeded',
+            dispute_status: status,
+            dispute_id: dispute.id,
+            dispute_reason: dispute.reason ?? row.dispute_reason ?? null,
+            dispute_amount_cents:
+              dispute.amount ?? row.dispute_amount_cents ?? null,
+            dispute_due_by: dispute.dueBy
+              ? new Date(dispute.dueBy * 1000)
+              : (row.dispute_due_by ?? null),
+            disputed_at: row.disputed_at ?? new Date(),
+            status: lost
+              ? 'refunded'
+              : won
+                ? row.refunded_cents > 0
+                  ? 'partially_refunded'
+                  : 'succeeded'
+                : 'disputed',
+            ...(lost ? { refunded_cents: row.client_total_cents } : {}),
           },
         });
-        // The fee stays with the platform; the attorney bears the chargeback.
-        await this.ledger?.casePaymentRefunded(tx, next, {
-          refundId: cb.id,
-          cents: lostCents,
-          refundApplicationFee: false,
-        });
-      }
-    });
+        if (lost && row.refunded_cents < row.client_total_cents) {
+          const lostCents = row.client_total_cents - row.refunded_cents;
+          const cb = await tx.casePaymentRefund.create({
+            data: {
+              payment_id: row.id,
+              amount_cents: lostCents,
+              reason: 'Dispute lost (chargeback)',
+              initiated_by_type: 'stripe',
+              status: 'succeeded',
+            },
+          });
+          // The fee stays with the platform; the attorney bears the chargeback.
+          await this.ledger?.casePaymentRefunded(tx, next, {
+            refundId: cb.id,
+            cents: lostCents,
+            refundApplicationFee: false,
+          });
+        }
+      }),
+    );
     // Stripe calls happen after the commit (evidence draft, payout hold).
     await this.disputes?.onCaseDispute(
       { ...row, dispute_id: dispute.id },
@@ -1266,46 +1270,48 @@ export class CasePaymentsService {
       });
       return;
     }
-    await this.prisma.$transaction(async (tx) => {
-      const cb = await tx.casePaymentRefund.findFirst({
-        where: {
-          payment_id: row.id,
-          initiated_by_type: 'stripe',
-          reason: 'Dispute lost (chargeback)',
-          status: 'succeeded',
-        },
-      });
-      let refunded = row.refunded_cents;
-      if (cb) {
-        await this.ledger?.reverseCaseEntry(tx, {
-          originalSourceType: 'case_payment_refund',
-          originalSourceId: cb.id,
-          reason: 'dispute_reinstated',
-          partyUserId: row.attorney_id,
-        });
-        await tx.casePaymentRefund.update({
-          where: { id: cb.id },
-          data: {
-            status: 'failed',
-            failure_reason: 'Dispute won: funds reinstated',
+    await shardContext.runForCase(row.case_id, () =>
+      this.prisma.$transaction(async (tx) => {
+        const cb = await tx.casePaymentRefund.findFirst({
+          where: {
+            payment_id: row.id,
+            initiated_by_type: 'stripe',
+            reason: 'Dispute lost (chargeback)',
+            status: 'succeeded',
           },
         });
-        refunded = Math.max(0, row.refunded_cents - cb.amount_cents);
-      }
-      await tx.casePayment.update({
-        where: { id: row.id },
-        data: {
-          dispute_funds_reinstated_at: new Date(),
-          refunded_cents: refunded,
-          ...(cb
-            ? {
-                status: refunded > 0 ? 'partially_refunded' : 'succeeded',
-                dispute_status: 'won',
-              }
-            : {}),
-        },
-      });
-    });
+        let refunded = row.refunded_cents;
+        if (cb) {
+          await this.ledger?.reverseCaseEntry(tx, {
+            originalSourceType: 'case_payment_refund',
+            originalSourceId: cb.id,
+            reason: 'dispute_reinstated',
+            partyUserId: row.attorney_id,
+          });
+          await tx.casePaymentRefund.update({
+            where: { id: cb.id },
+            data: {
+              status: 'failed',
+              failure_reason: 'Dispute won: funds reinstated',
+            },
+          });
+          refunded = Math.max(0, row.refunded_cents - cb.amount_cents);
+        }
+        await tx.casePayment.update({
+          where: { id: row.id },
+          data: {
+            dispute_funds_reinstated_at: new Date(),
+            refunded_cents: refunded,
+            ...(cb
+              ? {
+                  status: refunded > 0 ? 'partially_refunded' : 'succeeded',
+                  dispute_status: 'won',
+                }
+              : {}),
+          },
+        });
+      }),
+    );
   }
 
   /** payment_intent.payment_failed on a connected checkout: the client may
@@ -1377,33 +1383,35 @@ export class CasePaymentsService {
       where: { id: refund.payment_id },
     });
     if (!pay) return;
-    await this.prisma.$transaction(async (tx) => {
-      await tx.casePaymentRefund.update({
-        where: { id: refund.id },
-        data: {
-          status: 'failed',
-          failure_reason: reason?.slice(0, 500) ?? null,
-        },
-      });
-      // Only a refund that counted (pending or succeeded) is taken back.
-      const refunded = Math.max(0, pay.refunded_cents - refund.amount_cents);
-      await tx.casePayment.update({
-        where: { id: pay.id },
-        data: {
-          refunded_cents: refunded,
-          ...(pay.status === 'refunded' || pay.status === 'partially_refunded'
-            ? { status: refunded > 0 ? 'partially_refunded' : 'succeeded' }
-            : {}),
-        },
-      });
-      await this.ledger?.reverseCaseEntry(tx, {
-        originalSourceType: 'case_payment_refund',
-        originalSourceId: refund.id,
-        reason: 'refund_failed',
-        partyUserId: pay.attorney_id,
-        stripeRef: stripeRefundId,
-      });
-    });
+    await shardContext.runForCase(pay.case_id, () =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.casePaymentRefund.update({
+          where: { id: refund.id },
+          data: {
+            status: 'failed',
+            failure_reason: reason?.slice(0, 500) ?? null,
+          },
+        });
+        // Only a refund that counted (pending or succeeded) is taken back.
+        const refunded = Math.max(0, pay.refunded_cents - refund.amount_cents);
+        await tx.casePayment.update({
+          where: { id: pay.id },
+          data: {
+            refunded_cents: refunded,
+            ...(pay.status === 'refunded' || pay.status === 'partially_refunded'
+              ? { status: refunded > 0 ? 'partially_refunded' : 'succeeded' }
+              : {}),
+          },
+        });
+        await this.ledger?.reverseCaseEntry(tx, {
+          originalSourceType: 'case_payment_refund',
+          originalSourceId: refund.id,
+          reason: 'refund_failed',
+          partyUserId: pay.attorney_id,
+          stripeRef: stripeRefundId,
+        });
+      }),
+    );
     await this.review?.open({
       kind: 'refund_failed',
       stripeRef: stripeRefundId,
@@ -1603,33 +1611,35 @@ export class CasePaymentsService {
     if (!ch || ch.amountRefundedCents <= row.refunded_cents) return;
     const refunded = Math.min(ch.amountRefundedCents, row.client_total_cents);
     const delta = refunded - row.refunded_cents;
-    await this.prisma.$transaction(async (tx) => {
-      const dash = await tx.casePaymentRefund.create({
-        data: {
-          payment_id: row.id,
-          amount_cents: delta,
-          reason: 'Refunded in the Stripe dashboard',
-          initiated_by_type: 'stripe',
-          status: 'succeeded',
-        },
-      });
-      const next = await tx.casePayment.update({
-        where: { id: row.id },
-        data: {
-          refunded_cents: refunded,
-          status:
-            refunded >= row.client_total_cents
-              ? 'refunded'
-              : 'partially_refunded',
-          receipt_url: row.receipt_url ?? ch.receiptUrl,
-        },
-      });
-      await this.ledger?.casePaymentRefunded(tx, next, {
-        refundId: dash.id,
-        cents: delta,
-        refundApplicationFee: false,
-      });
-    });
+    await shardContext.runForCase(row.case_id, () =>
+      this.prisma.$transaction(async (tx) => {
+        const dash = await tx.casePaymentRefund.create({
+          data: {
+            payment_id: row.id,
+            amount_cents: delta,
+            reason: 'Refunded in the Stripe dashboard',
+            initiated_by_type: 'stripe',
+            status: 'succeeded',
+          },
+        });
+        const next = await tx.casePayment.update({
+          where: { id: row.id },
+          data: {
+            refunded_cents: refunded,
+            status:
+              refunded >= row.client_total_cents
+                ? 'refunded'
+                : 'partially_refunded',
+            receipt_url: row.receipt_url ?? ch.receiptUrl,
+          },
+        });
+        await this.ledger?.casePaymentRefunded(tx, next, {
+          refundId: dash.id,
+          cents: delta,
+          refundApplicationFee: false,
+        });
+      }),
+    );
     await this.notify(row.client_id, 'case_payment_refunded', {
       caseId: row.case_id,
       paymentId: row.id,

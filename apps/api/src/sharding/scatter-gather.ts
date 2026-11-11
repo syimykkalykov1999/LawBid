@@ -90,6 +90,46 @@ function parseOrderBy(raw: unknown): Order[] | null {
   return out;
 }
 
+/**
+ * A `findMany` / `findFirst` whose `select` lacks a sort column cannot be
+ * merged (the rows carry nothing to sort by): the columns are added to the
+ * `select` for the scatter and `stripSortColumns` takes them out again, so
+ * the caller gets the rows it asked for.
+ */
+export function withSortColumns(
+  op: string,
+  args: unknown,
+): { args: unknown; added: string[] } {
+  if ((op !== 'findMany' && op !== 'findFirst') || !isObj(args)) {
+    return { args, added: [] };
+  }
+  const select = args.select;
+  if (!isObj(select)) return { args, added: [] };
+  const order = parseOrderBy(args.orderBy);
+  if (order === null) return { args, added: [] };
+  const added = [
+    ...new Set(order.map((o) => o.field).filter((f) => select[f] !== true)),
+  ];
+  if (added.length === 0) return { args, added };
+  return {
+    args: {
+      ...args,
+      select: { ...select, ...Object.fromEntries(added.map((f) => [f, true])) },
+    },
+    added,
+  };
+}
+
+export function stripSortColumns<T>(result: T, added: string[]): T {
+  if (added.length === 0) return result;
+  const strip = (row: unknown) => {
+    if (isObj(row)) for (const f of added) delete row[f];
+  };
+  if (Array.isArray(result)) result.forEach(strip);
+  else strip(result);
+  return result;
+}
+
 /** Can [op] with [args] be merged exactly? */
 export function canScatter(op: string, args: unknown): boolean {
   if (!SCATTER_OPS.has(op)) return false;
