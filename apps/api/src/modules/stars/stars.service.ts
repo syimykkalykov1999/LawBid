@@ -11,6 +11,8 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { readsAreSplit } from '../../sharding/split-reads';
+import { shardContext } from '../../sharding/shard-context';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, type Gift, type GiftSend } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -236,6 +238,28 @@ export class StarsService {
     idemKey: string,
     opts: { refId?: string; note?: string; bought?: boolean } = {},
   ): Promise<boolean> {
+    // Two databases (SHARDING_READY step 7): wallets and the ledger are
+    // global (primary). Inside a transaction on another database these raw
+    // statements would hit that database's empty tables (a paying user was
+    // refused). Money first, on the primary, in its own transaction.
+    if (readsAreSplit(this.prisma)) {
+      return shardContext.runOnPrimary(() =>
+        this.prisma.$transaction((g) =>
+          this.creditIn(g as Tx, userId, amount, kind, idemKey, opts),
+        ),
+      );
+    }
+    return this.creditIn(tx, userId, amount, kind, idemKey, opts);
+  }
+
+  private async creditIn(
+    tx: Tx,
+    userId: string,
+    amount: number,
+    kind: string,
+    idemKey: string,
+    opts: { refId?: string; note?: string; bought?: boolean } = {},
+  ): Promise<boolean> {
     const ins = await tx.$queryRaw<{ id: string }[]>`
       INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key)
       VALUES (${userId}::uuid, ${amount}, 0, ${kind}, ${opts.refId ?? null}::uuid,
@@ -266,6 +290,28 @@ export class StarsService {
    * [idemKey] was already applied — nothing is charged twice.
    */
   async debit(
+    tx: Tx,
+    userId: string,
+    amount: number,
+    kind: string,
+    idemKey: string,
+    opts: { refId?: string; note?: string } = {},
+  ): Promise<boolean> {
+    // Two databases (SHARDING_READY step 7): wallets and the ledger are
+    // global (primary). Inside a transaction on another database these raw
+    // statements would hit that database's empty tables (a paying user was
+    // refused). Money first, on the primary, in its own transaction.
+    if (readsAreSplit(this.prisma)) {
+      return shardContext.runOnPrimary(() =>
+        this.prisma.$transaction((g) =>
+          this.debitIn(g as Tx, userId, amount, kind, idemKey, opts),
+        ),
+      );
+    }
+    return this.debitIn(tx, userId, amount, kind, idemKey, opts);
+  }
+
+  private async debitIn(
     tx: Tx,
     userId: string,
     amount: number,
@@ -689,6 +735,27 @@ export class StarsService {
    * gift. The caller adds the chat message (or nothing, for a profile gift).
    */
   async giveGift(
+    tx: Tx,
+    a: {
+      giftId: string;
+      senderId: string;
+      recipientId: string;
+      conversationId?: string;
+      note?: string | null;
+      anonymous?: boolean;
+    },
+  ): Promise<{ send: GiftSend; gift: Gift }> {
+    // Two databases (step 7): the gift, the charge and the counter are all
+    // global — one primary transaction, so a refused charge leaves no gift.
+    if (readsAreSplit(this.prisma)) {
+      return shardContext.runOnPrimary(() =>
+        this.prisma.$transaction((g) => this.giveGiftIn(g as Tx, a)),
+      );
+    }
+    return this.giveGiftIn(tx, a);
+  }
+
+  private async giveGiftIn(
     tx: Tx,
     a: {
       giftId: string;

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { AttorneyAdsService } from '../attorney-ads/attorney-ads.service';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { shardContext } from '../../sharding/shard-context';
@@ -629,8 +630,24 @@ export class PromotionsService {
               now,
             )
           : now;
+        // Two databases (step 7): promotions and wallets are global, and a
+        // global write inside this transaction commits at once — so the stars
+        // are taken FIRST, under the promotion's id given here; a refused
+        // charge then leaves no promotion behind. One database: same result.
+        const promotionId = randomUUID();
+        if (starsCharged > 0) {
+          await this.stars!.debit(
+            tx,
+            userId,
+            starsCharged,
+            'boost',
+            `boost:${promotionId}`,
+            { refId: promotionId },
+          );
+        }
         const created = await tx.casePromotion.create({
           data: {
+            id: promotionId,
             target_type: type,
             case_id: type === 'case' ? id : null,
             post_id: type === 'post' ? id : null,
@@ -676,16 +693,6 @@ export class PromotionsService {
             paid_stars: starsCharged,
           },
         });
-        if (starsCharged > 0) {
-          await this.stars!.debit(
-            tx,
-            userId,
-            starsCharged,
-            'boost',
-            `boost:${created.id}`,
-            { refId: created.id },
-          );
-        }
         const used =
           q.creditDaysUsed > 0
             ? await this.referrals.consumePromotionCredits(
