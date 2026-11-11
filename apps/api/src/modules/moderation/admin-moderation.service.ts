@@ -43,15 +43,6 @@ import { ModerationService, type ModerationTarget } from './moderation.service';
 import { ReporterReputationService } from './reporter-reputation.service';
 import { StrikesService } from './strikes.service';
 import { shardContext } from '../../sharding/shard-context';
-import { isShardedId, shardOf } from '../../sharding/shard-id';
-
-/** Targets that live in a shard database (their ids carry the shard). */
-const SHARDED_TARGETS: readonly string[] = [
-  'post',
-  'comment',
-  'case_comment',
-  'message',
-];
 
 const QUEUE_DEFAULT = 20;
 const EXCERPT = 200;
@@ -243,11 +234,7 @@ export class AdminModerationService {
     // Two databases (SHARDING_READY step 7): a post / comment / message lives
     // in the database its id names, so the transaction runs there (the global
     // rows of it — reports, actions, strikes — go global-first via the facade).
-    const inTargetDb = <T>(fn: () => Promise<T>): Promise<T> =>
-      SHARDED_TARGETS.includes(type) && isShardedId(id)
-        ? shardContext.run(shardOf(id), fn)
-        : fn();
-    const handled = await inTargetDb(() =>
+    const handled = await shardContext.runForRow(id, () =>
       withTxRetry(this.prisma, async (tx) => {
         after.length = 0;
         let before: string | null = null;
