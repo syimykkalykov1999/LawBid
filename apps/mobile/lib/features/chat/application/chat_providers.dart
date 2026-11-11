@@ -309,8 +309,10 @@ class MessageRequestsNotifier extends ConversationsNotifier {
   // (PagedNotifier.phoneCopy, no extra request). The saved rows are the
   // plain inbox only.
   @override
-  Future<CursorPage<Conversation>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null));
+  Future<CursorPage<Conversation>?> cachedFirstPage() {
+    final repo = ref.read(chatRepositoryProvider);
+    return phoneCopy(() => repo.conversations(requests: true));
+  }
 
   @override
   Future<CursorPage<Conversation>> fetch(String? cursor) => ref
@@ -342,10 +344,11 @@ class FolderConversationsNotifier extends ConversationsNotifier {
   // this phone showed last time (owner 2026-11-11, PagedNotifier.phoneCopy,
   // no extra request), the live page swaps in behind it.
   @override
-  Future<CursorPage<Conversation>?> cachedFirstPage() =>
-      folder == ChatListFolder.all
-          ? super.cachedFirstPage()
-          : phoneCopy(() => fetch(null));
+  Future<CursorPage<Conversation>?> cachedFirstPage() {
+    if (folder == ChatListFolder.all) return super.cachedFirstPage();
+    final repo = ref.read(chatRepositoryProvider);
+    return phoneCopy(() => repo.conversations(folder: folder));
+  }
 
   @override
   Future<CursorPage<Conversation>> fetch(String? cursor) => ref
