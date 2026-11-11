@@ -48,16 +48,11 @@ export async function postIdsMatching(
     : Prisma.sql`FALSE`;
   // Two databases (SHARDING_READY step 8): posts live with their author —
   // every database is asked (one database: one query, as before).
-  const rows = (
-    await forEachDatabase(
-      prisma,
-      () =>
-        prisma.$queryRaw<{ id: string }[]>`
-        SELECT id FROM posts
-        WHERE lower(title) LIKE ${likePattern(q)} OR ${text}
-        LIMIT ${ADMIN_TEXT_SEARCH_MAX + 1}`,
-    )
-  ).flat();
+  const ask = () => prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM posts
+    WHERE lower(title) LIKE ${likePattern(q)} OR ${text}
+    LIMIT ${ADMIN_TEXT_SEARCH_MAX + 1}`;
+  const rows = (await forEachDatabase(prisma, ask)).flat();
   return rows.length > ADMIN_TEXT_SEARCH_MAX ? null : rows.map((r) => r.id);
 }
 
@@ -66,15 +61,10 @@ export async function caseIdsByTitle(
   prisma: PrismaService,
   q: string,
 ): Promise<string[] | null> {
-  const rows = (
-    await forEachDatabase(
-      prisma,
-      () =>
-        prisma.$queryRaw<{ id: string }[]>`
-        SELECT id FROM cases
-        WHERE lower(title) LIKE ${likePattern(q)}
-        LIMIT ${ADMIN_TEXT_SEARCH_MAX + 1}`,
-    )
-  ).flat();
+  const ask = () => prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM cases
+    WHERE lower(title) LIKE ${likePattern(q)}
+    LIMIT ${ADMIN_TEXT_SEARCH_MAX + 1}`;
+  const rows = (await forEachDatabase(prisma, ask)).flat();
   return rows.length > ADMIN_TEXT_SEARCH_MAX ? null : rows.map((r) => r.id);
 }

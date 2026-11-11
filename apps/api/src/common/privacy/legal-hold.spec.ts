@@ -47,14 +47,12 @@ describe('legal hold helper (privacy round 13, S13-6)', () => {
 describe('heldSqlFor (two databases)', () => {
   const prisma = {
     legalHold: {
-      findMany: jest
-        .fn()
-        .mockResolvedValue([
-          {
-            target_type: 'user',
-            target_id: '00000000-0000-4000-8000-000000000001',
-          },
-        ]),
+      findMany: jest.fn().mockResolvedValue([
+        {
+          target_type: 'user',
+          target_id: '00000000-0000-4000-8000-000000000001',
+        },
+      ]),
     },
   } as unknown as Parameters<typeof heldSqlFor>[0];
 

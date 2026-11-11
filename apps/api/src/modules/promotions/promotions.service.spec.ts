@@ -35,12 +35,14 @@ function setup(opts: { enabled?: boolean; credits?: number } = {}) {
       findUnique: jest.fn(),
       create: jest.fn(({ data }: { data: Record<string, unknown> }) =>
         Promise.resolve({
-          id: 'p1',
           impressions: 0,
           created_at: new Date(),
           stripe_checkout_id: null,
           payment_id: null,
           ...data,
+          // The service now gives the row its id up front (two databases:
+          // stars are taken under it first); the expectations use 'p1'.
+          id: 'p1',
         }),
       ),
       update: jest.fn(({ data }: { data: Record<string, unknown> }) =>

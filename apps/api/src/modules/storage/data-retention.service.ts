@@ -76,8 +76,8 @@ export class DataRetentionService implements OnModuleDestroy {
   }
 
   async run(now: Date = new Date()): Promise<RetentionResult | null> {
-    const held = await heldSqlFor(this.prisma);
     if (!(await this.settings.boolean('storage.auto_retention'))) return null;
+    const held = await heldSqlFor(this.prisma);
     const [
       authDays,
       activityDays,
