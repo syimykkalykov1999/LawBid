@@ -1,4 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { readsAreSplit } from '../../sharding/split-reads';
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { shardContext } from '../../sharding/shard-context';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -38,7 +41,9 @@ export class TopicCoversJob {
 
   async run(now: Date = new Date()): Promise<{ topics: number }> {
     const since = new Date(now.getTime() - WINDOW_DAYS * 24 * 3600 * 1000);
-    const rows = await this.prisma.$queryRaw<{ tag: string; id: string }[]>`
+    const rows = readsAreSplit(this.prisma)
+      ? await this.coversSplit(since)
+      : await this.prisma.$queryRaw<{ tag: string; id: string }[]>`
       WITH scored AS (
         SELECT t.tag_lower AS tag, p.id::TEXT AS id,
           (p.like_count + 2 * p.comment_count + 0.1 * p.view_count)::FLOAT8
@@ -71,6 +76,81 @@ export class TopicCoversJob {
     );
     this.logger.info({ topics: rows.length }, 'topic covers rebuilt');
     return { topics: rows.length };
+  }
+
+  /** Two databases (SHARDING_READY step 8): per database the 5 best picture
+   * posts of each topic (posts, media and videos live with the author), the
+   * authors checked on the primary (users and tags are global), then the
+   * best one per topic — the same pick as the one-database query. */
+  private async coversSplit(
+    since: Date,
+  ): Promise<{ tag: string; id: string }[]> {
+    const cands = (
+      await forEachDatabase(
+        this.prisma,
+        () =>
+          this.prisma.$queryRaw<
+            {
+              tag_id: string;
+              id: string;
+              author: string;
+              score: number;
+              created_at: Date;
+            }[]
+          >`
+          SELECT tag_id, id, author, score, created_at FROM (
+            SELECT pt.tag_id::TEXT AS tag_id, p.id::TEXT AS id,
+              p.author_id::TEXT AS author, p.created_at,
+              (p.like_count + 2 * p.comment_count + 0.1 * p.view_count)::FLOAT8
+                / power(GREATEST(EXTRACT(EPOCH FROM (now() - p.created_at)) / 86400, 0) + 2, 1.5)
+                AS score,
+              row_number() OVER (PARTITION BY pt.tag_id ORDER BY
+                (p.like_count + 2 * p.comment_count + 0.1 * p.view_count)::FLOAT8
+                  / power(GREATEST(EXTRACT(EPOCH FROM (now() - p.created_at)) / 86400, 0) + 2, 1.5) DESC,
+                p.created_at DESC, p.id DESC) AS rn
+            FROM posts p
+            JOIN post_tags pt ON pt.post_id = p.id
+            LEFT JOIN video_assets va ON va.id = p.video_asset_id
+            WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
+              AND p.created_at > ${since}
+              AND (va.status = 'ready'
+                   OR EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id))
+          ) r WHERE rn <= 5`,
+      )
+    ).flat();
+    if (cands.length === 0) return [];
+    const [tags, active] = await shardContext.runOnPrimary(() =>
+      Promise.all([
+        this.prisma.$queryRaw<{ id: string; tag: string }[]>`
+          SELECT id::TEXT AS id, tag_lower AS tag FROM tags
+          WHERE id = ANY(${[...new Set(cands.map((c) => c.tag_id))]}::UUID[])
+            AND tag_lower NOT LIKE '~%'`,
+        this.prisma.$queryRaw<{ id: string }[]>`
+          SELECT id::TEXT AS id FROM users
+          WHERE id = ANY(${[...new Set(cands.map((c) => c.author))]}::UUID[])
+            AND status = 'active' AND deleted_at IS NULL`,
+      ]),
+    );
+    const tagOf = new Map(tags.map((t) => [t.id, t.tag]));
+    const ok = new Set(active.map((a) => a.id));
+    const best = new Map<string, (typeof cands)[number]>();
+    for (const c of cands) {
+      if (!tagOf.has(c.tag_id) || !ok.has(c.author)) continue;
+      const b = best.get(c.tag_id);
+      if (
+        !b ||
+        c.score > b.score ||
+        (c.score === b.score &&
+          (c.created_at > b.created_at ||
+            (c.created_at.getTime() === b.created_at.getTime() && c.id > b.id)))
+      ) {
+        best.set(c.tag_id, c);
+      }
+    }
+    return [...best].map(([tagId, c]) => ({
+      tag: tagOf.get(tagId)!,
+      id: c.id,
+    }));
   }
 }
 

@@ -9,6 +9,8 @@ import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 import { Prisma } from '@prisma/client';
 import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { readsAreSplit } from '../../sharding/split-reads';
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { shardContext } from '../../sharding/shard-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ftsMatch,
@@ -1156,6 +1158,7 @@ export class PostgresSearchProvider implements SearchProvider {
    */
   async searchTags(prefix: string, limit: number): Promise<string[]> {
     const like = `${escapeLike(prefix)}%`;
+    if (readsAreSplit(this.db)) return this.searchTagsSplit(like, limit);
     const rows = await this.db.$queryRaw<{ tag_lower: string }[]>`
       SELECT c.tag_lower FROM (
         SELECT t.id, t.tag_lower FROM tags t
@@ -1170,6 +1173,44 @@ export class PostgresSearchProvider implements SearchProvider {
         c.tag_lower
       LIMIT ${limit}`;
     return rows.map((r) => r.tag_lower);
+  }
+
+  /** Two databases (SHARDING_READY step 8): tags are global (primary),
+   * post_tags live with their post; candidates from the primary, their use
+   * counted on every database (each capped like the one-database query). */
+  private async searchTagsSplit(
+    like: string,
+    limit: number,
+  ): Promise<string[]> {
+    const cands = await shardContext.runOnPrimary(
+      () => this.db.$queryRaw<{ id: string; tag_lower: string }[]>`
+        SELECT t.id::TEXT AS id, t.tag_lower FROM tags t
+        WHERE t.tag_lower LIKE ${like}
+          AND t.tag_lower NOT LIKE ${`${escapeLike(HIDDEN_TAG_PREFIX)}%`}
+        ORDER BY t.tag_lower
+        LIMIT ${TAG_CANDIDATES}`,
+    );
+    if (cands.length === 0) return [];
+    const ids = cands.map((c) => c.id);
+    const used = new Map<string, number>();
+    for (const rows of await forEachDatabase(
+      this.db,
+      () =>
+        this.db.$queryRaw<{ id: string; n: bigint }[]>`
+        SELECT pt.tag_id::TEXT AS id, count(*) AS n FROM post_tags pt
+        WHERE pt.tag_id = ANY(${ids}::UUID[])
+        GROUP BY pt.tag_id`,
+    )) {
+      for (const r of rows) used.set(r.id, (used.get(r.id) ?? 0) + Number(r.n));
+    }
+    return cands
+      .map((c) => ({
+        tag: c.tag_lower,
+        n: Math.min(used.get(c.id) ?? 0, 1000),
+      }))
+      .sort((a, b) => b.n - a.n || (a.tag < b.tag ? -1 : a.tag > b.tag ? 1 : 0))
+      .slice(0, limit)
+      .map((c) => c.tag);
   }
 }
 
