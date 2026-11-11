@@ -1169,12 +1169,15 @@ module "redis" {
 }
 
 module "postgres" {
-  count                      = var.create_database ? 1 : 0
-  source                     = "../postgres"
-  name                       = local.name
-  vpc_id                     = module.network.vpc_id
-  subnet_ids                 = module.network.private_subnet_ids
-  allowed_security_group_ids = [aws_security_group.tasks.id]
+  count      = var.create_database ? 1 : 0
+  source     = "../postgres"
+  name       = local.name
+  vpc_id     = module.network.vpc_id
+  subnet_ids = module.network.private_subnet_ids
+  # KNOWN_ERRORS 99: the pooler's access is part of the group's own inline
+  # list. A separate rule next to inline ones was removed by every change of
+  # the group (11.11 13:02 → prod down 13:25–14:15).
+  allowed_security_group_ids = concat([aws_security_group.tasks.id], var.db_pooler_enabled ? [module.pgbouncer[0].security_group_id] : [])
   kms_key_arn                = module.kms.key_arn
   instance_class             = var.database_instance_class
   backup_retention_days      = var.database_backup_retention_days
