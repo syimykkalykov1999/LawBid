@@ -287,8 +287,10 @@ export class UsernamePolicyService {
   ): Promise<T[]> {
     if (args.length === 0) return [];
     return (
-      await forEachDatabase(this.prisma, () =>
-        this.prisma.$queryRaw<T[]>(sql(args)),
+      await forEachDatabase(
+        this.prisma,
+        () => this.prisma.$queryRaw<T[]>(sql(args)),
+        { withPrimary: true },
       )
     ).flat();
   }
