@@ -78,6 +78,12 @@ class FakeSocialRepository implements SocialRepository {
   final followCalls = <(String, bool)>[];
   int attorneyPostsCalls = 0;
 
+  /// Lists with no copy set here: a phone-only read (a list's saved first
+  /// page) is a miss, like an empty HTTP copy, and is not a server call.
+  void _noPhoneCopy() {
+    if (readingFromPhoneOnly) throw StateError(kNoPhoneCopy);
+  }
+
   /// What a profile tab finds in the phone's HTTP copy (null = no copy).
   List<Post>? profilePhoneCopy;
 
@@ -126,8 +132,10 @@ class FakeSocialRepository implements SocialRepository {
   Future<CursorPage<Comment>> comments(
     String postId, {
     String? cursor,
-  }) async =>
-      const CursorPage(items: []);
+  }) async {
+    _noPhoneCopy();
+    return const CursorPage(items: []);
+  }
 
   @override
   Future<CursorPage<Post>> attorneyPosts(
@@ -194,6 +202,7 @@ class FakeSocialRepository implements SocialRepository {
     String userId, {
     String? cursor,
   }) async {
+    _noPhoneCopy();
     userRepostsCursors.add(cursor);
     return _page(reposts, cursor);
   }
@@ -208,6 +217,7 @@ class FakeSocialRepository implements SocialRepository {
     String? cursor,
     String? state,
   }) async {
+    _noPhoneCopy();
     tagPostsCalls.add((tag, sort));
     if (offline) throw _offline;
     return _page(posts, cursor);
@@ -232,6 +242,7 @@ class FakeSocialRepository implements SocialRepository {
     List<String> states = const [],
     List<String> practices = const [],
   }) async {
+    _noPhoneCopy();
     latestPostsPractices.add(practice);
     if (offline) throw _offline;
     return _page(posts, cursor);
@@ -241,19 +252,25 @@ class FakeSocialRepository implements SocialRepository {
   Future<CursorPage<PersonRow>> postLikers(
     String postId, {
     String? cursor,
-  }) async =>
-      CursorPage(items: likers);
+  }) async {
+    _noPhoneCopy();
+    return CursorPage(items: likers);
+  }
 
   @override
   Future<CursorPage<PersonRow>> postReposters(
     String postId, {
     String? cursor,
-  }) async =>
-      CursorPage(items: reposters);
+  }) async {
+    _noPhoneCopy();
+    return CursorPage(items: reposters);
+  }
 
   @override
-  Future<CursorPage<SavedPost>> savedPosts({String? cursor}) async =>
-      const CursorPage(items: []);
+  Future<CursorPage<SavedPost>> savedPosts({String? cursor}) async {
+    _noPhoneCopy();
+    return const CursorPage(items: []);
+  }
 
   @override
   Future<String> uploadPostPhoto(

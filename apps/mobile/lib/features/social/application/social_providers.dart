@@ -320,6 +320,13 @@ final attorneyPostsProvider = AsyncNotifierProvider.autoDispose
 /// Owner 2026-10-18: Settings → «Архив» — the viewer's own archived posts,
 /// newest archived first.
 class ArchivedPostsNotifier extends PagedNotifier<Post> {
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<Post>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null));
+
   @override
   Future<CursorPage<Post>> fetch(String? cursor) =>
       ref.read(socialRepositoryProvider).archivedPosts(cursor: cursor);
@@ -401,6 +408,13 @@ class UserRepostsNotifier extends PagedNotifier<Post> {
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<Post>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null));
+
   @override
   Future<CursorPage<Post>> fetch(String? cursor) =>
       ref.read(socialRepositoryProvider).userReposts(userId, cursor: cursor);
@@ -421,6 +435,13 @@ class PostLikersNotifier extends PagedNotifier<PersonRow> {
 
   final String postId;
 
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<PersonRow>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null));
+
   @override
   Future<CursorPage<PersonRow>> fetch(String? cursor) =>
       ref.read(socialRepositoryProvider).postLikers(postId, cursor: cursor);
@@ -440,6 +461,13 @@ class PostRepostersNotifier extends PagedNotifier<PersonRow> {
   PostRepostersNotifier(this.postId);
 
   final String postId;
+
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<PersonRow>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null));
 
   @override
   Future<CursorPage<PersonRow>> fetch(String? cursor) =>
@@ -462,6 +490,13 @@ class TagPostsNotifier extends PagedNotifier<Post> {
   TagPostsNotifier(this.key);
 
   final TagPostsKey key;
+
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<Post>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null));
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) => ref
@@ -486,6 +521,13 @@ class LatestPostsNotifier extends PagedNotifier<Post> {
   final String stateCode;
 
   /// Owner 2026-10-06: one state or several, comma-separated ("IL,NY").
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<Post>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null));
+
   @override
   Future<CursorPage<Post>> fetch(String? cursor) =>
       ref.read(socialRepositoryProvider).latestPosts(
@@ -535,6 +577,13 @@ class FilteredPostsNotifier extends PagedNotifier<Post> {
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<Post>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null));
+
   @override
   Future<CursorPage<Post>> fetch(String? cursor) {
     final practice = key.practice;
@@ -579,6 +628,13 @@ class ExplorePostsNotifier extends PagedNotifier<Post> {
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<Post>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null));
+
   @override
   Future<CursorPage<Post>> fetch(String? cursor) {
     final practice = key.practice;
@@ -617,6 +673,13 @@ class SavedPostsNotifier extends PagedNotifier<SavedPost> {
   // leaves (see PagedNotifier.keepAliveFor), no extra server calls.
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
+
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<SavedPost>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null));
 
   @override
   Future<CursorPage<SavedPost>> fetch(String? cursor) =>
@@ -717,6 +780,13 @@ class CommentsNotifier extends PagedNotifier<Comment> with CommentRows {
     return super.build();
   }
 
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<Comment>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null), when: !ref.read(isGuestProvider));
+
   @override
   Future<CursorPage<Comment>> fetch(String? cursor) {
     // Owner 2026-10-22 (guest browsing): the comments are read with an
@@ -766,6 +836,13 @@ class RepliesNotifier extends PagedNotifier<Comment> with CommentRows {
   RepliesNotifier(this.commentId);
 
   final String commentId;
+
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<Comment>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null));
 
   @override
   Future<CursorPage<Comment>> fetch(String? cursor) =>
@@ -818,6 +895,13 @@ class FollowListNotifier extends PagedNotifier<PersonRow> {
   FollowListNotifier(this.key);
 
   final FollowListKey key;
+
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<PersonRow>?> cachedFirstPage() =>
+      phoneCopy(() => fetch(null), when: key.q.isEmpty);
 
   @override
   Future<CursorPage<PersonRow>> fetch(String? cursor) async {
