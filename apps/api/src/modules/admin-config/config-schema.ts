@@ -985,7 +985,8 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     defaultValue: 3,
     description: 'At most this many cloud change requests per 24 hours.',
     min: 1,
-    max: 10,
+    // Owner 2026-11-11: up to 20 for a day of live switch tests (then back).
+    max: 20,
   };
   out['infra.quiet_hours'] = {
     type: 'string',
