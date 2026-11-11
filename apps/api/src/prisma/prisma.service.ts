@@ -459,7 +459,11 @@ export class PrismaService
           typeof prop === 'string' &&
           RAW_OPS.has(prop) &&
           multiDb() &&
-          !demoContext.isDemo()
+          !demoContext.isDemo() &&
+          // A Jest spy on the client stays the spy (see the end of `get`).
+          !(real as unknown as Record<string, { _isMockFunction?: boolean }>)[
+            prop
+          ]?._isMockFunction
         ) {
           return (...args: unknown[]) => {
             const ctx = shardContext.current();
