@@ -2,15 +2,22 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
+import {
+  type CreatedAtCursor,
+  decodeCursor,
+  encodeCursor,
+} from '../../../common/pagination/cursor.util';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { FilesService } from '../../files/files.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { caseNotFound } from '../domain/case-state-machine';
+import { AttorneyBriefService } from '../brief/attorney-brief.service';
 import type {
   BoardCaseTaskDto,
   CaseActivityDto,
@@ -25,6 +32,7 @@ import type {
   CreateCaseUpdateDto,
   TaskSubmissionDto,
   WorkspaceFileDto,
+  CaseFilesQueryDto,
 } from './dto/workspace.dto';
 
 export type Role = 'client' | 'attorney';
@@ -42,6 +50,18 @@ interface Side {
  * activity request reads per source (newest kept), so a long case never
  * loads its whole history on every open. */
 export const WORKSPACE_LIST_MAX = 200;
+
+/** A case file that the media tab shows (photos and videos). */
+const MEDIA_FILE = {
+  OR: [{ mime: { startsWith: 'image/' } }, { mime: { startsWith: 'video/' } }],
+} satisfies Prisma.FileWhereInput;
+
+/** A page item without the row id [filePage] carries for the cursor. */
+function withoutRow(f: WorkspaceFileDto & { rowId: string }): WorkspaceFileDto {
+  const out: WorkspaceFileDto & { rowId?: string } = { ...f };
+  delete out.rowId;
+  return out;
+}
 
 const WORKING_STATUSES = new Set([
   'in_progress',
@@ -68,6 +88,7 @@ export class CaseWorkspaceService {
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
     private readonly notifications: NotificationsService,
+    @Optional() private readonly briefs?: AttorneyBriefService,
   ) {}
 
   /** Audit 2026-10-19: what one side adds reaches the other side (the bell
@@ -155,7 +176,101 @@ export class CaseWorkspaceService {
     caseId: string,
   ): Promise<WorkspaceFileDto[]> {
     const s = await this.side(user, caseId);
-    return this.withViewCounts(user.sub, await this.filesOf(caseId, s));
+    const files = await this.withViewCounts(
+      user.sub,
+      await this.filesOf(caseId, s),
+    );
+    if (s.role === 'attorney') {
+      const brief = await this.briefFile(caseId);
+      if (brief) files.push(brief);
+    }
+    return files;
+  }
+
+  /** Owner 2026-11-10 (load in parts, like Telegram's shared media): one
+   * page of [listFiles] — oldest first, as the list always was — with the
+   * tab filters done by the database, so a case with thousands of files
+   * opens as fast as one with three. The attorney's brief comes last, on
+   * the last page, where the full list had it. */
+  async listFilesPage(
+    user: RequestUser,
+    caseId: string,
+    q: CaseFilesQueryDto & { limit: number },
+  ): Promise<{ items: WorkspaceFileDto[]; nextCursor: string | null }> {
+    const s = await this.side(user, caseId);
+    const where: Prisma.CasePhotoWhereInput = {
+      ...(q.source ? { source: q.source } : {}),
+      ...(q.sample ? { is_sample: true } : {}),
+      ...(q.kind
+        ? { file: q.kind === 'media' ? MEDIA_FILE : { NOT: MEDIA_FILE } }
+        : {}),
+    };
+    const after = q.cursor ? decodeCursor(q.cursor) : null;
+    const page = await this.filePage(caseId, s, where, {
+      take: q.limit + 1,
+      after,
+    });
+    const more = page.rows.length > q.limit;
+    const rows = more ? page.rows.slice(0, q.limit) : page.rows;
+    const ids = new Set(rows.map((r) => r.id));
+    const files = await this.withViewCounts(
+      user.sub,
+      page.files.filter((f) => ids.has(f.rowId)).map(withoutRow),
+    );
+    const last = rows[rows.length - 1];
+    if (
+      !more &&
+      s.role === 'attorney' &&
+      !q.source &&
+      !q.sample &&
+      q.kind !== 'media'
+    ) {
+      const brief = await this.briefFile(caseId);
+      if (brief) files.push(brief);
+    }
+    return {
+      items: files,
+      nextCursor:
+        more && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
+  /** Sweep A-c1 (owner A-044): the attorney-only case brief, last in the
+   * attorney's Files; never in the client's list. A failure to make it
+   * never breaks the tab (the next open tries again). */
+  private async briefFile(caseId: string): Promise<WorkspaceFileDto | null> {
+    let id: string | null;
+    try {
+      id = (await this.briefs?.ensure(caseId)) ?? null;
+    } catch {
+      return null;
+    }
+    if (!id) return null;
+    const [u] = await this.files.casePhotoUrls([id]);
+    if (!u) return null;
+    const row = await this.prisma.file.findUnique({
+      where: { id },
+      select: { created_at: true },
+    });
+    return {
+      fileId: id,
+      url: u.url,
+      previewUrl: u.previewUrl,
+      mime: u.mime,
+      sizeBytes: u.sizeBytes,
+      description:
+        'Case brief: client contacts, accepted terms and case photos (only you see it)',
+      source: 'case',
+      sourceTitle: null,
+      sourceId: null,
+      sourceItemId: null,
+      sample: false,
+      addedByRole: 'attorney',
+      addedAt: (row?.created_at ?? new Date()).toISOString(),
+      viewCount: null,
+    };
   }
 
   /** Owner 2026-10-24: the "viewed N times" badge - two indexed queries for
@@ -189,11 +304,40 @@ export class CaseWorkspaceService {
     s: { clientId: string },
     where: Prisma.CasePhotoWhereInput = {},
   ): Promise<WorkspaceFileDto[]> {
+    return (await this.filePage(caseId, s, where)).files.map(withoutRow);
+  }
+
+  /** [filesOf] with the page bounds of [listFilesPage]: `take` rows after
+   * `after` in (created_at, id) order; the rows come back too, for the
+   * next cursor (a file whose link is gone has no item but still moves
+   * the cursor). */
+  private async filePage(
+    caseId: string,
+    s: { clientId: string },
+    where: Prisma.CasePhotoWhereInput = {},
+    page: { take?: number; after?: CreatedAtCursor | null } = {},
+  ): Promise<{
+    rows: { id: string; created_at: Date }[];
+    files: (WorkspaceFileDto & { rowId: string })[];
+  }> {
+    const after = page.after;
     const rows = await this.prisma.casePhoto.findMany({
-      where: { case_id: caseId, ...where },
-      orderBy: { created_at: 'asc' },
+      where: {
+        case_id: caseId,
+        ...where,
+        ...(after
+          ? {
+              OR: [
+                { created_at: { gt: after.createdAt } },
+                { created_at: after.createdAt, id: { gt: after.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      ...(page.take ? { take: page.take } : {}),
     });
-    if (rows.length === 0) return [];
+    if (rows.length === 0) return { rows, files: [] };
     const urls = new Map(
       (await this.files.casePhotoUrls(rows.map((r) => r.file_id))).map((u) => [
         u.fileId,
@@ -210,11 +354,12 @@ export class CaseWorkspaceService {
         })
       : [];
     const titles = new Map(tasks.map((t) => [t.id, t.title]));
-    const out: WorkspaceFileDto[] = [];
+    const out: (WorkspaceFileDto & { rowId: string })[] = [];
     for (const r of rows) {
       const u = urls.get(r.file_id);
       if (!u) continue;
       out.push({
+        rowId: r.id,
         fileId: r.file_id,
         url: u.url,
         previewUrl: u.previewUrl,
@@ -230,7 +375,7 @@ export class CaseWorkspaceService {
         addedAt: r.created_at.toISOString(),
       });
     }
-    return out;
+    return { rows, files: out };
   }
 
   /** Validates [items] (the sender's clean case files, ≤20, the admin's
@@ -465,9 +610,16 @@ export class CaseWorkspaceService {
     return this.listTasks(user, caseId);
   }
 
-  private async taskOf(caseId: string, taskId: string) {
+  /** Audit 2026-11-08 (L9): a task set by someone who is no longer a side
+   * of the case (an attorney before a take-over) is not this pair's to
+   * change. CaseTask has no attorney column: `created_by` is the side. */
+  private async taskOf(s: Side, caseId: string, taskId: string) {
     const t = await this.prisma.caseTask.findFirst({
-      where: { id: taskId, case_id: caseId },
+      where: {
+        id: taskId,
+        case_id: caseId,
+        created_by: { in: [s.attorneyId, s.clientId] },
+      },
       include: { items: true },
     });
     if (!t) throw caseNotFound();
@@ -484,7 +636,7 @@ export class CaseWorkspaceService {
     done: boolean,
   ): Promise<CaseTasksDto> {
     const s = await this.side(user, caseId, 'tasks');
-    const t = await this.taskOf(caseId, taskId);
+    const t = await this.taskOf(s, caseId, taskId);
     // A shared task: the attorney only; a joint one: either side; a
     // for-client task: the client marks it done (once every line is
     // ticked); the attorney (or the client who set it) takes the mark off.
@@ -541,7 +693,7 @@ export class CaseWorkspaceService {
     done: boolean,
   ): Promise<CaseTasksDto> {
     const s = await this.side(user, caseId, 'tasks');
-    const t = await this.taskOf(caseId, taskId);
+    const t = await this.taskOf(s, caseId, taskId);
     const item = t.items.find((i) => i.id === itemId);
     if (!item) throw caseNotFound();
     const allowed =
@@ -565,7 +717,7 @@ export class CaseWorkspaceService {
   ): Promise<CaseTasksDto> {
     const s = await this.side(user, caseId, 'tasks');
     if (s.role !== 'attorney') throw this.denied('Only the attorney.');
-    const t = await this.taskOf(caseId, taskId);
+    const t = await this.taskOf(s, caseId, taskId);
     if (t.kind !== 'for_client') {
       throw new ConflictException({
         code: ErrorCode.VALIDATION_ERROR,
@@ -598,7 +750,7 @@ export class CaseWorkspaceService {
     dto: TaskSubmissionDto,
   ): Promise<CaseTasksDto> {
     const s = await this.side(user, caseId, 'tasks');
-    const t = await this.taskOf(caseId, taskId);
+    const t = await this.taskOf(s, caseId, taskId);
     if (s.role === 'client') {
       if (t.kind !== 'for_client') {
         throw this.denied('Only the attorney can add to this task.');

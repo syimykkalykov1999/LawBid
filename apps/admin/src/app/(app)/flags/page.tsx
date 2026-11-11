@@ -2,7 +2,7 @@
 
 import { Key } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge, Card } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { optimistic, patchRow } from '@/lib/optimistic';
 import {
   REELS_CLIENT_FLAG,
   REELS_CLIENT_MODES,
@@ -82,6 +83,11 @@ const FLAG_INFO: Record<string, FlagInfo> = {
     title: 'Файлы: лёгкое подтверждение загрузки',
     what: 'Сервер API больше не читает большой файл (от 8 МБ) целиком в память при подтверждении: сразу проверяется только начало файла, контрольную сумму и содержимое проверяет фоновый обработчик. Выключено — весь файл читается в API, как раньше',
     need: 'Ничего. На настоящем хранилище не проверено: включить, отправить файл больше 8 МБ, убедиться, что он дошёл',
+  },
+  files_confirm_direct: {
+    title: 'Файлы: быстрое подтверждение маленьких загрузок',
+    what: 'Файл до 8 МБ (фото поста, аватар, голосовое) сервер читает один раз и сам кладёт проверенные байты на место, без лишней копии внутри хранилища. Подтверждение фото примерно на полсекунды быстрее. Проверки те же. Выключено — копия внутри хранилища, как раньше',
+    need: 'Ничего. На настоящем R2 не проверено: выложить фото поста и посмотреть в логах files_confirm_slow поле path = direct',
   },
   reels_tus_parallel: {
     title: 'Видео: параллельная загрузка',
@@ -333,16 +339,22 @@ export default function FlagsPage() {
       params: { path: { key: v.key } },
       body: { enabled: v.enabled },
     });
+  // SPEED_MATRIX 2026-11-09: the switch flips at once; the server's
+  // answer confirms it, a refusal flips it back (lib/optimistic.ts).
   const update = useMutation({
     mutationFn: async (v: { key: string; enabled: boolean }) => {
       await patch(v);
       return v;
     },
+    ...optimistic<Flag[], { key: string; enabled: boolean }>(
+      qc,
+      ['flags'],
+      patchRow((f, v) => ({ ...f, enabled: v.enabled })),
+      { onError: (e) => toast.error(e) },
+    ),
     onSuccess: (v) => {
       toast.success(`${FLAG_INFO[v.key]?.title ?? v.key}: ${v.enabled ? 'включено' : 'выключено'}`);
-      void qc.invalidateQueries({ queryKey: ['flags'] });
     },
-    onError: (e) => toast.error(e),
   });
 
   const flags = q.data ?? [];

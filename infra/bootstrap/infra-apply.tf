@@ -54,12 +54,23 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
     condition {
       test     = "StringLike"
       variable = "kms:ViaService"
-      values   = ["s3.${var.region}.amazonaws.com", "rds.${var.region}.amazonaws.com", "es.${var.region}.amazonaws.com", "logs.${var.region}.amazonaws.com"]
+      # 2026-11-10: + secretsmanager. Every plan reads the prod secrets the
+      # state manages (postgres-master, REDIS_URL, …), encrypted with the
+      # prod key; without it each plan failed «Access to KMS is not allowed».
+      values = ["s3.${var.region}.amazonaws.com", "rds.${var.region}.amazonaws.com", "es.${var.region}.amazonaws.com", "logs.${var.region}.amazonaws.com", "secretsmanager.${var.region}.amazonaws.com"]
     }
   }
   statement {
     sid       = "ProdSecretsRead"
     actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+    resources = ["arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}/*"]
+  }
+  statement {
+    # 2026-11-10: switches that bring their own secret (PgBouncer TLS:
+    # lawbid-prod/pgbouncer-tls) create and write it. Prod names only;
+    # deleting a secret stays denied below.
+    sid       = "SwitchSecretsWrite"
+    actions   = ["secretsmanager:CreateSecret", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret", "secretsmanager:TagResource", "secretsmanager:UntagResource"]
     resources = ["arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}/*"]
   }
   statement {
@@ -69,6 +80,11 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
       "cloudtrail:*", "athena:*", "glue:*", "logs:*", "cloudwatch:*", "synthetics:*",
       "route53:CreateHealthCheck", "route53:UpdateHealthCheck", "route53:DeleteHealthCheck",
       "route53:ChangeTagsForResource",
+      # 10.11: the pooler's private DNS name (Cloud Map namespace creates a
+      # private hosted zone) and the database parameters a switch may change.
+      "route53:CreateHostedZone", "route53:DeleteHostedZone", "route53:ChangeResourceRecordSets",
+      "route53:AssociateVPCWithHostedZone", "route53:DisassociateVPCFromHostedZone", "route53:GetChange",
+      "rds:ModifyDBParameterGroup",
       "ec2:*NatGateway*", "ec2:AllocateAddress", "ec2:ReleaseAddress", "ec2:AssociateAddress",
       "ec2:DisassociateAddress", "ec2:*Route", "ec2:*RouteTable*", "ec2:*VpcEndpoint*",
       "ec2:*FlowLogs", "ec2:*SecurityGroup*", "ec2:CreateTags", "ec2:DeleteTags",

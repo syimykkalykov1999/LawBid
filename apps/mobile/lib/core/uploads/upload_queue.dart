@@ -17,6 +17,7 @@ import 'package:lawbid/core/uploads/foreground_parts.dart';
 import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/core/uploads/upload_files.dart';
+import 'package:lawbid/core/uploads/upload_leave_guard.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
 
 /// One queued job, as its handler sees it.
@@ -223,6 +224,11 @@ class UploadQueue with WidgetsBindingObserver {
 
   Stream<UploadProgress> get progress => _progress.stream;
 
+  /// True while an upload pass runs (a file is going up or a send is in
+  /// flight). The web build asks «Leave site?» on a tab close while it is
+  /// true (B-c2: a browser tab has no background transfer).
+  final ValueNotifier<bool> sending = ValueNotifier(false);
+
   void register(UploadJobHandler handler) {
     _handlers[handler.kind] = handler;
     unawaited(drain());
@@ -355,7 +361,11 @@ class UploadQueue with WidgetsBindingObserver {
     }
     final pass = _targetLoop(owner, target);
     _running[target] = pass;
-    return pass.whenComplete(() => _running.remove(target));
+    if (!_disposed) sending.value = true;
+    return pass.whenComplete(() {
+      _running.remove(target);
+      if (!_disposed) sending.value = _running.isNotEmpty;
+    });
   }
 
   Future<void> _targetLoop(String owner, String target) async {
@@ -489,6 +499,7 @@ class UploadQueue with WidgetsBindingObserver {
   }
 
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     for (final t in _retries.values) {
       t.cancel();
@@ -496,6 +507,9 @@ class UploadQueue with WidgetsBindingObserver {
     _serverWait.clear();
     _held.clear();
     if (_observing) WidgetsBinding.instance.removeObserver(this);
+    sending
+      ..value = false
+      ..dispose();
     unawaited(_progress.close());
   }
 }
@@ -547,12 +561,17 @@ final uploadQueueProvider = Provider<UploadQueue>((ref) {
     uploader: ref.watch(uploadQueueUploaderProvider),
     ownerId: () => owner,
   );
+  // B-c2 (a): the browser asks «Leave site?» while a file is going up.
+  final leave = kIsWeb ? UploadLeaveGuard(sending: queue.sending) : null;
   ref
     ..listen(connectivityStatusProvider, (prev, next) {
       if (next.offlineReason == null && prev?.offlineReason != null) {
         unawaited(queue.drain());
       }
     })
-    ..onDispose(queue.dispose);
+    ..onDispose(() {
+      leave?.dispose();
+      queue.dispose();
+    });
   return queue;
 });

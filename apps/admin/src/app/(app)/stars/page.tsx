@@ -21,6 +21,7 @@ import { useToast } from "@/components/ui/toast";
 import { api, errorText } from "@/lib/api/client";
 import { usd } from "@/lib/economy";
 import { formatDateTime } from "@/lib/utils";
+import { LazyImg } from '@/components/ui/lazy-img';
 
 type Tab = "report" | "packs" | "gifts" | "history";
 
@@ -591,12 +592,10 @@ function GiftsTab() {
                   <Td>
                     <div className="flex items-center gap-3">
                       {g.url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <LazyImg
                           src={g.url}
                           alt={g.title}
                           className="h-12 w-12 rounded-lg bg-surface-2 object-contain p-1"
-                          loading="lazy"
                         />
                       ) : (
                         <span className="grid h-12 w-12 place-items-center rounded-lg bg-surface-2 text-xs text-faint">

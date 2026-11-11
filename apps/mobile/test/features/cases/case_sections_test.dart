@@ -28,6 +28,7 @@ import '../../helpers/onboarding_harness.dart';
 import '../../helpers/ux_harness.dart';
 import '../profile/profile_fakes.dart';
 import 'cases_fakes.dart';
+import 'support/fake_case_files_remote.dart';
 
 const _practice = PracticeRef(
   id: 'leaf-1',
@@ -543,6 +544,9 @@ void main() {
             caseWorkspaceProvider('case-1')
                 .overrideWith((ref) => never('workspace')),
             caseFilesProvider('case-1').overrideWith((ref) => never('files')),
+            caseFilesRemoteProvider.overrideWithValue(
+              FakeCaseFilesRemote(const [], onPage: () => never('files')),
+            ),
             caseTasksProvider('case-1').overrideWith((ref) => never('tasks')),
             caseUpdatesProvider('case-1')
                 .overrideWith((ref) => never('updates')),

@@ -466,6 +466,7 @@ class PendingGroupMessage {
     this.replyToId,
     this.mentionIds = const [],
     this.fileName,
+    this.fileId,
     this.slowWaitS,
   });
 
@@ -478,6 +479,10 @@ class PendingGroupMessage {
   final String? replyToId;
   final List<String> mentionIds;
   final String? fileName;
+
+  /// Audit 26.10 B9: the uploaded file of an attachment sent without the
+  /// queue, so Retry sends it again (queued files retry in the queue).
+  final String? fileId;
 }
 
 class GroupThreadState {
@@ -831,6 +836,7 @@ class GroupThread extends Notifier<GroupThreadState> {
           clientMessageId: cmid,
           body: caption ?? '',
           fileName: fileName,
+          fileId: fileId,
           replyToId: replyToId,
         ),
       ],
@@ -958,6 +964,7 @@ class GroupThread extends Notifier<GroupThreadState> {
                 replyToId: p.replyToId,
                 mentionIds: p.mentionIds,
                 fileName: p.fileName,
+                fileId: p.fileId,
               )
             else
               p,
@@ -966,7 +973,8 @@ class GroupThread extends Notifier<GroupThreadState> {
     }
   }
 
-  /// Retry a failed text message with the same client id.
+  /// Retry a failed message (text, or a file — audit 26.10 B9) with the
+  /// same client id.
   Future<void> retry(String clientMessageId) async {
     if (_mediaIds.contains(clientMessageId)) {
       return ref.read(groupMediaOutboxProvider).retry(clientMessageId);
@@ -974,7 +982,7 @@ class GroupThread extends Notifier<GroupThreadState> {
     final p = state.pending
         .where((x) => x.clientMessageId == clientMessageId)
         .firstOrNull;
-    if (p == null || p.fileName != null) return;
+    if (p == null || (p.fileName != null && p.fileId == null)) return;
     state = state.copyWith(
       pending: [
         for (final x in state.pending)
@@ -984,11 +992,27 @@ class GroupThread extends Notifier<GroupThreadState> {
               body: x.body,
               replyToId: x.replyToId,
               mentionIds: x.mentionIds,
+              fileName: x.fileName,
+              fileId: x.fileId,
             )
           else
             x,
       ],
     );
+    final fileId = p.fileId;
+    if (fileId != null) {
+      return _send(
+        api.SendGroupMessageDto(
+          clientMessageId: clientMessageId,
+          type: api.SendGroupMessageDtoType.attachment,
+          body: p.body.isEmpty ? null : p.body,
+          topicId: key.topicId,
+          replyToId: p.replyToId,
+          fileId: fileId,
+          fileName: p.fileName,
+        ),
+      );
+    }
     await _send(
       api.SendGroupMessageDto(
         clientMessageId: clientMessageId,

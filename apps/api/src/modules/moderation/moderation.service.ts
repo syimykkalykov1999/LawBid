@@ -183,11 +183,16 @@ export class ModerationService {
             ? ((await this.files.voiceUrls([m.file_id])).get(m.file_id) ?? null)
             : null;
         // OQ-047: a reported photo or document — a short link to open it.
-        const fileUrl =
+        // Speed matrix 2026-11-09 (§3 #3): with the 320 px copy and the
+        // blurhash of a photo, so the admin's card draws them, not the
+        // original.
+        const attachment =
           m.type === 'attachment' && m.file_id && db === this.prisma
-            ? ((await this.files.attachmentUrls([m.file_id])).get(m.file_id)
-                ?.url ?? null)
-            : null;
+            ? (await this.files.attachmentUrls([m.file_id])).get(m.file_id)
+            : undefined;
+        const fileUrl = attachment?.url ?? null;
+        const filePreviewUrl = attachment?.previewUrl ?? null;
+        const fileBlurhash = attachment?.blurhash ?? null;
         return {
           type,
           id,
@@ -207,7 +212,9 @@ export class ModerationService {
           context: {
             conversationId: m.conversation_id,
             ...(m.type === 'voice' ? { voiceUrl } : {}),
-            ...(m.type === 'attachment' ? { fileUrl } : {}),
+            ...(m.type === 'attachment'
+              ? { fileUrl, filePreviewUrl, fileBlurhash }
+              : {}),
           },
           createdAt: m.created_at,
         };

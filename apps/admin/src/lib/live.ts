@@ -1,5 +1,6 @@
 import { queryOptions } from '@tanstack/react-query';
 import { idleMs, IDLE_STOP_MS } from '@/lib/activity';
+import { adminLiveUp } from '@/lib/admin-live';
 import { api, ApiError } from '@/lib/api/client';
 
 /**
@@ -38,6 +39,11 @@ export function livePoll(ms: number | ((data: unknown) => number | false) = LIVE
     const base = typeof ms === 'function' ? ms(query.state.data) : ms;
     // R-394: a page may poll only while its data says work is running.
     if (base === false) return false;
+    // Speed matrix 2026-11-09 (§3 #5): while the live socket is up the
+    // server says when something changed (lib/admin-live.ts) — the regular
+    // minute timer stops. A page that asked for a FASTER poll (a board that
+    // is red, a check that is running) keeps it: those are not announced.
+    if (adminLiveUp() && base >= LIVE_MS) return false;
     if (isRateLimited(query.state.error)) return Math.max(base, RATE_LIMITED_BACKOFF_MS);
     if (typeof document !== 'undefined' && !document.hasFocus()) return Math.max(base, UNFOCUSED_MS);
     return base;

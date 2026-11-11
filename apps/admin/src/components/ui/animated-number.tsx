@@ -1,6 +1,7 @@
 'use client';
 
-import { animate, useInView, useMotionValue, useTransform, m } from 'motion/react';
+import { animate, useInView, useMotionValue, useTransform } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useEffect, useRef } from 'react';
 
 /** Counts up to `value` when it scrolls into view (and on change). */

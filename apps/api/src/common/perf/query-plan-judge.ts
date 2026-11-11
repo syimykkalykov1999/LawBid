@@ -13,6 +13,14 @@
  * statistics with an absolute distinct count (`stadistinct > 0`) above
  * [ID_LIKE_DISTINCT] are id-like (they grow with the table) and are multiplied too; small
  * absolute counts (status, kind) and fractions (`< 0`) already scale.
+ * The most-common-values list of an id-like column (a fraction or a big
+ * count) is divided by F: a seeded attorney with 2 of 5 000 practice rows
+ * is in that list with frequency 0.0004, and left alone the planner would
+ * read it as 0.0004 × 20 M = 8 000 rows for ONE attorney at ×4000 (the
+ * case feed cost 5.4 M / 51.7 M on 2026-11-09 for an attorney in the list
+ * and 1.4 k / 18 k for one outside it). At 10 M attorneys no single id is
+ * common, which the divided frequency says. A kind column's list (state,
+ * status, topic) keeps its frequencies.
  * Superuser only; run inside a transaction that is rolled back.
  */
 export interface PlanNode {
@@ -41,9 +49,23 @@ export function inflateStatisticsSql(factor: number): string[] {
   const f = Math.floor(factor);
   const tables = `SELECT c.oid FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.reltuples >= ${INFLATE_MIN_ROWS}`;
+  // pg_statistic keeps up to five (stakindN, stanumbersN) slots; kind 1 is
+  // the most-common-values list and its stanumbers are the frequencies.
+  const mcvSlots = [1, 2, 3, 4, 5]
+    .map(
+      (n) => `stanumbers${n} = CASE WHEN s.stakind${n} = 1 THEN (
+         SELECT array_agg(x / ${f} ORDER BY o)::real[]
+         FROM unnest(s.stanumbers${n}) WITH ORDINALITY AS t(x, o))
+       ELSE s.stanumbers${n} END`,
+    )
+    .join(',\n       ');
   return [
     `UPDATE pg_class c SET reltuples = c.reltuples * ${f} FROM pg_index i
      WHERE c.oid = i.indexrelid AND c.reltuples > 0 AND i.indrelid IN (${tables})`,
+    `UPDATE pg_statistic s SET ${mcvSlots}
+     WHERE (s.stadistinct > ${ID_LIKE_DISTINCT} OR s.stadistinct < 0)
+       AND 1 IN (s.stakind1, s.stakind2, s.stakind3, s.stakind4, s.stakind5)
+       AND s.starelid IN (${tables})`,
     `UPDATE pg_statistic s SET stadistinct = s.stadistinct * ${f}
      WHERE s.stadistinct > ${ID_LIKE_DISTINCT} AND s.starelid IN (${tables})`,
     `UPDATE pg_class c SET reltuples = c.reltuples * ${f} WHERE c.oid IN (${tables})`,

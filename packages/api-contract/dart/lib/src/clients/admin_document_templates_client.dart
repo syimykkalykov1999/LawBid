@@ -12,6 +12,8 @@ import '../models/admin_template_upload_dto.dart';
 import '../models/admin_templates_bulk_dto.dart';
 import '../models/create_document_template_dto.dart';
 import '../models/file_envelope.dart';
+import '../models/multipart_complete_envelope.dart';
+import '../models/multipart_plan_envelope.dart';
 import '../models/presigned_file_envelope.dart';
 import '../models/template_sort.dart';
 import '../models/update_document_template_dto.dart';
@@ -62,6 +64,20 @@ abstract class AdminDocumentTemplatesClient {
   @POST('/admin/document-templates/uploads')
   Future<PresignedFileEnvelope> presignAdminTemplateUpload({
     @Body() required AdminTemplateUploadDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Step 1b (big files): part links for a resumable upload; ask again after an interruption
+  @POST('/admin/document-templates/uploads/{fileId}/multipart')
+  Future<MultipartPlanEnvelope> multipartPlanAdminTemplateUpload({
+    @Path('fileId') required String fileId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Step 1c (big files): assemble the parts; then confirm as usual
+  @POST('/admin/document-templates/uploads/{fileId}/multipart/complete')
+  Future<MultipartCompleteEnvelope> multipartCompleteAdminTemplateUpload({
+    @Path('fileId') required String fileId,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -1,4 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -15,6 +23,7 @@ import { CaseWorkspaceService } from './case-workspace.service';
 import {
   BoardCaseTaskDto,
   CaseActivityDto,
+  CaseFilesQueryDto,
   CaseTaskIdParamDto,
   CaseTasksDto,
   CaseUpdateDto,
@@ -26,6 +35,7 @@ import {
   TaskSubmissionDto,
   WorkspaceFileDto,
 } from './dto/workspace.dto';
+import { AssistantAllowed } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const ERR = {
@@ -42,6 +52,7 @@ const ERR = {
 export class CaseWorkspaceController {
   constructor(private readonly ws: CaseWorkspaceService) {}
 
+  @AssistantAllowed()
   @Get('cases/:id/workspace')
   @ApiOperation({
     summary: 'Files, open tasks and updates of an accepted case',
@@ -52,14 +63,26 @@ export class CaseWorkspaceController {
     return this.ws.summary(u, p.id);
   }
 
+  @AssistantAllowed()
   @Get('cases/:id/files')
-  @ApiOperation({ summary: 'Case files with notes and where they came from' })
+  @ApiOperation({
+    summary: 'Case files with notes and where they came from',
+    description:
+      'With `limit`: one page, oldest first, meta.nextCursor for the next one; filters `kind`, `source`, `sample`. Without it: every file (apps released before 2026-11-10).',
+  })
   @ApiEnvelopeResponse(WorkspaceFileDto, { isArray: true })
   @ApiErrors(ERR)
-  listCaseFiles(@CurrentUser() u: RequestUser, @Param() p: CaseIdParamDto) {
-    return this.ws.listFiles(u, p.id);
+  listCaseFiles(
+    @CurrentUser() u: RequestUser,
+    @Param() p: CaseIdParamDto,
+    @Query() q: CaseFilesQueryDto,
+  ) {
+    return q.limit
+      ? this.ws.listFilesPage(u, p.id, { ...q, limit: q.limit })
+      : this.ws.listFiles(u, p.id);
   }
 
+  @AssistantAllowed()
   @Get('users/me/case-tasks')
   @ApiOperation({
     summary: 'Tasks of every case in work, for the Mine › Tasks board',
@@ -69,6 +92,7 @@ export class CaseWorkspaceController {
     return this.ws.board(u);
   }
 
+  @AssistantAllowed()
   @Get('cases/:id/tasks')
   @ApiOperation({
     summary: 'Tasks of an accepted case (private ones: attorney only)',
@@ -79,6 +103,7 @@ export class CaseWorkspaceController {
     return this.ws.listTasks(u, p.id);
   }
 
+  @AssistantAllowed()
   @Post('cases/:id/tasks')
   @ApiOperation({
     summary:
@@ -94,6 +119,7 @@ export class CaseWorkspaceController {
     return this.ws.createTask(u, p.id, dto);
   }
 
+  @AssistantAllowed()
   @Post('cases/:id/tasks/:taskId/done')
   @ApiOperation({
     summary: 'Mark a task done / not done (same for both sides)',
@@ -108,6 +134,7 @@ export class CaseWorkspaceController {
     return this.ws.setDone(u, p.id, p.taskId, dto.done);
   }
 
+  @AssistantAllowed()
   @Post('cases/:id/tasks/:taskId/close')
   @ApiOperation({ summary: 'Attorney: close a task for the client' })
   @ApiEnvelopeResponse(CaseTasksDto)
@@ -116,6 +143,7 @@ export class CaseWorkspaceController {
     return this.ws.setClosed(u, p.id, p.taskId, true);
   }
 
+  @AssistantAllowed()
   @Post('cases/:id/tasks/:taskId/reopen')
   @ApiOperation({ summary: 'Attorney: reopen a closed task' })
   @ApiEnvelopeResponse(CaseTasksDto)
@@ -127,6 +155,7 @@ export class CaseWorkspaceController {
     return this.ws.setClosed(u, p.id, p.taskId, false);
   }
 
+  @AssistantAllowed()
   @Post('cases/:id/tasks/:taskId/submissions')
   @ApiOperation({
     summary: 'Client: add a note and files to a task for the client',
@@ -141,6 +170,7 @@ export class CaseWorkspaceController {
     return this.ws.submit(u, p.id, p.taskId, dto);
   }
 
+  @AssistantAllowed()
   @Post('cases/:id/tasks/:taskId/items/:itemId/done')
   @ApiOperation({ summary: 'Tick / untick one checklist line of a task' })
   @ApiEnvelopeResponse(CaseTasksDto)
@@ -153,6 +183,7 @@ export class CaseWorkspaceController {
     return this.ws.setItemDone(u, p.id, p.taskId, p.itemId, dto.done);
   }
 
+  @AssistantAllowed()
   @Get('cases/:id/activity')
   @ApiOperation({ summary: 'Everything that happened in the case' })
   @ApiEnvelopeResponse(CaseActivityDto, { isArray: true })
@@ -161,6 +192,7 @@ export class CaseWorkspaceController {
     return this.ws.activity(u, p.id);
   }
 
+  @AssistantAllowed()
   @Post('cases/:id/updates/seen')
   @HttpCode(204)
   @ApiOperation({ summary: 'Mark the Updates tab as read' })
@@ -172,6 +204,7 @@ export class CaseWorkspaceController {
     await this.ws.markUpdatesSeen(u, p.id);
   }
 
+  @AssistantAllowed()
   @Get('cases/:id/updates')
   @ApiOperation({ summary: 'Updates feed of an accepted case' })
   @ApiEnvelopeResponse(CaseUpdateDto, { isArray: true })
@@ -180,6 +213,7 @@ export class CaseWorkspaceController {
     return this.ws.listUpdates(u, p.id);
   }
 
+  @AssistantAllowed()
   @Post('cases/:id/updates')
   @ApiOperation({ summary: 'Add an update (text and files), either side' })
   @ApiEnvelopeResponse(CaseUpdateDto, { isArray: true })

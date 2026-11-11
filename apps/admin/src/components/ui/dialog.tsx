@@ -1,7 +1,8 @@
 'use client';
 
 import { X } from '@phosphor-icons/react';
-import { AnimatePresence, m } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';

@@ -189,7 +189,7 @@ async function regenerate(
   const main = processed.main;
   if (!main) return { kind: 'skipped', rows: 0, why: 'nothing produced' };
   const blurhash = await computeBlurhash(main.data);
-  await putProcessedObjects(
+  const stored = await putProcessedObjects(
     deps.storage,
     {
       warn: (obj: unknown, msg?: string) =>
@@ -212,6 +212,7 @@ async function regenerate(
       mime: main.mime,
       size_bytes: BigInt(main.data.length),
       sha256: createHash('sha256').update(main.data).digest('hex'),
+      avif_twins: stored.avifTwins,
       ...(blurhash ? { blurhash } : {}),
     },
   });

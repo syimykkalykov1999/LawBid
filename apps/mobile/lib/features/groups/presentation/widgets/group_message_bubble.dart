@@ -627,13 +627,13 @@ class GroupPendingBubble extends ConsumerWidget {
                     style: type.caption.copyWith(color: colors.danger),
                   ),
                 ),
-                if (file == null)
-                  Flexible(
-                    child: TextButton(
-                      onPressed: onRetry,
-                      child: FitText(t.t('error.retry')),
-                    ),
+                // Audit 26.10 B9: a file is sent again too (1:1 chats).
+                Flexible(
+                  child: TextButton(
+                    onPressed: onRetry,
+                    child: FitText(t.t('error.retry')),
                   ),
+                ),
                 Flexible(
                   child: TextButton(
                     onPressed: onDiscard,

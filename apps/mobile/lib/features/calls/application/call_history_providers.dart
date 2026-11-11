@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/sync/sync_freshness.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/data/call_history_repository.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -26,8 +28,14 @@ final callHistoryRepositoryProvider = Provider<CallHistoryRepository>(
 /// request) and asks the server only on the first open of this app run,
 /// after a call ended (socket), on pull-to-refresh or when older than
 /// [SyncWindows.calls] — never on a tab switch. Kept 10 minutes after the
-/// screen lets go. The server has no `updatedSince` for this list: a sync
-/// is the first page again (a 304 when nothing changed).
+/// screen lets go.
+///
+/// B-c7 (2026-11-09, Telegram getDifference as the groups list): once a
+/// page is on screen, every later sync is `?updatedSince=<syncedAt>`: only
+/// the calls that reached or changed on the list come back, `deletedIds`
+/// leave it, and the server's `syncedAt` is kept for the next time. The
+/// first page is read only when there is nothing yet, or after a
+/// `SYNC_TOO_OLD` (a gap of more than 7 days).
 final callHistoryProvider = AsyncNotifierProvider.autoDispose<
     CallHistoryController, PaginatedList<CallHistoryEntry>>(
   CallHistoryController.new,
@@ -43,6 +51,14 @@ class CallHistoryController
 
   /// A response of an older generation (before a refresh) is dropped.
   int _generation = 0;
+
+  /// B-c7: «caught up to» (server time) of the rows on screen; null = the
+  /// next sync is the first page.
+  DateTime? _syncedAt;
+
+  /// A first page carries no server time: it counts as caught up to «now»
+  /// less this margin (the phone's clock may run ahead of the server's).
+  static const firstPageSkew = SyncedListNotifier.firstPageSkew;
 
   Timer? _endedTimer;
 
@@ -102,7 +118,48 @@ class CallHistoryController
   ) async {
     final page = await repo.history();
     _fresh.mark(_key);
+    _syncedAt = DateTime.now().subtract(firstPageSkew);
     return page;
+  }
+
+  /// B-c7: the delta since [_syncedAt] merged into the rows on screen —
+  /// changed rows replace theirs by id, new ones join, `deletedIds` leave,
+  /// newest first. Returns false when the server wants the first page
+  /// again (`SYNC_TOO_OLD`) or nothing is on screen.
+  Future<bool> _catchUp(PaginatedList<CallHistoryEntry> current) async {
+    final since = _syncedAt;
+    if (since == null) return false;
+    try {
+      final delta = await _repo.changed(since);
+      _fresh.mark(_key);
+      _syncedAt = delta.syncedAt ?? since;
+      if (delta.items.isNotEmpty || delta.deletedIds.isNotEmpty) {
+        _apply(current, delta);
+      }
+      return true;
+    } on ApiException catch (e) {
+      if (e.code == 'SYNC_TOO_OLD') {
+        _syncedAt = null;
+        return false;
+      }
+      rethrow;
+    }
+  }
+
+  void _apply(
+    PaginatedList<CallHistoryEntry> current,
+    SyncedPage<CallHistoryEntry> delta,
+  ) {
+    final gone = delta.deletedIds.toSet();
+    final changed = {for (final e in delta.items) e.id: e};
+    final merged = <CallHistoryEntry>[
+      for (final e in current.items)
+        if (!gone.contains(e.id)) changed.remove(e.id) ?? e,
+      ...changed.values.where((e) => !gone.contains(e.id)),
+    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    state = AsyncData(
+      PaginatedList(items: merged, nextCursor: current.nextCursor),
+    );
   }
 
   void _onEvent(RealtimeEvent e) {
@@ -127,10 +184,18 @@ class CallHistoryController
     await refresh();
   }
 
-  /// The first page again; a failure keeps the rows on screen.
+  /// B-c7: the delta since the last sync when rows are on screen (the
+  /// first page only when nothing is, or after `SYNC_TOO_OLD`); a failure
+  /// keeps the rows on screen.
   Future<void> refresh() async {
     final generation = ++_generation;
     try {
+      final current = state.value;
+      if (current != null &&
+          current.items.isNotEmpty &&
+          await _catchUp(current)) {
+        return;
+      }
       final page = await _first(_repo);
       if (ref.mounted && generation == _generation) {
         state = AsyncData(PaginatedList.firstPage(page));
@@ -194,6 +259,8 @@ class CallHistoryController
     }
     // The phone's HTTP copy of the first page still holds the dropped
     // calls: the next cold start must not show them before the live page.
+    // The rows on screen are right, so the delta stays the sync: the
+    // server answers the hidden ids in deletedIds (already gone here).
     _fresh.forget(_key);
   }
 

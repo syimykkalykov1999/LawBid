@@ -123,6 +123,7 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
   SavedChatMessage: spec('user', owner('user_id')),
   QuickReply: spec('user', owner('user_id')),
   Follow: spec('user', owner('follower_id')),
+  FollowTombstone: spec('user', owner('follower_id')),
   UserBlock: spec('user', owner('blocker_id')),
   Story: spec('user', owner('author_id')),
   StoryView: spec('user', parent('story_id', 'Story')),

@@ -2,8 +2,54 @@ import {
   disputeRefundGuard,
   disputeRefundKey,
   disputeRefundReason,
+  firstChargeCancelRef,
+  firstChargeRefundable,
   inquiryRefundable,
+  isFirstChargeCancelRef,
 } from './dispute-refund.logic';
+
+// R-237, sweep B-c3 (2026-11-09): a disputed subscription WITHOUT a bank —
+// the attorney cancels right after the first charge. Behind the same switch.
+describe('first-charge cancel refund rules (R-237 / B-c3)', () => {
+  const day = 86_400_000;
+  const now = new Date('2026-11-09T12:00:00Z');
+  const base = {
+    now,
+    windowDays: 7,
+    succeededPayments: 1,
+    firstChargeAt: new Date(now.getTime() - 3 * day),
+  };
+
+  it('the first and only charge, inside the window: refundable', () => {
+    expect(firstChargeRefundable(base)).toBe(true);
+  });
+
+  it('a second charge, or an older first charge, is not', () => {
+    expect(firstChargeRefundable({ ...base, succeededPayments: 2 })).toBe(
+      false,
+    );
+    expect(
+      firstChargeRefundable({
+        ...base,
+        firstChargeAt: new Date(now.getTime() - 8 * day),
+      }),
+    ).toBe(false);
+    expect(firstChargeRefundable({ ...base, succeededPayments: 0 })).toBe(
+      false,
+    );
+  });
+
+  it('a window of zero days switches the rule off', () => {
+    expect(firstChargeRefundable({ ...base, windowDays: 0 })).toBe(false);
+    expect(firstChargeRefundable({ ...base, windowDays: -1 })).toBe(false);
+  });
+
+  it('the row reference is per payment and tells the two kinds apart', () => {
+    expect(firstChargeCancelRef('pay-1')).toBe('cancel:pay-1');
+    expect(isFirstChargeCancelRef('cancel:pay-1')).toBe(true);
+    expect(isFirstChargeCancelRef('dp_123')).toBe(false);
+  });
+});
 
 describe('dispute refund rules (R-237)', () => {
   const ok = {

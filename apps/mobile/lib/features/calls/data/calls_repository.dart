@@ -429,7 +429,7 @@ abstract final class CallMappers {
     try {
       return (
         callId: data['callId'] as String,
-        hostId: data['hostId'] as String?,
+        hostId: data['hostId'] is String ? data['hostId'] as String : null,
         members: [
           for (final p in list)
             member(

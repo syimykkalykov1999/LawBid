@@ -239,19 +239,26 @@ export const envSchema = z
       .int()
       .positive()
       .default(20),
+    // Click audit 2026-11-08: 60 per address made every account behind one
+    // shared address (office NAT, a carrier's CGNAT) share 60 refreshes an
+    // hour — about 15 active people — after which the app showed «You're
+    // offline». The per-session cap below is what stops a stolen token.
     AUTH_REFRESH_LIMIT_PER_IP_PER_HOUR: z.coerce
       .number()
       .int()
       .positive()
-      .default(60),
+      .default(1200),
     // Per session chain (one device's login): an access token lives 15
-    // min (docs/01 §10.4), so a well-behaved client refreshes ~4x/hour;
-    // 30 leaves room for retries while capping a stolen-token refresh loop.
+    // min (docs/01 §10.4), so a phone refreshes ~4x/hour. The website
+    // refreshes on every page load / new tab (the refresh token is an
+    // HttpOnly cookie, the access token lives only in the tab), so 30 ran
+    // out after 30 reloads (click audit 2026-11-08); 120 = 2/min still caps
+    // a stolen-token refresh loop.
     AUTH_REFRESH_LIMIT_PER_SESSION_PER_HOUR: z.coerce
       .number()
       .int()
       .positive()
-      .default(30),
+      .default(120),
     // docs/01 §10.2 E / §12: https base of the universal-link domain
     // (e.g. https://lawbid.app). Optional: when unset, emails carry only
     // the lawbid:// deep link. No trailing slash.
@@ -324,7 +331,7 @@ export const envSchema = z
     // auto (default): ses once SES_REGION + SES_FROM_ADDRESS are set.
     EMAIL_PROVIDER: z.preprocess(
       blankToUndefined,
-      z.enum(['auto', 'mock', 'ses']).default('auto'),
+      z.enum(['auto', 'mock', 'ses', 'smtp']).default('auto'),
     ),
     SES_REGION: optionalMatching(
       awsRegionPattern,
@@ -350,6 +357,19 @@ export const envSchema = z
     // §15 stage 1.1: Mailhog is already part of docker-compose.yml).
     SMTP_HOST: z.string().default('localhost'),
     SMTP_PORT: z.coerce.number().int().positive().default(1025),
+    // Owner 2026-11-10 (own servers, EMAIL_PROVIDER=smtp): the login and
+    // sender of our own mail server; SMTP_SECURE=true = implicit TLS (465),
+    // otherwise STARTTLS is required.
+    SMTP_USER: z.preprocess(blankToUndefined, z.string().optional()),
+    SMTP_PASSWORD: z.preprocess(blankToUndefined, z.string().optional()),
+    SMTP_SECURE: z.preprocess(
+      blankToUndefined,
+      z.enum(['true', 'false']).default('false'),
+    ),
+    SMTP_FROM_ADDRESS: optionalMatching(
+      fromAddressPattern,
+      'SMTP_FROM_ADDRESS must be "no-reply@domain" or "Name <no-reply@domain>"',
+    ),
 
     // --- Social login (stage 1.4) ---
     // Comma-separated allowed audiences. Empty = that sign-in method
@@ -433,6 +453,14 @@ export const envSchema = z
     S3_BUCKET_MEDIA: optionalMatching(
       s3BucketPattern,
       'S3_BUCKET_MEDIA must be a valid S3 bucket name',
+    ),
+    // C-c11 (2026-11-09): days of COMPLIANCE Object Lock retention the API
+    // puts on sealed deal-record PDFs. Set by Terraform only while the
+    // documents bucket has Object Lock (documents_object_lock); 0 / unset =
+    // no retention headers (a bucket without Object Lock refuses them).
+    S3_OBJECT_LOCK_RETENTION_DAYS: optionalMatching(
+      /^\d{1,5}$/,
+      'S3_OBJECT_LOCK_RETENTION_DAYS must be a whole number of days',
     ),
     // docs/06 §6.1: media (post images, avatars) served through CloudFront
     // when set (https base URL of the distribution, no trailing slash);
@@ -1208,11 +1236,14 @@ export const envSchema = z
           });
         }
       }
-      if (env.S3_ENDPOINT) {
+      // Owner 2026-11-10 (own servers, no AWS): an S3-compatible store of
+      // our own (MinIO, Ceph RGW) is allowed when deployed, over TLS only —
+      // the files and the presigned links must never travel in clear.
+      if (env.S3_ENDPOINT && !env.S3_ENDPOINT.startsWith('https://')) {
         ctx.addIssue({
           code: 'custom',
           path: ['S3_ENDPOINT'],
-          message: `S3_ENDPOINT is for local MinIO only; leave it empty in NODE_ENV=${env.NODE_ENV}`,
+          message: `S3_ENDPOINT must be https:// in NODE_ENV=${env.NODE_ENV} (own S3-compatible store over TLS); http:// is for local MinIO only`,
         });
       }
       for (const key of [

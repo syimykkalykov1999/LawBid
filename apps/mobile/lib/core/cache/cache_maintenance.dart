@@ -8,6 +8,8 @@ import 'package:lawbid/core/cache/cache_eviction.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/media_cache_dir.dart';
+import 'package:lawbid/core/cache/voice_web_cache.dart';
+import 'package:lawbid/core/cache/web_storage.dart';
 import 'package:lawbid/core/files/resumable_download.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/video_cache/video_cache.dart';
@@ -192,13 +194,17 @@ class CacheMaintenance {
     MediaCacheDir? chatMedia,
     MediaCacheDir? video,
     PrefixedTempFiles? voiceNotes,
+    VoiceWebCache? voiceWeb,
     MediaCacheDir? caseFiles,
     Future<Set<String>> Function()? groupChatPaths,
+    WebCaches? web,
   })  : _db = db,
+        _voiceWeb = voiceWeb,
         _groupChatPaths = groupChatPaths,
         _pages = pages,
         _limits = limits,
         _http = http,
+        _web = web,
         _images = images ?? const MediaCacheDir(AppImageCaches.feedKey),
         _chatMedia =
             chatMedia ?? const MediaCacheDir(AppImageCaches.chatMediaKey),
@@ -217,8 +223,16 @@ class CacheMaintenance {
   final MediaCacheDir _video;
   final PrefixedTempFiles _voiceNotes;
 
+  /// The site's copy of the voice notes (browser Cache Storage); null on
+  /// the phone.
+  final VoiceWebCache? _voiceWeb;
+
   /// Owner 2026-11-05: the downloaded case documents.
   final MediaCacheDir _caseFiles;
+
+  /// B-c2 (e): the site's own Cache Storage on the web build (null on the
+  /// phones, whose stores are the folders above).
+  final WebCaches? _web;
 
   /// The canonical paths of the chat-media files that belong to GROUP chats
   /// (the chat → picture index). Every other chat file is personal or not
@@ -255,15 +269,22 @@ class CacheMaintenance {
       guard(_db.fileViewsBytes),
       guard(_caseFiles.size),
     ]);
+    var web = const <CacheStore, int>{};
+    try {
+      web = await _web?.sizes() ?? web;
+    } on Object catch (e) {
+      debugPrint('cache size web: $e');
+    }
+    int plusWeb(CacheStore s, int bytes) => bytes + (web[s] ?? 0);
     return CacheReport(
       bytes: {
         CacheStore.http: results[0],
         CacheStore.messages: results[1],
         CacheStore.feed: results[2],
-        CacheStore.images: results[3],
-        CacheStore.chatMedia: results[4],
-        CacheStore.other: results[5],
-        CacheStore.video: results[6],
+        CacheStore.images: plusWeb(CacheStore.images, results[3]),
+        CacheStore.chatMedia: plusWeb(CacheStore.chatMedia, results[4]),
+        CacheStore.other: plusWeb(CacheStore.other, results[5]),
+        CacheStore.video: plusWeb(CacheStore.video, results[6]),
         CacheStore.files: results[8],
       },
       measuredAt: DateTime.now(),
@@ -276,6 +297,7 @@ class CacheMaintenance {
   /// False when a store could not be emptied (the video proxy did not
   /// answer): the caller must not show it as cleared.
   Future<bool> clear(CacheStore store) async {
+    await _web?.clear([store]);
     switch (store) {
       case CacheStore.http:
         // The memory level and the table (the interceptor's disk level is
@@ -292,6 +314,7 @@ class CacheMaintenance {
       case CacheStore.chatMedia:
         await _chatMedia.clear();
         await _voiceNotes.clear();
+        await _voiceWeb?.clear();
         if (!isFlutterTest) await AppImageCaches.chatMedia.emptyCache();
         await _db.forgetAllChatMedia();
       case CacheStore.video:
@@ -456,6 +479,9 @@ class CacheMaintenance {
       );
       await _autoDelete(l);
       await _enforceCap(l);
+      // B-c2 (e): near the browser's quota the site's own caches go first
+      // (over it the browser drops the whole site, unsent uploads too).
+      await _web?.relieve();
       await _db.trimHttp(l.limitBytes(CacheStore.http));
       await _db.trimMessages(l.limitBytes(CacheStore.messages));
       // Owner 2026-10-24: the view lists of case documents live in «Прочее»

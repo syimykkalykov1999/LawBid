@@ -7,6 +7,7 @@ import type { EmailMessage, EmailProvider } from './email-provider.interface';
 import type { SecretsService } from '../../../../common/secrets/secrets.service';
 import { MockEmailProvider } from './mock-email.provider';
 import { SesEmailProvider } from './ses-email.provider';
+import { SmtpEmailProvider } from './smtp-email.provider';
 import type { PrismaService } from '../../../../prisma/prisma.service';
 import {
   applyEmailTemplateOverride,
@@ -36,6 +37,8 @@ export function createEmailProvider(
       config.getOrThrow<AppEnv['EMAIL_PROVIDER']>('EMAIL_PROVIDER'),
     SES_REGION: config.get<string>('SES_REGION'),
     SES_FROM_ADDRESS: config.get<string>('SES_FROM_ADDRESS'),
+    SMTP_HOST: config.get<string>('SMTP_HOST'),
+    SMTP_FROM_ADDRESS: config.get<string>('SMTP_FROM_ADDRESS'),
   });
   logger.info({ provider, missing }, 'Email provider selected at boot');
   const raw = new DynamicEmailProvider(
@@ -104,6 +107,7 @@ export class TemplateOverrideEmailProvider implements EmailProvider {
 
 class DynamicEmailProvider implements EmailProvider {
   private cached?: { key: string; provider: SesEmailProvider };
+  private smtp?: SmtpEmailProvider;
 
   constructor(
     private readonly config: ConfigService,
@@ -115,6 +119,21 @@ class DynamicEmailProvider implements EmailProvider {
   async sendEmail(message: EmailMessage): Promise<void> {
     if (this.config.get<string>('EMAIL_PROVIDER') === 'mock') {
       return this.mock.sendEmail(message);
+    }
+    // Owner 2026-11-10 (own servers): our own SMTP server instead of SES.
+    if (this.config.get<string>('EMAIL_PROVIDER') === 'smtp') {
+      this.smtp ??= new SmtpEmailProvider(
+        {
+          host: this.config.getOrThrow<string>('SMTP_HOST'),
+          port: this.config.getOrThrow<number>('SMTP_PORT'),
+          secure: this.config.get<string>('SMTP_SECURE') === 'true',
+          user: this.config.get<string>('SMTP_USER'),
+          password: this.config.get<string>('SMTP_PASSWORD'),
+          fromAddress: this.config.getOrThrow<string>('SMTP_FROM_ADDRESS'),
+        },
+        this.logger,
+      );
+      return this.smtp.sendEmail(message);
     }
     const f = (await this.secrets?.get('ses'))?.fields ?? {};
     const region = f.region ?? this.config.get<string>('SES_REGION');

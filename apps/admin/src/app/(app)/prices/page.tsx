@@ -2,7 +2,7 @@
 
 import { ArrowRight, Gift, IdentificationBadge, PencilSimple, Tag, UsersThree, type Icon } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useState } from 'react';
 import { AppPricePreview, DiscountBadge, previewDiscount } from '@/components/billing/app-price-preview';
 import { dollarsToCents, fadeUp, useBillingRole, UserCell } from '@/components/billing/shared';

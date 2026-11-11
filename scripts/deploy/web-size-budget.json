@@ -1,0 +1,9 @@
+{
+  "_comment": "Web bundle budget (OPEN_ITEMS_SWEEP 2026-11-09 A-c4). Baseline = the live release 0cf68a6b0 measured on 2026-11-09 (brotli bytes as CloudFront serves them): main.dart.wasm 2 902 631 + main.dart.js 2 093 541 = 4 996 172 for our own code; + canvaskit.wasm 2 257 085 + skwasm.wasm 1 209 789 + skwasm.js 14 885 = 8 477 931 for the whole first load. Budgets = baseline + 5 %. A bigger app is a conscious change: raise the number in the same PR and say why.",
+  "app_brotli_bytes_max": 5246000,
+  "total_brotli_bytes_max": 8902000,
+  "files": {
+    "app": ["main.dart.wasm", "main.dart.js"],
+    "engine": ["canvaskit/canvaskit.wasm", "canvaskit/skwasm.wasm", "canvaskit/skwasm.js"]
+  }
+}

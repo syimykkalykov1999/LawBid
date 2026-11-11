@@ -1,8 +1,9 @@
 'use client';
 
 import { useInfiniteQuery } from '@tanstack/react-query';
-import Link from 'next/link';
+import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { MotionRow } from '@/components/legacy/fade-in';
+import { VirtualRows } from '@/components/ui/virtual-rows';
 import { MoreButton } from '@/components/legacy/more-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/card';
@@ -52,8 +53,9 @@ export default function ModerationJournalPage() {
         </thead>
         <tbody>
           {q.isPending ? <TableEmpty colSpan={6} loading /> : null}
-          {rows.map((r, i) => (
-            <MotionRow key={r.id} i={i}>
+          <VirtualRows rows={rows} colSpan={6}>
+            {(r, i, vp) => (
+            <MotionRow key={r.id} i={i} {...vp}>
               <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(r.createdAt)}</Td>
               <Td>
                 <Badge tone="neutral" dot>
@@ -69,7 +71,8 @@ export default function ModerationJournalPage() {
               <Td className="text-xs">{r.adminName ?? r.adminId}</Td>
               <Td className="text-xs">{r.appealStatus ? APPEAL[r.appealStatus] : '—'}</Td>
             </MotionRow>
-          ))}
+            )}
+          </VirtualRows>
           {!q.isPending && rows.length === 0 ? <TableEmpty colSpan={6}>Решений пока нет.</TableEmpty> : null}
         </tbody>
       </Table>

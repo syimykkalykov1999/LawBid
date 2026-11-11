@@ -1,16 +1,19 @@
 'use client';
 
 import { CaretDown, List, MagnifyingGlass, ShieldCheck, SignOut } from '@phosphor-icons/react';
-import Link from 'next/link';
+import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { useQueryClient } from '@tanstack/react-query';
-import { AnimatePresence, m } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import * as m from 'motion/react-m';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { clearPersistedQueries } from '@/lib/persist';
 import type { Me } from '@/lib/hooks';
 import { ROLE_LABEL, WORKSPACE_HEAD_LABEL, WORKSPACE_LABEL, groupFor, navModeFor, sectionFor } from '@/lib/rbac';
 import { PresenceBadge } from '@/components/desk/presence-badge';
 import { CountrySwitcher } from './country-switcher';
 import { ThemeChoice, ThemeToggle } from './theme-toggle';
+import { LazyImg } from '@/components/ui/lazy-img';
 
 export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: () => void; onSearch: () => void }) {
   const pathname = usePathname();
@@ -36,6 +39,8 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
   const signOut = async () => {
     await fetch('/api/auth/session', { method: 'DELETE' });
     qc.clear();
+    // Speed matrix 2026-11-09 (§3 #4): the IndexedDB copy goes with the session.
+    await clearPersistedQueries();
     router.replace('/login');
   };
 
@@ -99,8 +104,7 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
         >
           <span className="grid h-7 w-7 place-items-center overflow-hidden rounded-lg bg-gradient-to-br from-brand-navy to-[#1b3170] text-[11px] font-semibold text-gold-300">
             {avatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <LazyImg
                 src={avatar}
                 alt=""
                 data-testid="topbar-avatar"

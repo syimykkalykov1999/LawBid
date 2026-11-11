@@ -60,10 +60,13 @@ abstract class FollowsClient {
   /// [cursor] - meta.nextCursor of the previous page.
   ///
   /// [q] - Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.
+  ///
+  /// [updatedSince] - B-c7 (2026-11-09, Telegram getDifference as /groups): only the people I started following since (ISO); meta.deletedIds = the ones I unfollowed since; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD (first page again). `cursor` and `q` are ignored with it.
   @GET('/users/me/following')
   Future<AttorneyListItemListEnvelope> listMyFollowing({
     @Query('cursor') String? cursor,
     @Query('q') String? q,
+    @Query('updatedSince') DateTime? updatedSince,
     @Extras() Map<String, dynamic>? extras,
   });
 

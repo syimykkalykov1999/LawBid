@@ -12,6 +12,7 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 import '../../../helpers/onboarding_harness.dart';
 import '../../profile/profile_fakes.dart';
 import '../cases_fakes.dart';
+import '../support/fake_case_files_remote.dart';
 
 /// Owner 2026-11-05: the case screen of both profiles at both stages, at the
 /// narrowest width, in English (the test fonts draw it everywhere).
@@ -142,6 +143,8 @@ void main() {
         extra: [
           ...casesOverrides(repo: e.value.$2),
           caseFilesProvider('case-1').overrideWith((ref) async => const []),
+          caseFilesRemoteProvider
+              .overrideWithValue(FakeCaseFilesRemote(const [])),
           caseTasksProvider('case-1').overrideWith(
             (ref) async => const api.CaseTasksDto(
               role: api.CaseTasksDtoRole.attorney,

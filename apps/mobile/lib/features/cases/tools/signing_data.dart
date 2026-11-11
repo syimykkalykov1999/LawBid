@@ -90,6 +90,8 @@ class CaseSigningActions {
     _ref
       ..invalidate(signRequestsProvider(caseId))
       ..invalidate(caseFilesProvider(caseId))
+      ..invalidate(caseFilesPagedProvider)
+      ..invalidate(caseFilesHaveSamplesProvider)
       ..invalidate(caseWorkspaceProvider(caseId))
       ..invalidate(caseActivityProvider(caseId));
   }

@@ -4,7 +4,8 @@ import {
   ArrowCounterClockwise, ArrowLeft, CaretDown, CopySimple, FloppyDisk, Info, PaperPlaneTilt,
 } from '@phosphor-icons/react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AnimatePresence, m } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';

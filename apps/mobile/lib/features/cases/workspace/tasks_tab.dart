@@ -46,10 +46,19 @@ Future<void> createCaseTask(
 /// kinds (For client · Shared · Private), the client two (Your tasks ·
 /// Lawyer's progress); one list at a time, picked by text filters.
 class TasksTab extends ConsumerStatefulWidget {
-  const TasksTab({required this.caseId, required this.isAttorney, super.key});
+  const TasksTab({
+    required this.caseId,
+    required this.isAttorney,
+    this.asSliver = false,
+    super.key,
+  });
 
   final String caseId;
   final bool isAttorney;
+
+  /// App audit 2026-10-26 A16: a sliver for `CaseSubTabs` — the rows are
+  /// built only as they scroll in; the same rows and look.
+  final bool asSliver;
 
   @override
   ConsumerState<TasksTab> createState() => _TasksTabState();
@@ -65,14 +74,22 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final value = ref.watch(caseTasksProvider(widget.caseId));
+    Widget box(Widget child) =>
+        widget.asSliver ? SliverToBoxAdapter(child: child) : child;
     return value.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.all(AppSpacing.lg),
-        child: AppSkeleton(height: 120),
+      loading: () => box(
+        const Padding(
+          padding: EdgeInsets.all(AppSpacing.lg),
+          child: AppSkeleton(height: 120),
+        ),
       ),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Text(errorText(t, e)),
+      error: (e, _) => box(
+        WorkspaceErrorNotice(
+          error: e,
+          t: t,
+          busy: value.isLoading,
+          onRetry: () => ref.invalidate(caseTasksProvider(widget.caseId)),
+        ),
       ),
       data: (d) {
         final lists = widget.isAttorney
@@ -96,38 +113,40 @@ class _TasksTabState extends ConsumerState<TasksTab> {
         // Audit 2026-10-19: a closed case (or an assistant without the
         // «tasks» duty) only looks.
         final canEdit = d.canEdit;
+        final rows = [
+          FilterRow(
+            labels: [
+              for (final (i, l) in labels.indexed) '$l ${_open(lists[i])}',
+            ],
+            index: idx,
+            onChanged: (i) => setState(() => _filter = i),
+          ),
+          if (!canEdit)
+            WorkspaceReadOnlyNote(
+              text: t.t(readOnlyReasonKey(ref, tasks: true)),
+            ),
+          if (shown.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text(
+                t.t('cases.tasks.empty'),
+                style: type.body.copyWith(color: colors.textSecondary),
+              ),
+            ),
+          for (final task in shown)
+            TaskRow(
+              caseId: widget.caseId,
+              task: task,
+              isAttorney: widget.isAttorney,
+              canEdit: canEdit,
+              t: t,
+              formats: formats,
+            ),
+        ];
+        if (widget.asSliver) return SliverList.list(children: rows);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            FilterRow(
-              labels: [
-                for (final (i, l) in labels.indexed) '$l ${_open(lists[i])}',
-              ],
-              index: idx,
-              onChanged: (i) => setState(() => _filter = i),
-            ),
-            if (!canEdit)
-              WorkspaceReadOnlyNote(
-                text: t.t(readOnlyReasonKey(ref, tasks: true)),
-              ),
-            if (shown.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Text(
-                  t.t('cases.tasks.empty'),
-                  style: type.body.copyWith(color: colors.textSecondary),
-                ),
-              ),
-            for (final task in shown)
-              TaskRow(
-                caseId: widget.caseId,
-                task: task,
-                isAttorney: widget.isAttorney,
-                canEdit: canEdit,
-                t: t,
-                formats: formats,
-              ),
-          ],
+          children: rows,
         );
       },
     );
@@ -417,7 +436,8 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final ws = ref.watch(caseWorkspaceProvider(widget.caseId)).value;
-    final tasks = ref.watch(caseTasksProvider(widget.caseId)).value;
+    final read = ref.watch(caseTasksProvider(widget.caseId));
+    final tasks = read.value;
     // Audit 2026-10-19: joint tasks were missing here, so they opened as
     // an endless skeleton.
     final all = tasks == null
@@ -432,6 +452,15 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final isAttorney = tasks?.role == api.CaseTasksDtoRole.attorney;
     final actions = ref.read(caseWorkspaceActionsProvider);
     if (task == null) {
+      // App audit 2026-10-26 A9: a failed read was an endless skeleton.
+      if (tasks == null && read.error != null) {
+        return WorkspaceErrorNotice(
+          error: read.error!,
+          t: t,
+          busy: read.isLoading,
+          onRetry: () => ref.invalidate(caseTasksProvider(widget.caseId)),
+        );
+      }
       if (tasks == null) {
         return const SizedBox(height: 200, child: AppSkeleton(height: 120));
       }

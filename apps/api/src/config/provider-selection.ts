@@ -18,7 +18,7 @@
  */
 
 export type SmsProviderName = 'mock' | 'twilio';
-export type EmailProviderName = 'mock' | 'ses';
+export type EmailProviderName = 'mock' | 'ses' | 'smtp';
 export type ProviderMode<T extends string> = 'auto' | T;
 
 export interface ProviderSelection<T extends string> {
@@ -47,6 +47,8 @@ export interface EmailSelectionInput {
   EMAIL_PROVIDER: ProviderMode<EmailProviderName>;
   SES_REGION?: string;
   SES_FROM_ADDRESS?: string;
+  SMTP_HOST?: string;
+  SMTP_FROM_ADDRESS?: string;
 }
 
 export function isDeployedEnv(nodeEnv: string): boolean {
@@ -75,6 +77,15 @@ export function missingSesVars(input: EmailSelectionInput): string[] {
   const missing: string[] = [];
   if (!isSet(input.SES_REGION)) missing.push('SES_REGION');
   if (!isSet(input.SES_FROM_ADDRESS)) missing.push('SES_FROM_ADDRESS');
+  return missing;
+}
+
+/** Owner 2026-11-10 (own servers): `EMAIL_PROVIDER=smtp` needs the relay
+ * and the sender; the login is optional (a relay may trust our network). */
+export function missingSmtpVars(input: EmailSelectionInput): string[] {
+  const missing: string[] = [];
+  if (!isSet(input.SMTP_HOST)) missing.push('SMTP_HOST');
+  if (!isSet(input.SMTP_FROM_ADDRESS)) missing.push('SMTP_FROM_ADDRESS');
   return missing;
 }
 
@@ -111,8 +122,17 @@ export function resolveSmsProvider(
 export function resolveEmailProvider(
   input: EmailSelectionInput,
 ): ProviderSelection<EmailProviderName> {
+  // SMTP only when asked for by name; `auto` keeps choosing SES as before.
+  if (input.EMAIL_PROVIDER === 'smtp') {
+    return select<'smtp'>(
+      'smtp',
+      'smtp',
+      missingSmtpVars(input),
+      input.NODE_ENV,
+    );
+  }
   return select<'ses'>(
-    input.EMAIL_PROVIDER,
+    input.EMAIL_PROVIDER === 'mock' ? 'mock' : input.EMAIL_PROVIDER,
     'ses',
     missingSesVars(input),
     input.NODE_ENV,

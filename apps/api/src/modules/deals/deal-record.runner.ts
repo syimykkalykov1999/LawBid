@@ -26,9 +26,15 @@ import {
 import { FilesService } from '../files/files.service';
 import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { renderDealRecordPdf, type RecordSignature } from './deal-record.pdf';
+import {
+  renderDealRecordPdf,
+  type RecordSignature,
+  type RenderDealRecordInput,
+  type SignerAuthMethod,
+} from './deal-record.pdf';
 import type { DealRecordSnapshot } from './deal-record.snapshot';
-import { DealRecordTexts } from './deal-record-texts';
+import { DealRecordTexts, type SignedConsent } from './deal-record-texts';
+import { dealRecordVerifyUrl, publicApiBase } from './deal-record.verify';
 
 export const DEAL_RECORD_QUEUE = 'deal-record';
 export const DEAL_RECORD_OPTIONS = Symbol('DEAL_RECORD_OPTIONS');
@@ -191,18 +197,54 @@ export class DealRecordRunner
     });
   }
 
+  /** Title, headings, the texts in the parties' languages, the QR link. */
+  private async textsFor(
+    recordId: string,
+    langs: (string | null)[],
+  ): Promise<
+    Pick<RenderDealRecordInput, 'title' | 'labels' | 'local' | 'verifyUrl'>
+  > {
+    const [pdf, labels, local] = await Promise.all([
+      this.texts.pdf(),
+      this.texts.labels(),
+      this.texts.local(langs),
+    ]);
+    return {
+      title: pdf.title,
+      labels,
+      local,
+      verifyUrl: dealRecordVerifyUrl(publicApiBase(this.config), recordId),
+    };
+  }
+
   private async renderUnsigned(recordId: string): Promise<void> {
     const row = await this.prisma.dealRecord.findUnique({
       where: { id: recordId },
     });
     if (!row || row.status !== 'preparing') return; // already done / declined
+    const snapshot = row.snapshot as unknown as DealRecordSnapshot;
+    // Before anyone signs, each party's language is their profile's.
+    const people = await this.prisma.user.findMany({
+      where: { id: { in: [snapshot.client.id, snapshot.attorney.id] } },
+      select: { id: true, ui_language: true },
+    });
+    const langOf = (id: string) =>
+      people.find((p) => p.id === id)?.ui_language ?? null;
+    const partyLangs = {
+      client: langOf(snapshot.client.id),
+      attorney: langOf(snapshot.attorney.id),
+    };
     const pdf = await renderDealRecordPdf({
-      snapshot: row.snapshot as unknown as DealRecordSnapshot,
+      snapshot,
       recordCode: row.record_code,
       snapshotSha256: row.snapshot_sha256,
       signatures: [],
       generatedAt: row.created_at,
-      title: (await this.texts.pdf()).title,
+      partyLangs,
+      ...(await this.textsFor(row.id, [
+        partyLangs.client,
+        partyLangs.attorney,
+      ])),
     });
     const file = await this.files.storeGenerated(
       row.initiator_id,
@@ -257,6 +299,10 @@ export class DealRecordRunner
         image: x.image_png ? Buffer.from(x.image_png) : null,
         signedAt: x.signed_at,
         ip: x.ip,
+        device: x.device,
+        authMethod: x.auth_method as SignerAuthMethod | null,
+        lang: x.lang,
+        consents: x.consents as unknown as SignedConsent[] | null,
       }),
     );
     if (signatures.length < 2) {
@@ -271,14 +317,20 @@ export class DealRecordRunner
       snapshotSha256: row.snapshot_sha256,
       signatures,
       generatedAt: sealedAt,
-      title: (await this.texts.pdf()).title,
+      ...(await this.textsFor(
+        row.id,
+        signatures.map((z) => z.lang ?? null),
+      )),
     });
     const hash = sha256(pdf);
+    // C-c11: the sealed record is written with Object Lock retention when
+    // the documents bucket has it (nobody can delete or rewrite it).
     const file = await this.files.storeGenerated(
       row.initiator_id,
       'case_attachment',
       pdf,
       'application/pdf',
+      { sealed: true },
     );
     const requestId = row.sign_request.id;
     const chat: ChatChange[] = [];

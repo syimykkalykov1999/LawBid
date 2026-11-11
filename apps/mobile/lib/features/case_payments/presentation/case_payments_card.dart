@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
@@ -237,8 +238,36 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final state = ref.watch(casePaymentsStateProvider(widget.caseId)).value;
-    if (state == null || !state.enabled) return const SizedBox.shrink();
+    final read = ref.watch(casePaymentsStateProvider(widget.caseId));
+    final state = read.value;
+    if (state == null) {
+      // App audit 2026-10-26 A4: a failed read (no network, a server error)
+      // no longer makes the card vanish without a word — it keeps its place
+      // with the error and the usual Retry (the contacts card's notice),
+      // already while Riverpod retries on its own. An assistant without the
+      // duty gets no card, as before.
+      final error = read.error;
+      if (error == null ||
+          (error is ApiException &&
+              error.code == ApiErrorCodes.assistantNotAllowed)) {
+        return const SizedBox.shrink();
+      }
+      return DetailSection(
+        title: t.t('cpay.title'),
+        child: NoticeCard(
+          icon: AppIcons.errorOutlineRounded,
+          message: errorText(t, error),
+          action: AppButton(
+            label: t.t('error.retry'),
+            height: AppSizes.touchTarget,
+            variant: AppButtonVariant.secondary,
+            onPressed: () =>
+                ref.invalidate(casePaymentsStateProvider(widget.caseId)),
+          ),
+        ),
+      );
+    }
+    if (!state.enabled) return const SizedBox.shrink();
     final isAssistant = ref.watch(isAssistantProvider);
     final paid = state.items.where((p) => p.status.isPaid).toList();
     final pending = state.items

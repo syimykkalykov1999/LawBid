@@ -1,6 +1,12 @@
 import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
 import 'package:lawbid/core/feature_flags/legal_document.dart';
 
+/// app_config keys of the text-message consent wording the admin keeps
+/// under «Соответствие» (FR D-c2); the server sends the text only once the
+/// admin stored one, the version always.
+const kSmsDisclosureTextConfig = 'compliance.sms.disclosure_text';
+const kSmsDisclosureVersionConfig = 'compliance.sms.disclosure_version';
+
 /// `FeatureFlagsController`'s state (feature_flags_providers.dart):
 /// the last-known flag map and the `app_config` map `/config/bootstrap`
 /// returned alongside it (min/soft update versions — see
@@ -20,6 +26,14 @@ class FeatureFlagsState {
   /// A numeric app_config value the owner can change in the admin panel.
   int configInt(String key, int fallback) =>
       num.tryParse(appConfig[key] ?? '')?.toInt() ?? fallback;
+
+  /// A text the owner wrote in the admin panel, or null when there is
+  /// none (absent or blank) — the caller then shows its own translated
+  /// string. Owner 2026-11-09 (FR D-c2): the SMS consent wording.
+  String? configText(String key) {
+    final v = appConfig[key]?.trim();
+    return v == null || v.isEmpty ? null : v;
+  }
 
   /// Current legal documents from the same bootstrap response (stage 1.7
   /// mobile: the consents step links Terms/Privacy/Disclaimer to these).

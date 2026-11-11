@@ -1,11 +1,12 @@
 'use client';
 
 import { useInfiniteQuery } from '@tanstack/react-query';
-import Link from 'next/link';
+import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { CaseList } from '@/components/cases/case-list';
 import { MotionRow } from '@/components/legacy/fade-in';
+import { VirtualRows } from '@/components/ui/virtual-rows';
 import { MoreButton } from '@/components/legacy/more-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/card';
@@ -98,8 +99,9 @@ function Disputes({ status }: { status: DisputeStatus }) {
         </thead>
         <tbody>
           {q.isPending ? <TableEmpty colSpan={6} loading /> : null}
-          {rows.map((d, i) => (
-            <MotionRow key={d.id} i={i} className="cursor-pointer" onClick={() => router.push(`/cases/disputes/${d.id}`)}>
+          <VirtualRows rows={rows} colSpan={6}>
+            {(d, i, vp) => (
+            <MotionRow key={d.id} i={i} {...vp} className="cursor-pointer" onClick={() => router.push(`/cases/disputes/${d.id}`)}>
               <Td>
                 <Link
                   href={`/cases/disputes/${d.id}`}
@@ -122,7 +124,8 @@ function Disputes({ status }: { status: DisputeStatus }) {
                 <StatusPill map={DISPUTE_STATUS} value={d.status} />
               </Td>
             </MotionRow>
-          ))}
+            )}
+          </VirtualRows>
           {!q.isPending && rows.length === 0 ? (
             <TableEmpty colSpan={6}>{resolved ? 'Решённых споров нет' : 'Открытых споров нет'}</TableEmpty>
           ) : null}
@@ -164,8 +167,9 @@ function ContactIssues({ status }: { status: IssueStatus }) {
         </thead>
         <tbody>
           {q.isPending ? <TableEmpty colSpan={7} loading /> : null}
-          {rows.map((r, i) => (
-            <MotionRow key={r.id} i={i} className="cursor-pointer" onClick={() => router.push(`/cases/contact-issues/${r.id}`)}>
+          <VirtualRows rows={rows} colSpan={7}>
+            {(r, i, vp) => (
+            <MotionRow key={r.id} i={i} {...vp} className="cursor-pointer" onClick={() => router.push(`/cases/contact-issues/${r.id}`)}>
               <Td>
                 <Link
                   href={`/cases/contact-issues/${r.id}`}
@@ -202,7 +206,8 @@ function ContactIssues({ status }: { status: IssueStatus }) {
               </Td>
               <Td className="whitespace-nowrap text-muted">{formatDateTime(r.createdAt)}</Td>
             </MotionRow>
-          ))}
+            )}
+          </VirtualRows>
           {!q.isPending && rows.length === 0 ? (
             <TableEmpty colSpan={7}>
               {status === 'open' ? 'Открытых обращений нет' : `Нет обращений со статусом «${CONTACT_ISSUE_STATUS[status]}»`}

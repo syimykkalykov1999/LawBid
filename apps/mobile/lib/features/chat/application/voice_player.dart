@@ -1,19 +1,20 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:lawbid/core/audio/proximity_screen.dart';
 import 'package:lawbid/core/audio/safe_play.dart';
+import 'package:lawbid/core/cache/voice_web_cache.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/blob_url.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
-import 'package:proximity_sensor/proximity_sensor.dart';
 
 /// The id the player shows while a not-yet-sent recording is previewed.
 const kVoiceDraftId = '__draft__';
@@ -112,11 +113,13 @@ class VoicePlayer extends Notifier<VoicePlayback> {
   }
 
   int _load = 0;
-  StreamSubscription<int>? _proximity;
+  StreamSubscription<bool>? _proximity;
   bool _earpiece = false;
+  late ProximityScreen _screen;
 
   @override
   VoicePlayback build() {
+    final screen = _screen = ref.read(proximityScreenProvider);
     ref.listen(
       audioTakeoverProvider,
       (_, __) => unawaited(pauseForOtherAudio()),
@@ -126,8 +129,11 @@ class VoicePlayer extends Notifier<VoicePlayback> {
         s.cancel();
       }
       unawaited(_proximity?.cancel());
-      if (!kIsWeb) unawaited(ProximitySensor.setProximityScreenOff(false));
+      _proximity = null;
+      unawaited(screen.release(this));
       _player?.dispose();
+      final blob = _blobUrl;
+      if (blob != null) revokeBlobUrl(blob);
     });
     // A call (ringing or talking) takes the audio: the note stops.
     ref.listen(callControllerProvider.select((c) => c.phase), (_, phase) {
@@ -208,9 +214,12 @@ class VoicePlayer extends Notifier<VoicePlayback> {
       durationMs: v.durationMs,
     );
     try {
-      // Web: no file system — stream the signed link (or the unsent blob).
+      // Web: no file system — the unsent blob, else the note's bytes from
+      // the browser cache (downloaded once, SPEED_MATRIX 2026-11-09 §2.3),
+      // else the signed link streamed as before.
       if (kIsWeb) {
-        final url = v.localPath ?? v.url;
+        final url = v.localPath ?? await _webUrl(m.id, v.url);
+        if (!ref.mounted || load != _load) return;
         if (url == null) {
           _resetFailed(load);
           return;
@@ -282,23 +291,32 @@ class VoicePlayer extends Notifier<VoicePlayback> {
   }
 
   /// WhatsApp: held to the ear the note moves to the earpiece and the
-  /// screen goes dark; taken away it returns to the loudspeaker.
+  /// screen goes dark; taken away it returns to the loudspeaker. While a
+  /// note plays the screen-off lock is held ([ProximityScreen]): the
+  /// screen goes dark exactly when the phone is near, which is when the
+  /// sound moves to the earpiece.
   void _watchProximity() {
     if (kIsWeb || _proximity != null) return;
-    try {
-      _proximity = ProximitySensor.events.listen(
-        (near) => unawaited(_setEarpiece(near > 0)),
-        onError: (Object _) {},
-      );
-    } on Object {
-      // No sensor: the loudspeaker stays.
-    }
+    _proximity = _screen.near.listen(
+      (near) => unawaited(_setEarpiece(near)),
+      onError: (Object _) {},
+    );
+    unawaited(_screen.hold(this));
   }
+
+  @visibleForTesting
+  void debugWatchProximity() => _watchProximity();
+
+  @visibleForTesting
+  bool get debugEarpiece => _earpiece;
 
   void _unwatchProximity() {
     final sub = _proximity;
     _proximity = null;
-    if (sub != null) unawaited(sub.cancel());
+    if (sub != null) {
+      unawaited(sub.cancel());
+      unawaited(_screen.release(this));
+    }
     if (_earpiece) unawaited(_setEarpiece(false));
   }
 
@@ -321,7 +339,6 @@ class VoicePlayer extends Notifier<VoicePlayback> {
       }
       final session = await AudioSession.instance;
       await session.configure(on ? _earpieceConfig : _music);
-      await ProximitySensor.setProximityScreenOff(on);
       // The route is switched: only now does the flag change.
       _earpiece = on;
       if (wasPlaying && p != null && ref.mounted && gen == _gen) {
@@ -352,29 +369,51 @@ class VoicePlayer extends Notifier<VoicePlayback> {
   /// fight the call for the audio session.
   bool get callBusy => ref.read(callControllerProvider).phase != CallPhase.idle;
 
+  /// The blob address of the note playing now (web); revoked when the next
+  /// one loads so the browser frees the bytes.
+  String? _blobUrl;
+
+  /// Web: the note's bytes from the browser's Cache Storage, downloaded
+  /// once ([VoiceWebCache]); the signed link itself when the cache cannot
+  /// hold them (a closed store) so the note still plays.
+  Future<String?> _webUrl(String messageId, String? url) async {
+    if (url == null) return null;
+    final bytes = await ref.read(voiceWebCacheProvider).bytes(
+          messageId,
+          () => _fetchBytes(url),
+        );
+    if (bytes == null) return url;
+    final previous = _blobUrl;
+    if (previous != null) revokeBlobUrl(previous);
+    return _blobUrl = blobUrlFor(bytes, _mimeOf(url)) ?? url;
+  }
+
+  static String _mimeOf(String url) {
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
+    if (path.endsWith('.webm')) return 'audio/webm';
+    if (path.endsWith('.ogg') || path.endsWith('.opus')) return 'audio/ogg';
+    return 'audio/mp4';
+  }
+
+  Future<Uint8List?> _fetchBytes(String url) async {
+    try {
+      final res = await ref.read(storageDioProvider).get<List<int>>(
+            url,
+            options: Options(responseType: ResponseType.bytes),
+          );
+      final data = res.data;
+      if (data == null || data.isEmpty) return null;
+      return data is Uint8List ? data : Uint8List.fromList(data);
+    } on Object {
+      return null;
+    }
+  }
+
   /// Telegram-style: a note is downloaded once into the cache and played
   /// from the file (replays work offline; the signed link may expire).
-  /// Storage links carry no app headers ([storageDioProvider]).
-  Future<String?> _cached(String messageId, String? url) async {
-    if (url == null) return null;
-    final target = await voiceCachePath(messageId);
-    if (target == null) return null;
-    final file = File(target);
-    // ignore: avoid_slow_async_io
-    if (await file.exists() && await file.length() > 0) return file.path;
-    final res = await ref.read(storageDioProvider).get<List<int>>(
-          url,
-          options: Options(responseType: ResponseType.bytes),
-        );
-    final data = res.data;
-    if (data == null || data.isEmpty) return null;
-    // Written beside and renamed: a half-written file is never taken as the
-    // finished note.
-    final part = File('${file.path}.part');
-    await part.writeAsBytes(data, flush: true);
-    await part.rename(file.path);
-    return file.path;
-  }
+  /// Owner 2026-11-08: the download resumes after a cut (`downloadVoiceNote`).
+  Future<String?> _cached(String messageId, String? url) =>
+      downloadVoiceNote(messageId, url);
 
   /// The preview of a recording not sent yet (lock mode): same player, same
   /// fades, never two sounds at once. [kVoiceDraftId] marks it.

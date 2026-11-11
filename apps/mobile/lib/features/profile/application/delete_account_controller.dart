@@ -234,4 +234,14 @@ class DeleteAccountController extends _$DeleteAccountController {
     );
     return succeeded;
   }
+
+  bool _cleared = false;
+
+  /// Sweep C-c13 D8: the «deleted» screen was seen — now drop the local
+  /// session (the server already ended every session). Once only.
+  Future<void> finishDeletion() async {
+    if (state.step != DeleteAccountStep.done || _cleared) return;
+    _cleared = true;
+    await _repo.clearAfterDeletion();
+  }
 }

@@ -29,7 +29,12 @@ import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
-import type { FileDto, PresignedFileDto } from '../files/dto/files.dto';
+import type {
+  FileDto,
+  MultipartCompleteDto,
+  MultipartPlanDto,
+  PresignedFileDto,
+} from '../files/dto/files.dto';
 import { FilesService } from '../files/files.service';
 import type {
   AdminDocumentTemplateDto,
@@ -172,6 +177,18 @@ export class DocumentTemplatesService {
 
   confirmUpload(admin: AdminActor, fileId: string): Promise<FileDto> {
     return this.files.confirm(admin.id, fileId);
+  }
+
+  /** Resumable parts for a big template (the app's `files_multipart` path). */
+  multipartPlan(admin: AdminActor, fileId: string): Promise<MultipartPlanDto> {
+    return this.files.multipartPlan(admin.id, fileId);
+  }
+
+  multipartComplete(
+    admin: AdminActor,
+    fileId: string,
+  ): Promise<MultipartCompleteDto> {
+    return this.files.multipartComplete(admin.id, fileId);
   }
 
   async create(

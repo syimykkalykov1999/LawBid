@@ -17,6 +17,12 @@ import { StarsController } from '../../stars/stars.controller';
 import { PromotionsController } from '../../promotions/promotions.controller';
 import { CaseContactsController } from '../../cases/contacts/case-contacts.controller';
 import { CasePaymentsController } from '../../case-payments/case-payments.controller';
+import { BidDetailController } from '../../cases/case-bids/bid-detail.controller';
+import { MineController } from '../../cases/mine/mine.controller';
+import { CaseCommentsController } from '../../case-comments/case-comments.controller';
+import { CaseInvitesController } from '../../cases/case-invites/case-invites.controller';
+import { CasesFeedController } from '../../cases/cases-feed.controller';
+import { FilesController } from '../../files/files.controller';
 
 /**
  * Owner 2026-10-22 (security audit #3, finding 1): the JwtAuthGuard swaps
@@ -78,20 +84,35 @@ describe('assistant gates (security audit #3)', () => {
   it('a public Q&A answer needs "qa_answers"', () => {
     expect(
       attorneyOnlyHandlers(LegalQaController, 'qa_answers').sort(),
-    ).toEqual(['answerQuestion', 'deleteQuestionAnswer']);
+    ).toEqual([
+      'answerQuestion',
+      'deleteQuestionAnswer',
+      // Audit 2026-11-08 (L2): a like is also given in the attorney's name.
+      'likeQuestionAnswer',
+      'unlikeQuestionAnswer',
+    ]);
     expect(attorneyOnlyHandlers(LegalQaController, 'publish')).toEqual([]);
   });
 
   it('finding 3: stars and paid promotions spend the attorney’s money', () => {
+    // Audit 2026-11-08 (L2): the balance, history and spend reads too.
     expect(attorneyOnlyHandlers(StarsController).sort()).toEqual([
       'buyStars',
       'convertGift',
+      'getStarsPurchase',
       'sendGiftToProfile',
       'setGiftShown',
+      'starsHistory',
+      'starsOverview',
     ]);
     expect(attorneyOnlyHandlers(PromotionsController).sort()).toEqual([
       'createCasePromotion',
       'createPostPromotion',
+      'getCasePromotion',
+      'getPostPromotion',
+      'getPromotionQuote',
+      'listMyPromotions',
+      'promotionStats',
       'stopPromotion',
     ]);
   });
@@ -114,8 +135,16 @@ describe('assistant gates (security audit #3)', () => {
       'listMyCasePayments',
       'listPaymentRequests',
     ]);
-    expect(attorneyOnlyHandlers(CasePaymentsController)).toEqual([
+    // Audit 2026-11-08 (L2): payout set-up and money moves too.
+    expect(attorneyOnlyHandlers(CasePaymentsController).sort()).toEqual([
+      'answerFeePayer',
+      'cancelCasePayment',
+      'createCasePayment',
       'getPayoutAccount',
+      'getPayoutDashboard',
+      'refundCasePayment',
+      'startPayoutOnboarding',
+      'updatePayoutPreferences',
     ]);
     // What a client needs to pay stays open to every role.
     expect(duty('getPaymentSettings')).toBeUndefined();
@@ -123,8 +152,48 @@ describe('assistant gates (security audit #3)', () => {
   });
 
   it('referral, partner terms and DMCA statements are the attorney’s own', () => {
-    expect(attorneyOnlyHandlers(ReferralsController)).toHaveLength(1);
-    expect(attorneyOnlyHandlers(PartnersController)).toHaveLength(2);
-    expect(attorneyOnlyHandlers(LegalController)).toHaveLength(2);
+    // Audit 2026-11-08 (L2): + my referrals, my partner dashboard, my DMCA.
+    expect(attorneyOnlyHandlers(ReferralsController)).toHaveLength(2);
+    expect(attorneyOnlyHandlers(PartnersController)).toHaveLength(3);
+    expect(attorneyOnlyHandlers(LegalController)).toHaveLength(3);
+  });
+  // Security audit 2026-11-08 (L2): the routes the audit found open to a
+  // duty-less assistant. The guard is now deny-by-default as well, so these
+  // markers say WHICH duty opens them.
+  it('L2: bids, my work, case comments, invites, saved items and files need a duty', () => {
+    expect(meta(REQUIRES_DUTY, BidDetailController, 'getBid')).toEqual([
+      'cases',
+      'bids',
+      'bid_drafts',
+    ]);
+    expect(meta(REQUIRES_DUTY, MineController, 'listMyBids')).toEqual([
+      'cases',
+      'bids',
+      'bid_drafts',
+    ]);
+    expect(meta(REQUIRES_DUTY, MineController, 'listMyWork')).toBe('cases');
+    expect(meta(REQUIRES_DUTY, MineController, 'listSavedItems')).toBe('cases');
+    expect(meta(REQUIRES_DUTY, MineController, 'openCaseConversation')).toBe(
+      'chats',
+    );
+    for (const n of [
+      'listCaseComments',
+      'shareCase',
+      'listCaseCommentReplies',
+      'likeCaseComment',
+      'unlikeCaseComment',
+    ]) {
+      expect(meta(REQUIRES_DUTY, CaseCommentsController, n)).toBe('cases');
+    }
+    expect(meta(REQUIRES_DUTY, CaseInvitesController, 'getInvite')).toBe(
+      'cases',
+    );
+    expect(meta(REQUIRES_DUTY, CaseInvitesController, 'cancelInvite')).toBe(
+      'cases',
+    );
+    expect(meta(REQUIRES_DUTY, CasesFeedController, 'saveItem')).toBe('cases');
+    const fileDuties = meta(REQUIRES_DUTY, FilesController, 'get') as string[];
+    expect(fileDuties).not.toContain('calls');
+    expect(meta(REQUIRES_DUTY, FilesController, 'views')).toEqual(fileDuties);
   });
 });

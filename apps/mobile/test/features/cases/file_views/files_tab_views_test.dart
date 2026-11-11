@@ -15,6 +15,7 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 
 import '../../../helpers/long_locale.dart';
 import '../../../helpers/ux_harness.dart';
+import '../support/fake_case_files_remote.dart';
 
 class _Remote implements FileViewsRemote {
   @override
@@ -81,6 +82,8 @@ void main() {
               longest ? LongestTranslator() : const StaticTranslatorEn(),
           extra: [
             caseFilesProvider('k').overrideWith((ref) async => files),
+            caseFilesRemoteProvider
+                .overrideWithValue(FakeCaseFilesRemote(files)),
             fileViewsRemoteProvider.overrideWithValue(_Remote()),
             fileViewsStoreProvider.overrideWithValue(FileViewsStore(db, 'me')),
             realtimeEventsProvider

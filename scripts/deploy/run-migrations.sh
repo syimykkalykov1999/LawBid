@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 # docs/06 §7.3: `prisma migrate deploy` as a one-off ECS task (task
-# definition `<cluster>-migrate`, DATABASE_URL = lawbid_migrator secret),
+# definition `<cluster>-migrate`, DATABASE_URL = the MIGRATOR_DATABASE_URL
+# secret: user lawbid_admin today, lawbid_migrator is planned — infra/postgres/migration-role.txt),
 # before the services roll. Fails the pipeline unless the task exits 0.
 #
 # With a TAG (second argument) the migrate task definition is first

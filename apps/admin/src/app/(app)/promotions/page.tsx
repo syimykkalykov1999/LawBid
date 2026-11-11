@@ -2,7 +2,7 @@
 
 import { CalendarPlus, CheckCircle, CursorClick, CurrencyDollar, Eye, Gift, Hourglass, Lightning, RocketLaunch, UsersThree, XCircle } from '@phosphor-icons/react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Kpi, KpiSkeletons } from '@/components/billing/kpi';

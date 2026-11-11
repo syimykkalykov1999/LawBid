@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/video_prefetch.dart';
+import 'package:lawbid/core/media/web_video_warm.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dart';
@@ -129,7 +130,17 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   final _swipeWarm = SwipeWarm();
 
   void _warmAhead(List<Post> items, int index) {
-    if (kIsWeb) return;
+    if (kIsWeb) {
+      // B-c2 (b): the browser plays the MP4 copy; the pages past the two
+      // open neighbours get their head read ahead (web_video_warm.dart).
+      final plan = WarmPlan.at(index, items.length);
+      WebVideoWarm.instance.warm([
+        for (final i in plan.prefetch)
+          if (!plan.players.contains(i) && (items[i].video?.ready ?? false))
+            if (items[i].video?.playerUrl(web: true) case final url?) url,
+      ]);
+      return;
+    }
     final warmer = HlsPrefetcher.instance;
     final smart = warmer.smart();
     final ahead = [
@@ -148,6 +159,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
 
   @override
   void dispose() {
+    if (kIsWeb) WebVideoWarm.instance.clear();
     _pages.dispose();
     _index.dispose();
     if (_counted) Future.microtask(_open.closed);

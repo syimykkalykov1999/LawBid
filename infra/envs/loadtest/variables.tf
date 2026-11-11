@@ -34,8 +34,8 @@ variable "profile" {
   type    = string
   default = "smoke"
   validation {
-    condition     = contains(["smoke", "m1", "m10", "calls-smoke", "calls-full"], var.profile)
-    error_message = "profile: smoke, m1, m10, calls-smoke or calls-full (local runs on the Mac, not here)."
+    condition     = contains(["smoke", "m1", "m10", "u1k", "u10k", "u100k", "calls-smoke", "calls-full"], var.profile)
+    error_message = "profile: smoke, m1, m10, u1k, u10k, u100k, calls-smoke or calls-full (local runs on the Mac, not here)."
   }
 }
 

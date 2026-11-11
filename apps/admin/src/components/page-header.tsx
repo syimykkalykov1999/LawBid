@@ -1,7 +1,7 @@
 'use client';
 
 import { WarningCircle } from '@phosphor-icons/react';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useDeskEmbed } from '@/components/desk/embed';
 import { errorDetail } from '@/lib/api/client';
 

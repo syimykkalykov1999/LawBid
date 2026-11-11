@@ -70,6 +70,10 @@ describe('Economy (e2e)', () => {
       },
     });
     await flags.invalidate();
+    // 09.11: perf-admin (same shard) opens the card first and leaves the
+    // shared copy (`economy:report`, fresh for 30 s) built with the guard
+    // off; replace it, as the service does after a button.
+    await app.get(EconomyService).report();
   });
 
   afterAll(async () => {

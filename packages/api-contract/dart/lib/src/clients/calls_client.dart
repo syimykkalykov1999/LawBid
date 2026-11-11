@@ -38,13 +38,16 @@ part 'calls_client.g.dart';
 abstract class CallsClient {
   factory CallsClient(Dio dio, {String? baseUrl}) = _CallsClient;
 
-  /// My finished calls, newest first (cursor).
+  /// My finished calls, newest first (cursor; ?updatedSince = delta).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [updatedSince] - B-c7 (2026-11-09, Telegram getDifference as /groups): only the calls that reached my list or changed since (ISO); meta.deletedIds = calls I deleted from my list since («delete», «clear»); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD (first page again). `cursor` and `limit` are ignored with it.
   @GET('/calls/history')
   Future<CallHistoryItemListEnvelope> callHistory({
     @Query('cursor') String? cursor,
     @Query('limit') int? limit,
+    @Query('updatedSince') DateTime? updatedSince,
     @Extras() Map<String, dynamic>? extras,
   });
 

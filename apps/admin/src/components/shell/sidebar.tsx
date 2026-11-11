@@ -1,8 +1,8 @@
 'use client';
 
 import { CaretDoubleLeft } from '@phosphor-icons/react';
-import { m } from 'motion/react';
-import Link from 'next/link';
+import * as m from 'motion/react-m';
+import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { usePathname } from 'next/navigation';
 import type { Me } from '@/lib/hooks';
 import { groupFor, groupsFor } from '@/lib/rbac';
@@ -75,6 +75,13 @@ export function Sidebar({
                   {isActive ? (
                     <m.span
                       layoutId={mobile ? 'nav-active-m' : 'nav-active'}
+                      // Re-measure only when the marker can move (another
+                      // section, collapse): without it motion snapshots the
+                      // layout on every re-render of the sidebar — counters,
+                      // the admin profile, each page load (Lighthouse
+                      // 2026-11-09). Prop documented in motion-dom typings,
+                      // checked in framer-motion MeasureLayout.
+                      layoutDependency={`${g.key}:${narrow}`}
                       className="absolute inset-0 rounded-xl border border-line bg-surface shadow-card"
                       transition={{ type: 'spring', stiffness: 480, damping: 38 }}
                     >

@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -608,3 +609,29 @@ class _DocTile extends StatelessWidget {
 /// Opens a case document (PDF / Word) in the system viewer.
 Future<void> openCaseDocument(String url) =>
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+
+/// Owner 2026-11-08 (speed features everywhere; SPEED_MATRIX §3 №1): a
+/// document of a post, a template or a chat's files list is kept on the
+/// phone like a case file — downloaded once (resumable, in pieces with
+/// `downloads_parallel`), then opened from the disk; a second tap never
+/// downloads it again. Same path as `CaseFileCache.openKept`, nothing new.
+/// The browser opens the link as before (its own download list). Anything
+/// that fails falls back to opening the link outside the app.
+Future<void> openKeptDocument({
+  required String fileId,
+  required String url,
+  String? mime,
+}) async {
+  if (kIsWeb || fileId.isEmpty) return openCaseDocument(url);
+  try {
+    await CaseFileCache.openKept(
+      FileRef(
+        fileId: fileId,
+        mime: mime ?? 'application/octet-stream',
+        url: url,
+      ),
+    );
+  } on Object {
+    await openCaseDocument(url);
+  }
+}

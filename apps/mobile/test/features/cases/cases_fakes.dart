@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/misc.dart';
 
@@ -27,6 +29,12 @@ class FakeCasesRepository implements CasesRepository {
 
   /// The same for the saved cases (null = no copy).
   List<SavedCase>? savedPhoneCopy;
+
+  /// The same for the case feed / «Исследовать» (null = no copy).
+  List<FeedCase>? feedPhoneCopy;
+
+  /// When set, the live feed page waits for it (a slow network).
+  Completer<void>? feedGate;
 
   CursorPage<T> _empty<T>() => CursorPage<T>(items: const []);
 
@@ -80,8 +88,16 @@ class FakeCasesRepository implements CasesRepository {
     bool mineOnly = true,
     // Owner 2026-10-06: several states at once.
     List<String> states = const [],
-  }) async =>
-      _empty();
+  }) async {
+    if (readingFromPhoneOnly) {
+      final copy = feedPhoneCopy;
+      if (copy == null) throw StateError(kNoPhoneCopy);
+      return CursorPage(items: copy);
+    }
+    calls.add('feed');
+    await feedGate?.future;
+    return _empty();
+  }
 
   @override
   Future<CursorPage<MyBid>> myBids(

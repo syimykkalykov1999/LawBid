@@ -20,11 +20,13 @@ import 'package:video_player/video_player.dart';
 mixin PlaybackVisibility<T extends StatefulWidget> on State<T> {
   late final _LifecycleHook _hook = _LifecycleHook(_onLifecycle);
   bool _foreground = _isForeground(WidgetsBinding.instance.lifecycleState);
+  bool _background = _isBackground(WidgetsBinding.instance.lifecycleState);
   bool _tickers = true;
   bool _routeCurrent = true;
   bool _popping = false;
   Animation<double>? _routeAnimation;
   bool? _reported;
+  bool? _reportedOffstage;
 
   /// Paused by [holdPlayback] (not by the viewer): play on when back.
   bool _held = false;
@@ -34,9 +36,20 @@ mixin PlaybackVisibility<T extends StatefulWidget> on State<T> {
   bool get playbackVisible =>
       _foreground && _tickers && _routeCurrent && !_popping;
 
+  /// App audit 2026-10-26 C16 (Instagram): off screen for longer than a
+  /// glance — its tab is hidden (tickers off: another bottom-nav tab, an
+  /// opaque screen over it) or the app is in the background (hidden /
+  /// paused; a short `inactive` — the control centre, a system dialog — is
+  /// not). A player may then give its decoder back.
+  bool get playbackOffstage => !_tickers || _background;
+
   /// [playbackVisible] changed to [visible].
   @protected
   void didChangePlaybackVisibility({required bool visible}) {}
+
+  /// [playbackOffstage] changed to [offstage].
+  @protected
+  void didChangePlaybackOffstage({required bool offstage}) {}
 
   /// For a state driving one controller by hand: pauses [c] while hidden
   /// and plays it on when visible again — only if it was this pause that
@@ -94,15 +107,24 @@ mixin PlaybackVisibility<T extends StatefulWidget> on State<T> {
 
   void _onLifecycle(AppLifecycleState state) {
     _foreground = _isForeground(state);
+    _background = _isBackground(state);
     _report();
   }
 
   void _report() {
+    final offstage = playbackOffstage;
+    final wasOffstage = _reportedOffstage;
+    _reportedOffstage = offstage;
     final visible = playbackVisible;
     final before = _reported;
     _reported = visible;
-    if (before == null || before == visible || !mounted) return;
-    didChangePlaybackVisibility(visible: visible);
+    if (!mounted) return;
+    if (before != null && before != visible) {
+      didChangePlaybackVisibility(visible: visible);
+    }
+    if (wasOffstage != null && wasOffstage != offstage) {
+      didChangePlaybackOffstage(offstage: offstage);
+    }
   }
 
   @override
@@ -115,6 +137,11 @@ mixin PlaybackVisibility<T extends StatefulWidget> on State<T> {
 
 bool _isForeground(AppLifecycleState? s) =>
     s == null || s == AppLifecycleState.resumed;
+
+bool _isBackground(AppLifecycleState? s) =>
+    s == AppLifecycleState.hidden ||
+    s == AppLifecycleState.paused ||
+    s == AppLifecycleState.detached;
 
 class _LifecycleHook with WidgetsBindingObserver {
   _LifecycleHook(this.onChange);

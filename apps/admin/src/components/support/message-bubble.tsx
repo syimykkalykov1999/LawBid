@@ -1,7 +1,7 @@
 'use client';
 
 import { NotePencil } from '@phosphor-icons/react';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { cn, formatDateTime } from '@/lib/utils';
 import { AttachmentList } from './attachments';
 import { initials, relativeTime, type TicketMessage } from './support-labels';

@@ -1,6 +1,6 @@
 'use client';
 
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { cn } from '@/lib/utils';
 
 export function Switch({
@@ -32,6 +32,8 @@ export function Switch({
     >
       <m.span
         layout
+        // the knob moves only when `checked` changes
+        layoutDependency={checked}
         transition={{ type: 'spring', stiffness: 600, damping: 34 }}
         className={cn(
           'block h-[18px] w-[18px] rounded-full shadow-[0_2px_6px_rgb(0_0_0/0.25)]',

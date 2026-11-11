@@ -244,7 +244,11 @@ resource "aws_instance" "this" {
     # 09.11 plan: an on-demand box that is STOPPED reports
     # associate_public_ip_address = false (no public address while stopped),
     # so every plan wanted to replace it. The setting matters only at launch.
-    ignore_changes = [associate_public_ip_address]
+    # 10.11: `ami` reads Canonical's "current" image, so every new Ubuntu
+    # release replaced the relay in an unrelated admin change (a pooler plan
+    # wanted a new TURN box). The image changes only on purpose: `terraform
+    # apply -replace=module.stack.module.turn[0].aws_instance.this`.
+    ignore_changes = [associate_public_ip_address, ami]
   }
 }
 

@@ -6,19 +6,25 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   Req,
   Res,
   UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiExcludeEndpoint,
   ApiHeader,
   ApiOperation,
   ApiProduces,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import { Public } from '../auth/decorators/public.decorator';
+import { SkipVersionCheck } from '../feature-flags/decorators/skip-version-check.decorator';
+import { verifyPage } from './deal-record.verify';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -47,6 +53,7 @@ import {
   DeclineDealRecordDto,
   SignDealRecordDto,
 } from './dto/deal-record.dto';
+import { RequiresDuty } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const ERR = {
@@ -82,6 +89,7 @@ function requestMeta(req: Request): RequestMeta {
 export class DealRecordsController {
   constructor(private readonly deals: DealRecordsService) {}
 
+  @RequiresDuty('cases')
   @Post('deal-records')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(IdempotencyInterceptor)
@@ -100,6 +108,7 @@ export class DealRecordsController {
     return this.deals.start(user, dto, requestMeta(req));
   }
 
+  @RequiresDuty('cases')
   @Get('deal-records/:id')
   @ApiOperation({ summary: 'A deal record (both parties)' })
   @ApiEnvelopeResponse(DealRecordDto)
@@ -111,6 +120,7 @@ export class DealRecordsController {
     return this.deals.get(user, p.id);
   }
 
+  @RequiresDuty('cases')
   @Get('cases/:id/deal-record')
   @ApiOperation({
     summary:
@@ -125,6 +135,33 @@ export class DealRecordsController {
     return { record: await this.deals.current(user, p.id) };
   }
 
+  /** v2 (owner 2026-11-08): the page the PDF's QR opens. No sign-in, no
+   * names or case content (masked parties, fingerprints, dates). */
+  @Public()
+  @SkipVersionCheck()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('deal-records/:id/verify')
+  @ApiExcludeEndpoint()
+  async verifyDealRecord(
+    @Param('id') id: string,
+    @Query('sha256') sha256: string | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    const page = verifyPage(
+      await this.deals.verifyView(id),
+      typeof sha256 === 'string' ? sha256 : undefined,
+    );
+    res
+      .status(page.status)
+      .set('Content-Type', 'text/html; charset=utf-8')
+      .set('Content-Security-Policy', page.csp)
+      .set('Cache-Control', 'no-store')
+      .set('Referrer-Policy', 'no-referrer')
+      .set('X-Robots-Tag', 'noindex')
+      .send(page.html);
+  }
+
+  @RequiresDuty('cases')
   @Post('deal-records/:id/sign')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -142,6 +179,7 @@ export class DealRecordsController {
     return this.deals.sign(user, p.id, dto, requestMeta(req));
   }
 
+  @RequiresDuty('cases')
   @Post('deal-records/:id/decline')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -158,6 +196,7 @@ export class DealRecordsController {
     return this.deals.decline(user, p.id, dto);
   }
 
+  @RequiresDuty('cases')
   @Post('deal-records/:id/agreement')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

@@ -18,6 +18,11 @@ describe('FollowsService follow state', () => {
         createMany: jest.fn().mockResolvedValue({ count: opts.inserted }),
         deleteMany: jest.fn().mockResolvedValue({ count: opts.deleted }),
       },
+      // B-c7: the unfollow journal (sync tombstones).
+      followTombstone: {
+        upsert: jest.fn().mockResolvedValue({}),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
       attorneyProfile: {
         findUnique: jest.fn().mockResolvedValue({ followers_count: 10 }),
       },

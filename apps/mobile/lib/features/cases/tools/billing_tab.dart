@@ -13,7 +13,7 @@ import 'package:lawbid/features/cases/tools/billing_logic.dart';
 import 'package:lawbid/features/cases/tools/billing_sheets.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/cases/workspace/workspace_view.dart'
-    show WorkspaceReadOnlyNote;
+    show WorkspaceErrorNotice, WorkspaceReadOnlyNote;
 import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -229,9 +229,11 @@ class BillingTabState extends ConsumerState<BillingTab>
         padding: EdgeInsets.all(AppSpacing.lg),
         child: AppSkeleton(height: 120),
       ),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Text(errorText(t, e)),
+      error: (e, _) => WorkspaceErrorNotice(
+        error: e,
+        t: t,
+        busy: value.isLoading,
+        onRetry: () => ref.invalidate(caseBillingProvider(widget.caseId)),
       ),
       data: (d) {
         final attorney =

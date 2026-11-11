@@ -64,8 +64,14 @@ import {
   UpdateGroupDto,
   UpdateGroupMeDto,
   VotePollDto,
+  GroupMemberDto,
+  GroupPageQueryDto,
+  GroupPersonDto,
+  GroupPollOptionParamDto,
+  type GroupMemberPage,
   type GroupMessagePage,
   type GroupPage,
+  type GroupPersonPage,
 } from './groups.dto';
 import { GroupsService } from './groups.service';
 import type { SyncPage } from '../../common/sync/sync.util';
@@ -229,6 +235,21 @@ export class GroupsController {
     @Param() p: GroupIdParamDto,
   ): Promise<GroupDetailDto> {
     return this.groups.get(user, p.id);
+  }
+
+  @Get(':id/members')
+  @ApiOperation({
+    summary:
+      'Sweep B-c1: members page by page (owner, admins, then by join time)',
+  })
+  @ApiEnvelopeResponse(GroupMemberDto, { isArray: true })
+  @ApiErrors(GROUP_ERRORS)
+  listGroupMembers(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupIdParamDto,
+    @Query() q: GroupPageQueryDto,
+  ): Promise<GroupMemberPage> {
+    return this.groups.memberList(user, p.id, q.cursor, q.limit);
   }
 
   @Patch(':id')
@@ -534,6 +555,28 @@ export class GroupsController {
     @Param() p: GroupPollParamDto,
   ): Promise<PollDto> {
     return this.polls.close(user, p.id, p.pollId);
+  }
+
+  @Get(':id/polls/:pollId/options/:optionId/voters')
+  @ApiOperation({
+    summary:
+      "Sweep B-c1: one option's voters page by page (open polls only, oldest vote first)",
+  })
+  @ApiEnvelopeResponse(GroupPersonDto, { isArray: true })
+  @ApiErrors(GROUP_ERRORS)
+  listGroupPollOptionVoters(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupPollOptionParamDto,
+    @Query() q: GroupPageQueryDto,
+  ): Promise<GroupPersonPage> {
+    return this.polls.votersPage(
+      user,
+      p.id,
+      p.pollId,
+      p.optionId,
+      q.cursor,
+      q.limit,
+    );
   }
 
   @Get(':id/polls/:pollId/voters')

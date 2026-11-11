@@ -1,6 +1,6 @@
 'use client';
 
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { LogoMark } from '@/components/shell/logo';
 
 const LINES = ['Верификация адвокатов', 'Модерация и поддержка', 'Подписки, промокоды, рефералы', 'Ключи сервисов и функции'];

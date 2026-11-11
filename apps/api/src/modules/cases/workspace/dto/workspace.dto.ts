@@ -413,3 +413,52 @@ export class CaseActivityDto {
   @ApiProperty()
   at!: string;
 }
+
+/** Owner 2026-11-10 (load in parts, like Telegram's shared media): one page
+ * of a case's files. Without `limit` the whole list comes back as before
+ * (apps released before this read it so). */
+export const CASE_FILES_PAGE_MAX = 100;
+
+export class CaseFilesQueryDto {
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: CASE_FILES_PAGE_MAX,
+    description: 'Page size. Absent: every file (older apps).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(CASE_FILES_PAGE_MAX)
+  limit?: number;
+
+  @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  cursor?: string;
+
+  @ApiPropertyOptional({
+    enum: ['media', 'documents'],
+    enumName: 'CaseFilesKind',
+    description: 'media: photos and videos; documents: everything else.',
+  })
+  @IsOptional()
+  @IsIn(['media', 'documents'])
+  kind?: 'media' | 'documents';
+
+  @ApiPropertyOptional({
+    enum: ['task', 'update'],
+    enumName: 'CaseFilesSource',
+    description: 'Only the files sent with tasks / with updates.',
+  })
+  @IsOptional()
+  @IsIn(['task', 'update'])
+  source?: 'task' | 'update';
+
+  @ApiPropertyOptional({ description: 'Only the samples (forms / examples).' })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  sample?: boolean;
+}

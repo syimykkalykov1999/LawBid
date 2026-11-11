@@ -1,6 +1,6 @@
 'use client';
 
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useId } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +42,8 @@ export function Tabs<T extends string>({
             {active ? (
               <m.span
                 layoutId={`tab-${id}`}
+                // measure only when the selected tab changes (not on every re-render)
+                layoutDependency={it.value}
                 className="absolute inset-0 rounded-[10px] border border-line bg-surface shadow-card"
                 transition={{ type: 'spring', stiffness: 500, damping: 38 }}
               />

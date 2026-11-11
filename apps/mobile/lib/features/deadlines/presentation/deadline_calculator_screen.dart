@@ -54,6 +54,11 @@ class _DeadlineCalculatorScreenState
   late DateTime _date = _today();
   bool _busy = false;
 
+  /// App audit 2026-10-26 A18: the deadlines already put in the planner from
+  /// this screen (rule + last day) — one deadline is added once, a repeat
+  /// tap only says it is there.
+  final _added = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -158,7 +163,15 @@ class _DeadlineCalculatorScreenState
   Future<void> _addToPlanner(DeadlineResult r) async {
     final t = ref.read(translatorProvider);
     final f = ref.read(l10nFormatsProvider);
-    setState(() => _busy = true);
+    // A second tap before the spinner shows, or after it was added.
+    if (_busy) return;
+    final key = '${r.rule.code}|${deadlineDateIso(r.dueDate)}';
+    if (_added.contains(key)) {
+      showAppSnackBar(context, t.t('deadline.added'));
+      return;
+    }
+    _busy = true;
+    setState(() {});
     try {
       final created = await ref.read(teamRepositoryProvider).createTask(
             TaskDraft(
@@ -173,6 +186,7 @@ class _DeadlineCalculatorScreenState
             ),
           );
       ref.read(tasksHubProvider).apply(created);
+      _added.add(key);
       if (mounted) showAppSnackBar(context, t.t('deadline.added'));
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));

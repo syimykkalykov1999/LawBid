@@ -196,6 +196,53 @@ export class VersionEtagService {
     return this.tag('chats', [r?.newest, r?.chats, r?.mine_updated]);
   }
 
+  /**
+   * Speed matrix 2026-11-09 (§3 #4, admin): the admin lists. The panel's
+   * browser cache revalidates `/admin/users`, `/admin/cases` and
+   * `/admin/audit-log` with If-None-Match (the proxy passes the tag with
+   * `private, no-cache`); before this the tag was Express's hash of the
+   * body, so every poll ran the whole list query first. Here the tag is one
+   * indexed MAX() read of the stamp that moves when the list moves — the
+   * newest `updated_at` of a person / case (prisma/concurrent
+   * …_admin_list_etag_indexes.sql), the newest audit row — plus the admin's
+   * country scope and the time bucket. SQL lives here, not in the admin
+   * modules, so the admin heavy-query guard (architecture/
+   * admin-heavy-queries.spec.ts) keeps its baseline.
+   */
+  async adminUsers(
+    countries: readonly string[] | null,
+  ): Promise<string | null> {
+    if ((await this.bucketMs()) === 0) return null;
+    const rows = await this.prisma.$queryRaw<{ newest: Date | null }[]>`
+      SELECT MAX(u.updated_at) AS newest FROM users u
+      WHERE u.deleted_at IS NULL`;
+    return this.tag('adm-users', [rows[0]?.newest, scopeOf(countries)]);
+  }
+
+  /** GET /admin/cases for an admin with [countries] scope. */
+  async adminCases(
+    countries: readonly string[] | null,
+  ): Promise<string | null> {
+    if ((await this.bucketMs()) === 0) return null;
+    const rows = await this.prisma.$queryRaw<{ newest: Date | null }[]>`
+      SELECT MAX(c.updated_at) AS newest FROM cases c
+      WHERE c.deleted_at IS NULL`;
+    return this.tag('adm-cases', [rows[0]?.newest, scopeOf(countries)]);
+  }
+
+  /** GET /admin/audit-log: everybody's rows ([ownRowsOf] null) or one
+   * admin's own (the index `(admin_id, created_at DESC)`). */
+  async adminAuditLog(ownRowsOf: string | null): Promise<string | null> {
+    if ((await this.bucketMs()) === 0) return null;
+    const rows = ownRowsOf
+      ? await this.prisma.$queryRaw<{ newest: Date | null }[]>`
+          SELECT MAX(a.created_at) AS newest FROM audit_log a
+          WHERE a.admin_id = ${ownRowsOf}::UUID`
+      : await this.prisma.$queryRaw<{ newest: Date | null }[]>`
+          SELECT MAX(a.created_at) AS newest FROM audit_log a`;
+    return this.tag('adm-audit', [rows[0]?.newest, ownRowsOf ?? 'all']);
+  }
+
   /** GET /notifications (the viewer's own). */
   async notifications(userId: string): Promise<string | null> {
     if ((await this.bucketMs()) === 0) return null;
@@ -209,4 +256,9 @@ export class VersionEtagService {
     const r = rows[0];
     return this.tag('notifs', [r?.newest, r?.unread]);
   }
+}
+
+/** The admin's country scope as one tag part (null = every country). */
+function scopeOf(countries: readonly string[] | null): string {
+  return countries ? [...countries].sort().join(',') : 'all';
 }

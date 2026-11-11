@@ -47,7 +47,10 @@ import {
 } from '../dto/practice-areas.dto';
 import { AttorneyProfilesService } from '../services/attorney-profiles.service';
 import { PracticeAreasService } from '../services/practice-areas.service';
-import { AttorneyOnly } from '../../auth/assistant/assistant-context';
+import {
+  AssistantAllowed,
+  AttorneyOnly,
+} from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -69,6 +72,7 @@ export class AttorneysController {
     @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
 
+  @AssistantAllowed()
   @Get('me/profile')
   @ApiEnvelopeResponse(OwnAttorneyProfileDto)
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
@@ -78,6 +82,7 @@ export class AttorneysController {
     return this.profiles.getOwn(user.sub);
   }
 
+  @AssistantAllowed()
   @Get('me/stats')
   @ApiEnvelopeResponse(AttorneyStatsDto)
   @ApiErrors({ 403: [E.FORBIDDEN] })
@@ -105,6 +110,7 @@ export class AttorneysController {
     return this.profiles.updateOwn(user.sub, dto, new Date(), expectedVersion);
   }
 
+  @AssistantAllowed()
   @Get('me/practice-areas')
   @ApiEnvelopeResponse(SelectedPracticeAreaDto, { isArray: true })
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
@@ -131,6 +137,7 @@ export class AttorneysController {
   }
 
   /** Rate-limited (§4.3): an enumeration aid otherwise. */
+  @AssistantAllowed()
   @Get('username-available')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiEnvelopeResponse(UsernameAvailabilityDto)
@@ -147,6 +154,7 @@ export class AttorneysController {
 
   /** Owner 2026-10-18 («как в инсте»): free handles for the sign-up and
    * edit forms. Rate-limited like the availability check. */
+  @AssistantAllowed()
   @Get('username-suggestions')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiEnvelopeResponse(UsernameSuggestionsDto)

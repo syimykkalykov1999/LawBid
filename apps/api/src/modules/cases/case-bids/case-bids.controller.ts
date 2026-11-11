@@ -17,6 +17,7 @@ import {
   CaseBidsQueryDto,
   type CaseBidPage,
 } from './dto/case-bids.dto';
+import { RequiresDuty } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -28,6 +29,7 @@ const E = ErrorCode;
 export class CaseBidsController {
   constructor(private readonly caseBids: CaseBidsService) {}
 
+  @RequiresDuty('cases', 'bids', 'bid_drafts')
   @Get('cases/:id/bids')
   @ApiOperation({
     summary:

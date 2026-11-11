@@ -376,7 +376,7 @@
       ]
     },
     "mobile-staged-rollout.md": {
-      "owner": false,
+      "owner": true,
       "guides": [
         "apple-phased-release",
         "google-play-staged-rollout"

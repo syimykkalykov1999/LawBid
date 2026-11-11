@@ -97,6 +97,145 @@ jobs:
         env:
           API_BASE_URL: http://localhost:3000/api/v1
 
+  # OPEN_ITEMS_SWEEP 2026-11-09 B-c11: Lighthouse (@lhci/cli, Apache-2.0) on the
+  # three heavy admin pages (users, audit journal, cases) against a real API
+  # stand: postgres + redis services, migrated schema, the API from this commit,
+  # one admin signed in (apps/api/scripts/lhci-admin.ts), the admin built and
+  # started like production. Desktop, CPU x4, budgets in apps/admin/lighthouserc.cjs.
+  # The stand steps are `continue-on-error` at STEP level (a job-level flag
+  # still reports the check red to the deploy gate): an infra hiccup skips the
+  # measurement. The Lighthouse step itself blocks on the TBT budget (error).
+  lighthouse:
+    name: Admin Lighthouse (3 heavy pages, CPU x4, with API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: lawbid
+          POSTGRES_DB: lawbid_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U root -d lawbid_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
+        ports:
+          - 6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+      - name: Point the job at its service containers (random host ports)
+        env:
+          PG_PORT: ${{ job.services.postgres.ports['5432'] }}
+          REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
+        run: scripts/ci/service-env.sh
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.12.1"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Prisma generate + migrate a clean database
+        working-directory: apps/api
+        run: npx prisma generate && npx prisma migrate deploy && node prisma/run-concurrent.mjs
+      - name: Build and start the API (test env, this commit)
+        id: api
+        continue-on-error: true
+        working-directory: apps/api
+        env:
+          # nest build needs the same heap as the other API jobs (KNOWN_ERRORS 23 / N-1).
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          set -eu
+          npm run build
+          # .env.test = the e2e settings (mock SMS/email, fixed OTP); DATABASE_URL /
+          # REDIS_URL from the services above win over the file.
+          # .env.test carries localhost:5432 / :6379; the services listen on random
+          # ports (service-env.sh), so keep the job's values over the file's.
+          DB="$DATABASE_URL"; RD="$REDIS_URL"
+          set -a; . ./.env.test; set +a
+          export DATABASE_URL="$DB" REDIS_URL="$RD" PORT=3000
+          export ADMIN_LOGIN_LIMIT_PER_IP_PER_HOUR=1000
+          nohup node dist/src/main.js > "$RUNNER_TEMP/api.log" 2>&1 &
+          # A cold runner boots the API in 2–4 min (run 42658592498 was still
+          # mapping routes at 120 s): wait up to 6 min, then show warn/error lines only.
+          for _ in $(seq 1 180); do curl -fsS http://localhost:3000/health/live >/dev/null 2>&1 && break; sleep 2; done
+          curl -fsS http://localhost:3000/health/live >/dev/null || { echo "::error::the API did not start in 6 min"; grep -v '"level":30' "$RUNNER_TEMP/api.log" | tail -40; exit 1; }
+      - name: One admin signed in (token for the Lighthouse cookie)
+        if: steps.api.outcome == 'success'
+        id: admin_token
+        continue-on-error: true
+        working-directory: apps/api
+        run: |
+          set -eu
+          DB="$DATABASE_URL"
+          set -a; . ./.env.test; set +a
+          export DATABASE_URL="$DB" API_URL=http://localhost:3000
+          TOKEN=$(npx ts-node --transpile-only scripts/lhci-admin.ts)
+          echo "::add-mask::$TOKEN"
+          echo "LHCI_ADMIN_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+      - name: Generate API types, build and start the admin
+        if: steps.admin_token.outcome == 'success'
+        id: admin
+        continue-on-error: true
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+          API_BASE_URL: http://localhost:3000/api/v1
+          COOKIE_SECURE: "false"
+        run: |
+          set -eu
+          npm run generate --workspace apps/admin
+          npm run build --workspace apps/admin
+          (cd apps/admin && nohup npm start > "$RUNNER_TEMP/admin.log" 2>&1 &)
+          for _ in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:3001/login && break; sleep 2; done
+          curl -fsS -o /dev/null http://localhost:3001/login || { echo "::error::the admin did not start"; tail -50 "$RUNNER_TEMP/admin.log"; exit 1; }
+          # Warm-up: the first request of each route loads its server chunk; the
+          # measured runs must not include that one-off cost.
+          for p in users audit-log cases; do curl -fsS -o /dev/null -H "Cookie: lawbid_admin=$LHCI_ADMIN_TOKEN" "http://localhost:3001/$p" || true; done
+      # Blocking: the Total Blocking Time budget is an error (lighthouserc.cjs);
+      # the stand steps above stay non-blocking (an infra hiccup skips this).
+      - name: Lighthouse (9 runs per page, median)
+        if: steps.admin.outcome == 'success'
+        working-directory: apps/admin
+        env:
+          LHCI_ADMIN_URL: http://localhost:3001
+        run: npx --yes @lhci/cli@0.15.1 autorun --config=lighthouserc.cjs
+      - name: Numbers into the job summary
+        if: always()
+        working-directory: apps/admin
+        run: |
+          {
+            echo "## Admin Lighthouse (desktop, CPU x4)"
+            echo "stand: api=${{ steps.api.outcome }} token=${{ steps.admin_token.outcome }} admin=${{ steps.admin.outcome }} (non-blocking first runs)"
+            echo "| page | performance | accessibility | LCP ms | TBT ms | CLS |"
+            echo "|---|---|---|---|---|---|"
+            for f in .lighthouseci/lhr-*.json; do
+              [ -f "$f" ] || continue
+              jq -r '"| \(.finalDisplayedUrl | sub("https?://[^/]+"; "")) | \((.categories.performance.score*100)|round) | \((.categories.accessibility.score*100)|round) | \(.audits["largest-contentful-paint"].numericValue|round) | \(.audits["total-blocking-time"].numericValue|round) | \(.audits["cumulative-layout-shift"].numericValue*1000|round/1000) |"' "$f"
+            done
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Upload the Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: admin-lighthouse
+          path: apps/admin/.lighthouseci
+          # the folder starts with a dot: upload-artifact v4+ skips it otherwise
+          include-hidden-files: true
+          if-no-files-found: ignore
+
   # S11-6: a failure on main / on a schedule reaches the owner (notify-failure.yml).
   notify:
     name: Notify the owner

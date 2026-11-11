@@ -1072,21 +1072,21 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   }
   out['scale.capacity_ceiling.mode'] = {
     type: 'string',
-    defaultValue: 'auto',
+    defaultValue: 'off',
     description:
       'Biggest database / Redis size the autoscalers may use: auto = what the allowed monthly spend pays for (Экономика), off = only the Terraform ceiling. Changed on the «Расходы» page.',
     pattern: /^(off|auto)$/,
   };
   out['scale.bunny_hardstop.mode'] = {
     type: 'string',
-    defaultValue: 'auto',
+    defaultValue: 'off',
     description:
       'New video uploads (Bunny): auto = pause when this month’s Bunny traffic or storage reaches the urgent threshold, on = paused now, off = never paused. Playback of existing videos is never touched. Changed on the «Расходы» page.',
     pattern: /^(off|on|auto)$/,
   };
   out['scale.cloudflare_hardstop.mode'] = {
     type: 'string',
-    defaultValue: 'auto',
+    defaultValue: 'off',
     description:
       'Group video calls on Cloudflare SFU: auto = fall back to device-to-device when this month’s Cloudflare traffic reaches the urgent threshold, on = fallen back now, off = never. Calls are never refused. Changed on the «Расходы» page.',
     pattern: /^(off|on|auto)$/,
@@ -1136,11 +1136,26 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100,
   };
-  // Programmatic SEO (2026-10-27): the page generator job. Off by default.
+  // Owner rule (Выкл / Вкл / Авто): new-case alerts in waves.
+  out['case_fanout.enabled'] = {
+    ...out['case_fanout.enabled'],
+    description:
+      'off | on | auto (default). New-case alerts: off = one push to everyone matching at once (as before); on = waves and the smart order; auto = waves while the case-fanout queue is reachable and has at most case_fanout.auto_max_waiting jobs waiting, else one wave at once.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['case_fanout.auto_max_waiting'] = {
+    ...out['case_fanout.auto_max_waiting'],
+    description:
+      'Авто of case_fanout.enabled: more waiting wave jobs than this = the queue is behind, the case goes out in one wave right away.',
+    min: 0,
+    max: 100000,
+  };
+  // Programmatic SEO (2026-10-27): the page generator job.
+  // Owner 2026-11-07 («SEO all ON»): nightly+events by default.
   out['seo.generator_mode'] = {
     ...out['seo.generator_mode'],
     description:
-      'Public SEO pages built by the API: off (default, nothing runs) | nightly (after the nightly snapshot jobs) | nightly+events (also a minute after an attorney is published or removed).',
+      'Public SEO pages built by the API: off (nothing runs) | nightly (after the nightly snapshot jobs) | nightly+events (default; also a minute after an attorney is published or removed).',
     pattern: /^(off|nightly|nightly\+events)$/,
   };
   out['seo.generator_debounce_seconds'] = {
@@ -1213,6 +1228,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Push sends per second for the whole system (FCM project quota is 10 000/s).',
     min: 50,
     max: 10_000,
+  };
+  out['economy.aws_cap_usd'] = {
+    ...out['economy.aws_cap_usd'],
+    min: 0,
+    max: 1_000_000,
   };
   for (const key of ['economy.manual_api_max', 'economy.manual_worker_max']) {
     out[key] = { ...out[key], min: 1, max: 1000 };

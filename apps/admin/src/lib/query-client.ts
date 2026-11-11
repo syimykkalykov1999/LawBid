@@ -32,6 +32,15 @@ import { queryRetryDelay, shouldRetryQuery } from '@/lib/query-retry';
  */
 export const DEFAULT_STALE_MS = 60_000;
 export const DEFAULT_GC_MS = 30 * 60_000;
+/**
+ * Speed matrix 2026-11-09 (§3 #4): the reference / aggregate / list classes
+ * are also written to IndexedDB (lib/persist.ts) and must outlive the page
+ * in memory as long as the stored copy lives — TanStack's persist guide: a
+ * query the garbage collector dropped (gcTime) is gone from the next
+ * written copy too, so gcTime is kept at the persister's maxAge. A day:
+ * the next morning opens from yesterday's lists at once.
+ */
+export const PERSISTED_GC_MS = 24 * 60 * 60_000;
 export const REFERENCE_STALE_MS = 15 * 60_000;
 export const AGGREGATE_STALE_MS = 2 * 60_000;
 
@@ -140,9 +149,12 @@ export function queryClassOf(key: QueryKey): QueryClass {
 
 /** The data-class defaults on [client] (TanStack `setQueryDefaults`). */
 export function applyQueryClassDefaults(client: QueryClient): QueryClient {
-  for (const k of REFERENCE_KEYS) client.setQueryDefaults([k], { staleTime: REFERENCE_STALE_MS });
-  for (const k of AGGREGATE_KEYS) client.setQueryDefaults([k], { staleTime: AGGREGATE_STALE_MS });
-  for (const k of LIST_KEYS) client.setQueryDefaults([k], { placeholderData: keepPreviousData });
+  for (const k of REFERENCE_KEYS)
+    client.setQueryDefaults([k], { staleTime: REFERENCE_STALE_MS, gcTime: PERSISTED_GC_MS });
+  for (const k of AGGREGATE_KEYS)
+    client.setQueryDefaults([k], { staleTime: AGGREGATE_STALE_MS, gcTime: PERSISTED_GC_MS });
+  for (const k of LIST_KEYS)
+    client.setQueryDefaults([k], { placeholderData: keepPreviousData, gcTime: PERSISTED_GC_MS });
   return client;
 }
 
