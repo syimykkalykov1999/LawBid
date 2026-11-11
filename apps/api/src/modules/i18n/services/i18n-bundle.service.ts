@@ -13,6 +13,13 @@ import { I18nLanguagesService } from './i18n-languages.service';
  * produced the translations in the same call). */
 const BUNDLE_VERSION_CACHE_TTL_SECONDS = 300;
 
+/** Owner 2026-11-11 (web start is slow): a full bundle is ~6 000 rows read
+ * with a join and turned into a 400 KB map — 1-2 s per request on prod
+ * (the 304 path answers in 0.4 s). A full bundle is a pure function of
+ * (language, version), so the built map is kept per version; a new version
+ * is a new key. Only the last few languages asked for are kept. */
+const FULL_BUNDLES_KEPT = 8;
+
 /**
  * GET /i18n/bundle/:lang?since=version (docs/01_FOUNDATION_AUTH.md §9.3:
  * "Поддержка ETag/304", "Версия бандла хранится в Redis/БД"). Pure data
@@ -27,6 +34,10 @@ export class I18nBundleService {
     private readonly languages: I18nLanguagesService,
     @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
   ) {}
+
+  /** `<lang>:<version>` → the full bundle, oldest first (a Map keeps
+   * insertion order; a hit moves to the end). */
+  private readonly fullBundles = new Map<string, Record<string, string>>();
 
   /** Validates the language (throws I18N_LANGUAGE_NOT_FOUND — same as
    * I18nLanguagesService.getActiveOrThrow) and returns its current bundle
@@ -59,6 +70,16 @@ export class I18nBundleService {
   ): Promise<Record<string, string>> {
     if (since !== undefined && since >= currentVersion) return {};
 
+    const key = `${lang}:${currentVersion}`;
+    if (since === undefined) {
+      const kept = this.fullBundles.get(key);
+      if (kept) {
+        this.fullBundles.delete(key);
+        this.fullBundles.set(key, kept);
+        return kept;
+      }
+    }
+
     const rows = await this.prisma.i18nTranslation.findMany({
       where: since !== undefined ? { lang, version: { gt: since } } : { lang },
       include: { i18n_key: true },
@@ -66,6 +87,16 @@ export class I18nBundleService {
 
     const translations: Record<string, string> = {};
     for (const row of rows) translations[row.i18n_key.key] = row.value;
+    if (since === undefined) {
+      for (const k of this.fullBundles.keys()) {
+        if (k.startsWith(`${lang}:`)) this.fullBundles.delete(k);
+      }
+      this.fullBundles.set(key, translations);
+      if (this.fullBundles.size > FULL_BUNDLES_KEPT) {
+        const oldest = this.fullBundles.keys().next().value;
+        if (oldest !== undefined) this.fullBundles.delete(oldest);
+      }
+    }
     return translations;
   }
 
