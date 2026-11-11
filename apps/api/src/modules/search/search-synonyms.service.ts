@@ -1,3 +1,4 @@
+import { forEachDatabase } from '../../sharding/for-each-database';
 import {
   Inject,
   Injectable,
@@ -296,6 +297,23 @@ export class SearchSynonymsService implements OnApplicationBootstrap {
       where: { code: GENERIC_PRACTICE },
       select: { id: true },
     });
+    // Two databases: posts and cases live in every database; each one is
+    // scanned and updated in its own (one database: exactly one pass).
+    const parts = await forEachDatabase(this.prisma, () =>
+      this.tagIn(limit, generic),
+    );
+    const posts = parts.reduce((n, p) => n + p.posts, 0);
+    const cases = parts.reduce((n, p) => n + p.cases, 0);
+    if (posts || cases) {
+      this.log.log(`topics tagged: ${posts} posts, ${cases} cases`);
+    }
+    return { posts, cases };
+  }
+
+  private async tagIn(
+    limit: number,
+    generic: { id: string } | null,
+  ): Promise<{ posts: number; cases: number }> {
     const posts = await this.prisma.$queryRaw<
       { id: string; title: string | null; body: string }[]
     >`
@@ -330,11 +348,6 @@ export class SearchSynonymsService implements OnApplicationBootstrap {
       await this.prisma.$executeRaw`
         UPDATE cases SET inferred_practice_id = ${topic}::UUID,
           topic_scanned_at = now() WHERE id = ${c.id}::UUID`;
-    }
-    if (posts.length || cases.length) {
-      this.log.log(
-        `topics tagged: ${posts.length} posts, ${cases.length} cases`,
-      );
     }
     return { posts: posts.length, cases: cases.length };
   }
