@@ -35,9 +35,19 @@ function build() {
   const prisma = {
     integrationCredential: {
       findFirst: () => Promise.resolve(row),
+      updateMany: () => Promise.resolve({ count: 0 }),
       create: ({ data }: { data: (typeof created)[number] }) => {
         created.push(data);
-        return Promise.resolve({ ...row, ...data, id: 'new' });
+        return Promise.resolve({
+          ...row,
+          ...data,
+          id: 'new',
+          created_at: new Date(),
+          activated_at: null,
+          last_test_at: null,
+          last_test_ok: null,
+          last_test_error: null,
+        });
       },
     },
     integrationCustomProvider: {
