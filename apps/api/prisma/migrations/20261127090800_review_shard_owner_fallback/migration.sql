@@ -3,6 +3,9 @@
 -- databases. It now lives with its author, like a consultation without a
 -- case (manifest: Review -> client_id, ClientReview -> attorney_id).
 -- Regenerated triggers (scripts/generate-shard-trigger-migration.ts):
+-- A trigger swap takes a short lock on two small tables; never wait behind
+-- a long transaction.
+SET LOCAL lock_timeout = '5s';
 DROP TRIGGER IF EXISTS "client_reviews_shard_fill" ON "client_reviews";
 CREATE TRIGGER "client_reviews_shard_fill" BEFORE INSERT ON "client_reviews" FOR EACH ROW WHEN (NEW."shard_id" = 0) EXECUTE FUNCTION lawbid_shard_fill('parent', 'case_id', 'cases', 'owner', 'attorney_id', '');
 DROP TRIGGER IF EXISTS "reviews_shard_fill" ON "reviews";
