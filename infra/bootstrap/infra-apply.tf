@@ -80,6 +80,11 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
       "cloudtrail:*", "athena:*", "glue:*", "logs:*", "cloudwatch:*", "synthetics:*",
       "route53:CreateHealthCheck", "route53:UpdateHealthCheck", "route53:DeleteHealthCheck",
       "route53:ChangeTagsForResource",
+      # 10.11: the pooler's private DNS name (Cloud Map namespace creates a
+      # private hosted zone) and the database parameters a switch may change.
+      "route53:CreateHostedZone", "route53:DeleteHostedZone", "route53:ChangeResourceRecordSets",
+      "route53:AssociateVPCWithHostedZone", "route53:DisassociateVPCFromHostedZone", "route53:GetChange",
+      "rds:ModifyDBParameterGroup",
       "ec2:*NatGateway*", "ec2:AllocateAddress", "ec2:ReleaseAddress", "ec2:AssociateAddress",
       "ec2:DisassociateAddress", "ec2:*Route", "ec2:*RouteTable*", "ec2:*VpcEndpoint*",
       "ec2:*FlowLogs", "ec2:*SecurityGroup*", "ec2:CreateTags", "ec2:DeleteTags",
