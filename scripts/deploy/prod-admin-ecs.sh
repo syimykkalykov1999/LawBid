@@ -144,12 +144,18 @@ IMAGE="$IMAGE" FAMILY="$FAMILY" MIGRATOR_ARN="$MIGRATOR_ARN" TMP="$TMP_SECRET_AR
   td.containerDefinitions=[c];
   c.image=process.env.IMAGE; delete c.healthCheck; c.portMappings=[];
   c.environment=(c.environment||[]).filter(e=>e.name!=="JOBS_ENABLED").concat([{name:"JOBS_ENABLED",value:"false"}]);
-  if (process.env.MODE!=="config") c.secrets=(c.secrets||[]).filter(s=>s.name!=="DATABASE_URL").concat([{name:"DATABASE_URL",valueFrom:process.env.MIGRATOR_ARN}]);
+  if (process.env.MODE!=="config") {
+    c.secrets=(c.secrets||[]).filter(s=>s.name!=="DATABASE_URL").concat([{name:"DATABASE_URL",valueFrom:process.env.MIGRATOR_ARN}]);
+    // KNOWN_ERRORS 92 (2026-11-11): the migrator goes to the database
+    // directly, like the migrate task; through the pooler (which knows only
+    // the app user) every deploy failed «SASL authentication failed».
+    c.environment=c.environment.filter(e=>e.name!=="DB_POOLER_HOST"&&e.name!=="DB_POOLER_PORT");
+  }
   const t=process.env.TMP;
   if (t) c.secrets.push({name:"SEED_ADMIN_EMAIL",valueFrom:t+":email::"},{name:"ADMIN_SET_LOGIN",valueFrom:t+":login::"},{name:"ADMIN_SET_PASSWORD",valueFrom:t+":password::"});
   fs.writeFileSync(process.argv[2],JSON.stringify(td));' "$WORK/api.json" "$WORK/td.json"
 if [ "${DRY_RUN:-}" = "1" ]; then
-  node -e 'const t=require(process.argv[1]);const c=t.containerDefinitions[0];console.log("DRY_RUN ok:",t.family,c.image,"secrets:",c.secrets.map(s=>s.name).join(","))' "$WORK/td.json"
+  node -e 'const t=require(process.argv[1]);const c=t.containerDefinitions[0];console.log("DRY_RUN ok:",t.family,c.image,"secrets:",c.secrets.map(s=>s.name).join(","),"pooler:",c.environment.some(e=>e.name==="DB_POOLER_HOST")?"yes":"no")' "$WORK/td.json"
   exit 0
 fi
 TD_ARN="$(aws ecs register-task-definition --cli-input-json "file://$WORK/td.json" --query taskDefinition.taskDefinitionArn --output text)"
