@@ -45,6 +45,7 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
   let baseUrl = '';
   let phoneSeq = 0;
   let practiceAreaId = '';
+  let autoBarCheckBefore: { enabled: boolean } | null = null;
   const tag = randomUUID().slice(0, 8);
   const api = () => request(baseUrl);
 
@@ -102,7 +103,12 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         },
       })
     ).id;
-    // No registry calls from e2e: NY lookups stay off (unit-tested).
+    // No registry calls from e2e: NY lookups stay off (unit-tested). The
+    // flag is shared by the suites run after this one in the same database
+    // (state-registries): it goes back to what it was in afterAll.
+    autoBarCheckBefore = await prisma.featureFlag.findUnique({
+      where: { key: 'auto_bar_check' },
+    });
     await setFlag('auto_bar_check', false);
     await setConfig('verification.require_identity', false);
     await setConfig('verification.require_bar_document', false);
@@ -119,6 +125,12 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
   });
 
   afterAll(async () => {
+    if (autoBarCheckBefore) {
+      await setFlag('auto_bar_check', autoBarCheckBefore.enabled);
+    } else {
+      await prisma.featureFlag.deleteMany({ where: { key: 'auto_bar_check' } });
+      await app.get(FeatureFlagsService).invalidate();
+    }
     await setConfig('verification.selfie_live_capture_required', true);
     await setConfig('verification.require_identity', false);
     await setConfig('verification.require_bar_document', false);
