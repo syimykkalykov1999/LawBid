@@ -1,3 +1,5 @@
+import { shardContext } from '../../sharding/shard-context';
+import { inShardTx } from '../../sharding/tx-global-facade';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -51,6 +53,15 @@ export class LedgerService {
   constructor(private readonly prisma: PrismaService) {}
 
   async post(db: LedgerDb, input: PostEntryInput): Promise<PostResult> {
+    // Two databases: the ledger is global, and an entry with its lines must
+    // be ONE transaction (the database checks the balance at commit). From a
+    // shard database's transaction it is posted in its own one on the
+    // primary — global first; a replay is a no-op (idempotent key).
+    if (inShardTx(db)) {
+      return shardContext.runOnPrimary(() =>
+        this.prisma.$transaction((tx) => this.post(tx, input)),
+      );
+    }
     const currency = input.currency.toLowerCase();
     if (!isBalanced(input.lines)) {
       // Nothing to record (a zero-amount payment) vs. a programming error.

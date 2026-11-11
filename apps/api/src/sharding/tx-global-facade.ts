@@ -42,6 +42,19 @@ const WRITE_OPERATIONS = new Set([
   'deleteMany',
 ]);
 
+/** Answers `true` on a facade: a transaction of a non-primary database. */
+const SHARD_TX = Symbol('lawbid.shardTx');
+
+/** True for the `tx` of a transaction on a non-primary database, whose
+ * global writes are NOT part of the transaction (see above). */
+export function inShardTx(tx: unknown): boolean {
+  return (
+    typeof tx === 'object' &&
+    tx !== null &&
+    (tx as Record<symbol, unknown>)[SHARD_TX] === true
+  );
+}
+
 export function withGlobalFacade<T extends object>(
   tx: T,
   primary: object,
@@ -49,6 +62,7 @@ export function withGlobalFacade<T extends object>(
 ): T {
   return new Proxy(tx, {
     get(target, prop, receiver) {
+      if (prop === SHARD_TX) return true;
       const info = typeof prop === 'string' ? delegateInfo(prop) : undefined;
       if (
         !info ||

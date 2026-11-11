@@ -1,3 +1,4 @@
+import { shardContext } from '../../sharding/shard-context';
 import {
   BadRequestException,
   ConflictException,
@@ -714,38 +715,40 @@ export class CasePaymentsService {
         status: 'pending_payment',
       },
     });
-    const row = await withTxRetry(this.prisma, async (tx) => {
-      // An earlier unpaid checkout on this case is superseded.
-      await tx.casePayment.updateMany({
-        where: {
-          case_id: caseId,
-          client_id: user.sub,
-          status: 'pending_payment',
-        },
-        data: { status: 'canceled', canceled_reason: 'superseded' },
-      });
-      return tx.casePayment.create({
-        data: {
-          case_id: caseId,
-          bid_id: bid?.id ?? null,
-          client_id: user.sub,
-          attorney_id: attorneyId,
-          kind: dto.kind,
-          request_id: req?.id ?? null,
-          status: 'pending_payment',
-          amount_cents: quote.amountCents,
-          platform_fee_cents: quote.platformFeeCents,
-          processing_fee_cents: quote.processingFeeCents,
-          client_total_cents: quote.clientTotalCents,
-          attorney_net_cents: quote.attorneyNetCents,
-          fee_type: quote.feeType,
-          fee_payer: quote.feePayer,
-          processing_fee_payer: quote.processingFeePayer,
-          note: req ? req.description : dto.note?.trim() || null,
-          stripe_account_id: account.stripe_account_id,
-        },
-      });
-    });
+    const row = await shardContext.runForCase(caseId, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        // An earlier unpaid checkout on this case is superseded.
+        await tx.casePayment.updateMany({
+          where: {
+            case_id: caseId,
+            client_id: user.sub,
+            status: 'pending_payment',
+          },
+          data: { status: 'canceled', canceled_reason: 'superseded' },
+        });
+        return tx.casePayment.create({
+          data: {
+            case_id: caseId,
+            bid_id: bid?.id ?? null,
+            client_id: user.sub,
+            attorney_id: attorneyId,
+            kind: dto.kind,
+            request_id: req?.id ?? null,
+            status: 'pending_payment',
+            amount_cents: quote.amountCents,
+            platform_fee_cents: quote.platformFeeCents,
+            processing_fee_cents: quote.processingFeeCents,
+            client_total_cents: quote.clientTotalCents,
+            attorney_net_cents: quote.attorneyNetCents,
+            fee_type: quote.feeType,
+            fee_payer: quote.feePayer,
+            processing_fee_payer: quote.processingFeePayer,
+            note: req ? req.description : dto.note?.trim() || null,
+            stripe_account_id: account.stripe_account_id,
+          },
+        });
+      }),
+    );
 
     let session: { id: string; url: string };
     try {
@@ -1014,57 +1017,60 @@ export class CasePaymentsService {
     const id = session.metadata.paymentId;
     if (!id) return false;
     const eventTickets: Array<DomainEventTicket | null | undefined> = [];
-    const paid = await withTxRetry(this.prisma, async (tx) => {
-      eventTickets.length = 0;
-      const p = await tx.casePayment.findUnique({ where: { id } });
-      if (!p || p.stripe_checkout_id !== session.id) return null;
-      // Pending, or a system cancel (expired / superseded) a late payment
-      // may revive; never one the client canceled by hand.
-      const revivable =
-        p.status === 'pending_payment' ||
-        (p.status === 'canceled' && p.canceled_reason !== 'client');
-      if (!revivable) return null;
-      const paidAt = new Date();
-      const paidRow = await tx.casePayment.update({
-        where: { id },
-        data: {
-          status: 'succeeded',
-          paid_at: paidAt,
-          stripe_payment_intent_id: session.paymentIntentId,
-          stripe_charge_id: session.chargeId,
-          receipt_url: session.receiptUrl,
-          client_total_cents: session.amountTotalCents ?? p.client_total_cents,
-          canceled_reason: null,
-        },
-      });
-      await this.ledger?.casePaymentSucceeded(tx, paidRow);
-      if (p.request_id) {
-        await tx.paymentRequest.updateMany({
-          where: { id: p.request_id, status: { in: ['open', 'expired'] } },
+    const paid = await shardContext.runForRow(id, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        eventTickets.length = 0;
+        const p = await tx.casePayment.findUnique({ where: { id } });
+        if (!p || p.stripe_checkout_id !== session.id) return null;
+        // Pending, or a system cancel (expired / superseded) a late payment
+        // may revive; never one the client canceled by hand.
+        const revivable =
+          p.status === 'pending_payment' ||
+          (p.status === 'canceled' && p.canceled_reason !== 'client');
+        if (!revivable) return null;
+        const paidAt = new Date();
+        const paidRow = await tx.casePayment.update({
+          where: { id },
           data: {
-            status: 'paid',
-            payment_id: p.id,
-            paid_at: new Date(),
-            // Paying the attorney's proposal accepts it.
-            fee_payer_status: 'agreed',
-            fee_payer_agreed_at: new Date(),
+            status: 'succeeded',
+            paid_at: paidAt,
+            stripe_payment_intent_id: session.paymentIntentId,
+            stripe_charge_id: session.chargeId,
+            receipt_url: session.receiptUrl,
+            client_total_cents:
+              session.amountTotalCents ?? p.client_total_cents,
+            canceled_reason: null,
           },
         });
-      }
-      eventTickets.push(
-        await this.events?.emit(
-          tx,
-          'payment.succeeded',
-          {
-            paymentId: id,
-            caseId: p.case_id,
-            amountCents: paidRow.client_total_cents,
-          },
-          { actorId: p.client_id, key: `payment.succeeded:${id}` },
-        ),
-      );
-      return p;
-    });
+        await this.ledger?.casePaymentSucceeded(tx, paidRow);
+        if (p.request_id) {
+          await tx.paymentRequest.updateMany({
+            where: { id: p.request_id, status: { in: ['open', 'expired'] } },
+            data: {
+              status: 'paid',
+              payment_id: p.id,
+              paid_at: new Date(),
+              // Paying the attorney's proposal accepts it.
+              fee_payer_status: 'agreed',
+              fee_payer_agreed_at: new Date(),
+            },
+          });
+        }
+        eventTickets.push(
+          await this.events?.emit(
+            tx,
+            'payment.succeeded',
+            {
+              paymentId: id,
+              caseId: p.case_id,
+              amountCents: paidRow.client_total_cents,
+            },
+            { actorId: p.client_id, key: `payment.succeeded:${id}` },
+          ),
+        );
+        return p;
+      }),
+    );
     if (!paid) return false;
     await this.events?.flush(eventTickets);
     await this.chatLine(paid.case_id, 'payment_received', paid.amount_cents);
@@ -1763,39 +1769,41 @@ export class CasePaymentsService {
       dto.processingFeePayer ??
       feePayerOf(account.processing_fee_payer) ??
       s.processingFeePayer;
-    const rows = await withTxRetry(this.prisma, async (tx) => {
-      const created: PaymentRequest[] = [];
-      for (const [i, it] of dto.items.entries()) {
-        created.push(
-          await tx.paymentRequest.create({
-            data: {
-              case_id: caseId,
-              attorney_id: attorneyId,
-              client_id: kase.client_id,
-              created_by: user.assistant?.userId ?? user.sub,
-              amount_cents: it.amountCents,
-              description: (it.description?.trim() || dto.description).slice(
-                0,
-                200,
-              ),
-              due_at: it.dueAt ? new Date(it.dueAt) : null,
-              processing_fee_payer: payer,
-              plan_id: planId,
-              seq: i + 1,
-              total: dto.items.length,
-            },
-          }),
+    const rows = await shardContext.runForCase(caseId, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        const created: PaymentRequest[] = [];
+        for (const [i, it] of dto.items.entries()) {
+          created.push(
+            await tx.paymentRequest.create({
+              data: {
+                case_id: caseId,
+                attorney_id: attorneyId,
+                client_id: kase.client_id,
+                created_by: user.assistant?.userId ?? user.sub,
+                amount_cents: it.amountCents,
+                description: (it.description?.trim() || dto.description).slice(
+                  0,
+                  200,
+                ),
+                due_at: it.dueAt ? new Date(it.dueAt) : null,
+                processing_fee_payer: payer,
+                plan_id: planId,
+                seq: i + 1,
+                total: dto.items.length,
+              },
+            }),
+          );
+        }
+        // The chat line is written in the same transaction (one per plan).
+        const changes = await this.chatSystem?.post(
+          tx,
+          { case_id: caseId },
+          'payment_requested',
+          { param: String(total) },
         );
-      }
-      // The chat line is written in the same transaction (one per plan).
-      const changes = await this.chatSystem?.post(
-        tx,
-        { case_id: caseId },
-        'payment_requested',
-        { param: String(total) },
-      );
-      return { created, changes: changes ?? [] };
-    });
+        return { created, changes: changes ?? [] };
+      }),
+    );
     this.chatSystem?.publish(rows.changes);
     await this.notify(kase.client_id, 'payment_request_created', {
       caseId,
@@ -1833,19 +1841,21 @@ export class CasePaymentsService {
         message: `This request is ${row.status}.`,
       });
     }
-    const updated = await withTxRetry(this.prisma, async (tx) => {
-      const u = await tx.paymentRequest.update({
-        where: { id },
-        data: { status: 'canceled', canceled_at: new Date() },
-      });
-      const changes = await this.chatSystem?.post(
-        tx,
-        { case_id: row.case_id },
-        'payment_request_canceled',
-        { param: String(row.amount_cents) },
-      );
-      return { u, changes: changes ?? [] };
-    });
+    const updated = await shardContext.runForCase(row.case_id, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        const u = await tx.paymentRequest.update({
+          where: { id },
+          data: { status: 'canceled', canceled_at: new Date() },
+        });
+        const changes = await this.chatSystem?.post(
+          tx,
+          { case_id: row.case_id },
+          'payment_request_canceled',
+          { param: String(row.amount_cents) },
+        );
+        return { u, changes: changes ?? [] };
+      }),
+    );
     this.chatSystem?.publish(updated.changes);
     await this.notify(row.client_id, 'payment_request_canceled', {
       caseId: row.case_id,
@@ -1967,16 +1977,18 @@ export class CasePaymentsService {
       };
       key = 'payment_fee_countered';
     }
-    const updated = await withTxRetry(this.prisma, async (tx) => {
-      const u = await tx.paymentRequest.update({ where: { id }, data });
-      const changes = await this.chatSystem?.post(
-        tx,
-        { case_id: row.case_id },
-        key,
-        { param: payer },
-      );
-      return { u, changes: changes ?? [] };
-    });
+    const updated = await shardContext.runForCase(row.case_id, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        const u = await tx.paymentRequest.update({ where: { id }, data });
+        const changes = await this.chatSystem?.post(
+          tx,
+          { case_id: row.case_id },
+          key,
+          { param: payer },
+        );
+        return { u, changes: changes ?? [] };
+      }),
+    );
     this.chatSystem?.publish(updated.changes);
     await this.notify(other, key, {
       caseId: row.case_id,
@@ -2156,10 +2168,12 @@ export class CasePaymentsService {
   ): Promise<void> {
     if (!this.chatSystem) return;
     try {
-      const changes = await withTxRetry(this.prisma, (tx) =>
-        this.chatSystem!.post(tx, { case_id: caseId }, key, {
-          param: String(cents),
-        }),
+      const changes = await shardContext.runForCase(caseId, () =>
+        withTxRetry(this.prisma, (tx) =>
+          this.chatSystem!.post(tx, { case_id: caseId }, key, {
+            param: String(cents),
+          }),
+        ),
       );
       this.chatSystem.publish(changes);
     } catch (e) {
