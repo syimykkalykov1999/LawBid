@@ -44,6 +44,10 @@ export interface AutoSignals extends SuggestionSignals {
   people?: number;
   /** `infra.search_engine_on_people` (default SEARCH_ENGINE_ON_PEOPLE). */
   searchOnPeople?: number;
+  /** Owner 2026-11-11: `db.shards_mode` and the split threshold status of
+   * «Здоровье системы» (green / yellow at 80 % / red). */
+  shardsMode?: string;
+  shardGrowth?: 'green' | 'yellow' | 'red';
 }
 
 /** People at which the search engine (OpenSearch) is switched on, and the
@@ -167,6 +171,30 @@ export function autoWants(
       to: 'on',
       reason: `Людей больше ${searchOnPeople(s).toLocaleString('ru-RU')}: поиск людей по имени с опечаткой в базе начнёт читать всю таблицу, нужен поисковый движок.`,
     });
+  }
+  // Owner 2026-11-11: the second database server. Auto: when the database
+  // nears the split threshold (a server takes 15-40 min, so from 80 %), or
+  // its CPU stays high although the read copy and the pooler already run.
+  // Never switched off by itself (data lives there).
+  const shardsMode = (s.shardsMode ?? 'auto').trim().toLowerCase();
+  if (live('aws.db_shards') !== 'on') {
+    const near = s.shardGrowth === 'yellow' || s.shardGrowth === 'red';
+    const cpu =
+      s.pressures.includes('db_cpu') &&
+      live('aws.rds_replicas') === 'on' &&
+      live('aws.pgbouncer') === 'on';
+    if (shardsMode === 'on' || (shardsMode === 'auto' && (near || cpu))) {
+      out.push({
+        id: 'aws.db_shards',
+        to: 'on',
+        reason:
+          shardsMode === 'on'
+            ? 'db.shards_mode = Вкл, а второго сервера базы нет.'
+            : near
+              ? 'База подходит к порогу деления (размер или строки): нужен второй сервер базы.'
+              : 'База долго перегружена, хотя копия для чтения и пул соединений уже работают: нужен второй сервер базы.',
+      });
+    }
   }
   if (s.partitionNeedsRunner && live('aws.partition_role') !== 'on') {
     out.push({

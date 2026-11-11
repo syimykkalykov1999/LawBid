@@ -313,3 +313,57 @@ describe('autoApplyOk', () => {
     ).toBe(false);
   });
 });
+
+describe('autoWants: second database server (db.shards_mode, 2026-11-11)', () => {
+  const ids = (w: AutoWant[]) => w.map((x) => `${x.id}:${x.to}`).sort();
+  const has = (w: AutoWant[]) => ids(w).includes('aws.db_shards:on');
+
+  it('Авто: on from 80 % of the split threshold (yellow / red), not while green', () => {
+    expect(
+      has(autoWants({ ...calm, shardGrowth: 'yellow' }, offAll, new Set())),
+    ).toBe(true);
+    expect(
+      has(autoWants({ ...calm, shardGrowth: 'red' }, offAll, new Set())),
+    ).toBe(true);
+    expect(
+      has(autoWants({ ...calm, shardGrowth: 'green' }, offAll, new Set())),
+    ).toBe(false);
+    expect(has(autoWants(calm, offAll, new Set()))).toBe(false);
+  });
+
+  it('Авто: on by CPU only when the read copy and the pooler already run', () => {
+    const hot = { ...calm, pressures: ['db_cpu'] };
+    expect(has(autoWants(hot, offAll, new Set()))).toBe(false);
+    const both = (id: string) =>
+      id === 'aws.rds_replicas' || id === 'aws.pgbouncer'
+        ? ('on' as const)
+        : ('off' as const);
+    expect(has(autoWants(hot, both, new Set()))).toBe(true);
+  });
+
+  it('Вкл: on at once; Выкл: never; already on: nothing; never off by itself', () => {
+    expect(
+      has(autoWants({ ...calm, shardsMode: 'on' }, offAll, new Set())),
+    ).toBe(true);
+    expect(
+      has(
+        autoWants(
+          { ...calm, shardsMode: 'off', shardGrowth: 'red' },
+          offAll,
+          new Set(),
+        ),
+      ),
+    ).toBe(false);
+    const live = (id: string) =>
+      id === 'aws.db_shards' ? ('on' as const) : ('off' as const);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, shardGrowth: 'green' },
+          live,
+          new Set(['aws.db_shards']),
+        ),
+      ),
+    ).toEqual([]);
+  });
+});

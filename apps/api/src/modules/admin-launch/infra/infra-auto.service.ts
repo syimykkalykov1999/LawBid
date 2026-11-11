@@ -1,3 +1,4 @@
+import { PartitionService } from '../../../partitioning/partition.service';
 import { AUTO_SINK_KEY } from '../../events/domain-events.service';
 import {
   Inject,
@@ -255,6 +256,8 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       replicaProvision,
       people,
       searchOnPeople,
+      shardsMode,
+      shardGrowth,
     ] = await Promise.all([
       this.registry.signals(now),
       this.registry.searchEngine(),
@@ -266,6 +269,8 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       this.settings
         .number('infra.search_engine_on_people')
         .catch(() => undefined),
+      this.settings.string('db.shards_mode').catch(() => 'auto'),
+      this.shardGrowth().catch(() => undefined),
     ]);
     const pool = Number(this.config.get<string>('DB_POOL_SIZE') ?? '');
     const pooler = !!this.config.get<string>('DB_POOLER_HOST');
@@ -285,7 +290,17 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
         !!this.config.get<string>('OPS_DB_INSTANCE'),
       people,
       searchOnPeople,
+      shardsMode: shardsMode ?? 'auto',
+      shardGrowth,
     };
+  }
+
+  /** The split threshold status of «Здоровье системы» (PartitionService). */
+  private async shardGrowth(): Promise<'green' | 'yellow' | 'red' | undefined> {
+    const partitions = this.moduleRef?.get(PartitionService, {
+      strict: false,
+    });
+    return partitions ? (await partitions.shardSignal()).status : undefined;
   }
 
   /**

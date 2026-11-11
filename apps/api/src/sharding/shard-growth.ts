@@ -42,7 +42,8 @@ export interface ShardGrowth {
   targetReady: boolean;
   /** Ready plan "move the upper half of the primary's shards", or null. */
   plan: { shards: number; rows: number; estimatedSeconds: number } | null;
-  /** Always false: a move is started by the owner, never by a timer. */
+  /** Moves start only by the owner's button or, with db.shards_mode = auto,
+   * by autoSplitTarget (the first split of an empty server). */
   autoMove: false;
 }
 
@@ -84,4 +85,31 @@ export function assessShardGrowth(i: ShardGrowthInput): ShardGrowth {
         : null,
     autoMove: false,
   };
+}
+
+/**
+ * Owner 2026-11-11 (db.shards_mode = auto): which server an automatic split
+ * goes to, or null and why not. Only the FIRST split of a server is
+ * automatic — it is empty, so its half of the shards is the plan the
+ * «Здоровье системы» card shows; every later move stays a button. Pure.
+ */
+export function autoSplitTarget(i: {
+  mode: string;
+  growth: Pick<ShardGrowth, 'status' | 'plan'>;
+  /** Extra databases and how many active shards each one holds. */
+  targets: readonly { key: string; shards: number }[];
+  /** A move is queued or running. */
+  busy: boolean;
+  inWindow: boolean;
+}): { target: string | null; why: string } {
+  if (i.mode !== 'auto') return { target: null, why: 'mode' };
+  if (i.growth.status !== 'red')
+    return { target: null, why: 'below_threshold' };
+  if (!i.growth.plan || i.growth.plan.shards === 0)
+    return { target: null, why: 'nothing_to_move' };
+  if (i.busy) return { target: null, why: 'busy' };
+  if (!i.inWindow) return { target: null, why: 'hours' };
+  const empty = i.targets.find((t) => t.shards === 0);
+  if (!empty) return { target: null, why: 'no_empty_server' };
+  return { target: empty.key, why: 'split' };
 }

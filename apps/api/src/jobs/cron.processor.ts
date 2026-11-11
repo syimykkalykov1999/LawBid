@@ -1,3 +1,4 @@
+import { inQuietWindow } from '../modules/admin-launch/infra/infra-change.logic';
 import { CaseToolsSweepService } from '../modules/cases/tools/case-tools.sweep';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
@@ -449,8 +450,34 @@ export class CronProcessor {
               ),
             )
           : null;
-      case CRON_JOBS.shardMoveTick:
-        return this.shardMoves?.tick() ?? null;
+      case CRON_JOBS.shardMoveTick: {
+        if (!this.shardMoves) return null;
+        // Owner 2026-11-11: db.shards_mode = auto starts the first split of
+        // an empty second server by itself (shard-move.service autoSplit).
+        if (
+          this.partitioning &&
+          this.appSettings &&
+          this.shardMoves.extraDatabases().length > 0
+        ) {
+          const mode =
+            (await this.appSettings.string('db.shards_mode')) ?? 'auto';
+          if (mode === 'auto') {
+            await this.shardMoves
+              .autoSplit({
+                mode,
+                growth: await this.partitioning.shardSignal(),
+                inWindow: inQuietWindow(
+                  (await this.appSettings.string('db.shards_move_hours')) ?? '',
+                  new Date(),
+                ),
+              })
+              .catch((e: Error) =>
+                this.logger.warn(`auto split skipped: ${e.message}`),
+              );
+          }
+        }
+        return this.shardMoves.tick();
+      }
       case CRON_JOBS.shardOrphanCheck:
         return this.orphans?.run() ?? null;
       case CRON_JOBS.eventsMaintain:

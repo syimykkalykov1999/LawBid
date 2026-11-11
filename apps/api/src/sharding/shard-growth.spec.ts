@@ -1,5 +1,6 @@
 import {
   assessShardGrowth,
+  autoSplitTarget,
   PREPARE_FROM,
   type ShardGrowthInput,
 } from './shard-growth';
@@ -79,5 +80,39 @@ describe('assessShardGrowth', () => {
   it('a zero threshold counts as off for that number', () => {
     const g = assessShardGrowth({ ...base, thresholdGb: 0, dbBytes: 9e12 });
     expect(g.status).toBe('green');
+  });
+});
+
+describe('autoSplitTarget (db.shards_mode = auto)', () => {
+  const base = {
+    mode: 'auto',
+    growth: {
+      status: 'red' as const,
+      plan: { shards: 128, rows: 1, estimatedSeconds: 1 },
+    },
+    targets: [{ key: 'db1', shards: 0 }],
+    busy: false,
+    inWindow: true,
+  };
+
+  it('splits to the empty server once over the threshold, in the hours', () => {
+    expect(autoSplitTarget(base)).toEqual({ target: 'db1', why: 'split' });
+  });
+
+  it('never: other modes, below the threshold, busy, out of hours, no empty server', () => {
+    expect(autoSplitTarget({ ...base, mode: 'on' }).target).toBeNull();
+    expect(autoSplitTarget({ ...base, mode: 'off' }).target).toBeNull();
+    expect(
+      autoSplitTarget({ ...base, growth: { ...base.growth, status: 'yellow' } })
+        .why,
+    ).toBe('below_threshold');
+    expect(autoSplitTarget({ ...base, busy: true }).why).toBe('busy');
+    expect(autoSplitTarget({ ...base, inWindow: false }).why).toBe('hours');
+    expect(
+      autoSplitTarget({ ...base, targets: [{ key: 'db1', shards: 128 }] }).why,
+    ).toBe('no_empty_server');
+    expect(
+      autoSplitTarget({ ...base, growth: { status: 'red', plan: null } }).why,
+    ).toBe('nothing_to_move');
   });
 });

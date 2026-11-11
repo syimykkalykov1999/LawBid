@@ -105,6 +105,14 @@ export class PrismaMoveStore implements MoveStore {
     return toRecord(r);
   }
 
+  /** Moves not finished: queued / running, waiting for cleanup or failed
+   * (a failed one needs a person; nothing starts by itself next to it). */
+  async unfinished(): Promise<number> {
+    return this.db.shardMove.count({
+      where: { status: { in: ['running', 'waiting', 'failed'] } },
+    });
+  }
+
   async activeFor(shard: number): Promise<MoveRecord | null> {
     const r = await this.db.shardMove.findFirst({
       where: {

@@ -1,3 +1,4 @@
+import { QUIET_HOURS_PATTERN } from '../admin-launch/infra/infra-change.logic';
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
 import {
@@ -558,6 +559,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   };
   // 2026-11-02: HA copies and the replica auto-create (typos must not act).
   out['ha.mode'] = { ...out['ha.mode'], pattern: /^(off|on|auto)$/ };
+  out['db.shards_mode'] = {
+    ...out['db.shards_mode'],
+    pattern: /^(off|on|auto)$/,
+  };
+  out['db.shards_move_hours'] = {
+    ...out['db.shards_move_hours'],
+    pattern: QUIET_HOURS_PATTERN,
+  };
   out['ai.assistant_mode'] = {
     ...out['ai.assistant_mode'],
     pattern: /^(off|on|auto)$/,
