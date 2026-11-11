@@ -120,6 +120,10 @@ export function mineCaseWhere(
   // (accent / ё-insensitive title or description, the client's name or
   // @username — see [workWordHits]).
   extraHits: Map<string, string[]> = new Map(),
+  // Two databases (SHARDING_READY step 8): per word, the state codes and
+  // practice ids it names, looked up on the primary — the relation filters
+  // on the global states / practice_areas cannot run in a case database.
+  globalNames?: Map<string, { states: string[]; practices: string[] }>,
 ): Prisma.CaseWhereInput {
   const words = (f.q ?? '').split(/\s+/).filter((w) => w.length > 0);
   // Owner 2026-11-09: «По этапам» and «Ждёт меня» (the client's turn: bids
@@ -143,9 +147,28 @@ export function mineCaseWhere(
                   { title: ci },
                   { description: ci },
                   { city: ci },
-                  { practice_area: { name_en: ci } },
-                  { practice_area: { parent: { name_en: ci } } },
-                  { states: { some: { state: { name: ci } } } },
+                  ...(globalNames
+                    ? [
+                        {
+                          practice_area_id: {
+                            in: globalNames.get(w)?.practices ?? [],
+                          },
+                        },
+                        {
+                          states: {
+                            some: {
+                              state_code: {
+                                in: globalNames.get(w)?.states ?? [],
+                              },
+                            },
+                          },
+                        },
+                      ]
+                    : [
+                        { practice_area: { name_en: ci } },
+                        { practice_area: { parent: { name_en: ci } } },
+                        { states: { some: { state: { name: ci } } } },
+                      ]),
                   ...(w.length === 2
                     ? [
                         {
@@ -338,5 +361,35 @@ export async function mineWhere(
     work
       ? await workWordHits(prisma, f.q, work.attorneyId, work.withClient)
       : undefined,
+    readsAreSplit(prisma) ? await globalNamesByWord(prisma, f.q) : undefined,
   );
+}
+
+/** Per typed word: states whose name contains it, practices whose English
+ * name (or their category's) contains it — the same matches as the relation
+ * filters of [mineCaseWhere], read on the primary. */
+async function globalNamesByWord(
+  prisma: PrismaService,
+  q: string | undefined,
+): Promise<Map<string, { states: string[]; practices: string[] }>> {
+  const words = (q ?? '').split(/\s+/).filter((w) => w.length > 0);
+  const out = new Map<string, { states: string[]; practices: string[] }>();
+  for (const w of words) {
+    const like = `%${escapeLike(w.toLowerCase())}%`;
+    const [states, practices] = await shardContext.runOnPrimary(() =>
+      Promise.all([
+        prisma.$queryRaw<{ code: string }[]>`
+          SELECT code FROM states WHERE lower(name) LIKE ${like}`,
+        prisma.$queryRaw<{ id: string }[]>`
+          SELECT pa.id::TEXT AS id FROM practice_areas pa
+          LEFT JOIN practice_areas cat ON cat.id = pa.parent_id
+          WHERE lower(pa.name_en) LIKE ${like} OR lower(cat.name_en) LIKE ${like}`,
+      ]),
+    );
+    out.set(w, {
+      states: states.map((s) => s.code),
+      practices: practices.map((p) => p.id),
+    });
+  }
+  return out;
 }

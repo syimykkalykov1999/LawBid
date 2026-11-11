@@ -109,13 +109,22 @@ function practiceWordsMatch(norm: string, wholeShort = false): Prisma.Sql {
  * names": a state code (2 letters), a state name or a city word starting
  * with the query. Cases only (alias `c`).
  */
-export function casePlaceMatch(norm: string): Prisma.Sql {
+export function casePlaceMatch(
+  norm: string,
+  /** Two databases: the codes of the states named so, looked up on the
+   * primary (states are global; the case statement runs per database). */
+  namedStateCodes?: string[],
+): Prisma.Sql {
   if (norm.length < 2) return Prisma.sql`FALSE`;
   const like = `${escapeLike(norm)}%`;
   return Prisma.sql`(
     ${norm.length === 2 ? Prisma.sql`c.primary_state_code = ${norm.toUpperCase()} OR` : Prisma.empty}
-    EXISTS (SELECT 1 FROM states s WHERE s.code = c.primary_state_code
-               AND lower(s.name) LIKE ${like})
+    ${
+      namedStateCodes
+        ? Prisma.sql`c.primary_state_code = ANY(${namedStateCodes}::TEXT[])`
+        : Prisma.sql`EXISTS (SELECT 1 FROM states s WHERE s.code = c.primary_state_code
+               AND lower(s.name) LIKE ${like})`
+    }
     OR lower(c.city) LIKE ${like}
     OR lower(c.city) LIKE ${`% ${escapeLike(norm)}%`})`;
 }
@@ -1190,11 +1199,12 @@ export class PostgresSearchProvider implements SearchProvider {
     // Audit 2026-10-18: "new york", "NY" or "brooklyn" name WHERE a case is,
     // which is not in its title/description: the whole query as a state
     // code/name or a city word also finds the cases there.
+    const placeSql = await this.placeMatch(parsed.plain);
     const place = await this.budget(SEARCH_BUDGET_MS, () =>
       this.searchCases('', {
         ...p,
         limit: CASE_CANDIDATES,
-        extraSql: Prisma.sql`${p.extraSql ?? Prisma.empty} AND ${casePlaceMatch(parsed.plain)}`,
+        extraSql: Prisma.sql`${p.extraSql ?? Prisma.empty} AND ${placeSql}`,
       }),
     );
     rows = [...new Map([...rows, ...place].map((r) => [r.id, r])).values()];
@@ -1206,7 +1216,7 @@ export class PostgresSearchProvider implements SearchProvider {
         mixedWords.map(
           async (word) =>
             Prisma.sql`(${ftsMatch('c', word, true, await this.practiceIdsFor(word))}
-              OR ${casePlaceMatch(word)})`,
+              OR ${await this.placeMatch(word)})`,
         ),
       );
       const mixed = await this.budget(SEARCH_BUDGET_MS, () =>
@@ -1298,6 +1308,21 @@ export class PostgresSearchProvider implements SearchProvider {
         c.tag_lower
       LIMIT ${limit}`;
     return rows.map((r) => r.tag_lower);
+  }
+
+  /** [casePlaceMatch] with the state names looked up on the primary when
+   * the case statements run per database. */
+  private async placeMatch(norm: string): Promise<Prisma.Sql> {
+    if (!readsAreSplit(this.db) || norm.length < 2) return casePlaceMatch(norm);
+    const like = `${escapeLike(norm)}%`;
+    const codes = await shardContext.runOnPrimary(
+      () => this.db.$queryRaw<{ code: string }[]>`
+        SELECT code FROM states WHERE lower(name) LIKE ${like}`,
+    );
+    return casePlaceMatch(
+      norm,
+      codes.map((c) => c.code),
+    );
   }
 
   /** Two databases (SHARDING_READY step 8): tags are global (primary),
