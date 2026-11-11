@@ -66,6 +66,7 @@ jobs:
           bash scripts/ci/require-secrets.test.sh
           bash scripts/ci/wait-earlier-prod-change.test.sh
           bash scripts/deploy/current-tag.test.sh
+          bash scripts/deploy/run-migrations.test.sh
           bash scripts/deploy/web-font-base.test.sh
           bash scripts/ci/require-ecr.test.sh
           bash scripts/ci/check-dart-defines.test.sh
