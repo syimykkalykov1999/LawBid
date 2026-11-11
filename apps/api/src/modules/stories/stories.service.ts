@@ -40,7 +40,12 @@ import {
   type StoryViewerDto,
   type UpdateStorySettingsDto,
 } from './stories.dto';
-import { liveOwn, visibleToViewer } from './stories.visibility';
+import {
+  liveOwn,
+  visibleToViewer,
+  visibleToViewerSplit,
+} from './stories.visibility';
+import { readsAreSplit } from '../../sharding/split-reads';
 
 export const STORIES_FLAG = 'stories';
 const PAGE = 30;
@@ -102,6 +107,35 @@ export class StoriesService {
 
   // ── reading ──────────────────────────────────────────────────────────
 
+  /** Which stories of [authorIds] the viewer may see (`visibleToViewer`);
+   * on two databases the hides / follows / phone books are read first. */
+  private async visible(
+    viewerId: string,
+    now: Date,
+    authorIds: string[],
+  ): Promise<Prisma.StoryWhereInput> {
+    if (!readsAreSplit(this.prisma)) return visibleToViewer(viewerId, now);
+    const [hidden, follows, contacts] = await Promise.all([
+      this.prisma.storyHidden.findMany({
+        where: { owner_id: { in: authorIds }, hidden_user_id: viewerId },
+        select: { owner_id: true },
+      }),
+      this.prisma.follow.findMany({
+        where: { follower_id: viewerId, followee_id: { in: authorIds } },
+        select: { followee_id: true },
+      }),
+      this.prisma.contactMatch.findMany({
+        where: { owner_id: { in: authorIds }, matched_id: viewerId },
+        select: { owner_id: true },
+      }),
+    ]);
+    return visibleToViewerSplit(now, {
+      hiddenBy: hidden.map((h) => h.owner_id),
+      followed: follows.map((f) => f.followee_id),
+      contactOf: contacts.map((c) => c.owner_id),
+    });
+  }
+
   /** GET /stories/tray — me first, then people I follow with live stories
    * (not yet seen ones first). */
   async tray(user: RequestUser): Promise<StoryTrayItemDto[]> {
@@ -140,7 +174,7 @@ export class StoriesService {
                 {
                   AND: [
                     { author_id: { in: authorIds } },
-                    visibleToViewer(me, now),
+                    await this.visible(me, now, authorIds),
                   ],
                 } satisfies Prisma.StoryWhereInput,
               ]
@@ -212,7 +246,10 @@ export class StoriesService {
     } else {
       if (await this.blocks.isBlockedEitherWay(user.sub, authorId)) return [];
       where = {
-        AND: [{ author_id: authorId }, visibleToViewer(user.sub, now)],
+        AND: [
+          { author_id: authorId },
+          await this.visible(user.sub, now, [authorId]),
+        ],
       };
     }
     const rows = await this.prisma.story.findMany({
@@ -416,7 +453,7 @@ export class StoriesService {
       throw notFound();
     }
     const visible = await this.prisma.story.count({
-      where: { AND: [{ id }, visibleToViewer(me, now)] },
+      where: { AND: [{ id }, await this.visible(me, now, [s.author_id])] },
     });
     if (visible === 0) throw notFound();
     const { count } = await this.prisma.storyView.createMany({
