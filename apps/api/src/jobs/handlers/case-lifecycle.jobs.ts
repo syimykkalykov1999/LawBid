@@ -7,11 +7,13 @@ import {
   isClientDaytime,
   loadStaleTimers,
   shouldAsk,
+  type StaleTimers,
 } from '../../modules/cases/domain/case-staleness';
 import { CaseLifecycleService } from '../../modules/cases/lifecycle/case-lifecycle.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { withJobLock } from './job-lock';
 import { emitOnce } from './reminder-claim';
 
@@ -45,6 +47,20 @@ interface KeyRow {
  * stop the run or starve the cases after it (load review, file 04).
  */
 async function walk(
+  prisma: PrismaService,
+  fetch: (after: KeyRow) => Promise<KeyRow[]>,
+  act: (id: string) => Promise<boolean>,
+  onError: (id: string, error: unknown) => void,
+): Promise<number> {
+  // Two databases: every database's cases, each walked (and acted on) in
+  // its own (one database: exactly one walk).
+  const parts = await forEachDatabase(prisma, () =>
+    walkIn(fetch, act, onError),
+  );
+  return parts.reduce((a, b) => a + b, 0);
+}
+
+async function walkIn(
   fetch: (after: KeyRow) => Promise<KeyRow[]>,
   act: (id: string) => Promise<boolean>,
   onError: (id: string, error: unknown) => void,
@@ -125,75 +141,84 @@ export class CaseStaleAskJob {
       this.redis,
       'cases.stale-ask',
       LOCK_TTL_MS,
-      async () => {
-        // 1. Due cases, grouped by client.
-        const byClient = new Map<string, string[]>();
-        let cursor: KeyRow = { id: ZERO_UUID, at: new Date(0) };
-        for (;;) {
-          const rows = await this.prisma.$queryRaw<AskRow[]>(Prisma.sql`
-            SELECT id::TEXT AS id, client_id::TEXT AS client_id, urgency,
-                   deadline_at, client_active_at, stale_prompt_sent_at,
-                   client_active_at AS at
-            FROM cases
-            WHERE status = 'open' AND deleted_at IS NULL AND paused_at IS NULL
-              AND (stale_prompt_sent_at IS NULL
-                   OR stale_prompt_sent_at < client_active_at)
-              AND (client_active_at < ${silentBefore}
-                   OR (urgency = 'by_date' AND deadline_at < ${today}))
-              AND (client_active_at, id) > (${cursor.at}, ${cursor.id}::UUID)
-            ORDER BY client_active_at, id
-            LIMIT ${CASE_JOB_BATCH}`);
-          for (const r of rows) {
-            const due = shouldAsk(
-              {
-                urgency: r.urgency,
-                deadlineAt: r.deadline_at,
-                clientActiveAt: r.client_active_at,
-                promptSentAt: r.stale_prompt_sent_at,
-                pausedAt: null,
-              },
-              timers,
-              now,
-            );
-            if (!due) continue;
-            const list = byClient.get(r.client_id) ?? [];
-            list.push(r.id);
-            byClient.set(r.client_id, list);
-          }
-          const last = rows[rows.length - 1];
-          if (rows.length < CASE_JOB_BATCH || !last) break;
-          cursor = last;
-        }
-        // 2. Only clients in their daytime.
-        const zones = await this.timeZones([...byClient.keys()]);
-        let asked = 0;
-        for (const [clientId, caseIds] of byClient) {
-          if (!isClientDaytime(now, zones.get(clientId))) continue;
-          try {
-            asked += (
-              await this.lifecycle.askStillNeeded(
-                clientId,
-                caseIds,
-                now,
-                timers,
-              )
-            ).length;
-          } catch (error) {
-            this.logger.error(
-              {
-                job: 'cases.stale-ask',
-                clientId,
-                err: error instanceof Error ? error.message : String(error),
-              },
-              'stale question failed; skipped',
-            );
-          }
-        }
-        return asked;
-      },
+      async () =>
+        // Two databases: a client's cases (and settings) live in one
+        // database; each database is asked in its own.
+        (
+          await forEachDatabase(this.prisma, () =>
+            this.askIn(now, timers, silentBefore, today),
+          )
+        ).reduce((a, b) => a + b, 0),
     );
     this.logger.info({ processed }, 'case stale questions');
     return { processed: processed ?? 0, ran: processed !== null };
+  }
+
+  private async askIn(
+    now: Date,
+    timers: StaleTimers,
+    silentBefore: Date,
+    today: Date,
+  ): Promise<number> {
+    // 1. Due cases, grouped by client.
+    const byClient = new Map<string, string[]>();
+    let cursor: KeyRow = { id: ZERO_UUID, at: new Date(0) };
+    for (;;) {
+      const rows = await this.prisma.$queryRaw<AskRow[]>(Prisma.sql`
+        SELECT id::TEXT AS id, client_id::TEXT AS client_id, urgency,
+               deadline_at, client_active_at, stale_prompt_sent_at,
+               client_active_at AS at
+        FROM cases
+        WHERE status = 'open' AND deleted_at IS NULL AND paused_at IS NULL
+          AND (stale_prompt_sent_at IS NULL
+               OR stale_prompt_sent_at < client_active_at)
+          AND (client_active_at < ${silentBefore}
+               OR (urgency = 'by_date' AND deadline_at < ${today}))
+          AND (client_active_at, id) > (${cursor.at}, ${cursor.id}::UUID)
+        ORDER BY client_active_at, id
+        LIMIT ${CASE_JOB_BATCH}`);
+      for (const r of rows) {
+        const due = shouldAsk(
+          {
+            urgency: r.urgency,
+            deadlineAt: r.deadline_at,
+            clientActiveAt: r.client_active_at,
+            promptSentAt: r.stale_prompt_sent_at,
+            pausedAt: null,
+          },
+          timers,
+          now,
+        );
+        if (!due) continue;
+        const list = byClient.get(r.client_id) ?? [];
+        list.push(r.id);
+        byClient.set(r.client_id, list);
+      }
+      const last = rows[rows.length - 1];
+      if (rows.length < CASE_JOB_BATCH || !last) break;
+      cursor = last;
+    }
+    // 2. Only clients in their daytime.
+    const zones = await this.timeZones([...byClient.keys()]);
+    let asked = 0;
+    for (const [clientId, caseIds] of byClient) {
+      if (!isClientDaytime(now, zones.get(clientId))) continue;
+      try {
+        asked += (
+          await this.lifecycle.askStillNeeded(clientId, caseIds, now, timers)
+        ).length;
+      } catch (error) {
+        this.logger.error(
+          {
+            job: 'cases.stale-ask',
+            clientId,
+            err: error instanceof Error ? error.message : String(error),
+          },
+          'stale question failed; skipped',
+        );
+      }
+    }
+    return asked;
   }
 
   /** The clients' own time zone (their quiet-hours setting), if any. */
@@ -241,6 +266,7 @@ export class CaseStalePauseJob {
       LOCK_TTL_MS,
       async () => {
         const paused = await walk(
+          this.prisma,
           (after) =>
             this.prisma.$queryRaw<KeyRow[]>(Prisma.sql`
               SELECT id::TEXT AS id, stale_prompt_sent_at AS at
@@ -257,6 +283,7 @@ export class CaseStalePauseJob {
           logFailure(this.logger, 'cases.stale-pause'),
         );
         const archived = await walk(
+          this.prisma,
           (after) =>
             this.prisma.$queryRaw<KeyRow[]>(Prisma.sql`
               SELECT id::TEXT AS id, paused_at AS at
@@ -297,6 +324,7 @@ export class CaseAutoCloseJob {
       LOCK_TTL_MS,
       () =>
         walk(
+          this.prisma,
           (after) =>
             this.prisma.$queryRaw<KeyRow[]>(Prisma.sql`
               SELECT id::TEXT AS id, auto_close_at AS at FROM cases
@@ -345,56 +373,65 @@ export class CaseCompletionReminderJob {
       this.redis,
       'cases.completion-reminder',
       LOCK_TTL_MS,
-      async () => {
-        let sent = 0;
-        let cursor: KeyRow = { id: ZERO_UUID, at: new Date(0) };
-        for (;;) {
-          const rows = await this.prisma.$queryRaw<ReminderRow[]>(Prisma.sql`
-            SELECT c.id::TEXT AS id, c.auto_close_at AS at,
-                   (CASE WHEN c.attorney_confirmed_at IS NOT NULL
-                              AND c.client_completed_at IS NULL
-                         THEN c.client_id ELSE b.attorney_id END
-                   )::TEXT AS recipient_id
-            FROM cases AS c
-            JOIN bids AS b ON b.id = c.accepted_bid_id
-            WHERE c.status = 'pending_completion' AND c.deleted_at IS NULL
-              AND c.auto_close_at > ${now}
-              AND c.auto_close_at <= ${until}
-              AND (c.auto_close_at, c.id) > (${cursor.at}, ${cursor.id}::UUID)
-            ORDER BY c.auto_close_at, c.id
-            LIMIT ${CASE_JOB_BATCH}`);
-          for (const row of rows) {
-            try {
-              const emitted = await emitOnce(
-                this.redis,
-                `reminder:completion:${row.id}`,
-                claimTtlSec,
-                () =>
-                  this.notifications.emit({
-                    type: 'completion_reminder',
-                    recipientId: row.recipient_id,
-                    payload: {
-                      caseId: row.id,
-                      autoCloseAt: row.at.toISOString(),
-                    },
-                  }),
-              );
-              if (emitted) sent += 1;
-            } catch (error) {
-              logFailure(this.logger, 'cases.completion-reminder')(
-                row.id,
-                error,
-              );
-            }
-          }
-          const last = rows[rows.length - 1];
-          if (rows.length < CASE_JOB_BATCH || !last) return sent;
-          cursor = last;
-        }
-      },
+      async () =>
+        // Two databases: each database's cases in its own.
+        (
+          await forEachDatabase(this.prisma, () =>
+            this.remindIn(now, until, claimTtlSec),
+          )
+        ).reduce((a, b) => a + b, 0),
     );
     this.logger.info({ processed }, 'completion reminders');
     return { processed: processed ?? 0, ran: processed !== null };
+  }
+
+  private async remindIn(
+    now: Date,
+    until: Date,
+    claimTtlSec: number,
+  ): Promise<number> {
+    let sent = 0;
+    let cursor: KeyRow = { id: ZERO_UUID, at: new Date(0) };
+    for (;;) {
+      const rows = await this.prisma.$queryRaw<ReminderRow[]>(Prisma.sql`
+        SELECT c.id::TEXT AS id, c.auto_close_at AS at,
+               (CASE WHEN c.attorney_confirmed_at IS NOT NULL
+                          AND c.client_completed_at IS NULL
+                     THEN c.client_id ELSE b.attorney_id END
+               )::TEXT AS recipient_id
+        FROM cases AS c
+        JOIN bids AS b ON b.id = c.accepted_bid_id
+        WHERE c.status = 'pending_completion' AND c.deleted_at IS NULL
+          AND c.auto_close_at > ${now}
+          AND c.auto_close_at <= ${until}
+          AND (c.auto_close_at, c.id) > (${cursor.at}, ${cursor.id}::UUID)
+        ORDER BY c.auto_close_at, c.id
+        LIMIT ${CASE_JOB_BATCH}`);
+      for (const row of rows) {
+        try {
+          const emitted = await emitOnce(
+            this.redis,
+            `reminder:completion:${row.id}`,
+            claimTtlSec,
+            () =>
+              this.notifications.emit({
+                type: 'completion_reminder',
+                recipientId: row.recipient_id,
+                payload: {
+                  caseId: row.id,
+                  autoCloseAt: row.at.toISOString(),
+                },
+              }),
+          );
+          if (emitted) sent += 1;
+        } catch (error) {
+          logFailure(this.logger, 'cases.completion-reminder')(row.id, error);
+        }
+      }
+      const last = rows[rows.length - 1];
+      if (rows.length < CASE_JOB_BATCH || !last) return sent;
+      cursor = last;
+    }
   }
 }
 

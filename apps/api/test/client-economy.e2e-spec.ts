@@ -5,6 +5,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { shardContext } from '../src/sharding/shard-context';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { BadgesService } from '../src/modules/notifications/badges.service';
 import { adminSession } from './support/admin-login';
@@ -348,14 +349,18 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
       .expect(304);
     expect(again.text ?? '').toBe('');
 
-    await prisma.notification.create({
-      data: {
-        user_id: att.id,
-        type: 'new_follower',
-        category: 'social',
-        payload: { actorKind: 'client' },
-      },
-    });
+    // The notification lives in the attorney's database (two databases:
+    // the user family is sharded), like the app writes it.
+    await shardContext.runForUser(att.id, () =>
+      prisma.notification.create({
+        data: {
+          user_id: att.id,
+          type: 'new_follower',
+          category: 'social',
+          payload: { actorKind: 'client' },
+        },
+      }),
+    );
     const badges = app.get(BadgesService);
     await badges.notificationsChanged(att.id);
     const moved = await api()

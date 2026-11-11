@@ -1192,6 +1192,73 @@ module "postgres" {
   recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
+# --- extra database servers (owner 2026-11-11: «второй сервер базы») -------
+# The admin switch aws.db_shards: 1 = one more PostgreSQL server, EMPTY until
+# the admin presses «Разделить базу» (docs/runbooks/shard-move.md). Same
+# network, encryption, class and Multi-AZ as the primary; its own master
+# login in `<name>-dbN/postgres-master`. The tasks get only its host
+# (DB_SHARD_HOSTS, the app swaps the host of DATABASE_URL); the migrate task
+# applies the migrations and gives the runtime roles the primary's passwords
+# (apps/api/prisma/migrate-shards.mjs). Deletion protection is on: lowering
+# the number never drops a server (the plan guard refuses a destroy; data
+# that lives there has to be moved back first).
+variable "db_shards" {
+  type        = number
+  default     = 0
+  description = "Extra PostgreSQL servers for the database split (0 = one database, exactly as before). Set by the admin switch aws.db_shards."
+  validation {
+    condition     = var.db_shards >= 0 && var.db_shards <= 3 && floor(var.db_shards) == var.db_shards
+    error_message = "db_shards is a whole number from 0 to 3."
+  }
+}
+variable "db_shard_instance_class" {
+  type        = string
+  default     = ""
+  description = "Class of the extra servers. Empty = the primary's current class (its data is split in two)."
+}
+
+locals {
+  db_shard_class = var.db_shard_instance_class != "" ? var.db_shard_instance_class : try(data.aws_db_instance.existing[0].db_instance_class, var.database_instance_class)
+}
+
+module "postgres_shard" {
+  count                      = var.db_shards
+  source                     = "../postgres"
+  name                       = "${local.name}-db${count.index + 1}"
+  vpc_id                     = module.network.vpc_id
+  subnet_ids                 = module.network.private_subnet_ids
+  allowed_security_group_ids = [aws_security_group.tasks.id]
+  kms_key_arn                = module.kms.key_arn
+  instance_class             = local.db_shard_class
+  backup_retention_days      = var.database_backup_retention_days
+  multi_az                   = var.database_multi_az
+  engine_version             = var.database_engine_version
+  auto_minor_version_upgrade = var.database_auto_minor_upgrade
+  monitoring_interval        = var.database_monitoring_interval
+  database_insights_advanced = var.database_insights_advanced
+  log_group_class            = var.database_log_group_class
+  tags                       = local.tags
+
+  deletion_protection     = !var.ephemeral
+  skip_final_snapshot     = var.ephemeral
+  recovery_window_in_days = var.ephemeral ? 0 : 30
+}
+
+locals {
+  # Only the hosts reach the api / worker (same login as DATABASE_URL).
+  db_shard_env = var.db_shards > 0 ? {
+    DB_SHARD_HOSTS = jsonencode({ for i, m in module.postgres_shard : "db${i + 1}" => m.endpoint })
+  } : {}
+  # The migrate task: each server's master login plus the runtime logins.
+  db_shard_migrate_secrets = var.db_shards > 0 ? concat(
+    [for i, m in module.postgres_shard : { name = "DB_SHARD_MASTER_DB${i + 1}", valueFrom = m.master_secret_arn }],
+    [
+      { name = "APP_DATABASE_URL", valueFrom = module.secrets.arns["DATABASE_URL"] },
+      { name = "RETENTION_DATABASE_URL", valueFrom = module.secrets.arns["RETENTION_DATABASE_URL"] },
+    ],
+  ) : []
+}
+
 # Second Redis for caches only (owner 2026-10-22: planned, off by default).
 module "redis_cache" {
   count                      = var.redis_cache_node ? 1 : 0
@@ -1976,7 +2043,7 @@ module "ecs" {
   kms_key_arn                     = module.kms.key_arn
   tracing_enabled                 = var.tracing_enabled
   tracing_sample_ratio            = var.tracing_sample_ratio
-  api_env                         = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env, local.object_lock_env)
+  api_env                         = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env, local.object_lock_env, local.db_shard_env)
   worker_db_pool_size             = local.worker_db_pool_size
   cloudfront_invalidation_enabled = true
   cloudfront_invalidation_arns = concat(
@@ -2004,6 +2071,7 @@ module "ecs" {
   # hand-filled PARTITION_DATABASE_URL secret is no longer injected.
   partition_database_url_secret_arn = ""
   partition_db_password_secret_arn  = var.partition_role_enabled ? aws_secretsmanager_secret_version.partition_db_password[0].arn : ""
+  migrate_extra_secrets             = local.db_shard_migrate_secrets
   alb_resource_label                = "${module.alb.arn_suffix}/${module.alb.api_target_group_arn_suffix}"
   api_max_tasks                     = var.api_max_tasks
   worker_max_tasks                  = var.worker_max_tasks
@@ -2766,6 +2834,7 @@ output "alb_arn_suffix" { value = module.alb.arn_suffix }
 output "api_target_group_arn_suffix" { value = module.alb.api_target_group_arn_suffix }
 output "pgbouncer_service_name" { value = one(module.pgbouncer[*].service_name) }
 output "db_pooler_endpoint" { value = one(module.pgbouncer[*].endpoint) }
+output "db_shard_hosts" { value = [for m in module.postgres_shard : m.endpoint] }
 output "db_pooler_server_connections_max" { value = var.db_pooler_enabled ? local.pgb_server_connections : null }
 output "api_service_name" { value = module.ecs.api_service_name }
 output "worker_service_name" { value = module.ecs.worker_service_name }

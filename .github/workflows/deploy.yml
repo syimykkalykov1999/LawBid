@@ -349,12 +349,22 @@ jobs:
     timeout-minutes: 90
     environment:
       name: production
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # snapshot-if-contract.sh diffs the migrations of the running release
           # against this one.
           fetch-depth: 0
+      # KNOWN_ERRORS 90: one change to prod at a time (an admin cloud change
+      # that started earlier finishes first).
+      - name: Wait for an earlier cloud change from the admin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/wait-earlier-prod-change.sh infra-active
       - name: OIDC diagnostics (prints the token's sub, never the token)
         continue-on-error: true
         run: scripts/deploy/oidc-sub.sh

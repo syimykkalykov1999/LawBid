@@ -42,6 +42,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { ModerationService, type ModerationTarget } from './moderation.service';
 import { ReporterReputationService } from './reporter-reputation.service';
 import { StrikesService } from './strikes.service';
+import { shardContext } from '../../sharding/shard-context';
 
 const QUEUE_DEFAULT = 20;
 const EXCERPT = 200;
@@ -230,137 +231,147 @@ export class AdminModerationService {
       type !== 'case' &&
       (await this.dismissRestoresEnabled()) &&
       !(await this.hiddenByModerator(type, id));
-    const handled = await withTxRetry(this.prisma, async (tx) => {
-      after.length = 0;
-      let before: string | null = null;
-      if (dismissRestores) {
-        const fresh = (await this.moderation.resolve(type, id, tx))!;
-        before = await this.moderation.setContentStatus(
-          tx,
-          fresh,
-          'restore',
-          after,
-        );
-        status = (await this.moderation.resolve(type, id, tx))?.status ?? null;
-      }
-      if (
-        action === 'hide' ||
-        action === 'remove' ||
-        (action === 'restore' && type !== 'user')
-      ) {
-        const fresh = (await this.moderation.resolve(type, id, tx))!;
-        before = await this.moderation.setContentStatus(
-          tx,
-          fresh,
-          action,
-          after,
-        );
-        // Re-read: a message "hide" lands as `removed` (deleted_at, OQ-B).
-        status = (await this.moderation.resolve(type, id, tx))?.status ?? null;
-      }
-      const open = await tx.report.findMany({
-        where: { target_type: type, target_id: id, status: 'open' },
-        select: { id: true, reporter_id: true },
-        orderBy: { created_at: 'asc' },
-      });
-      // A system «auto_hold» row (reporter = the author) is a queue
-      // ticket, never a complaint to score (C-2).
-      reporterIds = open
-        .filter((r) => r.reporter_id !== target.authorId)
-        .map((r) => r.reporter_id);
-      const now = new Date();
-      if (open.length) {
-        await tx.report.updateMany({
-          where: { id: { in: open.map((r) => r.id) } },
-          data: {
-            status: action === 'dismiss' ? 'dismissed' : 'actioned',
-            handled_by: admin.id,
-            handled_at: now,
-          },
-        });
-      }
-      if (dismissRestores) {
-        // The restore is a decision like any other: recorded, appealable.
-        await tx.moderationAction.create({
-          data: {
-            report_id: open[0]?.id ?? null,
-            admin_id: admin.id,
-            target_type: type,
-            target_id: id,
-            action: 'restore',
-            reason,
-          },
-        });
-      }
-      if (action !== 'dismiss') {
-        const created = await tx.moderationAction.create({
-          data: {
-            report_id: open[0]?.id ?? null,
-            admin_id: admin.id,
-            target_type: type,
-            target_id: id,
-            action,
-            reason,
-          },
-        });
-        // Owner 2026-10-27: a human hide / remove of someone's content is a
-        // strike on its owner (if the ladder is on and points are set).
-        if (
-          (action === 'hide' || action === 'remove') &&
-          target.authorId &&
-          type !== 'user' &&
-          type !== 'case'
-        ) {
-          const done = await this.strikes.issue(tx, {
-            admin,
-            userId: target.authorId,
-            actionId: created.id,
-            action,
-            targetType: type,
-            targetId: id,
-            reason,
-          });
-          if (done) after.push(done);
+    // Two databases (SHARDING_READY step 7): a post / comment / message lives
+    // in the database its id names, so the transaction runs there (the global
+    // rows of it — reports, actions, strikes — go global-first via the facade).
+    const handled = await shardContext.runForRow(id, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        after.length = 0;
+        let before: string | null = null;
+        if (dismissRestores) {
+          const fresh = (await this.moderation.resolve(type, id, tx))!;
+          before = await this.moderation.setContentStatus(
+            tx,
+            fresh,
+            'restore',
+            after,
+          );
+          status =
+            (await this.moderation.resolve(type, id, tx))?.status ?? null;
         }
-      }
-      await this.audit.record(
-        {
-          adminId: admin.id,
-          action: `moderation.${action}`,
-          targetType: type,
-          targetId: id,
-          before: { status: before ?? target.status, openReports: open.length },
-          after: { status, reason },
-          ip: admin.ip,
-        },
-        tx,
-      );
-      // §3.2: the author learns about every decision but a dismissal
-      // (warn/suspend already notified inside AdminUsersService).
-      if (
-        target.authorId &&
-        (action === 'hide' ||
+        if (
+          action === 'hide' ||
           action === 'remove' ||
-          action === 'restore' ||
-          dismissRestores)
-      ) {
-        await this.notifications.emit(
-          {
-            type: 'moderation_notice',
-            recipientId: target.authorId,
-            // Audit 2026-10-02: the author sees the moderator's reason.
-            payload: {
-              action: dismissRestores ? 'restore' : action,
+          (action === 'restore' && type !== 'user')
+        ) {
+          const fresh = (await this.moderation.resolve(type, id, tx))!;
+          before = await this.moderation.setContentStatus(
+            tx,
+            fresh,
+            action,
+            after,
+          );
+          // Re-read: a message "hide" lands as `removed` (deleted_at, OQ-B).
+          status =
+            (await this.moderation.resolve(type, id, tx))?.status ?? null;
+        }
+        const open = await tx.report.findMany({
+          where: { target_type: type, target_id: id, status: 'open' },
+          select: { id: true, reporter_id: true },
+          orderBy: { created_at: 'asc' },
+        });
+        // A system «auto_hold» row (reporter = the author) is a queue
+        // ticket, never a complaint to score (C-2).
+        reporterIds = open
+          .filter((r) => r.reporter_id !== target.authorId)
+          .map((r) => r.reporter_id);
+        const now = new Date();
+        if (open.length) {
+          await tx.report.updateMany({
+            where: { id: { in: open.map((r) => r.id) } },
+            data: {
+              status: action === 'dismiss' ? 'dismissed' : 'actioned',
+              handled_by: admin.id,
+              handled_at: now,
+            },
+          });
+        }
+        if (dismissRestores) {
+          // The restore is a decision like any other: recorded, appealable.
+          await tx.moderationAction.create({
+            data: {
+              report_id: open[0]?.id ?? null,
+              admin_id: admin.id,
+              target_type: type,
+              target_id: id,
+              action: 'restore',
+              reason,
+            },
+          });
+        }
+        if (action !== 'dismiss') {
+          const created = await tx.moderationAction.create({
+            data: {
+              report_id: open[0]?.id ?? null,
+              admin_id: admin.id,
+              target_type: type,
+              target_id: id,
+              action,
+              reason,
+            },
+          });
+          // Owner 2026-10-27: a human hide / remove of someone's content is a
+          // strike on its owner (if the ladder is on and points are set).
+          if (
+            (action === 'hide' || action === 'remove') &&
+            target.authorId &&
+            type !== 'user' &&
+            type !== 'case'
+          ) {
+            const done = await this.strikes.issue(tx, {
+              admin,
+              userId: target.authorId,
+              actionId: created.id,
+              action,
               targetType: type,
               targetId: id,
               reason,
+            });
+            if (done) after.push(done);
+          }
+        }
+        await this.audit.record(
+          {
+            adminId: admin.id,
+            action: `moderation.${action}`,
+            targetType: type,
+            targetId: id,
+            before: {
+              status: before ?? target.status,
+              openReports: open.length,
             },
+            after: { status, reason },
+            ip: admin.ip,
           },
           tx,
         );
-      }
-      return open.length;
-    });
+        // §3.2: the author learns about every decision but a dismissal
+        // (warn/suspend already notified inside AdminUsersService).
+        if (
+          target.authorId &&
+          (action === 'hide' ||
+            action === 'remove' ||
+            action === 'restore' ||
+            dismissRestores)
+        ) {
+          await this.notifications.emit(
+            {
+              type: 'moderation_notice',
+              recipientId: target.authorId,
+              // Audit 2026-10-02: the author sees the moderator's reason.
+              payload: {
+                action: dismissRestores ? 'restore' : action,
+                targetType: type,
+                targetId: id,
+                reason,
+              },
+            },
+            tx,
+          );
+        }
+        return open.length;
+      }),
+    );
     for (const f of after) await f();
     // Staff package T5: closing open reports is a staff decision (one cheap
     // call; a restore after an accepted appeal closes none and is not counted).

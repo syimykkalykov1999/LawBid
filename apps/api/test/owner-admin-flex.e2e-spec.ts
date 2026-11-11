@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { AddressInfo, Server } from 'node:net';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -156,7 +157,15 @@ describe('Admin flexibility: user filters + bulk users / cases (e2e)', () => {
   it('bulk closes, archives and restores cases', async () => {
     const admin = await adminSession(base, prisma, 'super_admin');
     const owner = await client('CaseOwner', 'NY');
-    const area = await prisma.practiceArea.findFirstOrThrow({
+    // Its own topic: the suite must not depend on another suite's rows.
+    const code = `flex${randomUUID().slice(0, 8)}`;
+    const area = await prisma.practiceArea.create({
+      data: {
+        code,
+        name_en: 'Flex Topic',
+        i18n_key: `practice.${code}`,
+        sort: 1,
+      },
       select: { id: true },
     });
     const mk = async (title: string) => {

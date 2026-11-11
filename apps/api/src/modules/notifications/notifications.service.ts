@@ -3,6 +3,8 @@ import type Redis from 'ioredis';
 import { NotificationCategory, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashShard } from '../../sharding/shard-id';
+import { shardContext } from '../../sharding/shard-context';
+import { readsAreSplit } from '../../sharding/split-reads';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { publishCaseEvent } from './case-events';
@@ -401,6 +403,15 @@ export class NotificationsService {
         });
       }
       return null;
+    }
+    // Two databases: a notification lives in its recipient's database. A
+    // job pinned to another database (or a transaction of one, which cannot
+    // hold it) writes it there right away (one database: as before).
+    if (
+      readsAreSplit(this.prisma) &&
+      shardContext.current()?.shard !== hashShard(input.recipientId)
+    ) {
+      return shardContext.runForUser(input.recipientId, () => this.emit(input));
     }
     const db = tx ?? this.prisma;
     // Owner 2026-10-22 (package E): the realtime `case:update` /

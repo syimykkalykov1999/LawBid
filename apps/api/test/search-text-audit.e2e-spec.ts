@@ -5,6 +5,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { shardContext } from '../src/sharding/shard-context';
 import { TokenService } from '../src/modules/auth/services/token.service';
 
 /**
@@ -301,21 +302,25 @@ describe('Search text audit (e2e)', () => {
   });
 
   it('cases (attorney search): title, description, topic RU/EN, state code and name, city', async () => {
-    const c = await prisma.case.create({
-      data: {
-        client_id: clientId,
-        title: `Dispute over ${tok}fence`,
-        description: `Neighbour ${tok}hedge problem`,
-        city,
-        practice_area_id: areaId,
-        primary_state_code: 'NJ',
-        budget_mode: 'clarify_later',
-        status: 'open',
-      },
-    });
-    await prisma.caseState.create({
-      data: { case_id: c.id, state_code: 'NJ', is_primary: true },
-    });
+    const c = await shardContext.runForUser(clientId, () =>
+      prisma.case.create({
+        data: {
+          client_id: clientId,
+          title: `Dispute over ${tok}fence`,
+          description: `Neighbour ${tok}hedge problem`,
+          city,
+          practice_area_id: areaId,
+          primary_state_code: 'NJ',
+          budget_mode: 'clarify_later',
+          status: 'open',
+        },
+      }),
+    );
+    await shardContext.runForUser(clientId, () =>
+      prisma.caseState.create({
+        data: { case_id: c.id, state_code: 'NJ', is_primary: true },
+      }),
+    );
     const search = async (q: string) => {
       const r = await api()
         .get(`/api/v1/search/cases?q=${encodeURIComponent(q)}`)
@@ -363,21 +368,25 @@ describe('Search text audit (e2e)', () => {
         (x) => x.title,
       );
     };
-    const closed = await prisma.case.create({
-      data: {
-        client_id: clientId,
-        title: `Finished matter ${tok}`,
-        description: 'old',
-        city,
-        practice_area_id: areaId,
-        primary_state_code: 'NJ',
-        budget_mode: 'clarify_later',
-        status: 'closed',
-      },
-    });
-    await prisma.caseState.create({
-      data: { case_id: closed.id, state_code: 'NJ', is_primary: true },
-    });
+    const closed = await shardContext.runForUser(clientId, () =>
+      prisma.case.create({
+        data: {
+          client_id: clientId,
+          title: `Finished matter ${tok}`,
+          description: 'old',
+          city,
+          practice_area_id: areaId,
+          primary_state_code: 'NJ',
+          budget_mode: 'clarify_later',
+          status: 'closed',
+        },
+      }),
+    );
+    await shardContext.runForUser(clientId, () =>
+      prisma.caseState.create({
+        data: { case_id: closed.id, state_code: 'NJ', is_primary: true },
+      }),
+    );
     for (const q of [`${tok}hedge`, city, 'new jersey', topicEn, topicRu]) {
       expect(await mine('active', q)).toContain(`Dispute over ${tok}fence`);
       // Active segment never returns the closed case, closed never active.

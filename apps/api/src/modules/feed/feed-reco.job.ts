@@ -1,3 +1,6 @@
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { shardContext } from '../../sharding/shard-context';
+import { readsAreSplit } from '../../sharding/split-reads';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
@@ -70,7 +73,10 @@ export class FeedRecoJob {
     const slots = await this.num('feed.reco_explore_slots', RECO_TOP_N / 2);
     const hours = await this.num('feed.reco_explore_hours', 72);
     const explore = hours > 0 ? slots : 0;
-    const top = await this.prisma.$queryRaw<{ id: string; score: number }[]>`
+    const split = readsAreSplit(this.prisma);
+    const top = split
+      ? await this.topSplit(now, since)
+      : await this.prisma.$queryRaw<{ id: string; score: number }[]>`
       SELECT p.id::TEXT AS id,
              (p.like_count + 2 * p.comment_count + 2 * p.save_count)::FLOAT8
                / power(GREATEST(EXTRACT(EPOCH FROM (${now}::TIMESTAMPTZ - p.created_at)) / 3600, 0) + 2, 1.5)
@@ -88,7 +94,13 @@ export class FeedRecoJob {
     if (explore > 0) {
       const ranked = top.slice(0, RECO_TOP_N - explore);
       const taken = ranked.map((r) => r.id);
-      const fresh = await this.prisma.$queryRaw<{ id: string }[]>`
+      const fresh = split
+        ? await this.freshSplit(
+            new Date(now.getTime() - hours * 3600 * 1000),
+            taken,
+            explore,
+          )
+        : await this.prisma.$queryRaw<{ id: string }[]>`
         SELECT p.id::TEXT AS id
         FROM posts AS p
         JOIN users AS u ON u.id = p.author_id AND u.status = 'active'
@@ -131,5 +143,86 @@ export class FeedRecoJob {
       'feed recommendations rebuilt',
     );
     return { posts: rows.length, version };
+  }
+
+  /** Two databases (SHARDING_READY step 8): posts live with their author,
+   * users and profiles on the primary. Each database is read best-first in
+   * pages, the authors checked on the primary, until it gave [limit] posts
+   * of active, not suspended authors; the merged lists are cut to [limit] —
+   * the same rows as the one-database query. */
+  private async pickSplit<T extends { author: string }>(
+    page: (limit: number, offset: number) => Promise<T[]>,
+    limit: number,
+    order: (a: T, b: T) => number,
+  ): Promise<T[]> {
+    if (limit <= 0) return [];
+    const parts = await forEachDatabase(this.prisma, async () => {
+      const kept: T[] = [];
+      for (let offset = 0; ; offset += limit) {
+        const rows = await page(limit, offset);
+        const ok = await this.activeAuthors(rows.map((r) => r.author));
+        kept.push(...rows.filter((r) => ok.has(r.author)));
+        if (kept.length >= limit || rows.length < limit) break;
+      }
+      return kept.slice(0, limit);
+    });
+    return parts.flat().sort(order).slice(0, limit);
+  }
+
+  private async activeAuthors(ids: string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+    const rows = await shardContext.runOnPrimary(
+      () => this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT u.id::TEXT AS id FROM users u
+        WHERE u.id = ANY(${[...new Set(ids)]}::UUID[]) AND u.status = 'active'
+          AND NOT EXISTS (SELECT 1 FROM attorney_profiles sa
+            WHERE sa.user_id = u.id AND sa.verification_status = 'suspended')`,
+    );
+    return new Set(rows.map((r) => r.id));
+  }
+
+  private async topSplit(
+    now: Date,
+    since: Date,
+  ): Promise<{ id: string; score: number }[]> {
+    type Row = { id: string; author: string; score: number; created_at: Date };
+    const rows = await this.pickSplit<Row>(
+      (limit, offset) => this.prisma.$queryRaw<Row[]>`
+        SELECT p.id::TEXT AS id, p.author_id::TEXT AS author, p.created_at,
+               (p.like_count + 2 * p.comment_count + 2 * p.save_count)::FLOAT8
+                 / power(GREATEST(EXTRACT(EPOCH FROM (${now}::TIMESTAMPTZ - p.created_at)) / 3600, 0) + 2, 1.5)
+                 AS score
+        FROM posts AS p
+        WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
+          AND p.created_at > ${since}
+        ORDER BY score DESC, p.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}`,
+      RECO_TOP_N,
+      (a, b) =>
+        b.score - a.score || b.created_at.getTime() - a.created_at.getTime(),
+    );
+    return rows.map((r) => ({ id: r.id, score: r.score }));
+  }
+
+  private async freshSplit(
+    after: Date,
+    taken: string[],
+    limit: number,
+  ): Promise<{ id: string }[]> {
+    type Row = { id: string; author: string; created_at: Date };
+    const rows = await this.pickSplit<Row>(
+      (n, offset) => this.prisma.$queryRaw<Row[]>`
+        SELECT p.id::TEXT AS id, p.author_id::TEXT AS author, p.created_at
+        FROM posts AS p
+        WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
+          AND p.created_at > ${after}
+          AND p.like_count = 0 AND p.comment_count = 0 AND p.save_count = 0
+          AND NOT (p.id = ANY(${taken}::UUID[]))
+        ORDER BY p.created_at DESC
+        LIMIT ${n} OFFSET ${offset}`,
+      limit,
+      (a, b) => b.created_at.getTime() - a.created_at.getTime(),
+    );
+    return rows.map((r) => ({ id: r.id }));
   }
 }

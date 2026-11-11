@@ -1,3 +1,4 @@
+import { shardDatabaseUrlsFromEnv } from '../sharding/shard-databases';
 import { Injectable, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
 import { AppSettingsService } from '../common/app-settings/app-settings.service';
 import { PrismaClient } from '@prisma/client';
@@ -181,7 +182,7 @@ export class PrismaReadService implements OnModuleDestroy {
     // physical database, or any request once extra shard databases are
     // configured, reads from its own primary (SHARDING_READY.md).
     if (shardContext.current()?.physical) return null;
-    if (process.env.DATABASE_URL_SHARDS?.trim()) return null;
+    if (Object.keys(shardDatabaseUrlsFromEnv()).length > 0) return null;
     if (Date.now() < this.downUntil) return null;
     // Admin switch: off = primary only; on = replica whatever its lag.
     if (this.mode === 'off') return null;

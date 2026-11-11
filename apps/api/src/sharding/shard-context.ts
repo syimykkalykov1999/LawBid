@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { LOGICAL_SHARDS, hashShard, shardOf } from './shard-id';
+import { LOGICAL_SHARDS, hashShard, isShardedId, shardOf } from './shard-id';
 
 /**
  * Shard-ready step 4 (docs/architecture/SHARDING_READY.md §5): the shard
@@ -96,6 +96,13 @@ class ShardContext {
   /** The shard of a user's own data (notifications, saved items, follows ...). */
   runForUser<T>(userId: string, fn: () => T, source = 'user'): T {
     return this.run(safeShard(hashShard, userId), fn, source);
+  }
+
+  /** The database of one sharded row: its UUIDv8 id names its shard (only
+   * sharded models get such ids); any other id keeps the current context.
+   * For a transaction over an object found by id (moderation, admin). */
+  runForRow<T>(id: string, fn: () => T, source = 'row'): T {
+    return isShardedId(id) ? this.run(shardOf(id), fn, source) : fn();
   }
 
   /** Job / socket helper: `key` comes from the job data; missing or unknown

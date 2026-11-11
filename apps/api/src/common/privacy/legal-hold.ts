@@ -1,4 +1,6 @@
 import { Prisma } from '@prisma/client';
+import type { PrismaService } from '../../prisma/prisma.service';
+import { readsAreSplit } from '../../sharding/split-reads';
 
 /**
  * Owner 2026-10-25 (privacy round 13, S13-6): ONE answer to "is this held?"
@@ -76,6 +78,38 @@ export function heldSql(type: HoldTargetType, idSql: Prisma.Sql): Prisma.Sql {
     SELECT 1 FROM legal_holds h
     WHERE h.target_type = ${type} AND h.target_id = ${idSql}
       AND h.released_at IS NULL AND (h.expires_at IS NULL OR h.expires_at > now()))`;
+}
+
+/**
+ * `heldSql` for a purge that may run in a shard database, where
+ * `legal_holds` (global) has no rows: with two databases the holds in
+ * force (few) are read on the primary first and the check becomes an id
+ * list. One database: `heldSql` itself. A NULL id is never held (as with
+ * `heldSql`).
+ */
+export async function heldSqlFor(
+  prisma: PrismaService,
+  now: Date = new Date(),
+): Promise<typeof heldSql> {
+  if (!readsAreSplit(prisma)) return heldSql;
+  const rows = await prisma.legalHold.findMany({
+    where: inForce(now),
+    select: { target_type: true, target_id: true },
+    take: 10_000,
+  });
+  const byType = new Map<string, string[]>();
+  for (const r of rows) {
+    byType.set(r.target_type, [
+      ...(byType.get(r.target_type) ?? []),
+      r.target_id,
+    ]);
+  }
+  return (type, idSql) => {
+    const ids = byType.get(type) ?? [];
+    return ids.length > 0
+      ? Prisma.sql`COALESCE(${idSql} = ANY(${ids}::UUID[]), FALSE)`
+      : Prisma.sql`FALSE`;
+  };
 }
 
 /** The same for rows that belong to an official request (data_access_log):

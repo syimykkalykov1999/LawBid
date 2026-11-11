@@ -14,6 +14,8 @@ import {
   withDeleted,
 } from '../src/prisma/soft-delete.extension';
 import { withTxRetry } from '../src/prisma/tx-retry.util';
+import { readsAreSplit } from '../src/sharding/split-reads';
+import { shardContext } from '../src/sharding/shard-context';
 import { IdentityService } from '../src/modules/auth/services/identity.service';
 
 /**
@@ -208,6 +210,32 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
     });
 
     it('nested to-many includes and relation counts only see live rows', async () => {
+      // Two databases: a to-many walk from the global User into sharded rows
+      // is not a supported query (SHARDING_READY §11); the same soft-delete
+      // filtering is checked on the owner's own database instead.
+      if (readsAreSplit(prisma)) {
+        await shardContext.runForUser(liveUser.id, async () => {
+          const posts = await prisma.post.findMany({
+            where: { author_id: liveUser.id },
+          });
+          const files = await prisma.file.findMany({
+            where: { owner_user_id: liveUser.id },
+          });
+          const cases = await prisma.case.findMany({
+            where: { client_id: liveUser.id },
+          });
+          expect(posts.map((p) => p.id)).toEqual([livePost.id]);
+          expect(files.map((f) => f.id)).toEqual([liveFile.id]);
+          expect(cases.map((c) => c.id)).toEqual([liveCase.id]);
+          const post = await prisma.post.findUniqueOrThrow({
+            where: { id: livePost.id },
+            select: { comments: { select: { body: true } }, _count: true },
+          });
+          expect(post.comments).toEqual([{ body: 'live' }]);
+          expect(post._count.comments).toBe(1);
+        });
+        return;
+      }
       const user = await prisma.user.findUniqueOrThrow({
         where: { id: liveUser.id },
         include: {
@@ -231,8 +259,11 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
     });
 
     it('interactive transactions (withTxRetry) are filtered too', async () => {
-      const seen = await withTxRetry(prisma, (tx) =>
-        tx.case.findMany({ where: { client_id: liveUser.id } }),
+      // A transaction runs in the database of its request's user.
+      const seen = await shardContext.runForUser(liveUser.id, () =>
+        withTxRetry(prisma, (tx) =>
+          tx.case.findMany({ where: { client_id: liveUser.id } }),
+        ),
       );
       expect(seen.map((c) => c.id)).toEqual([liveCase.id]);
     });

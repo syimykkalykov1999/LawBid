@@ -831,7 +831,10 @@ export class EconomyService {
       ...metrics,
     };
     await this.ops.setCapacity(reading);
-    const hot = pressures(metrics);
+    const hot = pressures(
+      metrics,
+      await this.settingsSvc.number('economy.db_cpu_limit_percent'),
+    );
     for (const p of hot) {
       if (!(await this.ops.firstTime(p.kind, PRESSURE_ALERT_TTL_SEC))) continue;
       const text = this.pressureText(p);

@@ -1,4 +1,5 @@
 import { notifySeoPagesChanged } from '../../../common/seo/seo-generator.trigger';
+import { shardContext } from '../../../sharding/shard-context';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { cached } from '../../../common/cache/cached';
@@ -484,32 +485,46 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     now: number = Date.now(),
   ): Promise<string | null> {
     if (!isValidUsername(username)) return null;
-    const rows = await this.prisma.$queryRaw<
-      {
-        user_id: string;
-        updated_at: Date;
-        user_updated_at: Date;
-        posts_count: number;
-        followers_count: number;
-        rating_count: number;
-        verification_status: string;
-        trust_level: string | null;
-        following: boolean;
-      }[]
-    >`
-      SELECT ap.user_id, ap.updated_at, u.updated_at AS user_updated_at,
-             ap.posts_count, ap.followers_count, ap.rating_count,
-             ap.verification_status::TEXT AS verification_status,
-             ap.trust_level::TEXT AS trust_level,
-             EXISTS (SELECT 1 FROM follows f
-                     WHERE f.follower_id = ${viewerId}::UUID
-                       AND f.followee_id = ap.user_id) AS following
-      FROM attorney_profiles ap
-      JOIN users u ON u.id = ap.user_id
-      WHERE ap.username_lower = ${username.toLowerCase()}
-      LIMIT 1`;
-    const r = rows[0];
-    if (!r) return null;
+    // Two databases (SHARDING_READY step 8): attorney_profiles and users are
+    // global (primary), follows lives with the follower. One query each in
+    // its own database; on one database both run on the same server.
+    const rows = await shardContext.runOnPrimary(
+      () =>
+        this.prisma.$queryRaw<
+          {
+            user_id: string;
+            updated_at: Date;
+            user_updated_at: Date;
+            posts_count: number;
+            followers_count: number;
+            rating_count: number;
+            verification_status: string;
+            trust_level: string | null;
+          }[]
+        >`
+        SELECT ap.user_id, ap.updated_at, u.updated_at AS user_updated_at,
+               ap.posts_count, ap.followers_count, ap.rating_count,
+               ap.verification_status::TEXT AS verification_status,
+               ap.trust_level::TEXT AS trust_level
+        FROM attorney_profiles ap
+        JOIN users u ON u.id = ap.user_id
+        WHERE ap.username_lower = ${username.toLowerCase()}
+        LIMIT 1`,
+    );
+    const found = rows[0];
+    if (!found) return null;
+    const follow = viewerId
+      ? await shardContext.runForUser(
+          viewerId,
+          () =>
+            this.prisma.$queryRaw<{ following: boolean }[]>`
+            SELECT EXISTS (SELECT 1 FROM follows f
+                           WHERE f.follower_id = ${viewerId}::UUID
+                             AND f.followee_id = ${found.user_id}::UUID) AS following`,
+        )
+      : [];
+    const r = { ...found, following: follow[0]?.following ?? false };
+
     const [posts, followers] = await Promise.all([
       this.counters.pending('attorney', 'posts_count', [r.user_id]),
       this.counters.pending('attorney', 'followers_count', [r.user_id]),

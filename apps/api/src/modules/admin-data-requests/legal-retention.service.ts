@@ -3,7 +3,8 @@ import { Prisma } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 // The one hold check shared by every purge job (privacy round 13, S13-6).
-import { heldSql as held } from '../../common/privacy/legal-hold';
+import { heldSqlFor } from '../../common/privacy/legal-hold';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -46,6 +47,7 @@ export class LegalRetentionService {
     const days = await this.settings.number('legal.deleted_retention_days');
     if (days <= 0) return null;
     const cut = new Date(now.getTime() - days * DAY_MS);
+    const held = await heldSqlFor(this.prisma);
     const result: LegalRetentionResult = {
       messages: await this.batched(
         // BUG-1 (package N-12b): the scrubbed messages' search tokens go
@@ -153,12 +155,17 @@ export class LegalRetentionService {
   private async batched(
     step: (limit: number) => Promise<number>,
   ): Promise<number> {
-    let total = 0;
-    for (let i = 0; i < MAX_BATCHES; i += 1) {
-      const n = await step(BATCH);
-      total += n;
-      if (n < BATCH) break;
-    }
-    return total;
+    // Two databases: the rows live with their owners; every database is
+    // scrubbed in its own (one database: one pass, as before).
+    const parts = await forEachDatabase(this.prisma, async () => {
+      let total = 0;
+      for (let i = 0; i < MAX_BATCHES; i += 1) {
+        const n = await step(BATCH);
+        total += n;
+        if (n < BATCH) break;
+      }
+      return total;
+    });
+    return parts.reduce((a, b) => a + b, 0);
   }
 }

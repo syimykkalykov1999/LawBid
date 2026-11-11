@@ -1391,6 +1391,31 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: 'тревога соединений базы (db-connections)',
   },
   {
+    id: 'aws.db_shards',
+    name: 'Второй сервер базы (деление базы)',
+    purpose:
+      'Ещё один сервер PostgreSQL: пустой, пока в «Здоровье системы» не нажать «Разделить базу». Схема, роли и пароли настраиваются сами при выкладке.',
+    kind: 'aws',
+    control: tf(['db_shards'], {
+      off: 'db_shards = 0',
+      on: 'db_shards = 1',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: tfCeil('db_shards', 'Сколько серверов (0–3)'),
+    price: price(
+      'fixed',
+      'Как основная база того же размера, ≈ $190 за штуку для среднего размера',
+      U.rds,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0, 400) },
+    ifOnUsd: R(190),
+    needed: 'later',
+    neededNote:
+      'Когда база днями загружена больше 60 % после копий и пула соединений (docs/runbooks/shard-move.md). Выключить нельзя, пока на нём есть данные: сначала вернуть их.',
+    alarm: null,
+  },
+  {
     id: 'aws.opensearch',
     name: 'Поисковый движок (OpenSearch)',
     purpose:

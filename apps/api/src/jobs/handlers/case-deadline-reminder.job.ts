@@ -1,4 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { Prisma, type NotificationType } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
@@ -104,7 +105,16 @@ export class CaseDeadlineReminderJob {
     );
   }
 
+  /** Two databases (SHARDING_READY step 8): cases live with their client —
+   * every database is walked (one database: one walk, as before). */
   private async remind(now: Date, days: Set<number>): Promise<number> {
+    const perDb = await forEachDatabase(this.prisma, () =>
+      this.remindIn(now, days),
+    );
+    return perDb.reduce((a, b) => a + b, 0);
+  }
+
+  private async remindIn(now: Date, days: Set<number>): Promise<number> {
     const farthest = Math.max(0, ...days);
     const today = isoDate(now);
     let sent = 0;

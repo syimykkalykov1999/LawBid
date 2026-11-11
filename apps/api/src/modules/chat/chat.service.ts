@@ -2,6 +2,8 @@ import {
   TextLimitsService,
   textLimit,
 } from '../../common/app-settings/text-limits.service';
+import { readsAreSplit } from '../../sharding/split-reads';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { StickersService } from '../stickers/stickers.service';
 import { StarsService } from '../stars/stars.service';
 import type { GiftSendDto } from '../stars/stars.dto';
@@ -437,14 +439,16 @@ export class ChatService {
     const handle = `${escapeLike(q.trim().replace(/^@+/, '').toLowerCase())}%`;
     const textMatch = await this.messageTextMatch(q, words);
     const keys = await nameKeys(this.prisma, q);
-    const rows = await this.prisma.$queryRaw<
-      {
-        id: string;
-        body: string | null;
-        msg_id: string | null;
-        by_meta: boolean;
-      }[]
-    >`
+    const rows = readsAreSplit(this.prisma)
+      ? await this.searchHitsSplit(me, words, handle, textMatch, keys)
+      : await this.prisma.$queryRaw<
+          {
+            id: string;
+            body: string | null;
+            msg_id: string | null;
+            by_meta: boolean;
+          }[]
+        >`
       SELECT id, body, msg_id,
              -- Owner 2026-10-28: a typo-only name match («sima» ~ «Syimyk»)
              -- counts only when no chat's name matched strongly.
@@ -488,6 +492,94 @@ export class ChatService {
       }
     }
     return out;
+  }
+
+  /** Two databases (SHARDING_READY step 8): the same rules as the one-
+   * database query of [searchHits] — conversations, cases and messages (case
+   * family) on every database, the other person's name / @username and role
+   * (global) on the primary, put together here. */
+  private async searchHitsSplit(
+    me: string,
+    words: string[],
+    handle: string,
+    textMatch: Prisma.Sql,
+    keys: Awaited<ReturnType<typeof nameKeys>>,
+  ): Promise<
+    {
+      id: string;
+      body: string | null;
+      msg_id: string | null;
+      by_meta: boolean;
+    }[]
+  > {
+    const convs = (
+      await forEachDatabase(
+        this.prisma,
+        () =>
+          this.prisma.$queryRaw<
+            {
+              id: string;
+              other: string;
+              locked: boolean;
+              by_title: boolean;
+              body: string | null;
+              msg_id: string | null;
+            }[]
+          >`
+          SELECT c.id::TEXT AS id,
+                 (CASE WHEN c.client_id = ${me}::UUID THEN c.attorney_id
+                       ELSE c.client_id END)::TEXT AS other,
+                 (NOT c.contacts_unlocked AND c.case_id IS NOT NULL) AS locked,
+                 COALESCE(cs.title IS NOT NULL AND ${allWordsSql(Prisma.sql`cs.title`, words)}, FALSE) AS by_title,
+                 msg.body, msg.msg_id
+          FROM conversations c
+          LEFT JOIN cases cs ON cs.id = c.case_id
+          LEFT JOIN LATERAL (
+            SELECT m.body_display AS body, m.id::TEXT AS msg_id FROM messages m
+            WHERE m.conversation_id = c.id
+              AND m.deleted_at IS NULL
+              AND m.type IN ('text', 'attachment')
+              AND ${textMatch}
+            ORDER BY m.created_at DESC LIMIT 1) msg ON TRUE
+          WHERE (c.client_id = ${me}::UUID OR c.attorney_id = ${me}::UUID)
+            AND c.last_message_at IS NOT NULL`,
+      )
+    ).flat();
+    if (convs.length === 0) return [];
+    const others = [...new Set(convs.map((c) => c.other))];
+    const people = await shardContext.runOnPrimary(
+      () => this.prisma.$queryRaw<
+        { id: string; attorney: boolean; strict: boolean; loose: boolean }[]
+      >`
+        SELECT o.id::TEXT AS id, (o.role::TEXT = 'attorney') AS attorney,
+               COALESCE(${nameStrictSql(keys, 'o')}
+                 OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle}, FALSE) AS strict,
+               COALESCE(${nameMatchSql(keys, 'o')}, FALSE) AS loose
+        FROM users o
+        LEFT JOIN attorney_profiles ap ON ap.user_id = o.id
+        LEFT JOIN client_profiles cp ON cp.user_id = o.id
+        WHERE o.id = ANY(${others}::UUID[])`,
+    );
+    const byId = new Map(people.map((p) => [p.id, p]));
+    const marked = convs.map((c) => {
+      const p = byId.get(c.other);
+      const hidden = !!p && !p.attorney && c.locked;
+      return {
+        ...c,
+        strong: (!hidden && !!p?.strict) || c.by_title,
+        loose: !hidden && !!p?.loose,
+      };
+    });
+    const anyStrong = marked.some((m) => m.strong);
+    return marked
+      .filter((m) => m.strong || m.loose || m.body !== null)
+      .slice(0, 2000)
+      .map((m) => ({
+        id: m.id,
+        body: m.body,
+        msg_id: m.msg_id,
+        by_meta: m.strong || (m.loose && !anyStrong),
+      }));
   }
 
   /** Owner 2026-10-01: folder, "waiting for my answer", note, pin. */

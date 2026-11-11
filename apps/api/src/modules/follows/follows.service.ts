@@ -1,4 +1,5 @@
 import { Prisma, type UserRole } from '@prisma/client';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import {
   escapeLike,
   nameKeys,
@@ -655,14 +656,29 @@ export class FollowsService {
     q: string,
   ): Promise<string[]> {
     const handle = `${escapeLike(q.trim().replace(/^@+/, '').toLowerCase())}%`;
+    // Two databases (SHARDING_READY step 8): follows live with the
+    // follower, so an attorney's followers are spread over every database;
+    // people and their profiles are global (primary). Collect the ids first,
+    // then match names on the primary. One database: one query each, as before.
     const edge =
       ownSide === 'followee_id'
-        ? Prisma.sql`SELECT f.follower_id AS id FROM follows f WHERE f.followee_id = ${userId}::UUID`
-        : Prisma.sql`SELECT f.followee_id AS id FROM follows f WHERE f.follower_id = ${userId}::UUID`;
+        ? Prisma.sql`SELECT f.follower_id::TEXT AS id FROM follows f WHERE f.followee_id = ${userId}::UUID`
+        : Prisma.sql`SELECT f.followee_id::TEXT AS id FROM follows f WHERE f.follower_id = ${userId}::UUID`;
+    const edgeIds = [
+      ...new Set(
+        (
+          await forEachDatabase(this.prisma, () =>
+            this.prisma.$queryRaw<{ id: string }[]>(edge),
+          )
+        ).flatMap((r) => r.map((x) => x.id)),
+      ),
+    ];
+    if (edgeIds.length === 0) return [];
     const keys = await nameKeys(this.prisma, q);
     // Owner 2026-10-28: typo-only name matches only when nobody matched
     // strongly (nameStrictSql).
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+    const rows = await shardContext.runOnPrimary(
+      () => this.prisma.$queryRaw<{ id: string }[]>`
       SELECT id FROM (
       SELECT id, strong, bool_or(strong) OVER () AS any_strong FROM (
         SELECT u.id::TEXT AS id,
@@ -671,12 +687,13 @@ export class FollowsService {
         FROM users u
         LEFT JOIN attorney_profiles ap ON ap.user_id = u.id
         LEFT JOIN client_profiles cp ON cp.user_id = u.id
-        WHERE u.id IN (${edge})
+        WHERE u.id = ANY(${edgeIds}::UUID[])
           AND (${nameMatchSql(keys, 'u')}
                OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle})
       ) m) w
       WHERE strong OR NOT any_strong
-      LIMIT 5000`;
+      LIMIT 5000`,
+    );
     return rows.map((r) => r.id);
   }
 

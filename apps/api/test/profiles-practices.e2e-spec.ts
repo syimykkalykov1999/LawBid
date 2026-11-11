@@ -7,6 +7,8 @@ import type Redis from 'ioredis';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { forEachDatabase } from '../src/sharding/for-each-database';
+import { shardContext } from '../src/sharding/shard-context';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { LicenseExpiryJob } from '../src/jobs/handlers/license-expiry.job';
 import { PRACTICE_TREE_CACHE_KEY } from '../src/modules/profiles/services/practice-areas.service';
@@ -366,31 +368,41 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
         return c.id;
       }
 
-      // docs/02 §5.4, canonical shape of db-roles-indexes.e2e-spec.ts.
-      const visible = async (attorneyId: string) =>
-        (
-          await prisma.$queryRawUnsafe<{ id: string }[]>(`
-          SELECT id FROM (
-            SELECT c.id, c.created_at FROM cases c
-            WHERE c.status = 'open' AND c.deleted_at IS NULL
-              AND (c.primary_state_code, c.practice_area_id) IN (
-                SELECT l.state_code, ap.practice_area_id
-                FROM attorney_licenses l
-                JOIN attorney_practice_areas ap ON ap.attorney_id = l.attorney_id
-                WHERE l.attorney_id = '${attorneyId}' AND l.license_status = 'verified')
-            UNION
-            SELECT c.id, c.created_at FROM case_states cs
-            JOIN cases c ON c.id = cs.case_id
-            WHERE NOT cs.is_primary
-              AND cs.state_code IN (
-                SELECT state_code FROM attorney_licenses
-                WHERE attorney_id = '${attorneyId}' AND license_status = 'verified')
-              AND c.status = 'open' AND c.deleted_at IS NULL
-              AND c.practice_area_id IN (
-                SELECT practice_area_id FROM attorney_practice_areas
-                WHERE attorney_id = '${attorneyId}')
-          ) v ORDER BY created_at DESC LIMIT 50`)
-        ).map((r) => r.id);
+      // docs/02 §5.4, canonical shape of db-roles-indexes.e2e-spec.ts. Two
+      // databases: the licences and practices (global) are read on the
+      // primary, the cases in every database.
+      const visible = async (attorneyId: string) => {
+        const [states, practices] = await shardContext.runOnPrimary(() =>
+          Promise.all([
+            prisma.$queryRaw<{ s: string }[]>`
+              SELECT state_code AS s FROM attorney_licenses
+              WHERE attorney_id = ${attorneyId}::UUID AND license_status = 'verified'`,
+            prisma.$queryRaw<{ p: string }[]>`
+              SELECT practice_area_id::TEXT AS p FROM attorney_practice_areas
+              WHERE attorney_id = ${attorneyId}::UUID`,
+          ]),
+        );
+        const st = states.map((r) => r.s);
+        const pa = practices.map((r) => r.p);
+        const rows = (
+          await forEachDatabase(
+            prisma,
+            () =>
+              prisma.$queryRaw<{ id: string; created_at: Date }[]>`
+              SELECT c.id::TEXT AS id, c.created_at FROM cases c
+              WHERE c.status = 'open' AND c.deleted_at IS NULL
+                AND c.practice_area_id = ANY(${pa}::UUID[])
+                AND (c.primary_state_code = ANY(${st}::TEXT[])
+                  OR EXISTS (SELECT 1 FROM case_states cs
+                             WHERE cs.case_id = c.id AND NOT cs.is_primary
+                               AND cs.state_code = ANY(${st}::TEXT[])))`,
+          )
+        ).flat();
+        return rows
+          .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
+          .slice(0, 50)
+          .map((r) => r.id);
+      };
 
       beforeAll(async () => {
         clientId = (await prisma.user.create({ data: { role: 'client' } })).id;

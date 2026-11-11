@@ -1,7 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { heldSql } from '../../common/privacy/legal-hold';
+import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
@@ -60,6 +60,7 @@ export class JournalRetentionService implements OnModuleDestroy {
     db: PrismaClient | PrismaService,
     now: Date,
   ): Promise<number> {
+    const held = await heldSqlFor(this.prisma);
     // Owner 2026-10-28: a hold on a case or on either side keeps its journal.
     let deleted = 0;
     while (deleted < MAX_PER_RUN) {
@@ -68,10 +69,10 @@ export class JournalRetentionService implements OnModuleDestroy {
         WHERE ctid IN (
           SELECT ctid FROM case_journal
           WHERE retain_until < ${now}
-            AND NOT ${heldSql('case', Prisma.sql`case_id`)}
-            AND NOT ${heldSql('user', Prisma.sql`client_id`)}
-            AND (attorney_id IS NULL OR NOT ${heldSql('user', Prisma.sql`attorney_id`)})
-            AND NOT ${heldSql('user', Prisma.sql`actor_user_id`)}
+            AND NOT ${held('case', Prisma.sql`case_id`)}
+            AND NOT ${held('user', Prisma.sql`client_id`)}
+            AND (attorney_id IS NULL OR NOT ${held('user', Prisma.sql`attorney_id`)})
+            AND NOT ${held('user', Prisma.sql`actor_user_id`)}
           ORDER BY retain_until
           LIMIT ${BATCH})`;
       deleted += n;

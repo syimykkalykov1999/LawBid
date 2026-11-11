@@ -5,6 +5,9 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
+import { readsAreSplit } from '../../sharding/split-reads';
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { shardContext } from '../../sharding/shard-context';
 import { legacyTopicTags, postPracticeWhere } from '../posts/hidden-tags';
 import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
@@ -505,7 +508,9 @@ export class SearchService {
     if (tags.length === 0) return [];
     // Audit 2026-10-01: how many published posts carry each tag; the most
     // used first (alphabetical sorting stays an option in the app).
-    const counts = await this.prisma.$queryRaw<{ tag: string; n: bigint }[]>`
+    const counts = readsAreSplit(this.prisma)
+      ? await this.tagCountsSplit(tags)
+      : await this.prisma.$queryRaw<{ tag: string; n: bigint }[]>`
       SELECT t.tag_lower AS tag, count(p.id) AS n
       FROM tags t
       LEFT JOIN post_tags pt ON pt.tag_id = t.id
@@ -529,6 +534,55 @@ export class SearchService {
           (a, b) => b.postsCount - a.postsCount || a.tag.localeCompare(b.tag),
         ),
     );
+  }
+
+  /** Two databases: the same count as the one-database query, put together
+   * per database (post_tags + posts live with the post's author) and the
+   * authors' status checked on the primary (users are global). */
+  private async tagCountsSplit(
+    tags: string[],
+  ): Promise<{ tag: string; n: bigint }[]> {
+    const ids = await shardContext.runOnPrimary(
+      () => this.prisma.$queryRaw<{ id: string; tag: string }[]>`
+        SELECT id::TEXT AS id, tag_lower AS tag FROM tags
+        WHERE tag_lower = ANY(${tags}::TEXT[])`,
+    );
+    if (ids.length === 0) return [];
+    const tagOf = new Map(ids.map((r) => [r.id, r.tag]));
+    const perAuthor: { id: string; author: string; n: bigint }[] = (
+      await forEachDatabase(
+        this.prisma,
+        () =>
+          this.prisma.$queryRaw<{ id: string; author: string; n: bigint }[]>`
+          SELECT pt.tag_id::TEXT AS id, p.author_id::TEXT AS author, count(*) AS n
+          FROM post_tags pt
+          JOIN posts p ON p.id = pt.post_id
+            AND p.status = 'published' AND p.deleted_at IS NULL
+            AND p.archived_at IS NULL
+          WHERE pt.tag_id = ANY(${[...tagOf.keys()]}::UUID[])
+          GROUP BY pt.tag_id, p.author_id`,
+      )
+    ).flat();
+    const authors = [...new Set(perAuthor.map((r) => r.author))];
+    const active = new Set(
+      authors.length === 0
+        ? []
+        : (
+            await shardContext.runOnPrimary(
+              () => this.prisma.$queryRaw<{ id: string }[]>`
+                SELECT id::TEXT AS id FROM users
+                WHERE id = ANY(${authors}::UUID[])
+                  AND status = 'active' AND deleted_at IS NULL`,
+            )
+          ).map((r) => r.id),
+    );
+    const sum = new Map<string, bigint>();
+    for (const r of perAuthor) {
+      if (!active.has(r.author)) continue;
+      const t = tagOf.get(r.id)!;
+      sum.set(t, (sum.get(t) ?? 0n) + BigInt(r.n));
+    }
+    return [...sum].map(([tag, n]) => ({ tag, n }));
   }
 
   /**
@@ -837,6 +891,7 @@ export class SearchService {
   }
 
   private async topOfTag(tagId: string): Promise<string[]> {
+    if (readsAreSplit(this.prisma)) return this.topOfTagSplit(tagId);
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       WITH recent AS (
         SELECT p.id FROM post_tags pt
@@ -859,6 +914,55 @@ export class SearchService {
         p.created_at DESC, p.id DESC
       LIMIT ${TAG_TOP_MAX}`;
     return rows.map((r) => r.id);
+  }
+
+  /** Two databases (SHARDING_READY step 8): the newest candidates of each
+   * database (posts and their tags live with the author), the authors
+   * checked on the primary, then the same score order across all. */
+  private async topOfTagSplit(tagId: string): Promise<string[]> {
+    type Row = { id: string; author: string; score: number; created_at: Date };
+    const cands = (
+      await forEachDatabase(
+        this.prisma,
+        () => this.prisma.$queryRaw<Row[]>`
+          SELECT p.id::TEXT AS id, p.author_id::TEXT AS author, p.created_at,
+            (p.like_count + 2 * p.comment_count + 2 * p.save_count)::FLOAT8
+              / power(GREATEST(EXTRACT(EPOCH FROM (now() - p.created_at)) / 3600, 0) + 2, 1.5)
+              AS score
+          FROM post_tags pt
+          JOIN posts p ON p.id = pt.post_id
+          WHERE pt.tag_id = ${tagId}::UUID
+            AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
+          ORDER BY p.created_at DESC
+          LIMIT ${TAG_TOP_CANDIDATES}`,
+      )
+    )
+      .flat()
+      .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
+      .slice(0, TAG_TOP_CANDIDATES);
+    if (cands.length === 0) return [];
+    const ok = new Set(
+      (
+        await shardContext.runOnPrimary(
+          () => this.prisma.$queryRaw<{ id: string }[]>`
+            SELECT u.id::TEXT AS id FROM users u
+            WHERE u.id = ANY(${[...new Set(cands.map((c) => c.author))]}::UUID[])
+              AND u.status = 'active'
+              AND NOT EXISTS (SELECT 1 FROM attorney_profiles sa
+                WHERE sa.user_id = u.id AND sa.verification_status = 'suspended')`,
+        )
+      ).map((r) => r.id),
+    );
+    return cands
+      .filter((c) => ok.has(c.author))
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          b.created_at.getTime() - a.created_at.getTime() ||
+          (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+      )
+      .slice(0, TAG_TOP_MAX)
+      .map((c) => c.id);
   }
 
   private async ranked(

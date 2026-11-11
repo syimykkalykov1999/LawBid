@@ -1,3 +1,4 @@
+import { shardContext } from '../../sharding/shard-context';
 import {
   Inject,
   Injectable,
@@ -167,23 +168,26 @@ export class AdminContentService {
     action: ContentAction,
   ): Promise<string> {
     const after: (() => Promise<void>)[] = [];
-    const authorId = await withTxRetry(this.prisma, async (tx) => {
-      after.length = 0;
-      const target = await this.moderation.resolve(type, id, tx);
-      if (!target) throw notFound();
-      await this.moderation.setContentStatus(tx, target, action, after);
-      if (action === 'remove') {
-        const data = { deleted_at: new Date() };
-        if (type === 'post') await tx.post.update({ where: { id }, data });
-        if (type === 'comment') {
-          await tx.comment.update({ where: { id }, data });
+    // Two databases: the transaction runs in the database the id names.
+    const authorId = await shardContext.runForRow(id, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        after.length = 0;
+        const target = await this.moderation.resolve(type, id, tx);
+        if (!target) throw notFound();
+        await this.moderation.setContentStatus(tx, target, action, after);
+        if (action === 'remove') {
+          const data = { deleted_at: new Date() };
+          if (type === 'post') await tx.post.update({ where: { id }, data });
+          if (type === 'comment') {
+            await tx.comment.update({ where: { id }, data });
+          }
+          if (type === 'case_comment') {
+            await tx.caseComment.update({ where: { id }, data });
+          }
         }
-        if (type === 'case_comment') {
-          await tx.caseComment.update({ where: { id }, data });
-        }
-      }
-      return target.authorId ?? '';
-    });
+        return target.authorId ?? '';
+      }),
+    );
     for (const f of after) await f();
     return authorId;
   }

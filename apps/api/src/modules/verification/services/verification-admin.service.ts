@@ -1,3 +1,6 @@
+import { PRIMARY_DB } from '../../../sharding/shard-router';
+import { forEachDatabase } from '../../../sharding/for-each-database';
+import { readsAreSplit } from '../../../sharding/split-reads';
 import { notifySeoPagesChanged } from '../../../common/seo/seo-generator.trigger';
 import { FORMAT_UNUSUAL_FLAG } from '../bar-number-format';
 import { type CountryScope, userInScope } from '../../countries/country-scope';
@@ -1113,6 +1116,27 @@ export class VerificationAdminService {
   /** docs/04 §14: every bid transition goes through the state machine and
    * leaves a journal row; suspension withdraws the attorney's active bids. */
   private async withdrawActiveBids(
+    tx: Tx,
+    attorneyId: string,
+    reason: string,
+  ): Promise<number> {
+    if (!readsAreSplit(this.prisma)) {
+      return this.withdrawActiveBidsIn(tx, attorneyId, reason);
+    }
+    // Two databases: the bids live with their cases. The caller's
+    // transaction (primary) withdraws the primary's; every other database
+    // in a transaction of its own (bids.service does the same).
+    const counts = await forEachDatabase(this.prisma, (db) =>
+      db === PRIMARY_DB
+        ? this.withdrawActiveBidsIn(tx, attorneyId, reason)
+        : withTxRetry(this.prisma, (t) =>
+            this.withdrawActiveBidsIn(t, attorneyId, reason),
+          ),
+    );
+    return counts.reduce((a, b) => a + b, 0);
+  }
+
+  private async withdrawActiveBidsIn(
     tx: Tx,
     attorneyId: string,
     reason: string,

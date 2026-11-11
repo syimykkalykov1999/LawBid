@@ -172,6 +172,13 @@ describe('pressures', () => {
     ).toEqual([]);
     expect(pressures({})).toEqual([]);
   });
+
+  it('the CPU line comes from economy.db_cpu_limit_percent (default 70)', () => {
+    expect(pressures({ dbCpuPercent: 40 }).map((p) => p.kind)).toEqual([]);
+    expect(pressures({ dbCpuPercent: 40 }, 30)).toEqual([
+      { kind: 'db_cpu', value: 40, limit: 30 },
+    ]);
+  });
 });
 
 describe('prevTier / shrinkBlocker', () => {

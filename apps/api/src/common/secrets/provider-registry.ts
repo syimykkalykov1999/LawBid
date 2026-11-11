@@ -533,7 +533,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         name: 'urls',
         label: 'TURN URLs (comma-separated)',
         secret: false,
-        required: true,
+        required: false,
         pattern: /^turns?:[^,\s]+(,turns?:[^,\s]+)*$/,
         env: 'TURN_URLS',
         normalize: commaList,

@@ -1,4 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { shardContext } from '../../sharding/shard-context';
 import { type Plan, Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -432,6 +433,25 @@ export function clientsWithEntitlementSql(
       AND (cs.status IN ('trialing', 'active', 'past_due')
            OR (cs.status = 'canceled' AND cs.current_period_end > now()))
       AND COALESCE((cs.entitlements->>${key})::BOOL, (p.entitlements->>${key})::BOOL, false))`;
+}
+
+/** Two databases (SHARDING_READY step 8): the ids of the clients whose
+ * live subscription carries [key] = true, read on the primary (subscriptions
+ * and plans are global) — the same rule as [clientsWithEntitlementSql], for
+ * statements that run on each case database. Bounded by paying clients. */
+export async function clientIdsWithEntitlement(
+  prisma: PrismaService,
+  key: EntitlementKey,
+): Promise<string[]> {
+  const rows = await shardContext.runOnPrimary(
+    () => prisma.$queryRaw<{ id: string }[]>`
+      SELECT DISTINCT cs.user_id::TEXT AS id FROM client_subscriptions cs
+      LEFT JOIN plans p ON p.id = cs.plan_id
+      WHERE (cs.status IN ('trialing', 'active', 'past_due')
+             OR (cs.status = 'canceled' AND cs.current_period_end > now()))
+        AND COALESCE((cs.entitlements->>${key})::BOOL, (p.entitlements->>${key})::BOOL, false)`,
+  );
+  return rows.map((r) => r.id);
 }
 
 /** SQL fragment: attorneys whose live subscription carries [key] = true

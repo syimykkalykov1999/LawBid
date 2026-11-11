@@ -46,3 +46,25 @@ export function liveOwn(authorId: string, now: Date): Prisma.StoryWhereInput {
     expires_at: { gt: now },
   };
 }
+
+/** Two databases (SHARDING_READY step 8): the same rule as
+ * `visibleToViewer`, with the per-author lists read beforehand — the hides,
+ * follows and phone books live in other databases than the story, so they
+ * come in as author ids. */
+export function visibleToViewerSplit(
+  now: Date,
+  ids: { hiddenBy: string[]; followed: string[]; contactOf: string[] },
+): Prisma.StoryWhereInput {
+  return {
+    deleted_at: null,
+    status: 'active',
+    expires_at: { gt: now },
+    author: { deleted_at: null, status: 'active' },
+    ...(ids.hiddenBy.length ? { author_id: { notIn: ids.hiddenBy } } : {}),
+    OR: [
+      { audience: 'all' },
+      { audience: 'followers', author_id: { in: ids.followed } },
+      { audience: 'contacts', author_id: { in: ids.contactOf } },
+    ],
+  };
+}

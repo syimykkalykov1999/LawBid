@@ -1381,6 +1381,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Monthly partitioning of post_view_events: auto = converts by itself at partition.auto_rows (default), on = the online runner converts now, off = never.',
     pattern: /^(off|on|auto)$/,
   };
+  out['infra.search_engine_on_people'] = {
+    ...out['infra.search_engine_on_people'],
+    description:
+      'People at which the cloud automation switches the search engine (OpenSearch) on; it goes off again below 80 % of it (default 5 million).',
+    min: 1,
+    max: 1_000_000_000,
+  };
+  out['economy.db_cpu_limit_percent'] = {
+    ...out['economy.db_cpu_limit_percent'],
+    description:
+      'Database CPU % above which it counts as busy: alert, read copy and size step by themselves (default 70).',
+    min: 1,
+    max: 100,
+  };
   out['partition.auto_rows'] = {
     ...out['partition.auto_rows'],
     description:

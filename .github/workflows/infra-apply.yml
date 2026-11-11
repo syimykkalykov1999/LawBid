@@ -40,6 +40,7 @@ permissions:
   contents: write
   pull-requests: write
   id-token: write
+  actions: read
 
 concurrency:
   group: infra-apply
@@ -69,6 +70,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
+
+      # KNOWN_ERRORS 90: one change to prod at a time (a code deploy that
+      # started earlier finishes first; the plan then sees its images).
+      - name: Wait for an earlier code deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WAIT_PROD_TIMEOUT: "3000"
+        run: scripts/ci/wait-earlier-prod-change.sh deploy-rolling
 
       - name: Take the job from the API
         id: job

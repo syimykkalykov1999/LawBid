@@ -336,18 +336,24 @@ export interface Pressure {
 }
 
 /** Which resource limits are crossed (values in percent). */
-export function pressures(m: {
-  dbCpuPercent?: number | null;
-  dbConnections?: number | null;
-  dbMaxConnections?: number | null;
-  redisMemoryPercent?: number | null;
-}): Pressure[] {
+export function pressures(
+  m: {
+    dbCpuPercent?: number | null;
+    dbConnections?: number | null;
+    dbMaxConnections?: number | null;
+    redisMemoryPercent?: number | null;
+  },
+  // Owner 2026-11-10: the CPU line is `economy.db_cpu_limit_percent` (Admin →
+  // Настройки, default 70) so it can be lowered for a while to check that
+  // the read copy really comes by itself, then set back.
+  dbCpuLimit: number = DB_CPU_LIMIT_PERCENT,
+): Pressure[] {
   const out: Pressure[] = [];
-  if (m.dbCpuPercent != null && m.dbCpuPercent > DB_CPU_LIMIT_PERCENT) {
+  if (m.dbCpuPercent != null && m.dbCpuPercent > dbCpuLimit) {
     out.push({
       kind: 'db_cpu',
       value: m.dbCpuPercent,
-      limit: DB_CPU_LIMIT_PERCENT,
+      limit: dbCpuLimit,
     });
   }
   if (m.dbConnections != null && m.dbMaxConnections) {

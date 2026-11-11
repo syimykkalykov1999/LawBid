@@ -1,4 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { readsAreSplit } from '../../../sharding/split-reads';
+import { forEachDatabase } from '../../../sharding/for-each-database';
+import { shardContext } from '../../../sharding/shard-context';
 import { Prisma } from '@prisma/client';
 import { nameKeys, nameMatchSql } from '../../../common/search/name-match.sql';
 import { Transform } from 'class-transformer';
@@ -117,6 +120,10 @@ export function mineCaseWhere(
   // (accent / ё-insensitive title or description, the client's name or
   // @username — see [workWordHits]).
   extraHits: Map<string, string[]> = new Map(),
+  // Two databases (SHARDING_READY step 8): per word, the state codes and
+  // practice ids it names, looked up on the primary — the relation filters
+  // on the global states / practice_areas cannot run in a case database.
+  globalNames?: Map<string, { states: string[]; practices: string[] }>,
 ): Prisma.CaseWhereInput {
   const words = (f.q ?? '').split(/\s+/).filter((w) => w.length > 0);
   // Owner 2026-11-09: «По этапам» and «Ждёт меня» (the client's turn: bids
@@ -140,9 +147,28 @@ export function mineCaseWhere(
                   { title: ci },
                   { description: ci },
                   { city: ci },
-                  { practice_area: { name_en: ci } },
-                  { practice_area: { parent: { name_en: ci } } },
-                  { states: { some: { state: { name: ci } } } },
+                  ...(globalNames
+                    ? [
+                        {
+                          practice_area_id: {
+                            in: globalNames.get(w)?.practices ?? [],
+                          },
+                        },
+                        {
+                          states: {
+                            some: {
+                              state_code: {
+                                in: globalNames.get(w)?.states ?? [],
+                              },
+                            },
+                          },
+                        },
+                      ]
+                    : [
+                        { practice_area: { name_en: ci } },
+                        { practice_area: { parent: { name_en: ci } } },
+                        { states: { some: { state: { name: ci } } } },
+                      ]),
                   ...(w.length === 2
                     ? [
                         {
@@ -251,6 +277,13 @@ export async function workWordHits(
       ? Prisma.sql`OR ${nameMatchSql(await nameKeys(prisma, w), 'u')}
           OR coalesce(cp.username_lower, '') LIKE ${`${escapeLike(w.toLowerCase())}%`}`
       : Prisma.empty;
+    if (readsAreSplit(prisma)) {
+      out.set(
+        typed,
+        await workHitsSplit(prisma, attorneyId, w, like, withClient),
+      );
+      continue;
+    }
     const rows = await prisma.$queryRaw<{ id: string }[]>`
       SELECT c.id::TEXT AS id
       FROM bids b
@@ -270,6 +303,52 @@ export async function workWordHits(
   return out;
 }
 
+/** Two databases (SHARDING_READY step 8): the same hits — the attorney's
+ * accepted cases (bids + cases, case family) on every database, the client's
+ * name / @username (global) on the primary. */
+async function workHitsSplit(
+  prisma: PrismaService,
+  attorneyId: string,
+  w: string,
+  like: Prisma.Sql,
+  withClient: boolean,
+): Promise<string[]> {
+  const cases = (
+    await forEachDatabase(
+      prisma,
+      () =>
+        prisma.$queryRaw<{ id: string; client: string; by_text: boolean }[]>`
+        SELECT c.id::TEXT AS id, c.client_id::TEXT AS client,
+               (public.f_unaccent(replace(lower(c.title), 'ё', 'е')) LIKE ${like}
+                OR public.f_unaccent(replace(lower(c.description), 'ё', 'е')) LIKE ${like}) AS by_text
+        FROM bids b
+        JOIN cases c ON c.accepted_bid_id = b.id
+        WHERE b.attorney_id = ${attorneyId}::UUID AND b.status = 'accepted'`,
+    )
+  ).flat();
+  let byName = new Set<string>();
+  if (withClient && cases.length > 0) {
+    const keys = await nameKeys(prisma, w);
+    const clients = [...new Set(cases.map((c) => c.client))];
+    byName = new Set(
+      (
+        await shardContext.runOnPrimary(
+          () => prisma.$queryRaw<{ id: string }[]>`
+            SELECT u.id::TEXT AS id FROM users u
+            LEFT JOIN client_profiles cp ON cp.user_id = u.id
+            WHERE u.id = ANY(${clients}::UUID[])
+              AND (${nameMatchSql(keys, 'u')}
+                   OR coalesce(cp.username_lower, '') LIKE ${`${escapeLike(w.toLowerCase())}%`})`,
+        )
+      ).map((r) => r.id),
+    );
+  }
+  return cases
+    .filter((c) => c.by_text || byName.has(c.client))
+    .slice(0, 5000)
+    .map((c) => c.id);
+}
+
 /** [mineCaseWhere] with the topic names resolved. */
 export async function mineWhere(
   prisma: PrismaService,
@@ -282,5 +361,35 @@ export async function mineWhere(
     work
       ? await workWordHits(prisma, f.q, work.attorneyId, work.withClient)
       : undefined,
+    readsAreSplit(prisma) ? await globalNamesByWord(prisma, f.q) : undefined,
   );
+}
+
+/** Per typed word: states whose name contains it, practices whose English
+ * name (or their category's) contains it — the same matches as the relation
+ * filters of [mineCaseWhere], read on the primary. */
+async function globalNamesByWord(
+  prisma: PrismaService,
+  q: string | undefined,
+): Promise<Map<string, { states: string[]; practices: string[] }>> {
+  const words = (q ?? '').split(/\s+/).filter((w) => w.length > 0);
+  const out = new Map<string, { states: string[]; practices: string[] }>();
+  for (const w of words) {
+    const like = `%${escapeLike(w.toLowerCase())}%`;
+    const [states, practices] = await shardContext.runOnPrimary(() =>
+      Promise.all([
+        prisma.$queryRaw<{ code: string }[]>`
+          SELECT code FROM states WHERE lower(name) LIKE ${like}`,
+        prisma.$queryRaw<{ id: string }[]>`
+          SELECT pa.id::TEXT AS id FROM practice_areas pa
+          LEFT JOIN practice_areas cat ON cat.id = pa.parent_id
+          WHERE lower(pa.name_en) LIKE ${like} OR lower(cat.name_en) LIKE ${like}`,
+      ]),
+    );
+    out.set(w, {
+      states: states.map((s) => s.code),
+      practices: practices.map((p) => p.id),
+    });
+  }
+  return out;
 }

@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PRIMARY_DB } from '../shard-router';
-import { parseShardDatabaseUrls } from '../shard-databases';
+import { shardDatabaseUrlsFromEnv } from '../shard-databases';
 
 /**
  * Shard-ready step 10: a minimal raw-SQL handle on ONE physical database,
@@ -74,7 +74,7 @@ export function moveDatabaseUrls(
 ): Record<string, string> {
   const urls: Record<string, string> = {};
   if (env.DATABASE_URL) urls[PRIMARY_DB] = env.DATABASE_URL;
-  Object.assign(urls, parseShardDatabaseUrls(env.DATABASE_URL_SHARDS));
+  Object.assign(urls, shardDatabaseUrlsFromEnv(env));
   return urls;
 }
 

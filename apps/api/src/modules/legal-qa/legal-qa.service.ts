@@ -1,3 +1,6 @@
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { shardContext } from '../../sharding/shard-context';
+import { readsAreSplit } from '../../sharding/split-reads';
 import {
   BadRequestException,
   ConflictException,
@@ -602,6 +605,9 @@ export class LegalQaService {
       return { newCount: 0, ...base };
     if (!(await this.flags.isEnabled('legal_qa', true)))
       return { newCount: 0, ...base };
+    if (readsAreSplit(this.prisma)) {
+      return { newCount: await this.newCountSplit(user.sub), ...base };
+    }
     const [row] = await this.prisma.$queryRaw<{ n: number }[]>`
       SELECT COUNT(*)::INT AS n
       FROM legal_questions q
@@ -628,6 +634,57 @@ export class LegalQaService {
           WHERE (b.blocker_id = ${user.sub}::UUID AND b.blocked_id = q.author_id)
              OR (b.blocker_id = q.author_id AND b.blocked_id = ${user.sub}::UUID))`;
     return { newCount: row?.n ?? 0, ...base };
+  }
+
+  /** Two databases (SHARDING_READY step 8): the same count as `summary`'s
+   * query. The licences, practice areas (global) and blocks (with the
+   * blocker) are read first; the questions are counted in each database. */
+  private async newCountSplit(me: string): Promise<number> {
+    const [states, practices] = await shardContext.runOnPrimary(() =>
+      Promise.all([
+        this.prisma.$queryRaw<{ s: string }[]>`
+          SELECT DISTINCT state_code AS s FROM attorney_licenses
+          WHERE attorney_id = ${me}::UUID AND license_status = 'verified'`,
+        this.prisma.$queryRaw<{ id: string }[]>`
+          SELECT qa.id::TEXT AS id FROM practice_areas qa
+          WHERE EXISTS (
+            SELECT 1 FROM attorney_practice_areas ap
+            WHERE ap.attorney_id = ${me}::UUID
+              AND (ap.practice_area_id = qa.id
+                OR ap.practice_area_id = qa.parent_id
+                OR ap.practice_area_id IN (
+                     SELECT c.id FROM practice_areas c WHERE c.parent_id = qa.id)))`,
+      ]),
+    );
+    const blocked = (
+      await forEachDatabase(
+        this.prisma,
+        () =>
+          this.prisma.$queryRaw<{ id: string }[]>`
+          SELECT CASE WHEN blocker_id = ${me}::UUID THEN blocked_id ELSE blocker_id END::TEXT AS id
+          FROM user_blocks
+          WHERE blocker_id = ${me}::UUID OR blocked_id = ${me}::UUID`,
+      )
+    )
+      .flat()
+      .map((b) => b.id);
+    const stateCodes = states.map((r) => r.s);
+    const practiceIds = practices.map((r) => r.id);
+    const counts = await forEachDatabase(
+      this.prisma,
+      () => this.prisma.$queryRaw<{ n: number }[]>`
+        SELECT COUNT(*)::INT AS n
+        FROM legal_questions q
+        WHERE q.status = 'published' AND q.deleted_at IS NULL
+          AND q.answer_count = 0
+          AND q.closed_at IS NULL
+          AND q.created_at > now() - interval '24 hours'
+          AND q.author_id <> ${me}::UUID
+          AND (q.state_code IS NULL OR q.state_code = ANY(${stateCodes}::TEXT[]))
+          AND (q.practice_area_id IS NULL OR q.practice_area_id = ANY(${practiceIds}::UUID[]))
+          AND NOT (q.author_id = ANY(${blocked}::UUID[]))`,
+    );
+    return counts.reduce((n, [r]) => n + (r?.n ?? 0), 0);
   }
 
   /**
