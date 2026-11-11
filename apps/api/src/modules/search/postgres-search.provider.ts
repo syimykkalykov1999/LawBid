@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   HIDDEN_TAG_PREFIX,
+  hiddenTagOf,
   legacyTopicTags,
   postPracticeSql,
 } from '../posts/hidden-tags';
@@ -721,6 +722,7 @@ export class PostgresSearchProvider implements SearchProvider {
         : f.sort === 'popular'
           ? Prisma.sql`p.like_count + p.comment_count DESC, m.created_at DESC, m.id DESC`
           : Prisma.sql`${ftsRank('m', q, w.text)} DESC, m.created_at DESC, m.id DESC`;
+    if (readsAreSplit(this.db)) return this.postRunnerSplit(q, max, f, w);
     return (match: Prisma.Sql) => this.db.$queryRaw<{ id: string }[]>`
       WITH m AS (
         SELECT p.id, p.created_at, p.search_tsv, p.search_tsv_simple FROM posts p
@@ -813,6 +815,129 @@ export class PostgresSearchProvider implements SearchProvider {
    * query run (typos, a fragment inside the text), like the main search's
    * exact → typo steps.
    */
+  /** Two databases (SHARDING_READY step 8): the same post search — the
+   * global lookups (topic codes, tags, licensed authors) first on the
+   * primary, the posts on every database, the authors' status on the
+   * primary, then one ordering. One database never comes here. */
+  private postRunnerSplit(
+    q: string,
+    max: number,
+    f: PostSearchFilters,
+    w: Awaited<ReturnType<PostgresSearchProvider['weights']>>,
+  ): (match: Prisma.Sql) => Promise<{ id: string }[]> {
+    return async (match: Prisma.Sql) => {
+      const g = await shardContext.runOnPrimary(async () => {
+        const c = f.practice?.trim().toLowerCase();
+        const areas = c
+          ? await this.db.$queryRaw<{ id: string }[]>`
+              SELECT id::TEXT AS id FROM practice_areas
+              WHERE code = ${c} OR code LIKE ${`${c.replace(/[\\%_]/g, '\\$&')}.%`}`
+          : [];
+        const tagNames = c
+          ? [
+              hiddenTagOf(c),
+              ...(f.tag ? [f.tag] : []),
+              ...legacyTopicTags(f.practice!),
+            ]
+          : f.tag
+            ? [f.tag]
+            : [];
+        const tags = tagNames.length
+          ? await this.db.$queryRaw<{ id: string; tag: string }[]>`
+              SELECT id::TEXT AS id, tag_lower AS tag FROM tags
+              WHERE tag_lower = ANY(${tagNames}::TEXT[])`
+          : [];
+        const licensed = f.state
+          ? await this.db.$queryRaw<{ id: string }[]>`
+              SELECT DISTINCT attorney_id::TEXT AS id FROM attorney_licenses
+              WHERE state_code = ${f.state} AND license_status = 'verified'`
+          : [];
+        return {
+          areas: areas.map((a) => a.id),
+          tags,
+          licensed: licensed.map((l) => l.id),
+        };
+      });
+      const tagId = (t: string) =>
+        g.tags.filter((x) => x.tag === t).map((x) => x.id);
+      const c = f.practice?.trim().toLowerCase();
+      const legacy = c ? legacyTopicTags(f.practice!).flatMap(tagId) : [];
+      const topic = c
+        ? Prisma.sql`AND (EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id
+                AND pt.tag_id = ANY(${[...tagId(hiddenTagOf(c)), ...(f.tag ? tagId(f.tag) : [])]}::UUID[]))
+              OR p.practice_area_id = ANY(${g.areas}::UUID[])
+              ${legacy.length ? Prisma.sql`OR (p.practice_area_id IS NULL AND EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id AND pt.tag_id = ANY(${legacy}::UUID[])))` : Prisma.empty})`
+        : f.tag
+          ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id AND pt.tag_id = ANY(${tagId(f.tag)}::UUID[]))`
+          : Prisma.empty;
+      const where = Prisma.sql`
+        ${topic}
+        ${f.state ? Prisma.sql`AND p.author_id = ANY(${g.licensed}::UUID[])` : Prisma.empty}
+        ${f.since ? Prisma.sql`AND p.created_at >= ${f.since}` : Prisma.empty}
+        ${f.briefsOnly ? Prisma.sql`AND p.kind = 'post' AND p.video_asset_id IS NULL AND NOT EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id) AND NOT EXISTS (SELECT 1 FROM post_attachments pa WHERE pa.post_id = p.id)` : Prisma.empty}
+        ${f.withPhotos ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)` : Prisma.empty}
+        ${f.contentClass ? Prisma.sql`AND p.content_class = ${f.contentClass}` : Prisma.empty}`;
+      const rows = (
+        await forEachDatabase(
+          this.db,
+          () =>
+            this.db.$queryRaw<
+              {
+                id: string;
+                created_at: Date;
+                author: string;
+                pop: number;
+                rank: number;
+              }[]
+            >`
+            SELECT p.id::TEXT AS id, p.created_at, p.author_id::TEXT AS author,
+                   (p.like_count + p.comment_count)::FLOAT8 AS pop,
+                   ${ftsRank('p', q, w.text)}::FLOAT8 AS rank
+            FROM posts p
+            WHERE ${match}
+              AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
+              ${where}
+            ORDER BY p.created_at DESC
+            LIMIT ${POST_CANDIDATES}`,
+        )
+      ).flat();
+      if (rows.length === 0) return [];
+      const authors = [...new Set(rows.map((r) => r.author))];
+      const ok = new Set(
+        (
+          await shardContext.runOnPrimary(
+            () => this.db.$queryRaw<{ id: string }[]>`
+              SELECT u.id::TEXT AS id FROM users u
+              WHERE u.id = ANY(${authors}::UUID[]) AND u.status = 'active'
+                AND NOT EXISTS (SELECT 1 FROM attorney_profiles sa
+                  WHERE sa.user_id = u.id AND sa.verification_status = 'suspended')`,
+          )
+        ).map((r) => r.id),
+      );
+      const by = (
+        a: (typeof rows)[number],
+        b: (typeof rows)[number],
+      ): number => {
+        const lead =
+          f.sort === 'newest'
+            ? 0
+            : f.sort === 'popular'
+              ? b.pop - a.pop
+              : b.rank - a.rank;
+        return (
+          lead ||
+          b.created_at.getTime() - a.created_at.getTime() ||
+          (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
+        );
+      };
+      return rows
+        .filter((r) => ok.has(r.author))
+        .sort(by)
+        .slice(0, max)
+        .map((r) => ({ id: r.id }));
+    };
+  }
+
   async searchQuestions(text: string): Promise<string[]> {
     const topics = (await this.synonyms?.resolve(text))?.practiceIds ?? [];
     const like = `%${escapeLike(text)}%`;
