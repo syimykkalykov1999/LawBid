@@ -35,7 +35,10 @@ if [ -n "$TAG" ]; then
       // skipped its work stops the deploy before the new api starts.
       // Automation audit 2026-11-08: then the login of lawbid_partition from
       // PARTITION_DB_PASSWORD (only when Terraform gave it; never fails the run).
-      c.command = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs && node prisma/ensure-partition-login.mjs && node prisma/verify-schema.mjs"];
+      // Owner 2026-11-11: then every extra database server of the admin
+      // switch aws.db_shards (DB_SHARD_HOSTS from the Terraform task
+      // definition; nothing to do without it) — prisma/migrate-shards.mjs.
+      c.command = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs && node prisma/ensure-partition-login.mjs && node prisma/verify-schema.mjs && node prisma/migrate-shards.mjs"];
       const mode = process.env.SCHEMA_DRIFT_CHECK || "fail";
       c.environment = (c.environment || []).filter((e) => e.name !== "SCHEMA_DRIFT_CHECK").concat([{ name: "SCHEMA_DRIFT_CHECK", value: mode }]);
     }
