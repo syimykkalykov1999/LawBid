@@ -25,6 +25,7 @@ const row = (o: Partial<CostRegistryRow>): CostRegistryRow => ({
   state: "auto",
   stateKnown: true,
   stateNote: null,
+  liveState: null,
   stateHints: {},
   ceilingLabel: "Лимит SMS в месяц",
   ceilingKey: "budget.sms.monthly_max",

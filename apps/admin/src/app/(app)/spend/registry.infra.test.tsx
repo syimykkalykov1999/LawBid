@@ -25,6 +25,7 @@ const os: CostRegistryRow = {
   state: "off",
   stateKnown: false,
   stateNote: null,
+  liveState: null,
   stateHints: {},
   ceilingLabel: null,
   ceilingKey: null,
@@ -153,5 +154,55 @@ describe("cloud switch on «Расходы»", () => {
     );
     // While the request runs the row shows its status chip.
     expect(await screen.findByTestId("infra-chip-aws.opensearch")).toBeTruthy();
+  });
+
+  // Owner 2026-11-11: Выкл / Вкл / Авто really rule an item the automation
+  // switches (row.liveState is set): the position is saved first.
+  const modeRow: CostRegistryRow = {
+    ...os,
+    states: ["off", "on", "auto"],
+    state: "off",
+    liveState: "off",
+  };
+  const renderWith = (row: CostRegistryRow) => {
+    report.rows = [row];
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <ToastProvider>
+          <CostRegistry />
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+  };
+
+  it("Авто saves the position and asks for no plan", async () => {
+    patch.mockResolvedValue({ data: { data: { id: os.id, state: "auto" } } });
+    renderWith(modeRow);
+    fireEvent.click(await screen.findByTestId("state-aws.opensearch-auto"));
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith("/admin/spend/registry/{id}/mode", {
+        params: { path: { id: "aws.opensearch" } },
+        body: { state: "auto" },
+      }),
+    );
+    expect(post).not.toHaveBeenCalled();
+    report.rows = [os];
+  });
+
+  it("Вкл saves the position, then asks for the plan when the item is off", async () => {
+    patch.mockResolvedValue({ data: { data: { id: os.id, state: "on" } } });
+    renderWith({ ...modeRow, state: "auto" });
+    fireEvent.click(await screen.findByTestId("state-aws.opensearch-on"));
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith("/admin/infra/requests", {
+        body: { itemId: "aws.opensearch", to: "on" },
+      }),
+    );
+    expect(patch).toHaveBeenCalledWith("/admin/spend/registry/{id}/mode", {
+      params: { path: { id: "aws.opensearch" } },
+      body: { state: "on" },
+    });
+    report.rows = [os];
   });
 });

@@ -1,4 +1,5 @@
 import { PartitionService } from '../../../partitioning/partition.service';
+import { INFRA_MODE_KEYS, infraMode } from '../../../common/ops/infra-modes';
 import { AUTO_SINK_KEY } from '../../events/domain-events.service';
 import {
   Inject,
@@ -272,6 +273,22 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       this.settings.string('db.shards_mode').catch(() => 'auto'),
       this.shardGrowth().catch(() => undefined),
     ]);
+    // Owner 2026-11-11: the position picked on «Масштаб» per item (a stored
+    // row only; nothing stored = Авто by default, not picked by hand).
+    const stored = await Promise.all(
+      Object.entries(INFRA_MODE_KEYS).map(
+        async ([id, key]) =>
+          [id, await this.settings.raw(key).catch(() => undefined)] as const,
+      ),
+    );
+    const modes = Object.fromEntries(
+      stored.map(([id, raw]) => [id, infraMode(raw)]),
+    );
+    const pickedAuto = new Set(
+      stored
+        .filter(([, raw]) => raw !== undefined && infraMode(raw) === 'auto')
+        .map(([id]) => id),
+    );
     const pool = Number(this.config.get<string>('DB_POOL_SIZE') ?? '');
     const pooler = !!this.config.get<string>('DB_POOLER_HOST');
     return {
@@ -292,6 +309,8 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       searchOnPeople,
       shardsMode: shardsMode ?? 'auto',
       shardGrowth,
+      modes,
+      pickedAuto,
     };
   }
 

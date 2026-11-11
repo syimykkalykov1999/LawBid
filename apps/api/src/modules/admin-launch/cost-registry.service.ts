@@ -5,6 +5,7 @@ import {
   OnModuleInit,
   Optional,
 } from '@nestjs/common';
+import { INFRA_MODE_KEYS, infraMode } from '../../common/ops/infra-modes';
 import type Redis from 'ioredis';
 import { OpsStateService } from '../../common/ops/ops-state.service';
 import { pressures } from '../../common/economy/economy.rules';
@@ -80,6 +81,9 @@ export interface RegistryRow {
   state: CostState | null;
   stateKnown: boolean;
   stateNote: string | null;
+  /** Owner 2026-11-11: runs now (on / off) for the items with a picked
+   * Выкл / Вкл / Авто (infra-modes.ts); null for the others. */
+  liveState: 'off' | 'on' | null;
   stateHints: Partial<Record<CostState, string>>;
   ceilingLabel: string | null;
   ceilingKey: string | null;
@@ -133,6 +137,14 @@ const REPORT_KEY = 'spend:registry';
 const REPORT_FRESH_MS = 60_000;
 /** An SSM read that hangs shows «AWS не ответил», never a stuck page. */
 const SSM_READ_MS = 3_000;
+
+/** Owner 2026-11-11: what each position of a cloud item the automation
+ * switches means (common/ops/infra-modes.ts). */
+const INFRA_MODE_HINTS: Record<CostState, string> = {
+  off: 'Выкл: выключено, само не включается.',
+  on: 'Вкл: всегда включено, само не выключается.',
+  auto: 'Авто: включается само, когда нужно, и выключается, когда не нужно.',
+};
 
 @Injectable()
 export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
@@ -372,6 +384,19 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
     const live = await Promise.all(
       COST_REGISTRY.map((e) => this.liveState(e, infraLive)),
     );
+    // Owner 2026-11-11: the items the cloud automation switches show the
+    // position the owner picked (Выкл / Вкл / Авто); the dot still shows
+    // whether the item runs now (the status reads the live state).
+    const modes = await Promise.all(
+      COST_REGISTRY.map(async (e) => {
+        const key = INFRA_MODE_KEYS[e.id];
+        if (!key) return null;
+        const stored = await this.settings.raw(key).catch(() => null);
+        return infraMode(
+          stored ?? (APP_SETTINGS as Record<string, unknown>)[key],
+        );
+      }),
+    );
     const rows: RegistryRow[] = COST_REGISTRY.map((e, i) => {
       const a = attr.byId[e.id];
       const locked = this.lockedReason(e);
@@ -379,7 +404,7 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
       for (const st of e.states) steps[st] = stepsFor(e, st);
       const hints: Partial<Record<CostState, string>> = {};
       for (const st of e.states) {
-        const h = stateHint(e.control, st);
+        const h = modes[i] ? INFRA_MODE_HINTS[st] : stateHint(e.control, st);
         if (h) hints[st] = h;
       }
       return {
@@ -396,9 +421,18 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
         lockedReason: locked,
         states: e.states,
         defaultState: e.defaultState,
-        state: live[i].state,
+        state: modes[i] ?? live[i].state,
         stateKnown: live[i].known,
-        stateNote: live[i].note,
+        stateNote:
+          modes[i] && live[i].state
+            ? live[i].state === 'on'
+              ? 'Сейчас включено.'
+              : 'Сейчас выключено.'
+            : live[i].note,
+        liveState:
+          modes[i] && (live[i].state === 'on' || live[i].state === 'off')
+            ? live[i].state
+            : null,
         stateHints: hints,
         ceilingLabel: e.ceiling?.label ?? null,
         ceilingKey: e.ceiling?.key ?? null,
@@ -465,6 +499,22 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
   ): Promise<{ id: string; state: CostState }> {
     const e = COST_REGISTRY.find((x) => x.id === id);
     if (!e) throw new RegistryModeError('unknown_item', `Unknown item ${id}`);
+    // Owner 2026-11-11: a cloud item the automation switches keeps the
+    // position picked here (infra-modes.ts); the plan for Выкл / Вкл is
+    // still a change request (POST /admin/infra/requests, 2FA confirm).
+    const modeKey = INFRA_MODE_KEYS[id];
+    if (modeKey) {
+      if (!e.states.includes(state)) {
+        throw new RegistryModeError(
+          'bad_state',
+          `State ${state} is not available for this item.`,
+        );
+      }
+      await this.writer.write(adminId, 'ops.cost_registry_mode', {
+        [modeKey]: state,
+      });
+      return { id, state };
+    }
     if (!EDITABLE.includes(e.control.type)) {
       throw new RegistryModeError(
         'not_editable',

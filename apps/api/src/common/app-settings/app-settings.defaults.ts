@@ -1297,6 +1297,14 @@ export const OWNER_STORAGE_SETTINGS = {
   // db.shards_move_hours once the threshold is reached. Never removed by
   // itself (data lives there).
   'db.shards_mode': 'auto',
+  // Owner 2026-11-11 («Масштаб»: Выкл / Вкл / Авто on every cloud item the
+  // automation can switch; common/ops/infra-modes.ts). auto (default) = on
+  // when needed, off again when not; on = kept on; off = never by itself.
+  'infra.mode.rds_replicas': 'auto',
+  'infra.mode.pgbouncer': 'auto',
+  'infra.mode.opensearch': 'auto',
+  'infra.mode.events_stream': 'auto',
+  'infra.mode.partition_role': 'auto',
   /** "HH:MM-HH:MM" (America/Chicago, may cross midnight) when an automatic
    * split may start; empty = any time. */
   'db.shards_move_hours': '02:00-05:00',

@@ -38,7 +38,7 @@ import { usd } from '@/lib/economy';
 import { budgetPercent, budgetTone, parseLimit, type AwsBudget, type AwsBudgets, type CostRegistryReport } from '@/lib/launch';
 import { HeavyUsersCard } from './heavy-users-card';
 import { LIGHT_TONE } from '@/lib/system-health';
-import { InfraChip, InfraPlanSheet, InfraSuggestionCards, useInfra } from '@/components/infra-plan-sheet';
+import { InfraChip, InfraPlanSheet, InfraSuggestionCards, useInfra, useInfraModePick } from '@/components/infra-plan-sheet';
 import { StateControl } from '@/app/(app)/spend/registry';
 import { isActive, latestFor, requestDot } from '@/lib/infra';
 
@@ -91,6 +91,7 @@ export default function ScalePage() {
   const infra = useInfra();
   const [infraSheet, setInfraSheet] = useState<string | null>(null);
   const infraRows = (registry.data?.rows ?? []).filter((r) => r.infraSwitch);
+  const modePick = useInfraModePick(infra, setInfraSheet);
   const infraPick = (id: string, to: 'off' | 'on') => {
     if (isActive(latestFor(infra.data?.requests, id))) {
       setInfraSheet(id);
@@ -476,8 +477,18 @@ export default function ScalePage() {
                     ) : null}
                     <StateControl
                       row={row}
-                      busy={running || (infra.create.isPending && infra.create.variables?.itemId === row.id)}
-                      onPick={(st) => (st === 'auto' ? setInfraSheet(row.id) : infraPick(row.id, st))}
+                      busy={
+                        running ||
+                        modePick.pending === row.id ||
+                        (infra.create.isPending && infra.create.variables?.itemId === row.id)
+                      }
+                      onPick={(st) =>
+                        row.liveState != null
+                          ? modePick.pick(row, st)
+                          : st === 'auto'
+                            ? setInfraSheet(row.id)
+                            : infraPick(row.id, st)
+                      }
                     />
                   </div>
                 );
