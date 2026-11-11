@@ -2155,6 +2155,36 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     providers: ['anthropic'],
   },
   {
+    id: 'vendor.anthropic_ai_assistant',
+    name: 'ИИ-помощник разработки (Claude Code в GitHub)',
+    purpose:
+      'Задачи из «Задача для ИИ» и проверка ошибок раз в 2 часа: помощник чинит ошибки, пишет тесты и открывает PR. Сам ничего не вливает и не выкатывает; деньги, ключи, облако и магазины ему запрещены.',
+    kind: 'vendor',
+    control: {
+      type: 'app-setting',
+      key: 'ai.assistant_mode',
+      map: { off: 'off', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
+    ceiling: setCeil(
+      'ai.monthly_max_usd',
+      'Потолок расходов ИИ-помощника в месяц, $ (новый запуск не начнётся, когда он набран)',
+    ),
+    price: price(
+      'unit',
+      'Оплата токенов Claude API по прайсу Anthropic; сколько стоил каждый запуск, видно на странице «Задача для ИИ»',
+      U.claude,
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(5, 30),
+    needed: 'later',
+    neededNote:
+      'Авто: работает само, как только есть GitHub-приложение и ключ ANTHROPIC_API_KEY в GitHub; на потолке месяца встаёт само и продолжает со следующего месяца.',
+    alarm: 'потолок расходов ИИ-помощника (ai.monthly_max_usd)',
+  },
+  {
     id: 'vendor.persona',
     name: 'Проверка личности юриста (Persona)',
     purpose: 'Подтверждает документ и лицо юриста. Платите за каждую проверку.',

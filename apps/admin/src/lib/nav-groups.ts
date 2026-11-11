@@ -78,6 +78,7 @@ export const NAV_GROUP_PAGES: Readonly<Record<NavGroupKey, readonly string[]>> =
     '/system-health',
     '/scale',
     '/status-page',
+    '/ai-assistant',
     '/crashes',
     '/config',
     '/deal-record',

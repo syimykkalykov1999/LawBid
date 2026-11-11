@@ -70,6 +70,7 @@ jobs:
           bash scripts/deploy/web-font-base.test.sh
           bash scripts/ci/require-ecr.test.sh
           bash scripts/ci/check-dart-defines.test.sh
+          bash scripts/ai-assistant/path-guard.test.sh
           bash scripts/ci/select-xcode.test.sh
           bash scripts/ci/mobile-web-parity.test.sh
           bash scripts/deploy/web-size-budget.test.sh
