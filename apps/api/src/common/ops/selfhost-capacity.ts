@@ -14,19 +14,16 @@ import type Redis from 'ioredis';
  * Every reading that fails is null (never a guessed number).
  */
 export interface SqlReader {
-  $queryRawUnsafe<T>(sql: string): Promise<T>;
+  $queryRaw<T>(sql: TemplateStringsArray, ...values: unknown[]): Promise<T>;
 }
 
 export async function selfHostDbConnections(
   db: SqlReader,
 ): Promise<{ connections: number | null; max: number | null }> {
   try {
-    const [row] = await db.$queryRawUnsafe<
-      { connections: number; max: number }[]
-    >(
-      `SELECT (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database())::int AS connections,
-              current_setting('max_connections')::int AS max`,
-    );
+    const [row] = await db.$queryRaw<{ connections: number; max: number }[]>`
+      SELECT (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database())::int AS connections,
+             current_setting('max_connections')::int AS max`;
     return {
       connections: Number.isFinite(row?.connections) ? row.connections : null,
       max: Number.isFinite(row?.max) && row.max > 0 ? row.max : null,

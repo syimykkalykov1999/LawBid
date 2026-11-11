@@ -8,9 +8,7 @@ import {
 describe('self-host load readers («Масштаб» без AWS)', () => {
   it('database: connections of this database and max_connections', async () => {
     const db = {
-      $queryRawUnsafe: jest
-        .fn()
-        .mockResolvedValue([{ connections: 37, max: 100 }]),
+      $queryRaw: jest.fn().mockResolvedValue([{ connections: 37, max: 100 }]),
     };
     expect(await selfHostDbConnections(db)).toEqual({
       connections: 37,
@@ -19,7 +17,7 @@ describe('self-host load readers («Масштаб» без AWS)', () => {
   });
 
   it('database: a failing read is null, never a guess', async () => {
-    const db = { $queryRawUnsafe: jest.fn().mockRejectedValue(new Error('x')) };
+    const db = { $queryRaw: jest.fn().mockRejectedValue(new Error('x')) };
     expect(await selfHostDbConnections(db)).toEqual({
       connections: null,
       max: null,
