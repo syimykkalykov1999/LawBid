@@ -3,6 +3,8 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+import { readsAreSplit } from '../../sharding/split-reads';
+import { shardContext } from '../../sharding/shard-context';
 import { Prisma, type Notification } from '@prisma/client';
 import {
   allWordsSql,
@@ -156,6 +158,9 @@ export class NotificationsApiService {
     if (!words.length) return [];
     const keys = await nameKeys(this.prisma, q);
     const text = Prisma.sql`concat_ws(' ', n.payload->>'title', n.payload->>'body', n.payload->>'reason', n.payload->>'note')`;
+    if (readsAreSplit(this.prisma)) {
+      return this.matchingIdsSplit(userId, words, keys, text);
+    }
     // Owner 2026-10-28: an actor's typo-only name match only when no row
     // matched strongly (nameStrictSql).
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
@@ -179,6 +184,65 @@ export class NotificationsApiService {
       WHERE strong OR NOT any_strong
       LIMIT 2000`;
     return rows.map((r) => r.id);
+  }
+
+  /** Two databases (SHARDING_READY step 8): the same rules — the user's
+   * notifications in their database, the actor attorneys' names (users are
+   * global) on the primary. */
+  private async matchingIdsSplit(
+    userId: string,
+    words: string[],
+    keys: Awaited<ReturnType<typeof nameKeys>>,
+    text: Prisma.Sql,
+  ): Promise<string[]> {
+    const rows = await shardContext.runForUser(
+      userId,
+      () => this.prisma.$queryRaw<
+        { id: string; by_text: boolean; actor: string | null }[]
+      >`
+        SELECT n.id::TEXT AS id,
+               COALESCE(${allWordsSql(text, words)}, FALSE) AS by_text,
+               CASE WHEN lower(n.payload->>'actorId') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                    THEN lower(n.payload->>'actorId') END AS actor
+        FROM notifications n
+        WHERE n.user_id = ${userId}::UUID
+          AND (${allWordsSql(text, words)} OR n.payload ? 'actorId')`,
+    );
+    if (rows.length === 0) return [];
+    const actors = [
+      ...new Set(rows.flatMap((r) => (r.actor ? [r.actor] : []))),
+    ];
+    const names = new Map(
+      actors.length === 0
+        ? []
+        : (
+            await shardContext.runOnPrimary(
+              () => this.prisma.$queryRaw<
+                { id: string; strict: boolean; loose: boolean }[]
+              >`
+                SELECT a.id::TEXT AS id,
+                       COALESCE(${nameStrictSql(keys, 'a')}, FALSE) AS strict,
+                       COALESCE(${nameMatchSql(keys, 'a')}, FALSE) AS loose
+                FROM users a
+                WHERE a.id = ANY(${actors}::UUID[]) AND a.role::TEXT = 'attorney'`,
+            )
+          ).map((a) => [a.id, a] as const),
+    );
+    const marked = rows
+      .map((r) => {
+        const a = r.actor ? names.get(r.actor) : undefined;
+        return {
+          id: r.id,
+          strong: r.by_text || !!a?.strict,
+          match: r.by_text || !!a?.loose,
+        };
+      })
+      .filter((m) => m.match || m.strong);
+    const anyStrong = marked.some((m) => m.strong);
+    return marked
+      .filter((m) => m.strong || !anyStrong)
+      .slice(0, 2000)
+      .map((m) => m.id);
   }
 
   async read(
