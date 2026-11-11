@@ -27,6 +27,13 @@ RUN wget -q -O /etc/ssl/rds-global-bundle.pem https://truststore.pki.rds.amazona
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh
 
+# 10.11 (prod): on Fargate the task's empty /tmp volume is root-owned 0755,
+# so the entrypoint's `mkdir /tmp/pgb` failed and every task exited 1. ECS
+# copies a path named in VOLUME (same as the task's containerPath) with its
+# owner into that volume (AWS docs, "Use bind mounts with Amazon ECS").
+RUN chown postgres:postgres /tmp && chmod 0700 /tmp
+VOLUME ["/tmp"]
+
 # Alpine's pgbouncer package runs as the unprivileged `postgres` user.
 USER postgres
 EXPOSE 5432

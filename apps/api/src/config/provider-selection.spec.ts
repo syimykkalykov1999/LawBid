@@ -166,4 +166,42 @@ describe('resolveEmailProvider', () => {
       resolveEmailProvider(email({ EMAIL_PROVIDER: 'ses' })),
     ).toMatchObject({ provider: 'ses', fatal: true });
   });
+
+  describe('owner 2026-11-10: own SMTP server', () => {
+    it('smtp is chosen only by name and needs the relay and the sender', () => {
+      expect(
+        resolveEmailProvider(
+          email({
+            NODE_ENV: 'production',
+            EMAIL_PROVIDER: 'smtp',
+            SMTP_HOST: 'mail',
+            SMTP_FROM_ADDRESS: 'no-reply@lawbid.dev',
+          }),
+        ),
+      ).toEqual({ provider: 'smtp', missing: [], fatal: false });
+      expect(
+        resolveEmailProvider(
+          email({
+            NODE_ENV: 'production',
+            EMAIL_PROVIDER: 'smtp',
+            SMTP_HOST: 'mail',
+          }),
+        ),
+      ).toEqual({
+        provider: 'smtp',
+        missing: ['SMTP_FROM_ADDRESS'],
+        fatal: true,
+      });
+      // auto still means SES, as before.
+      expect(
+        resolveEmailProvider(
+          email({
+            EMAIL_PROVIDER: 'auto',
+            SMTP_HOST: 'mail',
+            SMTP_FROM_ADDRESS: 'no-reply@lawbid.dev',
+          }),
+        ).provider,
+      ).toBe('mock');
+    });
+  });
 });
