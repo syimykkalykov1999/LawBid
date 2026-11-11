@@ -115,6 +115,8 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
     ref
       ..invalidate(caseWorkspaceProvider(widget.caseId))
       ..invalidate(caseFilesProvider(widget.caseId))
+      ..invalidate(caseFilesPagedProvider)
+      ..invalidate(caseFilesHaveSamplesProvider)
       ..invalidate(caseTasksProvider(widget.caseId))
       ..invalidate(caseUpdatesProvider(widget.caseId))
       ..invalidate(caseActivityProvider(widget.caseId));
@@ -451,9 +453,29 @@ class _FilesTabState extends ConsumerState<FilesTab> {
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final value = ref.watch(caseFilesProvider(widget.caseId));
+    final view = (caseId: widget.caseId, media: widget.photos, filter: _filter);
+    final value = ref.watch(caseFilesPagedProvider(view));
+    final hasSamples = _filter == 3 ||
+        (ref
+                .watch(
+                  caseFilesHaveSamplesProvider(
+                    (caseId: widget.caseId, media: widget.photos),
+                  ),
+                )
+                .value ??
+            false);
     Widget box(Widget child) =>
         widget.asSliver ? SliverToBoxAdapter(child: child) : child;
+    final filters = FilterRow(
+      labels: [
+        t.t('cases.files.all'),
+        t.t('cases.files.fromTasks'),
+        t.t('cases.files.fromUpdates'),
+        if (hasSamples) t.t('cases.files.samples'),
+      ],
+      index: _filter,
+      onChanged: (i) => setState(() => _filter = i),
+    );
     return value.when(
       loading: () => box(
         const Padding(
@@ -466,34 +488,39 @@ class _FilesTabState extends ConsumerState<FilesTab> {
           error: e,
           t: t,
           busy: value.isLoading,
-          onRetry: () => ref.invalidate(caseFilesProvider(widget.caseId)),
+          onRetry: () => ref.invalidate(caseFilesPagedProvider(view)),
         ),
       ),
-      data: (every) {
-        bool media(api.WorkspaceFileDto f) =>
-            f.mime.startsWith('image/') || f.mime.startsWith('video/');
-        final all = every.where((f) => media(f) == widget.photos).toList();
-        final shown = switch (_filter) {
-          1 => all
-              .where((f) => f.source == api.WorkspaceFileDtoSource.task)
-              .toList(),
-          2 => all
-              .where((f) => f.source == api.WorkspaceFileDtoSource.update)
-              .toList(),
-          3 => all.where((f) => f.sample).toList(),
-          _ => all,
-        };
-        final rows = [
-          FilterRow(
-            labels: [
-              t.t('cases.files.all'),
-              t.t('cases.files.fromTasks'),
-              t.t('cases.files.fromUpdates'),
-              if (all.any((f) => f.sample)) t.t('cases.files.samples'),
-            ],
-            index: _filter,
-            onChanged: (i) => setState(() => _filter = i),
-          ),
+      data: (list) {
+        final shown = list.items;
+        final notifier = ref.read(caseFilesPagedProvider(view).notifier);
+        final gallery = [
+          for (final g in shown)
+            if (g.mime.startsWith('image/')) g.url,
+        ];
+        final status = list.loadMoreError != null
+            ? AppPaginationStatus.error
+            : list.isLoadingMore
+                ? AppPaginationStatus.loading
+                : AppPaginationStatus.idle;
+        // Owner 2026-11-10 (Instagram / Telegram): the next page is asked for
+        // ten rows before the end, so scrolling never waits for it.
+        Widget row(int i) {
+          if (i >= shown.length - 10 && list.canLoadMore) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) notifier.loadMore();
+            });
+          }
+          return _FileRow(
+            file: shown[i],
+            t: t,
+            formats: formats,
+            gallery: gallery,
+          );
+        }
+
+        final head = [
+          filters,
           if (shown.isEmpty)
             Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
@@ -502,23 +529,36 @@ class _FilesTabState extends ConsumerState<FilesTab> {
                 style: TextStyle(color: colors.textSecondary),
               ),
             ),
-          for (final f in shown)
-            _FileRow(
-              file: f,
-              t: t,
-              formats: formats,
-              // Owner 2026-11-05: a thumbnail opens the viewer, with a swipe
-              // through every photo on the list.
-              gallery: [
-                for (final g in shown)
-                  if (g.mime.startsWith('image/')) g.url,
-              ],
-            ),
         ];
-        if (widget.asSliver) return SliverList.list(children: rows);
+        final footer = AppPaginationFooter(
+          status: status,
+          labels: AppPaginationLabels(
+            loadingMore: t.t('pagination.loadingMore'),
+            error: t.t('pagination.error'),
+            retry: t.t('error.retry'),
+            end: t.t('pagination.end'),
+          ),
+          onRetry: notifier.retryLoadMore,
+        );
+        if (widget.asSliver) {
+          return SliverMainAxisGroup(
+            slivers: [
+              SliverList.list(children: head),
+              SliverList.builder(
+                itemCount: shown.length,
+                itemBuilder: (context, i) => row(i),
+              ),
+              SliverToBoxAdapter(child: footer),
+            ],
+          );
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: rows,
+          children: [
+            ...head,
+            for (var i = 0; i < shown.length; i++) row(i),
+            footer,
+          ],
         );
       },
     );

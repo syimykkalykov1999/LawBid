@@ -14,6 +14,7 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 import '../../helpers/ux_harness.dart';
+import 'support/fake_case_files_remote.dart';
 
 /// App audit 2026-10-26 A16: the case tabs built every row of a long list at
 /// once (hundreds of files / history entries on a busy case). A tab's list
@@ -78,6 +79,8 @@ void main() {
         overrides: uxOverrides(
           extra: [
             caseFilesProvider('k').overrideWith((ref) async => files),
+            caseFilesRemoteProvider
+                .overrideWithValue(FakeCaseFilesRemote(files)),
             fileViewsRemoteProvider.overrideWithValue(_NoViews()),
             fileViewsStoreProvider.overrideWithValue(FileViewsStore(db, 'me')),
             realtimeEventsProvider

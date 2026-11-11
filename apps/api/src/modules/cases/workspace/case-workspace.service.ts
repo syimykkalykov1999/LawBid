@@ -8,6 +8,11 @@ import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
+import {
+  type CreatedAtCursor,
+  decodeCursor,
+  encodeCursor,
+} from '../../../common/pagination/cursor.util';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { FilesService } from '../../files/files.service';
 import { NotificationsService } from '../../notifications/notifications.service';
@@ -27,6 +32,7 @@ import type {
   CreateCaseUpdateDto,
   TaskSubmissionDto,
   WorkspaceFileDto,
+  CaseFilesQueryDto,
 } from './dto/workspace.dto';
 
 export type Role = 'client' | 'attorney';
@@ -44,6 +50,18 @@ interface Side {
  * activity request reads per source (newest kept), so a long case never
  * loads its whole history on every open. */
 export const WORKSPACE_LIST_MAX = 200;
+
+/** A case file that the media tab shows (photos and videos). */
+const MEDIA_FILE = {
+  OR: [{ mime: { startsWith: 'image/' } }, { mime: { startsWith: 'video/' } }],
+} satisfies Prisma.FileWhereInput;
+
+/** A page item without the row id [filePage] carries for the cursor. */
+function withoutRow(f: WorkspaceFileDto & { rowId: string }): WorkspaceFileDto {
+  const out: WorkspaceFileDto & { rowId?: string } = { ...f };
+  delete out.rowId;
+  return out;
+}
 
 const WORKING_STATUSES = new Set([
   'in_progress',
@@ -169,6 +187,56 @@ export class CaseWorkspaceService {
     return files;
   }
 
+  /** Owner 2026-11-10 (load in parts, like Telegram's shared media): one
+   * page of [listFiles] — oldest first, as the list always was — with the
+   * tab filters done by the database, so a case with thousands of files
+   * opens as fast as one with three. The attorney's brief comes last, on
+   * the last page, where the full list had it. */
+  async listFilesPage(
+    user: RequestUser,
+    caseId: string,
+    q: CaseFilesQueryDto & { limit: number },
+  ): Promise<{ items: WorkspaceFileDto[]; nextCursor: string | null }> {
+    const s = await this.side(user, caseId);
+    const where: Prisma.CasePhotoWhereInput = {
+      ...(q.source ? { source: q.source } : {}),
+      ...(q.sample ? { is_sample: true } : {}),
+      ...(q.kind
+        ? { file: q.kind === 'media' ? MEDIA_FILE : { NOT: MEDIA_FILE } }
+        : {}),
+    };
+    const after = q.cursor ? decodeCursor(q.cursor) : null;
+    const page = await this.filePage(caseId, s, where, {
+      take: q.limit + 1,
+      after,
+    });
+    const more = page.rows.length > q.limit;
+    const rows = more ? page.rows.slice(0, q.limit) : page.rows;
+    const ids = new Set(rows.map((r) => r.id));
+    const files = await this.withViewCounts(
+      user.sub,
+      page.files.filter((f) => ids.has(f.rowId)).map(withoutRow),
+    );
+    const last = rows[rows.length - 1];
+    if (
+      !more &&
+      s.role === 'attorney' &&
+      !q.source &&
+      !q.sample &&
+      q.kind !== 'media'
+    ) {
+      const brief = await this.briefFile(caseId);
+      if (brief) files.push(brief);
+    }
+    return {
+      items: files,
+      nextCursor:
+        more && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
   /** Sweep A-c1 (owner A-044): the attorney-only case brief, last in the
    * attorney's Files; never in the client's list. A failure to make it
    * never breaks the tab (the next open tries again). */
@@ -236,11 +304,40 @@ export class CaseWorkspaceService {
     s: { clientId: string },
     where: Prisma.CasePhotoWhereInput = {},
   ): Promise<WorkspaceFileDto[]> {
+    return (await this.filePage(caseId, s, where)).files.map(withoutRow);
+  }
+
+  /** [filesOf] with the page bounds of [listFilesPage]: `take` rows after
+   * `after` in (created_at, id) order; the rows come back too, for the
+   * next cursor (a file whose link is gone has no item but still moves
+   * the cursor). */
+  private async filePage(
+    caseId: string,
+    s: { clientId: string },
+    where: Prisma.CasePhotoWhereInput = {},
+    page: { take?: number; after?: CreatedAtCursor | null } = {},
+  ): Promise<{
+    rows: { id: string; created_at: Date }[];
+    files: (WorkspaceFileDto & { rowId: string })[];
+  }> {
+    const after = page.after;
     const rows = await this.prisma.casePhoto.findMany({
-      where: { case_id: caseId, ...where },
-      orderBy: { created_at: 'asc' },
+      where: {
+        case_id: caseId,
+        ...where,
+        ...(after
+          ? {
+              OR: [
+                { created_at: { gt: after.createdAt } },
+                { created_at: after.createdAt, id: { gt: after.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      ...(page.take ? { take: page.take } : {}),
     });
-    if (rows.length === 0) return [];
+    if (rows.length === 0) return { rows, files: [] };
     const urls = new Map(
       (await this.files.casePhotoUrls(rows.map((r) => r.file_id))).map((u) => [
         u.fileId,
@@ -257,11 +354,12 @@ export class CaseWorkspaceService {
         })
       : [];
     const titles = new Map(tasks.map((t) => [t.id, t.title]));
-    const out: WorkspaceFileDto[] = [];
+    const out: (WorkspaceFileDto & { rowId: string })[] = [];
     for (const r of rows) {
       const u = urls.get(r.file_id);
       if (!u) continue;
       out.push({
+        rowId: r.id,
         fileId: r.file_id,
         url: u.url,
         previewUrl: u.previewUrl,
@@ -277,7 +375,7 @@ export class CaseWorkspaceService {
         addedAt: r.created_at.toISOString(),
       });
     }
-    return out;
+    return { rows, files: out };
   }
 
   /** Validates [items] (the sender's clean case files, ≤20, the admin's

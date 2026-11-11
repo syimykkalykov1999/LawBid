@@ -1,4 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -15,6 +23,7 @@ import { CaseWorkspaceService } from './case-workspace.service';
 import {
   BoardCaseTaskDto,
   CaseActivityDto,
+  CaseFilesQueryDto,
   CaseTaskIdParamDto,
   CaseTasksDto,
   CaseUpdateDto,
@@ -56,11 +65,21 @@ export class CaseWorkspaceController {
 
   @AssistantAllowed()
   @Get('cases/:id/files')
-  @ApiOperation({ summary: 'Case files with notes and where they came from' })
+  @ApiOperation({
+    summary: 'Case files with notes and where they came from',
+    description:
+      'With `limit`: one page, oldest first, meta.nextCursor for the next one; filters `kind`, `source`, `sample`. Without it: every file (apps released before 2026-11-10).',
+  })
   @ApiEnvelopeResponse(WorkspaceFileDto, { isArray: true })
   @ApiErrors(ERR)
-  listCaseFiles(@CurrentUser() u: RequestUser, @Param() p: CaseIdParamDto) {
-    return this.ws.listFiles(u, p.id);
+  listCaseFiles(
+    @CurrentUser() u: RequestUser,
+    @Param() p: CaseIdParamDto,
+    @Query() q: CaseFilesQueryDto,
+  ) {
+    return q.limit
+      ? this.ws.listFilesPage(u, p.id, { ...q, limit: q.limit })
+      : this.ws.listFiles(u, p.id);
   }
 
   @AssistantAllowed()
