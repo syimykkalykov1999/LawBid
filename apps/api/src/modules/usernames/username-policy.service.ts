@@ -3,7 +3,9 @@ import {
   ConflictException,
   Injectable,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { readsAreSplit } from '../../sharding/split-reads';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -19,6 +21,11 @@ import {
 } from './username-rules';
 
 type Db = PrismaService | Prisma.TransactionClient;
+type UsernameRow = {
+  username_lower: string;
+  owner_type: string;
+  owner_id: string;
+};
 
 export type UsernameReason =
   'invalid' | 'reserved' | 'taken' | 'held' | 'similar';
@@ -175,9 +182,17 @@ export class UsernamePolicyService {
     asker: UsernameAsker = {},
   ): Promise<Set<string>> {
     if (lowers.length === 0) return new Set();
-    const rows = await db.username.findMany({
-      where: { username_lower: { in: [...lowers] } },
-    });
+    const rows = this.split()
+      ? await this.everyRegistry<UsernameRow>(
+          (
+            ids,
+          ) => Prisma.sql`SELECT username_lower, owner_type, owner_id::TEXT AS owner_id
+            FROM usernames WHERE username_lower = ANY(${ids}::TEXT[])`,
+          [...lowers],
+        )
+      : await db.username.findMany({
+          where: { username_lower: { in: [...lowers] } },
+        });
     return new Set(
       rows.filter((r) => !isOwn(r, asker)).map((r) => r.username_lower),
     );
@@ -192,12 +207,24 @@ export class UsernamePolicyService {
     if (lowers.length === 0) return new Set();
     const days = await this.settings.number('profile.username_hold_days');
     const since = new Date(Date.now() - days * 86_400_000);
-    const rows = await db.usernameHold.findMany({
-      where: {
-        username_lower: { in: [...lowers] },
-        released_at: { gt: since },
-      },
-    });
+    const rows = this.split()
+      ? await this.everyRegistry<{
+          username_lower: string;
+          holder_user_id: string;
+        }>(
+          (
+            ids,
+          ) => Prisma.sql`SELECT username_lower, holder_user_id::TEXT AS holder_user_id
+            FROM username_holds
+            WHERE username_lower = ANY(${ids}::TEXT[]) AND released_at > ${since}`,
+          [...lowers],
+        )
+      : await db.usernameHold.findMany({
+          where: {
+            username_lower: { in: [...lowers] },
+            released_at: { gt: since },
+          },
+        });
     return new Set(
       rows
         .filter((r) => r.holder_user_id !== userId)
@@ -212,15 +239,32 @@ export class UsernamePolicyService {
     lower: string,
     asker: UsernameAsker,
   ): Promise<boolean> {
-    const sameLook = await db.username.findMany({
-      where: { skeleton: skeleton(lower), username_lower: { not: lower } },
-      take: 20,
-    });
+    const sameLook = this.split()
+      ? await this.everyRegistry<UsernameRow>(
+          (
+            sk,
+          ) => Prisma.sql`SELECT username_lower, owner_type, owner_id::TEXT AS owner_id
+            FROM usernames WHERE skeleton = ${sk[0]} AND username_lower <> ${lower}
+            LIMIT 20`,
+          [skeleton(lower)],
+        )
+      : await db.username.findMany({
+          where: { skeleton: skeleton(lower), username_lower: { not: lower } },
+          take: 20,
+        });
     if (sameLook.some((r) => !isOwn(r, asker))) return true;
-    const near = await db.username.findMany({
-      where: { username_lower: { in: editDistanceOne(lower) } },
-      take: 200,
-    });
+    const near = this.split()
+      ? await this.everyRegistry<UsernameRow>(
+          (
+            ids,
+          ) => Prisma.sql`SELECT username_lower, owner_type, owner_id::TEXT AS owner_id
+            FROM usernames WHERE username_lower = ANY(${ids}::TEXT[]) LIMIT 200`,
+          editDistanceOne(lower),
+        )
+      : await db.username.findMany({
+          where: { username_lower: { in: editDistanceOne(lower) } },
+          take: 200,
+        });
     const others = near.filter((r) => !isOwn(r, asker));
     if (others.length === 0) return false;
     const min = await this.settings.number(
@@ -228,6 +272,25 @@ export class UsernamePolicyService {
     );
     const audience = await this.audiences(db, others);
     return audience.some((n) => n >= min);
+  }
+
+  /** Two databases (SHARDING_READY step 8): the registry rows of channels
+   * and groups are written by the trigger in the database of their owner
+   * (content family), the people's on the primary — read every database. */
+  private split(): boolean {
+    return readsAreSplit(this.prisma);
+  }
+
+  private async everyRegistry<T>(
+    sql: (args: string[]) => Prisma.Sql,
+    args: string[],
+  ): Promise<T[]> {
+    if (args.length === 0) return [];
+    return (
+      await forEachDatabase(this.prisma, () =>
+        this.prisma.$queryRaw<T[]>(sql(args)),
+      )
+    ).flat();
   }
 
   private async audiences(
