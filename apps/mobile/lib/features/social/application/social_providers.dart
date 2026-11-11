@@ -322,10 +322,13 @@ final attorneyPostsProvider = AsyncNotifierProvider.autoDispose
 class ArchivedPostsNotifier extends PagedNotifier<Post> {
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<Post>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null));
+  Future<CursorPage<Post>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null));
+  }
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) =>
@@ -410,10 +413,13 @@ class UserRepostsNotifier extends PagedNotifier<Post> {
 
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<Post>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null));
+  Future<CursorPage<Post>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null));
+  }
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) =>
@@ -437,10 +443,13 @@ class PostLikersNotifier extends PagedNotifier<PersonRow> {
 
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<PersonRow>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null));
+  Future<CursorPage<PersonRow>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null));
+  }
 
   @override
   Future<CursorPage<PersonRow>> fetch(String? cursor) =>
@@ -464,10 +473,13 @@ class PostRepostersNotifier extends PagedNotifier<PersonRow> {
 
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<PersonRow>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null));
+  Future<CursorPage<PersonRow>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null));
+  }
 
   @override
   Future<CursorPage<PersonRow>> fetch(String? cursor) =>
@@ -493,10 +505,13 @@ class TagPostsNotifier extends PagedNotifier<Post> {
 
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<Post>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null));
+  Future<CursorPage<Post>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null));
+  }
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) => ref
@@ -523,10 +538,13 @@ class LatestPostsNotifier extends PagedNotifier<Post> {
   /// Owner 2026-10-06: one state or several, comma-separated ("IL,NY").
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<Post>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null));
+  Future<CursorPage<Post>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null));
+  }
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) =>
@@ -579,10 +597,13 @@ class FilteredPostsNotifier extends PagedNotifier<Post> {
 
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<Post>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null));
+  Future<CursorPage<Post>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null));
+  }
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) {
@@ -630,10 +651,13 @@ class ExplorePostsNotifier extends PagedNotifier<Post> {
 
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<Post>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null));
+  Future<CursorPage<Post>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null));
+  }
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) {
@@ -676,10 +700,13 @@ class SavedPostsNotifier extends PagedNotifier<SavedPost> {
 
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<SavedPost>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null));
+  Future<CursorPage<SavedPost>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null));
+  }
 
   @override
   Future<CursorPage<SavedPost>> fetch(String? cursor) =>
@@ -782,10 +809,13 @@ class CommentsNotifier extends PagedNotifier<Comment> with CommentRows {
 
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<Comment>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null), when: !ref.read(isGuestProvider));
+  Future<CursorPage<Comment>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null), when: !ref.read(isGuestProvider));
+  }
 
   @override
   Future<CursorPage<Comment>> fetch(String? cursor) {
@@ -839,10 +869,13 @@ class RepliesNotifier extends PagedNotifier<Comment> with CommentRows {
 
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<Comment>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null));
+  Future<CursorPage<Comment>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null));
+  }
 
   @override
   Future<CursorPage<Comment>> fetch(String? cursor) =>
@@ -898,10 +931,13 @@ class FollowListNotifier extends PagedNotifier<PersonRow> {
 
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
   // page this phone showed last time; the live page swaps in behind it
-  // (PagedNotifier.phoneCopy, no extra request).
+  // (PagedNotifier.phoneCopy, no extra request). The repository is built
+  // before the phone-only read, never inside it.
   @override
-  Future<CursorPage<PersonRow>?> cachedFirstPage() =>
-      phoneCopy(() => fetch(null), when: key.q.isEmpty);
+  Future<CursorPage<PersonRow>?> cachedFirstPage() {
+    ref.read(socialRepositoryProvider);
+    return phoneCopy(() => fetch(null), when: key.q.isEmpty);
+  }
 
   @override
   Future<CursorPage<PersonRow>> fetch(String? cursor) async {
