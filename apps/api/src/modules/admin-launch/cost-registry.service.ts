@@ -285,14 +285,17 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
         return null;
       }
     };
-    const [hb, paused, econ, cost, cap, usageRaw] = await Promise.all([
-      safe(() => this.ops.workerHeartbeat()),
-      safe(() => this.ops.isHeavyPaused()),
-      safe(() => this.ops.isEconomyLimited()),
-      safe(() => this.ops.cost()),
-      safe(() => this.ops.capacity()),
-      safe(() => this.redis.get(USAGE_SNAPSHOT_REDIS_KEY)),
-    ]);
+    const [hb, paused, econ, cost, cap, usageRaw, cpuLimitRaw] =
+      await Promise.all([
+        safe(() => this.ops.workerHeartbeat()),
+        safe(() => this.ops.isHeavyPaused()),
+        safe(() => this.ops.isEconomyLimited()),
+        safe(() => this.ops.cost()),
+        safe(() => this.ops.capacity()),
+        safe(() => this.redis.get(USAGE_SNAPSHOT_REDIS_KEY)),
+        safe(() => this.settings.number('economy.db_cpu_limit_percent')),
+      ]);
+    const cpuLimit = cpuLimitRaw ?? undefined;
     let usage: UsageSnap | null = null;
     try {
       usage = usageRaw ? (JSON.parse(usageRaw) as UsageSnap) : null;
@@ -312,12 +315,15 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
       budgetRatio:
         cost && cost.limitUsd > 0 ? cost.actualUsd / cost.limitUsd : null,
       pressures: cap
-        ? pressures({
-            dbCpuPercent: cap.dbCpuPercent,
-            dbConnections: cap.dbConnections,
-            dbMaxConnections: cap.dbMaxConnections,
-            redisMemoryPercent: cap.redisMemoryPercent,
-          }).map((p) => p.kind)
+        ? pressures(
+            {
+              dbCpuPercent: cap.dbCpuPercent,
+              dbConnections: cap.dbConnections,
+              dbMaxConnections: cap.dbMaxConnections,
+              redisMemoryPercent: cap.redisMemoryPercent,
+            },
+            cpuLimit,
+          ).map((p) => p.kind)
         : [],
       bunny: lvl(usage?.bunny?.bandwidthLevel, usage?.bunny?.storageLevel),
       cloudflare: lvl(usage?.cloudflare?.level),

@@ -121,6 +121,39 @@ describe('autoWants', () => {
     ).toEqual([]);
   });
 
+  it('the search line comes from infra.search_engine_on_people (lowered for a check, then back)', () => {
+    const ids = (w: AutoWant[]) => w.map((x) => `${x.id}:${x.to}`);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, people: 10, searchOnPeople: 10 },
+          offAll,
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.opensearch:on']);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, people: 9, searchOnPeople: 10 },
+          offAll,
+          new Set(),
+        ),
+      ),
+    ).toEqual([]);
+    // the one switched on by itself goes off below 80 % of the line
+    const onAll = () => 'on' as const;
+    const mine = new Set(['aws.opensearch']);
+    expect(
+      ids(autoWants({ ...calm, people: 7, searchOnPeople: 10 }, onAll, mine)),
+    ).toContain('aws.opensearch:off');
+    expect(
+      ids(
+        autoWants({ ...calm, people: 8, searchOnPeople: 10 }, onAll, mine),
+      ).filter((x) => x.startsWith('aws.opensearch')),
+    ).toEqual([]);
+  });
+
   it('5M people switch the search engine on; it goes off again only below 4M (perf guard 2026-11-08)', () => {
     const ids = (w: AutoWant[]) => w.map((x) => `${x.id}:${x.to}`);
     expect(

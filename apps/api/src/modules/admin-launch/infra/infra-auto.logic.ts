@@ -42,6 +42,8 @@ export interface AutoSignals extends SuggestionSignals {
    * table scan; the search engine takes people search over before that.
    */
   people?: number;
+  /** `infra.search_engine_on_people` (default SEARCH_ENGINE_ON_PEOPLE). */
+  searchOnPeople?: number;
 }
 
 /** People at which the search engine (OpenSearch) is switched on, and the
@@ -49,6 +51,19 @@ export interface AutoSignals extends SuggestionSignals {
  * (hysteresis, so a count near the line never flaps). */
 export const SEARCH_ENGINE_ON_PEOPLE = 5_000_000;
 export const SEARCH_ENGINE_OFF_PEOPLE = 4_000_000;
+
+/** The on line from Admin → Настройки, and the off line at 80 % of it. */
+export function searchOnPeople(s: Pick<AutoSignals, 'searchOnPeople'>): number {
+  const v = s.searchOnPeople;
+  return v != null && Number.isFinite(v) && v > 0 ? v : SEARCH_ENGINE_ON_PEOPLE;
+}
+export function searchOffPeople(
+  s: Pick<AutoSignals, 'searchOnPeople'>,
+): number {
+  return Math.floor(
+    (searchOnPeople(s) * SEARCH_ENGINE_OFF_PEOPLE) / SEARCH_ENGINE_ON_PEOPLE,
+  );
+}
 
 /** Fewer direct connections per task than this = switch the pooler on. */
 export const POOL_FLOOR = 8;
@@ -72,7 +87,7 @@ const KEEP_ON: Readonly<Record<string, (s: AutoSignals) => boolean>> = {
   'aws.opensearch': (s) =>
     s.searchEngine === 'shadow' ||
     s.searchEngine === 'engine' ||
-    (s.people ?? 0) >= SEARCH_ENGINE_OFF_PEOPLE,
+    (s.people ?? 0) >= searchOffPeople(s),
   // G4: the stream goes when the event volume fell back under the ceiling
   // for the whole cool-down (events.sink auto turns back to the table).
   'aws.events_stream': (s) => s.eventsStreamWanted === true,
@@ -143,14 +158,14 @@ export function autoWants(
     });
   }
   if (
-    (s.people ?? 0) >= SEARCH_ENGINE_ON_PEOPLE &&
+    (s.people ?? 0) >= searchOnPeople(s) &&
     live('aws.opensearch') !== 'on' &&
     !out.some((x) => x.id === 'aws.opensearch')
   ) {
     out.push({
       id: 'aws.opensearch',
       to: 'on',
-      reason: `Людей больше ${SEARCH_ENGINE_ON_PEOPLE.toLocaleString('ru-RU')}: поиск людей по имени с опечаткой в базе начнёт читать всю таблицу, нужен поисковый движок.`,
+      reason: `Людей больше ${searchOnPeople(s).toLocaleString('ru-RU')}: поиск людей по имени с опечаткой в базе начнёт читать всю таблицу, нужен поисковый движок.`,
     });
   }
   if (s.partitionNeedsRunner && live('aws.partition_role') !== 'on') {

@@ -254,6 +254,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       cacheMode,
       replicaProvision,
       people,
+      searchOnPeople,
     ] = await Promise.all([
       this.registry.signals(now),
       this.registry.searchEngine(),
@@ -262,6 +263,9 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       this.settings.string('cache.redis_mode').catch(() => 'auto'),
       this.settings.string('db.replica_provision').catch(() => 'auto'),
       this.people().catch(() => undefined),
+      this.settings
+        .number('infra.search_engine_on_people')
+        .catch(() => undefined),
     ]);
     const pool = Number(this.config.get<string>('DB_POOL_SIZE') ?? '');
     const pooler = !!this.config.get<string>('DB_POOLER_HOST');
@@ -280,6 +284,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
         this.config.get<string>('OPS_DB_REPLICA_TOGGLE') === 'on' &&
         !!this.config.get<string>('OPS_DB_INSTANCE'),
       people,
+      searchOnPeople,
     };
   }
 
