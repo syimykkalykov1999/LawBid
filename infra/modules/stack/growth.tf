@@ -64,6 +64,7 @@ variable "growth" {
 
 locals {
   growth_source_db    = var.create_database ? module.postgres[0].instance_id : var.existing_database_identifier
+  growth_source_arn   = var.create_database ? module.postgres[0].arn : try(data.aws_db_instance.existing[0].db_instance_arn, "")
   growth_db_class     = var.create_database ? var.database_instance_class : try(data.aws_db_instance.existing[0].db_instance_class, var.database_instance_class)
   growth_subnet_group = var.create_database ? "${local.name}-postgres" : try(data.aws_db_instance.existing[0].db_subnet_group, "")
   # A same-region replica of an encrypted primary must use the primary's key.
@@ -89,6 +90,7 @@ module "growth" {
 
   rds_read_replicas             = var.growth.rds_read_replicas
   rds_source_identifier         = local.growth_source_db
+  rds_source_arn                = local.growth_source_arn
   rds_replica_instance_class    = var.growth.rds_replica_instance_class
   rds_primary_instance_class    = local.growth_db_class
   rds_replica_lag_alarm_seconds = var.growth.rds_replica_lag_alarm_s

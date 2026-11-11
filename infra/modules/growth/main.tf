@@ -57,6 +57,11 @@ variable "rds_source_identifier" {
   default     = ""
   description = "Identifier of the primary instance (created by the stack or existing_database_identifier)."
 }
+variable "rds_source_arn" {
+  type        = string
+  default     = ""
+  description = "ARN of the primary instance. AWS requires the ARN (not the identifier) as replicate_source_db once db_subnet_group_name is set (owner 2026-11-11: the first live auto test failed on exactly that). Empty = the identifier."
+}
 variable "rds_replica_instance_class" {
   type        = string
   default     = ""
@@ -163,7 +168,7 @@ resource "aws_iam_role_policy_attachment" "replica_monitoring" {
 resource "aws_db_instance" "replica" {
   count               = var.has_source_db ? var.rds_read_replicas : 0
   identifier          = "${var.name}-postgres-replica-${count.index + 1}"
-  replicate_source_db = var.rds_source_identifier
+  replicate_source_db = var.rds_source_arn != "" ? var.rds_source_arn : var.rds_source_identifier
   instance_class      = var.rds_replica_instance_class != "" ? var.rds_replica_instance_class : var.rds_primary_instance_class
 
   db_subnet_group_name   = var.rds_subnet_group_name != "" ? var.rds_subnet_group_name : null
