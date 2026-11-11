@@ -450,50 +450,56 @@ export class CaseLifecycleService {
     now: Date,
     timers: StaleTimers,
   ): Promise<string[]> {
-    return withTxRetry(this.prisma, async (tx) => {
-      const asked: string[] = [];
-      for (const caseId of caseIds) {
-        const row = await this.lockCase(tx, caseId);
-        if (
-          !row ||
-          row.client_id !== clientId ||
-          row.status !== 'open' ||
-          !shouldAsk(staleFacts(row), timers, now)
-        ) {
-          continue;
+    return shardContext.runForCase(caseIds[0] ?? '', () =>
+      withTxRetry(this.prisma, async (tx) => {
+        const asked: string[] = [];
+        for (const caseId of caseIds) {
+          const row = await this.lockCase(tx, caseId);
+          if (
+            !row ||
+            row.client_id !== clientId ||
+            row.status !== 'open' ||
+            !shouldAsk(staleFacts(row), timers, now)
+          ) {
+            continue;
+          }
+          const since = bidWindowStart(staleFacts(row), timers, now);
+          const bid = await tx.bid.findFirst({
+            where: { case_id: caseId, created_at: { gte: since } },
+            select: { id: true },
+          });
+          if (bid) continue;
+          const { plan } = await this.caseMachine.apply(tx, {
+            caseId,
+            action: 'system_stale_prompt',
+            now,
+          });
+          await this.journal.append(tx, {
+            caseId,
+            clientId,
+            actor: SYSTEM,
+            event: plan.event,
+            payload: { stalePrompt: true },
+          });
+          asked.push(caseId);
         }
-        const since = bidWindowStart(staleFacts(row), timers, now);
-        const bid = await tx.bid.findFirst({
-          where: { case_id: caseId, created_at: { gte: since } },
-          select: { id: true },
-        });
-        if (bid) continue;
-        const { plan } = await this.caseMachine.apply(tx, {
-          caseId,
-          action: 'system_stale_prompt',
-          now,
-        });
-        await this.journal.append(tx, {
-          caseId,
-          clientId,
-          actor: SYSTEM,
-          event: plan.event,
-          payload: { stalePrompt: true },
-        });
-        asked.push(caseId);
-      }
-      if (asked.length > 0) {
-        await this.notifications.emit(
-          {
-            type: 'case_still_needed',
-            recipientId: clientId,
-            payload: { caseId: asked[0], caseIds: asked, count: asked.length },
-          },
-          tx,
-        );
-      }
-      return asked;
-    });
+        if (asked.length > 0) {
+          await this.notifications.emit(
+            {
+              type: 'case_still_needed',
+              recipientId: clientId,
+              payload: {
+                caseId: asked[0],
+                caseIds: asked,
+                count: asked.length,
+              },
+            },
+            tx,
+          );
+        }
+        return asked;
+      }),
+    );
   }
 
   /** OQ-054: no answer in time — pause one case (silent: no push). Returns
@@ -503,29 +509,31 @@ export class CaseLifecycleService {
     now: Date,
     timers: StaleTimers,
   ): Promise<boolean> {
-    return withTxRetry(this.prisma, async (tx) => {
-      const row = await this.lockCase(tx, caseId);
-      if (
-        !row ||
-        row.status !== 'open' ||
-        !shouldPause(staleFacts(row), timers, now)
-      ) {
-        return false;
-      }
-      const { plan } = await this.caseMachine.apply(tx, {
-        caseId,
-        action: 'system_stale_pause',
-        now,
-      });
-      await this.journal.append(tx, {
-        caseId,
-        clientId: row.client_id,
-        actor: SYSTEM,
-        event: plan.event,
-        payload: { stalePause: true },
-      });
-      return true;
-    });
+    return shardContext.runForCase(caseId, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        const row = await this.lockCase(tx, caseId);
+        if (
+          !row ||
+          row.status !== 'open' ||
+          !shouldPause(staleFacts(row), timers, now)
+        ) {
+          return false;
+        }
+        const { plan } = await this.caseMachine.apply(tx, {
+          caseId,
+          action: 'system_stale_pause',
+          now,
+        });
+        await this.journal.append(tx, {
+          caseId,
+          clientId: row.client_id,
+          actor: SYSTEM,
+          event: plan.event,
+          payload: { stalePause: true },
+        });
+        return true;
+      }),
+    );
   }
 
   /** OQ-054: paused for `cases.stale_archive_after_pause_days` → archived
@@ -537,19 +545,21 @@ export class CaseLifecycleService {
     timers: StaleTimers,
   ): Promise<boolean> {
     const chat: ChatChange[] = [];
-    const done = await withTxRetry(this.prisma, async (tx) => {
-      chat.length = 0;
-      const row = await this.lockCase(tx, caseId);
-      if (
-        !row ||
-        row.status !== 'open' ||
-        !shouldArchive({ pausedAt: row.paused_at }, timers, now)
-      ) {
-        return false;
-      }
-      await this.archiveInTx(tx, caseId, row.client_id, now, chat);
-      return true;
-    });
+    const done = await shardContext.runForCase(caseId, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        chat.length = 0;
+        const row = await this.lockCase(tx, caseId);
+        if (
+          !row ||
+          row.status !== 'open' ||
+          !shouldArchive({ pausedAt: row.paused_at }, timers, now)
+        ) {
+          return false;
+        }
+        await this.archiveInTx(tx, caseId, row.client_id, now, chat);
+        return true;
+      }),
+    );
     this.chat.publish(chat);
     return done;
   }
@@ -560,6 +570,8 @@ export class CaseLifecycleService {
    * as the §10.2 auto-archive (journal, attorney notifications, chats
    * closed), one transaction per case. Returns the archived case ids.
    */
+  // Two databases: every transaction over a case runs in the case's
+  // database (a job or an admin action has no case context of its own).
   async archiveOpenCasesOfClient(
     clientId: string,
     now: Date = new Date(),
@@ -571,13 +583,15 @@ export class CaseLifecycleService {
     const archived: string[] = [];
     for (const { id } of open) {
       const chat: ChatChange[] = [];
-      const done = await withTxRetry(this.prisma, async (tx) => {
-        chat.length = 0;
-        const row = await this.lockCase(tx, id);
-        if (!row || row.status !== 'open') return false;
-        await this.archiveInTx(tx, id, row.client_id, now, chat);
-        return true;
-      });
+      const done = await shardContext.runForCase(id, () =>
+        withTxRetry(this.prisma, async (tx) => {
+          chat.length = 0;
+          const row = await this.lockCase(tx, id);
+          if (!row || row.status !== 'open') return false;
+          await this.archiveInTx(tx, id, row.client_id, now, chat);
+          return true;
+        }),
+      );
       this.chat.publish(chat);
       if (done) archived.push(id);
     }
@@ -656,32 +670,34 @@ export class CaseLifecycleService {
   async autoClose(caseId: string, now: Date): Promise<boolean> {
     const chat: ChatChange[] = [];
     let closedFor: string | null = null;
-    const done = await withTxRetry(this.prisma, async (tx) => {
-      chat.length = 0;
-      closedFor = null;
-      const row = await this.lockCase(tx, caseId);
-      if (
-        !row ||
-        row.status !== 'pending_completion' ||
-        !row.auto_close_at ||
-        row.auto_close_at > now
-      ) {
-        return false;
-      }
-      const { clientId, attorneyId } = await this.parties(tx, caseId);
-      closedFor = clientId;
-      await this.closeInTx(tx, {
-        caseId,
-        clientId,
-        attorneyId,
-        action: 'auto_close',
-        actor: SYSTEM,
-        payload: {},
-        now,
-        chat,
-      });
-      return true;
-    });
+    const done = await shardContext.runForCase(caseId, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        chat.length = 0;
+        closedFor = null;
+        const row = await this.lockCase(tx, caseId);
+        if (
+          !row ||
+          row.status !== 'pending_completion' ||
+          !row.auto_close_at ||
+          row.auto_close_at > now
+        ) {
+          return false;
+        }
+        const { clientId, attorneyId } = await this.parties(tx, caseId);
+        closedFor = clientId;
+        await this.closeInTx(tx, {
+          caseId,
+          clientId,
+          attorneyId,
+          action: 'auto_close',
+          actor: SYSTEM,
+          payload: {},
+          now,
+          chat,
+        });
+        return true;
+      }),
+    );
     this.chat.publish(chat);
     if (done && closedFor) await this.onCompleted(closedFor);
     return done;
@@ -764,30 +780,32 @@ export class CaseLifecycleService {
     const closed: string[] = [];
     for (const { id } of rows) {
       const chat: ChatChange[] = [];
-      const done = await withTxRetry(this.prisma, async (tx) => {
-        chat.length = 0;
-        const row = await this.lockCase(tx, id);
-        if (
-          !row ||
-          !(
-            ['in_progress', 'pending_completion', 'disputed'] as string[]
-          ).includes(row.status)
-        ) {
-          return false;
-        }
-        const { clientId, attorneyId } = await this.parties(tx, id);
-        await this.closeInTx(tx, {
-          caseId: id,
-          clientId,
-          attorneyId,
-          action: 'account_deleted_close',
-          actor: SYSTEM,
-          payload: { reason: 'account_deleted' },
-          now,
-          chat,
-        });
-        return true;
-      });
+      const done = await shardContext.runForCase(id, () =>
+        withTxRetry(this.prisma, async (tx) => {
+          chat.length = 0;
+          const row = await this.lockCase(tx, id);
+          if (
+            !row ||
+            !(
+              ['in_progress', 'pending_completion', 'disputed'] as string[]
+            ).includes(row.status)
+          ) {
+            return false;
+          }
+          const { clientId, attorneyId } = await this.parties(tx, id);
+          await this.closeInTx(tx, {
+            caseId: id,
+            clientId,
+            attorneyId,
+            action: 'account_deleted_close',
+            actor: SYSTEM,
+            payload: { reason: 'account_deleted' },
+            now,
+            chat,
+          });
+          return true;
+        }),
+      );
       this.chat.publish(chat);
       if (done) closed.push(id);
     }
