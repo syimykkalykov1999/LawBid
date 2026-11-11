@@ -1220,6 +1220,13 @@ export const OWNER_STORAGE_SETTINGS = {
   'partition.notifications_mode': 'auto',
   'partition.post_view_events_mode': 'auto',
   'partition.auto_rows': 50_000_000,
+  /** Owner 2026-11-10: growth lines of the cloud automation live here (not in
+   * code) so each can be lowered for a while to prove the automation really
+   * acts, then set back. People at which the search engine (OpenSearch) is
+   * switched on; it goes off again below 80 % of it. */
+  'infra.search_engine_on_people': 5_000_000,
+  /** Database CPU % above which «busy» starts (read copy, size step). */
+  'economy.db_cpu_limit_percent': 70,
   /** Owner 2026-11-02: «time to prepare a second database». Health turns
    * yellow at 80% and red at 100% of EITHER number (primary size in GB;
    * estimated rows of the sharded-family tables). Only a signal: moving
