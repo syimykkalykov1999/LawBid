@@ -177,6 +177,17 @@ class ClientReviewsNotifier extends PagedNotifier<ClientReview> {
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<ClientReview>?> cachedFirstPage() {
+    final repo = ref.read(clientReviewsRepositoryProvider);
+    return phoneCopy(
+      () => repo.list(key.clientId, rating: key.rating, sort: key.sort),
+    );
+  }
+
   @override
   Future<CursorPage<ClientReview>> fetch(String? cursor) =>
       ref.read(clientReviewsRepositoryProvider).list(

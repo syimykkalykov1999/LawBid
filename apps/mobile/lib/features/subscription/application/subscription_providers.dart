@@ -101,6 +101,15 @@ final paymentsProvider = AsyncNotifierProvider.autoDispose<PaymentsNotifier,
 );
 
 class PaymentsNotifier extends PagedNotifier<PaymentRecord> {
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<PaymentRecord>?> cachedFirstPage() {
+    final repo = ref.read(subscriptionRepositoryProvider);
+    return phoneCopy(repo.payments);
+  }
+
   @override
   Future<CursorPage<PaymentRecord>> fetch(String? cursor) =>
       ref.read(subscriptionRepositoryProvider).payments(cursor: cursor);
