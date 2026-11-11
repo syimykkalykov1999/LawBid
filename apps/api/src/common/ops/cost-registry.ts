@@ -1412,7 +1412,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ifOnUsd: R(190),
     needed: 'later',
     neededNote:
-      'Когда база днями загружена больше 60 % после копий и пула соединений (docs/runbooks/shard-move.md). Выключить нельзя, пока на нём есть данные: сначала вернуть их.',
+      'Включается сам (db.shards_mode = Авто): когда база подходит к порогу деления или долго перегружена при включённых копии и пуле; первое деление начинается само ночью (db.shards_move_hours). Сам не выключается: на нём данные (docs/runbooks/shard-move.md).',
     alarm: null,
   },
   {

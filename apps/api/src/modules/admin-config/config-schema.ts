@@ -558,6 +558,15 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   };
   // 2026-11-02: HA copies and the replica auto-create (typos must not act).
   out['ha.mode'] = { ...out['ha.mode'], pattern: /^(off|on|auto)$/ };
+  out['db.shards_mode'] = {
+    ...out['db.shards_mode'],
+    pattern: /^(off|on|auto)$/,
+  };
+  out['db.shards_move_hours'] = {
+    ...out['db.shards_move_hours'],
+    // Same rule as infra.quiet_hours (infra-change.logic QUIET_HOURS_PATTERN).
+    pattern: /^$|^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/,
+  };
   out['ai.assistant_mode'] = {
     ...out['ai.assistant_mode'],
     pattern: /^(off|on|auto)$/,

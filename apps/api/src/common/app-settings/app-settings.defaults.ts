@@ -1288,6 +1288,18 @@ export const OWNER_STORAGE_SETTINGS = {
   // and remove them after ha.release_days days all under half of it (never
   // on a missing metric; the opposite direction waits 24 h).
   'ha.mode': 'auto',
+  // Owner 2026-11-11: the second database server (admin row aws.db_shards).
+  // off = only by hand; on = keep one; auto (default) = the cloud automation
+  // creates it when the database nears the split threshold
+  // (growth.shard_gb / growth.shard_rows at 80 %, «Здоровье системы») or its
+  // CPU stays high with the read copy and the pooler already on, and the
+  // first split (the upper half of the shards) starts by itself inside
+  // db.shards_move_hours once the threshold is reached. Never removed by
+  // itself (data lives there).
+  'db.shards_mode': 'auto',
+  /** "HH:MM-HH:MM" (America/Chicago, may cross midnight) when an automatic
+   * split may start; empty = any time. */
+  'db.shards_move_hours': '02:00-05:00',
   'ha.provision_online_users': 200,
   'ha.release_days': 7,
   // 09.11.2026 (owner): «Задача для ИИ» (docs/runbooks/AI_ASSISTANT.md).

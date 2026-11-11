@@ -5,6 +5,7 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ShardMapSync } from '../shard-map-sync';
 import { LOGICAL_SHARDS } from '../shard-id';
 import { PRIMARY_DB } from '../shard-router';
+import { autoSplitTarget, type ShardGrowth } from '../shard-growth';
 import { remainingCrossFamilyForeignKeys } from './cross-family-fks';
 import { MemoryMoveLease, RedisMoveLease } from './move-lease';
 import { MoveDbPool } from './move-db';
@@ -268,6 +269,51 @@ export class ShardMoveService {
       }
     }
     return { moves, cleaned };
+  }
+
+  /**
+   * Owner 2026-11-11 (db.shards_mode = auto): starts the first split of an
+   * empty extra server by itself once the database is over the split
+   * threshold, inside db.shards_move_hours — the same plan and queue as the
+   * owner's «Разделить базу» (readiness checked, one shard at a time,
+   * rollback possible for 7 days). Returns the target or null.
+   */
+  async autoSplit(p: {
+    mode: string;
+    growth: Pick<ShardGrowth, 'status' | 'plan'>;
+    inWindow: boolean;
+  }): Promise<string | null> {
+    const extra = this.extraDatabases();
+    if (extra.length === 0) return null;
+    const map = await this.prisma.global().shardMap.groupBy({
+      by: ['physical_db'],
+      where: { state: 'active' },
+      _count: { _all: true },
+    });
+    const busy = (await this.store.unfinished()) > 0;
+    const d = autoSplitTarget({
+      mode: p.mode,
+      growth: p.growth,
+      targets: extra.map((key) => ({
+        key,
+        shards: map.find((m) => m.physical_db === key)?._count._all ?? 0,
+      })),
+      busy,
+      inWindow: p.inWindow,
+    });
+    if (!d.target) return null;
+    const plan = await this.splitPlan(d.target);
+    if (!plan.readiness.ok || plan.shards.length === 0) {
+      this.log.warn(
+        `auto split to ${d.target} waits: ${plan.readiness.problems.join('; ') || 'no shards'}`,
+      );
+      return null;
+    }
+    this.log.log(
+      `auto split: ${plan.shards.length} shards to ${d.target} (db.shards_mode = auto)`,
+    );
+    await this.startSplit(d.target, plan.shards, null);
+    return d.target;
   }
 
   /** Everything the admin screen shows. */
