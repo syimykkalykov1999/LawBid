@@ -22,7 +22,10 @@ function build() {
     kid: 'k1',
     fingerprint: 'fp',
     public_config: { urls: 'turn:54.83.172.171:3478' },
-    secret_enc: envelope.encrypt('{"secret":"test-turn-shared-secret"}', 'turn:2'),
+    secret_enc: envelope.encrypt(
+      '{"secret":"test-turn-shared-secret"}',
+      'turn:2',
+    ),
   };
   const created: {
     public_config?: Record<string, string>;
