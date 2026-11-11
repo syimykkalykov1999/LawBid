@@ -820,7 +820,7 @@ export class EconomyService {
   }
 
   private async checkPressure(now: Date): Promise<unknown> {
-    if (!this.capacity.available) return null;
+    if (!this.capacity.readable) return null;
     const [info, metrics] = await Promise.all([
       this.capacity.info(),
       this.capacity.metrics(now),

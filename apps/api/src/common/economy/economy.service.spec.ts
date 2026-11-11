@@ -160,6 +160,7 @@ function setup(o: Opts = {}) {
   };
   const cap = {
     available: !!o.capacityMetrics,
+    readable: !!o.capacityMetrics,
     info: jest.fn(async () => ({
       dbClass: 'db.t4g.medium',
       redisClass: 'cache.t4g.micro',
