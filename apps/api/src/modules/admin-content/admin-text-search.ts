@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import type { PrismaService } from '../../prisma/prisma.service';
 
 /** A search that matches more rows than this is "common": the index no
@@ -45,10 +46,18 @@ export async function postIdsMatching(
   const text = words.length
     ? Prisma.sql`search_tsv_simple @@ to_tsquery('simple', f_unaccent(${prefixQuery}))`
     : Prisma.sql`FALSE`;
-  const rows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT id FROM posts
-    WHERE lower(title) LIKE ${likePattern(q)} OR ${text}
-    LIMIT ${ADMIN_TEXT_SEARCH_MAX + 1}`;
+  // Two databases (SHARDING_READY step 8): posts live with their author —
+  // every database is asked (one database: one query, as before).
+  const rows = (
+    await forEachDatabase(
+      prisma,
+      () =>
+        prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM posts
+        WHERE lower(title) LIKE ${likePattern(q)} OR ${text}
+        LIMIT ${ADMIN_TEXT_SEARCH_MAX + 1}`,
+    )
+  ).flat();
   return rows.length > ADMIN_TEXT_SEARCH_MAX ? null : rows.map((r) => r.id);
 }
 
@@ -57,9 +66,15 @@ export async function caseIdsByTitle(
   prisma: PrismaService,
   q: string,
 ): Promise<string[] | null> {
-  const rows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT id FROM cases
-    WHERE lower(title) LIKE ${likePattern(q)}
-    LIMIT ${ADMIN_TEXT_SEARCH_MAX + 1}`;
+  const rows = (
+    await forEachDatabase(
+      prisma,
+      () =>
+        prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM cases
+        WHERE lower(title) LIKE ${likePattern(q)}
+        LIMIT ${ADMIN_TEXT_SEARCH_MAX + 1}`,
+    )
+  ).flat();
   return rows.length > ADMIN_TEXT_SEARCH_MAX ? null : rows.map((r) => r.id);
 }
