@@ -999,9 +999,10 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   };
   out['infra.daily_cap'] = {
     type: 'integer',
-    defaultValue: 3,
-    description: 'At most this many cloud change requests per 24 hours.',
-    min: 1,
+    defaultValue: 0,
+    description:
+      'At most this many cloud change requests per 24 hours; 0 = no limit.',
+    min: 0,
     // Owner 2026-11-12: no ceiling («потолок до бесконечности»); the owner
     // picks the value (50 while testing, then 10).
     max: 1_000_000,

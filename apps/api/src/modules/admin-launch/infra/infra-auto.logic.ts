@@ -478,7 +478,8 @@ export function autoRefusal(p: {
   if (p.mode.trim().toLowerCase() !== 'auto') return 'auto_off';
   if (!p.configured) return 'not_configured';
   if (p.activeCount > 0) return 'busy';
-  if (p.last24h >= p.dailyCap) return 'daily_cap';
+  // Owner 2026-11-12: 0 = no daily limit.
+  if (p.dailyCap > 0 && p.last24h >= p.dailyCap) return 'daily_cap';
   if (!p.inQuietWindow) return 'quiet_hours';
   if (p.want.to === 'on') {
     if (p.budgetRatio !== null && p.budgetRatio >= 0.9) return 'money_budget';
