@@ -49,6 +49,13 @@ export class AiRunReportDto {
   prUrl?: string;
 }
 
+/** 12.11.2026: which run asks (Авто runs only the scheduled look). */
+export class AiGateDto {
+  @IsOptional()
+  @IsIn(['task', 'schedule'])
+  kind?: 'task' | 'schedule';
+}
+
 /**
  * 09.11.2026: `.github/workflows/ai-assistant.yml` talks to the API here,
  * with its GitHub Actions OIDC token (audience lawbid-ai-assistant), checked
@@ -85,9 +92,13 @@ export class AiAssistantWorkflowController {
   // flag: none CI-only route (GitHub OIDC), gated by ai.assistant_mode
   @Post('gate')
   @HttpCode(HttpStatus.OK)
-  async aiWorkflowGate(@Headers('authorization') auth: string | undefined) {
+  async aiWorkflowGate(
+    @Headers('authorization') auth: string | undefined,
+    @Body() dto: AiGateDto,
+  ) {
     await this.caller(auth);
-    const g = await this.ai.gate();
+    // No kind = an old workflow: the stricter «task» (Авто refuses it).
+    const g = await this.ai.gate(new Date(), dto?.kind ?? 'task');
     return {
       allowed: g.allowed,
       reason: g.reasonText,

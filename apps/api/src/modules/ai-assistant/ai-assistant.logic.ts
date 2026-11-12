@@ -16,32 +16,42 @@ export const AI_OIDC_AUDIENCE = 'lawbid-ai-assistant';
 
 export type AiRunKind = 'task' | 'schedule';
 
-export type AiRefusal = 'off' | 'not_connected' | 'budget';
+export type AiRefusal = 'off' | 'not_connected' | 'budget' | 'tasks_need_on';
 
 export const AI_REFUSAL_TEXT: Record<AiRefusal, string> = {
   off: 'ИИ-помощник выключен (ai.assistant_mode = Выкл).',
   not_connected:
     'Не подключено: нет GitHub-приложения в «Ключи и сервисы» (github_infra).',
   budget: 'Потолок расходов на ИИ за месяц исчерпан (ai.monthly_max_usd).',
+  tasks_need_on:
+    'Режим «Авто»: помощник сам следит за ошибками и тревогами, задачи из админки он берёт только в режиме «Вкл».',
 };
 
 /**
- * Pure: may a run start now? Owner rule 5c: Выкл / Вкл / Авто, default Авто.
- * Авто = runs as soon as it is connected and under the month's ceiling,
- * pauses itself at the ceiling and resumes with the next month's key. Вкл =
- * the same (the ceiling still holds: never over budget). Выкл = never. Any
- * unknown value counts as Выкл (a typo never spends money).
+ * Pure: may a run of [kind] start now? Owner 12.11.2026 (like the foreman):
+ *   Выкл = nothing runs;
+ *   Авто = the scheduled look (Sentry, alarms, checks) and its fix PRs;
+ *   Вкл  = Авто + the owner's tasks from the admin.
+ * In every mode a PR only waits for «Разрешить» (2FA) in the admin; nothing
+ * merges by itself. The month's money ceiling always holds (Авто and Вкл
+ * pause at it and resume next month). Unknown mode = Выкл (a typo never
+ * spends money); a caller that does not say its kind counts as a task (the
+ * stricter of the two).
  */
 export function aiGate(i: {
   mode: string;
   connected: boolean;
   monthUsd: number;
   maxUsd: number;
+  kind?: AiRunKind;
 }): { allowed: boolean; reason: AiRefusal | null; leftUsd: number } {
   const leftUsd = Math.max(0, Math.round((i.maxUsd - i.monthUsd) * 100) / 100);
   const mode = i.mode.trim().toLowerCase();
   if (mode !== 'on' && mode !== 'auto') {
     return { allowed: false, reason: 'off', leftUsd };
+  }
+  if ((i.kind ?? 'task') === 'task' && mode !== 'on') {
+    return { allowed: false, reason: 'tasks_need_on', leftUsd };
   }
   if (!i.connected) return { allowed: false, reason: 'not_connected', leftUsd };
   if (i.maxUsd <= 0 || i.monthUsd >= i.maxUsd) {
@@ -85,8 +95,8 @@ export function taskIssueBody(details: string, adminLabel: string): string {
     '',
     '---',
     `Задача из админки («Задача для ИИ»), автор: ${adminLabel}.`,
-    'Правила для помощника: `.github/ai-assistant/POLICY.md` (только исправления, тесты и PR; ' +
-      'никаких денег, ключей, IAM/Terraform, магазинов, удаления данных на проде и сборок телефонов).',
+    'Правила для помощника: `.github/ai-assistant/POLICY.md` (код, тесты и PR; влить решает владелец кодом 2FA; ' +
+      'никаких платежей, чужих данных, ключей, terraform apply и сборок телефонов).',
   ].join('\n');
 }
 

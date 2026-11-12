@@ -1,4 +1,29 @@
-import { AiAssistantError, AiAssistantService } from './ai-assistant.service';
+import { GithubMergeError } from '../admin-launch/infra-github';
+import {
+  AiAssistantError,
+  AiAssistantService,
+  AiPullError,
+} from './ai-assistant.service';
+
+const SHA = 'a'.repeat(40);
+const PR_URL = 'https://github.com/o/r/pull/9';
+function aiPull(over: Record<string, unknown> = {}) {
+  return {
+    number: 9,
+    title: 'fix: crash on the case screen',
+    body: '## What\nCrash\n## Why\nnull title',
+    url: PR_URL,
+    state: 'open',
+    merged: false,
+    draft: false,
+    headRef: 'ai/issue-7',
+    headRepo: 'o/r',
+    headSha: SHA,
+    baseRef: 'main',
+    createdAt: '2026-11-12T01:00:00Z',
+    ...over,
+  };
+}
 
 function make(
   o: { mode?: string; connected?: boolean; spent?: string | null } = {},
@@ -20,6 +45,15 @@ function make(
     }),
     ltrim: jest.fn(() => Promise.resolve('OK')),
     lrange: jest.fn(() => Promise.resolve([...list])),
+    set: jest.fn((k: string, v: string) => {
+      if (store.has(k)) return Promise.resolve(null);
+      store.set(k, v);
+      return Promise.resolve('OK');
+    }),
+    eval: jest.fn((_s: string, _n: number, k: string, token: string) => {
+      if (store.get(k) === token) store.delete(k);
+      return Promise.resolve(1);
+    }),
   };
   const github = {
     configured: jest.fn(() => Promise.resolve(o.connected ?? true)),
@@ -31,6 +65,38 @@ function make(
       }),
     ),
     issuesWithPulls: jest.fn(() => Promise.resolve([])),
+    openPullsByPrefix: jest.fn(() =>
+      Promise.resolve({ repo: 'o/r', pulls: [aiPull()] }),
+    ),
+    pull: jest.fn(() => Promise.resolve({ repo: 'o/r', pull: aiPull() })),
+    commitChecks: jest.fn(() =>
+      Promise.resolve({
+        runs: [
+          {
+            name: 'API',
+            status: 'completed',
+            conclusion: 'success',
+          },
+        ],
+        statuses: [] as { context: string; state: string }[],
+      }),
+    ),
+    pullFiles: jest.fn(() =>
+      Promise.resolve({
+        files: [
+          {
+            filename: 'apps/api/src/modules/cases/cases.service.ts',
+            previousFilename: null as string | null,
+            patch: '+x',
+          },
+        ],
+        complete: true,
+      }),
+    ),
+    mergePull: jest.fn(() => Promise.resolve({ sha: 'b'.repeat(40) })),
+    closePull: jest.fn<Promise<void>, [number, string]>(() =>
+      Promise.resolve(),
+    ),
   };
   const settings = {
     string: jest.fn(() => Promise.resolve(o.mode ?? 'on')),
@@ -162,5 +228,139 @@ describe('AiAssistantService', () => {
     expect(d.openTicketsByCategory).toEqual({ bug: 3 });
     expect(d.sentry[0]).toMatchObject({ count: 7, users: 2 });
     expect(d.alarms[0].component).toBe('alarm:queue-backlog');
+  });
+
+  it('owner 12.11: Авто takes no admin task (only Вкл does), the page says why', async () => {
+    const auto = make({ mode: 'auto' });
+    await expect(
+      auto.svc.createTask({ id: 'a' }, { title: 'Fix it', details: 'Details' }),
+    ).rejects.toThrow('Режим «Авто»');
+    expect(auto.github.createIssue).not.toHaveBeenCalled();
+    const s = await auto.svc.status(NOW);
+    expect(s.allowed).toBe(true);
+    expect(s.tasksAllowed).toBe(false);
+    expect(s.tasksReason).toContain('Вкл');
+    expect((await make({ mode: 'on' }).svc.status(NOW)).tasksAllowed).toBe(
+      true,
+    );
+  });
+
+  it('lists the AI PRs with CI state, what/why and the reported cost', async () => {
+    const { svc } = make();
+    await svc.report(
+      { runUrl: 'u' },
+      { kind: 'task', costUsd: 0.4, prUrl: PR_URL },
+      NOW,
+    );
+    const r = await svc.pulls();
+    expect(r.error).toBeNull();
+    expect(r.pulls[0]).toMatchObject({
+      number: 9,
+      headSha: SHA,
+      checks: 'success',
+      costUsd: 0.4,
+      branch: 'ai/issue-7',
+    });
+    expect(r.pulls[0].summary).toContain('## Why');
+  });
+
+  it('«Разрешить» merges squash, pinned to the sha the owner saw, and writes the audit row', async () => {
+    const { svc, github, audit, store } = make();
+    const r = await svc.approvePull({ id: 'admin-1' }, 9, SHA);
+    expect(r).toEqual({ number: 9, mergedSha: 'b'.repeat(40) });
+    expect(github.mergePull).toHaveBeenCalledWith(9, SHA, expect.any(String));
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'ai.pull_merge' }),
+    );
+    expect(store.has('ai:merge:lock')).toBe(false);
+  });
+
+  it('refuses: new commits since the owner looked, CI not green, a forbidden file, a fork, another merge running', async () => {
+    const stale = make();
+    await expect(
+      stale.svc.approvePull({ id: 'a' }, 9, 'c'.repeat(40)),
+    ).rejects.toMatchObject({ reason: 'stale_sha' });
+
+    const red = make();
+    red.github.commitChecks.mockResolvedValueOnce({
+      runs: [
+        { name: 'API', status: 'completed', conclusion: 'success' },
+        { name: 'e2e', status: 'in_progress', conclusion: null },
+      ],
+      statuses: [],
+    });
+    await expect(red.svc.approvePull({ id: 'a' }, 9, SHA)).rejects.toThrow(
+      'CI',
+    );
+
+    const bad = make();
+    bad.github.pullFiles.mockResolvedValueOnce({
+      files: [
+        {
+          filename: '.github/workflows/deploy.yml',
+          previousFilename: null,
+          patch: '+x',
+        },
+      ],
+      complete: true,
+    });
+    await expect(
+      bad.svc.approvePull({ id: 'a' }, 9, SHA),
+    ).rejects.toMatchObject({ reason: 'guard' });
+
+    const fork = make();
+    fork.github.pull.mockResolvedValueOnce({
+      repo: 'o/r',
+      pull: aiPull({ headRepo: 'evil/r' }),
+    });
+    await expect(
+      fork.svc.approvePull({ id: 'a' }, 9, SHA),
+    ).rejects.toMatchObject({ reason: 'not_ai' });
+
+    const busy = make();
+    busy.store.set('ai:merge:lock', 'someone-else');
+    await expect(
+      busy.svc.approvePull({ id: 'a' }, 9, SHA),
+    ).rejects.toMatchObject({ reason: 'busy' });
+    expect(busy.store.get('ai:merge:lock')).toBe('someone-else');
+
+    for (const m of [stale, red, bad, fork, busy]) {
+      expect(m.github.mergePull).not.toHaveBeenCalled();
+      expect(m.audit.record).not.toHaveBeenCalled();
+    }
+  });
+
+  it('GitHub moved the branch during the merge: told as «new changes», lock released', async () => {
+    const m = make();
+    m.github.mergePull.mockRejectedValueOnce(
+      new GithubMergeError(409, 'Head branch was modified.'),
+    );
+    const e = (await m.svc
+      .approvePull({ id: 'a' }, 9, SHA)
+      .catch((x: unknown) => x)) as AiPullError;
+    expect(e).toBeInstanceOf(AiPullError);
+    expect(e.reason).toBe('stale_sha');
+    expect(m.store.has('ai:merge:lock')).toBe(false);
+  });
+
+  it('«Отклонить» closes the PR with a comment and an audit row', async () => {
+    const { svc, github, audit } = make();
+    await svc.rejectPull({ id: 'a' }, 9, 'not needed, ask bob@example.com');
+    const [n, comment] = github.closePull.mock.calls[0];
+    expect(n).toBe(9);
+    expect(comment).toContain('Отклонено владельцем');
+    expect(comment).not.toContain('bob@example.com');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'ai.pull_reject' }),
+    );
+    const other = make();
+    other.github.pull.mockResolvedValueOnce({
+      repo: 'o/r',
+      pull: aiPull({ headRef: 'feature/x' }),
+    });
+    await expect(other.svc.rejectPull({ id: 'a' }, 9)).rejects.toMatchObject({
+      reason: 'not_ai',
+    });
+    expect(other.github.closePull).not.toHaveBeenCalled();
   });
 });

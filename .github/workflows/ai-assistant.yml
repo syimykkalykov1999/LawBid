@@ -6,11 +6,14 @@
 #   - every 2 hours: a look at Sentry, open alarms and the support load
 #     (digest from the API, no personal data), issues + at most one fix PR.
 # Runs only with the repository variable AI_ASSISTANT_ENABLED = true; then
-# the admin switch ai.assistant_mode (Выкл / Вкл / Авто, default Авто) and the
-# monthly money ceiling ai.monthly_max_usd decide (the API answers «gate»
-# before every run; Авто pauses itself at the ceiling until next month).
-# Rules for the assistant: .github/ai-assistant/POLICY.md. It never merges;
-# a branch that touches a forbidden path gets its PR closed (path guard).
+# the admin switch ai.assistant_mode and the monthly money ceiling
+# ai.monthly_max_usd decide (the API answers «gate» before every run):
+#   Выкл = nothing; Авто = the scheduled look (Sentry, alarms) and its fix
+#   PRs only; Вкл = Авто + the owner's tasks from the admin.
+# Rules for the assistant: .github/ai-assistant/POLICY.md. It never merges:
+# every PR waits for the owner's «Разрешить» (2FA) in the admin, and the API
+# re-checks CI, the path guard and the head SHA before it merges (12.11).
+# A branch that touches a forbidden path gets its PR closed (path guard).
 # Owner steps: docs/runbooks/AI_ASSISTANT.md.
 name: AI assistant
 
@@ -70,8 +73,11 @@ jobs:
 
       - name: May I run? (switch + money ceiling)
         id: gate
+        env:
+          EVENT: ${{ github.event_name }}
         run: |
-          scripts/ai-assistant/api.sh gate > gate.json
+          kind=schedule; [ "$EVENT" = "issues" ] && kind=task
+          scripts/ai-assistant/api.sh gate "{\"kind\":\"${kind}\"}" > gate.json
           allowed=$(jq -r '.data.allowed' gate.json)
           echo "allowed=${allowed}" >> "$GITHUB_OUTPUT"
           echo "left_usd=$(jq -r '.data.leftUsd' gate.json)" >> "$GITHUB_OUTPUT"
@@ -105,6 +111,8 @@ jobs:
               echo "Decide which entries are real bugs in this repository. For each (at most 3), open an issue labelled ai-found with the evidence, unless an open issue already covers it (gh issue list --label ai-found)."
               echo "Then fix at most ONE of them on a branch named ai/scheduled-${GITHUB_RUN_ID} and open one pull request against main with 'Fixes #<n>'. If nothing is a bug, do nothing."
             fi
+            echo "The pull request body has four short sections: '## What' (what was wrong), '## Why' (the root cause), '## Fix' and '## Tests'. The owner reads it in the admin and presses Allow or Reject; you never merge."
+            echo "Never put personal data or secrets in a PR, issue or commit: the repository is public."
             echo "Money left this month for AI runs: \$${{ steps.gate.outputs.left_usd }}. Keep the work small."
             echo 'PROMPT_END'
           } >> "$GITHUB_OUTPUT"
@@ -139,7 +147,8 @@ jobs:
           echo "pr_url=${pr}" >> "$GITHUB_OUTPUT"
           [ -n "$pr" ] || exit 0
           git fetch -q origin "main" "$BRANCH"
-          if ! bad=$(git diff --name-only "origin/main...origin/${BRANCH}" | scripts/ai-assistant/path-guard.sh); then
+          # Renames count twice (old and new path).
+          if ! bad=$(git diff --name-only --no-renames "origin/main...origin/${BRANCH}" | scripts/ai-assistant/path-guard.sh); then
             gh pr close "$pr" --comment "Closed by the path guard: the AI assistant may not change $(echo "$bad" | head -5 | tr '\n' ' ')(.github/ai-assistant/POLICY.md)."
             echo "blocked=true" >> "$GITHUB_OUTPUT"
             echo "PR closed by the path guard: ${bad}" >> "$GITHUB_STEP_SUMMARY"

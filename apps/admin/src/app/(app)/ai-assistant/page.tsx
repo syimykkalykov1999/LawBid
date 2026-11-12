@@ -17,6 +17,13 @@ const usd = (n: number) => `$${n.toFixed(2)}`;
 type Mode = 'off' | 'on' | 'auto';
 const MODES: readonly Mode[] = ['off', 'on', 'auto'];
 const MODE_LABEL: Record<Mode, string> = { off: 'Выкл', on: 'Вкл', auto: 'Авто' };
+const CHECKS: Record<string, { text: string; tone: 'success' | 'warning' | 'danger' | 'neutral' }> = {
+  success: { text: 'CI зелёный', tone: 'success' },
+  pending: { text: 'CI идёт', tone: 'warning' },
+  failure: { text: 'CI красный', tone: 'danger' },
+  none: { text: 'CI не запускался', tone: 'neutral' },
+  unknown: { text: 'CI не прочитан', tone: 'neutral' },
+};
 
 /**
  * 09.11.2026: «Задача для ИИ». The owner writes a task; it becomes a GitHub
@@ -64,13 +71,42 @@ export default function AiAssistantPage() {
     },
   });
 
+  // 12.11.2026: the AI's PRs wait here for «Разрешить» (2FA) or «Отклонить».
+  const pulls = useQuery({
+    queryKey: ['ai-assistant', 'pulls'],
+    queryFn: async () => (await api.GET('/admin/ai-assistant/pulls')).data!.data,
+  });
+  const pullDone = (text: string) => {
+    void qc.invalidateQueries({ queryKey: ['ai-assistant'] });
+    toast.success(text);
+  };
+  // A step-up (fresh 2FA code) is asked by the panel's global prompt and the
+  // request repeats by itself (registerStepUpPrompt).
+  const approve = useMutation({
+    mutationFn: async (p: { number: number; headSha: string }) =>
+      (
+        await api.POST('/admin/ai-assistant/pulls/{n}/approve', {
+          params: { path: { n: p.number } },
+          body: { headSha: p.headSha },
+        })
+      ).data!.data,
+    onSuccess: (r) => pullDone(`PR #${r.number} влит`),
+    onError: (e) => toast.error(e),
+  });
+  const reject = useMutation({
+    mutationFn: async (n: number) =>
+      (await api.POST('/admin/ai-assistant/pulls/{n}/reject', { params: { path: { n } }, body: {} })).data!.data,
+    onSuccess: (r) => pullDone(`PR #${r.number} отклонён`),
+    onError: (e) => toast.error(e),
+  });
+
   const d = page.data;
   return (
     <>
       <PageHeader
         eyebrow="Система"
         title="Задача для ИИ"
-        subtitle="Напишите, что починить. ИИ-помощник сделает исправление и тесты и откроет PR; влить его решаете вы. Деньги, ключи, облако, магазины и данные на проде ему запрещены."
+        subtitle="Авто: ИИ-помощник сам следит за ошибками и тревогами и открывает PR с исправлением. Вкл: ещё и берёт ваши задачи. Выкл: ничего. Влить PR решаете вы кодом 2FA; платежи, чужие данные и ключи ему запрещены."
       />
       <ErrorNote text={page.error ? errorText(page.error) : null} />
       {!d ? (
@@ -114,15 +150,68 @@ export default function AiAssistantPage() {
             <p className="text-xs text-muted">
               Репозиторий открытый: не пишите имена, телефоны, почту и тексты людей.
             </p>
+            {d.tasksReason ? <p className="text-xs text-muted">{d.tasksReason}</p> : null}
             <div>
               <Button
                 loading={create.isPending}
-                disabled={!d.connected || d.mode === 'off' || title.trim().length < 5 || details.trim().length < 10}
+                disabled={!d.tasksAllowed || title.trim().length < 5 || details.trim().length < 10}
                 onClick={() => create.mutate()}
               >
                 Отдать ИИ
               </Button>
             </div>
+          </Card>
+
+          <SectionTitle>PR от ИИ: ждут вашего решения</SectionTitle>
+          <Card className="mb-6 divide-y divide-line">
+            {pulls.data?.error ? <p className="p-4 text-sm text-danger">{pulls.data.error}</p> : null}
+            {!pulls.data ? (
+              <p className="p-4 text-sm text-muted">Загрузка…</p>
+            ) : pulls.data.pulls.length === 0 ? (
+              <p className="p-4 text-sm text-muted">Открытых PR от ИИ нет.</p>
+            ) : (
+              pulls.data.pulls.map((p) => {
+                const ci = CHECKS[p.checks] ?? CHECKS.unknown;
+                return (
+                  <div key={p.number} className="flex flex-wrap items-center gap-3 p-4 text-sm">
+                    <Badge tone={ci.tone} dot className="shrink-0">
+                      {ci.text}
+                    </Badge>
+                    <span className="min-w-0 flex-1 break-words">
+                      <a href={p.url} target="_blank" rel="noreferrer" className="font-medium text-heading hover:underline">
+                        PR #{p.number} {p.title}
+                      </a>
+                      <span className="text-muted">
+                        {' '}
+                        · {formatDateTime(p.createdAt)}
+                        {p.costUsd !== null ? ` · ${usd(p.costUsd)}` : ''}
+                      </span>
+                      {p.summary ? (
+                        <span className="mt-1 block whitespace-pre-line text-xs text-muted">{p.summary}</span>
+                      ) : null}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="gold"
+                      loading={approve.isPending && approve.variables?.number === p.number}
+                      disabled={p.checks !== 'success' || approve.isPending || reject.isPending}
+                      onClick={() => approve.mutate({ number: p.number, headSha: p.headSha })}
+                    >
+                      Разрешить (код 2FA)
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      loading={reject.isPending && reject.variables === p.number}
+                      disabled={approve.isPending || reject.isPending}
+                      onClick={() => reject.mutate(p.number)}
+                    >
+                      Отклонить
+                    </Button>
+                  </div>
+                );
+              })
+            )}
           </Card>
 
           <SectionTitle>Задачи</SectionTitle>
