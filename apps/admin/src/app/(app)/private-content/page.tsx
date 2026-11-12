@@ -116,11 +116,19 @@ export default function PrivateContentPage() {
 
   const openFile = (fileId: string) =>
     guarded(async () => {
+      // 12.11: opened before the request, while the click still counts
+      // (Safari/phones block window.open() after an await).
+      const tab = window.open('about:blank', '_blank');
       const r = await api.POST('/admin/private-content/cases/{id}/files/{fileId}/url', {
         params: { path: { id: caseId.trim(), fileId }, header },
       });
-      if (r.error) throw r.error;
-      window.open(r.data.data.url, '_blank', 'noopener,noreferrer');
+      if (r.error) {
+        tab?.close();
+        throw r.error;
+      }
+      if (!tab) throw new Error('Браузер не дал открыть новую вкладку — разрешите всплывающие окна для admin.lawbid.dev');
+      tab.opener = null;
+      tab.location.href = r.data.data.url;
     });
 
   const report = useQuery({
