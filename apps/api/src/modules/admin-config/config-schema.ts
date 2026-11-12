@@ -568,6 +568,8 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'infra.mode.opensearch',
     'infra.mode.events_stream',
     'infra.mode.partition_role',
+    'infra.mode.db_shards_2',
+    'infra.mode.db_shards_3',
   ]) {
     out[k] = { ...out[k], pattern: /^(off|on|auto)$/ };
   }

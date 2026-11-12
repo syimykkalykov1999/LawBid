@@ -1416,6 +1416,56 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: null,
   },
   {
+    id: 'aws.db_shards_2',
+    name: 'Третий сервер базы (деление базы)',
+    purpose:
+      'Ещё один сервер PostgreSQL, когда уже работающие серверы базы подходят к порогу деления. Пустой, пока на него не перенесена половина частей данных с самого полного сервера. Схема, роли и пароли настраиваются сами при выкладке.',
+    kind: 'aws',
+    control: tf(['db_shards'], {
+      off: 'db_shards = 1',
+      on: 'db_shards = 2',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: tfCeil('db_shards', 'Сколько серверов (0–3)'),
+    price: price(
+      'fixed',
+      'Как основная база того же размера, ≈ $190 за штуку для среднего размера',
+      U.rds,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(190),
+    needed: 'later',
+    neededNote:
+      'Владелец 11.11: включается сам (Авто), когда основная база и второй сервер уже заняты частями данных и какой-то из серверов подходит к порогу деления (80 %); первое деление на него начинается само ночью (db.shards_move_hours). Сам не выключается: на нём данные.',
+    alarm: null,
+  },
+  {
+    id: 'aws.db_shards_3',
+    name: 'Четвёртый сервер базы (деление базы)',
+    purpose:
+      'Ещё один сервер PostgreSQL, когда уже работающие серверы базы подходят к порогу деления. Пустой, пока на него не перенесена половина частей данных с самого полного сервера. Схема, роли и пароли настраиваются сами при выкладке.',
+    kind: 'aws',
+    control: tf(['db_shards'], {
+      off: 'db_shards = 2',
+      on: 'db_shards = 3',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: tfCeil('db_shards', 'Сколько серверов (0–3)'),
+    price: price(
+      'fixed',
+      'Как основная база того же размера, ≈ $190 за штуку для среднего размера',
+      U.rds,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(190),
+    needed: 'later',
+    neededNote:
+      'Владелец 11.11: включается сам (Авто), когда основная база, второй и третий серверы уже заняты частями данных и какой-то из серверов подходит к порогу деления (80 %); первое деление на него начинается само ночью (db.shards_move_hours). Сам не выключается: на нём данные.',
+    alarm: null,
+  },
+  {
     id: 'aws.opensearch',
     name: 'Поисковый движок (OpenSearch)',
     purpose:
@@ -2868,6 +2918,8 @@ export const INFRA_MODE_KEYS: Readonly<Record<string, string>> = {
   'aws.events_stream': 'infra.mode.events_stream',
   'aws.partition_role': 'infra.mode.partition_role',
   'aws.db_shards': 'db.shards_mode',
+  'aws.db_shards_2': 'infra.mode.db_shards_2',
+  'aws.db_shards_3': 'infra.mode.db_shards_3',
   'aws.redis_cache': 'cache.redis_mode',
 };
 

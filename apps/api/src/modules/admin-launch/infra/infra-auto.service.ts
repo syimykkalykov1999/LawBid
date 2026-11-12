@@ -1,4 +1,6 @@
 import { PartitionService } from '../../../partitioning/partition.service';
+import { ShardMoveService } from '../../../sharding/move/shard-move.service';
+import { serversFull } from '../../../sharding/shard-growth';
 import { INFRA_MODE_KEYS, infraMode } from '../../../common/ops/infra-modes';
 import { AUTO_SINK_KEY } from '../../events/domain-events.service';
 import {
@@ -273,6 +275,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       this.settings.string('db.shards_mode').catch(() => 'auto'),
       this.shardGrowth().catch(() => undefined),
     ]);
+    const full = await this.serversFull().catch(() => false);
     // Owner 2026-11-11: the position picked on «Масштаб» per item (a stored
     // row only; nothing stored = Авто by default, not picked by hand).
     const stored = await Promise.all(
@@ -311,10 +314,25 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       shardGrowth,
       modes,
       pickedAuto,
+      serversFull: full,
     };
   }
 
   /** The split threshold status of «Здоровье системы» (PartitionService). */
+  /** Owner 2026-11-11: some server near the threshold and no empty extra
+   * server left — the next one (third, fourth) is needed. */
+  private async serversFull(): Promise<boolean> {
+    const moves = this.moduleRef?.get(ShardMoveService, { strict: false });
+    const partitions = this.moduleRef?.get(PartitionService, {
+      strict: false,
+    });
+    if (!moves || !partitions || moves.extraDatabases().length === 0) {
+      return false;
+    }
+    const g = await partitions.shardSignal();
+    return serversFull(await moves.serverFill(g.thresholdGb, g.thresholdRows));
+  }
+
   private async shardGrowth(): Promise<'green' | 'yellow' | 'red' | undefined> {
     const partitions = this.moduleRef?.get(PartitionService, {
       strict: false,
