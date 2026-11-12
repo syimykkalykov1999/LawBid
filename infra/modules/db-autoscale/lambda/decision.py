@@ -52,17 +52,25 @@ class Config:
     up_credit_points: int = 3
     up_cooldown_min: int = 30
     # --- down: the whole window must be quiet ------------------------------
-    down_window_h: int = 72
+    # Owner 12.11 (KNOWN_ERRORS 109): 6 h of calm, 6 h after the last change,
+    # and only inside the night window (single-AZ resize = minutes of downtime).
+    # Then straight to the smallest size the measured peak fits (target
+    # tracking, like AWS Application Auto Scaling), not one step per 3 days.
+    down_window_h: int = 6
     down_cpu_max_pct: float = 30
     down_conn_max_pct: float = 40
     down_mem_free_min_pct: float = 30
-    down_cooldown_h: int = 72
+    down_cooldown_h: int = 6
     down_min_coverage: float = 0.85  # share of the window that has data
     # --- the smaller size must have room (prevents up/down flapping) -------
     target_cpu_max_pct: float = 60
     target_conn_max_pct: float = 60
     target_mem_used_max_pct: float = 70
     target_burst_avg_ratio: float = 0.8  # of the CPU baseline
+    # shared_buffers is reserved memory that FreeableMemory never shows as
+    # free; RDS sets it to {DBInstanceClassMemory/32768} pages of 8 KiB = 25 %
+    # of the class memory, so it shrinks with the class (lawbid-prod-postgres16).
+    shared_buffers_ratio: float = 0.25
     period_s: int = 300
 
     def spec(self, name):
@@ -84,6 +92,10 @@ class Instance:
     status: str = "available"
     multi_az: bool = True
     pending: bool = False  # PendingModifiedValues is not empty
+    # Read replicas do NOT pause resizing (KNOWN_ERRORS 109): a replica may
+    # have another class, and RDS raises the replica's max_connections etc.
+    # itself when the primary's are higher (AWS RDS PostgreSQL docs,
+    # "Setting the parameters that control shared memory"). Kept for the log.
     has_replicas: bool = False
 
 
@@ -126,7 +138,7 @@ def reconcile_state(cfg, state, current_cls, now):
     """Notice a size change made by somebody else (admin button, console).
 
     It counts as a change now, so a manual "up" also blocks an automatic
-    "down" for 72 hours.
+    "down" for down_cooldown_h hours.
     """
     if state.cls is None:
         return replace(state, cls=current_cls)
@@ -185,14 +197,15 @@ def up_triggers(cfg, cur, m):
     return hit
 
 
-def _guard_reason(cfg, inst, g):
+def _guard_reason(cfg, inst, g, mode):
     if inst.status != "available":
         return "not_available"
     if inst.pending:
         return "pending_modification"
-    if inst.has_replicas:
-        return "has_replicas"
-    if cfg.require_multi_az and not inst.multi_az:
+    # Single-AZ: a resize is minutes of downtime. Growing happens under load in
+    # the day, so it needs Multi-AZ; shrinking runs only in the night window,
+    # where the owner accepts that pause (12.11).
+    if mode != "night" and cfg.require_multi_az and not inst.multi_az:
         return "not_multi_az"
     if g.ecs_unknown:
         return "ecs_unknown"
@@ -208,7 +221,7 @@ def decide(cfg, mode, inst, guards, state, metrics, now):
     cur = cfg.spec(inst.cls)
     if cur is None:
         return Decision("none", "unknown_class")
-    bad = _guard_reason(cfg, inst, guards)
+    bad = _guard_reason(cfg, inst, guards, mode)
     if bad:
         return Decision("none", bad)
     if mode == "tick":
@@ -245,7 +258,7 @@ def _decide_down(cfg, cur, guards, state, m, now):
         < cfg.down_cooldown_h * HOUR
     ):
         return Decision("none", "cooldown_down")
-    # An up condition right now means the load is not low, whatever 72 h say.
+    # An up condition right now means the load is not low, whatever the window says.
     if up_triggers(cfg, cur, m):
         return Decision("none", "busy_now")
 
@@ -272,20 +285,35 @@ def _decide_down(cfg, cur, guards, state, m, now):
     if free_min < total * cfg.down_mem_free_min_pct / 100:
         return Decision("none", "memory_not_healthy", facts=facts)
 
-    tgt = cfg.ladder[i - 1]
+    # Smallest first: the first size where the measured peak stays inside the
+    # target band wins. None fits: report why the next size down does not.
+    lo = max(cfg.index(cfg.min_class), 0)
+    first_fail = None
+    for j in range(lo, i):
+        why = _target_tight(cfg, cur, cfg.ladder[j], cpu_max, cpu_avg, conn_max, total - free_min)
+        if why is None:
+            return Decision("down", "quiet", cfg.ladder[j].name, facts)
+        if j == i - 1:
+            first_fail = why
+    return Decision("none", first_fail or "target_tight", facts=facts)
+
+
+def _target_tight(cfg, cur, tgt, cpu_max, cpu_avg, conn_max, used):
+    """None when the load measured on `cur` fits `tgt`, else the reason."""
     scale = cur.vcpu / tgt.vcpu
     if cpu_max * scale > cfg.target_cpu_max_pct:
-        return Decision("none", "target_cpu_tight", facts=facts)
+        return "target_cpu_tight"
     if tgt.baseline_pct is not None and (
         cpu_avg * scale > cfg.target_burst_avg_ratio * tgt.baseline_pct
     ):
-        return Decision("none", "target_burst_tight", facts=facts)
+        return "target_burst_tight"
     if conn_max > tgt.max_connections * cfg.target_conn_max_pct / 100:
-        return Decision("none", "target_connections_tight", facts=facts)
-    used = total - free_min
-    if used > tgt.memory_gib * GIB * cfg.target_mem_used_max_pct / 100:
-        return Decision("none", "target_memory_tight", facts=facts)
-    return Decision("down", "quiet", tgt.name, facts)
+        return "target_connections_tight"
+    r = cfg.shared_buffers_ratio
+    other = max(0.0, used - r * cur.memory_gib * GIB)  # used outside shared_buffers
+    if other + r * tgt.memory_gib * GIB > tgt.memory_gib * GIB * cfg.target_mem_used_max_pct / 100:
+        return "target_memory_tight"
+    return None
 
 
 # --- messages (plain Russian, for the owner) --------------------------------
@@ -327,7 +355,7 @@ def message(cfg, decision, from_cls, multi_az, dry_run=False):
     f = decision.facts
     return (
         f"{prefix}База уменьшена: {a.name} → {b.name} "
-        f"(3 суток нагрузка была низкой: CPU до {f['cpu_max']:g} %, "
+        f"({cfg.down_window_h:g} ч нагрузка была низкой: CPU до {f['cpu_max']:g} %, "
         f"соединения до {f['conn_pct']:g} % от предела). "
         f"Цена ≈ {_price(b, multi_az)}/мес, экономия ≈ "
         f"{_saving(a, b, multi_az)}/мес. "

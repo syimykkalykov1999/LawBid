@@ -419,7 +419,7 @@ variable "secret_rotation" {
 variable "db_autoscale_enabled" {
   type        = bool
   default     = true
-  description = "The database grows one size under load and shrinks one size after 3 quiet days, by itself. Works on the database named by existing_database_identifier (or create_database). Off switch without terraform: docs/runbooks/db-autoscale.md."
+  description = "The database grows one size under load and, at night after 6 quiet hours, shrinks straight to the size the load needs, by itself. Works on the database named by existing_database_identifier (or create_database). Off switch without terraform: docs/runbooks/db-autoscale.md."
 }
 variable "db_autoscale_min_class" {
   type    = string
@@ -453,7 +453,7 @@ variable "db_autoscale_tuning" {
 variable "redis_autoscale_enabled" {
   type        = bool
   default     = true
-  description = "Redis grows one node type under load and shrinks one after 3 quiet days, by itself. Needs redis_replicas >= 1 and automatic failover. Off switch without terraform: docs/runbooks/redis-autoscale.md. After it has moved Redis, set redis_node_type to the current type before changing redis_replicas."
+  description = "Redis grows one node type under load and, after 1 quiet hour, shrinks straight to the node type the load needs, by itself. Needs redis_replicas >= 1 and automatic failover. Off switch without terraform: docs/runbooks/redis-autoscale.md. After it has moved Redis, set redis_node_type to the current type before changing redis_replicas."
 }
 variable "redis_autoscale_min_class" {
   type    = string

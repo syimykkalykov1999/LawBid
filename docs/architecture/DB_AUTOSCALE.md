@@ -11,8 +11,9 @@
 **Что делает.** Каждые 5 минут маленькая программа (Lambda) смотрит, как база
 себя чувствует. Если ей тяжело, она сама переводит базу на **один размер
 больше** и пишет вам письмо. Раз в сутки, в 03:30 ночи по Чикаго, она смотрит
-на последние 3 суток: если все 3 суток было спокойно, переводит на **один
-размер меньше** и тоже пишет письмо. Вы ничего не нажимаете.
+на последние 6 часов: если было спокойно, переводит **сразу на самый маленький
+размер, которому хватит замеренной нагрузки** (с 12.11, KNOWN_ERRORS 109; раньше
+был один шаг раз в 3 суток) и тоже пишет письмо. Вы ничего не нажимаете.
 
 **Когда растёт (любое одно условие):**
 - процессор занят больше 70 % подряд 15 минут;
@@ -20,7 +21,7 @@
 - соединений больше 80 % от предела подряд 10 минут (или один замер выше 92 %: база вот-вот перестанет пускать);
 - у «экономных» баз `t4g` кончились кредиты процессора (дальше AWS берёт доплату или база тормозит).
 
-**Когда уменьшается (только ночью, всё сразу):** за 72 часа процессор ни разу
+**Когда уменьшается (только ночью, всё сразу):** за 6 часов процессор ни разу
 не поднимался выше 30 %, соединений не больше 40 % от предела, памяти хватало;
 и на меньшем размере запас остаётся (иначе база сразу бы выросла обратно, это
 «качели», и мы их не допускаем).
@@ -33,7 +34,9 @@
 **Предохранители («ничего не сломать»):**
 - не трогает базу, если она не `available` или у неё уже есть незавершённое изменение;
 - не трогает во время выкладки новой версии (идёт ECS rollout api/worker) и пока работает разовая задача (миграции, переводы);
-- вверх не чаще раза в 30 минут; вниз не чаще раза в 72 часа и не раньше 72 часов после любого увеличения;
+- вверх не чаще раза в 30 минут; вниз не раньше 6 часов после любого изменения (`down_cooldown_h`, Terraform-переменная модуля);
+- копия базы для чтения уменьшение и рост **не останавливает** (с 12.11): RDS сам поднимает её пределы соединений;
+- без Multi-AZ растёт только вручную, а уменьшается только ночью (простой несколько минут ночью владелец принял 12.11);
 - потолок `db_autoscale_max_class` (по умолчанию `db.r7g.xlarge`, ≈ $698/мес) и пол `db_autoscale_min_class` (`db.t4g.micro`);
 - на потолке при высокой нагрузке только письмо «нужно ваше решение», сама выше не лезет;
 - если что-то непонятно (нет данных, не удалось прочитать ECS, незнакомый размер) она **ничего не делает**;
@@ -107,9 +110,16 @@ re-fetched in this session, treat the numbers as approximate):
   "credits near 0" means "we are paying extra for a too-small class": grow.
   Baselines (CPU % without spending credits): micro 10, small 20, medium 20,
   large 30. CloudWatch metrics: `CPUCreditBalance`, `CPUSurplusCreditBalance`.
-- **Read replicas (PostgreSQL):** a replica needs `max_connections` at least the
-  primary's, otherwise replication stops. So a primary cannot be grown alone
-  while replicas exist; the autoscaler pauses and e-mails instead.
+- **Read replicas (PostgreSQL):** a replica needs `max_connections` (and
+  `max_worker_processes`, `max_wal_senders`, `max_prepared_transactions`,
+  `max_locks_per_transaction`) at least the primary's. RDS enforces this itself:
+  "If the parameter values on the replica are less than the parameter values on
+  the primary, Amazon RDS will automatically adjust the replica parameters and
+  restart the engine" (AWS RDS User Guide, *How streaming replication works*,
+  "Setting the parameters that control shared memory"). A replica may also have
+  another class. So since 12.11 (KNOWN_ERRORS 109) replicas do NOT pause the
+  autoscaler; a primary grown above its replica only costs the replica one
+  engine restart.
 - `FreeableMemory` on RDS includes reclaimable OS cache but not shared buffers;
   on a 1 GiB instance it normally sits at 15-40 % free, so the 10 % trigger is
   tight on micro. This is the likeliest source of a "too early" up-step and it is
@@ -179,7 +189,10 @@ last **72 h** (864 five-minute points, at least 85 % present):
   baseline (so credits do not run out); peak connections <= 60 % of the target
   limit; memory in use <= 70 % of the target memory.
 
-Then one step down, never below `min_class`.
+Then straight down to the smallest class (from `min_class` up) where all of
+these hold, not one step (KNOWN_ERRORS 109, AWS target tracking: go to the
+capacity the measured load needs). Memory: `shared_buffers` (RDS default 25 % of
+the class) is counted at the target's size, the rest of the used memory as measured.
 
 ### 2.3 Cooldowns and guards
 
@@ -273,4 +286,4 @@ Then one step down, never below `min_class`.
 
 ## Read replica and this autoscaler (2026-10-24)
 
-A replica made by the admin button «Копия базы для чтения» (or by `growth.rds_read_replicas`) makes the Lambda stop with reason `has_replicas` (it reads `ReadReplicaDBInstanceIdentifiers`), exactly as described in section 1 and `check "db_autoscale_vs_replicas"`: nothing is resized, the weekly e-mail says why. The primary and the replica are then sized by hand together. The button creates the replica in the CURRENT class of the primary. Details: `docs/runbooks/db-replica.md`.
+Since 12.11 (KNOWN_ERRORS 109) a replica made by the admin button «Копия базы для чтения» (or by `growth.rds_read_replicas`) no longer stops the Lambda: the primary is resized alone, the replica keeps its own class (RDS adjusts its connection limits itself, see section 1). Shrinking: at night only, after `down_window_h` = 6 quiet hours and `down_cooldown_h` = 6 hours after the last change, straight to the smallest class whose capacity keeps the window peak inside the target band (`target_*`; memory counts `shared_buffers` = 25 % of the class separately, because it shrinks with the class). Details: `docs/runbooks/db-replica.md`.
