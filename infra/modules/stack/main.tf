@@ -2078,6 +2078,7 @@ module "ecs" {
   api_target_group_arn            = module.alb.api_target_group_arn
   api_ws_target_group_arn         = module.alb.api_ws_target_group_arn
   api_admin_target_group_arn      = module.alb.api_admin_target_group_arn
+  api_admin_enabled               = true # alb admin_api_target_group_enabled defaults to true
   admin_target_group_arn          = module.alb.admin_target_group_arn
   api_image                       = var.api_image
   admin_image                     = var.admin_image

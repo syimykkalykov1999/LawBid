@@ -25,6 +25,11 @@ variable "api_admin_target_group_arn" {
   default     = ""
   description = "Owner 2026-11-11 («А»): target group of the admin panel's API calls; set = an api-admin service (same task definition as api) serves them. Empty = none."
 }
+variable "api_admin_enabled" {
+  type        = bool
+  default     = false
+  description = "An api-admin service serves api_admin_target_group_arn. A plain switch, because a count cannot depend on the target group's ARN while that group is still being created (KNOWN_ERRORS 104)."
+}
 variable "api_admin_tasks" {
   type        = number
   default     = 1
@@ -829,7 +834,7 @@ resource "aws_ecs_service" "api" {
 # admin pages never take CPU or database connections from the app's users.
 # The deploy rolls it with api (scripts/deploy/roll-services.sh).
 resource "aws_ecs_service" "api_admin" {
-  count                             = var.api_admin_target_group_arn == "" ? 0 : 1
+  count                             = var.api_admin_enabled ? 1 : 0
   name                              = "api-admin"
   cluster                           = aws_ecs_cluster.this.id
   task_definition                   = aws_ecs_task_definition.api.arn
