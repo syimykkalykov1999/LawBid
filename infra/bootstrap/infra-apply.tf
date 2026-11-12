@@ -103,6 +103,9 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
       "rds:CreateDBSubnetGroup", "rds:ModifyDBSubnetGroup", "rds:CreateDBParameterGroup",
       "rds:DeleteDBInstance", "rds:AddTagsToResource", "rds:RemoveTagsFromResource",
       "rds:StartDBInstanceAutomatedBackupsReplication", "rds:StopDBInstanceAutomatedBackupsReplication",
+      # 12.11: the Redis replication group's own settings (daily snapshot);
+      # without it every apply stopped with AccessDenied (KNOWN_ERRORS 105).
+      "elasticache:ModifyReplicationGroup",
       "es:*", "s3:PutReplicationConfiguration", "s3:PutBucket*", "s3:CreateBucket",
       "s3:PutLifecycleConfiguration", "s3:PutEncryptionConfiguration", "s3:PutObject",
       "lambda:*", "events:*", "sns:*", "cloudfront:GetDistribution*", "cloudfront:UpdateDistribution",
