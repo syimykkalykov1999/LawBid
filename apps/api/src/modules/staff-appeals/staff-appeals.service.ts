@@ -484,7 +484,9 @@ export class StaffAppealsService {
         created_at: { gte: startOfUtcDay(now) },
       },
     });
-    if (!revealAllowed(used, cap)) {
+    // Owner 2026-11-12 («никаких лимитов для меня»): the owner (super
+    // admin) has no daily cap; every reveal is still audited.
+    if (admin.adminRole !== 'super_admin' && !revealAllowed(used, cap)) {
       throw new HttpException(
         {
           code: ErrorCode.RATE_LIMITED,

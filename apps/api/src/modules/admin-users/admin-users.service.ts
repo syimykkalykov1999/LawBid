@@ -715,7 +715,11 @@ export class AdminUsersService {
     if (dto.filter) {
       // S18-10: the server resolves the ids itself — no stale list from the
       // browser — and the filter itself goes on record.
-      const found = await this.resolveFilter(dto.filter, admin.countries);
+      // Owner 2026-11-12: the owner (super admin) acts on every match, read
+      // and processed in pages of BULK_PREVIEW_CAP; staff keep the cap.
+      const found = await this.resolveFilter(dto.filter, admin.countries, {
+        all: admin.adminRole === 'super_admin',
+      });
       ids = found.ids;
       await this.audit.record({
         adminId: admin.id,
@@ -746,8 +750,9 @@ export class AdminUsersService {
   async bulkPreview(
     filter: AdminUsersFilterDto,
     countries: CountryScope = null,
+    { all = false }: { all?: boolean } = {},
   ): Promise<AdminUsersBulkPreviewResultDto> {
-    const found = await this.resolveFilter(filter, countries);
+    const found = await this.resolveFilter(filter, countries, { all });
     return {
       matched: found.matched,
       capped: found.capped,
@@ -761,7 +766,26 @@ export class AdminUsersService {
   private async resolveFilter(
     filter: AdminUsersFilterDto,
     countries: CountryScope,
+    { all = false }: { all?: boolean } = {},
   ): Promise<{ ids: string[]; matched: number; capped: boolean }> {
+    if (all) {
+      // Owner 2026-11-12: every match, ids only, keyset pages of the cap.
+      const ids: string[] = [];
+      let cursor: string | undefined;
+      for (;;) {
+        const page = await this.prisma.user.findMany({
+          where: this.listWhere(filter, countries),
+          select: { id: true },
+          orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+          take: BULK_PREVIEW_CAP,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        });
+        ids.push(...page.map((r) => r.id));
+        if (page.length < BULK_PREVIEW_CAP) break;
+        cursor = page[page.length - 1].id;
+      }
+      return { ids, matched: ids.length, capped: false };
+    }
     const rows = await this.prisma.user.findMany({
       where: this.listWhere(filter, countries),
       select: { id: true },

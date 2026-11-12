@@ -143,7 +143,9 @@ export class AdminUsersController {
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminUsersBulkPreviewDto,
   ): Promise<AdminUsersBulkPreviewResultDto> {
-    return this.users.bulkPreview(dto.filter, admin.countries);
+    return this.users.bulkPreview(dto.filter, admin.countries, {
+      all: admin.adminRole === 'super_admin',
+    });
   }
 
   @Post('bulk')

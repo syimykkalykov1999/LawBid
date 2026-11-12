@@ -209,6 +209,25 @@ describe('LegalExportService', () => {
     expect(a.storage.signedGetUrl).toHaveBeenCalledTimes(1);
   });
 
+  it('owner 12.11: the owner has no download cap (still counted and audited)', async () => {
+    const a = build({ maxDownloads: 2 });
+    (a.prisma.legalExport.findUnique as jest.Mock).mockResolvedValue({
+      id: 'e1',
+      status: 'ready',
+      file_bucket: 'b',
+      file_key: 'k',
+      sha256: 'abc',
+      manifest_sha256: 'mm',
+      download_count: 7,
+    });
+    const owner = { ...admin, adminRole: 'super_admin' } as AdminActor;
+    await a.svc.download(owner, 'e1');
+    const call = a.tx.legalExport.updateMany.mock.calls[0][0];
+    expect(call.where.download_count).toBeUndefined();
+    expect(call.data.download_count).toEqual({ increment: 1 });
+    expect(a.storage.signedGetUrl).toHaveBeenCalledTimes(1);
+  });
+
   it('a preservation request gets the 90-day hold by default (2703(f))', async () => {
     const { svc, tx } = build({ requestType: 'preservation' });
     await svc.createHold(admin, REQ, { targetType: 'user', targetId: USER });

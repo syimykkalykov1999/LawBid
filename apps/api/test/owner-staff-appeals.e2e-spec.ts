@@ -363,10 +363,12 @@ describe('Staff appeals + retaliation guard (e2e)', () => {
       (await prisma.adminAppeal.findUniqueOrThrow({ where: { id: appealId } }))
         .reveal_log,
     ).toHaveLength(1);
+    // Owner 12.11: no daily cap for the owner; the second reveal works and
+    // is audited too.
     await api()
       .post(`/api/v1/admin/appeals/${appealId}/reveal`)
       .set(owner.auth)
-      .expect(429);
+      .expect(200);
 
     // ---- decide ---------------------------------------------------------------
     const decided = await api()

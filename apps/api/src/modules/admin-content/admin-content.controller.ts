@@ -400,7 +400,10 @@ export class AdminContentController {
         ? readJustification(justificationHeader)
         : decodeJustification(justificationHeader) || null;
     // S18-3: one export per admin at a time, streamed in keyset pages.
-    if (!(await this.extras.acquireExportLock(admin.id))) {
+    // Owner 2026-11-12: the owner (super admin) may run several at once
+    // and gets the whole table (no row cap); staff keep both rules.
+    const isOwner = admin.adminRole === 'super_admin';
+    if (!isOwner && !(await this.extras.acquireExportLock(admin.id))) {
       throw new HttpException(
         {
           code: E.RATE_LIMITED,
@@ -421,7 +424,7 @@ export class AdminContentController {
         'started',
       );
     } catch (err) {
-      await this.extras.releaseExportLock(admin.id);
+      if (!isOwner) await this.extras.releaseExportLock(admin.id);
       throw err;
     }
     const day = new Date().toISOString().slice(0, 10);
@@ -452,7 +455,9 @@ export class AdminContentController {
       }
     };
     try {
-      const out = await this.content.exportCsvStream(p.entity, write);
+      const out = await this.content.exportCsvStream(p.entity, write, {
+        unlimited: isOwner,
+      });
       await this.extras.recordExport(
         admin,
         p.entity,
@@ -468,7 +473,7 @@ export class AdminContentController {
       // failed download instead of a short file that looks complete.
       res.destroy(err instanceof Error ? err : undefined);
     } finally {
-      await this.extras.releaseExportLock(admin.id);
+      if (!isOwner) await this.extras.releaseExportLock(admin.id);
     }
   }
 }

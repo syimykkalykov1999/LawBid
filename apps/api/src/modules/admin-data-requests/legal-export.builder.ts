@@ -94,7 +94,11 @@ export class LegalExportBuilder {
     if (!job) return;
     try {
       const selection = job.selection as unknown as LegalSelection;
-      const maxRows = await this.settings.number('legal.export_max_rows');
+      // Owner 2026-11-12: an export the owner (super admin) asked for has
+      // no row cap per section; the 1 GB archive ceiling still holds.
+      const maxRows = (await this.requestedByOwner(job.requested_by))
+        ? Number.POSITIVE_INFINITY
+        : await this.settings.number('legal.export_max_rows');
       const linkDays = await this.settings.number('legal.export_link_days');
       const ttlDays = await this.settings.number('legal.export_ttl_days');
       const gathered = await this.gather(
@@ -284,6 +288,19 @@ export class LegalExportBuilder {
     return this.cipher?.open(v, messageId) ?? v;
   }
 
+  private async requestedByOwner(adminId: string): Promise<boolean> {
+    try {
+      const p = await this.prisma.adminProfile.findUnique({
+        where: { user_id: adminId },
+        select: { admin_role: true },
+      });
+      return p?.admin_role === 'super_admin';
+    } catch {
+      return false;
+    }
+  }
+
+  /** [cap]: rows per section; Infinity = no cap (the owner). */
   private async gather(userId: string, sel: LegalSelection, cap: number) {
     const has = (s: LegalSection) => sel.sections.includes(s);
     const range = {
@@ -365,7 +382,7 @@ export class LegalExportBuilder {
       const sessions = await this.prisma.session.findMany({
         where: { user_id: userId, ...created },
         orderBy: { created_at: 'desc' },
-        take: cap + 1,
+        take: Number.isFinite(cap) ? cap + 1 : undefined,
         select: {
           session_chain_id: true,
           device_id: true,
@@ -383,7 +400,7 @@ export class LegalExportBuilder {
       const events = await this.prisma.authEvent.findMany({
         where: { user_id: userId, ...created },
         orderBy: { created_at: 'desc' },
-        take: cap + 1,
+        take: Number.isFinite(cap) ? cap + 1 : undefined,
         select: {
           event_type: true,
           success: true,
@@ -475,7 +492,7 @@ export class LegalExportBuilder {
               ...created,
             }),
             orderBy: [{ conversation_id: 'asc' }, { created_at: 'asc' }],
-            take: cap + 1,
+            take: Number.isFinite(cap) ? cap + 1 : undefined,
             include: { edits: { orderBy: { edited_at: 'asc' } } },
           })
         : [];
@@ -544,7 +561,7 @@ export class LegalExportBuilder {
         ? await this.prisma.chatGroupMessage.findMany({
             where: withDeleted({ group_id: { in: gids }, ...created }),
             orderBy: [{ group_id: 'asc' }, { created_at: 'asc' }],
-            take: cap + 1,
+            take: Number.isFinite(cap) ? cap + 1 : undefined,
           })
         : [];
       cut('group_messages', msgs);
@@ -579,7 +596,7 @@ export class LegalExportBuilder {
       const rows = await this.prisma.channelPost.findMany({
         where: withDeleted({ author_id: userId, ...created }),
         orderBy: { created_at: 'asc' },
-        take: cap + 1,
+        take: Number.isFinite(cap) ? cap + 1 : undefined,
         include: {
           video_asset: {
             select: { provider: true, library_id: true, external_id: true },
@@ -610,7 +627,7 @@ export class LegalExportBuilder {
           ...created,
         }),
         orderBy: { created_at: 'asc' },
-        take: cap + 1,
+        take: Number.isFinite(cap) ? cap + 1 : undefined,
         select: {
           id: true,
           kind: true,
@@ -645,7 +662,7 @@ export class LegalExportBuilder {
       const rows = await this.prisma.story.findMany({
         where: withDeleted({ author_id: userId, ...created }),
         orderBy: { created_at: 'asc' },
-        take: cap + 1,
+        take: Number.isFinite(cap) ? cap + 1 : undefined,
         select: {
           id: true,
           kind: true,
@@ -676,7 +693,7 @@ export class LegalExportBuilder {
       const rows = await this.prisma.legalQuestion.findMany({
         where: withDeleted({ author_id: userId, ...created }),
         orderBy: { created_at: 'asc' },
-        take: cap + 1,
+        take: Number.isFinite(cap) ? cap + 1 : undefined,
       });
       cut('questions', rows);
       data.questions = rows;

@@ -197,9 +197,14 @@ export class DashboardService {
    * Owner 2026-10-25: the admin button «Обновить» for the user totals.
    * At most once per 10 minutes (a fresher stored value is returned as is);
    * recounts the totals and the dashboard summary that carries them.
+   * Owner 2026-11-12: [force] (the owner) recounts every time.
    */
-  async refreshTotals(): Promise<void> {
-    const hit = await this.summary?.peek<DashboardTotalsDto>(USER_TOTALS_KEY);
+  async refreshTotals({
+    force = false,
+  }: { force?: boolean } = {}): Promise<void> {
+    const hit = force
+      ? null
+      : await this.summary?.peek<DashboardTotalsDto>(USER_TOTALS_KEY);
     if (
       hit &&
       Date.now() - Date.parse(hit.computedAt) < TOTALS_BUTTON_COOLDOWN_MS

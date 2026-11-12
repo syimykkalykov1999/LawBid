@@ -90,6 +90,18 @@ describe('DashboardService.refreshTotals (button)', () => {
     await svc.refreshTotals();
     expect(summary.refresh).not.toHaveBeenCalled();
   });
+  it('owner 12.11: force (the owner) recounts inside the cooldown', async () => {
+    const { svc, summary } = setup({
+      data: {},
+      computedAt: ago(60_000),
+    });
+    jest
+      .spyOn(svc as unknown as { compute: () => Promise<unknown> }, 'compute')
+      .mockResolvedValue({});
+    await svc.refreshTotals({ force: true });
+    const keys = summary.refresh.mock.calls.map((c) => c[0]);
+    expect(keys).toEqual([USER_TOTALS_KEY, 'dashboard']);
+  });
   it('recounts totals and the dashboard after the cooldown', async () => {
     const { svc, summary } = setup({
       data: {},
