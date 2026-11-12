@@ -1391,6 +1391,106 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: 'тревога соединений базы (db-connections)',
   },
   {
+    id: 'aws.rds_replicas_2',
+    name: 'Вторая копия базы для чтения',
+    purpose:
+      'Ещё одна копия для чтения, когда уже работающим копиям тяжело (их средний процессор выше порога economy.db_cpu_limit_percent). Чтения делятся между копиями поровну.',
+    kind: 'aws',
+    control: tf(['growth.rds_read_replicas'], {
+      off: 'growth = { rds_read_replicas = 1 }',
+      on: 'growth = { rds_read_replicas = 2 }',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: tfCeil('growth.rds_read_replicas', 'Сколько копий (0–5)'),
+    price: price(
+      'fixed',
+      'Как копия того же размера, ≈ $13–190 за штуку (зависит от размера)',
+      U.rds,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(13, 190),
+    needed: 'later',
+    neededNote:
+      'Владелец 11.11, как Aurora Auto Scaling: включается сама (Авто), когда средний процессор копий долго выше порога, и уходит сама, когда он ниже половины порога; по одной, лишняя — первой.',
+    alarm: null,
+  },
+  {
+    id: 'aws.rds_replicas_3',
+    name: 'Третья копия базы для чтения',
+    purpose:
+      'Ещё одна копия для чтения, когда уже работающим копиям тяжело (их средний процессор выше порога economy.db_cpu_limit_percent). Чтения делятся между копиями поровну.',
+    kind: 'aws',
+    control: tf(['growth.rds_read_replicas'], {
+      off: 'growth = { rds_read_replicas = 2 }',
+      on: 'growth = { rds_read_replicas = 3 }',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: tfCeil('growth.rds_read_replicas', 'Сколько копий (0–5)'),
+    price: price(
+      'fixed',
+      'Как копия того же размера, ≈ $13–190 за штуку (зависит от размера)',
+      U.rds,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(13, 190),
+    needed: 'later',
+    neededNote:
+      'Владелец 11.11, как Aurora Auto Scaling: включается сама (Авто), когда средний процессор копий долго выше порога, и уходит сама, когда он ниже половины порога; по одной, лишняя — первой.',
+    alarm: null,
+  },
+  {
+    id: 'aws.rds_replicas_4',
+    name: 'Четвёртая копия базы для чтения',
+    purpose:
+      'Ещё одна копия для чтения, когда уже работающим копиям тяжело (их средний процессор выше порога economy.db_cpu_limit_percent). Чтения делятся между копиями поровну.',
+    kind: 'aws',
+    control: tf(['growth.rds_read_replicas'], {
+      off: 'growth = { rds_read_replicas = 3 }',
+      on: 'growth = { rds_read_replicas = 4 }',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: tfCeil('growth.rds_read_replicas', 'Сколько копий (0–5)'),
+    price: price(
+      'fixed',
+      'Как копия того же размера, ≈ $13–190 за штуку (зависит от размера)',
+      U.rds,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(13, 190),
+    needed: 'later',
+    neededNote:
+      'Владелец 11.11, как Aurora Auto Scaling: включается сама (Авто), когда средний процессор копий долго выше порога, и уходит сама, когда он ниже половины порога; по одной, лишняя — первой.',
+    alarm: null,
+  },
+  {
+    id: 'aws.rds_replicas_5',
+    name: 'Пятая копия базы для чтения',
+    purpose:
+      'Ещё одна копия для чтения, когда уже работающим копиям тяжело (их средний процессор выше порога economy.db_cpu_limit_percent). Чтения делятся между копиями поровну.',
+    kind: 'aws',
+    control: tf(['growth.rds_read_replicas'], {
+      off: 'growth = { rds_read_replicas = 4 }',
+      on: 'growth = { rds_read_replicas = 5 }',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: tfCeil('growth.rds_read_replicas', 'Сколько копий (0–5)'),
+    price: price(
+      'fixed',
+      'Как копия того же размера, ≈ $13–190 за штуку (зависит от размера)',
+      U.rds,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(13, 190),
+    needed: 'later',
+    neededNote:
+      'Владелец 11.11, как Aurora Auto Scaling: включается сама (Авто), когда средний процессор копий долго выше порога, и уходит сама, когда он ниже половины порога; по одной, лишняя — первой.',
+    alarm: null,
+  },
+  {
     id: 'aws.db_shards',
     name: 'Второй сервер базы (деление базы)',
     purpose:
@@ -2918,6 +3018,10 @@ export const INFRA_MODE_KEYS: Readonly<Record<string, string>> = {
   'aws.events_stream': 'infra.mode.events_stream',
   'aws.partition_role': 'infra.mode.partition_role',
   'aws.db_shards': 'db.shards_mode',
+  'aws.rds_replicas_2': 'infra.mode.rds_replicas_2',
+  'aws.rds_replicas_3': 'infra.mode.rds_replicas_3',
+  'aws.rds_replicas_4': 'infra.mode.rds_replicas_4',
+  'aws.rds_replicas_5': 'infra.mode.rds_replicas_5',
   'aws.db_shards_2': 'infra.mode.db_shards_2',
   'aws.db_shards_3': 'infra.mode.db_shards_3',
   'aws.redis_cache': 'cache.redis_mode',

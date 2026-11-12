@@ -1305,6 +1305,10 @@ export const OWNER_STORAGE_SETTINGS = {
   'infra.mode.opensearch': 'auto',
   'infra.mode.events_stream': 'auto',
   'infra.mode.partition_role': 'auto',
+  'infra.mode.rds_replicas_2': 'auto',
+  'infra.mode.rds_replicas_3': 'auto',
+  'infra.mode.rds_replicas_4': 'auto',
+  'infra.mode.rds_replicas_5': 'auto',
   'infra.mode.db_shards_2': 'auto',
   'infra.mode.db_shards_3': 'auto',
   /** "HH:MM-HH:MM" (America/Chicago, may cross midnight) when an automatic

@@ -568,6 +568,10 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'infra.mode.opensearch',
     'infra.mode.events_stream',
     'infra.mode.partition_role',
+    'infra.mode.rds_replicas_2',
+    'infra.mode.rds_replicas_3',
+    'infra.mode.rds_replicas_4',
+    'infra.mode.rds_replicas_5',
     'infra.mode.db_shards_2',
     'infra.mode.db_shards_3',
   ]) {

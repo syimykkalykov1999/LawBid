@@ -30,6 +30,11 @@ variable "api_admin_tasks" {
   default     = 1
   description = "Tasks of the api-admin service."
 }
+variable "api_admin_max_tasks" {
+  type        = number
+  default     = 2
+  description = "Most tasks the api-admin service scales out to (CPU 70 %)."
+}
 variable "api_ws_target_group_arn" {
   type        = string
   default     = ""
@@ -854,6 +859,35 @@ resource "aws_ecs_service" "api_admin" {
   }
   lifecycle { ignore_changes = [desired_count] }
   tags = merge(var.tags, { Component = "api-admin" })
+}
+
+# «Авто» by count for the admin API (owner 2026-11-11): one task, a second
+# only while admin pages keep its CPU high (same target tracking as the
+# pooler, out fast, in slowly).
+resource "aws_appautoscaling_target" "api_admin" {
+  count              = length(aws_ecs_service.api_admin)
+  service_namespace  = "ecs"
+  scalable_dimension = "ecs:service:DesiredCount"
+  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.api_admin[0].name}"
+  min_capacity       = var.api_admin_tasks
+  max_capacity       = var.api_admin_max_tasks
+}
+
+resource "aws_appautoscaling_policy" "api_admin_cpu" {
+  count              = length(aws_appautoscaling_target.api_admin)
+  name               = "${var.name}-api-admin-cpu"
+  policy_type        = "TargetTrackingScaling"
+  service_namespace  = aws_appautoscaling_target.api_admin[0].service_namespace
+  scalable_dimension = aws_appautoscaling_target.api_admin[0].scalable_dimension
+  resource_id        = aws_appautoscaling_target.api_admin[0].resource_id
+  target_tracking_scaling_policy_configuration {
+    target_value       = 70
+    scale_in_cooldown  = 900
+    scale_out_cooldown = 60
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+  }
 }
 
 resource "aws_ecs_service" "worker" {

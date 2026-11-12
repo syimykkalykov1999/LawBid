@@ -146,6 +146,17 @@ const INFRA_MODE_HINTS: Record<CostState, string> = {
   auto: 'Авто: включается само, когда нужно, и выключается, когда не нужно.',
 };
 
+/** `replica_cpu` / `replica_idle` from the copies' average CPU. */
+export function replicaSignals(
+  cpu: number | null | undefined,
+  limit: number,
+): string[] {
+  if (cpu == null) return [];
+  if (cpu > limit) return ['replica_cpu'];
+  if (cpu < limit / 2) return ['replica_idle'];
+  return [];
+}
+
 @Injectable()
 export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
   private stopWarm?: () => void;
@@ -327,15 +338,21 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
       budgetRatio:
         cost && cost.limitUsd > 0 ? cost.actualUsd / cost.limitUsd : null,
       pressures: cap
-        ? pressures(
-            {
-              dbCpuPercent: cap.dbCpuPercent,
-              dbConnections: cap.dbConnections,
-              dbMaxConnections: cap.dbMaxConnections,
-              redisMemoryPercent: cap.redisMemoryPercent,
-            },
-            cpuLimit,
-          ).map((p) => p.kind)
+        ? [
+            ...pressures(
+              {
+                dbCpuPercent: cap.dbCpuPercent,
+                dbConnections: cap.dbConnections,
+                dbMaxConnections: cap.dbMaxConnections,
+                redisMemoryPercent: cap.redisMemoryPercent,
+              },
+              cpuLimit,
+            ).map((p) => p.kind),
+            // Owner 2026-11-11 («Авто» by count, like Aurora Auto Scaling):
+            // the read copies' average CPU over the line adds a copy, below
+            // half of it an extra copy may go. Used by infra-auto only.
+            ...replicaSignals(cap.replicaCpuPercent, cpuLimit ?? 70),
+          ]
         : [],
       bunny: lvl(usage?.bunny?.bandwidthLevel, usage?.bunny?.storageLevel),
       cloudflare: lvl(usage?.cloudflare?.level),

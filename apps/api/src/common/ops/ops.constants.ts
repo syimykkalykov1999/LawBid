@@ -173,6 +173,8 @@ export interface CapacityReading {
   /** S9-14 (optional: older readings in Redis lack them). */
   dbStorageGb?: number | null;
   dbMultiAz?: boolean | null;
+  /** Owner 2026-11-11: average CPU of the read copies (optional). */
+  replicaCpuPercent?: number | null;
 }
 
 export interface CeilingSnapshot {

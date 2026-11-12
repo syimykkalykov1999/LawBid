@@ -173,3 +173,26 @@ describe('PrismaReadService', () => {
     });
   });
 });
+
+// Owner 2026-11-11: several read copies share the reads.
+describe('PrismaReadService with several copies', () => {
+  const primary = { marker: 'primary' } as unknown as PrismaService;
+  const saved = { ...process.env };
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it('reads go to each copy in turn', async () => {
+    delete process.env.DATABASE_REPLICA_URL;
+    process.env.DATABASE_URL = 'postgresql://u:p@primary.example:5432/lawbid';
+    process.env.DB_REPLICA_HOST = 'r1.example,r2.example';
+    const s = new PrismaReadService(primary);
+    const a = s.db;
+    const b = s.db;
+    const c = s.db;
+    expect(a).not.toBe(primary);
+    expect(b).not.toBe(a);
+    expect(c).toBe(a);
+    await s.onModuleDestroy();
+  });
+});

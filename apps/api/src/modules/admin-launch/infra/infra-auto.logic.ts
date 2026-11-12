@@ -83,6 +83,15 @@ export function searchOffPeople(
 /** Fewer direct connections per task than this = switch the pooler on. */
 export const POOL_FLOOR = 8;
 
+/** The read copies 1..5 as cloud rows (owner 2026-11-11, «Авто» by count). */
+export const COPIES = [
+  'aws.rds_replicas',
+  'aws.rds_replicas_2',
+  'aws.rds_replicas_3',
+  'aws.rds_replicas_4',
+  'aws.rds_replicas_5',
+] as const;
+
 export interface AutoWant {
   id: string;
   to: InfraTarget;
@@ -225,6 +234,39 @@ export function autoWants(
     }
     break;
   }
+  // Owner 2026-11-11: read copies 2..5, like Aurora Auto Scaling: one more
+  // while the copies' average CPU is over the line (`replica_cpu`), the last
+  // extra one goes while it is below half the line (`replica_idle`); one at
+  // a time, the highest first. The first copy follows its own rule above.
+  let top = 0;
+  while (top + 1 < COPIES.length && live(COPIES[top + 1]) === 'on') top++;
+  if (live(COPIES[0]) === 'on') {
+    const next = COPIES[top + 1];
+    if (
+      next &&
+      (s.modes?.[next] ?? 'auto') === 'auto' &&
+      s.pressures.includes('replica_cpu')
+    ) {
+      out.push({
+        id: next,
+        to: 'on',
+        reason:
+          'Копиям базы для чтения тяжело (средний процессор выше порога): нужна ещё одна.',
+      });
+    }
+    if (
+      top > 0 &&
+      (s.modes?.[COPIES[top]] ?? 'auto') === 'auto' &&
+      s.pressures.includes('replica_idle')
+    ) {
+      out.push({
+        id: COPIES[top],
+        to: 'off',
+        reason:
+          'Копиям базы для чтения давно легко (средний процессор ниже половины порога): лишняя уходит.',
+      });
+    }
+  }
   if (s.partitionNeedsRunner && live('aws.partition_role') !== 'on') {
     out.push({
       id: 'aws.partition_role',
@@ -251,6 +293,9 @@ export function autoWants(
     // A later database server needs the one before it.
     const n = MORE.indexOf(id);
     if (n > 0 && live(MORE[n - 1]) !== 'on') continue;
+    // A later read copy needs the one before it.
+    const c = (COPIES as readonly string[]).indexOf(id);
+    if (c > 0 && live(COPIES[c - 1]) !== 'on') continue;
     if (
       mode === 'on' &&
       live(id) !== 'on' &&
@@ -266,6 +311,13 @@ export function autoWants(
   // Выкл = never switched on by itself; Вкл = never switched off by itself.
   return out.filter(
     (w) =>
+      // A read copy goes only after the ones above it (highest first).
+      !(
+        w.to === 'off' &&
+        (COPIES as readonly string[]).includes(w.id) &&
+        live(COPIES[(COPIES as readonly string[]).indexOf(w.id) + 1] ?? '') ===
+          'on'
+      ) &&
       !(w.to === 'on' && modeOf(w.id) === 'off') &&
       !(w.to === 'off' && modeOf(w.id) === 'on'),
   );
