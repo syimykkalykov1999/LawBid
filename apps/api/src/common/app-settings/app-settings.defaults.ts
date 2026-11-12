@@ -1303,6 +1303,8 @@ export const OWNER_STORAGE_SETTINGS = {
   'infra.mode.rds_replicas': 'auto',
   'infra.mode.pgbouncer': 'auto',
   'infra.mode.opensearch': 'auto',
+  'infra.mode.opensearch_nodes_2': 'auto',
+  'infra.mode.opensearch_nodes_4': 'auto',
   'infra.mode.events_stream': 'auto',
   'infra.mode.partition_role': 'auto',
   'infra.mode.rds_replicas_2': 'auto',

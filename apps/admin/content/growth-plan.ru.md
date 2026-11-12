@@ -236,7 +236,7 @@ growth = { rds_read_replicas = 1 }
 
 - **Что это.** Отдельная система для поиска (сейчас поиск идёт внутри базы и стоит около 38 мс процессора базы на каждый новый запрос).
 - **Когда.** Сигнал `db-slow` из-за поиска.
-- **Где.** `growth = { opensearch_enabled = true, opensearch_instance_type = "m6g.large.search", opensearch_instance_count = 3 }`. Адрес: `terraform output growth_opensearch_endpoint`.
+- **Где.** `growth = { opensearch_enabled = true, opensearch_instance_type = "m6g.large.search", opensearch_instance_count = 4 }` (в двух зонах AWS принимает только чётное число узлов; число узлов само растёт на странице «Масштаб», Авто). Адрес: `terraform output growth_opensearch_endpoint`.
 - **Цена.** ≈ +$280 в месяц (по `GROWTH_LADDER`).
 - **Статус.**
   - Сам движок создаётся Terraform: **код готов, только включить.**

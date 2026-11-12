@@ -566,6 +566,8 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'infra.mode.rds_replicas',
     'infra.mode.pgbouncer',
     'infra.mode.opensearch',
+    'infra.mode.opensearch_nodes_2',
+    'infra.mode.opensearch_nodes_4',
     'infra.mode.events_stream',
     'infra.mode.partition_role',
     'infra.mode.rds_replicas_2',

@@ -2,6 +2,7 @@ import { AdminSummaryService } from '../../common/admin-summary/admin-summary.se
 import {
   CostRegistryService,
   RegistryModeError,
+  searchSignals,
 } from './cost-registry.service';
 
 const NOW = new Date('2026-10-15T12:00:00Z');
@@ -355,5 +356,25 @@ describe('CostRegistryService.signals: the CPU line from Admin → Настро�
   it('the default line (70) leaves 10 % CPU calm', async () => {
     const { svc } = make({ stored: {} });
     expect((await svc.signals(NOW)).pressures).not.toContain('db_cpu');
+  });
+});
+
+// Owner 2026-11-12: search engine nodes «Авто» by count (AWS advice: scale
+// out on CPUUtilization or JVMMemoryPressure).
+describe('searchSignals', () => {
+  it('busy on CPU at the line or JVM at 75 %', () => {
+    expect(searchSignals(70, 10, 70)).toEqual(['search_busy']);
+    expect(searchSignals(20, 75, 70)).toEqual(['search_busy']);
+    expect(searchSignals(null, 80, 70)).toEqual(['search_busy']);
+  });
+  it('idle only when CPU is below half the line AND JVM below 50 %', () => {
+    expect(searchSignals(30, 40, 70)).toEqual(['search_idle']);
+    expect(searchSignals(30, 60, 70)).toEqual([]);
+    expect(searchSignals(40, 40, 70)).toEqual([]);
+    expect(searchSignals(30, null, 70)).toEqual([]);
+  });
+  it('no domain / unknown → nothing', () => {
+    expect(searchSignals(null, null, 70)).toEqual([]);
+    expect(searchSignals(undefined, undefined, 70)).toEqual([]);
   });
 });
