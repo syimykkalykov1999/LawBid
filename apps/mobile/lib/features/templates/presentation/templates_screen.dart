@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/browser_download.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -424,6 +425,23 @@ class _TemplateSheetState extends ConsumerState<TemplateSheet> {
   }
 
   Future<void> _download() => _run('download', () async {
+        // Row 58 (12.11): the website opens the tab in the tap and points
+        // it at the signed link when it arrives; a tab opened after the
+        // request is blocked by Safari and phones.
+        if (opensInBrowserTab) {
+          final repo = ref.read(templatesRepositoryProvider);
+          final ok = await openAfter(
+            () async =>
+                Uri.parse((await repo.download(widget.template.id)).url),
+          );
+          if (!ok && mounted) {
+            showAppSnackBar(
+              context,
+              ref.read(translatorProvider).t('dataExport.cantOpen'),
+            );
+          }
+          return;
+        }
         final d = await ref
             .read(templatesRepositoryProvider)
             .download(widget.template.id);

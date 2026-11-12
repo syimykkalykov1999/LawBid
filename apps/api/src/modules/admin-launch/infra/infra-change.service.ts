@@ -166,7 +166,9 @@ export class InfraChangeService {
   async recent(limit = 20): Promise<InfraRequestView[]> {
     await this.sweep();
     const rows = await this.prisma.infraChangeRequest.findMany({
-      orderBy: { created_at: 'desc' },
+      // 12.11: `id` breaks ties, so the same rows always come in one order
+      // (the overview's ETag hashes this list).
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit,
     });
     return rows.map((r) => this.view(r));
