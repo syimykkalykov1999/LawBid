@@ -3,7 +3,11 @@ import { join } from 'node:path';
 import { clearRobotsCache } from './robots';
 import { StatePresetAdapter } from './state-preset.adapter';
 import {
+  FREE_DEFAULT_STATES,
+  freeDefaultAdapter,
   MANUAL_REASONS,
+  PRESET_BOT_WALL,
+  PRESET_TERMS_BAN,
   registrySupport,
   STATE_PRESETS,
 } from './state-presets';
@@ -104,7 +108,9 @@ describe('state presets (owner 2026-10-28)', () => {
     expect(all).toHaveLength(51);
     for (const st of all) {
       const s = registrySupport(st);
-      if (s.mode === 'manual') expect(MANUAL_REASONS[st]).toBeTruthy();
+      if (s.mode === 'manual') {
+        expect(MANUAL_REASONS[st] ?? PRESET_TERMS_BAN[st]).toBeTruthy();
+      }
       expect(Boolean(STATE_PRESETS[st]) && Boolean(MANUAL_REASONS[st])).toBe(
         false,
       );
@@ -116,6 +122,32 @@ describe('state presets (owner 2026-10-28)', () => {
     for (const st of ['CT', 'ME', 'MN', 'WI', 'DC', 'RI', 'NH']) {
       expect(registrySupport(st).mode).toBe('manual');
     }
+  });
+
+  it('owner 2026-11-12: free sources ON by default, never against terms or a bot wall', () => {
+    expect(FREE_DEFAULT_STATES).toEqual(
+      'AR CA NC NY OH OK OR PA WA'.split(' '),
+    );
+    // The bar's own terms forbid robots / commercial use: never automatic.
+    for (const st of ['IN', 'MS', 'TX']) {
+      expect(PRESET_TERMS_BAN[st]).toBeTruthy();
+      expect(registrySupport(st).mode).toBe('manual');
+      expect(freeDefaultAdapter(st)).toBeNull();
+    }
+    // Cloudflare bot protection in front: a preset exists, default off.
+    for (const st of Object.keys(PRESET_BOT_WALL)) {
+      expect(STATE_PRESETS[st]).toBeTruthy();
+      expect(freeDefaultAdapter(st)).toBeNull();
+      expect(registrySupport(st)).toMatchObject({
+        mode: 'automatic',
+        defaultOn: false,
+      });
+    }
+    expect(registrySupport('NY')).toMatchObject({
+      adapter: 'ny_open_data',
+      defaultOn: true,
+    });
+    expect(freeDefaultAdapter('WY')).toBeNull();
   });
 
   it('CA: profile page → pass with name, status and admission', async () => {

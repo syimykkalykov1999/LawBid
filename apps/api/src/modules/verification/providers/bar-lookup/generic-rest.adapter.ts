@@ -97,6 +97,9 @@ export class GenericRestAdapter implements StateBarAdapter {
             first: c.firstNamePath
               ? getPath(record, c.firstNamePath)
               : undefined,
+            middle: c.middleNamePath
+              ? getPath(record, c.middleNamePath)
+              : undefined,
             last: c.lastNamePath ? getPath(record, c.lastNamePath) : undefined,
             full: c.fullNamePath ? getPath(record, c.fullNamePath) : undefined,
             admitted: c.admittedPath

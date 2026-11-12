@@ -249,6 +249,9 @@ class _FileOpenButtonState extends ConsumerState<FileOpenButton> {
         setState(() => _have = false);
         showAppSnackBar(context, t.t('cases.files.downloadFailed'));
       }
+    } on BrowserTabBlocked {
+      // Row 58: the browser kept the file's tab shut; say so.
+      if (mounted) showAppSnackBar(context, t.t('dataExport.cantOpen'));
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     } finally {

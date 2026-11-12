@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/browser_download.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -17,7 +18,6 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/reauth_gate_view.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Reauth errors on a history call → back to the code screen.
 bool _isReauthError(Object? e) =>
@@ -76,9 +76,13 @@ class CaseHistoryScreen extends ConsumerWidget {
       confirmLabel: t.t('history.pdf.confirm'),
     );
     if (!ok || !context.mounted) return;
+    // Row 58 (12.11): on the website the PDF's tab is opened now, on the
+    // «confirm» tap; once the export's requests have run, Safari and phones
+    // block a new tab. The sheet points it at the PDF or closes it.
+    final tab = PendingTab.open();
     await showAppBottomSheet<void>(
       context: context,
-      builder: (_) => const _ExportSheet(),
+      builder: (_) => _ExportSheet(tab: tab),
     );
   }
 }
@@ -356,7 +360,10 @@ class _EventRow extends StatelessWidget {
 /// Starts the export, waits for the PDF, opens the 10-minute link. The
 /// link consumes the reauth token, so the section locks afterwards.
 class _ExportSheet extends ConsumerStatefulWidget {
-  const _ExportSheet();
+  const _ExportSheet({required this.tab});
+
+  /// Opened on the tap (website); shows the PDF when it is ready.
+  final PendingTab tab;
 
   @override
   ConsumerState<_ExportSheet> createState() => _ExportSheetState();
@@ -380,7 +387,10 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
   Future<void> _start() async {
     final t = ref.read(translatorProvider);
     final token = ref.read(historyAccessProvider).token;
-    if (token == null) return;
+    if (token == null) {
+      widget.tab.close();
+      return;
+    }
     final repo = ref.read(casesRepositoryProvider);
     final access = ref.read(historyAccessProvider.notifier);
     try {
@@ -391,20 +401,35 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
         final s = await repo.exportStatus(token, started.exportId);
         if (s.status == HistoryExportStatus.ready && s.url != null) {
           access.lock();
-          await launchUrl(
-            Uri.parse(s.url!),
-            mode: LaunchMode.externalApplication,
-          );
-          if (mounted) setState(() => _done = true);
+          // «Ready» only when the PDF really opened (url_launcher on the
+          // website said yes even to a blocked tab).
+          final opened = await widget.tab.go(Uri.parse(s.url!));
+          if (!mounted) return;
+          setState(() {
+            if (opened) {
+              _done = true;
+            } else {
+              _error = t.t('dataExport.cantOpen');
+            }
+          });
           return;
         }
         if (s.status == HistoryExportStatus.failed) break;
       }
+      widget.tab.close();
       if (mounted) setState(() => _error = t.t('history.pdf.failed'));
     } on Object catch (e) {
+      widget.tab.close();
       if (_isReauthError(e)) access.lock();
       if (mounted) setState(() => _error = errorText(t, e));
     }
+  }
+
+  @override
+  void dispose() {
+    // Closed before the PDF was ready: the empty tab goes too.
+    widget.tab.close();
+    super.dispose();
   }
 
   @override

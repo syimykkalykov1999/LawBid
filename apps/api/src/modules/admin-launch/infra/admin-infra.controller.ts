@@ -7,7 +7,11 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { boardEtag, notModified } from '../../../common/sync/cheap-etag';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -69,13 +73,18 @@ export class AdminInfraController {
       'Cloud switches: guards, recent requests and «пора включить» suggestions',
   })
   @ApiEnvelopeResponse(InfraOverviewDto)
-  infraOverview(): Promise<InfraOverviewDto> {
-    return this.summary.board(
+  async infraOverview(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<InfraOverviewDto | undefined> {
+    const overview = await this.summary.board(
       OVERVIEW_KEY,
       () => this.buildOverview(),
       OVERVIEW_FRESH_MS,
       (d) => Array.isArray(d?.requests),
     );
+    if (notModified(req, res, boardEtag(overview))) return undefined;
+    return overview;
   }
 
   private async buildOverview(): Promise<InfraOverviewDto> {
