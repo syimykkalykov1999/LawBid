@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type Redis from 'ioredis';
 import type { Prisma } from '@prisma/client';
+import { chunks } from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -268,29 +269,34 @@ export class AdminContentService {
     ids: string[],
     action: 'legal' | 'general' | 'auto',
   ): Promise<AdminBulkResultDto> {
-    const rows = await this.prisma.post.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, practice_area_id: true, kind: true },
-    });
-    const found = new Set(rows.map((r) => r.id));
-    if (action === 'auto') {
-      for (const r of rows) {
-        await this.prisma.post.update({
-          where: { id: r.id },
-          data: {
-            content_class_locked: false,
-            content_class: classifyPost({
-              hasPractice: r.practice_area_id !== null,
-              kind: r.kind,
-            }),
-          },
+    // Owner 2026-11-12: any number of ids (the owner has no cap), read and
+    // written BULK_CHUNK at a time.
+    const found = new Set<string>();
+    for (const part of chunks([...new Set(ids)])) {
+      const rows = await this.prisma.post.findMany({
+        where: { id: { in: part } },
+        select: { id: true, practice_area_id: true, kind: true },
+      });
+      for (const r of rows) found.add(r.id);
+      if (action === 'auto') {
+        for (const r of rows) {
+          await this.prisma.post.update({
+            where: { id: r.id },
+            data: {
+              content_class_locked: false,
+              content_class: classifyPost({
+                hasPractice: r.practice_area_id !== null,
+                kind: r.kind,
+              }),
+            },
+          });
+        }
+      } else if (rows.length > 0) {
+        await this.prisma.post.updateMany({
+          where: { id: { in: rows.map((r) => r.id) } },
+          data: { content_class: action, content_class_locked: true },
         });
       }
-    } else if (rows.length > 0) {
-      await this.prisma.post.updateMany({
-        where: { id: { in: [...found] } },
-        data: { content_class: action, content_class_locked: true },
-      });
     }
     return {
       done: ids.filter((id) => found.has(id)),

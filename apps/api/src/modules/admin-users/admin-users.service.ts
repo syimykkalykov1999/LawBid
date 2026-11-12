@@ -21,6 +21,7 @@ import {
   type AccountEraser,
 } from '../../common/privacy/privacy.ports';
 import type { Prisma } from '@prisma/client';
+import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -32,7 +33,7 @@ import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { AdminBulkResultDto } from '../admin-content/admin-content.dto';
 import { createdWindow } from '../admin-content/admin-content.service';
-import { eachId } from '../admin-content/bulk.util';
+import { eachIdInChunks } from '../admin-content/bulk.util';
 import { PasswordAuthService } from '../auth/password-auth.service';
 import { OtpService } from '../auth/services/otp.service';
 import { RateLimitService } from '../auth/services/rate-limit.service';
@@ -72,6 +73,8 @@ export const USERS_AUDIT = {
  * table, so the preview and the action both read at most cap + 1 ids and
  * say «capped» instead of counting. */
 export const BULK_PREVIEW_CAP = 500;
+/** Staff cap for an explicit id list (owner 2026-11-12: the owner has none). */
+export const USERS_BULK_MAX = 500;
 
 const LIST_DEFAULT = 20;
 const PHONE_CHANGES_PER_ADMIN_PER_DAY = 10;
@@ -711,6 +714,9 @@ export class AdminUsersService {
         details: { field: 'ids' },
       });
     }
+    // Owner 2026-11-12: staff keep 500 ids a request; the owner sends any
+    // number, worked through in chunks (each user its own action + audit).
+    if (dto.ids) assertStaffBulkCap(admin, dto.ids, USERS_BULK_MAX);
     let ids = dto.ids ?? [];
     if (dto.filter) {
       // S18-10: the server resolves the ids itself — no stale list from the
@@ -736,7 +742,7 @@ export class AdminUsersService {
         ip: admin.ip,
       });
     }
-    return eachId(ids, (id) =>
+    return eachIdInChunks(ids, (id) =>
       dto.action === 'suspend'
         ? this.suspend(admin, id, dto.reason)
         : dto.action === 'restore'
