@@ -229,6 +229,13 @@ export const REGISTRY_ADAPTERS: RegistryAdapterDescriptor[] = [
         placeholder: 'first_name',
       },
       {
+        name: 'middleNamePath',
+        label: 'Middle name path',
+        required: false,
+        placeholder: 'middle_name',
+        help: 'Owner 2026-11-12: compared when the attorney typed a middle name.',
+      },
+      {
         name: 'lastNamePath',
         label: 'Last name path',
         required: false,

@@ -476,6 +476,16 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.require_photo': true,
 } as const;
 
+// Owner 2026-11-12 (row 54, docs/dev/BAR_SOURCES_2026-11-12.md): paid
+// attorney-license data services, each fully wired and OFF until the owner
+// switches it on and saves its key in «Ключи и сервисы»
+// (verification/providers/bar-lookup/paid-bar-vendors.ts). Asked only for
+// a state with no free source on.
+export const PAID_BAR_VENDOR_SETTINGS = {
+  'verification.bar_vendor_microbilt_enabled': false,
+  'verification.bar_vendor_surepass_enabled': false,
+} as const;
+
 // Owner 2026-10-05: the planner's archive — finished tasks are kept this
 // many days (files with them), then removed automatically unless kept
 // forever; notices go out 30 and 7 days before. Off = never removed.
@@ -2038,6 +2048,7 @@ export const APP_SETTINGS = {
   ...OWNER_SUPPORT_SETTINGS,
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
+  ...PAID_BAR_VENDOR_SETTINGS,
   ...OWNER_TASKS_SETTINGS,
   ...OWNER_WEB_SETTINGS,
   ...OWNER_SMS_SETTINGS,
