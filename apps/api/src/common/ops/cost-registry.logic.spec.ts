@@ -1,4 +1,5 @@
 import { COST_REGISTRY, entryById, type CostEntry } from './cost-registry';
+import { APP_SETTINGS } from '../app-settings/app-settings.defaults';
 import {
   SSM_MODE_BY_STATE,
   SSM_STATE_BY_MODE,
@@ -42,6 +43,32 @@ describe('stateFromStored', () => {
     expect(stateFromStored(b, 'on', 'auto').state).toBe('on');
     expect(stateFromStored(b, 'off', 'auto').state).toBe('off');
     expect(stateFromStored(b, undefined, 'auto').state).toBe('auto');
+  });
+});
+
+// Admin switch audit 12.11: a row whose setting default matches no switch
+// position showed «своё значение («auto»)» on a fresh install, and Авто
+// could not be picked back (vendor.rekognition vs moderation.image.enabled).
+describe('every app-setting row reads its own default', () => {
+  const rows = COST_REGISTRY.filter((x) => x.control.type === 'app-setting');
+  it.each(rows.map((x) => [x.id, x] as const))(
+    '%s: the built-in default is one of the positions',
+    (_id, entry) => {
+      const c = entry.control as { key: string };
+      const fallback = (APP_SETTINGS as Record<string, unknown>)[c.key];
+      const r = stateFromStored(entry, undefined, fallback);
+      expect(r.known).toBe(true);
+      expect(entry.states).toContain(r.state);
+    },
+  );
+
+  it('image check: Авто is a position and the old true / false rows still read', () => {
+    const rek = e('vendor.rekognition');
+    expect(rek.states).toEqual(['off', 'on', 'auto']);
+    expect(stateFromStored(rek, 'auto', 'auto').state).toBe('auto');
+    expect(stateFromStored(rek, undefined, 'auto').state).toBe('auto');
+    expect(stateFromStored(rek, 'off', 'auto').state).toBe('off');
+    expect(stateFromStored(rek, 'on', 'auto').state).toBe('on');
   });
 });
 

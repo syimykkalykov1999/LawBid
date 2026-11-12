@@ -1,6 +1,8 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
 import {
+  STAFF_NOT_BUILT,
+  STAFF_NOT_BUILT_NOTE,
   STAFF_NUMBER_DEFS,
   STAFF_SWITCH_LABELS,
 } from '../../common/app-settings/staff-settings';
@@ -330,7 +332,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     out[key] = {
       type: 'boolean',
       defaultValue: false,
-      description: `${labelRu} (${key}). По умолчанию выключено.`,
+      description: `${labelRu} (${key}). По умолчанию выключено.${STAFF_NOT_BUILT.has(key) ? STAFF_NOT_BUILT_NOTE : ''}`,
     };
   }
   for (const [key, def] of Object.entries(STAFF_NUMBER_DEFS)) {
@@ -338,7 +340,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     out[key] = {
       type: 'integer',
       defaultValue,
-      description: `${def.labelRu} (${key}). По умолчанию ${String(defaultValue)}, от ${def.min} до ${def.max}.`,
+      description: `${def.labelRu} (${key}). По умолчанию ${String(defaultValue)}, от ${def.min} до ${def.max}.${STAFF_NOT_BUILT.has(key) ? STAFF_NOT_BUILT_NOTE : ''}`,
       min: def.min,
       max: def.max,
     };
