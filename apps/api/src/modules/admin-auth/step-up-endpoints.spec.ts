@@ -164,9 +164,6 @@ const CASES: Case[] = [
         svc as never,
         { record: jest.fn() } as never,
         auth as never,
-        {
-          consumeFixedWindow: jest.fn().mockResolvedValue({ allowed: true }),
-        } as never,
       ).createIntegrationVersion(actor, { provider: 'stripe' }, { values: {} }),
   },
   // Owner 2026-10-22 («лечи всё»): the rest of money / identity.

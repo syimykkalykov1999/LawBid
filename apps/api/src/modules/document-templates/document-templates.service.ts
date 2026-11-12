@@ -169,10 +169,14 @@ export class DocumentTemplatesService {
     admin: AdminActor,
     dto: AdminTemplateUploadDto,
   ): Promise<PresignedFileDto> {
-    return this.files.presign(admin.id, {
-      purpose: 'document_template',
-      ...dto,
-    });
+    return this.files.presign(
+      admin.id,
+      {
+        purpose: 'document_template',
+        ...dto,
+      },
+      { byAdmin: true },
+    );
   }
 
   confirmUpload(admin: AdminActor, fileId: string): Promise<FileDto> {

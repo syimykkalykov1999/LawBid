@@ -626,18 +626,21 @@ export class AdminContentService {
    * S18-3: the export is read in keyset pages of 2 000 and written to the
    * response as it goes, so a big table never sits in the API's memory.
    * At most CSV_EXPORT_LIMIT rows; when more exist a last line says so
-   * (the file must never look complete when it is not).
+   * (the file must never look complete when it is not). Owner 2026-11-12:
+   * [unlimited] (the owner) streams the whole table, page by page.
    */
   async exportCsvStream(
     entity: string,
     write: (chunk: string) => Promise<void> | void,
+    { unlimited = false }: { unlimited?: boolean } = {},
   ): Promise<{ rows: number; truncated: boolean }> {
+    const max = unlimited ? Number.POSITIVE_INFINITY : CSV_EXPORT_LIMIT;
     const spec = this.exportSpec(entity);
     await write(csvLine(spec.header));
     let rows = 0;
     let cursor: string | undefined;
     for (;;) {
-      const left = CSV_EXPORT_LIMIT - rows;
+      const left = max - rows;
       // One extra row tells whether the cap cut the table off.
       const take = Math.min(CSV_EXPORT_PAGE, left + 1);
       const page = await spec.page(take, cursor);

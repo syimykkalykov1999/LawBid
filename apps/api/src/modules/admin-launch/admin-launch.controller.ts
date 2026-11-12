@@ -20,7 +20,6 @@ import {
   PagerDutySnsService,
 } from '../../common/ops/launch/aws-launch.service';
 import { LaunchChecksService } from '../../common/ops/launch/launch-checks.service';
-import { RateLimitService } from '../auth/services/rate-limit.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   AdminEndpoint,
@@ -59,7 +58,6 @@ export class AdminLaunchController {
     private readonly budgets: AwsBudgetsAdminService,
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
-    private readonly rateLimit: RateLimitService,
   ) {}
 
   private async applyLimit(who: AdminActor, p: BudgetLimitRequestDto) {
@@ -90,10 +88,8 @@ export class AdminLaunchController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Check everything again now (at most 6 a minute)' })
   @ApiEnvelopeResponse(LaunchReportDto)
-  async refreshLaunch(
-    @CurrentAdmin() admin: AdminActor,
-  ): Promise<LaunchReportDto> {
-    await this.limit(['adm-launch-refresh', admin.id], 6, 60);
+  refreshLaunch(): Promise<LaunchReportDto> {
+    // Owner 2026-11-12: no per-minute cap on his own button.
     return this.checks.report(new Date(), true);
   }
 
@@ -174,8 +170,8 @@ export class AdminLaunchController {
   ): Promise<PagingStatusDto> {
     await this.auth.assertStepUp(admin.sessionId);
     this.requireTopic();
-    // Each test is one of the 100 free calls a month.
-    await this.limit(['adm-paging-test', admin.id], 3, 3600);
+    // Each test is one of the 100 free calls a month; the fresh 2FA code
+    // is the only guard (owner 2026-11-12: no hourly cap).
     await this.paging.publishTest();
     await this.log(admin, 'ops.pagerduty_test', null);
     return this.paging.status(true);
@@ -273,20 +269,6 @@ export class AdminLaunchController {
           message: 'This works only on AWS (production).',
         },
         HttpStatus.CONFLICT,
-      );
-    }
-  }
-
-  private async limit(parts: string[], max: number, windowSec: number) {
-    const r = await this.rateLimit.consumeFixedWindow(parts, max, windowSec);
-    if (!r.allowed) {
-      throw new HttpException(
-        {
-          code: E.AUTH_OTP_REQUEST_LIMIT,
-          message: 'Too many requests. Try again later.',
-          details: { retryAfterSeconds: r.retryAfterSeconds },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
   }

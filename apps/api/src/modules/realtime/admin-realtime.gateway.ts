@@ -27,7 +27,9 @@ import {
 
 /** The ticket is 24 random bytes in base64url (32 chars). */
 const TICKET_RE = /^[A-Za-z0-9_-]{16,64}$/;
-/** Sockets one address may open per hour (a tab opens one per sign-in). */
+/** Failed admin handshakes one address may make per hour. Owner
+ * 2026-11-12: only bad tickets count, so a signed-in admin (many tabs,
+ * reconnects, admins behind one office address) is never refused. */
 const ADMIN_SOCKETS_PER_IP_PER_HOUR = 300;
 /** How often live sockets are checked against their admin session and the
  * sidebar counts of the connected scopes are refreshed (the server-side
@@ -128,17 +130,16 @@ export class AdminRealtimeGateway
       return;
     }
     const ip = socket.handshake.address;
-    if (this.rateLimit && ip) {
-      const r = await this.rateLimit.consumeFixedWindow(
-        ['admin-socket', 'ip', ip],
-        ADMIN_SOCKETS_PER_IP_PER_HOUR,
-        3600,
-      );
-      if (!r.allowed) {
-        socket.emit('auth:error', { code: 'RATE_LIMITED' });
-        socket.disconnect(true);
-        return;
-      }
+    const failKey = ['admin-socket', 'ip', ip];
+    if (
+      this.rateLimit &&
+      ip &&
+      (await this.rateLimit.peekFixedWindow(failKey)) >=
+        ADMIN_SOCKETS_PER_IP_PER_HOUR
+    ) {
+      socket.emit('auth:error', { code: 'RATE_LIMITED' });
+      socket.disconnect(true);
+      return;
     }
     // Redeemed once: a second handshake with the same ticket gets nothing.
     const raw = await this.redis.getdel(adminTicketKey(ticket));
@@ -147,6 +148,13 @@ export class AdminRealtimeGateway
       !stored ||
       (await this.sessions.ownerOf(stored.sessionId)) !== stored.adminId
     ) {
+      if (this.rateLimit && ip) {
+        await this.rateLimit.consumeFixedWindow(
+          failKey,
+          ADMIN_SOCKETS_PER_IP_PER_HOUR,
+          3600,
+        );
+      }
       socket.emit('auth:error', { code: 'UNAUTHORIZED' });
       socket.disconnect(true);
       return;

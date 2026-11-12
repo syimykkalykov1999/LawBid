@@ -203,6 +203,22 @@ describe('FilesService', () => {
       );
     });
 
+    it('owner 12.11: an admin-panel upload has no hourly count, no daily cap, no quota', async () => {
+      const { service, deps } = withCap(1);
+      deps.rateLimit.consumeFixedWindow.mockResolvedValue({
+        allowed: false,
+        remaining: 0,
+        retryAfterSeconds: 1200,
+      });
+      expect(
+        await code(service.presign('a1', png(5 * MBYTES), { byAdmin: true })),
+      ).toBe('resolved');
+      expect(deps.rateLimit.consumeFixedWindow).not.toHaveBeenCalled();
+      expect(deps.redis.incrby).not.toHaveBeenCalled();
+      // A user is still counted.
+      expect(await code(service.presign('u1', png(1)))).toBe('RATE_LIMITED');
+    });
+
     it('0 switches it off', async () => {
       const { service, deps } = withCap(0);
       expect(await code(service.presign('u1', png(5 * MBYTES)))).toBe(

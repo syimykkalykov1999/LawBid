@@ -73,6 +73,47 @@ describe('AdminUsersService.bulk with a filter', () => {
     });
   });
 
+  it('owner 12.11: the owner acts on every match, read in pages of the cap', async () => {
+    const total = BULK_PREVIEW_CAP * 2 + 37;
+    const findMany = jest
+      .fn()
+      .mockImplementation(
+        ({ take, cursor }: { take: number; cursor?: { id: string } }) => {
+          const start = cursor ? Number(cursor.id.slice(1)) + 1 : 0;
+          const end = Math.min(total, start + take);
+          return Promise.resolve(
+            Array.from({ length: Math.max(0, end - start) }, (_, i) => ({
+              id: `u${start + i}`,
+            })),
+          );
+        },
+      );
+    const record = jest.fn().mockResolvedValue(undefined);
+    const svc = Object.create(AdminUsersService.prototype) as AdminUsersService;
+    Object.assign(svc, { prisma: { user: { findMany } }, audit: { record } });
+    const logout = jest
+      .spyOn(svc, 'revokeSessions')
+      .mockResolvedValue({} as never);
+    const owner = { ...(admin as object), adminRole: 'super_admin' } as never;
+    const out = await svc.bulk(owner, {
+      action: 'logout',
+      filter: {},
+      reason: '',
+    } as never);
+    expect(out.done).toHaveLength(total);
+    expect(logout).toHaveBeenCalledTimes(total);
+    expect(
+      findMany.mock.calls.every(
+        ([a]: [{ take: number }]) => a.take <= BULK_PREVIEW_CAP,
+      ),
+    ).toBe(true);
+    expect(record.mock.calls[0][0].after).toMatchObject({
+      matched: total,
+      capped: false,
+      processed: total,
+    });
+  });
+
   it('wants exactly one of ids / filter', async () => {
     const { svc } = build(1);
     await expect(

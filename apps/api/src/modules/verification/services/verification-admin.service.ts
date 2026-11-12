@@ -332,16 +332,20 @@ export class VerificationAdminService {
 
   /** §2.2: a 5-minute signed link (verification.signed_url_ttl_sec); the
    * view is written to audit_log before the link is returned. Rate-limited
-   * per verifier (DOCUMENT_URL_LIMIT_PER_ADMIN_PER_HOUR). */
+   * per staff verifier (DOCUMENT_URL_LIMIT_PER_ADMIN_PER_HOUR); owner
+   * 2026-11-12: the owner (super_admin) has no hourly cap. */
   async documentUrl(
     admin: AdminActor,
     documentId: string,
   ): Promise<DocumentUrlDto> {
-    const limit = await this.rateLimit.consumeFixedWindow(
-      ['verification-document-url', 'admin', admin.id],
-      DOCUMENT_URL_LIMIT_PER_ADMIN_PER_HOUR,
-      3600,
-    );
+    const limit =
+      admin.adminRole === 'super_admin'
+        ? { allowed: true, retryAfterSeconds: 0 }
+        : await this.rateLimit.consumeFixedWindow(
+            ['verification-document-url', 'admin', admin.id],
+            DOCUMENT_URL_LIMIT_PER_ADMIN_PER_HOUR,
+            3600,
+          );
     if (!limit.allowed) {
       throw httpError(
         HttpStatus.TOO_MANY_REQUESTS,

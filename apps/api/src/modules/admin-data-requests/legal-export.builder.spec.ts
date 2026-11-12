@@ -114,6 +114,27 @@ function build(selection: object) {
 }
 
 describe('LegalExportBuilder', () => {
+  it('owner 12.11: an export the owner asked for has no row cap', async () => {
+    const staff = build({ sections: ['profile', 'chats'] });
+    await staff.b.build(JOB, new Date('2026-10-21T00:00:00Z'));
+    const staffTakes = (
+      staff.prisma.message.findMany as unknown as jest.Mock
+    ).mock.calls.map((c: [{ take?: number }]) => c[0].take);
+    expect(staffTakes).toContain(50001);
+
+    const owner = build({ sections: ['profile', 'chats'] });
+    (owner.prisma as unknown as Record<string, unknown>).adminProfile = {
+      findUnique: jest.fn().mockResolvedValue({ admin_role: 'super_admin' }),
+    };
+    await owner.b.build(JOB, new Date('2026-10-21T00:00:00Z'));
+    const ownerTakes = (
+      owner.prisma.message.findMany as unknown as jest.Mock
+    ).mock.calls.map((c: [{ take?: number }]) => c[0].take);
+    expect(ownerTakes.length).toBeGreaterThan(0);
+    expect(ownerTakes.every((t) => t === undefined)).toBe(true);
+    expect(owner.update.mock.calls[0][0].data.status).toBe('ready');
+  });
+
   it('builds a ZIP with report, data, media, hashes and records access', async () => {
     const { b, prisma, put, update } = build({
       sections: ['profile', 'chats'],

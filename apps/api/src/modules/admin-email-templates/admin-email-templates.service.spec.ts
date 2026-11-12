@@ -1,13 +1,12 @@
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { EMAIL_TEMPLATE_KEYS } from '../auth/providers/email/email-template-render';
-import type { RateLimitService } from '../auth/services/rate-limit.service';
 import { AdminEmailTemplatesService } from './admin-email-templates.service';
 import { EMAIL_TEMPLATE_CATALOG, sampleVars } from './email-template-catalog';
 
 const ADMIN = '22222222-2222-4222-8222-222222222222';
 
-function setup(opts: { allowed?: boolean } = {}) {
+function setup() {
   const prisma = {
     emailTemplate: {
       findMany: jest.fn().mockResolvedValue([]),
@@ -19,22 +18,14 @@ function setup(opts: { allowed?: boolean } = {}) {
       findUnique: jest.fn().mockResolvedValue({ email: 'boss@lawbid.app' }),
     },
   };
-  const rateLimit = {
-    consumeFixedWindow: jest.fn().mockResolvedValue({
-      allowed: opts.allowed ?? true,
-      remaining: 1,
-      retryAfterSeconds: 60,
-    }),
-  };
   const email = { sendEmail: jest.fn().mockResolvedValue(undefined) };
   const costGuard = { consume: jest.fn().mockResolvedValue(undefined) };
   const service = new AdminEmailTemplatesService(
     prisma as unknown as PrismaService,
-    rateLimit as unknown as RateLimitService,
     email,
     costGuard as never,
   );
-  return { service, prisma, email, rateLimit, costGuard };
+  return { service, prisma, email, costGuard };
 }
 
 describe('email template catalog', () => {
@@ -117,14 +108,9 @@ describe('AdminEmailTemplatesService', () => {
     expect(out.html).toContain('#C9A24A');
   });
 
-  it('test send goes to the admin’s own email, rate limited 10/hour', async () => {
-    const { service, email, rateLimit } = setup();
+  it('test send goes to the admin’s own email', async () => {
+    const { service, email } = setup();
     const out = await service.sendTest(ADMIN, 'login_otp', 'en', {});
-    expect(rateLimit.consumeFixedWindow).toHaveBeenCalledWith(
-      ['admin-email-template-test', ADMIN],
-      10,
-      3600,
-    );
     const sent = email.sendEmail.mock.calls[0][0];
     expect(sent.to).toBe('boss@lawbid.app');
     expect(sent.subject).toBe('[Test] Your LawBid code');
@@ -132,12 +118,13 @@ describe('AdminEmailTemplatesService', () => {
     expect(out.sentTo).toBe('bo***@lawbid.app');
   });
 
-  it('test send over the limit → 429', async () => {
-    const { service, email } = setup({ allowed: false });
-    await expect(
-      service.sendTest(ADMIN, 'login_otp', 'en', {}),
-    ).rejects.toMatchObject({ response: { code: ErrorCode.RATE_LIMITED } });
-    expect(email.sendEmail).not.toHaveBeenCalled();
+  it('owner 12.11: no hourly cap on test sends; the e-mail budget still counts each', async () => {
+    const { service, email, costGuard } = setup();
+    for (let i = 0; i < 15; i++) {
+      await service.sendTest(ADMIN, 'login_otp', 'en', {});
+    }
+    expect(email.sendEmail).toHaveBeenCalledTimes(15);
+    expect(costGuard.consume).toHaveBeenCalledTimes(15);
   });
 
   // Click audit 2026-11-08: a refused send was a bare 500 in the admin.

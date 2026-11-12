@@ -168,6 +168,12 @@ describe('AdminAccessReportService', () => {
     });
     await inside.svc.refresh();
     expect(inside.summary?.refresh).not.toHaveBeenCalled();
+    // Owner 12.11: the owner (force) recounts inside the 10 minutes.
+    await inside.svc.refresh(new Date(), { force: true });
+    expect(inside.summary?.refresh).toHaveBeenCalledWith(
+      accessReportKey(month),
+      expect.any(Function),
+    );
     const after = make(true, {
       data: STORED,
       computedAt: ago(TOTALS_BUTTON_COOLDOWN_MS + 60_000),

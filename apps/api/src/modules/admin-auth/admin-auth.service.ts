@@ -401,6 +401,10 @@ export class AdminAuthService {
       });
     }
     await this.redis.set(stepUpKey(sessionId), '1', 'EX', STEP_UP_TTL_SECONDS);
+    // Owner 2026-11-12: only wrong codes count toward the 5 per 15 min; a
+    // good code clears them, so the owner is never locked out of his own
+    // panel for confirming often.
+    await this.rateLimit.resetFixedWindow(['admin-stepup', adminId]);
     return { validForSeconds: STEP_UP_TTL_SECONDS };
   }
 
@@ -1365,6 +1369,10 @@ export class AdminAuthService {
       });
     }
     await this.redis.set(stepUpKey(sessionId), '1', 'EX', STEP_UP_TTL_SECONDS);
+    // Owner 2026-11-12: only wrong codes count toward the 5 per 15 min; a
+    // good code clears them, so the owner is never locked out of his own
+    // panel for confirming often.
+    await this.rateLimit.resetFixedWindow(['admin-stepup', adminId]);
     return { validForSeconds: STEP_UP_TTL_SECONDS };
   }
 

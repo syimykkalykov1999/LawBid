@@ -111,6 +111,44 @@ describe('AdminRealtimeGateway', () => {
     expect(ended.join).not.toHaveBeenCalled();
   });
 
+  it('owner 12.11: only failed handshakes count per address; good ones never do', async () => {
+    const t = setup();
+    let failures = 0;
+    const rateLimit = {
+      peekFixedWindow: jest.fn(() => Promise.resolve(failures)),
+      consumeFixedWindow: jest.fn(() => {
+        failures += 1;
+        return Promise.resolve({ allowed: true });
+      }),
+    };
+    const gateway = new AdminRealtimeGateway(
+      t.redis as unknown as Redis,
+      { setContext: jest.fn(), warn: jest.fn() } as unknown as PinoLogger,
+      t.sessions as unknown as AdminSessionService,
+      t.counts as unknown as AdminCountsService,
+      rateLimit as never,
+    );
+    gateway.afterInit(t.nsp as never);
+    for (let i = 0; i < 400; i++) {
+      t.issue();
+      const s = fakeSocket(`ok${i}`, TICKET);
+      await gateway.handleConnection(s as unknown as Socket);
+      expect(s.emit).toHaveBeenCalledWith('admin:ready', expect.anything());
+    }
+    expect(rateLimit.consumeFixedWindow).not.toHaveBeenCalled();
+    // A bad ticket counts; at 300 failures the address is refused.
+    const bad = fakeSocket('bad', TICKET);
+    await gateway.handleConnection(bad as unknown as Socket);
+    expect(rateLimit.consumeFixedWindow).toHaveBeenCalledTimes(1);
+    failures = 300;
+    t.issue();
+    const blocked = fakeSocket('blocked', TICKET);
+    await gateway.handleConnection(blocked as unknown as Socket);
+    expect(blocked.emit).toHaveBeenCalledWith('auth:error', {
+      code: 'RATE_LIMITED',
+    });
+  });
+
   it('the socket only listens: a packet from the browser ends it', async () => {
     const t = setup();
     t.issue();

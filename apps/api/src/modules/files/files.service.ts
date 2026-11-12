@@ -186,9 +186,14 @@ export class FilesService {
     this.logger.setContext(FilesService.name);
   }
 
+  /** [byAdmin]: an upload from the admin panel (stickers, support replies,
+   * document templates). Owner 2026-11-12 («нигде с лимитами не
+   * ограничивай меня»): no hourly upload count and no storage quota for
+   * admins; type and size rules still apply. */
   async presign(
     userId: string,
     dto: PresignFileDto,
+    { byAdmin = false }: { byAdmin?: boolean } = {},
   ): Promise<PresignedFileDto> {
     if (
       dto.purpose === 'post_video' &&
@@ -250,15 +255,20 @@ export class FilesService {
       !mayUsePublicStore(dto.purpose)
         ? this.storage.awsBucket('media')
         : resolved;
-    if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
+    const counted = !byAdmin && !QUOTA_FREE_PURPOSES.includes(dto.purpose);
+    if (counted) {
       await this.assertQuota(userId, dto.sizeBytes);
     }
 
-    const limit = await this.rateLimit.consumeFixedWindow(
-      ['files-presign', 'user', userId],
-      this.config.getOrThrow<number>('FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR'),
-      3600,
-    );
+    const limit = byAdmin
+      ? { allowed: true, retryAfterSeconds: 0 }
+      : await this.rateLimit.consumeFixedWindow(
+          ['files-presign', 'user', userId],
+          this.config.getOrThrow<number>(
+            'FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR',
+          ),
+          3600,
+        );
     if (!limit.allowed) {
       throw new HttpException(
         {
@@ -271,7 +281,7 @@ export class FilesService {
     }
     const reused = await this.reuseOwnFile(userId, dto, bucket, allowed);
     if (reused) return reused;
-    if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
+    if (counted) {
       await this.reserveDailyUpload(userId, dto.sizeBytes);
     }
     await this.costGuard.consume('storage', 1, { userId });
