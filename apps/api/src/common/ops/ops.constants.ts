@@ -175,6 +175,10 @@ export interface CapacityReading {
   dbMultiAz?: boolean | null;
   /** Owner 2026-11-11: average CPU of the read copies (optional). */
   replicaCpuPercent?: number | null;
+  /** Owner 2026-11-12: the search engine domain's CPU (Average) and JVM
+   * memory pressure (Maximum), AWS/ES (optional). */
+  searchCpuPercent?: number | null;
+  searchJvmPercent?: number | null;
 }
 
 export interface CeilingSnapshot {

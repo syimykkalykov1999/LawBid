@@ -1593,6 +1593,62 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     providers: ['opensearch'],
   },
   {
+    id: 'aws.opensearch_nodes_2',
+    name: 'Второй узел поискового движка',
+    purpose:
+      'Второй узел поискового движка в другой зоне, когда узлу тяжело (процессор выше порога economy.db_cpu_limit_percent или память JVM выше 75 %). Поиск делится между узлами, у каждой части есть копия.',
+    kind: 'aws',
+    control: tf(['growth.opensearch_instance_count'], {
+      off: 'growth = { opensearch_instance_count = 1 }',
+      on: 'growth = { opensearch_instance_count = 2 }',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: tfCeil(
+      'growth.opensearch_instance_count',
+      'Сколько узлов (1, 2 или 4)',
+    ),
+    price: price(
+      'fixed',
+      'Как узел того же размера: t3.small ≈ $28 в месяц за узел',
+      U.os,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(28, 30),
+    needed: 'later',
+    neededNote:
+      'Владелец 12.11, по совету AWS (масштабировать, когда процессор узлов выше порога или память JVM выше 75 %): включается сама (Авто), только пока работает поисковый движок, и уходит сама, когда процессор ниже половины порога и память JVM ниже 50 %; по шагу, лишние — первыми.',
+    alarm: null,
+  },
+  {
+    id: 'aws.opensearch_nodes_4',
+    name: 'Третий и четвёртый узлы поискового движка',
+    purpose:
+      'Ещё два узла поискового движка (по два в каждой зоне), когда двум узлам тяжело (процессор выше порога economy.db_cpu_limit_percent или память JVM выше 75 %).',
+    kind: 'aws',
+    control: tf(['growth.opensearch_instance_count'], {
+      off: 'growth = { opensearch_instance_count = 2 }',
+      on: 'growth = { opensearch_instance_count = 4 }',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: tfCeil(
+      'growth.opensearch_instance_count',
+      'Сколько узлов (1, 2 или 4)',
+    ),
+    price: price(
+      'fixed',
+      'Как узел того же размера: t3.small ≈ $28 в месяц за узел',
+      U.os,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(56, 60),
+    needed: 'later',
+    neededNote:
+      'Владелец 12.11, по совету AWS (масштабировать, когда процессор узлов выше порога или память JVM выше 75 %): включается сама (Авто), только пока работает поисковый движок, и уходит сама, когда процессор ниже половины порога и память JVM ниже 50 %; по шагу, лишние — первыми.',
+    alarm: null,
+  },
+  {
     id: 'aws.events_stream',
     name: 'Поток событий (Kinesis Data Streams)',
     purpose:
@@ -3015,6 +3071,8 @@ export const INFRA_MODE_KEYS: Readonly<Record<string, string>> = {
   'aws.rds_replicas': 'infra.mode.rds_replicas',
   'aws.pgbouncer': 'infra.mode.pgbouncer',
   'aws.opensearch': 'infra.mode.opensearch',
+  'aws.opensearch_nodes_2': 'infra.mode.opensearch_nodes_2',
+  'aws.opensearch_nodes_4': 'infra.mode.opensearch_nodes_4',
   'aws.events_stream': 'infra.mode.events_stream',
   'aws.partition_role': 'infra.mode.partition_role',
   'aws.db_shards': 'db.shards_mode',

@@ -60,6 +60,11 @@
         "opensearch_enabled": {
           "type": "boolean"
         },
+        "opensearch_instance_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
         "events_stream_enabled": {
           "type": "boolean"
         }

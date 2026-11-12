@@ -101,6 +101,14 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
     path: [GROWTH_CONTAINER, 'opensearch_enabled'],
     spec: { type: 'boolean' },
   },
+  // Owner 2026-11-12 («Авто» by count): data nodes of the search engine
+  // domain. Two Availability Zones in prod = 1, 2 or 4 (AWS wants an even
+  // count across two zones; modules/stack/growth.tf refuses 3).
+  'growth.opensearch_instance_count': int(
+    [GROWTH_CONTAINER, 'opensearch_instance_count'],
+    1,
+    4,
+  ),
   // G4 (2026-11-08): the Kinesis stream the `events.sink = auto` switch needs.
   'growth.events_stream_enabled': {
     path: [GROWTH_CONTAINER, 'events_stream_enabled'],
@@ -283,6 +291,24 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     },
     impact:
       'Без перерыва: движок создаётся 15–30 минут; поиск переключается отдельно настройкой search.engine.',
+  },
+  {
+    id: 'aws.opensearch_nodes_2',
+    values: {
+      off: { 'growth.opensearch_instance_count': 1 },
+      on: { 'growth.opensearch_instance_count': 2 },
+    },
+    impact:
+      'Без перерыва: AWS сам переносит поиск на два узла в двух зонах (сине-зелёная замена, 20–60 минут); поиск работает всё время.',
+  },
+  {
+    id: 'aws.opensearch_nodes_4',
+    values: {
+      off: { 'growth.opensearch_instance_count': 2 },
+      on: { 'growth.opensearch_instance_count': 4 },
+    },
+    impact:
+      'Без перерыва: AWS сам переносит поиск на четыре узла (по два в каждой зоне, сине-зелёная замена, 20–60 минут); поиск работает всё время.',
   },
   {
     id: 'aws.events_stream',

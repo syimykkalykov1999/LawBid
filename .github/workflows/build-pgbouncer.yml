@@ -21,7 +21,7 @@ on:
       tag:
         description: "Tag in ECR lawbid-pgbouncer (immutable)"
         required: false
-        default: "1.24.0-1"
+        default: "1.24.0-3"
   pull_request:
     paths:
       - "infra/pgbouncer/**"

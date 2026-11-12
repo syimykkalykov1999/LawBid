@@ -157,6 +157,25 @@ export function replicaSignals(
   return [];
 }
 
+/** Owner 2026-11-12: `search_busy` / `search_idle` from the search engine
+ * domain's CPU and JVM memory pressure (AWS advice: scale out on either). */
+export const SEARCH_JVM_BUSY = 75;
+export const SEARCH_JVM_IDLE = 50;
+export function searchSignals(
+  cpu: number | null | undefined,
+  jvm: number | null | undefined,
+  limit: number,
+): string[] {
+  if (cpu == null && jvm == null) return [];
+  if ((cpu ?? 0) >= limit || (jvm ?? 0) >= SEARCH_JVM_BUSY) {
+    return ['search_busy'];
+  }
+  if (cpu != null && jvm != null && cpu < limit / 2 && jvm < SEARCH_JVM_IDLE) {
+    return ['search_idle'];
+  }
+  return [];
+}
+
 @Injectable()
 export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
   private stopWarm?: () => void;
@@ -352,6 +371,12 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
             // the read copies' average CPU over the line adds a copy, below
             // half of it an extra copy may go. Used by infra-auto only.
             ...replicaSignals(cap.replicaCpuPercent, cpuLimit ?? 70),
+            // Owner 2026-11-12: the search engine nodes, the same way.
+            ...searchSignals(
+              cap.searchCpuPercent,
+              cap.searchJvmPercent,
+              cpuLimit ?? 70,
+            ),
           ]
         : [],
       bunny: lvl(usage?.bunny?.bandwidthLevel, usage?.bunny?.storageLevel),

@@ -95,6 +95,19 @@ export const COPIES = [
   'aws.rds_replicas_5',
 ] as const;
 
+/** The search engine node steps as cloud rows (owner 2026-11-12, «Авто» by
+ * count): the domain itself (1 node), 2 nodes, 4 nodes (even across the two
+ * zones). Same ladder as COPIES. */
+export const SEARCH_NODES = [
+  'aws.opensearch',
+  'aws.opensearch_nodes_2',
+  'aws.opensearch_nodes_4',
+] as const;
+
+/** Read copies and search nodes: each step needs the one before it and goes
+ * only after the ones above it. */
+const LADDERS: readonly (readonly string[])[] = [COPIES, SEARCH_NODES];
+
 export interface AutoWant {
   id: string;
   to: InfraTarget;
@@ -296,6 +309,45 @@ export function autoWants(
       });
     }
   }
+  // Owner 2026-11-12: search engine nodes, the same way (AWS advice: scale
+  // the domain out on CPU or JVM memory pressure). Only while the engine
+  // runs; with the engine off an extra step left on goes, highest first.
+  let topNode = 0;
+  while (
+    topNode + 1 < SEARCH_NODES.length &&
+    live(SEARCH_NODES[topNode + 1]) === 'on'
+  ) {
+    topNode++;
+  }
+  const engineOn = live(SEARCH_NODES[0]) === 'on';
+  if (engineOn) {
+    const next = SEARCH_NODES[topNode + 1];
+    if (
+      next &&
+      (s.modes?.[next] ?? 'auto') === 'auto' &&
+      s.pressures.includes('search_busy')
+    ) {
+      out.push({
+        id: next,
+        to: 'on',
+        reason:
+          'Поисковому движку тяжело (процессор выше порога или память JVM выше 75 %): нужно больше узлов.',
+      });
+    }
+  }
+  if (
+    topNode > 0 &&
+    (s.modes?.[SEARCH_NODES[topNode]] ?? 'auto') === 'auto' &&
+    (!engineOn || s.pressures.includes('search_idle'))
+  ) {
+    out.push({
+      id: SEARCH_NODES[topNode],
+      to: 'off',
+      reason: engineOn
+        ? 'Поисковому движку давно легко (процессор ниже половины порога, память JVM ниже 50 %): лишние узлы уходят.'
+        : 'Поисковый движок выключен: лишние узлы не нужны.',
+    });
+  }
   if (s.partitionNeedsRunner && live('aws.partition_role') !== 'on') {
     out.push({
       id: 'aws.partition_role',
@@ -322,9 +374,15 @@ export function autoWants(
     // A later database server needs the one before it.
     const n = MORE.indexOf(id);
     if (n > 0 && live(MORE[n - 1]) !== 'on') continue;
-    // A later read copy needs the one before it.
-    const c = (COPIES as readonly string[]).indexOf(id);
-    if (c > 0 && live(COPIES[c - 1]) !== 'on') continue;
+    // A later read copy (search node step) needs the one before it.
+    if (
+      LADDERS.some((l) => {
+        const c = l.indexOf(id);
+        return c > 0 && live(l[c - 1]) !== 'on';
+      })
+    ) {
+      continue;
+    }
     if (
       mode === 'on' &&
       live(id) !== 'on' &&
@@ -340,12 +398,14 @@ export function autoWants(
   // Выкл = never switched on by itself; Вкл = never switched off by itself.
   return out.filter(
     (w) =>
-      // A read copy goes only after the ones above it (highest first).
+      // A read copy (search node step) goes only after the ones above it
+      // (highest first).
       !(
         w.to === 'off' &&
-        (COPIES as readonly string[]).includes(w.id) &&
-        live(COPIES[(COPIES as readonly string[]).indexOf(w.id) + 1] ?? '') ===
-          'on'
+        LADDERS.some(
+          (l) =>
+            l.includes(w.id) && live(l[l.indexOf(w.id) + 1] ?? '') === 'on',
+        )
       ) &&
       !(w.to === 'on' && modeOf(w.id) === 'off') &&
       !(w.to === 'off' && modeOf(w.id) === 'on'),
