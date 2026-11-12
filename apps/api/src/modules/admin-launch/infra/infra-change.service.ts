@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { Prisma, type InfraChangeRequest } from '@prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { COST_REGISTRY } from '../../../common/ops/cost-registry';
@@ -10,6 +11,7 @@ import {
   type PlanResource,
 } from '../../../common/ops/infra-switches';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { ShardMoveService } from '../../../sharding/move/shard-move.service';
 import { AuditLogService } from '../../admin-access/audit-log.service';
 import {
   ACTIVE_STATUSES,
@@ -20,6 +22,7 @@ import {
   dueTimeEvent,
   inQuietWindow,
   infraSuggestions,
+  serverRemovedBy,
   transition,
   type CreateRefusal,
   type InfraEvent,
@@ -91,7 +94,17 @@ export class InfraChangeService {
     private readonly settings: AppSettingsService,
     private readonly audit: AuditLogService,
     private readonly github: InfraGithubClient,
+    @Optional() private readonly moduleRef?: ModuleRef,
   ) {}
+
+  /** Owner 2026-11-12: only an empty extra server may be removed. False
+   * when emptiness cannot be read (a server that cannot be read is kept). */
+  private async serverEmpty(key: string): Promise<boolean> {
+    const moves = this.moduleRef?.get(ShardMoveService, { strict: false });
+    if (!moves) return false;
+    const empty: string[] = await moves.emptyServers().catch(() => []);
+    return empty.includes(key);
+  }
 
   // --- reads -----------------------------------------------------------------
 
@@ -256,6 +269,13 @@ export class InfraChangeService {
       configured: g.configured,
     });
     if (refusal) throw new InfraRequestError(refusal, REFUSAL_TEXT[refusal]);
+    const removed = serverRemovedBy(itemId, to);
+    if (removed && !(await this.serverEmpty(removed))) {
+      throw new InfraRequestError(
+        'server_has_data',
+        REFUSAL_TEXT.server_has_data,
+      );
+    }
     const target = to as InfraTarget;
     const delta = costDelta(entry!, sw!, current, target);
     let row: InfraChangeRequest;
@@ -449,7 +469,14 @@ export class InfraChangeService {
     },
   ): Promise<InfraRequestView> {
     const r = await this.ownJob(id, caller, ['planning']);
-    const bad = forbiddenDestroys(plan.resources);
+    const changes = r.changes as Record<string, unknown>;
+    const bad = forbiddenDestroys(plan.resources, changes);
+    // Owner 2026-11-12: a plan that removes an extra server goes on only
+    // while that server is still empty (checked again here, at plan time).
+    const removed = serverRemovedBy(r.item_id, r.to_state);
+    if (removed && !(await this.serverEmpty(removed))) {
+      bad.push(`${removed}: на сервере есть данные`);
+    }
     if (bad.length > 0) {
       await this.move(r, 'plan_failed', {
         error: `План удаляет данные, это запрещено: ${bad.slice(0, 5).join(', ')}`,

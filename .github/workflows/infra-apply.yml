@@ -133,7 +133,7 @@ jobs:
             || { grep -E '^(Error|│ Error)' plan.log | cut -c1-200 | head -10; exit 1; }
           terraform show -json plan.bin > plan.json
           set +e
-          node ../../../scripts/infra/plan-summary.mjs plan.json > ../../../summary.json
+          node ../../../scripts/infra/plan-summary.mjs plan.json ../../../changes.json > ../../../summary.json
           RC=$?
           set -e
           rm -f plan.json plan.log init.log

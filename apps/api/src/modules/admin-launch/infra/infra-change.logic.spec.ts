@@ -9,6 +9,7 @@ import {
   dueTimeEvent,
   inQuietWindow,
   infraSuggestions,
+  serverRemovedBy,
   transition,
   type InfraEvent,
   type InfraStatus,
@@ -161,6 +162,16 @@ describe('create guards', () => {
         entry: { ...e, price: { ...e.price, text: '' } },
       }),
     ).toBe('no_price');
+  });
+});
+
+describe('serverRemovedBy (owner 12.11: only an empty server goes)', () => {
+  it('names the extra server a switch-off removes', () => {
+    expect(serverRemovedBy('aws.db_shards', 'off')).toBe('db1');
+    expect(serverRemovedBy('aws.db_shards_2', 'off')).toBe('db2');
+    expect(serverRemovedBy('aws.db_shards_3', 'off')).toBe('db3');
+    expect(serverRemovedBy('aws.db_shards', 'on')).toBeNull();
+    expect(serverRemovedBy('aws.rds_replicas_2', 'off')).toBeNull();
   });
 });
 

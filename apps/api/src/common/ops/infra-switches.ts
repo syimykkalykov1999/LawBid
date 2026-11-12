@@ -571,17 +571,42 @@ export interface PlanResource {
   action: string;
 }
 
-/** Addresses in [resources] that destroy something on FORBIDDEN_DESTROY. */
+/** An extra database server's module (`postgres_shard[N]` / its copies
+ * `growth_shard[N]`) in a plan address, or null. */
+export function shardModuleIndex(address: string): number | null {
+  const m = /(^|\.)module\.(postgres_shard|growth_shard)\[(\d+)\]\./.exec(
+    address,
+  );
+  return m ? Number(m[3]) : null;
+}
+
+/**
+ * Addresses in [resources] that destroy something on FORBIDDEN_DESTROY.
+ * Owner 2026-11-12 («Авто» both ways, like copies): a request that lowers
+ * `db_shards` to K may remove the servers K and above — the API lets such a
+ * request plan only while those servers hold no data (ShardMoveService.
+ * emptyServers), and AWS keeps a final snapshot of each.
+ */
 export function forbiddenDestroys(
   resources: readonly PlanResource[],
+  changes?: Readonly<Record<string, unknown>>,
 ): string[] {
+  const keep = changes?.db_shards;
   return resources
     .filter((r) => r.action.includes('delete'))
     .filter((r) => {
       const hit = r.address
         .split('.')
         .some((part) => FORBIDDEN_DESTROY.includes(part.replace(/\[.*$/, '')));
-      return hit && !DESTROY_ALLOWED.some((re) => re.test(r.address));
+      const n = shardModuleIndex(r.address);
+      const removed =
+        typeof keep === 'number' &&
+        n !== null &&
+        n >= keep &&
+        r.action === 'delete';
+      return (
+        hit && !removed && !DESTROY_ALLOWED.some((re) => re.test(r.address))
+      );
     })
     .map((r) => r.address);
 }

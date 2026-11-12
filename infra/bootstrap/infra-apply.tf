@@ -82,6 +82,23 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
     ]
   }
   statement {
+    # Owner 2026-11-12 («Авто» removes an EMPTY extra database server; the
+    # API and plan-guard check emptiness): its final snapshot, its subnet and
+    # parameter groups and its master secret (30-day recovery window).
+    sid = "RemoveEmptyExtraServer"
+    actions = [
+      "rds:CreateDBSnapshot", "rds:DeleteDBSubnetGroup", "rds:DeleteDBParameterGroup",
+      "secretsmanager:DeleteSecret",
+    ]
+    resources = [
+      "arn:aws:rds:*:${local.account}:db:${local.name}-db*-postgres",
+      "arn:aws:rds:*:${local.account}:snapshot:${local.name}-db*-postgres-final-*",
+      "arn:aws:rds:*:${local.account}:subgrp:${local.name}-db*",
+      "arn:aws:rds:*:${local.account}:pg:${local.name}-db*",
+      "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}-db*/*",
+    ]
+  }
+  statement {
     sid = "SwitchServices"
     actions = [
       "wafv2:*", "guardduty:*", "securityhub:*", "inspector2:*", "config:*", "macie2:*",
@@ -135,13 +152,20 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
       "s3:DeleteBucket", "s3:DeleteBucketPolicy",
       "kms:ScheduleKeyDeletion", "kms:DisableKey",
       "backup:DeleteBackupVault", "backup:DeleteRecoveryPoint", "backup:DeleteBackupPlan",
-      "secretsmanager:DeleteSecret",
       "dynamodb:DeleteTable",
       "elasticache:DeleteReplicationGroup", "elasticache:DeleteCacheCluster",
       "ecr:DeleteRepository",
       "iam:CreateUser", "iam:CreateAccessKey", "iam:CreateLoginProfile",
     ]
     resources = ["*"]
+  }
+  statement {
+    # Secrets are never deleted, except the master secret of an empty extra
+    # database server that is being removed (statement above).
+    sid           = "KeepSecrets"
+    effect        = "Deny"
+    actions       = ["secretsmanager:DeleteSecret"]
+    not_resources = ["arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}-db*/*"]
   }
   statement {
     # Only the read replicas (…-postgres-replica-N) may be deleted.
@@ -153,6 +177,8 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
     not_resources = [
       "arn:aws:rds:*:${local.account}:db:${local.name}-postgres-replica-*",
       "arn:aws:rds:*:${local.account}:db:${local.name}-db*-postgres-replica-*",
+      # 12.11 (owner «да кнч»): an extra server itself, only when empty.
+      "arn:aws:rds:*:${local.account}:db:${local.name}-db*-postgres",
     ]
   }
   statement {

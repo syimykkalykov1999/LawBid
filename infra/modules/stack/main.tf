@@ -1242,7 +1242,10 @@ module "postgres_shard" {
   log_group_class            = var.database_log_group_class
   tags                       = local.tags
 
-  deletion_protection     = !var.ephemeral
+  # Owner 2026-11-12: «Авто» removes an extra server again, only while it
+  # is EMPTY (the API and plan-guard check that; IAM allows deleting only
+  # …-db*-postgres). AWS keeps a final snapshot of it (never deleted).
+  deletion_protection     = false
   skip_final_snapshot     = var.ephemeral
   recovery_window_in_days = var.ephemeral ? 0 : 30
 }
