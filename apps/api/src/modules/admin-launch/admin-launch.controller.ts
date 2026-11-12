@@ -8,7 +8,11 @@ import {
   HttpStatus,
   Param,
   Post,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { boardEtag, notModified } from '../../common/sync/cheap-etag';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -80,8 +84,14 @@ export class AdminLaunchController {
   @Get()
   @ApiOperation({ summary: 'The launch checklist with live lights' })
   @ApiEnvelopeResponse(LaunchReportDto)
-  launchReport(): Promise<LaunchReportDto> {
-    return this.checks.report();
+  async launchReport(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LaunchReportDto | undefined> {
+    // 12.11: generatedAt is "now" on every request (cheap-etag boardEtag).
+    const report = await this.checks.report();
+    if (notModified(req, res, boardEtag(report))) return undefined;
+    return report;
   }
 
   @Post('refresh')
