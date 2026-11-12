@@ -64,7 +64,10 @@ describe('LiveKitVideoProvider', () => {
       canPublish: true,
       canSubscribe: true,
     });
-    expect(c.exp - c.nbf).toBe(LIVEKIT_MAX_CALL_SEC);
+    // The SDK stamps nbf and exp from two clock reads: across a second
+    // boundary the difference is one second short (seen in CI 12.11).
+    expect(c.exp - c.nbf).toBeGreaterThanOrEqual(LIVEKIT_MAX_CALL_SEC - 1);
+    expect(c.exp - c.nbf).toBeLessThanOrEqual(LIVEKIT_MAX_CALL_SEC);
     expect(j.expiresAt.getTime() - now.getTime()).toBe(
       LIVEKIT_MAX_CALL_SEC * 1000,
     );

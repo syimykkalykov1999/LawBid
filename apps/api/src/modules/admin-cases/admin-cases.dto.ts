@@ -5,6 +5,7 @@ import {
 } from '../cases/domain/case-urgency';
 import { DOSSIER_ITEMS } from '../cases/domain/case-dossier';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { OWNER_BULK_MAX } from '../../common/admin-bulk/admin-bulk';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -264,16 +265,24 @@ export const CASES_BULK_ACTIONS = [
   'restore',
 ] as const;
 
-/** Owner 2026-10-04: one case action for up to 500 cases, one reason. */
+/** Owner 2026-10-04: one case action for up to 500 cases, one reason
+ * (owner 2026-11-12: the owner has no cap). */
 export class AdminCasesBulkDto extends AdminCaseActionDto {
   @ApiProperty({ enum: CASES_BULK_ACTIONS, enumName: 'AdminCasesBulkAction' })
   @IsIn(CASES_BULK_ACTIONS)
   action!: (typeof CASES_BULK_ACTIONS)[number];
 
-  @ApiProperty({ type: [String], format: 'uuid', minItems: 1, maxItems: 500 })
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    minItems: 1,
+    maxItems: OWNER_BULK_MAX,
+    description:
+      'Staff: at most 500; the owner: any number (processed in chunks).',
+  })
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(500)
+  @ArrayMaxSize(OWNER_BULK_MAX)
   @IsUUID('all', { each: true })
   ids!: string[];
 }

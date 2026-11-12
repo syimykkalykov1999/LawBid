@@ -15,6 +15,7 @@ class AdminClassifyPostsDto {
   factory AdminClassifyPostsDto.fromJson(Map<String, Object?> json) =>
       _$AdminClassifyPostsDtoFromJson(json);
 
+  /// Staff: at most 200; the owner: any number (processed in chunks).
   final List<String> ids;
   final AdminPostClassAction contentClass;
 

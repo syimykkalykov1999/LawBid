@@ -11,6 +11,7 @@ import { useState } from "react";
 import { ErrorNote, PageHeader, SectionTitle } from "@/components/page-header";
 import { GiftUploader } from "@/components/stars/gift-uploader";
 import { Button } from "@/components/ui/button";
+import { PrefetchSentinel } from "@/components/legacy/prefetch-sentinel";
 import { Badge, Card } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/empty";
 import { Field, Input } from "@/components/ui/input";
@@ -828,6 +829,12 @@ function HistoryTab() {
           )}
         </tbody>
       </Table>
+      {q.hasNextPage ? (
+        <PrefetchSentinel
+          enabled={!q.isFetchingNextPage}
+          onNear={() => void q.fetchNextPage()}
+        />
+      ) : null}
       {q.hasNextPage ? (
         <Button
           variant="outline"

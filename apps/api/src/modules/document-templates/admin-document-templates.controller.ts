@@ -26,7 +26,8 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminBulkResultDto } from '../admin-content/admin-content.dto';
-import { eachId } from '../admin-content/bulk.util';
+import { eachIdInChunks } from '../admin-content/bulk.util';
+import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
 import {
   FileDto,
   MultipartCompleteDto,
@@ -40,6 +41,7 @@ import {
   AdminTemplatesBulkDto,
   AdminTemplatesQueryDto,
   CreateDocumentTemplateDto,
+  TEMPLATES_BULK_MAX,
   TemplateIdParamDto,
   UpdateDocumentTemplateDto,
 } from './document-templates.dto';
@@ -98,24 +100,30 @@ export class AdminDocumentTemplatesController {
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminTemplatesBulkDto,
   ): Promise<AdminBulkResultDto> {
-    const result = await eachId(dto.ids, (id) =>
-      dto.action === 'delete'
-        ? this.templates.remove(admin, id)
-        : this.templates.setPublished(admin, id, dto.action === 'publish'),
+    // Owner 2026-11-12: staff keep 100 a request; the owner sends any
+    // number, worked through in chunks, one batch audit row per chunk.
+    assertStaffBulkCap(admin, dto.ids, TEMPLATES_BULK_MAX);
+    return eachIdInChunks(
+      dto.ids,
+      (id) =>
+        dto.action === 'delete'
+          ? this.templates.remove(admin, id)
+          : this.templates.setPublished(admin, id, dto.action === 'publish'),
+      (part, chunk) =>
+        this.audit.record({
+          adminId: admin.id,
+          action: `admin.document_template.bulk_${dto.action}`,
+          targetType: 'document_template',
+          targetId: null,
+          after: {
+            requested: dto.ids.length,
+            done: part.done,
+            skipped: part.skipped.map((s) => ({ id: s.id, reason: s.reason })),
+            ...(chunk.of > 1 ? { chunk } : {}),
+          },
+          ip: admin.ip,
+        }),
     );
-    await this.audit.record({
-      adminId: admin.id,
-      action: `admin.document_template.bulk_${dto.action}`,
-      targetType: 'document_template',
-      targetId: null,
-      after: {
-        requested: dto.ids.length,
-        done: result.done,
-        skipped: result.skipped.map((s) => ({ id: s.id, reason: s.reason })),
-      },
-      ip: admin.ip,
-    });
-    return result;
   }
 
   @Post('uploads')

@@ -20,6 +20,12 @@ function make(
     }),
     ltrim: jest.fn(() => Promise.resolve('OK')),
     lrange: jest.fn(() => Promise.resolve([...list])),
+    set: jest.fn((k: string, v: string) => {
+      if (store.has(k)) return Promise.resolve(null);
+      store.set(k, v);
+      return Promise.resolve('OK');
+    }),
+    del: jest.fn((k: string) => Promise.resolve(store.delete(k) ? 1 : 0)),
   };
   const github = {
     configured: jest.fn(() => Promise.resolve(o.connected ?? true)),
@@ -31,6 +37,7 @@ function make(
       }),
     ),
     issuesWithPulls: jest.fn(() => Promise.resolve([])),
+    dispatchWorkflow: jest.fn(() => Promise.resolve({ repo: 'o/r' })),
   };
   const settings = {
     string: jest.fn(() => Promise.resolve(o.mode ?? 'on')),
@@ -162,5 +169,61 @@ describe('AiAssistantService', () => {
     expect(d.openTicketsByCategory).toEqual({ bug: 3 });
     expect(d.sentry[0]).toMatchObject({ count: 7, users: 2 });
     expect(d.alarms[0].component).toBe('alarm:queue-backlog');
+  });
+
+  describe('trigger (12.11.2026: react at once to alarms and new errors)', () => {
+    it('dispatches ai-assistant.yml with scrubbed inputs, once an hour per key', async () => {
+      const { svc, github, redis } = make();
+      expect(
+        await svc.trigger(
+          'alarm',
+          'lawbid-prod-api-5xx',
+          'lawbid-prod-api-5xx bob@example.com',
+        ),
+      ).toBe('dispatched');
+      expect(github.dispatchWorkflow).toHaveBeenCalledWith('ai-assistant.yml', {
+        reason: 'alarm',
+        alarm: 'lawbid-prod-api-5xx [email]',
+      });
+      expect(redis.set).toHaveBeenCalledWith(
+        'ai:trigger:alarm:lawbid-prod-api-5xx',
+        '1',
+        'EX',
+        3600,
+        'NX',
+      );
+      expect(await svc.trigger('alarm', 'lawbid-prod-api-5xx', 'again')).toBe(
+        'debounced',
+      );
+      expect(await svc.trigger('sentry', '123', 'error: boom')).toBe(
+        'dispatched',
+      );
+      expect(github.dispatchWorkflow).toHaveBeenLastCalledWith(
+        'ai-assistant.yml',
+        { reason: 'sentry', issue: 'error: boom' },
+      );
+      expect(github.dispatchWorkflow).toHaveBeenCalledTimes(2);
+    });
+
+    it('respects the gate: off, not connected or over the ceiling = nothing', async () => {
+      for (const o of [
+        { mode: 'off' },
+        { connected: false },
+        { spent: '30' },
+      ]) {
+        const { svc, github, redis } = make(o);
+        expect(await svc.trigger('alarm', 'a', 'a')).toBe('gated');
+        expect(github.dispatchWorkflow).not.toHaveBeenCalled();
+        expect(redis.set).not.toHaveBeenCalled();
+      }
+    });
+
+    it('a failed dispatch frees the key so the next alarm tries again, never throws', async () => {
+      const { svc, github, store } = make();
+      github.dispatchWorkflow.mockRejectedValueOnce(new Error('HTTP 502'));
+      expect(await svc.trigger('alarm', 'x', 'x')).toBe('failed');
+      expect(store.has('ai:trigger:alarm:x')).toBe(false);
+      expect(await svc.trigger('alarm', 'x', 'x')).toBe('dispatched');
+    });
   });
 });
