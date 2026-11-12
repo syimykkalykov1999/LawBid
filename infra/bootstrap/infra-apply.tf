@@ -57,7 +57,10 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
       # 2026-11-10: + secretsmanager. Every plan reads the prod secrets the
       # state manages (postgres-master, REDIS_URL, …), encrypted with the
       # prod key; without it each plan failed «Access to KMS is not allowed».
-      values = ["s3.${var.region}.amazonaws.com", "rds.${var.region}.amazonaws.com", "es.${var.region}.amazonaws.com", "logs.${var.region}.amazonaws.com", "secretsmanager.${var.region}.amazonaws.com"]
+      # 12.11 (KNOWN_ERRORS 107): + kinesis and elasticache (the events stream
+      # and the cache Redis encrypt with the prod key) and RDS in any region
+      # (cross-region backups use the replica key in the second region).
+      values = ["s3.${var.region}.amazonaws.com", "rds.*.amazonaws.com", "es.${var.region}.amazonaws.com", "logs.${var.region}.amazonaws.com", "secretsmanager.${var.region}.amazonaws.com", "kinesis.${var.region}.amazonaws.com", "elasticache.${var.region}.amazonaws.com"]
     }
   }
   statement {
@@ -68,6 +71,8 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
     resources = [
       "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}/*",
       "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}-db*/*",
+      # 12.11: the cache Redis keeps its URL under lawbid-<env>-cache/.
+      "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}-cache/*",
     ]
   }
   statement {
@@ -79,6 +84,8 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
     resources = [
       "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}/*",
       "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}-db*/*",
+      # 12.11: the cache Redis keeps its URL under lawbid-<env>-cache/.
+      "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}-cache/*",
     ]
   }
   statement {
@@ -97,6 +104,33 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
       "arn:aws:rds:*:${local.account}:pg:${local.name}-db*",
       "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}-db*/*",
     ]
+  }
+  statement {
+    # 12.11 (KNOWN_ERRORS 107, IAM simulator): switches that failed on «Вкл»:
+    # the events stream (Kinesis), the cache Redis (ElastiCache create; its
+    # delete stays denied below), the own LiveKit server (EC2 + its instance
+    # profile).
+    sid = "SwitchGaps"
+    actions = [
+      "kinesis:CreateStream", "kinesis:DeleteStream", "kinesis:StartStreamEncryption",
+      "kinesis:AddTagsToStream", "kinesis:RemoveTagsFromStream", "kinesis:IncreaseStreamRetentionPeriod",
+      "kinesis:DecreaseStreamRetentionPeriod", "kinesis:UpdateStreamMode", "kinesis:UpdateShardCount",
+      "elasticache:CreateReplicationGroup", "elasticache:ModifyReplicationGroup",
+      "elasticache:CreateCacheSubnetGroup", "elasticache:ModifyCacheSubnetGroup", "elasticache:DeleteCacheSubnetGroup",
+      "elasticache:CreateCacheParameterGroup", "elasticache:ModifyCacheParameterGroup", "elasticache:DeleteCacheParameterGroup",
+      "elasticache:AddTagsToResource", "elasticache:RemoveTagsFromResource",
+      "ec2:RunInstances", "ec2:TerminateInstances", "ec2:StopInstances", "ec2:StartInstances",
+      "ec2:ModifyInstanceAttribute",
+    ]
+    resources = ["*"]
+  }
+  statement {
+    sid = "OwnInstanceProfiles"
+    actions = [
+      "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile", "iam:AddRoleToInstanceProfile",
+      "iam:RemoveRoleFromInstanceProfile", "iam:TagInstanceProfile", "iam:UntagInstanceProfile",
+    ]
+    resources = ["arn:aws:iam::${local.account}:instance-profile/lawbid-${var.env}-*"]
   }
   statement {
     sid = "SwitchServices"
