@@ -1871,6 +1871,10 @@ model VerificationRequest {
   attested_at          DateTime?                 @db.Timestamptz
   attestation_ip       String?
   attestation_version  String?
+  // Owner 2026-11-12 (row 52): consent to the automatic face comparison
+  // (BIPA / CUBI / RCW 19.375), given with the selfie, and the text version.
+  biometric_consent_at      DateTime? @db.Timestamptz
+  biometric_consent_version String?
   created_at           DateTime                  @default(now()) @db.Timestamptz
   updated_at           DateTime                  @updatedAt @db.Timestamptz
 

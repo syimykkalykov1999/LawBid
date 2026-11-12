@@ -26,6 +26,8 @@ class AdminVerificationRequestDto {
     required this.attestedAt,
     required this.attestationIp,
     required this.attestationVersion,
+    required this.biometricConsentAt,
+    required this.biometricConsentVersion,
     required this.applicantComment,
     required this.infoRequestMessage,
     required this.rejectionCode,
@@ -55,6 +57,12 @@ class AdminVerificationRequestDto {
 
   /// Version of the sworn-statement text the attorney accepted
   final String? attestationVersion;
+
+  /// Owner 2026-11-12 (row 52): when the attorney gave the biometric consent with the selfie (null = none: no automatic face comparison)
+  final DateTime? biometricConsentAt;
+
+  /// Version of the biometric consent text the attorney accepted
+  final String? biometricConsentVersion;
   final String? applicantComment;
   final String? infoRequestMessage;
   final String? rejectionCode;

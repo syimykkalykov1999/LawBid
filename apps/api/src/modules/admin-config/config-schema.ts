@@ -715,6 +715,27 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'On: a license in a state without an automatic registry (or with an unusual number shape) needs a photo of the bar card; a person approves it. Off: only when «require_bar_document» is on.',
   };
+  // Owner 2026-11-12 (row 52): «Сравнение лица (Amazon)».
+  out['verification.face_match.enabled'] = {
+    ...out['verification.face_match.enabled'],
+    description:
+      'off (default) | on | auto. Amazon Rekognition CompareFaces of the selfie with the ID photo for a new request whose attorney gave the biometric consent; on and auto run inside the daily id_check cap. off = no call, a person compares. The result never approves or rejects by itself.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['verification.face_match.similarity_threshold'] = {
+    ...out['verification.face_match.similarity_threshold'],
+    description:
+      'Rekognition SimilarityThreshold, % (default 90): at or above = the faces match.',
+    min: 50,
+    max: 100,
+  };
+  out['verification.face_match.retention_days'] = {
+    ...out['verification.face_match.retention_days'],
+    description:
+      'Days the face comparison result is kept after the request is decided, then deleted (default 30).',
+    min: 1,
+    max: 1095,
+  };
   out['billing.cancel_on_verification_loss'] = {
     ...out['billing.cancel_on_verification_loss'],
     description:

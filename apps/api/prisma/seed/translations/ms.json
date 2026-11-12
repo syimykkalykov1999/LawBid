@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Lepaskan fail di sini",
   "verification.attest.required": "Tandakan akuan bersumpah untuk menghantar.",
   "verification.attest.text": "Saya bersumpah bahawa saya peguam yang memegang lesen bernombor di atas dan lesen itu aktif. Maklumat palsu bermakna akaun disekat dan saya sendiri bertanggungjawab.",
+  "verification.biometricConsent.required": "Tandakan persetujuan perbandingan wajah untuk mengambil swafoto.",
+  "verification.biometricConsent.text": "Saya bersetuju LawBid membandingkan swafoto saya dengan foto pada kad pengenalan saya secara automatik (Amazon Rekognition) hanya untuk mengesahkan identiti saya dalam pengesahan ini. Hasilnya disimpan sehingga permohonan saya diputuskan dan 30 hari lagi, kemudian dipadam.",
   "verification.camera.denied.body": "Benarkan akses kamera untuk LawBid dalam tetapan telefon anda, kemudian cuba lagi.",
   "verification.camera.denied.title": "Tiada akses ke kamera",
   "verification.camera.hint.card": "Muatkan kad dalam bingkai",

@@ -73,3 +73,51 @@ describe('PrivacyRetentionService session IPs (R-39)', () => {
     expect(batches[0].sql).not.toMatch(/WHERE id >/);
   });
 });
+
+describe('PrivacyRetentionService face match results (row 52)', () => {
+  function build(faceDays: number) {
+    const calls: { sql: string; values: unknown[] }[] = [];
+    const prisma = {
+      $queryRaw: jest.fn(() => Promise.resolve([{ any: false }])),
+      $executeRaw: jest.fn(
+        (strings: TemplateStringsArray, ...values: unknown[]) => {
+          calls.push({ sql: strings.join('?'), values });
+          return Promise.resolve(2);
+        },
+      ),
+    };
+    const numbers: Record<string, number> = {
+      'verification.face_match.retention_days': faceDays,
+      'privacy.retention_batch': 5000,
+      'privacy.retention_max_rows': 1_000_000,
+    };
+    const settings = {
+      boolean: jest.fn(() => Promise.resolve(true)),
+      number: jest.fn((k: string) => Promise.resolve(numbers[k] ?? 0)),
+    };
+    const svc = new PrivacyRetentionService(
+      prisma as never,
+      settings as never,
+      { get: () => undefined } as never,
+      { setContext: jest.fn(), info: jest.fn(), warn: jest.fn() } as never,
+    );
+    return { svc, calls };
+  }
+
+  it('deletes Rekognition face_match rows of requests decided more than N days ago', async () => {
+    const { svc, calls } = build(30);
+    const now = new Date('2026-12-31T00:00:00Z');
+    expect((await svc.run(now))?.faceMatchResults).toBe(2);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].sql).toContain("check_type = 'face_match'");
+    expect(calls[0].sql).toContain("details->>'provider' = 'aws_rekognition'");
+    expect(calls[0].sql).toContain("r.status IN ('approved', 'rejected')");
+    expect(calls[0].values).toContainEqual(new Date('2026-12-01T00:00:00Z'));
+  });
+
+  it('0 days keeps them', async () => {
+    const { svc, calls } = build(0);
+    expect((await svc.run())?.faceMatchResults).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+});

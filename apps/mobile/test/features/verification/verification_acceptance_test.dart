@@ -114,8 +114,24 @@ void main() {
     // or file option on this step.
     expect(find.text('Photo library'), findsNothing);
     expect(find.text('Photo or PDF'), findsNothing);
+    // Owner 2026-11-12 (row 52): without the biometric consent the camera
+    // does not open; ticked, it does and the consent goes with the selfie.
+    await tapText(tester, 'Open camera');
+    expect(source.captures, 2);
+    expect(backend.selfieTokens, 0);
+    expect(
+      find.text('Tick the face comparison consent to take the selfie.'),
+      findsOneWidget,
+    );
+    final consent = find.byKey(
+      const ValueKey('verification-biometric-consent'),
+    );
+    await tester.ensureVisible(consent);
+    await tester.tap(consent);
+    await tester.pumpAndSettle();
     await tapText(tester, 'Open camera');
     expect(source.captures, 3);
+    expect(backend.lastSelfie?.biometricConsent, isTrue);
     // A one-time capture token was asked for before the camera opened and
     // went back with the selfie attach.
     expect(backend.selfieTokens, 1);

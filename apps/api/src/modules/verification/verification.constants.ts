@@ -86,6 +86,13 @@ export const VERIFICATION_NOTIFICATION_KIND = {
  * wording changes; each request stores the version it was accepted in. */
 export const ATTESTATION_VERSION = '2026-10-04';
 
+/** Owner 2026-11-12 (row 52): version of the biometric consent the attorney
+ * ticks on the selfie step (app text `verification.biometricConsent.text`:
+ * the automatic selfie ↔ ID photo comparison, its purpose, how long the
+ * result is kept and that it is deleted). Bump it whenever the wording
+ * changes; the request stores the version it was given in. */
+export const BIOMETRIC_CONSENT_VERSION = '2026-11-12';
+
 /** admin_note prefix of a request created by a verifier's license
  * re-check (§2.5 recheck → manual review queue). */
 export const LICENSE_RECHECK_NOTE_PREFIX = 'license_recheck';

@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Lepaskan file di sini",
   "verification.attest.required": "Centang pernyataan sumpah untuk mengirim.",
   "verification.attest.text": "Saya bersumpah bahwa saya adalah advokat dengan lisensi bernomor di atas dan lisensi itu aktif. Data palsu berarti pemblokiran dan saya sendiri yang bertanggung jawab.",
+  "verification.biometricConsent.required": "Centang persetujuan perbandingan wajah untuk mengambil swafoto.",
+  "verification.biometricConsent.text": "Saya setuju LawBid membandingkan swafoto saya dengan foto pada kartu identitas saya secara otomatis (Amazon Rekognition) hanya untuk memastikan identitas saya dalam verifikasi ini. Hasilnya disimpan sampai permohonan saya diputuskan ditambah 30 hari, lalu dihapus.",
   "verification.camera.denied.body": "Izinkan akses kamera untuk LawBid di pengaturan ponsel Anda, lalu coba lagi.",
   "verification.camera.denied.title": "Tidak ada akses ke kamera",
   "verification.camera.hint.card": "Posisikan kartu di dalam bingkai",

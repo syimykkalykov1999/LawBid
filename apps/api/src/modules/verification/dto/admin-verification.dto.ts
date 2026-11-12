@@ -566,6 +566,22 @@ export class AdminVerificationRequestDto {
   })
   attestationVersion!: string | null;
 
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Owner 2026-11-12 (row 52): when the attorney gave the biometric consent with the selfie (null = none: no automatic face comparison)',
+  })
+  biometricConsentAt!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Version of the biometric consent text the attorney accepted',
+  })
+  biometricConsentVersion!: string | null;
+
   @ApiProperty({ type: String, nullable: true })
   applicantComment!: string | null;
 

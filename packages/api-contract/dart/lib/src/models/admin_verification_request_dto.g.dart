@@ -24,6 +24,10 @@ AdminVerificationRequestDto _$AdminVerificationRequestDtoFromJson(
       : DateTime.parse(json['attestedAt'] as String),
   attestationIp: json['attestationIp'] as String?,
   attestationVersion: json['attestationVersion'] as String?,
+  biometricConsentAt: json['biometricConsentAt'] == null
+      ? null
+      : DateTime.parse(json['biometricConsentAt'] as String),
+  biometricConsentVersion: json['biometricConsentVersion'] as String?,
   applicantComment: json['applicantComment'] as String?,
   infoRequestMessage: json['infoRequestMessage'] as String?,
   rejectionCode: json['rejectionCode'] as String?,
@@ -61,6 +65,8 @@ Map<String, dynamic> _$AdminVerificationRequestDtoToJson(
   'attestedAt': ?instance.attestedAt?.toIso8601String(),
   'attestationIp': ?instance.attestationIp,
   'attestationVersion': ?instance.attestationVersion,
+  'biometricConsentAt': ?instance.biometricConsentAt?.toIso8601String(),
+  'biometricConsentVersion': ?instance.biometricConsentVersion,
   'applicantComment': ?instance.applicantComment,
   'infoRequestMessage': ?instance.infoRequestMessage,
   'rejectionCode': ?instance.rejectionCode,

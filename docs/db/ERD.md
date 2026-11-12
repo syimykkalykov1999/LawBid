@@ -422,6 +422,8 @@ erDiagram
     DateTime attested_at "nullable"
     String attestation_ip "nullable"
     String attestation_version "nullable"
+    DateTime biometric_consent_at "nullable"
+    String biometric_consent_version "nullable"
     DateTime created_at
     DateTime updated_at
   }

@@ -25,6 +25,9 @@ function setup(opts: {
   docs?: string[];
   lookupResult?: 'pass' | 'fail' | 'manual_review';
   consume?: () => Promise<void>;
+  /** Row 52: the Rekognition face match (null = switch off). */
+  face?: { matchFace: jest.Mock } | null;
+  consentAt?: Date | null;
 }) {
   const checkCreate = jest.fn().mockResolvedValue({});
   const licenseUpdate = jest.fn().mockResolvedValue({});
@@ -38,6 +41,7 @@ function setup(opts: {
         id: 'r1',
         status: 'submitted',
         attorney_id: 'a1',
+        biometric_consent_at: opts.consentAt ?? null,
         documents: (opts.docs ?? ['passport', 'selfie']).map((doc_type) => ({
           doc_type,
         })),
@@ -85,6 +89,7 @@ function setup(opts: {
           matchFace,
         },
       }),
+    faceMatch: () => Promise.resolve(opts.face ?? null),
   } as unknown as VerificationProviderSelector;
   return {
     service: new VerificationChecksService(
@@ -105,6 +110,119 @@ function setup(opts: {
     matchFace,
   };
 }
+
+describe('face match «Сравнение лица (Amazon)» (row 52)', () => {
+  const faceChecks = (create: jest.Mock) =>
+    create.mock.calls
+      .map((c) => (c as [{ data: Record<string, unknown> }])[0].data)
+      .filter((d) => d.check_type === 'face_match');
+
+  it('switch off: no call and no face_match row (a person compares)', async () => {
+    const s = setup({ barName: 'manual', idProvider: 'manual', face: null });
+    await s.service.runOnSubmit('r1');
+    expect(faceChecks(s.checkCreate)).toEqual([]);
+  });
+
+  it('no consent: Rekognition is not called, the row is manual_review no_consent', async () => {
+    const face = { matchFace: jest.fn() };
+    const s = setup({
+      barName: 'manual',
+      idProvider: 'manual',
+      face,
+      consentAt: null,
+    });
+    await s.service.runOnSubmit('r1');
+    expect(face.matchFace).not.toHaveBeenCalled();
+    expect(faceChecks(s.checkCreate)).toEqual([
+      expect.objectContaining({
+        result: 'manual_review',
+        provider: 'manual',
+        details: { provider: 'aws_rekognition', reason: 'no_consent' },
+      }),
+    ]);
+  });
+
+  it('with consent: one comparison inside the id_check cap, stored, never approves', async () => {
+    const face = {
+      matchFace: jest.fn().mockResolvedValue({
+        result: 'pass',
+        details: {
+          provider: 'aws_rekognition',
+          similarity: 99.1,
+          threshold: 90,
+        },
+      }),
+    };
+    const consume = jest.fn().mockResolvedValue(undefined);
+    const s = setup({
+      barName: 'auto',
+      idProvider: 'manual',
+      face,
+      consentAt: new Date('2026-11-12T10:00:00Z'),
+      consume,
+    });
+    await s.service.runOnSubmit('r1');
+    expect(consume).toHaveBeenCalledWith('id_check', 1, {
+      userId: 'a1',
+      millicents: 200,
+    });
+    expect(face.matchFace).toHaveBeenCalledWith({
+      requestId: 'r1',
+      attorneyId: 'a1',
+    });
+    expect(faceChecks(s.checkCreate)).toEqual([
+      expect.objectContaining({
+        result: 'pass',
+        details: expect.objectContaining({ similarity: 99.1 }) as unknown,
+      }),
+    ]);
+    // The ID document itself is still a person's call: no auto-approval.
+    expect(s.licenseUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('a provider error is manual_review, never thrown or approved', async () => {
+    const face = { matchFace: jest.fn().mockRejectedValue(new Error('boom')) };
+    const s = setup({
+      barName: 'auto',
+      idProvider: 'manual',
+      face,
+      consentAt: new Date(),
+    });
+    await s.service.runOnSubmit('r1');
+    expect(faceChecks(s.checkCreate)).toEqual([
+      expect.objectContaining({
+        result: 'manual_review',
+        details: { provider: 'aws_rekognition', reason: 'provider_error' },
+      }),
+    ]);
+    expect(s.licenseUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('a refused budget skips the call (manual_review budget_exceeded)', async () => {
+    const face = { matchFace: jest.fn() };
+    const s = setup({
+      barName: 'manual',
+      idProvider: 'manual',
+      face,
+      consentAt: new Date(),
+      consume: () =>
+        Promise.reject(
+          new HttpException(
+            { code: ErrorCode.PROVIDER_BUDGET_EXCEEDED },
+            HttpStatus.SERVICE_UNAVAILABLE,
+          ),
+        ),
+    });
+    await s.service.runOnSubmit('r1');
+    expect(face.matchFace).not.toHaveBeenCalled();
+    expect(faceChecks(s.checkCreate)).toEqual([
+      expect.objectContaining({
+        result: 'manual_review',
+        details: { provider: 'aws_rekognition', reason: 'budget_exceeded' },
+      }),
+    ]);
+  });
+});
 
 describe('VerificationChecksService (docs/03 §2.4)', () => {
   it('flags off: no automatic check is recorded', async () => {

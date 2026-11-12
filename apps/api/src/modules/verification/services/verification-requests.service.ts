@@ -41,6 +41,7 @@ import type {
 import { VerificationHandoffStatus } from '../dto/verification-responses.dto';
 import {
   ATTESTATION_VERSION,
+  BIOMETRIC_CONSENT_VERSION,
   EDITABLE_REQUEST_STATUSES,
   IDENTITY_DOC_TYPES,
   IDENTITY_NEEDS_BACK,
@@ -621,6 +622,11 @@ export class VerificationRequestsService {
         field: 'handoffToken',
       });
     }
+    if (!selfie && dto.biometricConsent === true) {
+      throw validationError('The biometric consent belongs to the selfie.', {
+        field: 'biometricConsent',
+      });
+    }
     // R-146: the phone opened the computer's link — it must be this
     // attorney's code for this request.
     if (selfie && dto.handoffToken && this.handoff) {
@@ -736,6 +742,21 @@ export class VerificationRequestsService {
           capture_meta: captureMeta,
         },
       });
+      // Owner 2026-11-12 (row 52, BIPA / CUBI / RCW 19.375): the consent
+      // travels with the selfie it covers. A selfie without it clears an
+      // earlier one, so no comparison runs on a picture nobody consented to.
+      if (dto.docType === 'selfie') {
+        const consent = dto.biometricConsent === true;
+        await tx.verificationRequest.update({
+          where: { id: req.id },
+          data: {
+            biometric_consent_at: consent ? new Date() : null,
+            biometric_consent_version: consent
+              ? BIOMETRIC_CONSENT_VERSION
+              : null,
+          },
+        });
+      }
     });
   }
 

@@ -78,6 +78,8 @@ const card = (over: Record<string, unknown> = {}) => ({
   attestedAt: null,
   attestationIp: null,
   attestationVersion: null,
+  biometricConsentAt: null,
+  biometricConsentVersion: null,
   applicantComment: null,
   infoRequestMessage: null,
   rejectionCode: null,
@@ -178,6 +180,53 @@ describe('attorney request card (R-394)', () => {
     await waitFor(() =>
       expect(POST).toHaveBeenCalledWith('/admin/verification/licenses/{licenseId}/recheck', { params: { path: { licenseId: 'lic-1' } } }),
     );
+  });
+});
+
+describe('face match «Сравнение лица (Amazon)» (row 52)', () => {
+  it('shows the similarity against the threshold and the consent', async () => {
+    api(
+      card({
+        biometricConsentAt: '2026-11-12T10:00:00Z',
+        biometricConsentVersion: '2026-11-12',
+        checks: [
+          {
+            id: 'c1',
+            checkType: 'face_match',
+            provider: 'manual',
+            result: 'pass',
+            details: { provider: 'aws_rekognition', similarity: 98.7, threshold: 90, targetFaces: 1 },
+            checkedAt: '2026-11-12T10:01:00Z',
+          },
+        ],
+      } as never),
+    );
+    show(<VerificationCardPage />);
+    const line = await screen.findByTestId('face-match-line');
+    expect(line.textContent).toContain('98,7 %');
+    expect(line.textContent).toContain('порог 90 %');
+    expect(screen.getByText(/текст 2026-11-12/)).toBeTruthy();
+  });
+
+  it('a mismatch says why, with no number to misread', async () => {
+    api(
+      card({
+        checks: [
+          {
+            id: 'c1',
+            checkType: 'face_match',
+            provider: 'manual',
+            result: 'fail',
+            details: { provider: 'aws_rekognition', similarity: null, threshold: 90, reason: 'selfie_mismatch' },
+            checkedAt: '2026-11-12T10:01:00Z',
+          },
+        ],
+      } as never),
+    );
+    show(<VerificationCardPage />);
+    const line = await screen.findByTestId('face-match-line');
+    expect(line.textContent).toContain('ниже порога');
+    expect(line.textContent).toContain('лица не совпали');
   });
 });
 
