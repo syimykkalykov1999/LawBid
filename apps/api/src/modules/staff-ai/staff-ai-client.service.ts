@@ -52,7 +52,7 @@ export interface AiSystemBlock {
 /**
  * Owner 2026-11-12 (row 48): a picture for the user turn, sent as a base64
  * `image` content block before the text (docs.claude.com «Vision»: JPEG,
- * PNG, GIF, WebP; long edge ≤ 1568 px is what the API keeps anyway). The
+ * PNG, GIF, WebP; long edge ≤ 2576 px is what the API keeps anyway). The
  * caller has already downscaled it and stripped its metadata. [cache] marks
  * the end of a cached prefix (the role's example screenshots are the same
  * for every item of a run).
@@ -66,9 +66,10 @@ export interface AiImage {
   cache?: boolean;
 }
 
-/** Anthropic: a picture costs about (width x height) / 750 tokens; one at
- * 1568 px on the long edge is at most ~1600 (the worst case reserved). */
-export const IMAGE_TOKENS_MAX = 1600;
+/** docs.claude.com «Vision» (2026-11-12): a picture costs
+ * ceil(w/28) x ceil(h/28) visual tokens, at most 4,784 on Claude 4.7 and
+ * later (the worst case reserved). */
+export const IMAGE_TOKENS_MAX = 4784;
 
 export interface AiMessageRequest<T> {
   feature: StaffAiFeature;

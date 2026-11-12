@@ -20,6 +20,8 @@ class AiImageUploadDto {
       _$AiImageUploadDtoFromJson(json);
 
   final AiImageMime mime;
+
+  /// Exact size in bytes. The files pipeline applies its chat-photo limit (no cap of ours).
   final num sizeBytes;
 
   /// Lowercase hex SHA-256 of the file.

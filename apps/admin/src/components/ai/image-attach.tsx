@@ -3,7 +3,7 @@
 import { Image as ImageIcon, Paperclip, SpinnerGap, WarningCircle, X } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { AI_IMAGE_ACCEPT, AI_IMAGES_MAX, imagesOf, uploadAiImage } from '@/lib/ai-images';
+import { AI_IMAGE_ACCEPT, AI_IMAGES_PER_REQUEST, imagesOf, uploadAiImage } from '@/lib/ai-images';
 import { cn } from '@/lib/utils';
 
 /** One picture: an upload in progress, a ready file id, or an error. */
@@ -57,8 +57,7 @@ export function ImageAttach({
 
   function add(files: File[]) {
     if (disabled) return;
-    const room = Math.max(0, AI_IMAGES_MAX - value.length);
-    for (const file of files.slice(0, room)) {
+    for (const file of files) {
       const key = `${file.name}-${file.size}-${Math.random().toString(36).slice(2)}`;
       let preview: string | null = null;
       try {
@@ -155,13 +154,16 @@ export function ImageAttach({
           type="button"
           variant="outline"
           size="sm"
-          disabled={disabled || value.length >= AI_IMAGES_MAX}
+          disabled={disabled}
           onClick={() => input.current?.click()}
         >
           <Paperclip size={14} weight="light" /> {label}
         </Button>
         <span className="text-[11px] text-faint">
-          Или вставьте (Ctrl/⌘+V) или перетащите. JPEG, PNG, GIF, WebP, до 10 МБ, не больше {AI_IMAGES_MAX}. Хранятся у нас, в GitHub не попадают.
+          Или вставьте (Ctrl/⌘+V) или перетащите. JPEG, PNG, GIF, WebP. Хранятся у нас, в GitHub не попадают.
+          {value.length > AI_IMAGES_PER_REQUEST
+            ? ` В один запрос к Claude уходит до ${AI_IMAGES_PER_REQUEST} картинок (и до ~100 МБ): остальные ИИ не увидит.`
+            : ''}
         </span>
       </div>
     </div>

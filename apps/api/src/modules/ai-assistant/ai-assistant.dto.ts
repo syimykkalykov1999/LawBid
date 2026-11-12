@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ArrayMaxSize,
   IsArray,
   IsOptional,
   IsString,
@@ -87,13 +86,11 @@ export class CreateAiTaskDto {
   @ApiPropertyOptional({
     type: [String],
     format: 'uuid',
-    maxItems: 10,
     description:
       'Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads). The issue gets only opaque ids; the workflow fetches the pictures from the API.',
   })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(10)
   @IsUUID('all', { each: true })
   imageFileIds?: string[];
 }

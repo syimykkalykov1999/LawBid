@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 import type { AiRun, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AI_FEEDBACK_KEEP } from '../ai-attachments/ai-attachments.logic';
+import {
+  AI_FEEDBACK_KEEP,
+  fitRequest,
+} from '../ai-attachments/ai-attachments.logic';
 import {
   AiAttachmentsService,
   type AiAttachmentView,
@@ -63,8 +66,6 @@ const INSERT_PAGE = 1000;
 const ACTIVE_ITEM = ['pending', 'sent', 'proposed'];
 /** How many of the owner's latest decisions are read / fed back as examples. */
 const FEEDBACK_READ = AI_FEEDBACK_KEEP;
-/** Owner 2026-11-12: at most this many correction pictures per request. */
-const FEEDBACK_IMAGES = 10;
 /** A Message Batch may be 256 MB; the pictures of a chunk stay well under. */
 const BATCH_BYTES = 150_000_000;
 export const FEEDBACK_EXAMPLES = 8;
@@ -812,7 +813,7 @@ export class AiWorkerService {
     if (!this.attachments) return [];
     const role = await this.attachments.roleImages(roleId);
     const ids = feedback.map((f) => f.id).filter((x): x is string => !!x);
-    const notes = await this.attachments.noteImages(ids, FEEDBACK_IMAGES);
+    const notes = await this.attachments.noteImages(ids);
     const out: AiImage[] = role.map((img, i) => ({
       mediaType: img.mediaType,
       data: img.data,
@@ -827,8 +828,16 @@ export class AiWorkerService {
         });
       }
     });
-    if (out.length) out[out.length - 1].cache = true;
-    return out;
+    // Owner 2026-11-12: no cap of ours; only what one request can carry
+    // (600 pictures, ~100 MB). The page says so; the rest is logged.
+    const { sent, skipped } = fitRequest(out);
+    if (skipped > 0) {
+      this.logger.warn(
+        `role ${roleId}: ${skipped} picture(s) do not fit one Claude request and were not sent`,
+      );
+    }
+    if (sent.length) sent[sent.length - 1].cache = true;
+    return sent;
   }
 
   /** «Утвердить весь список»: every confident proposal of the bulk lane

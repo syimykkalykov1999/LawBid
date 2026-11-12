@@ -194,10 +194,10 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   // Owner 2026-11-12 (row 48): screenshots and photos the owner gives the
   // AI technician / AI employee. The formats Claude reads (JPEG, PNG, GIF,
   // WebP); private bucket, owner-only (modules/ai-attachments). The scan
-  // job re-encodes the picture (no EXIF / GPS is kept).
+  // job re-encodes the picture (no EXIF / GPS is kept). Size: the chat
+  // photo limit of «Загрузки и файлы» (upload-limits PURPOSE_PLACES).
   ai_attachment: {
     mimes: [FILE_MIME.jpeg, FILE_MIME.png, FILE_MIME.gif, FILE_MIME.webp],
-    sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },
   verification_document: {

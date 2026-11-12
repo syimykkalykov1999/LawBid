@@ -605,7 +605,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   };
   // Owner 2026-11-12: «Хранить N дней» (0 = keep forever).
   for (const k of ['ai.retention_records_days', 'ai.retention_images_days']) {
-    out[k] = { ...out[k], min: 0, max: 365 };
+    out[k] = { ...out[k], min: 0, max: 36500 };
   }
   out['db.replica_provision'] = {
     ...out['db.replica_provision'],

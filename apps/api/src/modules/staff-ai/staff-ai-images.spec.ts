@@ -101,7 +101,8 @@ describe('StaffAiClient: pictures', () => {
       2,
     );
     expect(two).toBeGreaterThan(none);
-    expect(IMAGE_TOKENS_MAX).toBeGreaterThanOrEqual(1600);
+    // docs.claude.com «Vision»: at most 4,784 visual tokens on Claude 4.7+.
+    expect(IMAGE_TOKENS_MAX).toBe(4784);
   });
 });
 

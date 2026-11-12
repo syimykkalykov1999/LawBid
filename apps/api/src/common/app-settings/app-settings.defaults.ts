@@ -1345,7 +1345,7 @@ export const OWNER_STORAGE_SETTINGS = {
   // Owner 2026-11-12 (row 49, final): nothing the AI makes piles up. Days
   // after which finished «ИИ-сотрудник» runs and their decided items go
   // (the owner's newest learning examples per role always stay), and days
-  // after a task / item closes that its images go (both AIs). 1-365,
+  // after a task / item closes that its images go (both AIs). 1-36500,
   // 0 = keep forever. The owner changes them on the AI pages (2FA).
   // Owner 2026-11-12 (row 55): the model of the AI technician's runs (one
   // of STAFF_AI_MODELS; the workflow re-checks it against the same list).

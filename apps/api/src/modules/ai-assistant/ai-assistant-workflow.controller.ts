@@ -26,6 +26,7 @@ import {
   InfraGithubClient,
   type WorkflowCaller,
 } from '../admin-launch/infra-github';
+import { AI_FETCH_PAGE } from '../ai-attachments/ai-attachments.logic';
 import { AI_OIDC_AUDIENCE, AI_WORKFLOW_FILE } from './ai-assistant.logic';
 import { AiAssistantService } from './ai-assistant.service';
 
@@ -58,9 +59,10 @@ export class AiTaskImagesDto {
   @Min(1)
   issueNumber!: number;
 
-  /** The ids the issue body lists (`AI attachments:` line). */
+  /** One page of the ids the issue body lists (`AI attachments:` line);
+   * the workflow reads every page. */
   @IsArray()
-  @ArrayMaxSize(10)
+  @ArrayMaxSize(AI_FETCH_PAGE)
   @IsUUID('all', { each: true })
   ids!: string[];
 }

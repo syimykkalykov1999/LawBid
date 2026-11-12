@@ -1,10 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsInt, IsUUID, Matches, Max, Min } from 'class-validator';
-import {
-  AI_IMAGE_MAX_BYTES,
-  AI_IMAGE_MIMES,
-  AI_RETENTION_MAX_DAYS,
-} from './ai-attachments.logic';
+import { AI_IMAGE_MIMES, AI_RETENTION_MAX_DAYS } from './ai-attachments.logic';
 
 /** Step 1 of an image for an AI: what the owner's browser will upload. */
 export class AiImageUploadDto {
@@ -12,10 +8,14 @@ export class AiImageUploadDto {
   @IsIn([...AI_IMAGE_MIMES])
   mime!: string;
 
-  @ApiProperty({ minimum: 1, maximum: AI_IMAGE_MAX_BYTES })
+  @ApiProperty({
+    minimum: 1,
+    description:
+      'Exact size in bytes. The files pipeline applies its chat-photo limit (no cap of ours).',
+  })
   @IsInt()
   @Min(1)
-  @Max(AI_IMAGE_MAX_BYTES)
+  @Max(1024 * 1024 * 1024)
   sizeBytes!: number;
 
   @ApiProperty({ description: 'Lowercase hex SHA-256 of the file.' })

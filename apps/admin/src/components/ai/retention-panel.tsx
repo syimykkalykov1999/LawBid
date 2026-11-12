@@ -12,11 +12,11 @@ import { api } from '@/lib/api/client';
 type Scope = 'worker' | 'technician';
 type What = 'records' | 'images';
 
-/** 0..365, whole days; anything else is not saved. */
+/** 0..36500 whole days (0 = keep forever); anything else is not saved. */
 export function parseDays(raw: string): number | null {
-  if (!/^\d{1,3}$/.test(raw.trim())) return null;
+  if (!/^\d{1,5}$/.test(raw.trim())) return null;
   const n = Number(raw);
-  return n >= 0 && n <= 365 ? n : null;
+  return n >= 0 && n <= 36500 ? n : null;
 }
 
 /**

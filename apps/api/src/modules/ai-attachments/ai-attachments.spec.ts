@@ -10,9 +10,13 @@ import {
   ownerOnly,
 } from './ai-attachments.controller';
 import {
+  AI_IMAGE_B64_MAX,
   AI_IMAGE_LONG_EDGE,
+  AI_IMAGES_PER_REQUEST,
+  AI_REQUEST_IMAGE_BYTES,
   AiAttachmentError,
   cleanIds,
+  fitRequest,
   issueAttachmentsLine,
   parseIssueAttachments,
   retentionDays,
@@ -183,14 +187,33 @@ describe('AI images: rules', () => {
     expect(PURPOSE_RULES.ai_attachment.bucket).toBe('documents');
   });
 
-  it('at most 10 per set, valid ids only, no duplicates', () => {
+  it('no count cap of ours: valid ids only, no duplicates', () => {
     expect(cleanIds([ID1, ID1.toUpperCase(), ID2])).toEqual([ID1, ID2]);
     expect(() => cleanIds(['../../etc'])).toThrow(AiAttachmentError);
-    const eleven = Array.from(
-      { length: 11 },
+    const many = Array.from(
+      { length: 700 },
       (_, i) => `${String(i).padStart(8, '0')}-1111-4111-8111-111111111111`,
     );
-    expect(() => cleanIds(eleven)).toThrow(AiAttachmentError);
+    expect(cleanIds(many)).toHaveLength(700);
+    expect(parseIssueAttachments(issueAttachmentsLine(many))).toHaveLength(700);
+  });
+
+  it('one Claude request carries what the API allows (600 pictures, ~100 MB); the rest is counted', () => {
+    expect(AI_IMAGES_PER_REQUEST).toBe(600);
+    const small = Array.from({ length: 650 }, () => ({ data: 'x'.repeat(10) }));
+    const a = fitRequest(small);
+    expect(a.sent).toHaveLength(600);
+    expect(a.skipped).toBe(50);
+    const big = Array.from({ length: 30 }, () => ({
+      data: 'x'.repeat(5 * 1024 * 1024),
+    }));
+    const b = fitRequest(big);
+    expect(b.sent.length * 5 * 1024 * 1024).toBeLessThanOrEqual(
+      AI_REQUEST_IMAGE_BYTES,
+    );
+    expect(b.sent).toHaveLength(20);
+    expect(b.skipped).toBe(10);
+    expect(fitRequest([])).toEqual({ sent: [], skipped: 0 });
   });
 
   it('the issue line carries ids only and the workflow reads them back', () => {
@@ -204,12 +227,13 @@ describe('AI images: rules', () => {
     expect(issueAttachmentsLine([])).toBe('');
   });
 
-  it('days: 1-365, 0 (or nonsense) = keep forever', () => {
+  it('days: 1-36500, 0 (or nonsense) = keep forever', () => {
     expect(retentionDays(15)).toBe(15);
     expect(retentionDays(0)).toBe(0);
     expect(retentionDays(-3)).toBe(0);
     expect(retentionDays('x')).toBe(0);
-    expect(retentionDays(9999)).toBe(365);
+    expect(retentionDays(9999)).toBe(9999);
+    expect(retentionDays(99999)).toBe(36500);
   });
 });
 
@@ -224,7 +248,7 @@ describe('AI images: what the AI gets', () => {
     expect(await downscaleForAi(Buffer.from('just text'))).toBeNull();
   });
 
-  it('a big photo is scaled to 1568 px on the long edge and loses its EXIF / GPS', async () => {
+  it('a big photo is scaled to 2576 px on the long edge and loses its EXIF / GPS', async () => {
     const big = await sharp({
       create: {
         width: 3000,
@@ -372,4 +396,28 @@ describe('AI images: links', () => {
     expect(r).toEqual({ images: [], pending: 1 });
     expect(t.storage.read).not.toHaveBeenCalled();
   });
+});
+
+describe("AI images: only the API's own size limit", () => {
+  it('a picture too big for the API as PNG goes as a JPEG of the same pixels (under 10 MB base64)', async () => {
+    const noisy = await sharp({
+      create: {
+        width: 2600,
+        height: 2600,
+        channels: 3,
+        background: '#808080',
+        noise: { type: 'gaussian', mean: 128, sigma: 60 },
+      },
+    })
+      .png({ compressionLevel: 0 })
+      .toBuffer();
+    const out = await downscaleForAi(noisy);
+    expect(out).not.toBeNull();
+    expect(out!.data.length).toBeLessThanOrEqual(AI_IMAGE_B64_MAX);
+    expect(out!.mediaType).toBe('image/jpeg');
+    const meta = await sharp(Buffer.from(out!.data, 'base64')).metadata();
+    expect(Math.max(meta.width ?? 0, meta.height ?? 0)).toBe(
+      AI_IMAGE_LONG_EDGE,
+    );
+  }, 30_000);
 });

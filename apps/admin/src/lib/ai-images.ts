@@ -13,19 +13,19 @@ type Mime = components['schemas']['AiImageUploadDto']['mime'];
  */
 export const AI_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
 export const AI_IMAGE_ACCEPT = AI_IMAGE_TYPES.join(',');
-export const AI_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
-export const AI_IMAGES_MAX = 10;
+/** docs.claude.com «Vision»: what one Claude request can carry (no cap of ours). */
+export const AI_IMAGES_PER_REQUEST = 600;
 
 const POLL_MS = 1500;
 const POLL_TRIES = 40;
 
-/** Why a file is refused before any upload, or null when it may go. */
+/** Why a file is refused before any upload, or null when it may go. The
+ * size is checked by the server (the chat photo limit of «Загрузки»). */
 export function refuseAiImage(file: File): string | null {
   const mime = fileMime(file);
   if (!(AI_IMAGE_TYPES as readonly string[]).includes(mime)) {
     return 'Только картинки JPEG, PNG, GIF или WebP.';
   }
-  if (file.size > AI_IMAGE_MAX_BYTES) return 'Картинка больше 10 МБ.';
   if (file.size === 0) return 'Пустой файл.';
   return null;
 }

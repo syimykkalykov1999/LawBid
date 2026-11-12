@@ -23,15 +23,26 @@ export function isAiImageMime(m: string): m is AiImageMime {
   return (AI_IMAGE_MIMES as readonly string[]).includes(m);
 }
 
-/** One picture at most 10 MB, at most 10 per task / role / note. */
-export const AI_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
-export const AI_IMAGES_PER_SET = 10;
-
-/**
- * Anthropic «Vision»: an image whose long edge is above 1568 px is scaled
- * down by the API anyway (only adding latency), so it is sent at most this.
+/*
+ * Owner 2026-11-12: NO cap of ours on how many pictures or how big (the
+ * upload size is the files pipeline's own chat-photo limit). Only the real
+ * limits of the Claude API stay, from docs.claude.com «Vision» and «Batch
+ * processing» (read 2026-11-12):
+ *  - up to 600 images per request on models with a 1M-token context (all of
+ *    ours: Opus / Sonnet / Haiku 5.5), 100 on 200k-context models;
+ *  - 10 MB per image (base64), 128 MB per Messages request, 256 MB per batch;
+ *  - Claude 4.7 and later read up to 2,576 px on the long edge (larger is
+ *    downscaled by the API anyway); with more than 20 images in one request
+ *    every image must stay under 3,000 px, which 2,576 does.
  */
-export const AI_IMAGE_LONG_EDGE = 1568;
+export const AI_IMAGES_PER_REQUEST = 600;
+/** Base64 bytes of one image the API accepts. */
+export const AI_IMAGE_B64_MAX = 10 * 1024 * 1024;
+/** The pictures' share of one request (128 MB limit, room for the text). */
+export const AI_REQUEST_IMAGE_BYTES = 100 * 1024 * 1024;
+export const AI_IMAGE_LONG_EDGE = 2576;
+/** Ids per workflow fetch (keeps each answer small; all pages are read). */
+export const AI_FETCH_PAGE = 20;
 
 /** Where an image belongs. */
 export type AiAttachmentKind = 'task' | 'role' | 'note';
@@ -40,7 +51,7 @@ export type AiAttachmentKind = 'task' | 'role' | 'note';
 export const AI_RETENTION_RECORDS_KEY = 'ai.retention_records_days';
 export const AI_RETENTION_IMAGES_KEY = 'ai.retention_images_days';
 export const AI_RETENTION_DEFAULT_DAYS = 15;
-export const AI_RETENTION_MAX_DAYS = 365;
+export const AI_RETENTION_MAX_DAYS = 36500;
 
 /**
  * The owner's newest decided items per role that always stay (the AI
@@ -61,18 +72,13 @@ export const ISSUE_ATTACHMENTS_PREFIX = 'AI attachments:';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Distinct, valid ids in their order; throws on bad input or over 10. */
+/** Distinct, valid ids in their order; throws on bad input (no count cap). */
 export function cleanIds(ids: readonly string[] | undefined): string[] {
   const out: string[] = [];
   for (const id of ids ?? []) {
     if (!UUID.test(id)) throw new AiAttachmentError('Неверный id картинки.');
     const low = id.toLowerCase();
     if (!out.includes(low)) out.push(low);
-  }
-  if (out.length > AI_IMAGES_PER_SET) {
-    throw new AiAttachmentError(
-      `Не больше ${AI_IMAGES_PER_SET} картинок за раз.`,
-    );
   }
   return out;
 }
@@ -96,8 +102,26 @@ export function parseIssueAttachments(body: string): string[] {
     .slice(ISSUE_ATTACHMENTS_PREFIX.length)
     .trim()
     .split(/\s+/)
-    .filter((x) => UUID.test(x))
-    .slice(0, AI_IMAGES_PER_SET);
+    .filter((x) => UUID.test(x));
+}
+
+/**
+ * What one Claude request can carry, in order: at most AI_IMAGES_PER_REQUEST
+ * pictures and AI_REQUEST_IMAGE_BYTES of base64. The rest is counted, so the
+ * owner is told honestly that those pictures did not reach the AI.
+ */
+export function fitRequest<T extends { data: string }>(
+  images: readonly T[],
+): { sent: T[]; skipped: number } {
+  const sent: T[] = [];
+  let bytes = 0;
+  for (const img of images) {
+    if (sent.length >= AI_IMAGES_PER_REQUEST) break;
+    if (bytes + img.data.length > AI_REQUEST_IMAGE_BYTES) break;
+    sent.push(img);
+    bytes += img.data.length;
+  }
+  return { sent, skipped: images.length - sent.length };
 }
 
 /** The setting's days as the cleanup uses them: 0 = keep forever. */

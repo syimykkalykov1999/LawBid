@@ -141,27 +141,31 @@ jobs:
           [ -n "$ISSUE" ] || exit 0
           ids=$(gh issue view "$ISSUE" --json body --jq .body \
             | grep -m1 '^AI attachments:' \
-            | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' \
-            | head -10 || true)
+            | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' || true)
           [ -n "$ids" ] || exit 0
           mkdir -p .ai-attachments
           echo ".ai-attachments/" >> .git/info/exclude
-          body=$(jq -n --argjson n "$ISSUE" --arg ids "$ids" '{issueNumber:$n, ids:($ids|split("\n")|map(select(length>0)))}')
-          for try in 1 2 3 4 5 6; do
-            scripts/ai-assistant/api.sh attachments "$body" > .ai-attachments/answer.json
-            [ "$(jq -r '.data.pending' .ai-attachments/answer.json)" = "0" ] && break
-            sleep 10
-          done
+          # Owner 12.11: every picture (no cap of ours), read in pages of 20 ids.
           files=""
-          for row in $(jq -r '.data.images[] | @base64' .ai-attachments/answer.json); do
-            id=$(echo "$row" | base64 -d | jq -r .id)
-            ext=$(echo "$row" | base64 -d | jq -r .ext)
-            [[ "$id" =~ ^[0-9a-f-]{36}$ ]] || continue
-            case "$ext" in jpg|png|gif|webp) ;; *) continue ;; esac
-            echo "$row" | base64 -d | jq -r .base64 | base64 -d > ".ai-attachments/${id}.${ext}"
-            files="${files} .ai-attachments/${id}.${ext}"
+          printf '%s\n' "$ids" | split -l 20 - .ai-attachments/page.
+          for page in .ai-attachments/page.*; do
+            body=$(jq -n --argjson n "$ISSUE" --rawfile ids "$page" '{issueNumber:$n, ids:($ids|split("\n")|map(select(length>0)))}')
+            for try in 1 2 3 4 5 6; do
+              scripts/ai-assistant/api.sh attachments "$body" > .ai-attachments/answer.json
+              [ "$(jq -r '.data.pending' .ai-attachments/answer.json)" = "0" ] && break
+              sleep 10
+            done
+            n=$(jq '.data.images | length' .ai-attachments/answer.json)
+            for i in $(seq 0 $((n - 1))); do
+              id=$(jq -r ".data.images[$i].id" .ai-attachments/answer.json)
+              ext=$(jq -r ".data.images[$i].ext" .ai-attachments/answer.json)
+              [[ "$id" =~ ^[0-9a-f-]{36}$ ]] || continue
+              case "$ext" in jpg|png|gif|webp) ;; *) continue ;; esac
+              jq -r ".data.images[$i].base64" .ai-attachments/answer.json | base64 -d > ".ai-attachments/${id}.${ext}"
+              files="${files} .ai-attachments/${id}.${ext}"
+            done
+            rm -f .ai-attachments/answer.json "$page"
           done
-          rm -f .ai-attachments/answer.json
           echo "files=${files# }" >> "$GITHUB_OUTPUT"
           echo "Pictures: $(echo "$files" | wc -w)" >> "$GITHUB_STEP_SUMMARY"
 

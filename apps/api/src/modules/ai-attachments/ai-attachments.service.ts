@@ -6,8 +6,8 @@ import { detectMime } from '../files/magic-bytes';
 import { S3StorageService } from '../files/files.public';
 import type { AiImage } from '../staff-ai/staff-ai-client.service';
 import {
+  AI_IMAGE_B64_MAX,
   AI_IMAGE_LONG_EDGE,
-  AI_IMAGES_PER_SET,
   AiAttachmentError,
   cleanIds,
   isAiImageMime,
@@ -35,7 +35,7 @@ export interface PreparedImage extends AiImage {
  * go through the files pipeline (presign → S3 → confirm → antivirus → the
  * scan job re-encodes the picture, so no EXIF / GPS is stored); here they
  * are linked to a task / role / note and read back for the AI, at most
- * 1568 px on the long edge (sharp, the library the files pipeline uses).
+ * 2576 px on the long edge (sharp, the library the files pipeline uses).
  */
 @Injectable()
 export class AiAttachmentsService {
@@ -228,23 +228,20 @@ export class AiAttachmentsService {
     const rows = await this.prisma.aiAttachment.findMany({
       where: { kind: 'role', role_id: roleId, closed_at: null },
       orderBy: { position: 'asc' },
-      take: AI_IMAGES_PER_SET,
       select: { id: true, file_id: true },
     });
     return (await this.prepare(rows)).images;
   }
 
-  /** Correction pictures per run item (feedback examples), at most [max]. */
+  /** Correction pictures per run item (feedback examples). */
   async noteImages(
     runItemIds: string[],
-    max: number,
   ): Promise<Map<string, PreparedImage[]>> {
     const out = new Map<string, PreparedImage[]>();
-    if (runItemIds.length === 0 || max <= 0) return out;
+    if (runItemIds.length === 0) return out;
     const rows = await this.prisma.aiAttachment.findMany({
       where: { kind: 'note', run_item_id: { in: runItemIds }, closed_at: null },
       orderBy: [{ created_at: 'desc' }, { position: 'asc' }],
-      take: max,
       select: { id: true, file_id: true, run_item_id: true },
     });
     const { images } = await this.prepare(rows);
@@ -312,7 +309,7 @@ export class AiAttachmentsService {
 
   /**
    * Reads each clean file and makes the picture the AI gets: real type from
-   * the bytes (never the declared one), long edge ≤ 1568 px, no metadata
+   * the bytes (never the declared one), long edge ≤ 2576 px, no metadata
    * (sharp writes none unless asked), the same format (a GIF becomes a PNG
    * of its first frame). A file still being checked counts as pending.
    */
@@ -373,17 +370,36 @@ export async function downscaleForAi(
       fit: 'inside',
       withoutEnlargement: true,
     });
-  const out: { buf: Buffer; mediaType: AiImageMime } =
+  let out: { buf: Buffer; mediaType: AiImageMime } =
     mime === 'image/jpeg'
       ? {
-          buf: await pipe.jpeg({ quality: 88, mozjpeg: true }).toBuffer(),
+          buf: await pipe
+            .clone()
+            .jpeg({ quality: 88, mozjpeg: true })
+            .toBuffer(),
           mediaType: 'image/jpeg',
         }
       : mime === 'image/webp'
         ? {
-            buf: await pipe.webp({ quality: 88 }).toBuffer(),
+            buf: await pipe.clone().webp({ quality: 88 }).toBuffer(),
             mediaType: 'image/webp',
           }
-        : { buf: await pipe.png().toBuffer(), mediaType: 'image/png' };
+        : { buf: await pipe.clone().png().toBuffer(), mediaType: 'image/png' };
+  // The API takes at most 10 MB of base64 per image: a huge PNG photo goes
+  // as a JPEG of the same pixels instead (the only real limit, never ours).
+  for (const quality of [85, 70, 50]) {
+    if (b64Length(out.buf.length) <= AI_IMAGE_B64_MAX) break;
+    out = {
+      buf: await pipe
+        .clone()
+        .flatten({ background: '#ffffff' })
+        .jpeg({ quality, mozjpeg: true })
+        .toBuffer(),
+      mediaType: 'image/jpeg',
+    };
+  }
+  if (b64Length(out.buf.length) > AI_IMAGE_B64_MAX) return null;
   return { mediaType: out.mediaType, data: out.buf.toString('base64') };
 }
+
+const b64Length = (bytes: number) => Math.ceil(bytes / 3) * 4;

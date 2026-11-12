@@ -74,14 +74,15 @@ function kit(days: { records?: number; images?: number } = {}) {
 }
 
 describe('AI retention', () => {
-  it('defaults: 15 days for records and for images; the owner may set 0-365 (0 = forever) with 2FA', () => {
+  it('defaults: 15 days for records and for images; the owner may set 0-36500 (0 = forever) with 2FA', () => {
     expect(APP_SETTINGS['ai.retention_records_days']).toBe(15);
     expect(APP_SETTINGS['ai.retention_images_days']).toBe(15);
     const schema = configSchema();
     for (const k of ['ai.retention_records_days', 'ai.retention_images_days']) {
       expect(validateConfigValue(schema[k], 0)).toBeNull();
       expect(validateConfigValue(schema[k], 365)).toBeNull();
-      expect(validateConfigValue(schema[k], 366)).not.toBeNull();
+      expect(validateConfigValue(schema[k], 36500)).toBeNull();
+      expect(validateConfigValue(schema[k], 36501)).not.toBeNull();
       expect(validateConfigValue(schema[k], -1)).not.toBeNull();
       expect(STEP_UP_CONFIG_KEYS.has(k)).toBe(true);
     }

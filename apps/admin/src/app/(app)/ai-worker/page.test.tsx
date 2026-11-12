@@ -230,13 +230,13 @@ describe('AiWorkerPage: pictures, models and retention (owner 2026-11-12)', () =
     });
   });
 
-  it('«Хранить N дней» saves 0-365 only; «Очистить сейчас» asks the server for the chosen kind', async () => {
+  it('«Хранить N дней» saves 0-36500 only; «Очистить сейчас» asks the server for the chosen kind', async () => {
     status = { ...base };
     items = [];
     renderPage();
     const records = await screen.findByLabelText(/Записи/);
     await waitFor(() => expect((records as HTMLInputElement).value).toBe('15'));
-    fireEvent.change(records, { target: { value: '400' } });
+    fireEvent.change(records, { target: { value: '40000' } });
     const saveButtons = screen.getAllByRole('button', { name: 'Сохранить срок' });
     expect((saveButtons[0] as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(records, { target: { value: '7' } });
