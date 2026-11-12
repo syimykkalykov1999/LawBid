@@ -19,6 +19,7 @@ import {
   ApiEnvelopeResponse,
   ApiErrors,
 } from '../../common/dto/api-docs.decorators';
+import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   AdminEndpoint,
@@ -32,6 +33,7 @@ import {
   AdminBulkResultDto,
   AdminBidRowDto,
   AdminClassifyPostsDto,
+  CLASSIFY_MAX,
   AdminBidsQueryDto,
   AdminClientReviewRowDto,
   AdminClientReviewsQueryDto,
@@ -116,8 +118,11 @@ export class AdminContentController {
   @ApiEnvelopeResponse(AdminBulkResultDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
   classifyAdminPosts(
+    @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminClassifyPostsDto,
   ): Promise<AdminBulkResultDto> {
+    // Owner 2026-11-12: staff keep 200 a request; the owner has no cap.
+    assertStaffBulkCap(admin, dto.ids, CLASSIFY_MAX);
     return this.content.classifyPosts(dto.ids, dto.contentClass);
   }
 
