@@ -956,7 +956,8 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * 24 hours (going back from an unfinished onboarding does not count).
    * Below 1 counts as 1. */
   'account.role_switch_per_day': 2,
-  'security.admin_rate_limit_per_minute': 600,
+  // Owner 2026-11-12: 0 = no per-minute limit for signed-in admins.
+  'security.admin_rate_limit_per_minute': 0,
   /** Scale audit 2026-10-23: requests per minute for callers who are not
    * signed in, per address (CGNAT / office addresses carry many people).
    * Never below the default limit (100). */

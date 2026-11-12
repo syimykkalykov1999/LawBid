@@ -32,8 +32,8 @@ const trackers = new WeakMap<object, string>();
  * Owner 2026-10-05: a signed-in admin (`a:<adminId>`) gets its own, higher
  * per-minute limit — the panel keeps several queues live on one screen and
  * hit «Слишком много запросов» at the shared 100/min. The admin limit is
- * `security.admin_rate_limit_per_minute` (Система → Настройки, default
- * 600); `ADMIN_THROTTLE_LIMIT` in the env wins over it, as a way back in
+ * `security.admin_rate_limit_per_minute` (Система → Настройки; default 0
+ * = no limit, owner 2026-11-12); `ADMIN_THROTTLE_LIMIT` in the env wins over it, as a way back in
  * if the setting is ever saved too low. Going over it blocks the admin
  * only for ADMIN_BLOCK_MS past the current one-minute window, never for
  * hours. A route's own @Throttle stays as written. Users, assistants and
@@ -72,9 +72,12 @@ export class UserThrottlerGuard extends ThrottlerGuard {
       routeLimit === undefined &&
       (await this.getTracker(req)).startsWith('a:')
     ) {
+      // Owner 2026-11-12: 0 = no limit for a signed-in admin.
+      const limit = await this.adminLimit();
+      if (limit <= 0) return true;
       return super.handleRequest({
         ...props,
-        limit: await this.adminLimit(),
+        limit,
         blockDuration: Math.min(props.blockDuration, ADMIN_BLOCK_MS),
       });
     }

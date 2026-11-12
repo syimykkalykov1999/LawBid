@@ -562,13 +562,17 @@ export class AdminUsersService {
     await this.target(id);
     // Security audit 2026-10-01: a phone change is an account takeover
     // path — a real US mobile only (like sign-in) and at most 10 changes
-    // a day per admin.
+    // a day per staff admin. Owner 2026-11-12: the owner (super_admin) has
+    // no daily cap; his fresh 2FA code is the guard.
     await this.otp.assertSmsDestinationAllowed(phone);
-    const budget = await this.rateLimit.consumeFixedWindow(
-      ['admin-phone-change', admin.id],
-      PHONE_CHANGES_PER_ADMIN_PER_DAY,
-      86_400,
-    );
+    const budget =
+      admin.adminRole === 'super_admin'
+        ? { allowed: true, retryAfterSeconds: 0 }
+        : await this.rateLimit.consumeFixedWindow(
+            ['admin-phone-change', admin.id],
+            PHONE_CHANGES_PER_ADMIN_PER_DAY,
+            86_400,
+          );
     if (!budget.allowed) {
       throw new HttpException(
         {

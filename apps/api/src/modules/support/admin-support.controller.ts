@@ -138,10 +138,14 @@ export class AdminSupportController {
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminSupportUploadDto,
   ): Promise<PresignedFileDto> {
-    return this.files.presign(admin.id, {
-      purpose: 'support_attachment',
-      ...dto,
-    });
+    return this.files.presign(
+      admin.id,
+      {
+        purpose: 'support_attachment',
+        ...dto,
+      },
+      { byAdmin: true },
+    );
   }
 
   @Roles('super_admin', 'support')

@@ -91,6 +91,7 @@ function build(opts: { enabled?: boolean } = {}) {
   const rateLimit = {
     hashIdentifier: (s: string) => `h:${s}`,
     consumeFixedWindow: jest.fn().mockResolvedValue({ allowed: true }),
+    resetFixedWindow: jest.fn().mockResolvedValue(undefined),
   };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const config = {
@@ -108,7 +109,7 @@ function build(opts: { enabled?: boolean } = {}) {
   );
   // A live ticket, as loginPassword leaves it.
   store.set('adm:ticket:j1', '0');
-  return { svc, cred, store, prisma, sessions, audit, redis };
+  return { svc, cred, store, prisma, sessions, audit, redis, rateLimit };
 }
 
 describe('forced authenticator setup at sign-in', () => {
@@ -217,6 +218,17 @@ describe('step-up (authenticator code only, audited)', () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'admin.step_up_failed' }),
     );
+  });
+
+  it('owner 12.11: only wrong codes count; a good code clears the attempt counter', async () => {
+    const { svc, rateLimit } = build({ enabled: true });
+    await expect(svc.stepUp('u1', 'sess-1', '000000')).rejects.toBeDefined();
+    expect(rateLimit.resetFixedWindow).not.toHaveBeenCalled();
+    await svc.stepUp('u1', 'sess-1', totpCode('JBSWY3DPEHPK3PXP'));
+    expect(rateLimit.resetFixedWindow).toHaveBeenCalledWith([
+      'admin-stepup',
+      'u1',
+    ]);
   });
 
   it('the same code cannot be replayed for a second step-up', async () => {

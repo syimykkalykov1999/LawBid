@@ -348,11 +348,15 @@ export class AdminStickersService {
     admin: AdminActor,
     dto: AdminStickerUploadDto,
   ): Promise<PresignedFileDto> {
-    return this.files.presign(admin.id, {
-      purpose: 'sticker',
-      supportsPut: true,
-      ...dto,
-    });
+    return this.files.presign(
+      admin.id,
+      {
+        purpose: 'sticker',
+        supportsPut: true,
+        ...dto,
+      },
+      { byAdmin: true },
+    );
   }
 
   /** Step 2: size / SHA-256 / type checks, then the antivirus scan. */

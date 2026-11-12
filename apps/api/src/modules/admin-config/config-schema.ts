@@ -418,7 +418,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['security.admin_rate_limit_per_minute'] = {
     ...out['security.admin_rate_limit_per_minute'],
     description:
-      'Requests per minute one signed-in admin may make (users stay at 100); ADMIN_THROTTLE_LIMIT in the env overrides it.',
+      'Requests per minute one signed-in admin may make; 0 = no limit (the default; users stay at 100); ADMIN_THROTTLE_LIMIT in the env overrides it.',
     min: ADMIN_THROTTLE_MIN,
     max: ADMIN_THROTTLE_MAX,
   };
