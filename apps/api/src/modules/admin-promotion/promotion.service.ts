@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  HttpException,
-  HttpStatus,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -30,15 +24,11 @@ import type {
 } from './promotion.dto';
 import { SeoManifestService } from './seo-manifest.service';
 
-/** One dry run a minute is plenty (the workflow queues runs anyway). */
-const DRY_RUN_COOLDOWN_MS = 60_000;
-
 export const PROMOTION_AUDIT = { dryRun: 'promotion.seo_dry_run' } as const;
 
 @Injectable()
 export class PromotionService {
   private readonly log = new Logger(PromotionService.name);
-  private lastDryRun = 0;
 
   constructor(
     private readonly settings: AppSettingsService,
@@ -119,10 +109,7 @@ export class PromotionService {
   /** Starts `seo-deploy.yml` with dry_run=true through the infra GitHub App
    * when it is configured; otherwise only hands back the command. Nothing is
    * published by a dry run. */
-  async dryRun(
-    admin: AdminActor,
-    now: number = Date.now(),
-  ): Promise<PromotionDryRunResultDto> {
+  async dryRun(admin: AdminActor): Promise<PromotionDryRunResultDto> {
     const base = {
       command: SEO_DRY_RUN_COMMAND,
       started: false,
@@ -135,16 +122,7 @@ export class PromotionService {
           'GitHub-приложение для запуска не подключено (Ключи и сервисы). Выполните команду вручную или нажмите Run workflow на странице GitHub Actions.',
       };
     }
-    if (now - this.lastDryRun < DRY_RUN_COOLDOWN_MS) {
-      throw new HttpException(
-        {
-          code: ErrorCode.RATE_LIMITED,
-          message: 'A dry run was started a minute ago.',
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-    this.lastDryRun = now;
+    // Owner 2026-11-12: no one-a-minute cap; the workflow queues runs.
     try {
       const { repo } = await this.github.dispatchWorkflow(SEO_WORKFLOW_FILE, {
         dry_run: 'true',
@@ -165,7 +143,6 @@ export class PromotionService {
         message: 'Пробный запуск начался. Итог смотрите в GitHub Actions.',
       };
     } catch (e) {
-      this.lastDryRun = 0;
       this.log.warn(
         `seo dry run failed: ${e instanceof Error ? e.message : String(e)}`,
       );

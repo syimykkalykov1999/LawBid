@@ -93,4 +93,12 @@ describe('VerificationAdminService.documentUrl rate limit', () => {
     expect(t.verificationFileUrl).not.toHaveBeenCalled();
     expect(t.record).not.toHaveBeenCalled();
   });
+
+  it('owner 12.11: the super admin has no hourly cap (staff keep it)', async () => {
+    const t = build(false);
+    const owner = { ...admin, adminRole: 'super_admin' } as AdminActor;
+    await expect(t.service.documentUrl(owner, 'doc-1')).resolves.toEqual(link);
+    expect(t.consumeFixedWindow).not.toHaveBeenCalled();
+    expect(t.record).toHaveBeenCalledTimes(1);
+  });
 });

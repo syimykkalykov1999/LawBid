@@ -13,6 +13,7 @@ class OutreachAssignDto {
   factory OutreachAssignDto.fromJson(Map<String, Object?> json) =>
       _$OutreachAssignDtoFromJson(json);
 
+  /// Staff: at most 500; the owner: any number (processed in chunks).
   final List<String> leadIds;
   final String? partnerId;
 

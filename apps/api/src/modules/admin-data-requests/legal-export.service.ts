@@ -143,7 +143,12 @@ export class LegalExportService {
     // Owner 2026-10-28: a production leaves the system a limited number of
     // times; the counter is bumped first and atomically, so two admins
     // cannot both use the last download.
-    const max = await this.settings.number('legal.export_max_downloads');
+    // Owner 2026-11-12: the owner (super admin) has no download cap; every
+    // download is still counted and audited.
+    const max =
+      admin.adminRole === 'super_admin'
+        ? 0
+        : await this.settings.number('legal.export_max_downloads');
     const claimed = await this.prisma.legalExport.updateMany({
       where: {
         id: row.id,

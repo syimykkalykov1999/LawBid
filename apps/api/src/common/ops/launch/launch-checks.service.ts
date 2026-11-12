@@ -81,11 +81,7 @@ export class LaunchChecksService {
       this.auto = { at: Date.now(), items: await this.detect(now) };
     }
     const [manual, drill] = await Promise.all([this.manual(), this.drill()]);
-    const items: LaunchItem[] = [
-      ...this.auto.items,
-      this.drillItem(drill, now),
-      ...this.manualItems(),
-    ]
+    const items: LaunchItem[] = [...this.auto.items, this.drillItem(drill, now)]
       .map((d) => this.finish(d, manual))
       .sort(
         (a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group),
@@ -191,20 +187,6 @@ export class LaunchChecksService {
         };
   }
 
-  private manualItems(): Draft[] {
-    return [
-      {
-        id: 'sign_required',
-        group: 'safety',
-        title: 'SIGN_REQUIRED (обязательная подпись запросов)',
-        status: 'manual',
-        detail: 'Автоматически не проверяется.',
-        hint: 'Включите параметр в сборке приложения и поставьте галочку, когда готово.',
-        runbook: null,
-      },
-    ];
-  }
-
   // --- detection ---------------------------------------------------------
 
   private async detect(now: Date): Promise<Draft[]> {
@@ -260,6 +242,7 @@ export class LaunchChecksService {
       ['stripe', () => this.stripe()],
       ['app_check', () => this.appCheck()],
       ['arm_spot', () => this.armSpot()],
+      ['sign_required', () => this.signRequired()],
     ];
     const out = await Promise.all(
       probes.map(async ([id, run]): Promise<Draft> => {
@@ -306,11 +289,7 @@ export class LaunchChecksService {
     const res = await fetch(
       `https://api.github.com/repos/${gh.repo}/commits/main`,
       {
-        headers: {
-          accept: 'application/vnd.github+json',
-          'user-agent': 'lawbid-admin',
-          ...(gh.token ? { authorization: `Bearer ${gh.token}` } : {}),
-        },
+        headers: ghHeaders(gh.token),
         signal: AbortSignal.timeout(6000),
       },
     );
@@ -318,18 +297,127 @@ export class LaunchChecksService {
     const head = String(((await res.json()) as { sha?: string }).sha ?? '');
     const same =
       !!head && (head.startsWith(running) || running.startsWith(head));
-    return same
+    if (same) {
+      return {
+        ...base,
+        status: 'green',
+        detail: `Работает ${head.slice(0, 7)} — это последняя версия main.`,
+        hint: null,
+      };
+    }
+    // deploy.yml runs only when a DEPLOY_PATHS file changed: a newer main
+    // with only infra/docs/mobile commits has nothing to roll out.
+    const changed = head ? await this.changedFiles(gh, running, head) : null;
+    const deployable = changed?.filter(isDeployPath);
+    if (changed && deployable && deployable.length === 0) {
+      return {
+        ...base,
+        status: 'green',
+        detail: `Работает ${running.slice(0, 7)}, в main уже ${head.slice(0, 7)}, но после него менялось только то, что не выкатывается (${changed.length} файл.) — нечего выкатывать.`,
+        hint: null,
+      };
+    }
+    return {
+      ...base,
+      status: 'red',
+      detail: deployable
+        ? `Работает ${running.slice(0, 7)}, а в main уже ${head.slice(0, 7)}: изменено файлов для выката ${deployable.length}.`
+        : `Работает ${running.slice(0, 7)}, а в main уже ${head.slice(0, 7)}.`,
+      hint: 'Запустите выкат (Deploy) или скажите Claude «выкати».',
+    };
+  }
+
+  /**
+   * Files changed between the running build and main, or null when GitHub
+   * cannot say (unknown commit, or the list is cut at 300 files).
+   */
+  private async changedFiles(
+    gh: Record<string, string>,
+    base: string,
+    head: string,
+  ): Promise<string[] | null> {
+    const res = await fetch(
+      `https://api.github.com/repos/${gh.repo}/compare/${base}...${head}`,
+      {
+        headers: ghHeaders(gh.token),
+        signal: AbortSignal.timeout(6000),
+      },
+    );
+    if (!res.ok) return null;
+    const body = (await res.json()) as {
+      files?: { filename?: string; previous_filename?: string }[];
+    };
+    if (!Array.isArray(body.files) || body.files.length >= 300) return null;
+    return body.files.flatMap((f) =>
+      [f.filename, f.previous_filename].filter(
+        (n): n is string => typeof n === 'string',
+      ),
+    );
+  }
+
+  /**
+   * deploy.yml makes images signed-or-fail only when the repository
+   * variable SIGN_REQUIRED is 'true'; read it with the «Запуск» GitHub
+   * token. A token without «Variables: read» keeps the hand tick.
+   */
+  private async signRequired(): Promise<Draft> {
+    const base = {
+      id: 'sign_required',
+      group: 'safety' as const,
+      title: TITLES.sign_required,
+      runbook: 'docs/runbooks/DEPLOY_PROD.md',
+    };
+    const guard =
+      'signing_guard_enabled = true в Terraform включается отдельно (скажите Claude).';
+    const manualHint = `GitHub → Settings → Secrets and variables → Actions → Variables: SIGN_REQUIRED = true (после первого выката с «signature OK»), затем галочка. ${guard}`;
+    const gh = (await this.secrets.get('github'))?.fields;
+    if (!gh?.repo || !gh.token) {
+      return {
+        ...base,
+        status: 'manual',
+        detail: 'Автоматически не проверяется: нет токена GitHub.',
+        hint: manualHint,
+      };
+    }
+    const res = await fetch(
+      `https://api.github.com/repos/${gh.repo}/actions/variables/SIGN_REQUIRED`,
+      { headers: ghHeaders(gh.token), signal: AbortSignal.timeout(6000) },
+    );
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ...base,
+        status: 'manual',
+        detail: 'Токену GitHub не хватает права «Variables: read».',
+        hint: `Дайте токену право Variables: read или проверьте сами. ${manualHint}`,
+      };
+    }
+    if (res.status === 404) {
+      return {
+        ...base,
+        status: 'red',
+        detail:
+          'Переменная SIGN_REQUIRED в GitHub не задана: подпись образов только предупреждает.',
+        hint: manualHint,
+        manualTick: false,
+      };
+    }
+    if (!res.ok) throw new Error(`GitHub ответил ${res.status}`);
+    const raw = ((await res.json()) as { value?: unknown }).value;
+    const value = typeof raw === 'string' ? raw.trim() : '';
+    return value === 'true'
       ? {
           ...base,
           status: 'green',
-          detail: `Работает ${head.slice(0, 7)} — это последняя версия main.`,
+          detail: `SIGN_REQUIRED = true: неподписанный образ не выкатится. ${guard}`,
           hint: null,
+          manualTick: false,
         }
       : {
           ...base,
           status: 'red',
-          detail: `Работает ${running.slice(0, 7)}, а в main уже ${head.slice(0, 7)}.`,
-          hint: 'Запустите выкат (Deploy) или скажите Claude «выкати».',
+          detail: `SIGN_REQUIRED = ${value || '(пусто)'}: подпись образов только предупреждает.`,
+          hint: manualHint,
+          manualTick: false,
         };
   }
 
@@ -710,6 +798,33 @@ export class LaunchChecksService {
   }
 }
 
+/**
+ * The `on: push: paths` of .github/workflows/deploy.yml (a spec keeps the
+ * two equal): only these changes are ever deployed.
+ */
+export const DEPLOY_PATHS = [
+  'apps/api/**',
+  'apps/admin/**',
+  'packages/**',
+  'package.json',
+  'package-lock.json',
+  '.github/workflows/deploy.yml',
+];
+
+export function isDeployPath(file: string): boolean {
+  return DEPLOY_PATHS.some((p) =>
+    p.endsWith('/**') ? file.startsWith(p.slice(0, -2)) : file === p,
+  );
+}
+
+function ghHeaders(token?: string): Record<string, string> {
+  return {
+    accept: 'application/vnd.github+json',
+    'user-agent': 'lawbid-admin',
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 const GROUP_ORDER: LaunchItem['group'][] = [
   'release',
   'servers',
@@ -736,4 +851,5 @@ const TITLES: Record<string, string> = {
   stripe: 'Платежи: боевой ключ Stripe и цены',
   app_check: 'App Check',
   arm_spot: 'Серверы дешевле: ARM64 и Spot',
+  sign_required: 'SIGN_REQUIRED (обязательная подпись образов)',
 };

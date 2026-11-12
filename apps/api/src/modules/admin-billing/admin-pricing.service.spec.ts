@@ -66,6 +66,16 @@ describe('AdminPricingService.rebuildPublicSite (R-399)', () => {
     expect(github.dispatchWorkflow).toHaveBeenCalledWith('seo-deploy.yml', {});
   });
 
+  it('owner 12.11: force (the owner) rebuilds inside the cooldown', async () => {
+    const github = app();
+    const { svc } = build(undefined, github);
+    await expect(svc.rebuildPublicSite(1_000)).resolves.toBe(true);
+    await expect(svc.rebuildPublicSite(2_000, { force: true })).resolves.toBe(
+      true,
+    );
+    expect(github.dispatchWorkflow).toHaveBeenCalledTimes(2);
+  });
+
   it('does nothing without the GitHub App (the daily run applies)', async () => {
     const { svc, github } = build(undefined);
     await expect(svc.rebuildPublicSite(1_000)).resolves.toBe(false);

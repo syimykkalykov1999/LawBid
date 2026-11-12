@@ -58,7 +58,11 @@ variable "alarm_incident_hook_token" {
 
 locals {
   journey_on = var.synthetic_journey_enabled && var.synthetic_journey_base_url != null && var.synthetic_journey_secret_arn != null && var.synthetic_journey_conversation_id != null
-  hook_on    = var.alarm_incident_hook_enabled && var.alarm_incident_hook_url != null && var.alarm_incident_hook_token != null
+  # 12.11.2026 (KNOWN_ERRORS 104): count from the flag only. The token is a
+  # random_password result, unknown at plan time, so `token != null` made the
+  # count unknown and the whole plan fail («Invalid count argument»). The stack
+  # module always passes the URL and, with the flag on, the token.
+  hook_on = var.alarm_incident_hook_enabled
 }
 
 # ---- synthetic journey canary ---------------------------------------------------------

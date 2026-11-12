@@ -287,7 +287,7 @@ export class InfraChangeService {
           item_id: itemId,
           from_state: current,
           to_state: target,
-          changes: changesFor(sw!, target),
+          changes: changesFor(sw!, target, auto),
           requested_by: adminId,
           cost_delta_usd: delta,
           dry_run: auto ? false : g.dryRun,

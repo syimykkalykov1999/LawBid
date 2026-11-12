@@ -137,3 +137,76 @@ describe('SecretsService without Redis', () => {
     expect(() => make(brokenRedis()).onModuleInit()).not.toThrow();
   });
 });
+
+// 12.11 (KNOWN_ERRORS 110): the «Запуск» page fired ~165 key-store
+// transactions at once; one P2028 switched the whole process to env keys
+// for a minute.
+describe('SecretsService under a burst (single-flight)', () => {
+  function burst(opts: { failFirst?: number } = {}) {
+    const envelope = new SecretEnvelope(KEYS, 'k1');
+    let tx = 0;
+    let fail = opts.failFirst ?? 0;
+    const row = {
+      provider: 'turn',
+      version: 1,
+      status: 'active',
+      enabled: true,
+      priority: 0,
+      slot: 'main',
+      label: null,
+      fingerprint: 'fp1',
+      public_config: { urls: 'turn:turn.lawbid.dev:3478' },
+      secret_enc: envelope.encrypt('{"secret":"s3cret"}', 'turn:1'),
+    };
+    const prisma = {
+      $transaction: async (fn: (t: unknown) => Promise<unknown>) => {
+        tx++;
+        if (fail > 0) {
+          fail--;
+          throw Object.assign(new Error('Unable to start a transaction'), {
+            code: 'P2028',
+          });
+        }
+        return fn({
+          $executeRawUnsafe: () => Promise.resolve(0),
+          integrationCredential: { findMany: () => Promise.resolve([row]) },
+        });
+      },
+      integrationCustomProvider: { findMany: () => Promise.resolve([]) },
+    } as unknown as PrismaService;
+    const config = {
+      get: (k: string) =>
+        k === 'SECRETS_MASTER_KEYS'
+          ? KEYS
+          : k === 'SECRETS_ACTIVE_KID'
+            ? 'k1'
+            : undefined,
+    } as unknown as ConfigService;
+    const service = new SecretsService(prisma, config, {} as unknown as Redis);
+    return { service, txCount: () => tx };
+  }
+
+  it('165 concurrent reads of a cold cache open one transaction', async () => {
+    const { service, txCount } = burst();
+    const all = await Promise.all(
+      Array.from({ length: 165 }, () => service.get('turn')),
+    );
+    expect(all.every((c) => c?.fields.secret === 's3cret')).toBe(true);
+    expect(txCount()).toBe(1);
+  });
+
+  it('a busy pool (P2028) is retried once and does not stop the key store', async () => {
+    const { service, txCount } = burst({ failFirst: 1 });
+    const creds = await service.get('turn');
+    expect(creds?.fields.secret).toBe('s3cret');
+    expect(txCount()).toBe(2);
+  });
+
+  it('still busy after the retry: no empty answer is cached, the next read hits the store', async () => {
+    const { service, txCount } = burst({ failFirst: 2 });
+    await service.get('turn');
+    const again = await service.get('turn');
+    expect(again?.fields.secret).toBe('s3cret');
+    expect(txCount()).toBe(3);
+  });
+});

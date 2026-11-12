@@ -134,12 +134,16 @@ export class AdminAccessReportService {
     if (this.summary) await this.build(now.toISOString().slice(0, 7));
   }
 
-  /** The admin button «Обновить»: recount the running month, at most once per 10 min. */
-  async refresh(now = new Date()): Promise<void> {
+  /** The admin button «Обновить»: recount the running month, at most once
+   * per 10 min; owner 2026-11-12: [force] (the owner) recounts every time. */
+  async refresh(
+    now = new Date(),
+    { force = false }: { force?: boolean } = {},
+  ): Promise<void> {
     const month = now.toISOString().slice(0, 7);
     const range = monthRange(month);
     if (!range || !this.summary) return;
-    const hit = await this.summary.peek(accessReportKey(month));
+    const hit = force ? null : await this.summary.peek(accessReportKey(month));
     if (
       hit &&
       now.getTime() - Date.parse(hit.computedAt) < TOTALS_BUTTON_COOLDOWN_MS

@@ -22,6 +22,8 @@ class AdminBulkContentDto {
       _$AdminBulkContentDtoFromJson(json);
 
   final String reason;
+
+  /// Staff: at most 500; the owner: any number (processed in chunks).
   final List<String> ids;
 
   /// remove: posts and comments (the author is told why); hide: any type (the author is told why); restore: back to visible.

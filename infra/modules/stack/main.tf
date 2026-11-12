@@ -1846,6 +1846,11 @@ locals {
     # AWS/ES CPU and JVM pressure of (aws-capacity.service.ts). A name built
     # from the stack name, never a resource attribute (KNOWN_ERRORS 104).
     OPS_SEARCH_DOMAIN = var.growth.opensearch_enabled ? "${local.name}-search" : ""
+    # Owner 2026-11-12 («Авто» for the two WAF protections): the load-balancer
+    # web ACL whose AWS/WAFV2 BlockedRequests the API reads (attack signal,
+    # aws-capacity.service.ts). Built from the stack name like modules/alb
+    # names it, never a resource attribute (KNOWN_ERRORS 104).
+    OPS_WAF_ACL = var.waf_enabled ? "${local.name}-waf" : ""
     # Events pipeline (growth.events_stream_enabled): empty while off.
     EVENTS_STREAM_NAME = var.growth.events_stream_enabled ? aws_kinesis_stream.events[0].name : ""
     # N-11: set only with growth.opensearch_serverless_enabled; the app uses

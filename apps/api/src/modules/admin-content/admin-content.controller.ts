@@ -19,6 +19,7 @@ import {
   ApiEnvelopeResponse,
   ApiErrors,
 } from '../../common/dto/api-docs.decorators';
+import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   AdminEndpoint,
@@ -32,6 +33,7 @@ import {
   AdminBulkResultDto,
   AdminBidRowDto,
   AdminClassifyPostsDto,
+  CLASSIFY_MAX,
   AdminBidsQueryDto,
   AdminClientReviewRowDto,
   AdminClientReviewsQueryDto,
@@ -116,8 +118,11 @@ export class AdminContentController {
   @ApiEnvelopeResponse(AdminBulkResultDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
   classifyAdminPosts(
+    @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminClassifyPostsDto,
   ): Promise<AdminBulkResultDto> {
+    // Owner 2026-11-12: staff keep 200 a request; the owner has no cap.
+    assertStaffBulkCap(admin, dto.ids, CLASSIFY_MAX);
     return this.content.classifyPosts(dto.ids, dto.contentClass);
   }
 
@@ -400,7 +405,10 @@ export class AdminContentController {
         ? readJustification(justificationHeader)
         : decodeJustification(justificationHeader) || null;
     // S18-3: one export per admin at a time, streamed in keyset pages.
-    if (!(await this.extras.acquireExportLock(admin.id))) {
+    // Owner 2026-11-12: the owner (super admin) may run several at once
+    // and gets the whole table (no row cap); staff keep both rules.
+    const isOwner = admin.adminRole === 'super_admin';
+    if (!isOwner && !(await this.extras.acquireExportLock(admin.id))) {
       throw new HttpException(
         {
           code: E.RATE_LIMITED,
@@ -421,7 +429,7 @@ export class AdminContentController {
         'started',
       );
     } catch (err) {
-      await this.extras.releaseExportLock(admin.id);
+      if (!isOwner) await this.extras.releaseExportLock(admin.id);
       throw err;
     }
     const day = new Date().toISOString().slice(0, 10);
@@ -452,7 +460,9 @@ export class AdminContentController {
       }
     };
     try {
-      const out = await this.content.exportCsvStream(p.entity, write);
+      const out = await this.content.exportCsvStream(p.entity, write, {
+        unlimited: isOwner,
+      });
       await this.extras.recordExport(
         admin,
         p.entity,
@@ -468,7 +478,7 @@ export class AdminContentController {
       // failed download instead of a short file that looks complete.
       res.destroy(err instanceof Error ? err : undefined);
     } finally {
-      await this.extras.releaseExportLock(admin.id);
+      if (!isOwner) await this.extras.releaseExportLock(admin.id);
     }
   }
 }

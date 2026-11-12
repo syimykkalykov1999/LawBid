@@ -160,6 +160,8 @@ describe('AdminStickersService', () => {
     expect(presign).toHaveBeenCalledWith(
       admin.id,
       expect.objectContaining({ purpose: 'sticker', supportsPut: true }),
+      // Owner 2026-11-12: no upload count or quota for the admin panel.
+      { byAdmin: true },
     );
   });
 

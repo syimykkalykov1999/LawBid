@@ -1355,6 +1355,27 @@ export const PROVIDERS: ProviderDefinition[] = [
       },
     ],
   },
+  // 12.11.2026 (owner): a new Sentry error starts the AI assistant at once.
+  // Sentry → Settings → Custom Integrations → internal integration with the
+  // webhook URL https://<api>/api/v1/webhooks/sentry and the «issue» resource;
+  // its Client Secret signs every call (header sentry-hook-signature).
+  {
+    id: 'sentry_webhook',
+    label: 'Sentry webhook (AI assistant on new errors)',
+    description:
+      'Client Secret of the Sentry internal integration that calls POST /webhooks/sentry.',
+    fields: [
+      {
+        name: 'clientSecret',
+        label: 'Client Secret',
+        secret: true,
+        required: true,
+        pattern: /^[A-Za-z0-9]{32,128}$/,
+        patternHint: '64 hex characters',
+        normalize: cleanPasted,
+      },
+    ],
+  },
   // Owner 2026-10-05: zero maintenance — the worker checks every hour that
   // the managed database provider made a fresh backup (Система → Здоровье
   // системы). The stored id stays `cockroach_cloud`; the call below is the

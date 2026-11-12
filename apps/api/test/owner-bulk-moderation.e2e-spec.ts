@@ -437,15 +437,20 @@ describe('Bulk moderation + broadcast states (e2e)', () => {
       .set(admin.auth)
       .send({ action: 'remove', type: 'post', ids: [], reason: REASON })
       .expect(400);
-    await api()
+    // Owner 2026-11-12: the owner (super admin) has no cap; staff keep 500.
+    const many = Array.from({ length: 501 }, () => randomUUID());
+    const ownerRes = await api()
       .post('/api/v1/admin/content/bulk')
       .set(admin.auth)
-      .send({
-        action: 'remove',
-        type: 'post',
-        ids: Array.from({ length: 501 }, () => randomUUID()),
-        reason: REASON,
-      })
+      .send({ action: 'remove', type: 'post', ids: many, reason: REASON })
+      .expect(200);
+    expect(ownerRes.body.data.done).toEqual([]);
+    expect(ownerRes.body.data.skipped).toHaveLength(501);
+    const staff = await adminSession(base, prisma, 'moderator');
+    await api()
+      .post('/api/v1/admin/content/bulk')
+      .set(staff.auth)
+      .send({ action: 'remove', type: 'post', ids: many, reason: REASON })
       .expect(400);
 
     const viewer = await adminSession(base, prisma, 'moderator', undefined, {

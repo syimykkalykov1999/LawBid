@@ -429,15 +429,14 @@ describe('StaffAppealsService.reveal', () => {
     });
   });
 
-  it('the daily cap (settings, 20) stops the 21st reveal; nothing is written', async () => {
+  it('owner 12.11: the 21st reveal of the day still works for the owner (counted per UTC day)', async () => {
     const { db, svc, audit } = make();
     db.adminAppeal.findUnique.mockResolvedValue(anon);
     db.auditLog.count.mockResolvedValue(20);
-    await expect(svc.reveal(owner, 'a1', NOW)).rejects.toMatchObject({
-      status: 429,
+    await expect(svc.reveal(owner, 'a1', NOW)).resolves.toMatchObject({
+      adminId: 'w1',
     });
-    expect(audit.record).not.toHaveBeenCalled();
-    expect(db.adminAppeal.update).not.toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalled();
     expect(
       (
         db.auditLog.count.mock.calls[0][0] as {
@@ -447,13 +446,14 @@ describe('StaffAppealsService.reveal', () => {
     ).toBe('2026-10-27T00:00:00.000Z');
   });
 
-  it('the cap follows the setting', async () => {
-    const { db, svc } = make({ 'staff.reveal_per_day': 5 });
+  it('owner 12.11: the owner has no daily cap (still audited)', async () => {
+    const { db, svc, audit } = make({ 'staff.reveal_per_day': 5 });
     db.adminAppeal.findUnique.mockResolvedValue(anon);
-    db.auditLog.count.mockResolvedValue(5);
-    await expect(svc.reveal(owner, 'a1', NOW)).rejects.toMatchObject({
-      status: 429,
+    db.auditLog.count.mockResolvedValue(50);
+    await expect(svc.reveal(owner, 'a1', NOW)).resolves.toMatchObject({
+      adminId: anon.author_id,
     });
+    expect(audit.record).toHaveBeenCalled();
   });
 
   it('a non-anonymous author needs no reveal', async () => {

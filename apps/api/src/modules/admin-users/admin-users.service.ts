@@ -21,6 +21,7 @@ import {
   type AccountEraser,
 } from '../../common/privacy/privacy.ports';
 import type { Prisma } from '@prisma/client';
+import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -32,7 +33,7 @@ import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { AdminBulkResultDto } from '../admin-content/admin-content.dto';
 import { createdWindow } from '../admin-content/admin-content.service';
-import { eachId } from '../admin-content/bulk.util';
+import { eachIdInChunks } from '../admin-content/bulk.util';
 import { PasswordAuthService } from '../auth/password-auth.service';
 import { OtpService } from '../auth/services/otp.service';
 import { RateLimitService } from '../auth/services/rate-limit.service';
@@ -72,6 +73,8 @@ export const USERS_AUDIT = {
  * table, so the preview and the action both read at most cap + 1 ids and
  * say «capped» instead of counting. */
 export const BULK_PREVIEW_CAP = 500;
+/** Staff cap for an explicit id list (owner 2026-11-12: the owner has none). */
+export const USERS_BULK_MAX = 500;
 
 const LIST_DEFAULT = 20;
 const PHONE_CHANGES_PER_ADMIN_PER_DAY = 10;
@@ -562,13 +565,17 @@ export class AdminUsersService {
     await this.target(id);
     // Security audit 2026-10-01: a phone change is an account takeover
     // path — a real US mobile only (like sign-in) and at most 10 changes
-    // a day per admin.
+    // a day per staff admin. Owner 2026-11-12: the owner (super_admin) has
+    // no daily cap; his fresh 2FA code is the guard.
     await this.otp.assertSmsDestinationAllowed(phone);
-    const budget = await this.rateLimit.consumeFixedWindow(
-      ['admin-phone-change', admin.id],
-      PHONE_CHANGES_PER_ADMIN_PER_DAY,
-      86_400,
-    );
+    const budget =
+      admin.adminRole === 'super_admin'
+        ? { allowed: true, retryAfterSeconds: 0 }
+        : await this.rateLimit.consumeFixedWindow(
+            ['admin-phone-change', admin.id],
+            PHONE_CHANGES_PER_ADMIN_PER_DAY,
+            86_400,
+          );
     if (!budget.allowed) {
       throw new HttpException(
         {
@@ -707,11 +714,18 @@ export class AdminUsersService {
         details: { field: 'ids' },
       });
     }
+    // Owner 2026-11-12: staff keep 500 ids a request; the owner sends any
+    // number, worked through in chunks (each user its own action + audit).
+    if (dto.ids) assertStaffBulkCap(admin, dto.ids, USERS_BULK_MAX);
     let ids = dto.ids ?? [];
     if (dto.filter) {
       // S18-10: the server resolves the ids itself — no stale list from the
       // browser — and the filter itself goes on record.
-      const found = await this.resolveFilter(dto.filter, admin.countries);
+      // Owner 2026-11-12: the owner (super admin) acts on every match, read
+      // and processed in pages of BULK_PREVIEW_CAP; staff keep the cap.
+      const found = await this.resolveFilter(dto.filter, admin.countries, {
+        all: admin.adminRole === 'super_admin',
+      });
       ids = found.ids;
       await this.audit.record({
         adminId: admin.id,
@@ -728,7 +742,7 @@ export class AdminUsersService {
         ip: admin.ip,
       });
     }
-    return eachId(ids, (id) =>
+    return eachIdInChunks(ids, (id) =>
       dto.action === 'suspend'
         ? this.suspend(admin, id, dto.reason)
         : dto.action === 'restore'
@@ -742,8 +756,9 @@ export class AdminUsersService {
   async bulkPreview(
     filter: AdminUsersFilterDto,
     countries: CountryScope = null,
+    { all = false }: { all?: boolean } = {},
   ): Promise<AdminUsersBulkPreviewResultDto> {
-    const found = await this.resolveFilter(filter, countries);
+    const found = await this.resolveFilter(filter, countries, { all });
     return {
       matched: found.matched,
       capped: found.capped,
@@ -757,7 +772,26 @@ export class AdminUsersService {
   private async resolveFilter(
     filter: AdminUsersFilterDto,
     countries: CountryScope,
+    { all = false }: { all?: boolean } = {},
   ): Promise<{ ids: string[]; matched: number; capped: boolean }> {
+    if (all) {
+      // Owner 2026-11-12: every match, ids only, keyset pages of the cap.
+      const ids: string[] = [];
+      let cursor: string | undefined;
+      for (;;) {
+        const page = await this.prisma.user.findMany({
+          where: this.listWhere(filter, countries),
+          select: { id: true },
+          orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+          take: BULK_PREVIEW_CAP,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        });
+        ids.push(...page.map((r) => r.id));
+        if (page.length < BULK_PREVIEW_CAP) break;
+        cursor = page[page.length - 1].id;
+      }
+      return { ids, matched: ids.length, capped: false };
+    }
     const rows = await this.prisma.user.findMany({
       where: this.listWhere(filter, countries),
       select: { id: true },

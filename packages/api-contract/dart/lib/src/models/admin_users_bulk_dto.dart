@@ -23,7 +23,7 @@ class AdminUsersBulkDto {
 
   final AdminUsersBulkAction action;
 
-  /// Exactly one of `ids` or `filter`.
+  /// Exactly one of `ids` or `filter`. Staff: at most 500; the owner: any number (processed in chunks).
   final List<String>? ids;
 
   /// S18-10: «select all matching»: the server resolves the ids with the same filter as the list (at most BULK_PREVIEW_CAP users; q, role or status required) and audits the filter.

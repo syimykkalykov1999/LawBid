@@ -15,6 +15,7 @@ class AdminTemplatesBulkDto {
   factory AdminTemplatesBulkDto.fromJson(Map<String, Object?> json) =>
       _$AdminTemplatesBulkDtoFromJson(json);
 
+  /// Staff: at most 100; the owner: any number (processed in chunks).
   final List<String> ids;
   final TemplateBulkAction action;
 

@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   APP_SETTINGS,
@@ -200,9 +200,9 @@ describe('PromotionService.dryRun', () => {
     expect(audit.record).not.toHaveBeenCalled();
   });
 
-  it('with the App starts seo-deploy.yml as a dry run only, audits it, and waits a minute', async () => {
+  it('with the App starts seo-deploy.yml as a dry run only, audits it, and never makes the owner wait', async () => {
     const { svc, github, audit } = make({}, true);
-    const r = await svc.dryRun(admin, 1_000_000);
+    const r = await svc.dryRun(admin);
     expect(github.dispatchWorkflow).toHaveBeenCalledWith('seo-deploy.yml', {
       dry_run: 'true',
     });
@@ -216,21 +216,20 @@ describe('PromotionService.dryRun', () => {
         adminId: 'a1',
       }),
     );
-    await expect(svc.dryRun(admin, 1_000_000 + 30_000)).rejects.toBeInstanceOf(
-      HttpException,
-    );
-    await expect(svc.dryRun(admin, 1_000_000 + 61_000)).resolves.toMatchObject({
+    // Owner 12.11: a second press right away starts another run.
+    await expect(svc.dryRun(admin)).resolves.toMatchObject({
       started: true,
     });
+    expect(github.dispatchWorkflow).toHaveBeenCalledTimes(2);
   });
 
   it('a GitHub failure is reported calmly and does not block the next try', async () => {
     const { svc, github } = make({}, true);
     github.dispatchWorkflow.mockRejectedValueOnce(new Error('HTTP 403'));
-    const r = await svc.dryRun(admin, 5_000_000);
+    const r = await svc.dryRun(admin);
     expect(r.started).toBe(false);
     expect(r.message).toContain('вручную');
-    await expect(svc.dryRun(admin, 5_000_001)).resolves.toMatchObject({
+    await expect(svc.dryRun(admin)).resolves.toMatchObject({
       started: true,
     });
   });

@@ -45,16 +45,12 @@ function make(stepUpOk = true) {
     report: jest.fn().mockResolvedValue({ items: [] }),
     recordDrill: jest.fn(),
   };
-  const rate = {
-    consumeFixedWindow: jest.fn().mockResolvedValue({ allowed: true }),
-  };
   const c = new AdminLaunchController(
     checks as never,
     paging as never,
     budgets as never,
     audit as never,
     auth as never,
-    rate as never,
   );
   return { c, budgets, audit, auth, paging, checks };
 }
@@ -130,7 +126,7 @@ describe('AdminLaunchController: one owner, no second admin (owner 2026-11-08)',
 });
 
 describe('AdminLaunchController PagerDuty and drill', () => {
-  it('sync and the test alarm need 2FA and are audited; the test is rate limited', async () => {
+  it('sync and the test alarm need 2FA and are audited; no hourly cap on tests (owner 12.11)', async () => {
     const { c, auth, paging, audit, checks } = make();
     await c.syncPaging(admin);
     await c.testPaging(admin);

@@ -12,13 +12,15 @@ import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { ModerationService } from '../moderation/moderation.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import type {
-  AdminBulkResultDto,
-  BulkContentAction,
-  BulkContentType,
+import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
+import {
+  type AdminBulkResultDto,
+  BULK_MAX,
+  type BulkContentAction,
+  type BulkContentType,
 } from './admin-content.dto';
 import { AdminContentExtrasService } from './admin-content-extras.service';
-import { eachId } from './bulk.util';
+import { eachIdInChunks } from './bulk.util';
 
 /** What each bulk action may touch. Reviews are hidden, not removed (the
  * single screens do the same); everything can come back. */
@@ -68,23 +70,28 @@ export class AdminContentBulkService {
         details: { action, type },
       });
     }
-    const result = await eachId(ids, (id) =>
-      this.one(admin, action, type, id, reason),
+    // Owner 2026-11-12: staff keep BULK_MAX; the owner sends any number,
+    // worked through in chunks, one batch audit row per chunk.
+    assertStaffBulkCap(admin, ids, BULK_MAX);
+    return eachIdInChunks(
+      ids,
+      (id) => this.one(admin, action, type, id, reason),
+      (part, chunk) =>
+        this.audit.record({
+          adminId: admin.id,
+          action: `admin.content.bulk_${action}`,
+          targetType: type,
+          targetId: null,
+          after: {
+            reason,
+            requested: ids.length,
+            done: part.done,
+            skipped: part.skipped.map((s) => ({ id: s.id, reason: s.reason })),
+            ...(chunk.of > 1 ? { chunk } : {}),
+          },
+          ip: admin.ip,
+        }),
     );
-    await this.audit.record({
-      adminId: admin.id,
-      action: `admin.content.bulk_${action}`,
-      targetType: type,
-      targetId: null,
-      after: {
-        reason,
-        requested: ids.length,
-        done: result.done,
-        skipped: result.skipped.map((s) => ({ id: s.id, reason: s.reason })),
-      },
-      ip: admin.ip,
-    });
-    return result;
   }
 
   /** Each item runs in its own shard (its id carries it). */
