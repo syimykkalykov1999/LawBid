@@ -98,7 +98,9 @@ module "growth" {
   rds_security_group_ids        = local.growth_db_sgs
   rds_kms_key_arn               = local.growth_db_kms
   rds_parameter_group_name      = var.create_database ? "${local.name}-postgres16" : ""
-  rds_deletion_protection       = !var.ephemeral
+  # A read copy holds no data of its own: «Авто» may remove it again
+  # (KNOWN_ERRORS 103; plan-guard lets only read copies go).
+  rds_deletion_protection = false
 
   db_proxy_enabled    = var.growth.db_proxy_enabled
   db_proxy_secret_arn = var.growth.db_proxy_secret_arn

@@ -41,7 +41,9 @@ describe('PrismaReadService', () => {
     await s.onModuleDestroy();
   });
 
-  it('stays on the primary once shard databases are configured', () => {
+  // Owner 2026-11-11: with extra servers the copies are read through a
+  // routed client built at start; until it is ready, the primary.
+  it('with extra servers: the primary until the routed copy client is ready', () => {
     process.env.DATABASE_REPLICA_URL = 'postgresql://u:p@replica.example/x';
     process.env.DATABASE_URL_SHARDS = '{"s1":"postgresql://u:p@s1/x"}';
     expect(new PrismaReadService(primary).db).toBe(primary);
