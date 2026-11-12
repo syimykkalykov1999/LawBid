@@ -281,7 +281,8 @@ class PersonSuggestionTile extends StatelessWidget {
                             AppIcon(
                               AppIcons.verifiedRounded,
                               size: 14,
-                              color: colors.iconTint,
+                              // Item 40: the verified token in all 4 themes.
+                              color: colors.verifiedGold,
                             ),
                           ],
                         ],
