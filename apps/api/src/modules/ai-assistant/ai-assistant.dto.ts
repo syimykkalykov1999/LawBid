@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class AiTaskPullDto {
   @ApiProperty() number!: number;
@@ -39,6 +45,13 @@ export class AiAssistantStatusDto {
     description: 'Why not, in words.',
   })
   reason!: string | null;
+  @ApiProperty({
+    description:
+      'Owner tasks may be sent now (only in Вкл; Авто = the scheduled look only).',
+  })
+  tasksAllowed!: boolean;
+  @ApiProperty({ type: String, nullable: true, description: 'Why not.' })
+  tasksReason!: string | null;
   @ApiProperty() monthUsd!: number;
   @ApiProperty() maxUsd!: number;
   @ApiProperty({ type: [AiTaskDto] }) tasks!: AiTaskDto[];
@@ -63,4 +76,52 @@ export class CreateAiTaskDto {
 export class AiTaskCreatedDto {
   @ApiProperty() number!: number;
   @ApiProperty() url!: string;
+}
+
+/** 12.11.2026: one open PR of the AI assistant (branch ai/…). */
+export class AiPullDto {
+  @ApiProperty() number!: number;
+  @ApiProperty() title!: string;
+  @ApiProperty() url!: string;
+  @ApiProperty({ description: 'What / why: the PR body, cut.' })
+  summary!: string;
+  @ApiProperty({ description: 'The head commit the owner approves.' })
+  headSha!: string;
+  @ApiProperty() branch!: string;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ enum: ['success', 'pending', 'failure', 'none', 'unknown'] })
+  checks!: string;
+  @ApiProperty({ type: Number, nullable: true }) costUsd!: number | null;
+}
+
+export class AiPullListDto {
+  @ApiProperty({ type: [AiPullDto] }) pulls!: AiPullDto[];
+  @ApiProperty({ type: String, nullable: true }) error!: string | null;
+}
+
+export class ApproveAiPullDto {
+  @ApiProperty({
+    description: 'The head sha the owner saw; the merge is pinned to it.',
+    pattern: '^[0-9a-f]{40}$',
+  })
+  @IsString()
+  @Matches(/^[0-9a-f]{40}$/)
+  headSha!: string;
+}
+
+export class RejectAiPullDto {
+  @ApiProperty({ required: false, maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
+export class AiPullMergedDto {
+  @ApiProperty() number!: number;
+  @ApiProperty() mergedSha!: string;
+}
+
+export class AiPullClosedDto {
+  @ApiProperty() number!: number;
 }
