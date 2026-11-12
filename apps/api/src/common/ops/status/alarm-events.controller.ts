@@ -4,8 +4,10 @@ import {
   ForbiddenException,
   Headers,
   HttpCode,
+  Logger,
   Post,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { timingSafeEqual } from 'node:crypto';
 import {
@@ -15,6 +17,7 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator';
+import { AiAssistantService } from '../../../modules/ai-assistant/ai-assistant.service';
 import { Public } from '../../../modules/auth/decorators/public.decorator';
 import { IncidentsService } from './incidents.service';
 
@@ -52,12 +55,33 @@ export function tokenMatches(
  * every CloudWatch alarm state change here, with the shared internal token
  * (`ALARM_HOOK_TOKEN`, from Secrets Manager). Not part of the public API
  * contract. Without the env var set the route answers 403 to everyone.
+ *
+ * 12.11.2026 (owner: «реагировать сразу»): an ALARM also starts the AI
+ * assistant (ai-assistant.yml, reason=alarm) through AiAssistantService.trigger
+ * — its gate (switch, month ceiling) and a one-per-hour debounce per alarm
+ * name. Fire and forget: the Lambda's 8 s timeout never waits on GitHub.
+ * Resolved lazily (OpsModule is global and also runs in the worker, where the
+ * AI module is absent).
  */
 @ApiExcludeController()
 @Controller('internal/alarm-events')
 export class AlarmEventsController {
-  constructor(private readonly incidents: IncidentsService) {}
+  private readonly log = new Logger(AlarmEventsController.name);
 
+  constructor(
+    private readonly incidents: IncidentsService,
+    private readonly moduleRef: ModuleRef,
+  ) {}
+
+  private assistant(): AiAssistantService | null {
+    try {
+      return this.moduleRef.get(AiAssistantService, { strict: false });
+    } catch {
+      return null;
+    }
+  }
+
+  // flag: none internal route (shared token, alarm-hook Lambda); AI run gated by ai.assistant_mode
   @Public()
   @Post()
   @HttpCode(200)
@@ -74,6 +98,14 @@ export class AlarmEventsController {
       dto.reason ?? '',
       dto.at ? new Date(dto.at) : new Date(),
     );
+    if (dto.state === 'ALARM') {
+      const ai = this.assistant();
+      if (ai) {
+        void ai
+          .trigger('alarm', dto.alarmName, dto.alarmName)
+          .catch((e: Error) => this.log.warn(`ai trigger: ${e.message}`));
+      }
+    }
     return { result };
   }
 }

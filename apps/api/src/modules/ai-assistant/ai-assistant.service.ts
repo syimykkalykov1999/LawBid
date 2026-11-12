@@ -23,13 +23,18 @@ import {
 import {
   AI_REFUSAL_TEXT,
   AI_TASK_LABEL,
+  AI_TRIGGER_DEBOUNCE_S,
+  AI_WORKFLOW_FILE,
   aiGate,
   monthKey,
   safeCost,
   scrub,
   taskIssueBody,
+  triggerInputs,
+  triggerKey,
   type AiRefusal,
   type AiRunKind,
+  type AiTriggerReason,
 } from './ai-assistant.logic';
 import {
   AI_BRANCH_PREFIX,
@@ -531,6 +536,50 @@ export class AiAssistantService {
         tickets.map((t) => [t.category, t._count._all]),
       ),
     };
+  }
+
+  /**
+   * 12.11.2026 (owner): an alarm or a new Sentry error starts the workflow
+   * at once (reason + alarm/issue inputs), behind the same gate as every run
+   * (switch Выкл → nothing; month ceiling). At most one dispatch per
+   * [key] per hour (Redis SET NX EX). Never throws: callers answer their
+   * sender (SNS, Sentry) without waiting on GitHub.
+   */
+  async trigger(
+    reason: AiTriggerReason,
+    key: string,
+    text: string,
+  ): Promise<'dispatched' | 'debounced' | 'gated' | 'failed'> {
+    try {
+      const g = await this.gate();
+      if (!g.allowed) return 'gated';
+      const k = triggerKey(reason, key);
+      const fresh = await this.redis.set(
+        k,
+        '1',
+        'EX',
+        AI_TRIGGER_DEBOUNCE_S,
+        'NX',
+      );
+      if (fresh !== 'OK') return 'debounced';
+      try {
+        await this.github.dispatchWorkflow(
+          AI_WORKFLOW_FILE,
+          triggerInputs(reason, text),
+        );
+      } catch (e) {
+        // Let the next alarm / webhook try again.
+        await this.redis.del(k).catch(() => 0);
+        throw e;
+      }
+      this.log.log(`ai run dispatched (${reason})`);
+      return 'dispatched';
+    } catch (e) {
+      this.log.warn(
+        `ai dispatch (${reason}) failed: ${(e as Error).message.slice(0, 200)}`,
+      );
+      return 'failed';
+    }
   }
 
   /** One run's outcome: its cost is added to the month, the run is listed. */

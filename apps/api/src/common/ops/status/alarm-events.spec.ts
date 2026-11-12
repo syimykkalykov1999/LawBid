@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await -- in-memory fakes */
-import { tokenMatches } from './alarm-events.controller';
+import { AlarmEventsController, tokenMatches } from './alarm-events.controller';
 import { alarmComponent, IncidentsService } from './incidents.service';
 
 describe('alarm events (S12-14)', () => {
@@ -53,5 +53,64 @@ describe('alarm events (S12-14)', () => {
     expect(await svc.recordAlarm('lawbid-prod-db-down', 'OK', 'x')).toBe(
       'ignored',
     );
+  });
+
+  describe('ALARM starts the AI assistant at once (12.11.2026)', () => {
+    const TOKEN = 'test-alarm-hook-token-000000000000';
+    const prev = process.env.ALARM_HOOK_TOKEN;
+    beforeAll(() => {
+      process.env.ALARM_HOOK_TOKEN = TOKEN;
+    });
+    afterAll(() => {
+      process.env.ALARM_HOOK_TOKEN = prev;
+    });
+
+    function setup(ai: { trigger: jest.Mock } | null) {
+      const incidents = { recordAlarm: jest.fn().mockResolvedValue('opened') };
+      const moduleRef = {
+        get: jest.fn(() => {
+          if (!ai) throw new Error('not found');
+          return ai;
+        }),
+      };
+      const ctrl = new AlarmEventsController(
+        incidents as never,
+        moduleRef as never,
+      );
+      return { ctrl, incidents };
+    }
+
+    it('dispatches on ALARM only, with the alarm name', async () => {
+      const ai = { trigger: jest.fn().mockResolvedValue('dispatched') };
+      const { ctrl } = setup(ai);
+      await ctrl.receive(TOKEN, {
+        alarmName: 'lawbid-prod-api-5xx',
+        state: 'ALARM',
+      });
+      expect(ai.trigger).toHaveBeenCalledWith(
+        'alarm',
+        'lawbid-prod-api-5xx',
+        'lawbid-prod-api-5xx',
+      );
+      await ctrl.receive(TOKEN, {
+        alarmName: 'lawbid-prod-api-5xx',
+        state: 'OK',
+      });
+      expect(ai.trigger).toHaveBeenCalledTimes(1);
+    });
+
+    it('records the incident without the AI module (worker); a wrong token stops all', async () => {
+      const { ctrl, incidents } = setup(null);
+      await expect(
+        ctrl.receive(TOKEN, { alarmName: 'a', state: 'ALARM' }),
+      ).resolves.toEqual({ result: 'opened' });
+      expect(incidents.recordAlarm).toHaveBeenCalled();
+      const ai = { trigger: jest.fn() };
+      const other = setup(ai);
+      await expect(
+        other.ctrl.receive('wrong', { alarmName: 'a', state: 'ALARM' }),
+      ).rejects.toThrow();
+      expect(ai.trigger).not.toHaveBeenCalled();
+    });
   });
 });

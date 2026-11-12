@@ -5,6 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, type OutreachTemplate, type Partner } from '@prisma/client';
+import {
+  assertStaffBulkCap,
+  chunks,
+  STAFF_BULK_MAX,
+} from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -524,30 +529,43 @@ export class AdminOutreachService {
   ): Promise<OutreachAssignResultDto> {
     const scope = await this.core.scopeFor(admin);
     managerOnly(scope);
+    // Owner 2026-11-12: staff keep 500 leads a request; the owner sends any
+    // number, one transaction (and one audit row) per chunk.
+    assertStaffBulkCap(admin, dto.leadIds, STAFF_BULK_MAX, 'leadIds');
     const partner = dto.partnerId
       ? await this.partnerOrThrow(dto.partnerId)
       : null;
-    const updated = await withTxRetry(this.prisma, async (tx) => {
+    let updated = 0;
+    for (const part of chunks([...new Set(dto.leadIds)])) {
+      updated += await this.assignChunk(admin, part, partner?.id ?? null);
+    }
+    return { updated };
+  }
+
+  private assignChunk(
+    admin: AdminActor,
+    leadIds: string[],
+    partnerId: string | null,
+  ): Promise<number> {
+    return withTxRetry(this.prisma, async (tx) => {
       const leads = await tx.outreachLead.findMany({
-        where: { id: { in: dto.leadIds } },
+        where: { id: { in: leadIds } },
         select: { id: true, partner_id: true },
       });
-      const changed = leads.filter(
-        (l) => l.partner_id !== (partner?.id ?? null),
-      );
+      const changed = leads.filter((l) => l.partner_id !== partnerId);
       if (changed.length === 0) return 0;
       await tx.outreachLead.updateMany({
         where: { id: { in: changed.map((l) => l.id) } },
-        data: { partner_id: partner?.id ?? null },
+        data: { partner_id: partnerId },
       });
       const now = new Date();
       await tx.outreachActivity.createMany({
         data: changed.map((l) => ({
           lead_id: l.id,
-          partner_id: partner?.id ?? null,
+          partner_id: partnerId,
           actor_admin_id: admin.id,
           kind: 'assign',
-          outcome: partner ? 'assigned' : 'unassigned',
+          outcome: partnerId ? 'assigned' : 'unassigned',
           created_at: now,
         })),
       });
@@ -559,7 +577,7 @@ export class AdminOutreachService {
           targetId: null,
           before: null,
           after: toJson({
-            partnerId: partner?.id ?? null,
+            partnerId,
             leadIds: changed.map((l) => l.id),
           }),
           ip: admin.ip,
@@ -568,7 +586,6 @@ export class AdminOutreachService {
       );
       return changed.length;
     });
-    return { updated };
   }
 
   async addActivity(

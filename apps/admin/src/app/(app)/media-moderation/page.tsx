@@ -5,6 +5,7 @@ import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
 import { MotionRow } from '@/components/legacy/fade-in';
+import { PrefetchSentinel } from '@/components/legacy/prefetch-sentinel';
 import { VirtualRows } from '@/components/ui/virtual-rows';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -212,6 +213,9 @@ export default function MediaModerationPage() {
           </VirtualRows>
         </tbody>
       </Table>
+      {q.hasNextPage ? (
+        <PrefetchSentinel enabled={!q.isFetchingNextPage} onNear={() => void q.fetchNextPage()} />
+      ) : null}
       {q.hasNextPage ? (
         <div className="mt-4 flex justify-center">
           <Button variant="outline" disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>

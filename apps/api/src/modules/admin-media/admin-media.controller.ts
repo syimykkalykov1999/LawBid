@@ -26,8 +26,10 @@ import {
 import {
   AdminBulkReasonDto,
   AdminBulkResultDto,
+  BULK_MAX,
 } from '../admin-content/admin-content.dto';
-import { eachId } from '../admin-content/bulk.util';
+import { eachIdInChunks } from '../admin-content/bulk.util';
+import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import { FileDto, PresignedFileDto } from '../files/dto/files.dto';
 import {
@@ -74,21 +76,25 @@ export class AdminMediaController {
     dto: AdminBulkReasonDto,
     fn: (id: string) => Promise<unknown>,
   ): Promise<AdminBulkResultDto> {
-    const result = await eachId(dto.ids, fn);
-    await this.audit.record({
-      adminId: admin.id,
-      action: `admin.media.${action}`,
-      targetType,
-      targetId: null,
-      after: {
-        reason: dto.reason,
-        requested: dto.ids.length,
-        done: result.done,
-        skipped: result.skipped.map((s) => ({ id: s.id, reason: s.reason })),
-      },
-      ip: admin.ip,
-    });
-    return result;
+    // Owner 2026-11-12: staff keep BULK_MAX; the owner sends any number,
+    // worked through in chunks, one batch audit row per chunk.
+    assertStaffBulkCap(admin, dto.ids, BULK_MAX);
+    return eachIdInChunks(dto.ids, fn, (part, chunk) =>
+      this.audit.record({
+        adminId: admin.id,
+        action: `admin.media.${action}`,
+        targetType,
+        targetId: null,
+        after: {
+          reason: dto.reason,
+          requested: dto.ids.length,
+          done: part.done,
+          skipped: part.skipped.map((s) => ({ id: s.id, reason: s.reason })),
+          ...(chunk.of > 1 ? { chunk } : {}),
+        },
+        ip: admin.ip,
+      }),
+    );
   }
 
   // --- reels -----------------------------------------------------------------------

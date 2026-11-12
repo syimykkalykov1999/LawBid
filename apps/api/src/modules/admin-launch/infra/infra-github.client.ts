@@ -8,8 +8,14 @@ export const INFRA_WORKFLOW_FILE = 'infra-apply.yml';
 /** The public pages + company site build («Продвижение» dry runs; owner
  * 2026-11-04 R-399: a saved price starts it for real). */
 export const SEO_WORKFLOW_FILE = 'seo-deploy.yml';
+/** 12.11.2026 (owner): the AI assistant, started at once by an alarm or a
+ * new Sentry error (modules/ai-assistant, reason + alarm/issue inputs). */
+export const AI_ASSISTANT_WORKFLOW_FILE = 'ai-assistant.yml';
 /** Other workflows the API may start (the caller picks the inputs). */
-export const DISPATCHABLE_WORKFLOWS: readonly string[] = [SEO_WORKFLOW_FILE];
+export const DISPATCHABLE_WORKFLOWS: readonly string[] = [
+  SEO_WORKFLOW_FILE,
+  AI_ASSISTANT_WORKFLOW_FILE,
+];
 /** Audience the workflow asks GitHub for when it calls the API. */
 export const INFRA_OIDC_AUDIENCE = 'lawbid-infra-apply';
 const GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';

@@ -11,11 +11,25 @@ import { AppSettingsService } from './common/app-settings/app-settings.service';
 import { CorsPolicy } from './common/cors/cors-policy';
 import type { AppEnv } from './config/env.schema';
 import { buildOpenApiDocument } from './openapi/openapi.config';
+import { ADMIN_BULK_BODY_LIMIT } from './common/admin-bulk/admin-bulk';
 
 export const GLOBAL_PREFIX = 'api/v1';
 /** POST /contacts/sync: the whole phone book in one body (configureApp). */
 export const CONTACTS_SYNC_PATH = `/${GLOBAL_PREFIX}/contacts/sync`;
 export const CONTACTS_BODY_LIMIT = '1mb';
+/** Owner 2026-11-12: admin bulk routes take the owner's whole id list
+ * (up to OWNER_BULK_MAX uuids), so they get their own, bigger body cap. */
+export const ADMIN_BULK_PATHS = [
+  'admin/users/bulk',
+  'admin/cases/bulk',
+  'admin/content/bulk',
+  'admin/content/posts/classify',
+  'admin/media/videos/bulk-takedown',
+  'admin/media/sticker-packs/bulk-hide',
+  'admin/media/sticker-packs/bulk-unhide',
+  'admin/document-templates/bulk',
+  'admin/outreach/leads/assign',
+].map((p) => `/${GLOBAL_PREFIX}/${p}`);
 export const UNPREFIXED_ROUTES = [
   '/health/live',
   '/health/ready',
@@ -96,6 +110,7 @@ export function useBodyParsers(
     express.text({ type: () => true, limit: '256kb' }),
   );
   app.use(CONTACTS_SYNC_PATH, express.json({ limit: CONTACTS_BODY_LIMIT }));
+  app.use(ADMIN_BULK_PATHS, express.json({ limit: ADMIN_BULK_BODY_LIMIT }));
   app.use(express.json({ limit: bodyLimit }));
   app.use(express.urlencoded({ limit: bodyLimit, extended: false }));
 }
