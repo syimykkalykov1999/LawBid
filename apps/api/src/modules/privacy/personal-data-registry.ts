@@ -315,6 +315,10 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'Plan',
       'FormTemplate',
       'SupportMacro',
+      // «ИИ-сотрудник» (12.11): created_by / reviewed_by = the owner (staff).
+      'AiRole',
+      'AiRun',
+      'AiRunItem',
       'SupportAgent',
       'OutreachTemplate',
       'OutreachSuppression',
