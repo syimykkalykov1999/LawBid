@@ -103,10 +103,18 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   url.search = req.nextUrl.search;
   const headers = new Headers();
   headers.set('authorization', `Bearer ${token}`);
-  for (const h of ['content-type', 'x-justification', 'x-reason-code', 'idempotency-key', 'accept', 'x-admin-country', 'x-background', 'if-none-match']) {
+  for (const h of ['content-type', 'x-justification', 'x-reason-code', 'idempotency-key', 'accept', 'x-admin-country', 'x-background', 'if-none-match', 'if-modified-since']) {
     const v = req.headers.get(h);
     if (v) headers.set(h, v);
   }
+  // 12.11 (prod: 180 of 209 admin GETs answered 200 to a matching
+  // If-None-Match): with `cache: 'no-store'` (and with any conditional
+  // header) the Fetch standard makes Node's fetch add
+  // `Cache-Control: no-cache` to the upstream request, and Express's
+  // `req.fresh` (package `fresh`) never answers 304 to `no-cache`. Only the
+  // routes that compare the tag themselves (counts, users …) got 304. An
+  // explicit `max-age=0` still means "revalidate" and is left as is by fetch.
+  if (isSafeMethod(req.method)) headers.set('cache-control', 'max-age=0');
   // Owner 2026-10-23 ("связь пропала"): an API that restarts or hangs must
   // reach the browser as a clear JSON 502/504 the client can retry, never
   // as Next's HTML 500. The timer covers the wait for the response head;
