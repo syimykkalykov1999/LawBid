@@ -15,7 +15,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { growthError } from '@/components/growth/errors';
@@ -25,6 +25,7 @@ import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { CASE_STATUS, label, PROMOTION_STATUS, StatusPill, usd } from '@/lib/labels';
 import { Reason } from '@/lib/reasons';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { REASON_MIN, useReasonRequired } from '@/lib/reason-policy';
 
@@ -51,6 +52,8 @@ const reasonText: Record<string, string> = {
   content_unavailable: 'контент скрыт или закрыт',
 };
 const daysText = (n: number) => `${n} ${plural(n, 'день', 'дня', 'дней')}`;
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['target', 'owner', 'budget', 'period', 'progress', 'reach', 'clicks', 'paid', 'status', 'created'] as const;
 
 /** Paid case promotion: KPIs, list, grant / extend / cancel, settings. */
 export default function PromotionsPage() {
@@ -82,7 +85,22 @@ export default function PromotionsPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    target: (p) => p.caseTitle || (p.targetType === 'case' ? 'Кейс' : 'Пост'),
+    owner: (p) => p.ownerName || p.ownerEmail || p.ownerId.slice(0, 8),
+    budget: (p) => p.priceCentsPerDay,
+    period: (p) => p.startsAt ?? null,
+    progress: (p) => p.deliveredUnits,
+    reach: (p) => p.reach,
+    clicks: (p) => p.clicks,
+    paid: (p) => {
+      const unpaid = p.totalCents > 0 && (p.status === 'pending_payment' || (p.status === 'canceled' && !p.paymentId));
+      return p.grantedBy || unpaid ? null : p.totalCents;
+    },
+    status: (p) => PROMOTION_STATUS[p.status] ?? p.status,
+    created: (p) => p.createdAt,
+  });
   const counts = Object.fromEntries((stats.data?.byStatus ?? []).map((s) => [s.status, s.count]));
 
   const refresh = () => {
@@ -197,16 +215,16 @@ export default function PromotionsPage() {
         <Table>
           <thead>
             <tr>
-              <Th>Что продвигается</Th>
-              <Th>Владелец</Th>
-              <Th className="text-right">Бюджет</Th>
-              <Th>Период</Th>
-              <Th className="min-w-36">Прогресс</Th>
-              <Th className="text-right">Охват</Th>
-              <Th className="text-right">Клики</Th>
-              <Th className="text-right">Оплачено</Th>
-              <Th>Статус</Th>
-              <Th>Создано</Th>
+              <SortTh {...header('target')}>Что продвигается</SortTh>
+              <SortTh {...header('owner')}>Владелец</SortTh>
+              <SortTh {...header('budget')} className="text-right">Бюджет</SortTh>
+              <SortTh {...header('period')}>Период</SortTh>
+              <SortTh {...header('progress')} className="min-w-36">Прогресс</SortTh>
+              <SortTh {...header('reach')} className="text-right">Охват</SortTh>
+              <SortTh {...header('clicks')} className="text-right">Клики</SortTh>
+              <SortTh {...header('paid')} className="text-right">Оплачено</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('created')}>Создано</SortTh>
               {canWrite ? <Th /> : null}
             </tr>
           </thead>

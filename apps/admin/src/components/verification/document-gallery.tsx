@@ -28,8 +28,27 @@ export function docTitle(d: { docType: string; side?: string | null }): string {
  * Owner 2026-11-04 (R-400): [actions] — the registry button and the copy
  * chips, drawn as a compact bar under the thumbnails and, as [lastSlide],
  * under the last document inside the lightbox.
+ *
+ * Owner 2026-11-12 (row 57): the request card shows its documents ONCE —
+ * here. [meta] draws under each thumbnail what the old list row said (type,
+ * size, date, antivirus, the attorney's note, the selfie camera) and its
+ * «Открыть» button; [empty] is shown when there are no documents.
  */
-export function DocumentGallery({ requestId, documents, actions, lastSlide }: { requestId: string; documents: readonly GalleryDoc[]; actions?: React.ReactNode; lastSlide?: React.ReactNode }) {
+export function DocumentGallery<T extends GalleryDoc>({
+  requestId,
+  documents,
+  actions,
+  lastSlide,
+  meta,
+  empty,
+}: {
+  requestId: string;
+  documents: readonly T[];
+  actions?: React.ReactNode;
+  lastSlide?: React.ReactNode;
+  meta?: (doc: T) => React.ReactNode;
+  empty?: React.ReactNode;
+}) {
   const rows = useMemo(() => galleryRows(documents), [documents]);
   const viewable = useMemo(() => rows.flat().filter(isViewableDoc), [rows]);
   const links = useDocLinks(cardJustification(requestId), viewable);
@@ -38,14 +57,22 @@ export function DocumentGallery({ requestId, documents, actions, lastSlide }: { 
   const shown = viewable.filter((d) => links.urls[d.id]);
   const items: LightboxImage[] = shown.map((d) => ({ src: links.urls[d.id]!, alt: docTitle(d), kind: isPdf(d) ? 'pdf' : 'image' }));
 
-  if (rows.length === 0) return actions ? <div className="mt-4" data-testid="document-gallery-actions">{actions}</div> : null;
+  if (rows.length === 0) {
+    if (!empty && !actions) return null;
+    return (
+      <>
+        {empty}
+        {actions ? <div className="mt-4" data-testid="document-gallery-actions">{actions}</div> : null}
+      </>
+    );
+  }
   return (
     <div className="mt-4 space-y-3" data-testid="document-gallery">
       {links.capped ? <p className="rounded-xl bg-warning-soft px-3 py-2 text-sm text-warning">Лимит просмотров документов на этот час исчерпан — откройте позже.</p> : null}
       {rows.map((row) => (
         <div key={row.map((d) => d.id).join(',')} className="grid grid-cols-2 gap-3" data-testid="document-gallery-row">
           {row.map((d) => (
-            <Thumb key={d.id} doc={d} url={links.urls[d.id]} loading={links.loading} onOpen={() => setOpen(shown.findIndex((x) => x.id === d.id))} />
+            <Thumb key={d.id} doc={d} url={links.urls[d.id]} loading={links.loading} onOpen={() => setOpen(shown.findIndex((x) => x.id === d.id))} meta={meta?.(d)} />
           ))}
         </div>
       ))}
@@ -57,7 +84,7 @@ export function DocumentGallery({ requestId, documents, actions, lastSlide }: { 
 
 const FRAME = 'aspect-[4/3] w-full overflow-hidden rounded-xl bg-surface-2';
 
-function Thumb({ doc, url, loading, onOpen }: { doc: GalleryDoc; url: string | undefined; loading: boolean; onOpen: () => void }) {
+function Thumb({ doc, url, loading, onOpen, meta }: { doc: GalleryDoc; url: string | undefined; loading: boolean; onOpen: () => void; meta?: React.ReactNode }) {
   const title = docTitle(doc);
   let body: React.ReactNode;
   if (!isViewableDoc(doc)) {
@@ -94,6 +121,7 @@ function Thumb({ doc, url, loading, onOpen }: { doc: GalleryDoc; url: string | u
     <figure className="min-w-0" data-testid="document-thumb">
       {body}
       <figcaption className="mt-1 truncate text-center text-xs text-muted">{title}</figcaption>
+      {meta ? <div data-testid="document-thumb-meta">{meta}</div> : null}
     </figure>
   );
 }

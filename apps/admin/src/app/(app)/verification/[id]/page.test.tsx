@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -296,14 +296,181 @@ describe('verification conveyor (R-400)', () => {
     expect(screen.getByRole('link', { name: 'К списку' }).getAttribute('href')).toBe('/verification');
   });
 
-  it('the registry button and the copy chips stand under the documents', async () => {
+  it('the copy chips stand under the documents, the registry opens from the licence row in the one registry tab', async () => {
     api(card({ licenses: [license({ lookupUrl: 'https://www.iardc.org/Lawyer/Search' })] }));
     show(<VerificationCardPage />);
     const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() } as unknown as Window);
-    fireEvent.click(await screen.findByRole('button', { name: /Открыть реестр штата/ }));
+    fireEvent.click(await screen.findByTestId('license-registry-link'));
     expect(open).toHaveBeenCalledWith('https://www.iardc.org/Lawyer/Search', 'lawbid-registry');
     expect(screen.getByTestId('copy-name').title).toBe('Скопировать: Anna Lawyer');
     expect(screen.getByTestId('copy-bar').title).toBe('Скопировать: 6248201047');
     open.mockRestore();
+  });
+});
+
+/** A loaded trust card («Борьба с мошенниками») for the row-57 checks. */
+const trustCard = (over: Record<string, unknown> = {}) => ({
+  attorney: { id: 'att-1' },
+  level: 2,
+  badgeStatus: 'registry_matched',
+  badge: true,
+  signals: {
+    selfAttested: true,
+    licenseConfirmed: false,
+    licenseConfirmedBy: null,
+    documentsVerified: false,
+    stripeKyc: false,
+    stripeIdentity: false,
+    identityConfirmed: false,
+    nameCheck: 'match',
+    firmLinkConfirmed: false,
+  },
+  holds: { payments: null, paymentsAt: null, bids: null, bidsAt: null, note: null },
+  bidsGate: { ok: true, reason: null, missing: [], current: 2, hold: null },
+  paymentsGate: { ok: true, reason: null, missing: [], current: 2, hold: null },
+  cleared: true,
+  clearedBy: 'staff',
+  staffClearedAt: '2026-11-12T22:41:00Z',
+  staffClearedBy: { id: 'adm-1', name: 'Vera', email: null, role: 'verifier' },
+  staffStatus: 'cleared',
+  queueReasons: [],
+  missing: [],
+  requirements: { registry: true, identity: false, documents: false },
+  documentsRequestedAt: null,
+  documentsRequestedTemplate: null,
+  stripeLegalName: null,
+  stripeBusinessType: null,
+  stripeCompanyName: null,
+  stripeCompanyDomain: null,
+  stripeRepresentative: null,
+  firmLink: { status: 'none', source: null, emailDomain: null, at: null },
+  firmLinkNote: null,
+  payoutDelayDays: null,
+  complaintsTotal: 0,
+  duplicateClaims: 0,
+  registryLinks: [{ stateCode: 'IL', url: 'https://www.iardc.org/Lawyer/Search' }],
+  lookups: [
+    { stateCode: 'IL', stateName: 'Illinois', barNumber: '6248201047', licenseStatus: 'pending', url: 'https://www.iardc.org/Lawyer/Search', prefilled: false, blocked: false },
+  ],
+  blocked: false,
+  latestRequestId: 'req-1',
+  events: [
+    { id: 'e3', kind: 'staff_cleared', fromLevel: null, toLevel: 2, actorType: 'admin', actorId: 'adm-1', details: { note: null, ip: '10.0.0.1' }, createdAt: '2026-11-12T22:41:00Z' },
+    { id: 'e2', kind: 'staff_cleared', fromLevel: 1, toLevel: null, actorType: 'admin', actorId: null, details: { note: 'checked the bar page' }, createdAt: '2026-11-12T22:40:00Z' },
+    { id: 'e1', kind: 'staff_cleared', fromLevel: 0, toLevel: 1, actorType: 'admin', actorId: 'adm-1', details: {}, createdAt: '2026-11-10T09:00:00Z' },
+  ],
+  ...over,
+});
+
+function apiWithTrust(data: ReturnType<typeof card>, trust: ReturnType<typeof trustCard> = trustCard()) {
+  api(data);
+  const base = GET.getMockImplementation()!;
+  GET.mockImplementation(async (path: string, init: unknown) => {
+    if (path === '/admin/trust/attorneys/{attorneyId}') return { data: { data: trust } };
+    return base(path, init);
+  });
+}
+
+/** Every clickable label on the page: buttons and the opened «Ещё» menu's items. */
+const labels = () => screen.queryAllByRole('button').concat(screen.queryAllByRole('menuitem')).map((b) => b.textContent?.trim() ?? '');
+const times = (text: string) => labels().filter((l) => l === text).length;
+
+/** Owner 2026-11-12 (row 57): «в одной проверке 2 проверки» — each thing once. */
+describe('request card without repeats (row 57)', () => {
+  it('one decision area: every action exactly once, the rare ones in «Ещё», none left in the trust panel', async () => {
+    // no licence rows here: their own per-licence «Подтвердить» / «Отклонить» are checked above
+    apiWithTrust(card({ licenses: [] }));
+    show(<VerificationCardPage />);
+    await screen.findByTestId('trust-panel');
+    expect(screen.queryByTestId('trust-actions')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё действия' }));
+    await screen.findAllByRole('menuitem');
+    for (const action of [
+      'Запросить информацию',
+      'Отклонить',
+      'Одобрить',
+      'Приостановить адвоката',
+      'Снять подтверждение адвоката',
+      'Запросить документы',
+      'Отклонить адвоката',
+      'Пересчитать',
+      'Подтвердить лицензию',
+      'Подтвердить связь с фирмой',
+      'Поставить холд',
+      'Снять холд',
+    ]) {
+      expect(times(action), action).toBe(1);
+    }
+    // the request's own actions are buttons, the trust ones live in the menu
+    const area = screen.getByTestId('decision-area');
+    expect(within(area).getByRole('button', { name: 'Одобрить' })).toBeTruthy();
+    expect(within(area).getByRole('menuitem', { name: 'Поставить холд' })).toBeTruthy();
+  });
+
+  it('a trust action from «Ещё» calls the trust API', async () => {
+    apiWithTrust(card());
+    show(<VerificationCardPage />);
+    await screen.findByTestId('trust-panel');
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё действия' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Пересчитать' }));
+    await waitFor(() =>
+      expect(POST).toHaveBeenCalledWith('/admin/trust/attorneys/{attorneyId}/recompute', { params: { path: { attorneyId: 'att-1' } } }),
+    );
+  });
+
+  it('documents are drawn once: one thumbnail each with its details and «Открыть», no second list', async () => {
+    const doc = (id: string, docType: string, over: Record<string, unknown> = {}) => ({
+      id,
+      docType,
+      side: null,
+      stateCode: null,
+      mime: 'application/zip',
+      sizeBytes: 20480,
+      scanStatus: 'clean',
+      createdAt: '2026-11-12T10:00:00Z',
+      notes: null,
+      capture: null,
+      ...over,
+    });
+    apiWithTrust(card({ documents: [doc('d1', 'bar_license', { notes: 'front page', stateCode: 'IL' }), doc('d2', 'selfie')] } as never));
+    show(<VerificationCardPage />);
+    const thumbs = await screen.findAllByTestId('document-thumb');
+    expect(thumbs).toHaveLength(2);
+    expect(screen.getAllByTestId('document-meta')).toHaveLength(2);
+    expect(times('Открыть')).toBe(2);
+    expect(screen.getAllByText('лицензия адвоката')).toHaveLength(1);
+    expect(screen.getAllByText('Комментарий адвоката: front page')).toHaveLength(1);
+    expect(within(thumbs[0]!).getByText(/IL · application\/zip · 20 KB/)).toBeTruthy();
+  });
+
+  it('the registry link is there once per licence: not under the documents, not in the trust panel', async () => {
+    apiWithTrust(card({ licenses: [license({ lookupUrl: 'https://www.iardc.org/Lawyer/Search' })] }));
+    show(<VerificationCardPage />);
+    await screen.findByTestId('trust-panel');
+    expect(screen.getAllByTestId('license-registry-link')).toHaveLength(1);
+    expect(screen.queryByTestId('registry-open')).toBeNull();
+    expect(screen.queryByText('Открыть в реестре')).toBeNull();
+  });
+
+  it('«Подтверждён» is said once; one action recorded twice a minute apart is one event with both details', async () => {
+    apiWithTrust(card());
+    show(<VerificationCardPage />);
+    const status = await screen.findByTestId('trust-status');
+    expect(within(status).getAllByText('Подтверждён')).toHaveLength(1);
+    expect(status.textContent).toContain('Vera');
+    const events = within(screen.getByTestId('trust-events')).getAllByRole('listitem');
+    expect(events).toHaveLength(2);
+    expect(events[0]!.textContent).toContain('checked the bar page');
+    expect(events[0]!.textContent).toContain('IP 10.0.0.1');
+    expect(events[0]!.textContent).toContain('1 → 2');
+  });
+
+  it('on its own page (no request card) the trust panel keeps its buttons and registry lookups', async () => {
+    apiWithTrust(card());
+    show(<TrustPanel attorneyId="att-1" />);
+    const grid = await screen.findByTestId('trust-actions');
+    expect(within(grid).getByRole('button', { name: 'Снять подтверждение' })).toBeTruthy();
+    expect(within(grid).getByRole('button', { name: 'Поставить холд' })).toBeTruthy();
+    expect(screen.getByText('Открыть в реестре')).toBeTruthy();
   });
 });

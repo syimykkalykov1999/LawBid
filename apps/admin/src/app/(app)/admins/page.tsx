@@ -12,7 +12,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Input, Label, Select } from '@/components/ui/input';
 import { ReasonPolicyCard } from '@/components/reason-policy-card';
 import { StepUpDialog } from '@/components/step-up-dialog';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
@@ -33,12 +33,15 @@ import {
   type Permissions,
   workspaceCeiling,
 } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { cn, formatDateTime } from '@/lib/utils';
 
 type Account = components['schemas']['AdminAccountDto'];
 type Template = components['schemas']['AdminRoleTemplateDto'];
 type Preset = components['schemas']['AdminPresetDto'];
 type Invite = components['schemas']['AdminInviteDto'];
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['admin', 'role', 'access', 'status', 'totp', 'login'] as const;
 
 /** Who is handing out rights: the fields of `me` the page needs. */
 type Granter = {
@@ -300,7 +303,15 @@ export default function AdminsPage() {
     },
     onError: (e) => toast.error(e),
   });
-  const rows = list.data ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data ?? [], sort, {
+    admin: (a) => a.login ?? a.email,
+    role: (a) => ROLE_LABEL[a.role],
+    access: (a) => (a.role === 'super_admin' ? Number.MAX_SAFE_INTEGER : Object.keys(a.permissions).length),
+    status: (a) => (a.status === 'active' ? 'активен' : 'отключён'),
+    totp: (a) => a.totpEnabled,
+    login: (a) => a.lastLoginAt,
+  });
 
   return (
     <>
@@ -485,13 +496,13 @@ export default function AdminsPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Админ</Th>
-            <Th>Роль</Th>
+            <SortTh {...header('admin')}>Админ</SortTh>
+            <SortTh {...header('role')}>Роль</SortTh>
             {spaces ? <Th>Пространство</Th> : null}
-            <Th>Доступ</Th>
-            <Th>Статус</Th>
-            <Th>2FA</Th>
-            <Th>Вход</Th>
+            <SortTh {...header('access')}>Доступ</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
+            <SortTh {...header('totp')}>2FA</SortTh>
+            <SortTh {...header('login')}>Вход</SortTh>
             <Th />
           </tr>
         </thead>

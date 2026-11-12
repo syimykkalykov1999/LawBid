@@ -9,20 +9,24 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useReason } from "@/components/reason-dialog";
 import { Button } from "@/components/ui/button";
-import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { SortTh, Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { growthError } from "@/components/growth/errors";
 import { api } from "@/lib/api/client";
 import { COMMISSION_KIND, COMMISSION_STATUS, StatusPill, usd } from "@/lib/labels";
+import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
 import { PersonCell, type Commission } from "./shared";
 
 type Action = "approve" | "hold" | "reverse" | "pay";
 
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ["partner", "kind", "amount", "status", "period", "created"] as const;
+
 /** Accruals with approve / hold / reverse / pay. `showPartner` for the
  * cross-partner list; the partner page hides that column. */
 export function CommissionsTable({
-  rows,
+  rows: loaded,
   loading,
   canWrite,
   canOpenUsers,
@@ -39,6 +43,15 @@ export function CommissionsTable({
   const qc = useQueryClient();
   const toast = useToast();
   const { ask, dialog } = useReason();
+  const { sort, header } = useTableSort(SORT_KEYS, "commissionsSort");
+  const rows = sortRows(loaded, sort, {
+    partner: (c) => c.partner.name || c.partner.email || c.partner.id.slice(0, 8),
+    kind: (c) => COMMISSION_KIND[c.kind] ?? c.kind,
+    amount: (c) => c.amountCents,
+    status: (c) => COMMISSION_STATUS[c.status] ?? c.status,
+    period: (c) => c.period,
+    created: (c) => c.createdAt,
+  });
 
   const act = useMutation({
     mutationFn: async ({ c, action }: { c: Commission; action: Action }) => {
@@ -120,12 +133,12 @@ export function CommissionsTable({
       <Table>
         <thead>
           <tr>
-            {showPartner ? <Th>Партнёр</Th> : null}
-            <Th>За что</Th>
-            <Th>Сумма</Th>
-            <Th>Статус</Th>
-            <Th>Период</Th>
-            <Th>Даты</Th>
+            {showPartner ? <SortTh {...header("partner")}>Партнёр</SortTh> : null}
+            <SortTh {...header("kind")}>За что</SortTh>
+            <SortTh {...header("amount")}>Сумма</SortTh>
+            <SortTh {...header("status")}>Статус</SortTh>
+            <SortTh {...header("period")}>Период</SortTh>
+            <SortTh {...header("created")}>Даты</SortTh>
             {canWrite ? <Th /> : null}
           </tr>
         </thead>

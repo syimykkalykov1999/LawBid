@@ -20,7 +20,7 @@ import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
@@ -28,6 +28,7 @@ import { fraudStatsQuery, trustStatsQuery } from '@/lib/live';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import {
   attorneyName,
   BadgeStatusChip,
@@ -60,6 +61,10 @@ const TABS = ['attorneys', 'clients', 'queue', 'rules', 'holds', 'blocked', 'sta
 type Tab = (typeof TABS)[number];
 
 const ATTORNEYS = ['адвокат', 'адвоката', 'адвокатов'] as const;
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const QUEUE_SORT_KEYS = ['attorney', 'waiting', 'missing', 'stripe', 'documents'] as const;
+const HOLD_SORT_KEYS = ['attorney', 'level', 'complaints', 'since'] as const;
 
 /**
  * Owner 2026-10-05 — Верификация → «Борьба с мошенниками»
@@ -184,7 +189,14 @@ function Queue({ canManage, stats }: { canManage: boolean; stats: Stats | undefi
     queryFn: async () =>
       (await api.GET('/admin/trust/queue', { params: { query: { reason: reason || undefined, q: search || undefined } } })).data!.data,
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(QUEUE_SORT_KEYS, 'queueSort');
+  const rows = sortRows(q.data ?? [], sort, {
+    attorney: (r) => attorneyName(r.attorney),
+    waiting: (r) => r.waitingSince ?? null,
+    missing: (r) => (r.missing.length ? missingText(r.missing) : 'всё пройдено'),
+    stripe: (r) => (r.stripeBusinessType ? BUSINESS_TYPE_RU[r.stripeBusinessType] ?? r.stripeBusinessType : null),
+    documents: (r) => r.documentsCount,
+  });
   const ids = rows.map((r) => r.attorney.id);
   const now = Date.now();
   const onError = (e: unknown) => toast.error(e);
@@ -341,12 +353,12 @@ function Queue({ canManage, stats }: { canManage: boolean; stats: Stats | undefi
                 <PageSelectBox selected={sel.selected} ids={ids} onToggle={sel.togglePage} />
               </Th>
             ) : null}
-            <Th>Адвокат</Th>
-            <Th>Ждёт</Th>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('waiting')}>Ждёт</SortTh>
             <Th>Почему</Th>
-            <Th>Не хватает</Th>
-            <Th>Stripe</Th>
-            <Th>Документы</Th>
+            <SortTh {...header('missing')}>Не хватает</SortTh>
+            <SortTh {...header('stripe')}>Stripe</SortTh>
+            <SortTh {...header('documents')}>Документы</SortTh>
             {canManage ? <Th /> : null}
           </tr>
         </thead>
@@ -784,7 +796,13 @@ function Holds({ canManage }: { canManage: boolean }) {
     },
     onError: (e) => toast.error(e),
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(HOLD_SORT_KEYS, 'holdSort');
+  const rows = sortRows(q.data ?? [], sort, {
+    attorney: (r) => attorneyName(r.attorney),
+    level: (r) => r.level ?? null,
+    complaints: (r) => r.complaintsTotal,
+    since: (r) => r.heldSince ?? null,
+  });
   const cols = canManage ? 7 : 6;
 
   return (
@@ -798,12 +816,12 @@ function Holds({ canManage }: { canManage: boolean }) {
       <Table>
         <thead>
           <tr>
-            <Th>Адвокат</Th>
-            <Th>Уровень</Th>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('level')}>Уровень</SortTh>
             <Th>Что остановлено</Th>
             <Th>Причина</Th>
-            <Th>Жалоб</Th>
-            <Th>С</Th>
+            <SortTh {...header('complaints')}>Жалоб</SortTh>
+            <SortTh {...header('since')}>С</SortTh>
             {canManage ? <Th /> : null}
           </tr>
         </thead>

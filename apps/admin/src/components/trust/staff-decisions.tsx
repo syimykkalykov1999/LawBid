@@ -9,17 +9,22 @@ import { ErrorNote, SectionTitle } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Label } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { DOC_TYPE } from '@/lib/labels';
 import { ROLE_LABEL, type AdminRole } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { attorneyName, formatSeconds, staffName, TrustLevelChip } from '@/lib/trust-labels';
 import { cn, formatDateTime } from '@/lib/utils';
 
 type Stats = components['schemas']['StaffDecisionStatsDto'];
 
 const FAST_SECONDS = 60;
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const STAFF_SORT = ['staff', 'cleared', 'rejected', 'documents', 'released', 'median', 'fast', 'complaints', 'suspended'] as const;
+const CLEARED_SORT = ['attorney', 'level', 'cleared', 'complaints', 'suspended'] as const;
 
 /** «С» / «По» (type="date") → ISO bounds: start of the first day, end of the last. */
 type Period = { from: string; to: string };
@@ -44,7 +49,18 @@ export function StaffDecisions() {
     queryKey: ['trust-staff-decisions', bounds.from ?? '', bounds.to ?? ''],
     queryFn: async () => (await api.GET('/admin/trust/staff-decisions', { params: { query: bounds } })).data!.data,
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(STAFF_SORT, 'staffDecisionsSort');
+  const rows = sortRows(q.data ?? [], sort, {
+    staff: (r) => staffName(r.admin),
+    cleared: (r) => r.cleared,
+    rejected: (r) => r.rejected,
+    documents: (r) => r.documentsRequested,
+    released: (r) => r.released,
+    median: (r) => r.medianSecondsBetween ?? null,
+    fast: (r) => r.fastDecisions,
+    complaints: (r) => r.laterComplaints,
+    suspended: (r) => r.laterSuspended,
+  });
   const picked = rows.find((r) => r.admin.id === adminId) ?? null;
 
   return (
@@ -69,15 +85,15 @@ export function StaffDecisions() {
       <Table>
         <thead>
           <tr>
-            <Th>Сотрудник</Th>
-            <Th>Подтвердил</Th>
-            <Th>Отклонил</Th>
-            <Th>Запросил документы</Th>
-            <Th>Снял холды</Th>
-            <Th>Медиана между решениями</Th>
-            <Th>Быстрые решения (&lt;1 мин)</Th>
-            <Th>Жалобы после одобрения</Th>
-            <Th>Заблокированы после одобрения</Th>
+            <SortTh {...header('staff')}>Сотрудник</SortTh>
+            <SortTh {...header('cleared')}>Подтвердил</SortTh>
+            <SortTh {...header('rejected')}>Отклонил</SortTh>
+            <SortTh {...header('documents')}>Запросил документы</SortTh>
+            <SortTh {...header('released')}>Снял холды</SortTh>
+            <SortTh {...header('median')}>Медиана между решениями</SortTh>
+            <SortTh {...header('fast')}>Быстрые решения (&lt;1 мин)</SortTh>
+            <SortTh {...header('complaints')}>Жалобы после одобрения</SortTh>
+            <SortTh {...header('suspended')}>Заблокированы после одобрения</SortTh>
             <Th />
           </tr>
         </thead>
@@ -158,7 +174,14 @@ function ClearedBy({ admin, bounds }: { admin: Stats; bounds: Bounds }) {
     queryKey: ['trust-cleared-by', adminId, bounds.from ?? '', bounds.to ?? ''],
     queryFn: async () => (await api.GET('/admin/trust/cleared-by', { params: { query: { adminId, ...bounds } } })).data!.data,
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(CLEARED_SORT, 'clearedBySort');
+  const rows = sortRows(q.data ?? [], sort, {
+    attorney: (r) => attorneyName(r.attorney),
+    level: (r) => r.level ?? null,
+    cleared: (r) => r.clearedAt,
+    complaints: (r) => r.complaintsAfter,
+    suspended: (r) => (r.suspendedAfter ? 'да' : 'нет'),
+  });
   return (
     <section>
       <SectionTitle>Кого одобрил: {staffName(admin.admin)}</SectionTitle>
@@ -166,12 +189,12 @@ function ClearedBy({ admin, bounds }: { admin: Stats; bounds: Bounds }) {
       <Table>
         <thead>
           <tr>
-            <Th>Адвокат</Th>
-            <Th>Уровень</Th>
-            <Th>Одобрен</Th>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('level')}>Уровень</SortTh>
+            <SortTh {...header('cleared')}>Одобрен</SortTh>
             <Th>Какие документы видел</Th>
-            <Th>Жалобы после одобрения</Th>
-            <Th>Заблокирован после одобрения</Th>
+            <SortTh {...header('complaints')}>Жалобы после одобрения</SortTh>
+            <SortTh {...header('suspended')}>Заблокирован после одобрения</SortTh>
           </tr>
         </thead>
         <tbody>

@@ -12,6 +12,7 @@ import {
   REFUND_STATUS,
   UserCell,
   useBillingRole,
+  userName,
 } from '@/components/billing/shared';
 import { CsvButton } from '@/components/csv-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
@@ -20,16 +21,22 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
 import { Field, Label, Select, Textarea } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { PAYMENT_STATUS, StatusPill, usd } from '@/lib/labels';
 import { Reason } from '@/lib/reasons';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Tab = 'payments' | 'refunds' | 'duplicates' | 'disputes';
 type PayStatus = '' | 'pending' | 'succeeded' | 'failed' | 'refunded';
+/** Row 57: click-to-sort headers, one address parameter per tab (the loaded rows; default order = the server's). */
+const PAY_SORT = ['user', 'amount', 'status', 'paid', 'refunded', 'error'] as const;
+const REFUND_SORT = ['user', 'amount', 'status', 'reason', 'admin', 'created'] as const;
+const DUP_SORT = ['user', 'status', 'charged', 'reason', 'created'] as const;
+const DISPUTE_SORT = ['user', 'status', 'amount', 'reason', 'created'] as const;
 
 /** Payments and refunds. */
 export default function PaymentsPage() {
@@ -83,7 +90,15 @@ function Payments() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(PAY_SORT, 'paySort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    user: (p) => userName(p.user, p.userId),
+    amount: (p) => p.amountCents,
+    status: (p) => PAYMENT_STATUS[p.status] ?? p.status,
+    paid: (p) => p.paidAt,
+    refunded: (p) => p.refundedCents,
+    error: (p) => p.failureCode,
+  });
   const cols = canWrite ? 7 : 6;
   const filtered = !!(status || from || to);
 
@@ -129,12 +144,12 @@ function Payments() {
         <Table>
           <thead>
             <tr>
-              <Th>Пользователь</Th>
-              <Th className="text-right">Сумма</Th>
-              <Th>Статус</Th>
-              <Th>Оплачен</Th>
-              <Th className="text-right">Возвращено / доступно</Th>
-              <Th>Ошибка</Th>
+              <SortTh {...header('user')}>Пользователь</SortTh>
+              <SortTh {...header('amount')} className="text-right">Сумма</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('paid')}>Оплачен</SortTh>
+              <SortTh {...header('refunded')} className="text-right">Возвращено / доступно</SortTh>
+              <SortTh {...header('error')}>Ошибка</SortTh>
               {canWrite ? <Th /> : null}
             </tr>
           </thead>
@@ -187,7 +202,15 @@ function Refunds() {
     queryFn: async ({ pageParam }) => (await api.GET('/admin/billing/refunds', { params: { query: { cursor: pageParam } } })).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(REFUND_SORT, 'refundSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    user: (r) => userName(r.user, r.userId),
+    amount: (r) => r.amountCents,
+    status: (r) => REFUND_STATUS[r.status] ?? r.status,
+    reason: (r) => r.reason,
+    admin: (r) => r.adminId ?? 'система',
+    created: (r) => r.createdAt,
+  });
   return (
     <>
       <ErrorNote text={list.error ? errorText(list.error) : null} />
@@ -197,12 +220,12 @@ function Refunds() {
         <Table>
           <thead>
             <tr>
-              <Th>Пользователь</Th>
-              <Th className="text-right">Сумма</Th>
-              <Th>Статус</Th>
-              <Th>Причина</Th>
-              <Th>Админ</Th>
-              <Th>Создан</Th>
+              <SortTh {...header('user')}>Пользователь</SortTh>
+              <SortTh {...header('amount')} className="text-right">Сумма</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('reason')}>Причина</SortTh>
+              <SortTh {...header('admin')}>Админ</SortTh>
+              <SortTh {...header('created')}>Создан</SortTh>
             </tr>
           </thead>
           <tbody>
@@ -280,7 +303,14 @@ function Duplicates() {
       (await api.GET('/admin/billing/duplicate-subscriptions', { params: { query: { cursor: pageParam } } })).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(DUP_SORT, 'dupSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    user: (r) => userName(r.user, r.userId),
+    status: (r) => DUPLICATE_STATUS[r.status] ?? r.status,
+    charged: (r) => r.chargedCents,
+    reason: (r) => (r.reason ? (DUPLICATE_REASON[r.reason] ?? r.reason) : null),
+    created: (r) => r.createdAt,
+  });
   return (
     <>
       <p className="mb-3 text-sm text-muted">
@@ -294,12 +324,12 @@ function Duplicates() {
         <Table>
           <thead>
             <tr>
-              <Th>Пользователь</Th>
-              <Th>Статус</Th>
-              <Th className="text-right">Списано / возвращено</Th>
-              <Th>Почему</Th>
+              <SortTh {...header('user')}>Пользователь</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('charged')} className="text-right">Списано / возвращено</SortTh>
+              <SortTh {...header('reason')}>Почему</SortTh>
               <Th>Подписки (оставлена / отменена)</Th>
-              <Th>Когда</Th>
+              <SortTh {...header('created')}>Когда</SortTh>
             </tr>
           </thead>
           <tbody>
@@ -394,7 +424,14 @@ function DisputeRefunds() {
     },
     onError: (e) => toast.error(errorText(e)),
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(DISPUTE_SORT, 'disputeSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    user: (r) => userName(r.user, r.userId),
+    status: (r) => DISPUTE_REFUND_STATUS[r.status] ?? r.status,
+    amount: (r) => r.amountCents,
+    reason: (r) => r.note ?? (r.reason ? (DISPUTE_REFUND_REASON[r.reason] ?? r.reason) : null),
+    created: (r) => r.createdAt,
+  });
   return (
     <>
       <p className="mb-3 text-sm text-muted">
@@ -409,11 +446,11 @@ function DisputeRefunds() {
         <Table>
           <thead>
             <tr>
-              <Th>Пользователь</Th>
-              <Th>Статус</Th>
-              <Th className="text-right">Сумма</Th>
-              <Th>Почему</Th>
-              <Th>Когда</Th>
+              <SortTh {...header('user')}>Пользователь</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('amount')} className="text-right">Сумма</SortTh>
+              <SortTh {...header('reason')}>Почему</SortTh>
+              <SortTh {...header('created')}>Когда</SortTh>
               <Th />
             </tr>
           </thead>

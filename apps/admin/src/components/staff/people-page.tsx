@@ -7,21 +7,49 @@ import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty';
 import { Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { isOwner, usePeople } from '@/lib/staff-data';
 import { dayLabel, STATUS_LABEL, SUGGESTION_KIND, WORKSPACE_NAME } from '@/lib/staff-labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
+
+/**
+ * Row 57: click-to-sort headers. «Рейтинг» uses the server's own sort
+ * (`sort=worst|best`: ↑ = weakest first, ↓ = best first); the other columns
+ * sort the loaded rows. Default order = the server's.
+ */
+const SORT_KEYS = ['name', 'workspace', 'rating', 'level', 'decisions'] as const;
 
 /** «Люди»: the rating of the staff (latest nightly snapshot), worst first. */
 export function PeoplePage() {
   const { data: me } = useMe();
   const [workspace, setWorkspace] = useState('');
   const [status, setStatus] = useState('');
-  const [sort, setSort] = useState<'worst' | 'best'>('worst');
+  const [picked, setSort] = useState<'worst' | 'best'>('worst');
+  const { sort: col, header, toggle } = useTableSort(SORT_KEYS, 'peopleSort');
+  const sort = col.key === 'rating' ? (col.dir === 'asc' ? 'worst' : 'best') : picked;
   const q = usePeople({ workspace: workspace || undefined, status: status || undefined, sort }, isOwner(me));
   const missing = q.data && !q.data.ok;
-  const rows = q.data?.ok ? q.data.data.items : [];
+  const items = q.data?.ok ? q.data.data.items : [];
+  const rows =
+    col.key === 'rating'
+      ? items
+      : sortRows(items, col, {
+          name: (p) => p.name,
+          workspace: (p) => WORKSPACE_NAME[p.workspace] ?? p.workspace,
+          rating: (p) => p.rating,
+          level: (p) => (STATUS_LABEL[p.status] ?? STATUS_LABEL.ok).label,
+          decisions: (p) => p.decisions,
+        });
+  /** «Порядок» picks the server's order again: a rating header sort steps back to the default. */
+  const pickOrder = (v: 'worst' | 'best') => {
+    setSort(v);
+    if (col.key === 'rating') {
+      toggle('rating');
+      if (col.dir === 'asc') toggle('rating');
+    }
+  };
 
   return (
     <>
@@ -62,7 +90,7 @@ export function PeoplePage() {
                 </option>
               ))}
             </Select>
-            <Select aria-label="Порядок" value={sort} onChange={(e) => setSort(e.target.value as 'worst' | 'best')} className="w-52">
+            <Select aria-label="Порядок" value={sort} onChange={(e) => pickOrder(e.target.value as 'worst' | 'best')} className="w-52">
               <option value="worst">Сначала слабые</option>
               <option value="best">Сначала лучшие</option>
             </Select>
@@ -70,11 +98,11 @@ export function PeoplePage() {
           <Table>
             <thead>
               <tr>
-                <Th>Сотрудник</Th>
-                <Th>Пространство</Th>
-                <Th>Рейтинг</Th>
-                <Th>Уровень</Th>
-                <Th>Решений</Th>
+                <SortTh {...header('name')}>Сотрудник</SortTh>
+                <SortTh {...header('workspace')}>Пространство</SortTh>
+                <SortTh {...header('rating')}>Рейтинг</SortTh>
+                <SortTh {...header('level')}>Уровень</SortTh>
+                <SortTh {...header('decisions')}>Решений</SortTh>
                 <Th>Предложения</Th>
               </tr>
             </thead>

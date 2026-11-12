@@ -15,7 +15,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/empty';
 import { Field, Input, Label, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
@@ -37,12 +37,17 @@ import {
 } from '@/lib/fraud-labels';
 import { fraudStatsQuery } from '@/lib/live';
 import { ROLE_TEXT } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { cn, formatDateTime } from '@/lib/utils';
 
 type Settings = components['schemas']['FraudSettingsDto'];
 type Preset = components['schemas']['FraudPreset'];
 type Actor = components['schemas']['FraudEventsActorFilter'];
 type SubTab = 'queue' | 'rules' | 'events';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const QUEUE_SORT = ['person', 'role', 'score', 'reason', 'queued'] as const;
+const EVENTS_SORT = ['created', 'person', 'actor', 'score', 'note'] as const;
 
 /** API limit of a staff note (`FRAUD_NOTE_MAX`). */
 export const FRAUD_NOTE_MAX = 500;
@@ -160,7 +165,14 @@ function FraudQueue() {
     queryFn: async () =>
       (await api.GET('/admin/fraud/queue', { params: { query: { status, q: search || undefined, limit: 200 } } })).data!.data,
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(QUEUE_SORT, 'queueSort');
+  const rows = sortRows(q.data ?? [], sort, {
+    person: (r) => fraudUserName(r.user),
+    role: (r) => (r.user.role ? (ROLE_TEXT[r.user.role] ?? r.user.role) : null),
+    score: (r) => r.score,
+    reason: (r) => (r.queueReason ? (FRAUD_QUEUE_REASON_RU[r.queueReason]?.text ?? r.queueReason) : null),
+    queued: (r) => r.queuedAt,
+  });
 
   return (
     <>
@@ -182,13 +194,13 @@ function FraudQueue() {
       <Table>
         <thead>
           <tr>
-            <Th>Человек</Th>
-            <Th>Роль</Th>
+            <SortTh {...header('person')}>Человек</SortTh>
+            <SortTh {...header('role')}>Роль</SortTh>
             <Th>Статус</Th>
-            <Th>Балл</Th>
+            <SortTh {...header('score')}>Балл</SortTh>
             <Th>Главные сигналы</Th>
-            <Th>Почему</Th>
-            <Th>В очереди с</Th>
+            <SortTh {...header('reason')}>Почему</SortTh>
+            <SortTh {...header('queued')}>В очереди с</SortTh>
             <Th />
           </tr>
         </thead>
@@ -530,7 +542,14 @@ function FraudEvents() {
     queryKey: ['fraud-events', actor],
     queryFn: async () => (await api.GET('/admin/fraud/events', { params: { query: { actor, limit: 200 } } })).data!.data,
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(EVENTS_SORT, 'eventsSort');
+  const rows = sortRows(q.data ?? [], sort, {
+    created: (e) => e.createdAt,
+    person: (e) => (e.userId ? e.userName?.trim() || `Без имени · ${e.userId.slice(0, 8)}` : null),
+    actor: (e) => (e.actorType === 'admin' ? (e.actorName ?? FRAUD_ACTOR_RU.admin) : (FRAUD_ACTOR_RU[e.actorType] ?? e.actorType)),
+    score: (e) => e.score ?? null,
+    note: (e) => e.note ?? null,
+  });
 
   return (
     <>
@@ -548,12 +567,12 @@ function FraudEvents() {
       <Table>
         <thead>
           <tr>
-            <Th>Когда</Th>
-            <Th>Человек</Th>
+            <SortTh {...header('created')}>Когда</SortTh>
+            <SortTh {...header('person')}>Человек</SortTh>
             <Th>Что</Th>
-            <Th>Кто</Th>
-            <Th>Балл</Th>
-            <Th>Заметка</Th>
+            <SortTh {...header('actor')}>Кто</SortTh>
+            <SortTh {...header('score')}>Балл</SortTh>
+            <SortTh {...header('note')}>Заметка</SortTh>
           </tr>
         </thead>
         <tbody>

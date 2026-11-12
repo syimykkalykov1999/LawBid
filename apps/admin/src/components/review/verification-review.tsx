@@ -11,7 +11,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui
 import { Skeleton } from '@/components/ui/empty';
 import { useToast } from '@/components/ui/toast';
 import { docTitle } from '@/components/verification/document-gallery';
-import { RegistryActions } from '@/components/verification/registry-actions';
+import { LicenseRegistryLink, RegistryActions } from '@/components/verification/registry-actions';
 import { RegistryResult } from '@/components/verification/registry-result';
 import { SelfieCaptureNote } from '@/components/verification/selfie-capture-note';
 import { api } from '@/lib/api/client';
@@ -311,15 +311,12 @@ function VerificationBody({ card: r, name }: { card: Card; name: string }) {
                   </div>
                   {l.registryFlag === 'format_unusual' ? <Badge tone="warning">Номер не по формату штата</Badge> : null}
                   {l.autoCheckResult ? <RegistryResult result={l.autoCheckResult} profileName={name} /> : <p className="mt-1 text-xs text-muted">Автопроверки нет</p>}
-                  {l.lookupUrl ? (
-                    <a href={l.lookupUrl} target="_blank" rel="noreferrer" className="mt-1 block text-xs text-primary underline">
-                      Открыть в коллегии штата
-                    </a>
-                  ) : null}
+                  {/* Row 57: one registry link per licence (opens in the one registry tab). */}
+                  <LicenseRegistryLink url={l.lookupUrl} barNumber={l.barNumber} className="text-xs" />
                 </div>
               ))}
-              {/* Owner 2026-11-04 (R-400): the registry in one tab and the copy chips. */}
-              <RegistryActions card={r} />
+              {/* Owner 2026-11-04 (R-400): the copy chips; the registry link is in each licence above. */}
+              <RegistryActions card={r} showRegistry={false} />
             </CardContent>
           </Card>
           {docs.other.length > 0 ? (

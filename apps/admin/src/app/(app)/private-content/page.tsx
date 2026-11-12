@@ -7,10 +7,11 @@ import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { PRIVATE_KIND_LABEL } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type MessagesPage = components['schemas']['PrivateMessagesPageDto'];
@@ -26,6 +27,12 @@ const REASONS: { value: string; label: string }[] = [
 ];
 
 const REASON_LABEL: Record<string, string> = Object.fromEntries(REASONS.map((r) => [r.value, r.label]));
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const MESSAGE_SORT_KEYS = ['time', 'sender', 'type'] as const;
+const CALL_SORT_KEYS = ['time', 'caller', 'callee', 'status', 'duration'] as const;
+const FILE_SORT_KEYS = ['file', 'type', 'size'] as const;
+const REPORT_SORT_KEYS = ['admin', 'kind', 'reason', 'count'] as const;
 
 /** Fresh month (UTC) as YYYY-MM for the report. */
 const lastMonth = () => {
@@ -141,6 +148,34 @@ export default function PrivateContentPage() {
     retry: false,
   });
 
+  const messageSort = useTableSort(MESSAGE_SORT_KEYS, 'messageSort');
+  const messageRows = sortRows(messages?.items ?? [], messageSort.sort, {
+    time: (m) => m.createdAt,
+    sender: (m) => m.senderId ?? 'система',
+    type: (m) => m.type,
+  });
+  const callSort = useTableSort(CALL_SORT_KEYS, 'callSort');
+  const callRows = sortRows(calls?.items ?? [], callSort.sort, {
+    time: (c) => c.createdAt,
+    caller: (c) => c.callerId,
+    callee: (c) => c.calleeId,
+    status: (c) => c.status,
+    duration: (c) => c.durationSec ?? null,
+  });
+  const fileSort = useTableSort(FILE_SORT_KEYS, 'fileSort');
+  const fileRows = sortRows(files?.items ?? [], fileSort.sort, {
+    file: (f) => f.description ?? f.fileId,
+    type: (f) => f.mime,
+    size: (f) => f.sizeBytes,
+  });
+  const reportSort = useTableSort(REPORT_SORT_KEYS, 'reportSort');
+  const reportRows = sortRows(report.data?.rows ?? [], reportSort.sort, {
+    admin: (r) => r.adminEmail ?? r.adminId,
+    kind: (r) => PRIVATE_KIND_LABEL[r.kind] ?? r.kind,
+    reason: (r) => (r.reasonCode ? REASON_LABEL[r.reasonCode] ?? r.reasonCode : null),
+    count: (r) => r.count,
+  });
+
   return (
     <>
       <PageHeader
@@ -184,15 +219,15 @@ export default function PrivateContentPage() {
           <Table>
             <thead>
               <tr>
-                <Th>Время</Th>
-                <Th>Отправитель</Th>
-                <Th>Тип</Th>
+                <SortTh {...messageSort.header('time')}>Время</SortTh>
+                <SortTh {...messageSort.header('sender')}>Отправитель</SortTh>
+                <SortTh {...messageSort.header('type')}>Тип</SortTh>
                 <Th>Текст</Th>
               </tr>
             </thead>
             <tbody>
               {messages.items.length === 0 ? <TableEmpty colSpan={4}>Сообщений нет</TableEmpty> : null}
-              {messages.items.map((m) => (
+              {messageRows.map((m) => (
                 <tr key={m.id}>
                   <Td>{formatDateTime(m.createdAt)}</Td>
                   <Td className="font-mono text-xs">{m.senderId ?? 'система'}</Td>
@@ -218,16 +253,16 @@ export default function PrivateContentPage() {
           <Table>
             <thead>
               <tr>
-                <Th>Время</Th>
-                <Th>Кто звонил</Th>
-                <Th>Кому</Th>
-                <Th>Статус</Th>
-                <Th>Длительность, с</Th>
+                <SortTh {...callSort.header('time')}>Время</SortTh>
+                <SortTh {...callSort.header('caller')}>Кто звонил</SortTh>
+                <SortTh {...callSort.header('callee')}>Кому</SortTh>
+                <SortTh {...callSort.header('status')}>Статус</SortTh>
+                <SortTh {...callSort.header('duration')}>Длительность, с</SortTh>
               </tr>
             </thead>
             <tbody>
               {calls.items.length === 0 ? <TableEmpty colSpan={5}>Звонков нет</TableEmpty> : null}
-              {calls.items.map((c) => (
+              {callRows.map((c) => (
                 <tr key={c.id}>
                   <Td>{formatDateTime(c.createdAt)}</Td>
                   <Td className="font-mono text-xs">{c.callerId}</Td>
@@ -256,15 +291,15 @@ export default function PrivateContentPage() {
           <Table>
             <thead>
               <tr>
-                <Th>Файл</Th>
-                <Th>Тип</Th>
-                <Th>Размер, байт</Th>
+                <SortTh {...fileSort.header('file')}>Файл</SortTh>
+                <SortTh {...fileSort.header('type')}>Тип</SortTh>
+                <SortTh {...fileSort.header('size')}>Размер, байт</SortTh>
                 <Th>Открыть</Th>
               </tr>
             </thead>
             <tbody>
               {files.items.length === 0 ? <TableEmpty colSpan={4}>Файлов нет</TableEmpty> : null}
-              {files.items.map((f) => (
+              {fileRows.map((f) => (
                 <tr key={f.fileId}>
                   <Td>{f.description ?? f.fileId}</Td>
                   <Td>{f.mime}</Td>
@@ -295,15 +330,15 @@ export default function PrivateContentPage() {
             <Table>
               <thead>
                 <tr>
-                  <Th>Сотрудник</Th>
-                  <Th>Что читал</Th>
-                  <Th>Причина</Th>
-                  <Th>Раз</Th>
+                  <SortTh {...reportSort.header('admin')}>Сотрудник</SortTh>
+                  <SortTh {...reportSort.header('kind')}>Что читал</SortTh>
+                  <SortTh {...reportSort.header('reason')}>Причина</SortTh>
+                  <SortTh {...reportSort.header('count')}>Раз</SortTh>
                 </tr>
               </thead>
               <tbody>
                 {report.data.rows.length === 0 ? <TableEmpty colSpan={4}>Никто не читал приватное</TableEmpty> : null}
-                {report.data.rows.map((r) => (
+                {reportRows.map((r) => (
                   <tr key={`${r.adminId}|${r.kind}|${r.reasonCode}`}>
                     <Td>{r.adminEmail ?? r.adminId}</Td>
                     <Td>{PRIVATE_KIND_LABEL[r.kind] ?? r.kind}</Td>

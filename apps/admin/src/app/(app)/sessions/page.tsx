@@ -7,11 +7,15 @@ import { MotionRow } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { ROLE_LABEL, type AdminRole } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['admin', 'role', 'created', 'lastSeen', 'device'] as const;
 
 /** Who is in the panel right now: the super admin watches and can end any session. */
 export default function SessionsPage() {
@@ -44,7 +48,14 @@ export default function SessionsPage() {
     },
     onError: (e) => toast.error(e),
   });
-  const rows = list.data ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data ?? [], sort, {
+    admin: (s) => s.login ?? s.email,
+    role: (s) => ROLE_LABEL[s.role as AdminRole] ?? s.role,
+    created: (s) => s.createdAt,
+    lastSeen: (s) => s.lastSeenAt,
+    device: (s) => s.device ?? null,
+  });
 
   return (
     <>
@@ -58,11 +69,11 @@ export default function SessionsPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Админ</Th>
-            <Th>Роль</Th>
-            <Th>Вошёл</Th>
-            <Th>Последнее действие</Th>
-            <Th>Откуда</Th>
+            <SortTh {...header('admin')}>Админ</SortTh>
+            <SortTh {...header('role')}>Роль</SortTh>
+            <SortTh {...header('created')}>Вошёл</SortTh>
+            <SortTh {...header('lastSeen')}>Последнее действие</SortTh>
+            <SortTh {...header('device')}>Откуда</SortTh>
             <Th />
           </tr>
         </thead>

@@ -29,7 +29,7 @@ import { EmptyState, Skeleton } from "@/components/ui/empty";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { CodesCard } from "@/components/referrals/codes-card";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { SortTh, Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { growthError } from "@/components/growth/errors";
@@ -43,6 +43,7 @@ import {
   StatusPill,
   usd,
 } from "@/lib/labels";
+import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
 
 type Referral = components["schemas"]["AdminReferralRowDto"];
@@ -77,6 +78,15 @@ function rememberSection(s: Section) {
     // storage blocked: nothing to remember
   }
 }
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = [
+  "referrer",
+  "referee",
+  "status",
+  "created",
+  "result",
+] as const;
 
 const STATUSES: ReferralStatus[] = [
   "pending",
@@ -182,7 +192,16 @@ export default function ReferralsPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    referrer: (r) =>
+      r.referrer.name || r.referrer.email || r.referrer.id.slice(0, 8),
+    referee: (r) =>
+      r.referee.name || r.referee.email || r.referee.id.slice(0, 8),
+    status: (r) => REFERRAL_STATUS[r.status] ?? r.status,
+    created: (r) => r.createdAt,
+    result: (r) => r.rewardedAt ?? r.qualifiedAt ?? null,
+  });
   const byStatus = Object.fromEntries(
     (stats.data?.byStatus ?? []).map((s) => [s.key, s.count]),
   );
@@ -383,12 +402,12 @@ export default function ReferralsPage() {
             <Table>
               <thead>
                 <tr>
-                  <Th>Пригласил</Th>
-                  <Th>Приглашённый</Th>
-                  <Th>Статус</Th>
+                  <SortTh {...header("referrer")}>Пригласил</SortTh>
+                  <SortTh {...header("referee")}>Приглашённый</SortTh>
+                  <SortTh {...header("status")}>Статус</SortTh>
                   <Th>Награды</Th>
-                  <Th>Создано</Th>
-                  <Th>Итог</Th>
+                  <SortTh {...header("created")}>Создано</SortTh>
+                  <SortTh {...header("result")}>Итог</SortTh>
                   {canWrite ? <Th /> : null}
                 </tr>
               </thead>

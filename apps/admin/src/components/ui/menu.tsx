@@ -6,8 +6,10 @@ import * as m from 'motion/react-m';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
-interface MenuItem {
+export interface MenuItem {
   label: string;
+  /** Hint on hover (why an item is greyed out). */
+  title?: string;
   icon?: React.ComponentType<{ size?: number; className?: string }>;
   onSelect: () => void;
   danger?: boolean;
@@ -18,7 +20,7 @@ interface MenuItem {
  * «⋯» button with a small drop-down of actions (cards and table rows).
  * Clicks never bubble to the card underneath; Esc or a click outside closes.
  */
-export function RowMenu({ items, label = 'Действия', className }: { items: MenuItem[]; label?: string; className?: string }) {
+export function RowMenu({ items, label = 'Действия', text, className }: { items: MenuItem[]; label?: string; text?: string; className?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -48,9 +50,14 @@ export function RowMenu({ items, label = 'Действия', className }: { item
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="grid h-8 w-8 place-items-center rounded-[10px] text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+        className={
+          text
+            ? 'inline-flex h-8 items-center gap-1 rounded-[10px] border border-line-strong bg-surface px-3 text-xs font-medium text-ink transition-colors hover:border-gold/60 hover:bg-surface-2 pointer-coarse:h-10'
+            : 'grid h-8 w-8 place-items-center rounded-[10px] text-muted transition-colors hover:bg-surface-2 hover:text-ink'
+        }
       >
-        <DotsThreeVertical size={18} weight="bold" />
+        {text ? <span>{text}</span> : null}
+        <DotsThreeVertical size={text ? 14 : 18} weight="bold" />
       </button>
       <AnimatePresence>
         {open ? (
@@ -67,6 +74,7 @@ export function RowMenu({ items, label = 'Действия', className }: { item
                 key={it.label}
                 type="button"
                 role="menuitem"
+                title={it.title}
                 disabled={it.disabled}
                 onClick={() => {
                   setOpen(false);

@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Field, Input } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { growthError } from '@/components/growth/errors';
@@ -19,6 +19,7 @@ import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { StickerUploader } from './sticker-uploader';
 import { collectIds, type Noun } from '@/lib/bulk';
@@ -32,6 +33,8 @@ type Kind = 'official' | 'user';
 type PackStatus = 'all' | 'active' | 'hidden';
 
 const PACK_STATUS: Record<string, string> = { active: 'виден', hidden: 'скрыт' };
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['title', 'owner', 'stickers', 'installs', 'price', 'status', 'created'] as const;
 
 export function StickersPanel() {
   const { data: me } = useMe();
@@ -58,7 +61,16 @@ export function StickersPanel() {
     queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS, 'packsSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    title: (p) => p.title,
+    owner: (p) => (p.isOfficial ? 'LawBid' : p.ownerName || null),
+    stickers: (p) => p.stickerCount,
+    installs: (p) => p.installCount,
+    price: (p) => p.priceStars,
+    status: (p) => PACK_STATUS[p.status] ?? p.status,
+    created: (p) => p.createdAt,
+  });
   const onBulk = (hide: boolean) =>
     bulk.run({
       ids: [...sel.selected],
@@ -150,13 +162,19 @@ export function StickersPanel() {
                   <PageSelectBox selected={sel.selected} ids={rows.map((p) => p.id)} onToggle={sel.togglePage} />
                 </Th>
               ) : null}
-              <Th>Набор</Th>
-              <Th>Автор</Th>
-              <Th className="text-right">Стикеров</Th>
-              <Th className="text-right">Установок</Th>
-              <Th className="text-right">Цена</Th>
-              <Th>Статус</Th>
-              <Th>Создан</Th>
+              <SortTh {...header('title')}>Набор</SortTh>
+              <SortTh {...header('owner')}>Автор</SortTh>
+              <SortTh {...header('stickers')} className="text-right">
+                Стикеров
+              </SortTh>
+              <SortTh {...header('installs')} className="text-right">
+                Установок
+              </SortTh>
+              <SortTh {...header('price')} className="text-right">
+                Цена
+              </SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('created')}>Создан</SortTh>
             </tr>
           </thead>
           <tbody>

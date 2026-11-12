@@ -3,22 +3,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { FileText, Tray } from '@phosphor-icons/react';
+import { Tray } from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn, MotionRow } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { hasRegistryResult, RegistryResult } from '@/components/verification/registry-result';
-import { TrustPanel } from '@/components/trust/trust-panel';
+import { TrustPanel, useTrustActions } from '@/components/trust/trust-panel';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { RowMenu, type MenuItem } from '@/components/ui/menu';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { SelfieCaptureNote } from '@/components/verification/selfie-capture-note';
 import { DocumentGallery } from '@/components/verification/document-gallery';
-import { RegistryActions } from '@/components/verification/registry-actions';
+import { LicenseRegistryLink, RegistryActions } from '@/components/verification/registry-actions';
 import { FocusBar, useNextVerification } from '@/components/workspace/queue-next';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
@@ -30,7 +31,6 @@ import { formatDateTime } from '@/lib/utils';
 import {
   CHECK_RESULT,
   CHECK_TYPE,
-  DOC_TYPE,
   FACE_MATCH_REASON,
   label,
   LICENSE_EXPIRY_SOURCE,
@@ -130,6 +130,8 @@ export default function VerificationCardPage() {
     ),
   });
   const r = q.data;
+  // Row 57: the trust card's actions live in this card's one decision area (the «Ещё» menu).
+  const trust = useTrustActions(r?.attorney.id);
   const onError = (e: unknown) => toast.error(e);
   /** After any change: the card, the queue list and the sidebar counter. */
   const done = (text: string) => {
@@ -422,11 +424,22 @@ export default function VerificationCardPage() {
     : lockedByOther
       ? 'Заявку проверяет другой администратор'
       : null;
+  // Owner 2026-11-12 (row 57): ONE decision area — the request's main actions
+  // as buttons, the rare ones (the attorney's status, holds, firm link,
+  // recount — the former second set in «Борьба с мошенниками») in «Ещё».
+  const more: MenuItem[] = [
+    r.attorney.verificationStatus === 'suspended'
+      ? { label: 'Восстановить адвоката', disabled: attorneyStatus.isPending, onSelect: () => attorneyStatus.mutate('restore') }
+      : { label: 'Приостановить адвоката', danger: true, disabled: attorneyStatus.isPending, onSelect: () => attorneyStatus.mutate('suspend') },
+    ...trust.actions.map((a) => ({ label: a.menuLabel, title: a.title, danger: a.danger, disabled: a.disabled, onSelect: a.run })),
+  ];
+  const lookups = trust.card?.lookups ?? [];
 
   return (
     <>
       {dialog}
       {confirmDialog}
+      {trust.dialogs}
       {focus ? (
         <FocusBar
           text="Режим очереди: после решения откроется следующая заявка."
@@ -453,7 +466,7 @@ export default function VerificationCardPage() {
           </span>
         }
         actions={
-          <>
+          <div className="contents" data-testid="decision-area">
             {r.status === 'submitted' || (r.status === 'needs_more_info' && !r.reviewerId) ? (
               <Button size="sm" disabled={busy} onClick={() => take.mutate()}>
                 Взять в работу
@@ -472,16 +485,8 @@ export default function VerificationCardPage() {
                 </Button>
               </>
             ) : null}
-            {r.attorney.verificationStatus === 'suspended' ? (
-              <Button size="sm" variant="outline" disabled={attorneyStatus.isPending} onClick={() => attorneyStatus.mutate('restore')}>
-                Восстановить адвоката
-              </Button>
-            ) : (
-              <Button size="sm" variant="ghost" disabled={attorneyStatus.isPending} onClick={() => attorneyStatus.mutate('suspend')}>
-                Приостановить адвоката
-              </Button>
-            )}
-          </>
+            <RowMenu items={more} text="Ещё" label="Ещё действия" />
+          </div>
         }
       />
       {active && r.reviewerId && !mine ? (
@@ -530,37 +535,29 @@ export default function VerificationCardPage() {
             <CardTitle>Документы</CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="divide-y divide-line text-sm">
-              {r.documents.map((d) => (
-                <li key={d.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="flex items-start gap-3">
-                    <FileText size={18} weight="light" className="mt-0.5 shrink-0 text-faint" />
-                    <div>
-                    <div className="text-ink">
-                      {DOC_TYPE[d.docType] ?? d.docType}
-                      {d.side ? ` (${d.side === 'front' ? 'лицевая' : 'оборот'})` : ''}
-                      {d.stateCode ? ` · ${d.stateCode}` : ''}
-                    </div>
-                    <div className="text-xs text-muted">
-                      {d.mime} · {(d.sizeBytes / 1024).toFixed(0)} KB · {formatDateTime(d.createdAt)}
-                      {d.scanStatus !== 'clean' ? ` · антивирус: ${label(SCAN_STATUS, d.scanStatus)}` : ''}
-                    </div>
-                    {d.notes ? <div className="mt-1 text-xs text-ink">Комментарий адвоката: {d.notes}</div> : null}
-                    {d.docType === 'selfie' ? <SelfieCaptureNote capture={d.capture} /> : null}
-                    </div>
-                  </div>
-                  <Button size="sm" variant="outline" disabled={openDocument.isPending || d.scanStatus !== 'clean'} onClick={() => openDocument.mutate(d.id)}>
-                    Открыть
-                  </Button>
-                </li>
-              ))}
-              {r.documents.length === 0 ? <li className="py-2 text-muted">Нет документов</li> : null}
-            </ul>
-            {/* Owner 2026-11-04 (R-393): thumbnails two per row, a click opens them full-screen. */}
+            {/* Owner 2026-11-04 (R-393): thumbnails two per row, a click opens them full-screen.
+                Row 57: the documents are shown once — each thumbnail carries what the list row
+                said and its «Открыть»; the registry link is in «Лицензии» (the copy chips stay
+                here, the full-screen viewer keeps its quick registry button). */}
             <DocumentGallery
               requestId={r.id}
               documents={r.documents}
-              actions={<RegistryActions card={r} />}
+              empty={<p className="text-sm text-muted">Нет документов</p>}
+              meta={(d) => (
+                <div className="mt-1 space-y-1 text-center text-xs" data-testid="document-meta">
+                  <div className="text-muted">
+                    {d.stateCode ? `${d.stateCode} · ` : ''}
+                    {d.mime} · {(d.sizeBytes / 1024).toFixed(0)} KB · {formatDateTime(d.createdAt)}
+                    {d.scanStatus !== 'clean' ? ` · антивирус: ${label(SCAN_STATUS, d.scanStatus)}` : ''}
+                  </div>
+                  {d.notes ? <div className="text-ink">Комментарий адвоката: {d.notes}</div> : null}
+                  {d.docType === 'selfie' ? <div className="flex justify-center"><SelfieCaptureNote capture={d.capture} /></div> : null}
+                  <Button size="sm" variant="outline" disabled={openDocument.isPending || d.scanStatus !== 'clean'} onClick={() => openDocument.mutate(d.id)}>
+                    Открыть
+                  </Button>
+                </div>
+              )}
+              actions={<RegistryActions card={r} showRegistry={false} />}
               lastSlide={<RegistryActions card={r} tone="overlay" />}
             />
           </CardContent>
@@ -569,7 +566,7 @@ export default function VerificationCardPage() {
       </div>
       {/* Owner 2026-10-05: the attorney's trust level, holds and the verifier's actions. */}
       <FadeIn i={2} className="mt-4">
-        <TrustPanel attorneyId={r.attorney.id} />
+        <TrustPanel attorneyId={r.attorney.id} embedded />
       </FadeIn>
       <section>
         <SectionTitle>Лицензии</SectionTitle>
@@ -597,11 +594,14 @@ export default function VerificationCardPage() {
                       <Badge tone="warning">Номер не по формату штата — проверить вручную</Badge>
                     </div>
                   ) : null}
-                  {l.lookupUrl ? (
-                    <a href={l.lookupUrl} target="_blank" rel="noreferrer" className="mt-1 block font-sans text-primary underline">
-                      Открыть в коллегии штата
-                    </a>
-                  ) : null}
+                  {/* Row 57: the one registry link of this licence (it was also under the
+                      documents and in «Борьба с мошенниками»); it opens in the one
+                      registry tab, like the viewer's quick button. */}
+                  <LicenseRegistryLink
+                    url={l.lookupUrl}
+                    barNumber={l.barNumber}
+                    lookup={lookups.find((x) => x.stateCode === l.stateCode && x.barNumber === l.barNumber)}
+                  />
                 </Td>
                 <Td>
                   <StatusPill map={LICENSE_STATUS} value={l.status} />

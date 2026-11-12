@@ -38,16 +38,21 @@ import { Dialog } from '@/components/ui/dialog';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { LEAD_KIND, LEAD_SOURCE, LEAD_STATUS, TEMPLATE_KIND, usd } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Tab = 'leads' | 'team' | 'templates' | 'settings';
 type StatusTab = 'all' | 'due' | LeadStatus;
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const LEAD_SORT = ['contact', 'reach', 'where', 'status', 'partner', 'activity'] as const;
+const TEAM_SORT = ['partner', 'leads', 'calls', 'emails', 'replied', 'registered', 'paid', 'commission', 'activity'] as const;
+const TEMPLATE_SORT = ['name', 'kind', 'subject', 'active'] as const;
 
 /**
  * Outreach: a base of attorneys and clients to call and email, handed out
@@ -157,7 +162,15 @@ function Leads({ ctx }: { ctx: OutreachContext }) {
       (await api.GET('/admin/outreach/leads', { params: { query: { ...filters, cursor: pageParam } } })).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(LEAD_SORT, 'leadSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    contact: (l) => leadName(l),
+    reach: (l) => l.phone ?? l.email,
+    where: (l) => [l.city, l.stateCode].filter(Boolean).join(', ') || null,
+    status: (l) => LEAD_STATUS[l.status] ?? l.status,
+    partner: (l) => partnerName(l.partner),
+    activity: (l) => l.lastActivityAt,
+  });
   const cols = manager ? 7 : 6;
 
   const toggle = (id: string) =>
@@ -257,12 +270,12 @@ function Leads({ ctx }: { ctx: OutreachContext }) {
                   />
                 </Th>
               ) : null}
-              <Th>Контакт</Th>
-              <Th>Связь</Th>
-              <Th>Где</Th>
-              <Th>Статус</Th>
-              <Th>Сотрудник</Th>
-              <Th>Активность</Th>
+              <SortTh {...header('contact')}>Контакт</SortTh>
+              <SortTh {...header('reach')}>Связь</SortTh>
+              <SortTh {...header('where')}>Где</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('partner')}>Сотрудник</SortTh>
+              <SortTh {...header('activity')}>Активность</SortTh>
             </tr>
           </thead>
           <tbody>
@@ -691,6 +704,18 @@ function Team({ manager }: { manager: boolean }) {
   const t = stats.data?.totals;
   const funnel = stats.data?.byStatus ?? {};
   const total = Object.values(funnel).reduce((a, b) => a + b, 0);
+  const { sort, header } = useTableSort(TEAM_SORT, 'teamSort');
+  const people = sortRows(stats.data?.partners ?? [], sort, {
+    partner: (p) => (p.partner ? partnerName(p.partner) : 'не назначены'),
+    leads: (p) => p.leads,
+    calls: (p) => p.calls,
+    emails: (p) => p.emails,
+    replied: (p) => p.replied,
+    registered: (p) => p.registered,
+    paid: (p) => p.paid,
+    commission: (p) => p.commissionCents,
+    activity: (p) => p.lastActivityAt,
+  });
 
   return (
     <>
@@ -728,15 +753,15 @@ function Team({ manager }: { manager: boolean }) {
       <Table>
         <thead>
           <tr>
-            <Th>Сотрудник</Th>
-            <Th>Контактов</Th>
-            <Th>Звонков</Th>
-            <Th>Писем</Th>
-            <Th>Ответили</Th>
-            <Th>Регистраций</Th>
-            <Th>Оплат</Th>
-            <Th>Комиссии</Th>
-            <Th>Последняя активность</Th>
+            <SortTh {...header('partner')}>Сотрудник</SortTh>
+            <SortTh {...header('leads')}>Контактов</SortTh>
+            <SortTh {...header('calls')}>Звонков</SortTh>
+            <SortTh {...header('emails')}>Писем</SortTh>
+            <SortTh {...header('replied')}>Ответили</SortTh>
+            <SortTh {...header('registered')}>Регистраций</SortTh>
+            <SortTh {...header('paid')}>Оплат</SortTh>
+            <SortTh {...header('commission')}>Комиссии</SortTh>
+            <SortTh {...header('activity')}>Последняя активность</SortTh>
           </tr>
         </thead>
         <tbody>
@@ -746,7 +771,7 @@ function Team({ manager }: { manager: boolean }) {
             <TableEmpty colSpan={9}>За период активности не было.</TableEmpty>
           ) : (
             <>
-              {stats.data.partners.map((p) => {
+              {people.map((p) => {
                 const idle = p.calls + p.emails === 0 && p.leads > 0 && !!p.partner;
                 return (
                   <tr key={p.partner?.id ?? 'none'} className={idle ? 'bg-danger-soft/30' : undefined}>
@@ -814,6 +839,13 @@ function Templates() {
     queryFn: async () => (await api.GET('/admin/outreach/templates')).data!.data,
   });
   const [editing, setEditing] = useState<OutreachTemplate | 'new' | null>(null);
+  const { sort, header } = useTableSort(TEMPLATE_SORT, 'templateSort');
+  const templates = sortRows(list.data ?? [], sort, {
+    name: (t) => t.name,
+    kind: (t) => TEMPLATE_KIND[t.kind] ?? t.kind,
+    subject: (t) => t.subject,
+    active: (t) => t.active,
+  });
   const toggle = useMutation({
     mutationFn: async (t: OutreachTemplate) =>
       (
@@ -843,10 +875,10 @@ function Templates() {
         <Table>
           <thead>
             <tr>
-              <Th>Название</Th>
-              <Th>Кому</Th>
-              <Th>Тема</Th>
-              <Th>Включён</Th>
+              <SortTh {...header('name')}>Название</SortTh>
+              <SortTh {...header('kind')}>Кому</SortTh>
+              <SortTh {...header('subject')}>Тема</SortTh>
+              <SortTh {...header('active')}>Включён</SortTh>
               <Th />
             </tr>
           </thead>
@@ -854,7 +886,7 @@ function Templates() {
             {list.isPending ? (
               <TableEmpty colSpan={5} loading />
             ) : (
-              list.data?.map((t) => (
+              templates.map((t) => (
                 <tr key={t.id}>
                   <Td className="font-medium text-ink">{t.name}</Td>
                   <Td className="text-xs text-muted">{TEMPLATE_KIND[t.kind]}</Td>

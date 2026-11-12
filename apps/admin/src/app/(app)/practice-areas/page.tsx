@@ -10,10 +10,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { cn } from '@/lib/utils';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['code', 'name', 'order', 'attorneys', 'cases', 'posts', 'status'] as const;
 
 /** A sort value is a whole number ≥ 0; empty or decimal input is refused. */
 function parseSort(raw: string): number | null {
@@ -96,10 +100,20 @@ export default function PracticeAreasPage() {
     );
     if (ok) update.mutate({ id: p.id, isActive: !p.isActive });
   };
-  const rows = useMemo(() => {
+  const filtered = useMemo(() => {
     const f = filter.trim().toLowerCase();
     return (list.data ?? []).filter((p) => !f || p.code.includes(f) || p.nameEn.toLowerCase().includes(f));
   }, [list.data, filter]);
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(filtered, sort, {
+    code: (p) => p.code,
+    name: (p) => p.nameEn,
+    order: (p) => p.sort,
+    attorneys: (p) => p.attorneys,
+    cases: (p) => p.cases,
+    posts: (p) => p.posts,
+    status: (p) => (p.isActive ? 'включена' : 'выключена'),
+  });
   const total = list.data?.length ?? 0;
 
   return (
@@ -141,13 +155,13 @@ export default function PracticeAreasPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Код</Th>
-            <Th>Название</Th>
-            <Th>Порядок</Th>
-            <Th>Адвокаты</Th>
-            <Th>Кейсы</Th>
-            <Th>Посты</Th>
-            <Th>Статус</Th>
+            <SortTh {...header('code')}>Код</SortTh>
+            <SortTh {...header('name')}>Название</SortTh>
+            <SortTh {...header('order')}>Порядок</SortTh>
+            <SortTh {...header('attorneys')}>Адвокаты</SortTh>
+            <SortTh {...header('cases')}>Кейсы</SortTh>
+            <SortTh {...header('posts')}>Посты</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
           </tr>
         </thead>
         <tbody>

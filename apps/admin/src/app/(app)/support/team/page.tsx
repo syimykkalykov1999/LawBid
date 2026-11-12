@@ -10,13 +10,18 @@ import { Badge, Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, Td } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 
 type Days = '7' | '30' | '90';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const AGENT_SORT_KEYS = ['name', 'shift', 'open', 'max'] as const;
+const STAT_SORT_KEYS = ['name', 'replies', 'first', 'firstTime', 'resolved', 'breaches'] as const;
 
 /** Who is on shift (new tickets go to them) and what each person did. */
 export default function SupportTeamPage() {
@@ -55,6 +60,22 @@ export default function SupportTeamPage() {
     },
     onError: (e) => toast.error(e),
   });
+  const agentSort = useTableSort(AGENT_SORT_KEYS, 'agentSort');
+  const agentRows = sortRows(agents.data ?? [], agentSort.sort, {
+    name: (a) => a.name,
+    shift: (a) => a.onShift,
+    open: (a) => a.openTickets,
+    max: (a) => a.maxOpen,
+  });
+  const statSort = useTableSort(STAT_SORT_KEYS, 'statSort');
+  const statRows = sortRows(stats.data ?? [], statSort.sort, {
+    name: (s) => s.name,
+    replies: (s) => s.replies,
+    first: (s) => s.firstResponses,
+    firstTime: (s) => s.medianFirstResponseMinutes ?? null,
+    resolved: (s) => s.resolved,
+    breaches: (s) => s.slaBreaches,
+  });
 
   return (
     <>
@@ -86,14 +107,14 @@ export default function SupportTeamPage() {
             <Table>
               <thead>
                 <tr>
-                  <Th>Сотрудник</Th>
-                  <Th>На смене</Th>
-                  <Th className="text-right">Открыто сейчас</Th>
-                  <Th className="text-right">Берёт не больше</Th>
+                  <SortTh {...agentSort.header('name')}>Сотрудник</SortTh>
+                  <SortTh {...agentSort.header('shift')}>На смене</SortTh>
+                  <SortTh {...agentSort.header('open')} className="text-right">Открыто сейчас</SortTh>
+                  <SortTh {...agentSort.header('max')} className="text-right">Берёт не больше</SortTh>
                 </tr>
               </thead>
               <tbody>
-                {(agents.data ?? []).map((a) => (
+                {agentRows.map((a) => (
                   <tr key={a.adminId}>
                     <Td className="min-w-40 break-words">
                       {a.name}
@@ -166,16 +187,16 @@ export default function SupportTeamPage() {
             <Table>
               <thead>
                 <tr>
-                  <Th>Сотрудник</Th>
-                  <Th className="text-right">Ответов</Th>
-                  <Th className="text-right">Первых ответов</Th>
-                  <Th className="text-right">Время первого ответа</Th>
-                  <Th className="text-right">Решено</Th>
-                  <Th className="text-right">Просрочено</Th>
+                  <SortTh {...statSort.header('name')}>Сотрудник</SortTh>
+                  <SortTh {...statSort.header('replies')} className="text-right">Ответов</SortTh>
+                  <SortTh {...statSort.header('first')} className="text-right">Первых ответов</SortTh>
+                  <SortTh {...statSort.header('firstTime')} className="text-right">Время первого ответа</SortTh>
+                  <SortTh {...statSort.header('resolved')} className="text-right">Решено</SortTh>
+                  <SortTh {...statSort.header('breaches')} className="text-right">Просрочено</SortTh>
                 </tr>
               </thead>
               <tbody>
-                {(stats.data ?? []).map((s) => (
+                {statRows.map((s) => (
                   <tr key={s.adminId}>
                     <Td className="min-w-40 break-words">
                       {s.name}

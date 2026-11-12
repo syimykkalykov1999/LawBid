@@ -27,6 +27,36 @@ export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCell
   );
 }
 
+/**
+ * Owner 2026-11-12 (row 57): a header that sorts its column on click — the
+ * same cell as `Th` with the title as a button and a small arrow
+ * (↑ ascending, ↓ descending, ↕ not sorted by it). State: lib/table-sort.ts.
+ */
+export function SortTh({
+  sorted,
+  onSort,
+  children,
+  className,
+  ...props
+}: React.ThHTMLAttributes<HTMLTableCellElement> & { sorted: 'asc' | 'desc' | null; onSort: () => void }) {
+  return (
+    <Th aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'} className={className} {...props}>
+      <button
+        type="button"
+        onClick={onSort}
+        title={sorted === 'asc' ? 'По возрастанию — нажмите, чтобы по убыванию' : sorted === 'desc' ? 'По убыванию — нажмите, чтобы как было' : 'Сортировать по этой колонке'}
+        className={cn('inline-flex items-center gap-1 uppercase tracking-[inherit] transition-colors hover:text-ink', sorted ? 'text-ink' : '')}
+        data-testid="sort-header"
+      >
+        {children}
+        <span aria-hidden className={cn('text-[10px] leading-none', sorted ? '' : 'opacity-40')}>
+          {sorted === 'asc' ? '↑' : sorted === 'desc' ? '↓' : '↕'}
+        </span>
+      </button>
+    </Th>
+  );
+}
+
 export function Td({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
   return <td className={cn('border-b border-line px-3 py-3 align-top sm:px-4', className)} {...props} />;
 }

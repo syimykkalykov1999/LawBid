@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
 import { Input, Label, Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { growthError } from '@/components/growth/errors';
 import { api, errorText } from '@/lib/api/client';
@@ -20,6 +20,7 @@ import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { StatusPill } from '@/lib/labels';
 import { can } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Row = components['schemas']['AdminChannelRowDto'];
@@ -27,6 +28,8 @@ type Status = components['schemas']['AdminChannelStatus'];
 
 const STATUS: Record<string, string> = { active: 'работает', hidden: 'скрыт из поиска', banned: 'закрыт' };
 const POST_STATUS: Record<string, string> = { active: 'виден', hidden: 'скрыт', removed: 'удалён' };
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['title', 'owner', 'subscribers', 'posts', 'reports', 'status', 'created'] as const;
 
 /** Channels (Telegram-style): search, hide from search, close, remove posts. */
 export function ChannelsPanel() {
@@ -48,7 +51,16 @@ export function ChannelsPanel() {
       (await api.GET('/admin/media/channels', { params: { query: { cursor: pageParam, status: status || undefined, q: q || undefined } } })).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows: Row[] = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS, 'channelsSort');
+  const rows: Row[] = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    title: (c) => c.title,
+    owner: (c) => c.ownerName || c.ownerId.slice(0, 8),
+    subscribers: (c) => c.subscriberCount,
+    posts: (c) => c.postCount,
+    reports: (c) => c.openReports,
+    status: (c) => STATUS[c.status] ?? c.status,
+    created: (c) => c.createdAt,
+  });
 
   const detail = useQuery({
     queryKey: ['media-channel', openId],
@@ -143,13 +155,19 @@ export function ChannelsPanel() {
         <Table>
           <thead>
             <tr>
-              <Th>Канал</Th>
-              <Th>Владелец</Th>
-              <Th className="text-right">Подписчики</Th>
-              <Th className="text-right">Посты</Th>
-              <Th className="text-right">Жалобы</Th>
-              <Th>Статус</Th>
-              <Th>Создан</Th>
+              <SortTh {...header('title')}>Канал</SortTh>
+              <SortTh {...header('owner')}>Владелец</SortTh>
+              <SortTh {...header('subscribers')} className="text-right">
+                Подписчики
+              </SortTh>
+              <SortTh {...header('posts')} className="text-right">
+                Посты
+              </SortTh>
+              <SortTh {...header('reports')} className="text-right">
+                Жалобы
+              </SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('created')}>Создан</SortTh>
               {canWrite ? <Th /> : null}
             </tr>
           </thead>
