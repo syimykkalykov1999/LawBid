@@ -123,7 +123,9 @@ void main() {
       find.text('Tick the face comparison consent to take the selfie.'),
       findsOneWidget,
     );
-    final consent = find.byKey(const ValueKey('verification-biometric-consent'));
+    final consent = find.byKey(
+      const ValueKey('verification-biometric-consent'),
+    );
     await tester.ensureVisible(consent);
     await tester.tap(consent);
     await tester.pumpAndSettle();
