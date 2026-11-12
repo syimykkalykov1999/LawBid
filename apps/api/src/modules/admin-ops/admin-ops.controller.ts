@@ -8,7 +8,11 @@ import {
   HttpStatus,
   Patch,
   Post,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { boardEtag, notModified } from '../../common/sync/cheap-etag';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -308,8 +312,15 @@ export class AdminOpsController {
   @Get()
   @ApiOperation({ summary: 'Traffic lights of every part of the system' })
   @ApiEnvelopeResponse(SystemHealthDto)
-  getSystemHealth(): Promise<SystemHealthDto> {
-    return this.health.cachedReport();
+  async getSystemHealth(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<SystemHealthDto | undefined> {
+    // 12.11: tag from the meaning (cheap-etag boardEtag), so an unchanged
+    // board answers 304 although every rebuild stamps a new generatedAt.
+    const report = await this.health.cachedReport();
+    if (notModified(req, res, boardEtag(report))) return undefined;
+    return report;
   }
 
   @Get('scale')

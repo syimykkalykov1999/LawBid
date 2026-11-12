@@ -9,7 +9,11 @@ import {
   Patch,
   Post,
   Put,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { boardEtag, notModified } from '../../common/sync/cheap-etag';
 import type { Prisma } from '@prisma/client';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -77,9 +81,16 @@ export class AdminSpendController {
       'Every billable item: real month cost, forecast, live Выкл/Вкл/Авто state, steps',
   })
   @ApiEnvelopeResponse(CostRegistryReportDto)
-  registryReport(): Promise<CostRegistryReportDto> {
+  async registryReport(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<CostRegistryReportDto | undefined> {
     // R-370: the shared copy (≤ 60 s old, refreshed in the background).
-    return this.registry.cachedReport();
+    // 12.11: 185 KB; every rebuild stamped generatedAt and each row's
+    // status.checkedAt, so it never answered 304 (cheap-etag boardEtag).
+    const report = await this.registry.cachedReport();
+    if (notModified(req, res, boardEtag(report))) return undefined;
+    return report;
   }
 
   @Patch('registry/:id/mode')
