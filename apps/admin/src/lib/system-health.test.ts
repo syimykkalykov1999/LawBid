@@ -27,6 +27,23 @@ describe('status board wording', () => {
     expect(ws.todo).toBeTruthy();
   });
 
+  it('admin switch audit 12.11: backup, second database and cost cards tell the current truth', () => {
+    const backupGrey = word({ key: 'backup', status: 'grey', detail: {} } as never);
+    expect(backupGrey.line).not.toContain('после запуска на AWS');
+    expect(word({ key: 'backup', status: 'red', detail: { ageHours: 80, maxHours: 26 } } as never).todo).toContain('RDS');
+    const shard = (shardsMode: string | undefined, extra: Record<string, unknown> = {}) =>
+      word({ key: 'shard_growth', status: 'red', detail: { ratio: 1.1, shardsMode, ...extra } } as never).todo ?? '';
+    expect(shard('auto')).toContain('создаст её сам');
+    expect(shard('auto')).not.toContain('Terraform');
+    expect(shard('off')).toContain('Выкл');
+    expect(shard('on')).toContain('создаётся');
+    const plan = { targetReady: true, plan: { shards: 64, rows: 1e6, estimatedSeconds: 120 } };
+    expect(shard('auto', plan)).toContain('начнётся само');
+    expect(shard('off', plan)).toContain('сам не запускается');
+    expect(word({ key: 'cost', status: 'grey', detail: { configured: true } } as never).line).toContain('ещё не прислал');
+    expect(word({ key: 'cost', status: 'grey', detail: { configured: false } } as never).line).toContain('после запуска на AWS');
+  });
+
   it('e-mail card says SES sandbox plainly (08.11)', () => {
     const sandbox = word({
       key: 'email',

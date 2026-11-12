@@ -2282,10 +2282,13 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     control: {
       type: 'app-setting',
       key: 'moderation.image.enabled',
-      map: { off: false, on: true },
+      // Admin switch audit 12.11: the setting is Выкл / Вкл / Авто (default
+      // auto, readSwitchMode); the row had only true / false, so a fresh
+      // install showed «своё значение» and Авто could not be picked back.
+      map: { off: 'off', on: 'on', auto: 'auto' },
     },
-    states: ['off', 'on'],
-    defaultState: 'on',
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
     ceiling: setCeil(
       'budget.image_moderation.monthly_max',
       'Лимит проверок в месяц (админка → Лимиты)',
