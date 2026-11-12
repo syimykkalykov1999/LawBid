@@ -7,8 +7,10 @@
  * test (__fixtures__/presets) built from the real page structure captured
  * on 2026-10-28.
  *
- * A preset is only used when the admin picks «Готовый: официальный сайт
- * штата» for that state AND switches the state on — all start OFF.
+ * A preset is used when the admin picks «Готовый: официальный сайт
+ * штата» and switches the state on, or — owner 2026-11-12, free sources
+ * ON by default — when nothing is saved for the state and its terms,
+ * robots.txt and bot protection allow it (freeDefaultAdapter below).
  * States not listed here stay manual (MANUAL_REASONS says why): the
  * verifier gets «Открыть в реестре» with a direct link where one exists.
  */
@@ -348,11 +350,68 @@ export const MANUAL_REASONS: Readonly<Record<string, string>> = {
   WY: 'Сайт блокирует автоматические запросы.',
 };
 
+/**
+ * Owner 2026-11-12 (row 54, docs/dev/BAR_SOURCES_2026-11-12.md): the site's
+ * own terms forbid robots or commercial use of the directory. Such a state
+ * is never asked automatically, whatever the admin picks; it stays on the
+ * manual lookup link. The preset settings stay (nothing built is removed)
+ * in case the bar later allows automated access.
+ */
+export const PRESET_TERMS_BAN: Readonly<Record<string, string>> = {
+  IN: 'Условия Roll of Attorneys (in.gov/courts/policies/tou-roll-of-attorneys) запрещают роботов и сбор данных. Проверка вручную по ссылке.',
+  MS: 'Условия msbar.org разрешают только личное некоммерческое использование. Проверка вручную по ссылке.',
+  TX: 'Условия texasbar.com запрещают автоматический сбор данных и коммерческое использование. Проверка вручную по ссылке.',
+};
+
+/**
+ * Owner 2026-11-12: a bot-protection service (Cloudflare bot management)
+ * sits in front of the site. We never work around it, so these presets are
+ * not switched on by default; the admin may still switch one on (a plain
+ * request, no bypass), and a challenge then simply sends the license to a
+ * verifier.
+ */
+export const PRESET_BOT_WALL: Readonly<Record<string, string>> = {
+  CO: 'Перед сайтом Cloudflare (защита от ботов) — по умолчанию выключено.',
+  FL: 'Перед сайтом Cloudflare (защита от ботов, ответ 429) — по умолчанию выключено.',
+  MO: 'Перед сайтом Cloudflare (защита от ботов) — по умолчанию выключено.',
+  ND: 'Перед сайтом Cloudflare (защита от ботов) — по умолчанию выключено.',
+};
+
+/** A preset that may be run at all (terms do not forbid it). */
+export function presetAllowed(stateCode: string): boolean {
+  return Boolean(STATE_PRESETS[stateCode]) && !PRESET_TERMS_BAN[stateCode];
+}
+
+/**
+ * Owner 2026-11-12: every FREE official source is ON by default. A state
+ * without a saved row in the admin uses this adapter; a saved row (on or
+ * off) always wins. NY = the official open dataset; the others = the
+ * state's public lookup page whose terms and robots.txt allow it and
+ * which has no captcha or bot wall.
+ */
+export function freeDefaultAdapter(
+  stateCode: string,
+): 'ny_open_data' | 'state_preset' | null {
+  if (stateCode === 'NY') return 'ny_open_data';
+  if (presetAllowed(stateCode) && !PRESET_BOT_WALL[stateCode]) {
+    return 'state_preset';
+  }
+  return null;
+}
+
+/** States checked automatically with nothing saved in the admin. */
+export const FREE_DEFAULT_STATES: readonly string[] = [
+  'NY',
+  ...Object.keys(STATE_PRESETS).filter((c) => freeDefaultAdapter(c)),
+].sort();
+
 export type RegistrySupport =
   | {
       mode: 'automatic';
       adapter: 'ny_open_data' | 'state_preset';
       note: string;
+      /** On with nothing saved in the admin (owner 2026-11-12). */
+      defaultOn: boolean;
     }
   | { mode: 'manual'; reason: string };
 
@@ -362,11 +421,22 @@ export function registrySupport(stateCode: string): RegistrySupport {
     return {
       mode: 'automatic',
       adapter: 'ny_open_data',
-      note: 'Открытые данные data.ny.gov (официальный набор, без ключа).',
+      note: 'Открытые данные data.ny.gov (официальный набор, без ключа). Включено по умолчанию.',
+      defaultOn: true,
     };
   }
+  const ban = PRESET_TERMS_BAN[stateCode];
+  if (ban) return { mode: 'manual', reason: ban };
   const p = STATE_PRESETS[stateCode];
-  if (p) return { mode: 'automatic', adapter: 'state_preset', note: p.note };
+  if (p) {
+    const wall = PRESET_BOT_WALL[stateCode];
+    return {
+      mode: 'automatic',
+      adapter: 'state_preset',
+      note: wall ? `${p.note} ${wall}` : `${p.note} Включено по умолчанию.`,
+      defaultOn: !wall,
+    };
+  }
   return {
     mode: 'manual',
     reason: MANUAL_REASONS[stateCode] ?? 'Автоматическая проверка не найдена.',

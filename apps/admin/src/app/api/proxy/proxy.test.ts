@@ -131,6 +131,9 @@ describe('admin proxy', () => {
   it('passes the ETag and If-None-Match so a 304 reaches the browser', async () => {
     const f = vi.fn(async (_u: unknown, init: RequestInit) => {
       expect((init.headers as Headers).get('if-none-match')).toBe('W/"adm-1"');
+      // Without it Node's fetch adds `Cache-Control: no-cache` and Express
+      // never answers 304 (req.fresh is false for no-cache).
+      expect((init.headers as Headers).get('cache-control')).toBe('max-age=0');
       return new Response(null, { status: 304, headers: { etag: 'W/"adm-1"' } });
     });
     vi.stubGlobal('fetch', f);

@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -36,9 +37,16 @@ import {
 } from '../providers/bar-lookup/state-bar-adapter';
 import { ratePerMinute } from '../providers/bar-lookup/state-preset.adapter';
 import {
+  freeDefaultAdapter,
+  presetAllowed,
+  PRESET_TERMS_BAN,
   registrySupport,
   STATE_PRESETS,
 } from '../providers/bar-lookup/state-presets';
+import {
+  PAID_BAR_VENDORS,
+  PaidBarVendorService,
+} from '../providers/bar-lookup/paid-bar-vendors';
 
 /** Runtime settings are re-read at most this often per process. */
 const CACHE_MS = 30_000;
@@ -85,6 +93,10 @@ function bad(message: string, field?: string): BadRequestException {
 export class StateRegistryService {
   private readonly envelope: SecretEnvelope | null;
   private readonly allowLocal: boolean;
+  /** Owner 2026-11-12: free sources ON for a state with nothing saved.
+   * BAR_REGISTRY_FREE_DEFAULTS=off turns it off; tests (NODE_ENV=test)
+   * start with it off so CI never asks a live registry. */
+  private readonly freeDefaults: boolean;
   private cache: { at: number; rows: Map<string, StateBarRegistry> } | null =
     null;
 
@@ -94,6 +106,7 @@ export class StateRegistryService {
     @Inject(STATE_BAR_ADAPTERS)
     private readonly adapters: readonly StateBarAdapter[],
     private readonly guard: RegistryGuard = new RegistryGuard(),
+    @Optional() private readonly vendors?: PaidBarVendorService,
   ) {
     const keys = readKey('SECRETS_MASTER_KEYS', () =>
       config.get<string>('SECRETS_MASTER_KEYS'),
@@ -101,6 +114,10 @@ export class StateRegistryService {
     const kid = config.get<string>('SECRETS_ACTIVE_KID');
     this.envelope = keys && kid ? new SecretEnvelope(keys, kid) : null;
     this.allowLocal = config.get<string>('NODE_ENV') !== 'production';
+    const defaults = config.get<string>('BAR_REGISTRY_FREE_DEFAULTS');
+    this.freeDefaults = defaults
+      ? defaults !== 'off'
+      : (config.get<string>('NODE_ENV') ?? process.env.NODE_ENV) !== 'test';
   }
 
   get secretsEnabled(): boolean {
@@ -109,24 +126,71 @@ export class StateRegistryService {
 
   // --- runtime ---------------------------------------------------------------
 
-  /** The enabled automatic registry of [stateCode], or null (manual). */
+  /**
+   * The automatic registry of [stateCode], or null (manual): the admin's
+   * saved row when it is on; with nothing saved, the free default (owner
+   * 2026-11-12: free sources ON); then a paid service the owner switched
+   * on (paid-bar-vendors.ts, all OFF by default).
+   */
   async resolve(stateCode: string): Promise<ResolvedRegistry | null> {
+    const own = await this.freeRegistry(stateCode);
+    if (own) return own;
+    return (await this.vendors?.resolve(stateCode).catch(() => null)) ?? null;
+  }
+
+  /** The state's own (free or keyed) registry, without paid services. */
+  private async freeRegistry(
+    stateCode: string,
+  ): Promise<ResolvedRegistry | null> {
     const row = (await this.rows()).get(stateCode);
-    if (!row || !row.enabled || row.adapter === 'manual') return null;
-    return this.resolved(row);
+    if (row) return this.isOn(row) ? this.resolved(row) : null;
+    return this.defaultRegistry(stateCode);
+  }
+
+  /** A saved row asks its registry (never a state whose terms forbid it). */
+  private isOn(row: StateBarRegistry): boolean {
+    if (!row.enabled || row.adapter === 'manual') return false;
+    return !(
+      row.adapter === 'state_preset' && PRESET_TERMS_BAN[row.state_code]
+    );
+  }
+
+  /** The free default of a state with nothing saved, or null. */
+  private defaultRegistry(stateCode: string): ResolvedRegistry | null {
+    if (!this.freeDefaults) return null;
+    const adapter = freeDefaultAdapter(stateCode);
+    return adapter ? { stateCode, adapter, config: {}, secret: null } : null;
   }
 
   /** States checked automatically right now. [bulk]: only those the
    * monthly re-check may sweep (owner 2026-10-28: public web pages are
    * asked once per new license and on an admin's re-check, never in bulk). */
   async enabledStates(opts: { bulk?: boolean } = {}): Promise<string[]> {
-    return [...(await this.rows()).values()]
-      .filter((r) => r.enabled && r.adapter !== 'manual')
-      .filter(
-        (r) =>
-          !opts.bulk || !NO_BULK_RECHECK.has(r.adapter as RegistryAdapterType),
-      )
-      .map((r) => r.state_code);
+    const rows = await this.rows();
+    const on: { code: string; adapter: RegistryAdapterType }[] = [
+      ...rows.values(),
+    ]
+      .filter((r) => this.isOn(r))
+      .map((r) => ({
+        code: r.state_code,
+        adapter: r.adapter as RegistryAdapterType,
+      }));
+    // Owner 2026-11-12: the free defaults of states with nothing saved.
+    // Paid services are never swept in bulk (each lookup costs money).
+    const states = !this.freeDefaults
+      ? []
+      : await this.prisma.state
+          .findMany({ where: { is_active: true }, select: { code: true } })
+          .catch(() => [] as { code: string }[]);
+    for (const { code } of states) {
+      if (rows.has(code)) continue;
+      const d = this.defaultRegistry(code);
+      if (d) on.push({ code, adapter: d.adapter });
+    }
+    return on
+      .filter((r) => !opts.bulk || !NO_BULK_RECHECK.has(r.adapter))
+      .map((r) => r.code)
+      .sort();
   }
 
   /**
@@ -208,6 +272,16 @@ export class StateRegistryService {
     return {
       secretsEnabled: this.secretsEnabled,
       adapterTypes: REGISTRY_ADAPTERS,
+      // Owner 2026-11-12: paid services (switch in «Настройки», key in
+      // «Ключи и сервисы»), all OFF by default.
+      paidVendors: PAID_BAR_VENDORS.map((v) => ({
+        id: v.id,
+        label: v.label,
+        settingKey: v.settingKey,
+        states: v.states,
+        price: v.priceText,
+        signupUrl: v.signupUrl,
+      })),
       items: states.map((s) => this.dto(s.code, s.name, byState.get(s.code))),
       formatMisses: misses.map((m) => ({
         stateCode: m.state_code,
@@ -275,6 +349,12 @@ export class StateRegistryService {
           'adapter',
         );
       }
+      if (desc.type === 'state_preset' && PRESET_TERMS_BAN[state.code]) {
+        throw bad(
+          `${state.name}: the registry's terms forbid automated access, so it stays on the manual lookup link.`,
+          'adapter',
+        );
+      }
       if (
         desc.type === 'html_page' &&
         !config.nameSelector &&
@@ -330,7 +410,7 @@ export class StateRegistryService {
       (c) =>
         c !== src.state_code &&
         // Owner 2026-10-28: a ready-made preset exists only for some states.
-        (src.adapter !== 'state_preset' || Boolean(STATE_PRESETS[c])),
+        (src.adapter !== 'state_preset' || presetAllowed(c)),
     );
     const targets = await this.prisma.state.findMany({
       where: { code: { in: codes } },
@@ -367,7 +447,14 @@ export class StateRegistryService {
     const row = await this.prisma.stateBarRegistry.findUnique({
       where: { state_code: state.code },
     });
-    if (!row || row.adapter === 'manual') {
+    // Owner 2026-11-12: a state on its free default can be tested too.
+    const registry =
+      row && row.adapter !== 'manual'
+        ? this.resolved(row)
+        : !row
+          ? this.defaultRegistry(state.code)
+          : null;
+    if (!registry) {
       throw bad('Pick an automatic adapter and save first.', 'adapter');
     }
     const testedAt = new Date();
@@ -380,7 +467,7 @@ export class StateRegistryService {
           firstName: input.firstName ?? '',
           lastName: input.lastName ?? '',
         },
-        this.resolved(row),
+        registry,
         { fresh: true },
       );
       out = {
@@ -397,16 +484,19 @@ export class StateRegistryService {
         testedAt: testedAt.toISOString(),
       };
     }
-    await this.prisma.stateBarRegistry.update({
-      where: { state_code: state.code },
-      data: {
-        last_test_at: testedAt,
-        last_test_result: JSON.parse(
-          JSON.stringify(out),
-        ) as Prisma.InputJsonObject,
-        test_bar_number: input.barNumber.trim().slice(0, 40),
-      },
-    });
+    const testData = {
+      last_test_at: testedAt,
+      last_test_result: JSON.parse(
+        JSON.stringify(out),
+      ) as Prisma.InputJsonObject,
+      test_bar_number: input.barNumber.trim().slice(0, 40),
+    };
+    if (row) {
+      await this.prisma.stateBarRegistry.update({
+        where: { state_code: state.code },
+        data: testData,
+      });
+    }
     return out;
   }
 
@@ -479,11 +569,16 @@ export class StateRegistryService {
   }
 
   private dto(code: string, name: string, row?: StateBarRegistry) {
+    const fallback = row ? null : this.defaultRegistry(code);
     return {
       stateCode: code,
       stateName: name,
-      adapter: (row?.adapter ?? 'manual') as RegistryAdapterType,
-      enabled: row?.enabled ?? false,
+      adapter: (row?.adapter ??
+        fallback?.adapter ??
+        'manual') as RegistryAdapterType,
+      enabled: row ? this.isOn(row) : fallback !== null,
+      /** Owner 2026-11-12: on by default, nothing saved for the state. */
+      isDefault: !row && fallback !== null,
       config: row ? stringConfig(row.config) : {},
       hasSecret: !!row?.secret_enc,
       secretMasked: row?.secret_masked ?? null,

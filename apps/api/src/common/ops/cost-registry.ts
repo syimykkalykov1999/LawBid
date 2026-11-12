@@ -2252,26 +2252,86 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     id: 'vendor.bar_registries',
     name: 'Проверка лицензий адвокатов по реестрам штатов',
     purpose:
-      'Сверяет номер лицензии и имя с реестром штата после присяги и раз в месяц. Выключено у всех штатов, кроме готовых открытых данных Нью-Йорка.',
+      'Сверяет номер лицензии, имя (с отчеством/вторым именем) и статус с реестром штата после присяги; открытые данные — ещё раз в месяц. Бесплатные источники включены по умолчанию (12.11): NY, AR, CA, NC, OH, OK, OR, PA, WA. Остальные — ручная ссылка (docs/dev/BAR_SOURCES_2026-11-12.md).',
     kind: 'vendor',
     control: fixed(
       'Включается по штатам: Админка → Система → Ключи и сервисы → «Реестры адвокатов по штатам». Общий флаг auto_bar_check («Флаги» → «Автопроверка лицензии адвоката») — главный: выключен — реестры не запрашиваются нигде.',
     ),
     states: ['off', 'on'],
-    defaultState: 'off',
+    defaultState: 'on',
     ceiling: null,
     price: price(
-      'unit',
-      'Нью-Йорк: бесплатно (открытые данные data.ny.gov). Платный API другого штата или сервиса: по вашему договору, цену за проверку надо уточнить у продавца',
+      'free',
+      'Бесплатно: открытые данные data.ny.gov и публичные страницы реестров штатов. Платные сервисы — отдельные строки ниже (выкл.)',
       'https://data.ny.gov/',
       false,
     ),
     usd: { launch: R(0), k100: R(0), m1: R(0) },
     ifOnUsd: R(0),
+    needed: 'yes',
+    neededNote:
+      'Одна проверка на лицензию после присяги; открытые данные — ещё раз в месяц. Лимит запросов в минуту, кэш 24 ч и автопауза при сбоях у каждого штата.',
+    alarm: null,
+  },
+  {
+    id: 'vendor.bar_vendor_microbilt',
+    name: 'Платная проверка лицензий адвокатов (MicroBilt)',
+    purpose:
+      'Статус лицензии адвоката для штатов без бесплатного реестра. Подключено, но выключено до первых пользователей.',
+    kind: 'vendor',
+    control: {
+      type: 'app-setting',
+      key: 'verification.bar_vendor_microbilt_enabled',
+      map: { off: false, on: true },
+    },
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'unit',
+      text: 'По договору: цены на сайте нет, ключи выдаёт MicroBilt Compliance (проверено 12.11.2026)',
+      sourceUrl:
+        'https://www.microbilt.com/product/professional-license-verification',
+      checkedAt: '2026-11-12',
+      verified: false,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 200),
     needed: 'later',
     neededNote:
-      'Нужен, когда у штата появится API. Одна проверка на лицензию после присяги плюс одна в месяц; без ключа штата проверка просто не идёт.',
-    alarm: null,
+      'Только для штатов без бесплатного источника; одна проверка на новую лицензию (кэш 24 ч), в ежемесячную перепроверку не входит. Без ключа и адреса запроса не зовётся.',
+    alarm: 'лимит запросов в минуту на штат (ratePerMin, по умолчанию 10)',
+    providers: ['bar_vendor_microbilt'],
+  },
+  {
+    id: 'vendor.bar_vendor_surepass',
+    name: 'Платная проверка лицензий (Surepass)',
+    purpose:
+      'Статус профессиональной лицензии по номеру и штату для штатов без бесплатного реестра. Подключено, но выключено.',
+    kind: 'vendor',
+    control: {
+      type: 'app-setting',
+      key: 'verification.bar_vendor_surepass_enabled',
+      map: { off: false, on: true },
+    },
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'unit',
+      text: 'По договору: цены на сайте нет, есть бесплатная песочница (проверено 12.11.2026)',
+      sourceUrl:
+        'https://surepass.io/global/usa/professional-license-verification-api/',
+      checkedAt: '2026-11-12',
+      verified: false,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 200),
+    needed: 'later',
+    neededNote:
+      'Перед включением уточнить у Surepass покрытие адвокатских лицензий. Только для штатов без бесплатного источника; кэш 24 ч, без ежемесячной перепроверки.',
+    alarm: 'лимит запросов в минуту на штат (ratePerMin, по умолчанию 10)',
+    providers: ['bar_vendor_surepass'],
   },
   {
     id: 'vendor.rekognition',

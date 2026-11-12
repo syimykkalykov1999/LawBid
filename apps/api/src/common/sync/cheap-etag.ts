@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto';
 import type { Request, Response } from 'express';
+import { stringify as stableStringify } from 'safe-stable-stringify';
 
 /**
  * Owner 2026-10-22 (client economy plan, package D): a "cheap ETag" is
@@ -75,6 +77,67 @@ export async function conditionalGet<T>(
   const body = await build();
   if (tag) res.setHeader('ETag', tag);
   return body;
+}
+
+/**
+ * 12.11 (prod: /admin/system-health, /admin/spend/registry, /admin/infra,
+ * /admin/launch never answered 304): the ETag of an admin BOARD from what
+ * it means, not from its bytes. Every rebuild stamps the time of the check
+ * (`generatedAt`, each registry row's `checkedAt`) and fresh measurements
+ * (`latencyMs`, `lastBeatSec`, `uptimeSec` …), so Express's body hash moved
+ * on every rebuild although no light or number the admin acts on changed.
+ * The tag hashes the body with [volatile] keys left out, object keys sorted
+ * (safe-stable-stringify, MIT) and a [bucketMs] time bucket, so a skipped
+ * measurement is at most one bucket old in the browser. A weak tag
+ * (RFC 9110 §8.8.1: "semantically equivalent") is exactly that promise.
+ */
+export function stableEtag(
+  value: unknown,
+  volatile: ReadonlySet<string>,
+  bucketMs: number,
+  now: number = Date.now(),
+): string {
+  const text =
+    stableStringify(value, (key, v: unknown) =>
+      volatile.has(key) ? undefined : v,
+    ) ?? '';
+  const hash = createHash('sha1').update(text).digest('base64url');
+  return weakEtag('s', hash, timeBucket(bucketMs, now));
+}
+
+/** Keys of an admin board that change on every rebuild without changing
+ * what the admin acts on (the lights carry the thresholds): times of the
+ * check and raw measurements. Listed by name across system-health,
+ * status-probes, the cost registry and the launch checklist. */
+export const BOARD_VOLATILE_KEYS: ReadonlySet<string> = new Set([
+  'generatedAt',
+  'checkedAt',
+  'lastProbeAt',
+  'bloatCheckedAt',
+  'latencyMs',
+  'r2LatencyMs',
+  'answerMs',
+  'connectMs',
+  'p95Ms',
+  'p95Ms1h',
+  'lastBeatSec',
+  'uptimeSec',
+  'memoryMb',
+  'usedMb',
+  'usedPct',
+  'oldestSec',
+  'slowOldestSec',
+  'queueOldestSec',
+  'lagSec',
+  'ageHours',
+]);
+
+/** A skipped measurement is at most this old in the browser. */
+export const BOARD_ETAG_BUCKET_MS = 5 * 60_000;
+
+/** {@link stableEtag} with the board defaults. */
+export function boardEtag(value: unknown, now: number = Date.now()): string {
+  return stableEtag(value, BOARD_VOLATILE_KEYS, BOARD_ETAG_BUCKET_MS, now);
 }
 
 /** A time bucket: put it in a tag so a 304 can never outlive [ms] (covers

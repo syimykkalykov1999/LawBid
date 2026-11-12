@@ -2,6 +2,7 @@ import type { ConfigService } from '@nestjs/config';
 import type { StateBarRegistry } from '@prisma/client';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import type { StateBarAdapter } from '../providers/bar-lookup/state-bar-adapter';
+import type { PaidBarVendorService } from '../providers/bar-lookup/paid-bar-vendors';
 import { StateRegistryService } from './state-registry.service';
 
 // Test-only values (not real credentials).
@@ -13,7 +14,15 @@ const VENDOR_E = 'test-vendor-3333';
 
 const MASTER = 'k1:0123456789abcdef0123456789abcdef';
 
-function setup(opts: { secrets?: boolean; env?: string } = {}) {
+function setup(
+  opts: {
+    secrets?: boolean;
+    env?: string;
+    /** Owner 2026-11-12: free sources ON with nothing saved. */
+    defaults?: boolean;
+    vendors?: PaidBarVendorService;
+  } = {},
+) {
   const rows = new Map<string, StateBarRegistry>();
   const upsert = jest.fn(
     (args: {
@@ -43,15 +52,21 @@ function setup(opts: { secrets?: boolean; env?: string } = {}) {
     },
   );
   const prisma = {
+    barFormatMiss: { findMany: () => Promise.resolve([]) },
     state: {
       findUnique: ({ where }: { where: { code: string } }) =>
         Promise.resolve(
-          ['NY', 'CA', 'TX'].includes(where.code)
+          ['NY', 'CA', 'TX', 'OR', 'WY', 'FL'].includes(where.code)
             ? { code: where.code, name: where.code }
             : null,
         ),
-      findMany: ({ where }: { where: { code: { in: string[] } } }) =>
-        Promise.resolve(where.code.in.map((code) => ({ code, name: code }))),
+      findMany: ({ where }: { where: { code?: { in: string[] } } }) =>
+        Promise.resolve(
+          (where.code?.in ?? ['CA', 'NY', 'OR', 'TX', 'WY']).map((code) => ({
+            code,
+            name: code,
+          })),
+        ),
     },
     stateBarRegistry: {
       findUnique: ({ where }: { where: { state_code: string } }) =>
@@ -63,6 +78,7 @@ function setup(opts: { secrets?: boolean; env?: string } = {}) {
   } as unknown as PrismaService;
   const env: Record<string, string> = {
     NODE_ENV: opts.env ?? 'production',
+    BAR_REGISTRY_FREE_DEFAULTS: opts.defaults ? 'on' : 'off',
     ...(opts.secrets !== false && {
       SECRETS_MASTER_KEYS: MASTER,
       SECRETS_ACTIVE_KID: 'k1',
@@ -78,7 +94,13 @@ function setup(opts: { secrets?: boolean; env?: string } = {}) {
     { type: 'state_preset', lookup: presetLookup },
   ];
   return {
-    service: new StateRegistryService(prisma, config, adapters),
+    service: new StateRegistryService(
+      prisma,
+      config,
+      adapters,
+      undefined,
+      opts.vendors,
+    ),
     rows,
     lookup,
     presetLookup,
@@ -268,12 +290,20 @@ describe('StateRegistryService — ready-made presets (owner 2026-10-28)', () =>
 
   it('dto says why a state stays manual', async () => {
     const s = setup();
+    const or = await s.service.save(
+      'OR',
+      { adapter: 'manual', enabled: false },
+      'a',
+    );
+    expect(or).toMatchObject({ support: 'automatic', presetAvailable: true });
+    // Owner 2026-11-12: Texas's terms forbid automated access.
     const tx = await s.service.save(
       'TX',
       { adapter: 'manual', enabled: false },
       'a',
     );
-    expect(tx).toMatchObject({ support: 'automatic', presetAvailable: true });
+    expect(tx).toMatchObject({ support: 'manual', presetAvailable: false });
+    expect(tx.supportNote).toContain('texasbar.com');
     const ny = await s.service.save(
       'NY',
       { adapter: 'manual', enabled: false },
@@ -327,8 +357,9 @@ describe('StateRegistryService — ready-made presets (owner 2026-10-28)', () =>
   it('copying a ready-made preset skips states without one', async () => {
     const s = setup();
     await s.service.save('CA', { adapter: 'state_preset', enabled: true }, 'a');
-    const out = await s.service.copy('CA', ['NY', 'TX'], 'a');
-    expect(out.copied).toEqual(['TX']);
+    // NY has no preset; TX's terms forbid automated access.
+    const out = await s.service.copy('CA', ['NY', 'TX', 'OR'], 'a');
+    expect(out.copied).toEqual(['OR']);
   });
 
   it('rejects a bad rate and bad header JSON', async () => {
@@ -355,5 +386,118 @@ describe('StateRegistryService — ready-made presets (owner 2026-10-28)', () =>
         'a',
       ),
     ).rejects.toMatchObject({ response: { details: { field: 'headers' } } });
+  });
+});
+
+describe('StateRegistryService — free sources ON, paid OFF (owner 2026-11-12)', () => {
+  const name = { firstName: 'Jane', lastName: 'Example' };
+
+  it('a state with nothing saved uses its free default', async () => {
+    const s = setup({ defaults: true });
+    expect(await s.service.resolve('NY')).toMatchObject({
+      adapter: 'ny_open_data',
+    });
+    expect(await s.service.resolve('CA')).toMatchObject({
+      adapter: 'state_preset',
+    });
+    // Terms forbid it (TX), bot wall (FL), nothing official (WY): manual.
+    expect(await s.service.resolve('TX')).toBeNull();
+    expect(await s.service.resolve('FL')).toBeNull();
+    expect(await s.service.resolve('WY')).toBeNull();
+  });
+
+  it('tests start with the defaults off (CI never asks a live registry)', async () => {
+    const s = setup();
+    expect(await s.service.resolve('NY')).toBeNull();
+    expect(await s.service.enabledStates()).toEqual([]);
+  });
+
+  it("the admin's saved row always wins over the default", async () => {
+    const s = setup({ defaults: true });
+    await s.service.save('CA', { adapter: 'manual', enabled: false }, 'a');
+    expect(await s.service.resolve('CA')).toBeNull();
+    await s.service.save(
+      'CA',
+      { adapter: 'state_preset', enabled: false },
+      'a',
+    );
+    expect(await s.service.resolve('CA')).toBeNull();
+  });
+
+  it('a banned preset cannot be switched on and an old row is ignored', async () => {
+    const s = setup({ defaults: true });
+    await expect(
+      s.service.save('TX', { adapter: 'state_preset', enabled: true }, 'a'),
+    ).rejects.toMatchObject({ response: { details: { field: 'adapter' } } });
+    s.rows.set('TX', {
+      state_code: 'TX',
+      adapter: 'state_preset',
+      enabled: true,
+      config: {},
+      secret_enc: null,
+      secret_masked: null,
+      test_bar_number: null,
+      last_test_at: null,
+      last_test_result: null,
+      updated_by: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+    s.service.invalidate();
+    expect(await s.service.resolve('TX')).toBeNull();
+  });
+
+  it('defaults count in the sweep; public pages are not swept in bulk', async () => {
+    const s = setup({ defaults: true });
+    expect(await s.service.enabledStates()).toEqual(['CA', 'NY', 'OR']);
+    expect(await s.service.enabledStates({ bulk: true })).toEqual(['NY']);
+  });
+
+  it('the list shows a default state as on, marked as the default', async () => {
+    const s = setup({ defaults: true });
+    const out = await s.service.list();
+    const byCode = new Map(out.items.map((i) => [i.stateCode, i]));
+    expect(byCode.get('CA')).toMatchObject({
+      adapter: 'state_preset',
+      enabled: true,
+      isDefault: true,
+    });
+    expect(byCode.get('TX')).toMatchObject({
+      enabled: false,
+      isDefault: false,
+      support: 'manual',
+    });
+    expect(out.paidVendors.map((v) => v.id)).toEqual([
+      'bar_vendor_microbilt',
+      'bar_vendor_surepass',
+    ]);
+  });
+
+  it('the admin can test a state on its default without saving it', async () => {
+    const s = setup({ defaults: true });
+    const out = await s.service.test('CA', { barNumber: '1', ...name });
+    expect(out.result).toBe('pass');
+    expect(s.presetLookup).toHaveBeenCalledTimes(1);
+  });
+
+  it('a paid service is asked only when no free source is on', async () => {
+    const paidResolve = jest.fn().mockResolvedValue({
+      stateCode: 'WY',
+      adapter: 'generic_rest',
+      config: vendor,
+      secret: VENDOR_A,
+    });
+    const paid = { resolve: paidResolve } as unknown as PaidBarVendorService;
+    const s = setup({ defaults: true, vendors: paid });
+    expect(await s.service.resolve('CA')).toMatchObject({
+      adapter: 'state_preset',
+    });
+    expect(paidResolve).not.toHaveBeenCalled();
+    expect(await s.service.resolve('WY')).toMatchObject({
+      adapter: 'generic_rest',
+      secret: VENDOR_A,
+    });
+    // Never in the monthly bulk sweep (each lookup costs money).
+    expect(await s.service.enabledStates()).not.toContain('WY');
   });
 });
