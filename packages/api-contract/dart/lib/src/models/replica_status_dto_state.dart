@@ -8,6 +8,8 @@ import 'package:json_annotation/json_annotation.dart';
 enum ReplicaStatusDtoState {
   @JsonValue('unavailable')
   unavailable('unavailable'),
+  @JsonValue('managed')
+  managed('managed'),
   @JsonValue('off')
   off('off'),
   @JsonValue('creating')

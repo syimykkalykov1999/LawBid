@@ -6,6 +6,7 @@ import {
   parseCeiling,
   poolerLine,
   searchLine,
+  searchNote,
   usageLine,
   type Economy,
   type Health,
@@ -83,6 +84,18 @@ describe('small words', () => {
     expect(searchLine('opensearch')).toBe('OpenSearch');
     expect(searchLine('x')).toBe('x');
   });
+
+  it('the pooler points to the cloud row, not to Terraform', () => {
+    expect(poolerLine({ poolerEnabled: false } as ScaleExtras).line).not.toContain('Terraform');
+  });
+
+  it('the search card says whether the OpenSearch domain runs and who searches', () => {
+    expect(searchNote('postgres', 'on')).toContain('работает и ждёт переключения');
+    expect(searchNote('postgres', 'on')).toContain('PostgreSQL');
+    expect(searchNote('opensearch', 'on')).toContain('работает и ищет');
+    expect(searchNote('postgres', 'off')).toContain('выключен');
+    expect(searchNote('postgres', null)).not.toContain('OpenSearch (облако)');
+  });
 });
 
 describe('usageLine degrades gracefully', () => {
@@ -126,6 +139,14 @@ describe('buildAlarms', () => {
     expect(a.auto.join(' ')).toContain('AWS сам запускает');
     expect(a.action?.action).toEqual({ kind: 'restart' });
     expect(a.span).toContain('идёт 10 мин');
+  });
+
+  it('an old incident of a part that is grey («так и задумано») is not a red problem', () => {
+    const h = health({
+      items: [{ key: 'turn', status: 'grey', detail: { onDemand: true, mode: 'auto' } }] as Health['items'],
+      incidents: [{ id: 't', component: 'turn', openedAt: '2026-10-24T05:58:00Z', closedAt: null, detail: {} }],
+    });
+    expect(buildAlarms(h, economy(), NOW)).toEqual([]);
   });
 
   it('ignores closed incidents and does not repeat a component', () => {

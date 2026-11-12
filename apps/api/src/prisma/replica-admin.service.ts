@@ -21,9 +21,11 @@ import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.constants';
 import { AppSettingsService } from '../common/app-settings/app-settings.service';
 import { replicaLive } from './replica-live';
+import { PrismaReadService } from './prisma-read.service';
 
 export type ReplicaState =
   | 'unavailable' // not on AWS, or the IAM switch is off
+  | 'managed' // copies made by the infra pipeline (DB_REPLICA_HOST)
   | 'off'
   | 'creating'
   | 'on'
@@ -39,6 +41,8 @@ export interface ReplicaStatus {
   /** True while this process really sends reads to the replica. */
   serving: boolean;
   note: string;
+  /** Read copies this process knows (the button's one, or the pipeline's). */
+  copies: number;
 }
 
 const CACHE_KEY = 'ops:db-replica:status';
@@ -76,6 +80,7 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   private env(name: string): string | undefined {
@@ -224,15 +229,45 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
     return s;
   }
 
+  /**
+   * Owner 2026-11-12: the copies the infra pipeline makes (rows
+   * «Копии базы только для чтения» on «Масштаб», Terraform
+   * `growth.rds_read_replicas`) reach the app as DB_REPLICA_HOST (or a full
+   * DATABASE_REPLICA_URL). They are not the button's copy, so the card shows
+   * them as they are instead of «Недоступно».
+   */
+  configuredCopies(): number {
+    if (this.env('DATABASE_REPLICA_URL')) return 1;
+    return (this.env('DB_REPLICA_HOST') ?? '')
+      .split(',')
+      .map((h) => h.trim())
+      .filter(Boolean).length;
+  }
+
+  private managedStatus(): ReplicaStatus | null {
+    const copies = this.configuredCopies();
+    if (copies === 0) return null;
+    const lagMs = this.read?.replicaLagMs ?? null;
+    return decideManaged({
+      copies,
+      serving: this.read?.usingReplica ?? false,
+      lagSeconds: lagMs === null ? null : lagMs / 1000,
+      disabled: this.env('DB_REPLICA_ENABLED') === 'false',
+    });
+  }
+
   async status(): Promise<ReplicaStatus> {
     if (!this.available) {
-      return {
-        state: 'unavailable',
-        lagSeconds: null,
-        instanceClass: null,
-        serving: false,
-        note: 'Кнопка работает только на AWS после включения в Terraform (db_replica_toggle).',
-      };
+      return (
+        this.managedStatus() ?? {
+          state: 'unavailable',
+          lagSeconds: null,
+          instanceClass: null,
+          serving: false,
+          copies: 0,
+          note: `Копий для чтения нет: чтения идут из основной базы. Копии включаются строками ${ROWS} ниже (Выкл / Вкл / Авто).`,
+        }
+      );
     }
     let raw = await this.cached();
     if (!raw) {
@@ -406,11 +441,37 @@ export interface RawProbe {
   lag?: number | null;
 }
 
+const ROWS = '«Копии базы только для чтения» в разделе «Облако»';
+
+/** Pure: the card for copies made by the infra pipeline (not the button). */
+export function decideManaged(i: {
+  copies: number;
+  serving: boolean;
+  lagSeconds: number | null;
+  disabled: boolean;
+}): ReplicaStatus {
+  const what = `Копий для чтения: ${i.copies}. Их создаёт и убирает облако: строки ${ROWS} ниже (Выкл / Вкл / Авто).`;
+  const where = i.disabled
+    ? ' Чтения из копий выключены (DB_REPLICA_ENABLED=false): всё читается из основной базы.'
+    : i.serving
+      ? ' Поиск, профили и ленты читаются из копий.'
+      : ' Сейчас чтения идут из основной базы: копия отстаёт, недоступна или чтения из копий выключены настройкой db.replica_reads. Вернутся сами.';
+  return {
+    state: 'managed',
+    lagSeconds: i.lagSeconds,
+    instanceClass: null,
+    serving: i.serving && !i.disabled,
+    copies: i.copies,
+    note: what + where,
+  };
+}
+
 /** Pure: what the state is, and whether reads should go to the replica. */
 export function decideReplica(p: RawProbe, wasServing: boolean): ReplicaStatus {
   const base = {
     lagSeconds: p.lag ?? null,
     instanceClass: p.cls ?? null,
+    copies: p.exists ? 1 : 0,
   };
   if (!p.exists) {
     return {

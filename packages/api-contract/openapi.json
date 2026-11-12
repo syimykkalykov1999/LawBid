@@ -177064,6 +177064,7 @@
             "type": "string",
             "enum": [
               "unavailable",
+              "managed",
               "off",
               "creating",
               "on",
@@ -177088,6 +177089,10 @@
           "note": {
             "type": "string",
             "description": "Plain-words explanation for the card."
+          },
+          "copies": {
+            "type": "integer",
+            "description": "Read copies the app knows: the button copy (0/1) or the copies the infra pipeline made (DB_REPLICA_HOST, state «managed»)."
           }
         },
         "required": [
@@ -177095,7 +177100,8 @@
           "lagSeconds",
           "instanceClass",
           "serving",
-          "note"
+          "note",
+          "copies"
         ]
       },
       "ReplicaStatusEnvelope": {

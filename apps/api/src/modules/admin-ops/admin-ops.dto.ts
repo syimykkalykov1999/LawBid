@@ -470,6 +470,7 @@ export class ReplicaStatusDto {
   @ApiProperty({
     enum: [
       'unavailable',
+      'managed',
       'off',
       'creating',
       'on',
@@ -490,6 +491,12 @@ export class ReplicaStatusDto {
   serving!: boolean;
   @ApiProperty({ description: 'Plain-words explanation for the card.' })
   note!: string;
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Read copies the app knows: the button copy (0/1) or the copies the infra pipeline made (DB_REPLICA_HOST, state «managed»).',
+  })
+  copies!: number;
 }
 
 export class ReplicaToggleDto {

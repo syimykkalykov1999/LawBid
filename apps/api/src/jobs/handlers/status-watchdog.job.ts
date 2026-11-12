@@ -49,6 +49,15 @@ export class StatusWatchdogJob {
       (WATCHED as readonly string[]).includes(r.key),
     );
     const events = await this.incidents.reconcile(results, now);
+    // Shown-but-not-paged probes (own coturn): close what they left open.
+    await this.incidents
+      .closeUnwatched(
+        all
+          .map((r) => r.key)
+          .filter((k) => !(WATCHED as readonly string[]).includes(k)),
+        now,
+      )
+      .catch(() => 0);
     const out: WatchdogResult = {
       checked: results.length,
       opened: 0,
