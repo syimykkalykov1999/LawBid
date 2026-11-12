@@ -114,6 +114,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     warning:
       'Имя бакета R2 должно отличаться от бакетов AWS. Не меняйте бакет после того, как в нём появились файлы.',
   },
+  sentry_webhook: {
+    label: 'Sentry: вебхук для ИИ-помощника',
+    description:
+      'Новая ошибка в Sentry (уровень error или fatal) сразу запускает ИИ-помощника, а не ждёт проверки раз в 2 часа. Нужен Client Secret внутренней интеграции Sentry.',
+  },
   sentry: {
     label: 'Sentry (отчёты об ошибках)',
     description:
@@ -261,6 +266,7 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'sentry.project': 'Проект (для строки «Ошибки в приложении» на «Сегодня»)',
   'sentry.host': 'Адрес Sentry (пусто = sentry.io)',
   'sentry.issuesToken': 'Токен с правами event:read и event:write (для «Сегодня»)',
+  'sentry_webhook.clientSecret': 'Секрет интеграции (Client Secret)',
   'bunny_stream.apiKey': 'API-ключ библиотеки',
   'bunny_stream.accountApiKey': 'API-ключ аккаунта Bunny (для тревог по трафику, необязательно)',
   'google_translate.apiKey': 'API-ключ',
@@ -372,6 +378,7 @@ const FIELD_EN: Record<string, string> = {
   'sentry.project': 'Project slug',
   'sentry.host': 'Sentry host',
   'sentry.issuesToken': 'Auth token (event:read, event:write)',
+  'sentry_webhook.clientSecret': 'Client Secret',
   'stripe.publishableKey': 'Publishable key',
   'apns.keyId': 'Key ID',
   'apns.teamId': 'Team ID',

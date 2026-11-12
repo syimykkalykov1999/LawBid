@@ -77,6 +77,9 @@ const CHANNEL = 'secrets:changed';
  * as `pending` until tested and activated, so a typo never reaches the
  * running app; the previous version stays for a one-step rollback.
  */
+/** The key store could not start a read in time (pool busy, P2028). */
+class KeyStoreBusy extends Error {}
+
 @Injectable()
 export class SecretsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SecretsService.name);
@@ -128,6 +131,11 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
   // --- runtime ---------------------------------------------------------------
 
   private storeDownUntil = 0;
+  /** 12.11 (KNOWN_ERRORS 110): concurrent cache misses of one provider share
+   * one read (single-flight, as Go x/sync/singleflight / DataLoader) — the
+   * «Запуск» page fired ~165 key-store transactions at once on 10 pool
+   * connections. */
+  private readonly inFlight = new Map<string, Promise<ResolvedCredentials[]>>();
 
   /** The key set to use now: the first enabled one that hasn't just
    * failed (all failed → the first anyway). */
@@ -146,8 +154,22 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     if (hit && Date.now() - hit.at < CACHE_MS) {
       list = hit.value;
     } else {
-      list = await this.resolve(provider);
-      this.cache.set(provider, { at: Date.now(), value: list });
+      let pending = this.inFlight.get(provider);
+      if (!pending) {
+        pending = this.resolve(provider)
+          .then((value) => {
+            this.cache.set(provider, { at: Date.now(), value });
+            return value;
+          })
+          .catch((e: unknown) => {
+            if (!(e instanceof KeyStoreBusy)) throw e;
+            // Busy pool: the last known answer, else the env keys — not cached.
+            return hit ? hit.value : this.resolve(provider, true);
+          })
+          .finally(() => this.inFlight.delete(provider));
+        this.inFlight.set(provider, pending);
+      }
+      list = await pending;
     }
     if (list.length < 2) return list;
     const now = Date.now();
@@ -238,10 +260,13 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     return defs;
   }
 
-  private async resolve(provider: string): Promise<ResolvedCredentials[]> {
+  private async resolve(
+    provider: string,
+    envOnly = false,
+  ): Promise<ResolvedCredentials[]> {
     const def = await this.defOf(provider);
     if (!def) return [];
-    if (this.envelope) {
+    if (this.envelope && !envOnly) {
       const rows = await this.activeRows(provider);
       // Active DB sets win — no silent fallback to env.
       if (rows.length > 0) {
@@ -288,7 +313,10 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
    * when the key store does not answer within a couple of seconds (a
    * damaged table must never freeze every request: the env keys are used
    * instead and the store is retried a minute later). */
-  private async activeRows(provider: string): Promise<IntegrationCredential[]> {
+  private async activeRows(
+    provider: string,
+    retried = false,
+  ): Promise<IntegrationCredential[]> {
     if (Date.now() < this.storeDownUntil) return [];
     try {
       // The database cancels the query itself after 2 s (statement_timeout),
@@ -313,6 +341,18 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
         ),
       );
     } catch (e) {
+      // A busy pool (P2028: the transaction could not start in time) is not
+      // a broken store: retry once after a short jittered pause (AWS
+      // «backoff with jitter»), then let the caller keep its last answer —
+      // never switch every request in the process to the env keys.
+      if ((e as { code?: string })?.code === 'P2028') {
+        if (!retried) {
+          await new Promise((r) => setTimeout(r, 200 + Math.random() * 400));
+          return this.activeRows(provider, true);
+        }
+        this.logger.warn(`key store busy for ${provider}: ${String(e)}`);
+        throw new KeyStoreBusy();
+      }
       this.storeDownUntil = Date.now() + 60_000;
       this.logger.error(`key store unavailable, using env keys: ${String(e)}`);
       return [];

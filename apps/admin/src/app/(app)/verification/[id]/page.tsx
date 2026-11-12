@@ -293,16 +293,30 @@ export default function VerificationCardPage() {
         confirm: 'Открыть',
       });
       if (!a) return null;
-      const res = await api.POST('/admin/verification/documents/{documentId}/url', {
-        params: { path: { documentId }, header: { 'X-Justification': encodeURIComponent(a.text) } },
-      });
-      return res.data!.data.url;
-    },
-    onSuccess: (url) => {
-      if (url) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-        toast.success('Документ открыт, просмотр записан в журнал');
+      // 12.11: Safari and phones block window.open() once the signed-link
+      // request has gone out (the click's gesture is spent), so the tab is
+      // opened now, still on the «Открыть» click, and pointed at the
+      // document when the link arrives.
+      const tab = window.open('about:blank', '_blank');
+      try {
+        const res = await api.POST('/admin/verification/documents/{documentId}/url', {
+          params: { path: { documentId }, header: { 'X-Justification': encodeURIComponent(a.text) } },
+        });
+        return { url: res.data!.data.url, tab };
+      } catch (e) {
+        tab?.close();
+        throw e;
       }
+    },
+    onSuccess: (got) => {
+      if (!got) return;
+      if (!got.tab) {
+        toast.error('Браузер не дал открыть новую вкладку — разрешите всплывающие окна для admin.lawbid.dev');
+        return;
+      }
+      got.tab.opener = null;
+      got.tab.location.href = got.url;
+      toast.success('Документ открыт, просмотр записан в журнал');
     },
     onError,
   });

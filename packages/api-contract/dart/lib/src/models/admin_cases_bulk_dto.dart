@@ -21,6 +21,8 @@ class AdminCasesBulkDto {
 
   final String reason;
   final AdminCasesBulkAction action;
+
+  /// Staff: at most 500; the owner: any number (processed in chunks).
   final List<String> ids;
 
   Map<String, Object?> toJson() => _$AdminCasesBulkDtoToJson(this);

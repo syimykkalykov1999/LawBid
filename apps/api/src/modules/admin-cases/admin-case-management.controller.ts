@@ -37,8 +37,12 @@ import {
   type Page,
   AdminCasesBulkDto,
 } from './admin-cases.dto';
-import { AdminBulkResultDto } from '../admin-content/admin-content.dto';
-import { eachId } from '../admin-content/bulk.util';
+import {
+  AdminBulkResultDto,
+  BULK_MAX,
+} from '../admin-content/admin-content.dto';
+import { eachIdInChunks } from '../admin-content/bulk.util';
+import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
 import { AdminCaseManagementService } from './admin-case-management.service';
 
 const E = ErrorCode;
@@ -106,7 +110,7 @@ export class AdminCaseManagementController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Owner 2026-10-04: hide / close / archive / restore up to 500 cases; one reason, audited and told per case',
+      'Owner 2026-10-04: hide / close / archive / restore many cases (staff up to 500, the owner any number); one reason, audited and told per case',
   })
   @ApiEnvelopeResponse(AdminBulkResultDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
@@ -114,8 +118,11 @@ export class AdminCaseManagementController {
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminCasesBulkDto,
   ): Promise<AdminBulkResultDto> {
-    // Each case runs in its own shard (its id carries it).
-    return eachId(dto.ids, (id) =>
+    // Owner 2026-11-12: staff keep 500 cases a request; the owner sends
+    // any number, worked through in chunks. Each case runs in its own
+    // shard (its id carries it).
+    assertStaffBulkCap(admin, dto.ids, BULK_MAX);
+    return eachIdInChunks(dto.ids, (id) =>
       shardContext.runForCase(id, () =>
         this.cases.act(admin, id, dto.action, dto.reason),
       ),

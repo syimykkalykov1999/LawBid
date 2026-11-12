@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { OWNER_BULK_MAX } from '../../common/admin-bulk/admin-bulk';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -149,13 +150,14 @@ export class AdminUsersBulkDto {
     type: [String],
     format: 'uuid',
     minItems: 1,
-    maxItems: 500,
-    description: 'Exactly one of `ids` or `filter`.',
+    maxItems: OWNER_BULK_MAX,
+    description:
+      'Exactly one of `ids` or `filter`. Staff: at most 500; the owner: any number (processed in chunks).',
   })
   @ValidateIf((o: AdminUsersBulkDto) => o.filter === undefined)
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(500)
+  @ArrayMaxSize(OWNER_BULK_MAX)
   @IsUUID('all', { each: true })
   ids?: string[];
 

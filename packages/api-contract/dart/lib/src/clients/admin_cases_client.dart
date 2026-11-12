@@ -101,7 +101,7 @@ abstract class AdminCasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Owner 2026-10-04: hide / close / archive / restore up to 500 cases; one reason, audited and told per case
+  /// Owner 2026-10-04: hide / close / archive / restore many cases (staff up to 500, the owner any number); one reason, audited and told per case
   @POST('/admin/cases/bulk')
   Future<AdminBulkResultEnvelope> bulkAdminCases({
     @Body() required AdminCasesBulkDto body,

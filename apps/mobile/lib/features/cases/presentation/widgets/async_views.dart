@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/data_saver.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
@@ -126,6 +127,9 @@ class PagedListBody<T> extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    // Item 38 (owner «light on phones»): the data saver stops the warm-up
+    // of the next rows' pictures too, as it stops the video one.
+    final warm = prefetch != null && !ref.watch(dataSaverProvider);
 
     Future<void> pull() async {
       try {
@@ -219,7 +223,7 @@ class PagedListBody<T> extends ConsumerWidget {
                   child: header,
                 ),
           itemBuilder: (context, item, index) {
-            if (prefetch != null) {
+            if (warm) {
               final items = value.items;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!context.mounted) return;

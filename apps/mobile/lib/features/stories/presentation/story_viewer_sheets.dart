@@ -408,7 +408,8 @@ class _PersonRow extends StatelessWidget {
                           Icon(
                             AppIcons.verifiedRounded,
                             size: AppSizes.iconSm - 4,
-                            color: colors.gold,
+                            // Item 40: the verified token, as in every theme.
+                            color: colors.verifiedGold,
                           ),
                         ],
                       ],
