@@ -893,7 +893,12 @@ variable "synthetic_journey_conversation_id" {
   default = null
 }
 variable "alarm_incident_hook_enabled" {
-  type        = bool
-  default     = false
-  description = "Lambda: CloudWatch alarm state changes become incident rows in the admin."
+  type = bool
+  # 12.11.2026 (owner «ИИ реагирует сразу»): on in prod. The Lambda's URL
+  # (https://<api_host>/api/v1/internal/alarm-events) and token (random_password,
+  # stored in Secrets Manager <name>/ALARM_HOOK_TOKEN, read by the API as
+  # ALARM_HOOK_TOKEN) are wired by modules/stack from this flag alone; they were
+  # empty only because the flag was off. An ALARM also starts the AI assistant.
+  default     = true
+  description = "Lambda: CloudWatch alarm state changes become incident rows in the admin and start the AI assistant."
 }
