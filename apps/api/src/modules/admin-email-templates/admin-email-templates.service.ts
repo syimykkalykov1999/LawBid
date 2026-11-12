@@ -22,7 +22,6 @@ import {
   type TemplateSource,
 } from '../auth/providers/email/email-template-render';
 import { invalidateEmailTemplateCache } from '../auth/providers/email/email-template-overrides';
-import { RateLimitService } from '../auth/services/rate-limit.service';
 import type {
   EmailTemplateContentDto,
   EmailTemplateDetailDto,
@@ -42,7 +41,6 @@ import {
 } from './email-template-catalog';
 
 export const ADMIN_TEMPLATE_EMAIL = Symbol('ADMIN_TEMPLATE_EMAIL');
-const TESTS_PER_HOUR = 10;
 
 /** Throws 400 VALIDATION_ERROR when an override drops a required var
  * (e.g. `{{code}}` of a sign-in email). */
@@ -70,7 +68,6 @@ function maskEmail(email: string): string {
 export class AdminEmailTemplatesService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly rateLimit: RateLimitService,
     @Inject(ADMIN_TEMPLATE_EMAIL) private readonly email: EmailProvider,
     @Optional() private readonly costGuard?: CostGuardService,
   ) {}
@@ -205,21 +202,8 @@ export class AdminEmailTemplatesService {
         message: 'Your admin account has no email address.',
       });
     }
-    const budget = await this.rateLimit.consumeFixedWindow(
-      ['admin-email-template-test', adminId],
-      TESTS_PER_HOUR,
-      3600,
-    );
-    if (!budget.allowed) {
-      throw new HttpException(
-        {
-          code: ErrorCode.RATE_LIMITED,
-          message: 'Too many test emails. Try again later.',
-          details: { retryAfterSeconds: budget.retryAfterSeconds },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+    // Owner 2026-11-12: no hourly cap on test emails to his own address;
+    // the e-mail money budget (cost guard below) still applies.
     const rendered = await this.renderForTest(entry, locale, dto);
     await this.costGuard?.consume('email');
     // No `template` field: the content is already final.

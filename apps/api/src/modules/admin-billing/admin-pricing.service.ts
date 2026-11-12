@@ -180,7 +180,10 @@ export class AdminPricingService {
       before?.compare_at_cents !== compareAt ||
       before?.show_discount !== showDiscount
     ) {
-      void this.rebuildPublicSite();
+      // Owner 2026-11-12: the owner's change always rebuilds the site.
+      void this.rebuildPublicSite(Date.now(), {
+        force: admin.adminRole === 'super_admin',
+      });
     }
     // Create the Stripe price now so a key problem shows here, not at an
     // attorney's checkout. A failure keeps the new amount; the price is
@@ -209,8 +212,12 @@ export class AdminPricingService {
    * the next daily run. Never throws: the price is saved either way, and
    * without the App the daily run (04:17 UTC) still picks the price up.
    */
-  async rebuildPublicSite(now: number = Date.now()): Promise<boolean> {
+  async rebuildPublicSite(
+    now: number = Date.now(),
+    { force = false }: { force?: boolean } = {},
+  ): Promise<boolean> {
     if (
+      !force &&
       this.lastSiteRebuild &&
       now - this.lastSiteRebuild < SITE_REBUILD_COOLDOWN_MS
     ) {

@@ -30,6 +30,7 @@ import {
   AUTO_REFUSAL_TEXT,
   POOL_FLOOR,
   SYSTEM_ACTOR_ID,
+  WAF_GUARDS,
   autoRefusal,
   autoWants,
   dueWants,
@@ -159,7 +160,26 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     const offMs =
       Math.max(6, await this.settings.number('infra.auto_off_hours')) *
       3_600_000;
-    const { due, seen } = dueWants(wants, prev, now.getTime(), onMs, offMs);
+    // Owner 2026-11-12 (foreman): the WAF protections switch on after
+    // infra.waf_attack_on_minutes of an attack and off after
+    // infra.waf_calm_off_hours of calm, not the slow growth waits.
+    const wafOnMs =
+      Math.max(1, await this.settings.number('infra.waf_attack_on_minutes')) *
+      60_000;
+    const wafOffMs =
+      Math.max(1, await this.settings.number('infra.waf_calm_off_hours')) *
+      3_600_000;
+    const per = Object.fromEntries(
+      WAF_GUARDS.map((id) => [id, { onMs: wafOnMs, offMs: wafOffMs }]),
+    );
+    const { due, seen } = dueWants(
+      wants,
+      prev,
+      now.getTime(),
+      onMs,
+      offMs,
+      per,
+    );
     await this.redis
       .set(SEEN_KEY, JSON.stringify(seen), 'EX', 30 * 24 * 3600)
       .catch(() => undefined);

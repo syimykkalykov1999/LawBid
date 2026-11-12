@@ -956,7 +956,8 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * 24 hours (going back from an unfinished onboarding does not count).
    * Below 1 counts as 1. */
   'account.role_switch_per_day': 2,
-  'security.admin_rate_limit_per_minute': 600,
+  // Owner 2026-11-12: 0 = no per-minute limit for signed-in admins.
+  'security.admin_rate_limit_per_minute': 0,
   /** Scale audit 2026-10-23: requests per minute for callers who are not
    * signed in, per address (CGNAT / office addresses carry many people).
    * Never below the default limit (100). */
@@ -1225,6 +1226,18 @@ export const OWNER_STORAGE_SETTINGS = {
    * acts, then set back. People at which the search engine (OpenSearch) is
    * switched on; it goes off again below 80 % of it. */
   'infra.search_engine_on_people': 5_000_000,
+  /** Owner 2026-11-12 («Авто» for the two WAF protections, like AWS Shield
+   * Advanced automatic application-layer mitigation): an attack is at least
+   * this many requests blocked by the load-balancer WAF in 5 minutes
+   * (prod 08–12.11: usually 0–2, highest 489) OR this many failed sign-ins
+   * in 5 minutes; calm = below half of both for infra.auto_off_hours. */
+  'infra.waf_attack_blocked_per_5m': 1000,
+  'infra.waf_attack_auth_failed_per_5m': 50,
+  /** Foreman 2026-11-12: the two WAF protections react like AWS Shield
+   * Advanced (minutes): on after this many minutes of the attack signal,
+   * off after this many hours of calm (their own infra.auto_* waits). */
+  'infra.waf_attack_on_minutes': 5,
+  'infra.waf_calm_off_hours': 3,
   /** Database CPU % above which «busy» starts (read copy, size step). */
   'economy.db_cpu_limit_percent': 70,
   /** Owner 2026-11-02: «time to prepare a second database». Health turns
@@ -1305,6 +1318,8 @@ export const OWNER_STORAGE_SETTINGS = {
   'infra.mode.opensearch': 'auto',
   'infra.mode.opensearch_nodes_2': 'auto',
   'infra.mode.opensearch_nodes_4': 'auto',
+  'infra.mode.waf_bot_control': 'auto',
+  'infra.mode.waf_extra_rules': 'auto',
   'infra.mode.events_stream': 'auto',
   'infra.mode.partition_role': 'auto',
   'infra.mode.rds_replicas_2': 'auto',
@@ -1928,7 +1943,8 @@ export const OWNER_COST_REGISTRY_SETTINGS = {
  * infra-from-admin.md). Guards of the «План → код 2FA → применить» flow:
  * - `infra.dry_run`: true = the cloud is only planned, never changed (the
  *   admin shows the plan and stops). Start with true, flip after one look.
- * - `infra.daily_cap`: at most this many change requests per 24 hours.
+ * - `infra.daily_cap`: at most this many change requests per 24 hours;
+ *   0 = no limit (owner 2026-11-12, the default).
  * - `infra.quiet_hours`: "HH:MM-HH:MM" (America/Chicago) when an apply may
  *   start; empty = any time.
  * Automation audit 2026-11-08 (owner: «Авто» must really act, both ways):
@@ -1943,7 +1959,7 @@ export const OWNER_COST_REGISTRY_SETTINGS = {
  */
 export const OWNER_INFRA_SETTINGS = {
   'infra.dry_run': true,
-  'infra.daily_cap': 3,
+  'infra.daily_cap': 0,
   'infra.quiet_hours': '',
   'infra.auto_mode': 'auto',
   'infra.auto_on_minutes': 30,

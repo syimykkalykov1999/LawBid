@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { OWNER_BULK_MAX } from '../../common/admin-bulk/admin-bulk';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -351,10 +352,16 @@ export class OutreachLeadInputDto {
 }
 
 export class OutreachAssignDto {
-  @ApiProperty({ type: [String], format: 'uuid', maxItems: 500 })
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    maxItems: OWNER_BULK_MAX,
+    description:
+      'Staff: at most 500; the owner: any number (processed in chunks).',
+  })
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(500)
+  @ArrayMaxSize(OWNER_BULK_MAX)
   @IsUUID('4', { each: true })
   leadIds!: string[];
 

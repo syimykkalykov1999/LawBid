@@ -34,10 +34,12 @@ afterEach(() => {
 });
 
 describe('«Разделить базу» on «Масштаб» (switch scale.db_split_enabled)', () => {
-  it('switch off: the old placeholder, nothing is fetched', () => {
+  it('switch off: says the split is built and only the setting is off, nothing is fetched', () => {
     renderCard(false);
     const card = screen.getByTestId('db-split-card');
-    expect(card.textContent).toContain('Пока недоступно');
+    expect(card.textContent).toContain('Выключено настройкой');
+    expect(card.textContent).not.toContain('шагов 9-10');
+    expect(within(card).getByRole('link', { name: /scale\.db_split_enabled/ }).getAttribute('href')).toBe('/config');
     expect(screen.getByRole('button', { name: 'Разделить базу' })).toHaveProperty('disabled', true);
     expect(apiGet).not.toHaveBeenCalled();
   });

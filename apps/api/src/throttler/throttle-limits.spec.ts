@@ -14,11 +14,19 @@ describe('throttle limits', () => {
     expect(userThrottleLimit('300')).toBe(300);
   });
 
-  it('admins use the setting, clamped to the allowed range', () => {
-    expect(adminThrottleLimit(ADMIN_THROTTLE_DEFAULT, undefined)).toBe(600);
-    expect(adminThrottleLimit(5, undefined)).toBe(ADMIN_THROTTLE_MIN);
+  it('admins have no limit by default: 0 = no limit (owner 12.11)', () => {
+    expect(ADMIN_THROTTLE_DEFAULT).toBe(0);
+    expect(ADMIN_THROTTLE_MIN).toBe(0);
+    expect(adminThrottleLimit(ADMIN_THROTTLE_DEFAULT, undefined)).toBe(0);
+    expect(adminThrottleLimit(0, undefined)).toBe(0);
+    expect(adminThrottleLimit(-5, undefined)).toBe(0);
+    expect(adminThrottleLimit(Number.NaN, undefined)).toBe(0);
+  });
+
+  it('a number set for admins is clamped, never below the user limit', () => {
+    expect(adminThrottleLimit(600, undefined)).toBe(600);
+    expect(adminThrottleLimit(5, undefined)).toBe(100);
     expect(adminThrottleLimit(1e9, undefined)).toBe(ADMIN_THROTTLE_MAX);
-    expect(adminThrottleLimit(Number.NaN, undefined)).toBe(600);
   });
 
   it('ADMIN_THROTTLE_LIMIT overrides the setting', () => {

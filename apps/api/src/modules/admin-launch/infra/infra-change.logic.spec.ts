@@ -154,6 +154,9 @@ describe('create guards', () => {
       'not_configured',
     );
   });
+  it('daily cap 0 = no limit (owner 12.11)', () => {
+    expect(createRefusal({ ...base, dailyCap: 0, last24h: 500 })).toBeNull();
+  });
   it('OFF → ON needs a price in the registry', () => {
     const e = entry('aws.opensearch');
     expect(

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type Redis from 'ioredis';
 import type { Prisma } from '@prisma/client';
+import { chunks } from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -268,29 +269,34 @@ export class AdminContentService {
     ids: string[],
     action: 'legal' | 'general' | 'auto',
   ): Promise<AdminBulkResultDto> {
-    const rows = await this.prisma.post.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, practice_area_id: true, kind: true },
-    });
-    const found = new Set(rows.map((r) => r.id));
-    if (action === 'auto') {
-      for (const r of rows) {
-        await this.prisma.post.update({
-          where: { id: r.id },
-          data: {
-            content_class_locked: false,
-            content_class: classifyPost({
-              hasPractice: r.practice_area_id !== null,
-              kind: r.kind,
-            }),
-          },
+    // Owner 2026-11-12: any number of ids (the owner has no cap), read and
+    // written BULK_CHUNK at a time.
+    const found = new Set<string>();
+    for (const part of chunks([...new Set(ids)])) {
+      const rows = await this.prisma.post.findMany({
+        where: { id: { in: part } },
+        select: { id: true, practice_area_id: true, kind: true },
+      });
+      for (const r of rows) found.add(r.id);
+      if (action === 'auto') {
+        for (const r of rows) {
+          await this.prisma.post.update({
+            where: { id: r.id },
+            data: {
+              content_class_locked: false,
+              content_class: classifyPost({
+                hasPractice: r.practice_area_id !== null,
+                kind: r.kind,
+              }),
+            },
+          });
+        }
+      } else if (rows.length > 0) {
+        await this.prisma.post.updateMany({
+          where: { id: { in: rows.map((r) => r.id) } },
+          data: { content_class: action, content_class_locked: true },
         });
       }
-    } else if (rows.length > 0) {
-      await this.prisma.post.updateMany({
-        where: { id: { in: [...found] } },
-        data: { content_class: action, content_class_locked: true },
-      });
     }
     return {
       done: ids.filter((id) => found.has(id)),
@@ -626,18 +632,21 @@ export class AdminContentService {
    * S18-3: the export is read in keyset pages of 2 000 and written to the
    * response as it goes, so a big table never sits in the API's memory.
    * At most CSV_EXPORT_LIMIT rows; when more exist a last line says so
-   * (the file must never look complete when it is not).
+   * (the file must never look complete when it is not). Owner 2026-11-12:
+   * [unlimited] (the owner) streams the whole table, page by page.
    */
   async exportCsvStream(
     entity: string,
     write: (chunk: string) => Promise<void> | void,
+    { unlimited = false }: { unlimited?: boolean } = {},
   ): Promise<{ rows: number; truncated: boolean }> {
+    const max = unlimited ? Number.POSITIVE_INFINITY : CSV_EXPORT_LIMIT;
     const spec = this.exportSpec(entity);
     await write(csvLine(spec.header));
     let rows = 0;
     let cursor: string | undefined;
     for (;;) {
-      const left = CSV_EXPORT_LIMIT - rows;
+      const left = max - rows;
       // One extra row tells whether the cap cut the table off.
       const take = Math.min(CSV_EXPORT_PAGE, left + 1);
       const page = await spec.page(take, cursor);

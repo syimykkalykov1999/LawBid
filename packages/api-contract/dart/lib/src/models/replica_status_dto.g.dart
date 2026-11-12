@@ -13,6 +13,7 @@ ReplicaStatusDto _$ReplicaStatusDtoFromJson(Map<String, dynamic> json) =>
       instanceClass: json['instanceClass'] as String?,
       serving: json['serving'] as bool,
       note: json['note'] as String,
+      copies: (json['copies'] as num).toInt(),
     );
 
 Map<String, dynamic> _$ReplicaStatusDtoToJson(ReplicaStatusDto instance) =>
@@ -22,4 +23,5 @@ Map<String, dynamic> _$ReplicaStatusDtoToJson(ReplicaStatusDto instance) =>
       'instanceClass': ?instance.instanceClass,
       'serving': instance.serving,
       'note': instance.note,
+      'copies': instance.copies,
     };

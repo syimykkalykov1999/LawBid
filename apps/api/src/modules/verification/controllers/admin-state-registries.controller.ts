@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   HttpCode,
-  HttpException,
   HttpStatus,
   Param,
   Post,
@@ -23,7 +22,6 @@ import {
   type AdminActor,
 } from '../../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../../admin-auth/admin-auth.service';
-import { RateLimitService } from '../../auth/services/rate-limit.service';
 import {
   CopyStateRegistryDto,
   CopyStateRegistryResultDto,
@@ -53,7 +51,6 @@ export class AdminStateRegistriesController {
     private readonly registries: StateRegistryService,
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
-    private readonly rateLimit: RateLimitService,
   ) {}
 
   @Get()
@@ -100,7 +97,6 @@ export class AdminStateRegistriesController {
     @Param() p: StateCodeParamDto,
     @Body() dto: TestStateRegistryDto,
   ): Promise<RegistryTestResultDto> {
-    await this.limit(['adm-reg-test', admin.id], 20, 60);
     const out = await this.registries.test(p.stateCode, dto);
     await this.log(admin, 'verification.registry_test', p.stateCode, {
       result: out.result,
@@ -129,24 +125,10 @@ export class AdminStateRegistriesController {
     return out;
   }
 
-  /** A fresh 2FA code + at most 60 changes an hour per admin. */
+  /** A fresh 2FA code is the only guard (owner 2026-11-12: no hourly cap
+   * on registry changes or test look-ups). */
   private async guard(admin: AdminActor) {
     await this.auth.assertStepUp(admin.sessionId);
-    await this.limit(['adm-reg-write', admin.id], 60, 3600);
-  }
-
-  private async limit(parts: string[], max: number, windowSec: number) {
-    const r = await this.rateLimit.consumeFixedWindow(parts, max, windowSec);
-    if (!r.allowed) {
-      throw new HttpException(
-        {
-          code: E.AUTH_OTP_REQUEST_LIMIT,
-          message: 'Too many changes. Try again later.',
-          details: { retryAfterSeconds: r.retryAfterSeconds },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
   }
 
   private log(

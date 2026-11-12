@@ -6,7 +6,6 @@ import {
   Get,
   Header,
   HttpCode,
-  HttpException,
   HttpStatus,
   Param,
   Patch,
@@ -22,7 +21,6 @@ import {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PagerDutySnsService } from '../../common/ops/launch/aws-launch.service';
 import { SecretsService } from '../../common/secrets/secrets.service';
-import { RateLimitService } from '../auth/services/rate-limit.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   AdminEndpoint,
@@ -65,7 +63,6 @@ export class AdminIntegrationsController {
     private readonly secrets: SecretsService,
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
-    private readonly rateLimit: RateLimitService,
     // Owner 2026-10-24: a changed PagerDuty link is re-subscribed at once.
     @Optional() private readonly paging?: PagerDutySnsService,
   ) {}
@@ -148,7 +145,6 @@ export class AdminIntegrationsController {
     @CurrentAdmin() admin: AdminActor,
     @Param() p: VersionParamDto,
   ): Promise<IntegrationVersionDto> {
-    await this.limit(['adm-int-test', p.provider], 10, 60);
     const v = await this.secrets.test(p.provider, p.version);
     await this.log(admin, 'integration.test', p.provider, {
       version: v.version,
@@ -341,24 +337,10 @@ export class AdminIntegrationsController {
     await this.paging.sync().catch(() => undefined);
   }
 
-  /** A fresh 2FA code + at most 20 key changes an hour per admin. */
+  /** A fresh 2FA code is the only guard (owner 2026-11-12: no hourly cap
+   * on key changes or tests). */
   private async guard(admin: AdminActor) {
     await this.auth.assertStepUp(admin.sessionId);
-    await this.limit(['adm-int-write', admin.id], 20, 3600);
-  }
-
-  private async limit(parts: string[], max: number, windowSec: number) {
-    const r = await this.rateLimit.consumeFixedWindow(parts, max, windowSec);
-    if (!r.allowed) {
-      throw new HttpException(
-        {
-          code: E.AUTH_OTP_REQUEST_LIMIT,
-          message: 'Too many changes. Try again later.',
-          details: { retryAfterSeconds: r.retryAfterSeconds },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
   }
 
   /** Masked values, version and fingerprint only — never a secret. */

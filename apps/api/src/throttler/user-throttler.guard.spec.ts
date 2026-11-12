@@ -75,15 +75,23 @@ describe('UserThrottlerGuard', () => {
   });
 
   it('gives a signed-in admin its own key, the admin limit and a short block', async () => {
-    const { storage, call } = setup();
+    const { storage, call } = setup({ setting: 600 });
     await call('Bearer admin-a1');
     expect(storage.increment).toHaveBeenCalledWith(
       expect.any(String),
       60_000,
-      ADMIN_THROTTLE_DEFAULT,
+      600,
       ADMIN_BLOCK_MS,
       'default',
     );
+  });
+
+  it('owner 12.11: a signed-in admin has no limit by default (0 = no limit)', async () => {
+    const { storage, call } = setup();
+    for (let i = 0; i < 5; i++) {
+      await expect(call('Bearer admin-a1')).resolves.toBe(true);
+    }
+    expect(storage.increment).not.toHaveBeenCalled();
   });
 
   it('keeps users and anonymous callers at the default 100/min and 60 s block', async () => {
@@ -136,10 +144,11 @@ describe('UserThrottlerGuard', () => {
     expect(storage.increment.mock.calls[0][2]).toBe(2000);
   });
 
-  it('falls back to the default admin limit when settings are unreachable', async () => {
+  it('falls back to the default (no limit) when settings are unreachable', async () => {
     const { storage, call } = setup({ setting: new Error('redis down') });
-    await call('Bearer admin-a1');
-    expect(storage.increment.mock.calls[0][2]).toBe(ADMIN_THROTTLE_DEFAULT);
+    await expect(call('Bearer admin-a1')).resolves.toBe(true);
+    expect(ADMIN_THROTTLE_DEFAULT).toBe(0);
+    expect(storage.increment).not.toHaveBeenCalled();
   });
 
   it("keeps a route's own @Throttle limit for admins", async () => {
@@ -154,8 +163,8 @@ describe('UserThrottlerGuard', () => {
     expect(tokens.verifyAdminToken).toHaveBeenCalledTimes(1);
   });
 
-  it('answers 429 once the storage reports a block', async () => {
-    const { storage, call } = setup();
+  it('answers 429 once the storage reports a block (a number is set)', async () => {
+    const { storage, call } = setup({ setting: 600 });
     storage.increment.mockResolvedValueOnce({
       totalHits: 601,
       timeToExpire: 30,

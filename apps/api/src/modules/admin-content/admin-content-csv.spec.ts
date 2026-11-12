@@ -92,6 +92,21 @@ describe('exportCsvStream (S18-3: keyset pages, cap notice)', () => {
     expect(text.trimEnd().endsWith(`"${CSV_TRUNCATED_NOTE}"`)).toBe(true);
   });
 
+  it('owner 12.11: unlimited (the owner) streams past the cap, in pages', async () => {
+    const { svc, findMany } = serviceWith(CSV_EXPORT_LIMIT + 10);
+    const chunks: string[] = [];
+    const out = await svc.exportCsvStream(
+      'users',
+      (c) => {
+        chunks.push(c);
+      },
+      { unlimited: true },
+    );
+    expect(out).toEqual({ rows: CSV_EXPORT_LIMIT + 10, truncated: false });
+    expect(findMany.mock.calls.every(([a]) => a.take <= 2_000)).toBe(true);
+    expect(chunks.join('')).not.toContain(CSV_TRUNCATED_NOTE);
+  });
+
   it('a table of exactly the cap is complete, not truncated', async () => {
     const { svc } = serviceWith(CSV_EXPORT_LIMIT);
     const out = await svc.exportCsvStream('users', () => undefined);

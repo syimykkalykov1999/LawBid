@@ -1,4 +1,10 @@
-import { LaunchChecksService } from './launch-checks.service';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  DEPLOY_PATHS,
+  isDeployPath,
+  LaunchChecksService,
+} from './launch-checks.service';
 
 const NOW = new Date('2026-10-25T10:00:00Z');
 
@@ -308,5 +314,135 @@ describe('LaunchChecksService', () => {
     expect(tags.status).toBe('manual');
     expect(tags.detail).toContain('AccessDenied');
     expect(r.items.length).toBeGreaterThan(10);
+  });
+
+  /** fetch stub: answers by URL suffix; anything else is a 404. */
+  const stubFetch = (
+    routes: Record<string, { status?: number; body?: unknown }>,
+  ) =>
+    jest.fn((url: string) => {
+      const hit = Object.entries(routes).find(([k]) => url.endsWith(k));
+      const status = hit ? (hit[1].status ?? 200) : 404;
+      return Promise.resolve({
+        ok: status >= 200 && status < 300,
+        status,
+        json: () => Promise.resolve(hit?.[1].body ?? {}),
+      });
+    }) as never;
+
+  it('deploy: main moved only outside the deploy paths is green «нечего выкатывать»', async () => {
+    const realFetch = global.fetch;
+    const fields = { github: { repo: 'o/r', token: 'ghp_x' } };
+    const env = { APP_VERSION: '1111111' };
+    const cmp = '/compare/1111111...abcdef1234567890';
+    const main = { '/commits/main': { body: { sha: 'abcdef1234567890' } } };
+    try {
+      global.fetch = stubFetch({
+        ...main,
+        [cmp]: {
+          body: {
+            files: [
+              { filename: 'infra/envs/prod/main.tf' },
+              { filename: 'docs/dev/KNOWN_ERRORS.md' },
+              { filename: 'apps/mobile/lib/main.dart' },
+              { filename: '.github/workflows/infra-apply.yml' },
+            ],
+          },
+        },
+      });
+      const green = await item(make({ env, fields }).svc, 'deploy');
+      expect(green.status).toBe('green');
+      expect(green.detail).toContain('нечего выкатывать');
+
+      global.fetch = stubFetch({
+        ...main,
+        [cmp]: {
+          body: {
+            files: [
+              { filename: 'docs/a.md' },
+              { filename: 'apps/api/src/main.ts' },
+            ],
+          },
+        },
+      });
+      const red = await item(make({ env, fields }).svc, 'deploy');
+      expect(red.status).toBe('red');
+      expect(red.detail).toContain('для выката 1');
+
+      // GitHub cannot compare (unknown commit) or cuts the list: stay red.
+      global.fetch = stubFetch(main);
+      expect((await item(make({ env, fields }).svc, 'deploy')).status).toBe(
+        'red',
+      );
+      global.fetch = stubFetch({
+        ...main,
+        [cmp]: {
+          body: {
+            files: Array.from({ length: 300 }, (_, i) => ({
+              filename: `docs/${i}.md`,
+            })),
+          },
+        },
+      });
+      expect((await item(make({ env, fields }).svc, 'deploy')).status).toBe(
+        'red',
+      );
+    } finally {
+      global.fetch = realFetch;
+    }
+  });
+
+  it('deploy paths match the on.push.paths of deploy.yml', () => {
+    const yml = readFileSync(
+      join(__dirname, '../../../../../../.github/workflows/deploy.yml'),
+      'utf8',
+    );
+    const block = yml.slice(
+      yml.indexOf('    paths:'),
+      yml.indexOf('  workflow_dispatch:'),
+    );
+    const paths = [...block.matchAll(/^\s+- "([^"]+)"$/gm)].map((m) => m[1]);
+    expect(paths.length).toBeGreaterThan(0);
+    expect(DEPLOY_PATHS).toEqual(paths);
+    expect(isDeployPath('apps/admin/src/x.tsx')).toBe(true);
+    expect(isDeployPath('package.json')).toBe(true);
+    expect(isDeployPath('apps/mobile/package.json')).toBe(false);
+    expect(isDeployPath('apps/api-extra/x.ts')).toBe(false);
+  });
+
+  it('SIGN_REQUIRED: read from the GitHub repo variable; no rights keeps the hand tick', async () => {
+    const realFetch = global.fetch;
+    const fields = { github: { repo: 'o/r', token: 'ghp_x' } };
+    const v = '/actions/variables/SIGN_REQUIRED';
+    try {
+      global.fetch = stubFetch({ [v]: { body: { value: 'true' } } });
+      expect(await item(make({ fields }).svc, 'sign_required')).toMatchObject({
+        status: 'green',
+        manualTick: false,
+      });
+
+      global.fetch = stubFetch({ [v]: { body: { value: 'false' } } });
+      expect(await item(make({ fields }).svc, 'sign_required')).toMatchObject({
+        status: 'red',
+        manualTick: false,
+      });
+
+      global.fetch = stubFetch({});
+      expect((await item(make({ fields }).svc, 'sign_required')).status).toBe(
+        'red',
+      );
+
+      global.fetch = stubFetch({ [v]: { status: 403 } });
+      const noRight = await item(make({ fields }).svc, 'sign_required');
+      expect(noRight).toMatchObject({ status: 'manual', manualTick: true });
+      expect(noRight.hint).toContain('Variables: read');
+
+      const noKeys = await item(make().svc, 'sign_required');
+      expect(noKeys.status).toBe('manual');
+      expect(noKeys.hint).toContain('SIGN_REQUIRED = true');
+      expect(noKeys.hint).not.toContain('сборке приложения');
+    } finally {
+      global.fetch = realFetch;
+    }
   });
 });

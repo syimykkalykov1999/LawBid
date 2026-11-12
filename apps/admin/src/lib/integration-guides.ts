@@ -615,6 +615,24 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  sentry_webhook: {
+    steps: [
+      'sentry.io → Settings → Developer Settings (Custom Integrations) → Create New Integration → Internal Integration. Имя: lawbid-ai.',
+      'Webhook URL: https://api.lawbid.dev/api/v1/webhooks/sentry. В разделе Webhooks отметьте только «issue»; «Alert Rule Action» не нужен.',
+      'Permissions: Issue & Event — Read. Больше ничего. Save Changes.',
+      'На странице интеграции скопируйте Client Secret в поле ниже.',
+    ],
+    links: [{ label: 'Sentry: вебхуки', url: 'https://docs.sentry.io/organization/integrations/integration-platform/webhooks/' }],
+    enable: [
+      'Заполните поле → «Сохранить» (код 2FA) → «Включить». Новая ошибка уровня error или fatal сразу запускает ИИ-помощника (не чаще раза в час на одну ошибку), если он включён и месячный потолок не исчерпан.',
+    ],
+    fields: {
+      clientSecret: {
+        how: 'Client Secret внутренней интеграции (Credentials). Им Sentry подписывает каждый вызов. Секрет: не в чат и не в git.',
+      },
+    },
+  },
+
   cockroach_cloud: {
     steps: [
       'Выберите боевой хостинг PostgreSQL (например, AWS RDS, Neon или Supabase) — проверка бэкапов подключается к его API после выбора.',

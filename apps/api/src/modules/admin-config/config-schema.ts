@@ -420,7 +420,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['security.admin_rate_limit_per_minute'] = {
     ...out['security.admin_rate_limit_per_minute'],
     description:
-      'Requests per minute one signed-in admin may make (users stay at 100); ADMIN_THROTTLE_LIMIT in the env overrides it.',
+      'Requests per minute one signed-in admin may make; 0 = no limit (the default; users stay at 100); ADMIN_THROTTLE_LIMIT in the env overrides it.',
     min: ADMIN_THROTTLE_MIN,
     max: ADMIN_THROTTLE_MAX,
   };
@@ -570,6 +570,8 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'infra.mode.opensearch',
     'infra.mode.opensearch_nodes_2',
     'infra.mode.opensearch_nodes_4',
+    'infra.mode.waf_bot_control',
+    'infra.mode.waf_extra_rules',
     'infra.mode.events_stream',
     'infra.mode.partition_role',
     'infra.mode.rds_replicas_2',
@@ -1001,11 +1003,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   };
   out['infra.daily_cap'] = {
     type: 'integer',
-    defaultValue: 3,
-    description: 'At most this many cloud change requests per 24 hours.',
-    min: 1,
-    // Owner 2026-11-11: up to 20 for a day of live switch tests (then back).
-    max: 20,
+    defaultValue: 0,
+    description:
+      'At most this many cloud change requests per 24 hours; 0 = no limit.',
+    min: 0,
+    // Owner 2026-11-12: no ceiling («потолок до бесконечности»); the owner
+    // picks the value (50 while testing, then 10).
+    max: 1_000_000,
   };
   out['infra.quiet_hours'] = {
     type: 'string',
@@ -1416,6 +1420,34 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'People at which the cloud automation switches the search engine (OpenSearch) on; it goes off again below 80 % of it (default 5 million).',
     min: 1,
     max: 1_000_000_000,
+  };
+  out['infra.waf_attack_blocked_per_5m'] = {
+    ...out['infra.waf_attack_blocked_per_5m'],
+    description:
+      'Requests the load-balancer WAF blocked in 5 minutes that count as an attack: WAF Bot Control and the extra WAF rules on «Авто» switch on in block mode; they go off again after infra.waf_calm_off_hours below half of it (default 1000).',
+    min: 1,
+    max: 100_000_000,
+  };
+  out['infra.waf_attack_auth_failed_per_5m'] = {
+    ...out['infra.waf_attack_auth_failed_per_5m'],
+    description:
+      'Failed sign-ins in 5 minutes that count as an attack (same switch-on as the WAF line; off again after infra.waf_calm_off_hours below half of it) (default 50).',
+    min: 1,
+    max: 10_000_000,
+  };
+  out['infra.waf_attack_on_minutes'] = {
+    ...out['infra.waf_attack_on_minutes'],
+    description:
+      'Minutes the WAF attack signal must hold before WAF Bot Control and the extra WAF rules on «Авто» switch on in block mode (default 5; the automation looks every 10 minutes).',
+    min: 1,
+    max: 1440,
+  };
+  out['infra.waf_calm_off_hours'] = {
+    ...out['infra.waf_calm_off_hours'],
+    description:
+      'Hours of calm (below half of both attack lines) before the WAF protections the automation switched on go off again (default 3).',
+    min: 1,
+    max: 720,
   };
   out['economy.db_cpu_limit_percent'] = {
     ...out['economy.db_cpu_limit_percent'],

@@ -3,11 +3,14 @@
  * Users, assistants and anonymous callers share USER_THROTTLE_DEFAULT per
  * tracker; a signed-in admin gets ADMIN_THROTTLE_DEFAULT, editable in
  * admin Система → Настройки (`security.admin_rate_limit_per_minute`).
+ * Owner 2026-11-12 («нигде с лимитами не ограничивай меня»): 0 = no limit
+ * for signed-in admins, the default; his 2FA code is the guard on his own
+ * actions. The setting stays, so a number can be set again later.
  */
 export const USER_THROTTLE_DEFAULT = 100;
-export const ADMIN_THROTTLE_DEFAULT = 600;
-export const ADMIN_THROTTLE_MIN = 100;
-export const ADMIN_THROTTLE_MAX = 10_000;
+export const ADMIN_THROTTLE_DEFAULT = 0;
+export const ADMIN_THROTTLE_MIN = 0;
+export const ADMIN_THROTTLE_MAX = 1_000_000;
 /**
  * How long an admin stays blocked after going over the limit. The window
  * counter still refuses until the minute ends, so the wait is at most
@@ -47,7 +50,7 @@ export function throttleIgnoreUserAgents(
 /**
  * The admin limit: `ADMIN_THROTTLE_LIMIT` when set (the way back in after
  * a bad save), else the setting clamped to [MIN, MAX], never below the
- * user limit.
+ * user limit. 0 (the default) = no limit for admins.
  */
 export function adminThrottleLimit(
   fromSettings: number,
@@ -58,6 +61,7 @@ export function adminThrottleLimit(
   const value = Number.isFinite(fromSettings)
     ? Math.round(fromSettings)
     : ADMIN_THROTTLE_DEFAULT;
+  if (value <= 0) return 0;
   const clamped = Math.min(
     ADMIN_THROTTLE_MAX,
     Math.max(ADMIN_THROTTLE_MIN, value),

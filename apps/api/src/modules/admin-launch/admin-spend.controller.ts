@@ -24,7 +24,6 @@ import {
   SpendService,
 } from '../../common/ops/spend/spend.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { RateLimitService } from '../auth/services/rate-limit.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   AdminEndpoint,
@@ -65,7 +64,6 @@ export class AdminSpendController {
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
-    private readonly rateLimit: RateLimitService,
     private readonly registry: CostRegistryService,
   ) {}
 
@@ -154,24 +152,9 @@ export class AdminSpendController {
     summary: 'Ask the services again (cached: AWS at most every 6 h)',
   })
   @ApiEnvelopeResponse(SpendReportDto)
-  async refreshSpend(
-    @CurrentAdmin() admin: AdminActor,
-  ): Promise<SpendReportDto> {
-    const r = await this.rateLimit.consumeFixedWindow(
-      ['adm-spend-refresh', admin.id],
-      6,
-      60,
-    );
-    if (!r.allowed) {
-      throw new HttpException(
-        {
-          code: E.AUTH_OTP_REQUEST_LIMIT,
-          message: 'Too many requests.',
-          details: { retryAfterSeconds: r.retryAfterSeconds },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+  async refreshSpend(): Promise<SpendReportDto> {
+    // Owner 2026-11-12: no per-minute cap on his own button; AWS is still
+    // asked at most every 6 h (SpendService caches it).
     await this.spend.refresh();
     // R-370: the registry copy carries these numbers too.
     void this.registry.report().catch(() => undefined);

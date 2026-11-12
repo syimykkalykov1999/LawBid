@@ -28,6 +28,7 @@ import {
   parseCeiling,
   poolerLine,
   searchLine,
+  searchNote,
   usageLine,
   type AlarmAction,
   type Economy,
@@ -433,7 +434,7 @@ export default function ScalePage() {
             <InfoCard
               title="Поиск"
               badge={<Badge tone="neutral">{x ? searchLine(x.searchEngine) : '…'}</Badge>}
-              line="Движок задаёт настройка search.engine. Переключается без выката, откат так же."
+              line={searchNote(x?.searchEngine, registry.data?.rows.find((r) => r.id === 'aws.opensearch')?.liveState)}
               footer={
                 <Link href="/config" className="text-xs text-gold-600 underline-offset-2 hover:underline">
                   Открыть настройки и переключить поиск

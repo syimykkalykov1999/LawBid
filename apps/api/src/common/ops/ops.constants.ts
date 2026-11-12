@@ -179,6 +179,11 @@ export interface CapacityReading {
    * memory pressure (Maximum), AWS/ES (optional). */
   searchCpuPercent?: number | null;
   searchJvmPercent?: number | null;
+  /** Owner 2026-11-12 («Авто» for the two WAF protections): requests the
+   * load-balancer web ACL blocked in 5 minutes (AWS/WAFV2) and failed
+   * sign-ins in 5 minutes (SLO counter `authFailed`) (optional). */
+  wafBlockedPer5m?: number | null;
+  authFailedPer5m?: number | null;
 }
 
 export interface CeilingSnapshot {

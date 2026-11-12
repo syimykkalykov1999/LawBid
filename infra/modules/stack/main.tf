@@ -1508,7 +1508,7 @@ module "secrets" {
 variable "db_autoscale_enabled" {
   type        = bool
   default     = false
-  description = "The database grows one size under load and shrinks one size after 3 quiet days, by itself (modules/db-autoscale). Needs a database named by create_database or existing_database_identifier."
+  description = "The database grows one size under load and, at night after 6 quiet hours, shrinks straight to the size the load needs, by itself (modules/db-autoscale). Needs a database named by create_database or existing_database_identifier."
 }
 variable "db_autoscale_min_class" {
   type    = string
@@ -1566,7 +1566,7 @@ variable "endpoints_autoscale_tuning" {
 variable "redis_autoscale_enabled" {
   type        = bool
   default     = false
-  description = "Redis grows one node type under load and shrinks one after 3 quiet days, by itself (modules/redis-autoscale). Needs redis_replicas >= 1 (online resize through failover); idle until automatic failover is on."
+  description = "Redis grows one node type under load and, after 1 quiet hour, shrinks straight to the node type the load needs, by itself (modules/redis-autoscale). Needs redis_replicas >= 1 (online resize through failover); idle until automatic failover is on."
 }
 variable "redis_autoscale_min_class" {
   type    = string
@@ -1846,6 +1846,11 @@ locals {
     # AWS/ES CPU and JVM pressure of (aws-capacity.service.ts). A name built
     # from the stack name, never a resource attribute (KNOWN_ERRORS 104).
     OPS_SEARCH_DOMAIN = var.growth.opensearch_enabled ? "${local.name}-search" : ""
+    # Owner 2026-11-12 («Авто» for the two WAF protections): the load-balancer
+    # web ACL whose AWS/WAFV2 BlockedRequests the API reads (attack signal,
+    # aws-capacity.service.ts). Built from the stack name like modules/alb
+    # names it, never a resource attribute (KNOWN_ERRORS 104).
+    OPS_WAF_ACL = var.waf_enabled ? "${local.name}-waf" : ""
     # Events pipeline (growth.events_stream_enabled): empty while off.
     EVENTS_STREAM_NAME = var.growth.events_stream_enabled ? aws_kinesis_stream.events[0].name : ""
     # N-11: set only with growth.opensearch_serverless_enabled; the app uses
@@ -2698,14 +2703,10 @@ module "endpoints_autoscale" {
   tags              = local.tags
 }
 
-# A read replica must keep max_connections >= its primary's, so the primary
-# cannot grow alone; the autoscaler pauses (and e-mails) while replicas exist.
-check "db_autoscale_vs_replicas" {
-  assert {
-    condition     = !local.db_autoscale_on || var.growth.rds_read_replicas == 0
-    error_message = "db_autoscale_enabled and growth.rds_read_replicas > 0: the autoscaler will not resize a database that has replicas (it pauses and sends an e-mail). Size the primary and the replicas by hand, or set db_autoscale_enabled = false."
-  }
-}
+# Read replicas no longer pause the database autoscaler (KNOWN_ERRORS 109):
+# RDS allows a replica of another class and raises the replica's
+# max_connections / max_worker_processes itself when the primary's are higher
+# (AWS RDS docs "Setting the parameters that control shared memory").
 
 # Security research #5 (2026-10-22), A6: CloudTrail, GuardDuty, Access
 # Analyzer, password policy; findings go to the alerts topic.

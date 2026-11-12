@@ -153,7 +153,7 @@ export class AdminOpsController {
         {
           code: E.FEATURE_DISABLED,
           message:
-            'Работает только на AWS после включения db_replica_toggle в Terraform.',
+            'Копиями для чтения управляют строки «Копии базы только для чтения» в разделе «Облако» (Выкл / Вкл / Авто).',
         },
         HttpStatus.CONFLICT,
       );

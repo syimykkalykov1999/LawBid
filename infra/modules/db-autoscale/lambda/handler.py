@@ -2,7 +2,8 @@
 
 docs/architecture/DB_AUTOSCALE.md. Triggers (EventBridge Scheduler):
   {"mode": "tick"}   every 5 minutes: grow when under load
-  {"mode": "night"}  03:30 America/Chicago: shrink when 3 days were quiet
+  {"mode": "night"}  03:30 America/Chicago: shrink straight to the size the
+                     last 6 quiet hours need (KNOWN_ERRORS 109)
 Manual:
   {"action": "force", "class": "db.t4g.medium"}   resize now (guards apply)
   {"action": "status"}                            print what it sees
@@ -211,8 +212,7 @@ def resize(db_id, target):
 
 
 SKIP_NOTICE_RU = {
-    "has_replicas": "у базы есть реплики чтения (их размер нужно менять вместе, это ручная работа)",
-    "not_multi_az": "база не в режиме Multi-AZ, смена размера дала бы простой на несколько минут",
+    "not_multi_az": "база не в режиме Multi-AZ: увеличение днём дало бы простой на несколько минут, поэтому вверх сама не растёт; уменьшение идёт только ночью",
 }
 
 

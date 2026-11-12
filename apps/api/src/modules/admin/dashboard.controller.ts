@@ -40,10 +40,12 @@ export class DashboardController {
   async refreshTotals(
     @CurrentAdmin() admin: AdminActor,
   ): Promise<DashboardDto> {
-    await this.dashboard.refreshTotals();
+    // Owner 2026-11-12: no 10-minute wait for the owner.
+    const force = admin.adminRole === 'super_admin';
+    await this.dashboard.refreshTotals({ force });
     // Snapshot rule 2026-10-25: the same button recounts this month's
     // access report (private-content page), with the same cooldown.
-    await this.accessReport.refresh();
+    await this.accessReport.refresh(new Date(), { force });
     return this.forAdmin(await this.dashboard.get(), admin);
   }
 

@@ -1,5 +1,13 @@
-import { Injectable, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../redis/redis.constants';
 import { AppSettingsService } from '../common/app-settings/app-settings.service';
 import { AppSettingsWriter } from '../common/app-settings/app-settings.writer';
 import { PrismaService } from '../prisma/prisma.service';
@@ -48,6 +56,26 @@ const SECURITY_JOURNALS: ReadonlySet<string> = new Set([
   'data_access_log',
 ]);
 
+/**
+ * Owner 2026-11-12 («каждая кнопка работает»): Terraform gives the runner's
+ * login (PARTITION_DB_PASSWORD) to the WORKER only, never to the API that
+ * serves the admin. The worker says «I have the login» every minute
+ * (RUNNER_KEY), and a button pressed on the API while only the worker has
+ * the login is queued (COMMANDS_KEY) and carried out by the worker on its
+ * next minute; a failure is shown on the card (ERROR_PREFIX + table).
+ */
+export const RUNNER_KEY = 'ops:partition:runner';
+const RUNNER_TTL_S = 180;
+export const COMMANDS_KEY = 'ops:partition:commands';
+const ERROR_PREFIX = 'ops:partition:cmd-error:';
+const ERROR_TTL_S = 24 * 3600;
+const COMMANDS_PER_TICK = 10;
+
+export type PartitionCommand =
+  | { op: 'start'; table: string; by: string }
+  | { op: 'pause'; table: string; paused: boolean }
+  | { op: 'retry' | 'abort' | 'undo' | 'finalize'; table: string };
+
 export type PartitionCardState =
   | 'monthly' // partitioned by the migration or by the runner
   | 'idle'
@@ -79,7 +107,8 @@ export interface PartitionCard {
   finalizeAfter: string | null;
   /** More than 50 million rows and not partitioned: the growth signal. */
   overThreshold: boolean;
-  /** The service role for the runner is configured. */
+  /** The runner's login exists: in this process, or in the worker (then a
+   * button is carried out by the worker within a minute). */
   runnerConfigured: boolean;
   /** HASH tables: «Выкл / Вкл / Авто» (null for the monthly tables). */
   mode: PartitionMode | null;
@@ -109,7 +138,23 @@ export class PartitionService implements OnModuleDestroy {
     private readonly config: ConfigService,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly writer?: AppSettingsWriter,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
+
+  /** The worker has the runner's login (its heartbeat is fresh). */
+  async workerRunner(): Promise<boolean> {
+    if (!this.redis) return false;
+    try {
+      return (await this.redis.exists(RUNNER_KEY)) === 1;
+    } catch {
+      return false;
+    }
+  }
+
+  /** This process or the worker can carry out the card's buttons. */
+  async runnerReady(): Promise<boolean> {
+    return this.runnerConfigured || (await this.workerRunner());
+  }
 
   private modeKey(table: string) {
     return `partition.${table}_mode` as
@@ -260,6 +305,12 @@ export class PartitionService implements OnModuleDestroy {
   async tick(): Promise<{ worked: string[] } | null> {
     if (!this.runnerConfigured) return null;
     const run = this.runnerRw();
+    await this.redis
+      ?.set(RUNNER_KEY, '1', 'EX', RUNNER_TTL_S)
+      .catch(() => undefined);
+    await this.drainCommands().catch((e: Error) =>
+      this.log.error(`commands: ${e.message}`),
+    );
     await this.autoStart().catch((e: Error) =>
       this.log.error(`autoStart: ${e.message}`),
     );
@@ -270,21 +321,92 @@ export class PartitionService implements OnModuleDestroy {
     return r;
   }
 
+  /** Worker: carry out the buttons pressed on the API (oldest first). */
+  async drainCommands(): Promise<number> {
+    if (!this.redis || !this.runnerConfigured) return 0;
+    let done = 0;
+    for (let i = 0; i < COMMANDS_PER_TICK; i++) {
+      const raw = await this.redis.lpop(COMMANDS_KEY);
+      if (!raw) break;
+      let cmd: PartitionCommand;
+      try {
+        cmd = JSON.parse(raw) as PartitionCommand;
+      } catch {
+        continue;
+      }
+      try {
+        await this.execute(cmd);
+        await this.redis.del(ERROR_PREFIX + cmd.table).catch(() => 0);
+        done++;
+      } catch (e) {
+        const msg = (e as Error).message;
+        this.log.error(`command ${cmd.op} ${cmd.table}: ${msg}`);
+        await this.redis
+          .set(ERROR_PREFIX + cmd.table, msg.slice(0, 300), 'EX', ERROR_TTL_S)
+          .catch(() => undefined);
+      }
+    }
+    return done;
+  }
+
+  /** Here when this process has the login; otherwise queued for the worker. */
+  private async act(cmd: PartitionCommand): Promise<void> {
+    this.spec(cmd.table);
+    if (this.runnerConfigured) return this.execute(cmd);
+    if (this.redis && (await this.workerRunner())) {
+      await this.redis.rpush(COMMANDS_KEY, JSON.stringify(cmd));
+      await this.redis.del(ERROR_PREFIX + cmd.table).catch(() => 0);
+      return;
+    }
+    this.runnerRw(); // throws the plain-words «no login» error
+  }
+
+  private async execute(cmd: PartitionCommand): Promise<void> {
+    const run = this.runnerRw();
+    switch (cmd.op) {
+      case 'start':
+        await run.start(this.spec(cmd.table), cmd.by);
+        return;
+      case 'pause':
+        return run.pause(cmd.table, cmd.paused);
+      case 'retry':
+        return run.retry(cmd.table);
+      case 'abort':
+        return run.abort(this.spec(cmd.table));
+      case 'undo':
+        return run.undo(this.spec(cmd.table));
+      case 'finalize':
+        return run.finalize(this.spec(cmd.table));
+    }
+  }
+
   // ------------------------------------------------------------- the UI ---
 
   async report(): Promise<PartitionCard[]> {
     const read = this.runnerRead();
     const jobs = await this.jobs();
     const limit = await this.autoRows();
+    const ready = await this.runnerReady();
     const out: PartitionCard[] = [];
     for (const spec of [
       ...MIGRATED_PARTITIONED,
       ...HASH_PARTITIONED,
       ...PARTITION_TABLES,
     ]) {
-      out.push(
-        await this.card(read, spec, jobs.get(spec.table) ?? null, limit),
+      const card = await this.card(
+        read,
+        spec,
+        jobs.get(spec.table) ?? null,
+        limit,
+        ready,
       );
+      if (!card.error) {
+        const failed = await this.redis
+          ?.get(ERROR_PREFIX + spec.table)
+          .catch(() => null);
+        if (failed) card.error = failed;
+      }
+      out.push(card);
     }
     return out;
   }
@@ -310,6 +432,7 @@ export class PartitionService implements OnModuleDestroy {
     spec: PartitionSpec,
     job: JobRow | null,
     limit: number,
+    ready: boolean,
   ): Promise<PartitionCard> {
     const st = await read.stats(spec.table);
     let partitions = 0;
@@ -327,7 +450,7 @@ export class PartitionService implements OnModuleDestroy {
       bytes: st.bytes,
       partitioned: st.partitioned,
       partitions,
-      runnerConfigured: this.runnerConfigured,
+      runnerConfigured: ready,
       overThreshold: !st.partitioned && st.rows >= limit,
       mode: MODE_TABLES.some((m) => m.table === spec.table)
         ? await this.mode(spec.table)
@@ -398,7 +521,7 @@ export class PartitionService implements OnModuleDestroy {
       ...idle,
       state: pre.ok ? 'idle' : 'blocked',
       blockedBy: pre.reasons,
-      canStart: pre.ok && this.runnerConfigured,
+      canStart: pre.ok && ready,
     };
   }
 
@@ -419,7 +542,7 @@ export class PartitionService implements OnModuleDestroy {
         return null;
       }
       return SECURITY_JOURNALS.has(table)
-        ? 'журнал безопасности: роль деления намеренно им не владеет, делится только миграцией (docs/runbooks/table-partitioning.md)'
+        ? 'журнал безопасности: так задумано, кнопкой его не делят. Роль деления намеренно им не владеет (владелец мог бы отключить защиту записей от подделки); его делит только миграция, когда будет нужно (docs/runbooks/table-partitioning.md).'
         : 'роль деления не владеет таблицей (миграция не смогла сменить владельца)';
     } catch {
       return null;
@@ -515,24 +638,22 @@ export class PartitionService implements OnModuleDestroy {
     return s;
   }
 
-  start(table: string, by: string): Promise<JobRow> {
-    return this.runnerRw().start(this.spec(table), by);
+  start(table: string, by: string): Promise<void> {
+    return this.act({ op: 'start', table, by });
   }
   pause(table: string, paused: boolean): Promise<void> {
-    this.spec(table);
-    return this.runnerRw().pause(table, paused);
+    return this.act({ op: 'pause', table, paused });
   }
   retry(table: string): Promise<void> {
-    this.spec(table);
-    return this.runnerRw().retry(table);
+    return this.act({ op: 'retry', table });
   }
   abort(table: string): Promise<void> {
-    return this.runnerRw().abort(this.spec(table));
+    return this.act({ op: 'abort', table });
   }
   undo(table: string): Promise<void> {
-    return this.runnerRw().undo(this.spec(table));
+    return this.act({ op: 'undo', table });
   }
   finalize(table: string): Promise<void> {
-    return this.runnerRw().finalize(this.spec(table));
+    return this.act({ op: 'finalize', table });
   }
 }

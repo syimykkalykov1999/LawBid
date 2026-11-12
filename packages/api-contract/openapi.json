@@ -17588,7 +17588,7 @@
             "admin": []
           }
         ],
-        "summary": "Owner 2026-10-04: hide / close / archive / restore up to 500 cases; one reason, audited and told per case",
+        "summary": "Owner 2026-10-04: hide / close / archive / restore many cases (staff up to 500, the owner any number); one reason, audited and told per case",
         "tags": [
           "admin-cases"
         ]
@@ -140354,8 +140354,8 @@
           },
           "ids": {
             "minItems": 1,
-            "maxItems": 500,
-            "description": "Exactly one of `ids` or `filter`.",
+            "maxItems": 100000,
+            "description": "Exactly one of `ids` or `filter`. Staff: at most 500; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",
@@ -145598,7 +145598,8 @@
           },
           "ids": {
             "minItems": 1,
-            "maxItems": 500,
+            "maxItems": 100000,
+            "description": "Staff: at most 500; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",
@@ -159067,7 +159068,8 @@
           "ids": {
             "uniqueItems": true,
             "minItems": 1,
-            "maxItems": 200,
+            "maxItems": 100000,
+            "description": "Staff: at most 200; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",
@@ -159402,7 +159404,8 @@
           },
           "ids": {
             "minItems": 1,
-            "maxItems": 500,
+            "maxItems": 100000,
+            "description": "Staff: at most 500; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",
@@ -160260,7 +160263,8 @@
           },
           "ids": {
             "minItems": 1,
-            "maxItems": 500,
+            "maxItems": 100000,
+            "description": "Staff: at most 500; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",
@@ -162032,7 +162036,8 @@
         "properties": {
           "ids": {
             "minItems": 1,
-            "maxItems": 100,
+            "maxItems": 100000,
+            "description": "Staff: at most 100; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",
@@ -177373,6 +177378,7 @@
             "type": "string",
             "enum": [
               "unavailable",
+              "managed",
               "off",
               "creating",
               "on",
@@ -177397,6 +177403,10 @@
           "note": {
             "type": "string",
             "description": "Plain-words explanation for the card."
+          },
+          "copies": {
+            "type": "integer",
+            "description": "Read copies the app knows: the button copy (0/1) or the copies the infra pipeline made (DB_REPLICA_HOST, state «managed»)."
           }
         },
         "required": [
@@ -177404,7 +177414,8 @@
           "lagSeconds",
           "instanceClass",
           "serving",
-          "note"
+          "note",
+          "copies"
         ]
       },
       "ReplicaStatusEnvelope": {
@@ -185617,7 +185628,8 @@
         "properties": {
           "leadIds": {
             "minItems": 1,
-            "maxItems": 500,
+            "maxItems": 100000,
+            "description": "Staff: at most 500; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",

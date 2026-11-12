@@ -239,7 +239,8 @@ export function createRefusal(i: {
     return 'no_price';
   }
   if (i.activeCount > 0) return 'busy';
-  if (i.last24h >= i.dailyCap) return 'daily_cap';
+  // Owner 2026-11-12: 0 = no daily limit («убери его»).
+  if (i.dailyCap > 0 && i.last24h >= i.dailyCap) return 'daily_cap';
   if (!i.configured) return 'not_configured';
   return null;
 }
@@ -268,11 +269,15 @@ export function serverRemovedBy(itemId: string, to: string): string | null {
   return n < 0 ? null : `db${n + 1}`;
 }
 
-/** The values a request writes into growth.auto.tfvars.json. */
+/** The values a request writes into growth.auto.tfvars.json. An automatic
+ * switch-on uses the switch's `autoOn` values when it has them (the WAF
+ * protections block during an attack; a manual Вкл only counts). */
 export function changesFor(
   sw: InfraSwitch,
   to: InfraTarget,
+  auto = false,
 ): Record<string, InfraValue> {
+  if (auto && to === 'on' && sw.autoOn) return { ...sw.autoOn };
   return { ...sw.values[to] };
 }
 

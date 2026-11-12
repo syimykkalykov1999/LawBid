@@ -3,7 +3,9 @@
 docs/architecture/REDIS_AUTOSCALE.md. Same wiring as the database autoscaler.
 Triggers (EventBridge Scheduler):
   {"mode": "tick"}   every 5 minutes: grow when under load
-  {"mode": "night"}  03:30 America/Chicago: shrink when 3 days were quiet
+  {"mode": "tick"}   also shrinks (online resize) straight to the size the last
+                     quiet hour needs (KNOWN_ERRORS 109)
+  {"mode": "night"}  03:30 America/Chicago: the same shrink check
 Manual:
   {"action": "force", "class": "cache.t4g.medium"}   resize now (guards apply)
   {"action": "status"}                               print what it sees
@@ -284,7 +286,9 @@ def handler(event, context=None, now=None):
         env.get("CLUSTER", ""), [x for x in env.get("SERVICES", "").split(",") if x]
     )
     guards = d.Guards(deploying, oneoff, unknown, night_ok(env.get("NIGHT_TZ", "America/Chicago"), now))
-    hours = cfg.down_window_h if mode == "night" else cfg.period_s * 4 / 3600
+    hours = cfg.period_s * 4 / 3600
+    if mode == "night" or cfg.down_on_tick:  # the tick also checks for a shrink (online resize)
+        hours = max(hours, cfg.down_window_h)
     m = metric_series(nodes, cfg, hours, cur is not None and cur.baseline_pct is not None, now)
     dec = d.decide(cfg, mode, inst, guards, state, m, now)
     log(event="decision", mode=mode, switch=switch, cls=inst.cls, action=dec.action,

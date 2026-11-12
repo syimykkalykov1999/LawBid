@@ -159,6 +159,27 @@ export class IncidentsService {
   }
 
   /**
+   * Owner 2026-11-12: a probe that is shown on the board but no longer paged
+   * on (not in WATCHED, e.g. our own coturn since calls moved to Cloudflare
+   * 2026-10-24) never reaches `reconcile`, so an incident it opened before
+   * stayed «open» forever («Проблема … идёт 19 дн» while the light says
+   * «так и задумано»). Such incidents are closed quietly (no push: nobody is
+   * on call for them). CloudWatch alarm rows (`alarm:*`) are left alone.
+   */
+  async closeUnwatched(
+    components: readonly string[],
+    now = new Date(),
+  ): Promise<number> {
+    const keys = components.filter((k) => !k.startsWith('alarm:'));
+    if (keys.length === 0) return 0;
+    const r = await this.prisma.systemIncident.updateMany({
+      where: { component: { in: keys }, closed_at: null },
+      data: { closed_at: now },
+    });
+    return r.count;
+  }
+
+  /**
    * S12-14: a CloudWatch alarm changed state (posted by the alarm-hook Lambda,
    * monitoring/journey.tf). ALARM opens one row per alarm (the partial unique
    * index keeps it single), OK closes it; INSUFFICIENT_DATA is ignored. No

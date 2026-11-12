@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { OWNER_BULK_MAX } from '../../common/admin-bulk/admin-bulk';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -291,11 +292,19 @@ export class UpdateDocumentTemplateDto extends TemplateFieldsDto {
   title?: string;
 }
 
+/** Staff cap per bulk request (owner 2026-11-12: the owner has none). */
+export const TEMPLATES_BULK_MAX = 100;
+
 export class AdminTemplatesBulkDto {
-  @ApiProperty({ type: [String], format: 'uuid', maxItems: 100 })
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    maxItems: OWNER_BULK_MAX,
+    description: `Staff: at most ${TEMPLATES_BULK_MAX}; the owner: any number (processed in chunks).`,
+  })
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(100)
+  @ArrayMaxSize(OWNER_BULK_MAX)
   @IsUUID('all', { each: true })
   ids!: string[];
 

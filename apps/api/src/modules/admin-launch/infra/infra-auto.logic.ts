@@ -104,6 +104,16 @@ export const SEARCH_NODES = [
   'aws.opensearch_nodes_4',
 ] as const;
 
+/** Owner 2026-11-12 («Да сделай авто для двух защит»): the two WAF
+ * protections that switch with an attack, like AWS Shield Advanced automatic
+ * application-layer DDoS mitigation (rules on while an attack is detected,
+ * removed after it ends). Signals `waf_attack` / `waf_calm` come from
+ * cost-registry.service wafAttackSignals (not the shared pressures()). */
+export const WAF_GUARDS = [
+  'aws.waf_bot_control',
+  'aws.waf_extra_rules',
+] as const;
+
 /** Read copies and search nodes: each step needs the one before it and goes
  * only after the ones above it. */
 const LADDERS: readonly (readonly string[])[] = [COPIES, SEARCH_NODES];
@@ -348,6 +358,35 @@ export function autoWants(
         : 'Поисковый движок выключен: лишние узлы не нужны.',
     });
   }
+  // Owner 2026-11-12: the WAF protections on «Авто». On while the web ACL
+  // in front of the server blocks a lot or sign-ins fail a lot (only with
+  // that ACL on: the rules live inside it); off once it is calm again, and
+  // only what was switched on by itself or handed to «Авто» (a position set
+  // by hand earlier stays).
+  for (const id of WAF_GUARDS) {
+    if ((s.modes?.[id] ?? 'auto') !== 'auto') continue;
+    if (
+      live(id) !== 'on' &&
+      live('aws.waf_alb') === 'on' &&
+      s.pressures.includes('waf_attack')
+    ) {
+      out.push({
+        id,
+        to: 'on',
+        reason:
+          'Похоже на атаку: фильтр WAF перед сервером отбивает много запросов или много неудачных входов за 5 минут (пороги infra.waf_attack_blocked_per_5m и infra.waf_attack_auth_failed_per_5m).',
+      });
+    }
+    const handed = autoOn.has(id) || s.pickedAuto?.has(id) === true;
+    if (handed && live(id) === 'on' && s.pressures.includes('waf_calm')) {
+      out.push({
+        id,
+        to: 'off',
+        reason:
+          'Атака давно закончилась: отбитых запросов и неудачных входов меньше половины порога.',
+      });
+    }
+  }
   if (s.partitionNeedsRunner && live('aws.partition_role') !== 'on') {
     out.push({
       id: 'aws.partition_role',
@@ -427,6 +466,9 @@ export function dueWants(
   nowMs: number,
   onMs: number,
   offMs: number,
+  /** Per item: its own on / off wait (the WAF protections react to an
+   * attack in minutes, like AWS Shield Advanced). */
+  per: Readonly<Record<string, { onMs: number; offMs: number }>> = {},
 ): { due: AutoWant[]; seen: Record<string, number> } {
   const next: Record<string, number> = {};
   const due: AutoWant[] = [];
@@ -434,7 +476,9 @@ export function dueWants(
     const k = wantKey(w);
     const first = seen[k] ?? nowMs;
     next[k] = first;
-    if (nowMs - first >= (w.to === 'on' ? onMs : offMs)) due.push(w);
+    const own = per[w.id];
+    const wait = w.to === 'on' ? (own?.onMs ?? onMs) : (own?.offMs ?? offMs);
+    if (nowMs - first >= wait) due.push(w);
   }
   return { due, seen: next };
 }
@@ -478,7 +522,8 @@ export function autoRefusal(p: {
   if (p.mode.trim().toLowerCase() !== 'auto') return 'auto_off';
   if (!p.configured) return 'not_configured';
   if (p.activeCount > 0) return 'busy';
-  if (p.last24h >= p.dailyCap) return 'daily_cap';
+  // Owner 2026-11-12: 0 = no daily limit.
+  if (p.dailyCap > 0 && p.last24h >= p.dailyCap) return 'daily_cap';
   if (!p.inQuietWindow) return 'quiet_hours';
   if (p.want.to === 'on') {
     if (p.budgetRatio !== null && p.budgetRatio >= 0.9) return 'money_budget';

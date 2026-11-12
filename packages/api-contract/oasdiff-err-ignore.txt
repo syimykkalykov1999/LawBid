@@ -691,3 +691,5 @@ POST /admin/system-health/message-reencrypt/restart added the new `email` enum v
 POST /admin/system-health/restart-worker added the new `email` enum value to the `data/items/items/key` response property for the response status `200`
 POST /admin/system-health/scale added the new `email` enum value to the `data/items/items/key` response property for the response status `200`
 PATCH /admin/system-health/settings added the new `email` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health/db-replica added the new `managed` enum value to the `data/state` response property for the response status `200`
+POST /admin/system-health/db-replica added the new `managed` enum value to the `data/state` response property for the response status `200`

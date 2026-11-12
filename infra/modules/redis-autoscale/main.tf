@@ -4,7 +4,7 @@
 # size: docs/runbooks/redis-autoscale.md.
 #
 #   EventBridge Scheduler  every 5 min  {"mode":"tick"}  -> Lambda -> one step UP when loaded
-#   EventBridge Scheduler  03:30 Chicago {"mode":"night"} -> Lambda -> one step DOWN after 3 quiet days
+#   EventBridge Scheduler  03:30 Chicago {"mode":"night"} -> Lambda -> DOWN to the size the quiet window needs (also on every tick)
 #
 # The Lambda re-reads the facts on every run (node type, status, metrics of
 # both nodes, ECS rollouts). A change is ModifyReplicationGroup(CacheNodeType,
@@ -96,6 +96,16 @@ variable "night_timezone" {
 variable "tick_minutes" {
   type    = number
   default = 5
+}
+variable "down_window_h" {
+  type        = number
+  default     = 1
+  description = "Hours of calm before a shrink; the shrink goes straight to the smallest size whose capacity keeps the window peak under the target (KNOWN_ERRORS 109). Owner 12.11: the resize is online (replica + failover), so the shrink is checked on every tick."
+}
+variable "down_cooldown_h" {
+  type        = number
+  default     = 1
+  description = "No shrink for this many hours after any size change (including the last scale-up)."
 }
 variable "tuning" {
   type        = map(number)
@@ -318,7 +328,7 @@ resource "aws_lambda_function" "this" {
       MIN_CLASS        = var.min_node_type
       MAX_CLASS        = var.max_node_type
       REQUIRE_FAILOVER = tostring(var.require_failover)
-      TUNING           = jsonencode(var.tuning)
+      TUNING           = jsonencode(merge({ down_window_h = var.down_window_h, down_cooldown_h = var.down_cooldown_h }, var.tuning))
       GROUP_ID         = var.replication_group_id
       TOPIC_ARN        = var.alerts_topic_arn
       STATE_PARAM      = aws_ssm_parameter.state.name
@@ -381,7 +391,7 @@ resource "aws_scheduler_schedule" "tick" {
 
 resource "aws_scheduler_schedule" "night" {
   name                         = "${local.fn_name}-night"
-  description                  = "Redis autoscale: night check for a reason to shrink (after 3 quiet days)"
+  description                  = "Redis autoscale: night check for a reason to shrink (the tick checks too, after 1 quiet hour)"
   schedule_expression          = var.night_schedule
   schedule_expression_timezone = var.night_timezone
   flexible_time_window { mode = "OFF" }
