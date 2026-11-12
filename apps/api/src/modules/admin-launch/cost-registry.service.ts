@@ -176,6 +176,39 @@ export function searchSignals(
   return [];
 }
 
+/**
+ * Owner 2026-11-12 («Авто» for the two WAF protections): `waf_attack` while
+ * the load-balancer web ACL blocks at least `blockedLine` requests in 5
+ * minutes OR at least `authLine` sign-ins fail in 5 minutes; `waf_calm` when
+ * every known reading is below half its line. Same idea as AWS Shield
+ * Advanced automatic application-layer DDoS mitigation (rules on while an
+ * attack is detected, removed after it ends); the cool-down is the
+ * automation's hysteresis (infra.auto_off_hours). Used by infra-auto only.
+ */
+export const WAF_ATTACK_BLOCKED_PER_5M = 1000;
+export const WAF_ATTACK_AUTH_FAILED_PER_5M = 50;
+export function wafAttackSignals(
+  blocked: number | null | undefined,
+  authFailed: number | null | undefined,
+  blockedLine: number,
+  authLine: number,
+): string[] {
+  if (blocked == null && authFailed == null) return [];
+  if (
+    (blocked != null && blocked >= blockedLine) ||
+    (authFailed != null && authFailed >= authLine)
+  ) {
+    return ['waf_attack'];
+  }
+  if (
+    (blocked == null || blocked < blockedLine / 2) &&
+    (authFailed == null || authFailed < authLine / 2)
+  ) {
+    return ['waf_calm'];
+  }
+  return [];
+}
+
 @Injectable()
 export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
   private stopWarm?: () => void;
@@ -327,17 +360,30 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
         return null;
       }
     };
-    const [hb, paused, econ, cost, cap, usageRaw, cpuLimitRaw] =
-      await Promise.all([
-        safe(() => this.ops.workerHeartbeat()),
-        safe(() => this.ops.isHeavyPaused()),
-        safe(() => this.ops.isEconomyLimited()),
-        safe(() => this.ops.cost()),
-        safe(() => this.ops.capacity()),
-        safe(() => this.redis.get(USAGE_SNAPSHOT_REDIS_KEY)),
-        safe(() => this.settings.number('economy.db_cpu_limit_percent')),
-      ]);
+    const [
+      hb,
+      paused,
+      econ,
+      cost,
+      cap,
+      usageRaw,
+      cpuLimitRaw,
+      blockedLineRaw,
+      authLineRaw,
+    ] = await Promise.all([
+      safe(() => this.ops.workerHeartbeat()),
+      safe(() => this.ops.isHeavyPaused()),
+      safe(() => this.ops.isEconomyLimited()),
+      safe(() => this.ops.cost()),
+      safe(() => this.ops.capacity()),
+      safe(() => this.redis.get(USAGE_SNAPSHOT_REDIS_KEY)),
+      safe(() => this.settings.number('economy.db_cpu_limit_percent')),
+      safe(() => this.settings.number('infra.waf_attack_blocked_per_5m')),
+      safe(() => this.settings.number('infra.waf_attack_auth_failed_per_5m')),
+    ]);
     const cpuLimit = cpuLimitRaw ?? undefined;
+    const line = (v: number | null, d: number) =>
+      v != null && Number.isFinite(v) && v > 0 ? v : d;
     let usage: UsageSnap | null = null;
     try {
       usage = usageRaw ? (JSON.parse(usageRaw) as UsageSnap) : null;
@@ -376,6 +422,13 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
               cap.searchCpuPercent,
               cap.searchJvmPercent,
               cpuLimit ?? 70,
+            ),
+            // Owner 2026-11-12: the two WAF protections on «Авто».
+            ...wafAttackSignals(
+              cap.wafBlockedPer5m,
+              cap.authFailedPer5m,
+              line(blockedLineRaw, WAF_ATTACK_BLOCKED_PER_5M),
+              line(authLineRaw, WAF_ATTACK_AUTH_FAILED_PER_5M),
             ),
           ]
         : [],

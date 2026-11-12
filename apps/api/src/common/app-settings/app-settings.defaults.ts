@@ -1226,6 +1226,18 @@ export const OWNER_STORAGE_SETTINGS = {
    * acts, then set back. People at which the search engine (OpenSearch) is
    * switched on; it goes off again below 80 % of it. */
   'infra.search_engine_on_people': 5_000_000,
+  /** Owner 2026-11-12 («Авто» for the two WAF protections, like AWS Shield
+   * Advanced automatic application-layer mitigation): an attack is at least
+   * this many requests blocked by the load-balancer WAF in 5 minutes
+   * (prod 08–12.11: usually 0–2, highest 489) OR this many failed sign-ins
+   * in 5 minutes; calm = below half of both for infra.auto_off_hours. */
+  'infra.waf_attack_blocked_per_5m': 1000,
+  'infra.waf_attack_auth_failed_per_5m': 50,
+  /** Foreman 2026-11-12: the two WAF protections react like AWS Shield
+   * Advanced (minutes): on after this many minutes of the attack signal,
+   * off after this many hours of calm (their own infra.auto_* waits). */
+  'infra.waf_attack_on_minutes': 5,
+  'infra.waf_calm_off_hours': 3,
   /** Database CPU % above which «busy» starts (read copy, size step). */
   'economy.db_cpu_limit_percent': 70,
   /** Owner 2026-11-02: «time to prepare a second database». Health turns
@@ -1306,6 +1318,8 @@ export const OWNER_STORAGE_SETTINGS = {
   'infra.mode.opensearch': 'auto',
   'infra.mode.opensearch_nodes_2': 'auto',
   'infra.mode.opensearch_nodes_4': 'auto',
+  'infra.mode.waf_bot_control': 'auto',
+  'infra.mode.waf_extra_rules': 'auto',
   'infra.mode.events_stream': 'auto',
   'infra.mode.partition_role': 'auto',
   'infra.mode.rds_replicas_2': 'auto',

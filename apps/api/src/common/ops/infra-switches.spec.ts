@@ -54,6 +54,27 @@ describe('infra switch whitelist', () => {
     );
   });
 
+  // Foreman 2026-11-12: «Авто» switches the WAF protections on in BLOCK
+  // mode (AWS Shield Advanced / Cloudflare «Under Attack» block during an
+  // attack); a manual Вкл keeps counting only.
+  it('automatic switch-on values are whitelisted; the WAF rows block on Авто, count on Вкл', () => {
+    for (const sw of INFRA_SWITCHES) {
+      for (const [k, v] of Object.entries(sw.autoOn ?? {})) {
+        expect([sw.id, k, checkValue(k, v)]).toEqual([sw.id, k, null]);
+      }
+    }
+    const bot = INFRA_SWITCHES.find((s) => s.id === 'aws.waf_bot_control')!;
+    expect(bot.values.on.waf_bot_control_block).toBe(false);
+    expect(bot.autoOn).toEqual({
+      waf_bot_control_enabled: true,
+      waf_bot_control_block: true,
+    });
+    const extra = INFRA_SWITCHES.find((s) => s.id === 'aws.waf_extra_rules')!;
+    expect(extra.values.on.waf_auth_rate_action).toBe('count');
+    expect(extra.autoOn?.waf_auth_rate_action).toBe('block');
+    expect(extra.autoOn?.waf_auth_rules_enabled).toBe(true);
+  });
+
   it('never offers rows whose Выкл loses data or needs a secret', () => {
     const ids = INFRA_SWITCHES.map((s) => s.id);
     for (const id of ['aws.backup', 'aws.rds_proxy', 'aws.rds', 'aws.redis']) {

@@ -26,6 +26,7 @@ import {
 import { opsCredentials } from './ops-credentials';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { SLO_REDIS_PREFIX } from './slo-metrics.service';
 import {
   prometheusValue,
   selfHostDbConnections,
@@ -45,6 +46,12 @@ export interface CapacityMetrics {
    * JVM memory pressure (Maximum); null = no domain / unknown. */
   searchCpuPercent?: number | null;
   searchJvmPercent?: number | null;
+  /** Owner 2026-11-12: requests the load-balancer web ACL blocked in the
+   * busiest of the last 5-minute periods (AWS/WAFV2 BlockedRequests, Sum;
+   * null = no web ACL / unknown) and failed sign-ins in the last 5 full
+   * minutes (SLO counter `authFailed` in Redis; null = unknown). */
+  wafBlockedPer5m?: number | null;
+  authFailedPer5m?: number | null;
 }
 
 export interface CapacityInfo {
@@ -96,6 +103,11 @@ export class AwsCapacityService {
   /** The search engine domain (`<name>-search`, empty while it is off). */
   get searchDomain(): string | undefined {
     return this.env('OPS_SEARCH_DOMAIN');
+  }
+
+  /** The load-balancer web ACL (`<name>-waf`, empty while WAF is off). */
+  get wafAcl(): string | undefined {
+    return this.env('OPS_WAF_ACL');
   }
 
   get available(): boolean {
@@ -198,13 +210,14 @@ export class AwsCapacityService {
   }
 
   /** Average of the last datapoints (5-minute periods over 15 minutes);
-   * with `Maximum`, the highest of those points' maxima. */
+   * with `Maximum`, the highest of those points' maxima; with `Sum`, the
+   * highest of those 5-minute sums. */
   private async avg(
     namespace: string,
     metric: string,
     dimensions: Dimension[],
     now: Date,
-    stat: 'Average' | 'Maximum' = 'Average',
+    stat: 'Average' | 'Maximum' | 'Sum' = 'Average',
   ): Promise<number | null> {
     const res = await this.cwClient().send(
       new GetMetricStatisticsCommand({
@@ -223,8 +236,25 @@ export class AwsCapacityService {
       .slice(-2);
     if (points.length === 0) return null;
     const values = points.map((p) => p[stat] as number);
-    if (stat === 'Maximum') return Math.max(...values);
+    if (stat === 'Maximum' || stat === 'Sum') return Math.max(...values);
     return values.reduce((a, b) => a + b, 0) / values.length;
+  }
+
+  /** Failed sign-ins in the last 5 full minutes: the per-minute SLO
+   * hashes SloMetricsService already writes (26 h in Redis), read one key
+   * at a time. Null without Redis. */
+  private async authFailedPer5m(now: Date): Promise<number | null> {
+    if (!this.redis) return null;
+    const current = Math.floor(now.getTime() / 60_000);
+    let n = 0;
+    for (let i = 1; i <= 5; i++) {
+      const v = await this.redis.hget(
+        SLO_REDIS_PREFIX + (current - i),
+        'authFailed',
+      );
+      n += Number(v ?? 0) || 0;
+    }
+    return n;
   }
 
   async metrics(now: Date = new Date()): Promise<CapacityMetrics> {
@@ -291,6 +321,26 @@ export class AwsCapacityService {
         'Maximum',
       ).catch(() => null);
     }
+    // Owner 2026-11-12 («Авто» for the two WAF protections, like AWS Shield
+    // Advanced automatic application-layer DDoS mitigation: rules go on
+    // while an attack is seen and come off after it). AWS/WAFV2 publishes a
+    // point only for periods with blocked requests, so «no points» is 0.
+    if (this.wafAcl) {
+      out.wafBlockedPer5m = await this.avg(
+        'AWS/WAFV2',
+        'BlockedRequests',
+        [
+          { Name: 'WebACL', Value: this.wafAcl },
+          { Name: 'Region', Value: this.region() },
+          { Name: 'Rule', Value: 'ALL' },
+        ],
+        now,
+        'Sum',
+      )
+        .then((v) => v ?? 0)
+        .catch(() => null);
+    }
+    out.authFailedPer5m = await this.authFailedPer5m(now).catch(() => null);
     // Owner 2026-11-11 («Масштаб» без AWS): what CloudWatch does not cover
     // is read from the services themselves.
     if (!this.dbInstance && this.prisma) {

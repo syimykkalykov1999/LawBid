@@ -133,6 +133,9 @@
     "waf_auth_rules_enabled": {
       "type": "boolean"
     },
+    "waf_bot_control_block": {
+      "type": "boolean"
+    },
     "waf_bot_control_enabled": {
       "type": "boolean"
     },

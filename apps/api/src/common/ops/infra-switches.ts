@@ -82,6 +82,7 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   macie_enabled: bool('macie_enabled'),
   audit_logs_enabled: bool('audit_logs_enabled'),
   waf_bot_control_enabled: bool('waf_bot_control_enabled'),
+  waf_bot_control_block: bool('waf_bot_control_block'),
   waf_device_header: choice('waf_device_header', ['', 'x-device-id']),
   waf_auth_rules_enabled: bool('waf_auth_rules_enabled'),
   waf_auth_rate_action: choice('waf_auth_rate_action', ['count', 'block']),
@@ -125,6 +126,11 @@ export interface InfraSwitch {
   id: string;
   /** The exact values for Выкл and Вкл (keys from INFRA_KEYS). */
   values: Record<InfraTarget, Record<string, InfraValue>>;
+  /** Owner 2026-11-12 (foreman: AWS Shield Advanced, Cloudflare «Under
+   * Attack», Akamai, Fastly all BLOCK during an attack): the values an
+   * automatic switch-on writes instead of `values.on` (a manual Вкл keeps
+   * `values.on`). Keys from INFRA_KEYS. */
+  autoOn?: Record<string, InfraValue>;
   /** Plain Russian: what happens to the app while the change applies. */
   impact: string;
 }
@@ -389,15 +395,25 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
         waf_auth_rate_action: 'count',
       },
     },
-    impact: 'Без перерыва. Правила сначала только считают, не блокируют.',
+    // Авто during an attack: the login rule blocks at once.
+    autoOn: {
+      waf_device_header: 'x-device-id',
+      waf_auth_rules_enabled: true,
+      waf_auth_rate_action: 'block',
+    },
+    impact:
+      'Без перерыва. «Вкл» — правила сначала только считают; «Авто» во время атаки сразу блокирует.',
   },
   {
     id: 'aws.waf_bot_control',
     values: {
-      off: { waf_bot_control_enabled: false },
-      on: { waf_bot_control_enabled: true },
+      off: { waf_bot_control_enabled: false, waf_bot_control_block: false },
+      on: { waf_bot_control_enabled: true, waf_bot_control_block: false },
     },
-    impact: 'Без перерыва.',
+    // Авто during an attack: the bot verdicts are blocked, not only counted.
+    autoOn: { waf_bot_control_enabled: true, waf_bot_control_block: true },
+    impact:
+      'Без перерыва. «Вкл» — только считает; «Авто» во время атаки блокирует ботов.',
   },
   {
     id: 'aws.ha_extras',
