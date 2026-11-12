@@ -22,7 +22,7 @@ clamav_image      = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-clamav:
 # the "Build PgBouncer" workflow -> set the two lines below -> terraform apply.
 # Rollback: db_pooler_enabled = false -> terraform apply.
 db_pooler_enabled = false # true after the image exists
-pgbouncer_image   = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-pgbouncer:1.24.0-1"
+pgbouncer_image   = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-pgbouncer:1.24.0-3"
 alert_emails      = ["REPLACE@gmail.com"] # a mailbox the owner reads (lawbid.dev has no inbox yet)
 # Subscription prices and all third-party keys are set in the admin.
 

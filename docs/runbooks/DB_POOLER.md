@@ -27,14 +27,14 @@
    `terraform plan`, затем `terraform apply`. В плане должен появиться только
    `aws_ecr_repository.app["lawbid-pgbouncer"]` и его правило очистки.
 3. **Собрать образ.** GitHub -> Actions -> **Build PgBouncer** -> Run workflow
-   (тег по умолчанию `1.24.0-1`). Внизу страницы запуска: строка вида
-   `pgbouncer_image = "...lawbid-pgbouncer:1.24.0-1"` и доказательство, что
+   (тег по умолчанию `1.24.0-3`). Внизу страницы запуска: строка вида
+   `pgbouncer_image = "...lawbid-pgbouncer:1.24.0-3"` и доказательство, что
    есть `linux/arm64` и `linux/amd64`.
 4. **tfvars для prod** (файл `infra/envs/prod/terraform.tfvars`), добавить:
 
    ```
    db_pooler_enabled   = true
-   pgbouncer_image     = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-pgbouncer:1.24.0-1"
+   pgbouncer_image     = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-pgbouncer:1.24.0-3"
    pgbouncer_max_tasks = 3
    ```
 
@@ -58,7 +58,7 @@
 8. Проверка (раздел 2), 30 минут наблюдения, потом ночь без вмешательства.
 
 Для нагрузочного теста ничего вручную: воркфлоу `load-test.yml` сам проверяет
-образ `lawbid-pgbouncer:1.24.0-1` в ECR (поэтому шаги 2-3 нужны и для теста),
+образ `lawbid-pgbouncer:1.24.0-3` в ECR (поэтому шаги 2-3 нужны и для теста),
 поднимает пул первым и ждёт его.
 
 ## 2. Как проверить, что работает

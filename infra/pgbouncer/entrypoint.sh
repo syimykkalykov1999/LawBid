@@ -8,6 +8,7 @@
 #                  is ignored. Password characters may be percent-encoded.
 #   POOL_SIZE      server connections per (database, user) pool   [20]
 #   RESERVE_POOL   extra connections used when clients wait       [3]
+#   MIN_POOL_SIZE  server connections kept open even when idle    [10, at most POOL_SIZE]
 #   MAX_DB_CONNECTIONS  hard cap of server connections of THIS task [POOL_SIZE + RESERVE_POOL]
 #   MAX_CLIENT_CONN     client connections accepted               [5000]
 #   MAX_PREPARED_STATEMENTS  protocol-level prepared statements per server connection [200]
@@ -86,6 +87,14 @@ esac
 
 POOL_SIZE=${POOL_SIZE:-20}
 RESERVE_POOL=${RESERVE_POOL:-3}
+# 12.11 (KNOWN_ERRORS 106): with min_pool_size = 0 the pool closed every idle
+# server connection after server_idle_timeout (300 s), and PgBouncer opens new
+# ones one at a time, so the first burst after 5 min idle (an admin page:
+# 11 requests) waited ~1 s for logins. PgBouncer's own remedy (config docs,
+# min_pool_size: "improves behavior when the normal load suddenly comes back
+# after a period of total inactivity").
+MIN_POOL_SIZE=${MIN_POOL_SIZE:-10}
+if [ "$MIN_POOL_SIZE" -gt "$POOL_SIZE" ]; then MIN_POOL_SIZE=$POOL_SIZE; fi
 MAX_DB_CONNECTIONS=${MAX_DB_CONNECTIONS:-$((POOL_SIZE + RESERVE_POOL))}
 
 cat > "$D/pgbouncer.ini" <<EOF
@@ -111,7 +120,7 @@ default_pool_size = ${POOL_SIZE}
 reserve_pool_size = ${RESERVE_POOL}
 reserve_pool_timeout = 3
 max_db_connections = ${MAX_DB_CONNECTIONS}
-min_pool_size = 0
+min_pool_size = ${MIN_POOL_SIZE}
 ; Prisma uses named prepared statements; PgBouncer >= 1.21 tracks them.
 max_prepared_statements = ${MAX_PREPARED_STATEMENTS:-200}
 
