@@ -16,6 +16,8 @@ class AiAssistantStatusDto {
     required this.connected,
     required this.allowed,
     required this.reason,
+    required this.tasksAllowed,
+    required this.tasksReason,
     required this.monthUsd,
     required this.maxUsd,
     required this.tasks,
@@ -37,6 +39,12 @@ class AiAssistantStatusDto {
 
   /// Why not, in words.
   final String? reason;
+
+  /// Owner tasks may be sent now (only in Вкл; Авто = the scheduled look only).
+  final bool tasksAllowed;
+
+  /// Why not.
+  final String? tasksReason;
   final num monthUsd;
   final num maxUsd;
   final List<AiTaskDto> tasks;

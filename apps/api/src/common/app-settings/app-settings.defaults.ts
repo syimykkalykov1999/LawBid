@@ -1350,7 +1350,7 @@ export const OWNER_STORAGE_SETTINGS = {
   // and pause by themselves at ai.monthly_max_usd until the next month;
   // off never runs. Without ANTHROPIC_API_KEY / AI_ASSISTANT_ENABLED in
   // GitHub the workflow does not start at all. 0 = no runs.
-  'ai.assistant_mode': 'auto',
+  'ai.assistant_mode': 'on', // owner 12.11: watches AND takes his tasks by default
   'ai.monthly_max_usd': 30,
   'db.health_table_size_gb': 20,
   'db.health_dead_ratio_percent': 20,

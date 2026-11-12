@@ -13,6 +13,8 @@ AiAssistantStatusDto _$AiAssistantStatusDtoFromJson(
   connected: json['connected'] as bool,
   allowed: json['allowed'] as bool,
   reason: json['reason'] as String?,
+  tasksAllowed: json['tasksAllowed'] as bool,
+  tasksReason: json['tasksReason'] as String?,
   monthUsd: json['monthUsd'] as num,
   maxUsd: json['maxUsd'] as num,
   tasks: (json['tasks'] as List<dynamic>)
@@ -31,6 +33,8 @@ Map<String, dynamic> _$AiAssistantStatusDtoToJson(
   'connected': instance.connected,
   'allowed': instance.allowed,
   'reason': ?instance.reason,
+  'tasksAllowed': instance.tasksAllowed,
+  'tasksReason': ?instance.tasksReason,
   'monthUsd': instance.monthUsd,
   'maxUsd': instance.maxUsd,
   'tasks': instance.tasks.map((e) => e.toJson()).toList(),
