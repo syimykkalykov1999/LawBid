@@ -61,17 +61,25 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
     }
   }
   statement {
-    sid       = "ProdSecretsRead"
-    actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-    resources = ["arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}/*"]
+    sid     = "ProdSecretsRead"
+    actions = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+    # 11.11: a second database server (aws.db_shards) keeps its master
+    # secret under lawbid-<env>-db<N>/ (KNOWN_ERRORS 100).
+    resources = [
+      "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}/*",
+      "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}-db*/*",
+    ]
   }
   statement {
     # 2026-11-10: switches that bring their own secret (PgBouncer TLS:
     # lawbid-prod/pgbouncer-tls) create and write it. Prod names only;
     # deleting a secret stays denied below.
-    sid       = "SwitchSecretsWrite"
-    actions   = ["secretsmanager:CreateSecret", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret", "secretsmanager:TagResource", "secretsmanager:UntagResource"]
-    resources = ["arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}/*"]
+    sid     = "SwitchSecretsWrite"
+    actions = ["secretsmanager:CreateSecret", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret", "secretsmanager:TagResource", "secretsmanager:UntagResource"]
+    resources = [
+      "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}/*",
+      "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}-db*/*",
+    ]
   }
   statement {
     sid = "SwitchServices"
@@ -90,6 +98,9 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
       "ec2:*FlowLogs", "ec2:*SecurityGroup*", "ec2:CreateTags", "ec2:DeleteTags",
       "ecs:*", "application-autoscaling:*", "elasticloadbalancing:*",
       "rds:CreateDBInstanceReadReplica", "rds:CreateDBInstance", "rds:ModifyDBInstance",
+      # 11.11: a second database server brings its own subnet and parameter
+      # groups (module postgres_shard; KNOWN_ERRORS 100).
+      "rds:CreateDBSubnetGroup", "rds:ModifyDBSubnetGroup", "rds:CreateDBParameterGroup",
       "rds:DeleteDBInstance", "rds:AddTagsToResource", "rds:RemoveTagsFromResource",
       "rds:StartDBInstanceAutomatedBackupsReplication", "rds:StopDBInstanceAutomatedBackupsReplication",
       "es:*", "s3:PutReplicationConfiguration", "s3:PutBucket*", "s3:CreateBucket",
