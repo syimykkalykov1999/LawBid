@@ -17,6 +17,38 @@ describe('registry helpers (owner 2026-10-05)', () => {
     expect(getPath(body, '')).toBe(body);
   });
 
+  it('namesMatch: first, middle and last name (owner 2026-11-12)', () => {
+    const john = { firstName: 'John Michael', lastName: 'Smith' };
+    // Middle name typed with the first name, registry keeps it apart.
+    expect(
+      namesMatch(john, { first: 'John', middle: 'M.', last: 'Smith' }),
+    ).toBe(true);
+    expect(
+      namesMatch(john, { first: 'John', middle: 'Robert', last: 'Smith' }),
+    ).toBe(false);
+    // Registry has no middle name, or the account has none: not compared.
+    expect(namesMatch(john, { first: 'John', last: 'Smith' })).toBe(true);
+    expect(
+      namesMatch(
+        { firstName: 'John', lastName: 'Smith' },
+        { first: 'John Michael', last: 'Smith' },
+      ),
+    ).toBe(true);
+    // Separate middle name on the account side.
+    expect(
+      namesMatch(
+        { firstName: 'John', middleName: 'Robert', lastName: 'Smith' },
+        { first: 'John', middle: 'Michael', last: 'Smith' },
+      ),
+    ).toBe(false);
+    // Full name: "Last, First Middle Suffix".
+    expect(namesMatch(john, { full: 'Smith, John M. Jr.' })).toBe(true);
+    expect(namesMatch(john, { full: 'John Robert Smith' })).toBe(false);
+    expect(namesMatch(john, { full: 'John Smith' })).toBe(true);
+    // A different first name still fails.
+    expect(namesMatch(john, { first: 'Jane', last: 'Smith' })).toBe(false);
+  });
+
   it('namesMatch: apart, full name, and an empty account name', () => {
     const acc = { firstName: 'José', lastName: "O'Brien" };
     expect(namesMatch(acc, { first: 'JOSE', last: 'OBRIEN' })).toBe(true);

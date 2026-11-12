@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/browser_download.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
@@ -21,6 +22,7 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/fake_browser_tabs.dart';
 import '../../helpers/long_locale.dart';
 import '../../helpers/referral_overrides.dart';
 import '../../helpers/ux_harness.dart';
@@ -76,6 +78,20 @@ class _Repo extends TemplatesRepository {
 
   final List<DocTemplate> items;
   final queries = <TemplatesQuery>[];
+
+  /// Runs when the signed link is asked for (what the tab saw by then).
+  void Function()? onDownload;
+
+  @override
+  Future<TemplateDownload> download(String id) async {
+    onDownload?.call();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    return (
+      url: 'https://files.example/$id.pdf?sig=1',
+      fileName: 'Residential lease.pdf',
+      mime: 'application/pdf',
+    );
+  }
 
   @override
   Future<CursorPage<DocTemplate>> list(
@@ -168,6 +184,39 @@ void main() {
     expect(find.textContaining('не юридическая консультация'), findsOneWidget);
     expect(find.textContaining('Скачиваний: 42'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  group('website «Скачать» (row 58)', () {
+    tearDown(() => debugBrowserTabs = null);
+
+    testWidgets('the tab opens on the tap and gets the signed link',
+        (tester) async {
+      final tabs = debugBrowserTabs = FakeTabs();
+      final repo = await pump(tester, const TemplatesScreen());
+      var openedBeforeRequest = <String>[];
+      repo.onDownload = () => openedBeforeRequest = [...tabs.opened];
+      await tester.tap(find.byType(TemplateCard).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Скачать'));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(openedBeforeRequest, ['about:blank']);
+      expect(tabs.tabs.single.went, ['https://files.example/t1.pdf?sig=1']);
+      expect(find.text('Не удалось открыть ссылку.'), findsNothing);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a blocked tab says so instead of staying silent',
+        (tester) async {
+      debugBrowserTabs = FakeTabs(blocked: true);
+      await pump(tester, const TemplatesScreen());
+      await tester.tap(find.byType(TemplateCard).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Скачать'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      expect(find.text('Не удалось открыть ссылку.'), findsOneWidget);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+    });
   });
 
   testWidgets('picker mode returns the tapped template', (tester) async {

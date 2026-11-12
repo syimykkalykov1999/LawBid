@@ -741,6 +741,11 @@ const KEY_TEXT: Record<string, string> = {
     "Цена золотой галочки клиента в месяц, в центах (1000 = $10).",
   "verification.client_badge_auto_approve":
     "Галочка клиента выдаётся сама сразу после загрузки документов (выкл. — ждёт проверки сотрудником).",
+  // Owner 2026-11-12 (row 54): paid license-data services, each off by default.
+  "verification.bar_vendor_microbilt_enabled":
+    "Платная проверка лицензий адвокатов через MicroBilt (выкл. по умолчанию). Ключ — «Ключи и сервисы» → MicroBilt; спрашивается только для штатов без бесплатного реестра, каждая проверка платная.",
+  "verification.bar_vendor_surepass_enabled":
+    "Платная проверка лицензий через Surepass (выкл. по умолчанию). Ключ — «Ключи и сервисы» → Surepass; спрашивается только для штатов без бесплатного реестра, каждая проверка платная.",
   "verification.require_bar_document":
     "Просить у адвоката фото карточки адвоката (выкл. — хватает номера лицензии и присяги).",
   "verification.require_identity":
