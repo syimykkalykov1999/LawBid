@@ -1885,7 +1885,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     id: 'aws.waf_extra_rules',
     name: 'Дополнительные правила WAF (по устройству, подбор входа)',
     purpose:
-      'Правила по заголовку устройства и по частоте попыток входа. Сначала только считают, потом блокируют.',
+      'Правила по заголовку устройства и по частоте попыток входа. Сначала только считают, потом блокируют. Авто: включаются сами, пока идёт атака (много отбитых запросов или неудачных входов за 5 минут), и выключаются после спокойных infra.auto_off_hours.',
     kind: 'aws',
     control: tf(
       ['waf_device_header', 'waf_auth_rules_enabled', 'waf_auth_rate_action'],
@@ -1894,7 +1894,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
         on: 'waf_device_header = "x-device-id"\nwaf_auth_rules_enabled = true\nwaf_auth_rate_action = "count"',
       },
     ),
-    states: ['off', 'on'],
+    states: ['off', 'on', 'auto'],
     defaultState: 'off',
     ceiling: null,
     price: price(
@@ -1915,13 +1915,13 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     id: 'aws.waf_bot_control',
     name: 'Фильтр ботов WAF Bot Control',
     purpose:
-      'Платное правило, которое отличает ботов от людей. Сначала только считает.',
+      'Платное правило, которое отличает ботов от людей. Сначала только считает. Авто: включается само, пока идёт атака (много отбитых запросов или неудачных входов за 5 минут), и выключается после спокойных infra.auto_off_hours.',
     kind: 'aws',
     control: tf(['waf_bot_control_enabled', 'waf_bot_control_block'], {
       off: 'waf_bot_control_enabled = false',
       on: 'waf_bot_control_enabled = true',
     }),
-    states: ['off', 'on'],
+    states: ['off', 'on', 'auto'],
     defaultState: 'off',
     ceiling: null,
     price: price('mixed', '$10 в месяц + $1 за миллион запросов', U.waf),
@@ -3073,6 +3073,8 @@ export const INFRA_MODE_KEYS: Readonly<Record<string, string>> = {
   'aws.opensearch': 'infra.mode.opensearch',
   'aws.opensearch_nodes_2': 'infra.mode.opensearch_nodes_2',
   'aws.opensearch_nodes_4': 'infra.mode.opensearch_nodes_4',
+  'aws.waf_bot_control': 'infra.mode.waf_bot_control',
+  'aws.waf_extra_rules': 'infra.mode.waf_extra_rules',
   'aws.events_stream': 'infra.mode.events_stream',
   'aws.partition_role': 'infra.mode.partition_role',
   'aws.db_shards': 'db.shards_mode',

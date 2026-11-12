@@ -101,6 +101,16 @@ export const SEARCH_NODES = [
   'aws.opensearch_nodes_4',
 ] as const;
 
+/** Owner 2026-11-12 («Да сделай авто для двух защит»): the two WAF
+ * protections that switch with an attack, like AWS Shield Advanced automatic
+ * application-layer DDoS mitigation (rules on while an attack is detected,
+ * removed after it ends). Signals `waf_attack` / `waf_calm` come from
+ * cost-registry.service wafAttackSignals (not the shared pressures()). */
+export const WAF_GUARDS = [
+  'aws.waf_bot_control',
+  'aws.waf_extra_rules',
+] as const;
+
 /** Read copies and search nodes: each step needs the one before it and goes
  * only after the ones above it. */
 const LADDERS: readonly (readonly string[])[] = [COPIES, SEARCH_NODES];
@@ -318,6 +328,35 @@ export function autoWants(
         ? 'Поисковому движку давно легко (процессор ниже половины порога, память JVM ниже 50 %): лишние узлы уходят.'
         : 'Поисковый движок выключен: лишние узлы не нужны.',
     });
+  }
+  // Owner 2026-11-12: the WAF protections on «Авто». On while the web ACL
+  // in front of the server blocks a lot or sign-ins fail a lot (only with
+  // that ACL on: the rules live inside it); off once it is calm again, and
+  // only what was switched on by itself or handed to «Авто» (a position set
+  // by hand earlier stays).
+  for (const id of WAF_GUARDS) {
+    if ((s.modes?.[id] ?? 'auto') !== 'auto') continue;
+    if (
+      live(id) !== 'on' &&
+      live('aws.waf_alb') === 'on' &&
+      s.pressures.includes('waf_attack')
+    ) {
+      out.push({
+        id,
+        to: 'on',
+        reason:
+          'Похоже на атаку: фильтр WAF перед сервером отбивает много запросов или много неудачных входов за 5 минут (пороги infra.waf_attack_blocked_per_5m и infra.waf_attack_auth_failed_per_5m).',
+      });
+    }
+    const handed = autoOn.has(id) || s.pickedAuto?.has(id) === true;
+    if (handed && live(id) === 'on' && s.pressures.includes('waf_calm')) {
+      out.push({
+        id,
+        to: 'off',
+        reason:
+          'Атака давно закончилась: отбитых запросов и неудачных входов меньше половины порога.',
+      });
+    }
   }
   if (s.partitionNeedsRunner && live('aws.partition_role') !== 'on') {
     out.push({

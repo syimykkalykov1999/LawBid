@@ -3,6 +3,7 @@ import {
   CostRegistryService,
   RegistryModeError,
   searchSignals,
+  wafAttackSignals,
 } from './cost-registry.service';
 
 const NOW = new Date('2026-10-15T12:00:00Z');
@@ -376,5 +377,58 @@ describe('searchSignals', () => {
   it('no domain / unknown → nothing', () => {
     expect(searchSignals(null, null, 70)).toEqual([]);
     expect(searchSignals(undefined, undefined, 70)).toEqual([]);
+  });
+});
+
+// Owner 2026-11-12: the two WAF protections on «Авто» (AWS Shield Advanced
+// automatic application-layer mitigation: on while an attack is detected).
+describe('wafAttackSignals', () => {
+  it('attack on blocked requests OR failed sign-ins at the line', () => {
+    expect(wafAttackSignals(1000, 0, 1000, 50)).toEqual(['waf_attack']);
+    expect(wafAttackSignals(0, 50, 1000, 50)).toEqual(['waf_attack']);
+    expect(wafAttackSignals(null, 80, 1000, 50)).toEqual(['waf_attack']);
+    expect(wafAttackSignals(5000, null, 1000, 50)).toEqual(['waf_attack']);
+  });
+  it('calm only when every known reading is below half its line', () => {
+    expect(wafAttackSignals(499, 24, 1000, 50)).toEqual(['waf_calm']);
+    expect(wafAttackSignals(null, 0, 1000, 50)).toEqual(['waf_calm']);
+    expect(wafAttackSignals(500, 0, 1000, 50)).toEqual([]);
+    expect(wafAttackSignals(0, 25, 1000, 50)).toEqual([]);
+  });
+  it('nothing known → nothing', () => {
+    expect(wafAttackSignals(null, null, 1000, 50)).toEqual([]);
+    expect(wafAttackSignals(undefined, undefined, 1000, 50)).toEqual([]);
+  });
+});
+
+describe('CostRegistryService.signals: the WAF attack lines from Admin → Настройки', () => {
+  const reading = (wafBlockedPer5m: number, authFailedPer5m: number) => ({
+    at: NOW.toISOString(),
+    dbClass: 'db.t4g.micro',
+    redisClass: null,
+    dbCpuPercent: 10,
+    dbConnections: 5,
+    dbMaxConnections: 100,
+    redisMemoryPercent: 10,
+    wafBlockedPer5m,
+    authFailedPer5m,
+  });
+  it('default lines: 1200 blocked = attack, 2 blocked = calm', async () => {
+    const t = make({ stored: {} });
+    t.ops.capacity.mockResolvedValue(reading(1200, 0));
+    expect((await t.svc.signals(NOW)).pressures).toContain('waf_attack');
+    t.ops.capacity.mockResolvedValue(reading(2, 0));
+    expect((await t.svc.signals(NOW)).pressures).toContain('waf_calm');
+  });
+  it('a lowered line makes an attack of a few failed sign-ins (to prove it)', async () => {
+    const t = make({ stored: { 'infra.waf_attack_auth_failed_per_5m': 2 } });
+    t.ops.capacity.mockResolvedValue(reading(0, 3));
+    expect((await t.svc.signals(NOW)).pressures).toContain('waf_attack');
+  });
+  it('an older reading without the WAF fields says nothing', async () => {
+    const t = make({ stored: {} });
+    const p = (await t.svc.signals(NOW)).pressures;
+    expect(p).not.toContain('waf_attack');
+    expect(p).not.toContain('waf_calm');
   });
 });

@@ -8,6 +8,9 @@ import {
   type AutoSignals,
   type AutoWant,
 } from './infra-auto.logic';
+import { COST_REGISTRY } from '../../../common/ops/cost-registry';
+import { switchFor } from '../../../common/ops/infra-switches';
+import { costDelta } from './infra-change.logic';
 
 const calm: AutoSignals = {
   pressures: [],
@@ -700,5 +703,152 @@ describe('autoWants: search engine nodes by count', () => {
         ),
       ),
     ).toEqual([]);
+  });
+});
+
+// Owner 2026-11-12 («Да сделай авто для двух защит»): the two WAF
+// protections on «Авто», like AWS Shield Advanced automatic application-layer
+// mitigation (on while an attack is detected, off after it ends).
+describe('autoWants: the two WAF protections on an attack', () => {
+  const ids = (w: AutoWant[]) =>
+    w
+      .map((x) => `${x.id}:${x.to}`)
+      .filter((x) => x.startsWith('aws.waf_'))
+      .sort();
+  const liveOf =
+    (on: string[]) =>
+    (id: string): 'on' | 'off' =>
+      on.includes(id) ? 'on' : 'off';
+  const attack = { ...calm, pressures: ['waf_attack'] };
+  const quiet = { ...calm, pressures: ['waf_calm'] };
+
+  it('attack → both on (only with the load-balancer WAF on)', () => {
+    expect(ids(autoWants(attack, liveOf(['aws.waf_alb']), new Set()))).toEqual([
+      'aws.waf_bot_control:on',
+      'aws.waf_extra_rules:on',
+    ]);
+    expect(ids(autoWants(attack, offAll, new Set()))).toEqual([]);
+    expect(ids(autoWants(calm, liveOf(['aws.waf_alb']), new Set()))).toEqual(
+      [],
+    );
+  });
+
+  it('already on → nothing more during the attack', () => {
+    expect(
+      ids(
+        autoWants(
+          attack,
+          liveOf(['aws.waf_alb', 'aws.waf_bot_control', 'aws.waf_extra_rules']),
+          new Set(['aws.waf_bot_control', 'aws.waf_extra_rules']),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('calm → off only what went on by itself or was handed to Авто', () => {
+    const live = liveOf([
+      'aws.waf_alb',
+      'aws.waf_bot_control',
+      'aws.waf_extra_rules',
+    ]);
+    expect(
+      ids(autoWants(quiet, live, new Set(['aws.waf_bot_control']))),
+    ).toEqual(['aws.waf_bot_control:off']);
+    expect(
+      ids(
+        autoWants(
+          { ...quiet, pickedAuto: new Set(['aws.waf_extra_rules']) },
+          live,
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.waf_extra_rules:off']);
+    // switched on by hand earlier (not handed to Авто): stays
+    expect(ids(autoWants(quiet, live, new Set()))).toEqual([]);
+    // between half the line and the line (no signal): stays
+    expect(
+      ids(autoWants(calm, live, new Set(['aws.waf_bot_control']))),
+    ).toEqual([]);
+  });
+
+  it('Выкл: never on by itself; Вкл: on again and never off by itself', () => {
+    expect(
+      ids(
+        autoWants(
+          {
+            ...attack,
+            modes: {
+              'aws.waf_bot_control': 'off',
+              'aws.waf_extra_rules': 'off',
+            },
+          },
+          liveOf(['aws.waf_alb']),
+          new Set(),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, modes: { 'aws.waf_bot_control': 'on' } },
+          liveOf(['aws.waf_alb']),
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.waf_bot_control:on']);
+    expect(
+      ids(
+        autoWants(
+          { ...quiet, modes: { 'aws.waf_bot_control': 'on' } },
+          liveOf(['aws.waf_alb', 'aws.waf_bot_control']),
+          new Set(['aws.waf_bot_control']),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('hysteresis: on after onMs of attack, off after offMs of calm', () => {
+    const on = autoWants(attack, liveOf(['aws.waf_alb']), new Set()).filter(
+      (w) => w.id === 'aws.waf_bot_control',
+    );
+    let r = dueWants(on, {}, 0, 30 * MIN, 72 * H);
+    expect(r.due).toEqual([]);
+    r = dueWants(on, r.seen, 30 * MIN, 30 * MIN, 72 * H);
+    expect(r.due).toEqual(on);
+    const off = autoWants(
+      quiet,
+      liveOf(['aws.waf_alb', 'aws.waf_bot_control']),
+      new Set(['aws.waf_bot_control']),
+    );
+    r = dueWants(off, {}, 0, 30 * MIN, 72 * H);
+    r = dueWants([], r.seen, 1 * H, 30 * MIN, 72 * H); // a new spike: start over
+    r = dueWants(off, r.seen, 2 * H, 30 * MIN, 72 * H);
+    r = dueWants(off, r.seen, 73 * H, 30 * MIN, 72 * H);
+    expect(r.due).toEqual([]);
+    r = dueWants(off, r.seen, 74 * H, 30 * MIN, 72 * H);
+    expect(r.due).toEqual(off);
+  });
+
+  it('money: both cost at most $100 a month, so infra.auto_max_usd_month does not hold them back', () => {
+    for (const id of ['aws.waf_bot_control', 'aws.waf_extra_rules']) {
+      const entry = COST_REGISTRY.find((e) => e.id === id)!;
+      const sw = switchFor(id)!;
+      const [, high] = costDelta(entry, sw, 'off', 'on');
+      expect(high).toBeLessThanOrEqual(100);
+      expect(
+        autoRefusal({
+          mode: 'auto',
+          want: { id, to: 'on', reason: '' },
+          configured: true,
+          inQuietWindow: true,
+          activeCount: 0,
+          last24h: 0,
+          dailyCap: 3,
+          budgetRatio: 0.1,
+          costHighUsd: high,
+          maxUsdMonth: 100,
+        }),
+      ).toBeNull();
+    }
   });
 });
