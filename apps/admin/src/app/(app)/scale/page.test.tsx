@@ -39,6 +39,7 @@ vi.mock('@/components/infra-plan-sheet', () => ({
   InfraChip: () => null,
   InfraPlanSheet: () => null,
   InfraSuggestionCards: () => null,
+  useInfraModePick: () => ({ pick: vi.fn(), pending: null }),
   useInfra: () => ({
     data: undefined,
     q: { refetch: vi.fn() },

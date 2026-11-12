@@ -367,3 +367,70 @@ describe('autoWants: second database server (db.shards_mode, 2026-11-11)', () =>
     ).toEqual([]);
   });
 });
+
+// Owner 2026-11-11: Выкл / Вкл / Авто on «Масштаб» really rule each item.
+describe('autoWants: the position picked per item (infra-modes)', () => {
+  const ids = (w: AutoWant[]) => w.map((x) => `${x.id}:${x.to}`).sort();
+  const busy: AutoSignals = { ...calm, pressures: ['db_cpu'] };
+  const replicaOn = (id: string) =>
+    id === 'aws.rds_replicas' ? ('on' as const) : ('off' as const);
+
+  it('Выкл: never switched on by itself, whatever the load', () => {
+    expect(
+      autoWants(
+        { ...busy, modes: { 'aws.rds_replicas': 'off' } },
+        offAll,
+        new Set(),
+      ),
+    ).toEqual([]);
+  });
+
+  it('Вкл: switched on when it is off, and never switched off by itself', () => {
+    expect(
+      ids(
+        autoWants(
+          { ...calm, modes: { 'aws.pgbouncer': 'on' } },
+          offAll,
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.pgbouncer:on']);
+    expect(
+      autoWants(
+        { ...calm, modes: { 'aws.rds_replicas': 'on' } },
+        replicaOn,
+        new Set(['aws.rds_replicas']),
+      ),
+    ).toEqual([]);
+  });
+
+  it('Авто picked by hand: an item switched on by hand goes off when not needed', () => {
+    expect(
+      ids(
+        autoWants(
+          {
+            ...calm,
+            modes: { 'aws.rds_replicas': 'auto' },
+            pickedAuto: new Set(['aws.rds_replicas']),
+          },
+          replicaOn,
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.rds_replicas:off']);
+    // Авто by default only: what was switched on by hand stays.
+    expect(autoWants(calm, replicaOn, new Set())).toEqual([]);
+  });
+
+  it('Авто: on under load, as before', () => {
+    expect(
+      ids(
+        autoWants(
+          { ...busy, modes: { 'aws.rds_replicas': 'auto' } },
+          offAll,
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.rds_replicas:on']);
+  });
+});

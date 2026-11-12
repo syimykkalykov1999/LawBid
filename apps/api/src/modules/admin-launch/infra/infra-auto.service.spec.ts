@@ -57,6 +57,7 @@ function make(
     searchEngine: jest.fn(async () => 'postgres'),
   };
   const settings = {
+    raw: jest.fn(async () => undefined),
     string: jest.fn(async (k: string) =>
       k === 'infra.auto_mode'
         ? (o.autoMode ?? 'auto')
@@ -220,6 +221,7 @@ describe('InfraAutoService.searchPass: search.engine follows the engine («Ав�
       }),
     };
     const settings = {
+      raw: jest.fn(async () => undefined),
       string: jest.fn(async (k: string) =>
         k === 'search.engine_follow'
           ? (o.follow ?? 'auto')

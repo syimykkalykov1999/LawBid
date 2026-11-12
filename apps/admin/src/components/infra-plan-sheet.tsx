@@ -11,6 +11,7 @@ import {
   costLine,
   infraTone,
   isActive,
+  latestFor,
   minutesLeft,
   planLine,
   targetWord,
@@ -58,6 +59,73 @@ export function useInfra() {
   const cancel = useInfraAction("cancel", after);
   const rollback = useInfraAction("rollback", after);
   return { q, data: q.data, create, confirm, cancel, rollback };
+}
+
+/**
+ * Owner 2026-11-11: Выкл / Вкл / Авто on a cloud item the automation
+ * switches (row.liveState is set) really rule it. The position is saved
+ * first (journal, 2FA step-up); Вкл / Выкл then ask for the plan when the
+ * item is not there yet, and the plan is confirmed with a 2FA code as
+ * before. Авто needs no plan: the automation switches it when needed.
+ */
+export function useInfraModePick(
+  infra: ReturnType<typeof useInfra>,
+  openSheet: (id: string) => void,
+) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const setMode = useMutation({
+    mutationFn: async (v: { id: string; state: "off" | "on" | "auto" }) =>
+      (
+        await api.PATCH("/admin/spend/registry/{id}/mode", {
+          params: { path: { id: v.id } },
+          body: { state: v.state },
+        })
+      ).data!.data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["spend-registry"] });
+      void qc.invalidateQueries({ queryKey: INFRA_KEY });
+    },
+    onError: (e) => toast.error(e),
+  });
+  const pick = (
+    row: { id: string; liveState: "off" | "on" | null },
+    state: "off" | "on" | "auto",
+  ) => {
+    if (isActive(latestFor(infra.data?.requests, row.id))) {
+      openSheet(row.id);
+      return;
+    }
+    setMode.mutate(
+      { id: row.id, state },
+      {
+        onSuccess: () => {
+          if (state === "auto") {
+            toast.success(
+              "Стоит «Авто»: включится и выключится само, когда нужно.",
+            );
+            return;
+          }
+          if (row.liveState === state) {
+            toast.success(
+              state === "on"
+                ? "Стоит «Вкл»: само не выключится."
+                : "Стоит «Выкл»: само не включится.",
+            );
+            return;
+          }
+          infra.create.mutate(
+            { itemId: row.id, to: state },
+            { onSuccess: () => openSheet(row.id) },
+          );
+        },
+      },
+    );
+  };
+  return {
+    pick,
+    pending: setMode.isPending ? (setMode.variables?.id ?? null) : null,
+  };
 }
 
 function useInfraAction(

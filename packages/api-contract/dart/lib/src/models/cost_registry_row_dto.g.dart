@@ -31,6 +31,9 @@ CostRegistryRowDto _$CostRegistryRowDtoFromJson(
       : CostRegistryRowDtoState.fromJson(json['state'] as String),
   id: json['id'] as String,
   stateNote: json['stateNote'] as String?,
+  liveState: json['liveState'] == null
+      ? null
+      : CostRegistryRowDtoLiveState.fromJson(json['liveState'] as String),
   stateHints: Map<String, String>.from(json['stateHints'] as Map),
   ceilingLabel: json['ceilingLabel'] as String?,
   ceilingKey: json['ceilingKey'] as String?,
@@ -40,11 +43,11 @@ CostRegistryRowDto _$CostRegistryRowDtoFromJson(
   priceSourceUrl: json['priceSourceUrl'] as String,
   priceCheckedAt: json['priceCheckedAt'] as String,
   priceVerified: json['priceVerified'] as bool,
-  usdLaunch: (json['usdLaunch'] as List<dynamic>).map((e) => e as num).toList(),
   steps: (json['steps'] as Map<String, dynamic>).map(
     (k, e) =>
         MapEntry(k, (e as List<dynamic>).map((e) => e as String).toList()),
   ),
+  usdK100: (json['usdK100'] as List<dynamic>).map((e) => e as num).toList(),
   usdM1: (json['usdM1'] as List<dynamic>).map((e) => e as num).toList(),
   ifOnUsd: (json['ifOnUsd'] as List<dynamic>?)?.map((e) => e as num).toList(),
   needed: CostRegistryRowDtoNeeded.fromJson(json['needed'] as String),
@@ -58,7 +61,7 @@ CostRegistryRowDto _$CostRegistryRowDtoFromJson(
   monthSource: CostRegistryRowDtoMonthSource.fromJson(
     json['monthSource'] as String,
   ),
-  usdK100: (json['usdK100'] as List<dynamic>).map((e) => e as num).toList(),
+  usdLaunch: (json['usdLaunch'] as List<dynamic>).map((e) => e as num).toList(),
 );
 
 Map<String, dynamic> _$CostRegistryRowDtoToJson(CostRegistryRowDto instance) =>
@@ -77,6 +80,7 @@ Map<String, dynamic> _$CostRegistryRowDtoToJson(CostRegistryRowDto instance) =>
       'state': ?instance.state?.toJson(),
       'stateKnown': instance.stateKnown,
       'stateNote': ?instance.stateNote,
+      'liveState': ?instance.liveState?.toJson(),
       'stateHints': instance.stateHints,
       'ceilingLabel': ?instance.ceilingLabel,
       'ceilingKey': ?instance.ceilingKey,
