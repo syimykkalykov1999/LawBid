@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Превуците датотеке овде",
   "verification.attest.required": "Za slanje označite izjavu pod zakletvom.",
   "verification.attest.text": "Zaklinjem se da sam advokat sa licencom navedenog broja i da je licenca važeća. Lažni podaci znače blokadu, a odgovornost snosim samo ja.",
+  "verification.biometricConsent.required": "Означите сагласност за поређење лица да бисте снимили селфи.",
+  "verification.biometricConsent.text": "Сагласан/на сам да LawBid аутоматски упореди мој селфи са фотографијом на мом документу (Amazon Rekognition) само ради потврде мог идентитета у овој провери. Резултат се чува до одлуке о мом захтеву и још 30 дана, а затим се брише.",
   "verification.camera.denied.body": "Дозволите приступ камери за LawBid у подешавањима телефона, па покушајте поново.",
   "verification.camera.denied.title": "Нема приступа камери",
   "verification.camera.hint.card": "Поставите картицу унутар оквира",

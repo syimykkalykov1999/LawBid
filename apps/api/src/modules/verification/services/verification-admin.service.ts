@@ -283,6 +283,8 @@ export class VerificationAdminService {
       attestedAt: row.attested_at?.toISOString() ?? null,
       attestationIp: row.attestation_ip,
       attestationVersion: row.attestation_version,
+      biometricConsentAt: row.biometric_consent_at?.toISOString() ?? null,
+      biometricConsentVersion: row.biometric_consent_version,
       applicantComment: row.applicant_comment,
       infoRequestMessage: row.info_request_message,
       rejectionCode: row.rejection_code,

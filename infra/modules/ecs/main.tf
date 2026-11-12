@@ -455,6 +455,27 @@ resource "aws_iam_role_policy" "task_geo_places" {
   policy = data.aws_iam_policy_document.task_geo_places.json
 }
 
+# Owner 2026-11-12 (row 52): «Сравнение лица (Amazon)» — the selfie against
+# the ID photo with Rekognition CompareFaces, signed by this role, so no
+# Rekognition key exists anywhere (apps/api modules/verification/providers/
+# rekognition-id-verification.provider.ts). CompareFaces has no resource-level
+# permissions (Service Authorization Reference: resource "*"). The images are
+# read from the documents bucket with the s3:GetObject / kms:Decrypt the env
+# already grants this role. Nothing is called until the admin switch
+# verification.face_match.enabled leaves «Выкл».
+data "aws_iam_policy_document" "task_rekognition_compare_faces" {
+  statement {
+    actions   = ["rekognition:CompareFaces"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "task_rekognition_compare_faces" {
+  name   = "rekognition-compare-faces"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.task_rekognition_compare_faces.json
+}
+
 # Admin and migrate tasks carry no application permissions (security
 # review): the admin only talks to the API, the migrate task only to the DB.
 resource "aws_iam_role" "task_minimal" {

@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "שחררו את הקבצים כאן",
   "verification.attest.required": "סמנו את ההצהרה בשבועה כדי לשלוח.",
   "verification.attest.text": "אני נשבע שאני עורך הדין בעל הרישיון שמספרו הוזן למעלה ושהרישיון בתוקף. מידע שקרי פירושו חסימה, והאחריות כולה עליי.",
+  "verification.biometricConsent.required": "סמנו את ההסכמה להשוואת פנים כדי לצלם סלפי.",
+  "verification.biometricConsent.text": "אני מסכים/ה ש-LawBid תשווה באופן אוטומטי את הסלפי שלי לתמונה בתעודה המזהה שלי (Amazon Rekognition) רק כדי לאמת את זהותי בבדיקה זו. התוצאה נשמרת עד להחלטה בבקשתי ועוד 30 ימים, ואז נמחקת.",
   "verification.camera.denied.body": "אפשרו ל-LawBid גישה למצלמה בהגדרות הטלפון ונסו שוב.",
   "verification.camera.denied.title": "אין גישה למצלמה",
   "verification.camera.hint.card": "הכניסו את הכרטיס לתוך המסגרת",

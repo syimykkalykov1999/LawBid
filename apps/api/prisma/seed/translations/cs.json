@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Přetáhněte soubory sem",
   "verification.attest.required": "Pro odeslání zaškrtněte čestné prohlášení.",
   "verification.attest.text": "Přísahám, že jsem advokát s licencí uvedeného čísla a že licence je platná. Nepravdivé údaje znamenají zablokování a odpovědnost nesu jen já.",
+  "verification.biometricConsent.required": "Zaškrtněte souhlas s porovnáním obličeje, abyste mohli pořídit selfie.",
+  "verification.biometricConsent.text": "Souhlasím s tím, že LawBid automaticky porovná mé selfie s fotografií na mém průkazu totožnosti (Amazon Rekognition) pouze za účelem potvrzení mé totožnosti při tomto ověření. Výsledek se uchovává do rozhodnutí o mé žádosti a dalších 30 dní, poté se smaže.",
   "verification.camera.denied.body": "Povolte aplikaci LawBid přístup k fotoaparátu v nastavení telefonu a zkuste to znovu.",
   "verification.camera.denied.title": "Žádný přístup k fotoaparátu",
   "verification.camera.hint.card": "Umístěte kartu do rámečku",

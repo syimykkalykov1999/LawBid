@@ -2301,6 +2301,44 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ceService: 'Amazon Rekognition',
     providers: ['aws_rekognition', 'photodna', 'ncmec'],
   },
+  // Owner 2026-11-12 (row 52): selfie ↔ ID photo with Rekognition
+  // CompareFaces. Same AWS service and card as vendor.rekognition above (its
+  // ceService / providers stay there, one owner per CE line and card).
+  {
+    id: 'vendor.rekognition_face_match',
+    name: 'Сравнение лица (Amazon)',
+    purpose:
+      'Сравнивает селфи адвоката с фото на его удостоверении (Amazon Rekognition CompareFaces) и показывает проверяющему процент сходства. Только с согласием адвоката на биометрию; сам ничего не одобряет и не отклоняет.',
+    kind: 'vendor',
+    control: {
+      type: 'app-setting',
+      key: 'verification.face_match.enabled',
+      map: { off: 'off', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: setCeil(
+      'budget.id_check.daily_max',
+      'Лимит проверок личности в день (админка → Лимиты)',
+    ),
+    // aws.amazon.com/rekognition/pricing (checked 2026-11-12): CompareFaces
+    // is Image API Group 1, $0.001 per image for the first 1 M images a
+    // month; one comparison is counted as two images (selfie + ID).
+    price: {
+      ...price(
+        'unit',
+        '$0,001 за картинку (Group 1, первый 1 млн в месяц); одно сравнение = 2 картинки ≈ $0,002 за заявку',
+        U.rek,
+      ),
+      checkedAt: '2026-11-12',
+    },
+    usd: { launch: R(0), k100: R(0, 2), m1: R(2, 20) },
+    ifOnUsd: R(0, 2),
+    needed: 'later',
+    neededNote:
+      'Выкл по умолчанию: сравнивает человек. Вкл/Авто — одно сравнение на новую заявку с селфи, в пределах дневного лимита проверок личности (id_check). Ключ не нужен: на AWS подписывает роль сервера (Terraform добавляет rekognition:CompareFaces). Результат удаляется через verification.face_match.retention_days (30) дней после решения.',
+    alarm: 'дневной и месячный лимит проверок личности (budget.id_check.*)',
+  },
   {
     id: 'vendor.openai_moderation',
     name: 'Проверка текстов на запрещённое (OpenAI moderation)',

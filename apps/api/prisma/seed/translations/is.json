@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Slepptu skrám hér",
   "verification.attest.required": "Hakaðu við eiðsvarna yfirlýsinguna til að senda.",
   "verification.attest.text": "Ég sver að ég er lögmaðurinn með leyfið með númerinu hér að ofan og að leyfið er í gildi. Rangar upplýsingar þýða lokun og ég ber einn alla ábyrgð.",
+  "verification.biometricConsent.required": "Hakaðu við samþykki fyrir andlitssamanburði til að taka sjálfsmyndina.",
+  "verification.biometricConsent.text": "Ég samþykki að LawBid beri sjálfvirkt saman sjálfsmyndina mína við myndina á skilríkjunum mínum (Amazon Rekognition) eingöngu til að staðfesta hver ég er í þessari staðfestingu. Niðurstaðan er geymd þar til ákvörðun liggur fyrir um umsókn mína og í 30 daga til viðbótar, og síðan eytt.",
   "verification.camera.denied.body": "Leyfðu LawBid aðgang að myndavélinni í stillingum símans og reyndu aftur.",
   "verification.camera.denied.title": "Enginn aðgangur að myndavél",
   "verification.camera.hint.card": "Stilltu kortið inn í rammann",

@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "将文件拖到此处",
   "verification.attest.required": "请勾选宣誓声明后再提交。",
   "verification.attest.text": "我郑重声明：我是上述编号执照持有的律师，执照有效。提供虚假信息将被封号，一切责任由我本人承担。",
+  "verification.biometricConsent.required": "请勾选人脸比对同意项后再拍自拍。",
+  "verification.biometricConsent.text": "我同意 LawBid 自动将我的自拍与证件上的照片进行比对（Amazon Rekognition），仅用于本次验证中确认我的身份。结果保存至我的申请有决定后再加 30 天，然后删除。",
   "verification.camera.denied.body": "请在手机设置中允许 LawBid 访问相机，然后重试。",
   "verification.camera.denied.title": "无法访问相机",
   "verification.camera.hint.card": "将证件置于框内",

@@ -127,13 +127,23 @@ class SelfieCaptureTicket {
 
 /// What goes with a selfie attach: the token and the camera's report.
 class SelfieUpload {
-  const SelfieUpload({required this.token, this.report, this.handoffToken});
+  const SelfieUpload({
+    required this.token,
+    this.report,
+    this.handoffToken,
+    this.biometricConsent = false,
+  });
 
   final String token;
   final SelfieCaptureReport? report;
 
   /// R-146: the computer's code when this phone opened its link.
   final String? handoffToken;
+
+  /// Owner 2026-11-12 (row 52): the attorney ticked the biometric consent
+  /// on the selfie step (`verification.biometricConsent.text`). Without it
+  /// the server runs no automatic face comparison.
+  final bool biometricConsent;
 }
 
 /// R-146: the computer's «continue on your phone» code.

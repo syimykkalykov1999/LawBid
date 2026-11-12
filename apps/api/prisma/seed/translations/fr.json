@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Déposez les fichiers ici",
   "verification.attest.required": "Cochez la déclaration sur l'honneur pour envoyer.",
   "verification.attest.text": "Je jure être l'avocat titulaire de la licence portant le numéro indiqué et que la licence est active. Toute fausse information entraîne un bannissement et j'en suis seul responsable.",
+  "verification.biometricConsent.required": "Cochez le consentement à la comparaison du visage pour prendre le selfie.",
+  "verification.biometricConsent.text": "J'accepte que LawBid compare automatiquement mon selfie avec la photo de ma pièce d'identité (Amazon Rekognition) uniquement pour confirmer mon identité lors de cette vérification. Le résultat est conservé jusqu'à la décision sur ma demande, puis 30 jours, puis supprimé.",
   "verification.camera.denied.body": "Autorisez l'accès à l'appareil photo pour LawBid dans les réglages de votre téléphone, puis réessayez.",
   "verification.camera.denied.title": "Pas d'accès à l'appareil photo",
   "verification.camera.hint.card": "Placez la carte dans le cadre",

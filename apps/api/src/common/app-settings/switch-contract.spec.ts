@@ -44,6 +44,7 @@ describe('switch contract: defaults (a)', () => {
     ['storage.auto_retention', true],
     ['chat.link_preview_enabled', 'auto'],
     ['addresses.autocomplete_enabled', 'auto'],
+    ['verification.face_match.enabled', 'off'],
     ['files.access_log_enabled', 'auto'],
     ['moderation.image.enabled', 'auto'],
     ['fraud.enabled', true],

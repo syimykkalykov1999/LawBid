@@ -564,12 +564,19 @@ class SelfieStep extends StatelessWidget {
     required this.actions,
     this.needsPhone = false,
     this.handoffToken,
+    this.biometricConsent = false,
+    this.onBiometricConsentChanged,
     super.key,
   });
 
   final Translator t;
   final WizardState state;
   final StepActions actions;
+
+  /// Owner 2026-11-12 (row 52): the required biometric consent (automatic
+  /// selfie ↔ ID photo comparison), ticked before the camera opens.
+  final bool biometricConsent;
+  final ValueChanged<bool>? onBiometricConsentChanged;
 
   /// Owner 2026-10-28 + R-146: no guided camera here (web, or no camera at
   /// all): «continue on the phone» instead of «Open camera».
@@ -638,6 +645,17 @@ class SelfieStep extends StatelessWidget {
             ),
           ),
         const SizedBox(height: AppSpacing.md),
+        if (onBiometricConsentChanged case final onChanged?
+            when !needsPhone || handoffToken != null) ...[
+          _ConsentCheck(
+            t: t,
+            checkKey: const ValueKey('verification-biometric-consent'),
+            textKey: 'verification.biometricConsent.text',
+            value: biometricConsent,
+            onChanged: onChanged,
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
         if (handoffToken case final token?) ...[
           HandoffPhoneNotice(
             t: t,
@@ -804,8 +822,10 @@ class ReviewStep extends StatelessWidget {
         ),
         if (r.isDraft) ...[
           const SizedBox(height: AppSpacing.md),
-          _AttestationCheck(
+          _ConsentCheck(
             t: t,
+            checkKey: const ValueKey('verification-attestation'),
+            textKey: 'verification.attest.text',
             value: attested,
             onChanged: onAttestedChanged,
           ),
@@ -817,16 +837,21 @@ class ReviewStep extends StatelessWidget {
   }
 }
 
-/// Owner 2026-10-04: the attorney confirms the entered licenses under a
-/// sworn statement; the API approves the request on it (no registry check).
-class _AttestationCheck extends StatelessWidget {
-  const _AttestationCheck({
+/// A ticked statement in a card: owner 2026-10-04 the sworn license
+/// statement (review step); owner 2026-11-12 (row 52) the biometric consent
+/// (selfie step).
+class _ConsentCheck extends StatelessWidget {
+  const _ConsentCheck({
     required this.t,
+    required this.checkKey,
+    required this.textKey,
     required this.value,
     required this.onChanged,
   });
 
   final Translator t;
+  final Key checkKey;
+  final String textKey;
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -843,14 +868,14 @@ class _AttestationCheck extends StatelessWidget {
       child: Material(
         type: MaterialType.transparency,
         child: CheckboxListTile(
-          key: const ValueKey('verification-attestation'),
+          key: checkKey,
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
           activeColor: colors.gold,
           value: value,
           onChanged: (v) => onChanged(v ?? false),
           title: Text(
-            t.t('verification.attest.text'),
+            t.t(textKey),
             style: typography.bodySmall.copyWith(color: colors.text),
           ),
         ),

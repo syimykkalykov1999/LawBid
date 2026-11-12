@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Tọọ faịlụ ebe a",
   "verification.attest.required": "Kaa nkwa ahụ iji zipụ.",
   "verification.attest.text": "Ana m ekwe nkwa na m bụ onye ọkàiwu nwere ikike nke nọmba edere n'elu ma ikike ahụ na-arụ ọrụ. Ozi ụgha pụtara mmachi, mụ naanị m na-ebu ọrụ niile.",
+  "verification.biometricConsent.required": "Kaa akara nkwenye ntụnyere ihu ka i see foto selfie.",
+  "verification.biometricConsent.text": "Ekwenyere m ka LawBid jiri onwe ya tụnyere foto selfie m na foto dị na kaadị njirimara m (Amazon Rekognition) naanị iji kwado onye m bụ na nyocha a. A na-edebe nsonaazụ ya ruo mgbe e kpebiri arịrịọ m gbakwunye ụbọchị 30, mgbe ahụ a hichapụ ya.",
   "verification.camera.denied.body": "Kwe ka LawBid jiri igwefoto n'ime ntọala ekwentị gị, wee nwaa ọzọ.",
   "verification.camera.denied.title": "Enweghị ohere igwefoto",
   "verification.camera.hint.card": "Debe kaadị ahụ n'ime ntughari",
