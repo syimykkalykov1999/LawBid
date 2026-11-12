@@ -43,7 +43,15 @@ export function stateFromStored(
     return { state: entry.defaultState, known: false, note: null };
   }
   const noRow = stored === undefined || stored === null;
-  const effective = noRow ? fallback : stored;
+  const raw = noRow ? fallback : stored;
+  // A three-state row (off / on / auto strings) still reads the old
+  // true / false values, as readSwitchMode does (true = on, false = off).
+  const effective =
+    typeof raw === 'boolean' && c.map.off === 'off' && c.map.on === 'on'
+      ? raw
+        ? 'on'
+        : 'off'
+      : raw;
   const order: CostState[] = ['off', 'on', 'auto'];
   // Explicit values first, the 'default' sentinel last.
   for (const st of order) {

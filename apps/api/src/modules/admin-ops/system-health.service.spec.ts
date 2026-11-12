@@ -377,10 +377,11 @@ describe('SystemHealthService.cachedReport', () => {
 });
 
 describe('SystemHealthService.shardGrowth', () => {
-  const item = (partitions: unknown) =>
+  const item = (partitions: unknown, settings?: unknown) =>
     (
       Object.assign(Object.create(SystemHealthService.prototype) as object, {
         partitions,
+        settings,
       }) as unknown as {
         shardGrowth: () => Promise<{ status: string; detail: unknown }>;
       }
@@ -405,7 +406,54 @@ describe('SystemHealthService.shardGrowth', () => {
         }),
     });
     expect(r.status).toBe('yellow');
-    expect(r.detail).toMatchObject({ autoMove: false, ratio: 0.9 });
+    expect(r.detail).toMatchObject({
+      autoMove: false,
+      ratio: 0.9,
+      shardsMode: 'auto',
+    });
+  });
+
+  it('tells the card the second-server switch position (Авто creates it itself)', async () => {
+    const probe = {
+      shardSignal: () => Promise.resolve({ status: 'red', plan: null }),
+    };
+    const at = (v: unknown) =>
+      item(probe, {
+        string: () =>
+          v instanceof Error ? Promise.reject(v) : Promise.resolve(v),
+      });
+    expect((await at('off')).detail).toMatchObject({ shardsMode: 'off' });
+    expect((await at(null)).detail).toMatchObject({ shardsMode: 'auto' });
+    expect((await at(new Error('db'))).detail).toMatchObject({
+      shardsMode: 'auto',
+    });
+  });
+});
+
+describe('SystemHealthService.backup', () => {
+  const backup = (env: Record<string, string>, key: unknown) =>
+    (
+      Object.assign(Object.create(SystemHealthService.prototype) as object, {
+        settings: { number: () => Promise.resolve(26) },
+        state: { lastBackup: () => Promise.resolve(null) },
+        secrets: { get: () => Promise.resolve(key) },
+        config: { get: (k: string) => env[k] },
+      }) as unknown as {
+        backup: (
+          now: Date,
+        ) => Promise<{ status: string; detail: Record<string, unknown> }>;
+      }
+    ).backup(new Date('2026-11-12T12:00:00Z'));
+
+  it('on RDS without a found backup is yellow (not «подключится после запуска на AWS»)', async () => {
+    const r = await backup({ OPS_DB_INSTANCE: 'lawbid-prod-postgres' }, null);
+    expect(r.status).toBe('yellow');
+    expect(r.detail).toMatchObject({ configured: true, ageHours: null });
+  });
+
+  it('stays grey only off AWS and without the old provider key', async () => {
+    expect((await backup({}, null)).status).toBe('grey');
+    expect((await backup({}, { apiKey: 'x' })).status).toBe('yellow');
   });
 });
 

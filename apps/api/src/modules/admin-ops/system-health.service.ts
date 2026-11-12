@@ -407,8 +407,15 @@ export class SystemHealthService implements OnModuleInit, OnModuleDestroy {
   private async shardGrowth(): Promise<Omit<HealthItemDto, 'key'>> {
     if (!this.partitions) return { status: 'grey', detail: {} };
     try {
-      const g = await this.partitions.shardSignal();
-      return { status: g.status, detail: { ...g } };
+      const [g, mode] = await Promise.all([
+        this.partitions.shardSignal(),
+        // Admin switch audit 12.11: Авто creates the second server and
+        // starts the first split itself; the card says so (not «Terraform»).
+        Promise.resolve(this.settings?.string('db.shards_mode'))
+          .catch(() => null)
+          .then((v) => v ?? 'auto'),
+      ]);
+      return { status: g.status, detail: { ...g, shardsMode: mode } };
     } catch {
       return { status: 'grey', detail: {} };
     }
@@ -544,11 +551,17 @@ export class SystemHealthService implements OnModuleInit, OnModuleDestroy {
   private async backup(now: Date): Promise<Omit<HealthItemDto, 'key'>> {
     const maxH = await this.settings.number('ops.backup_max_age_hours');
     const b = await this.state.lastBackup();
-    const creds = await this.secrets.get('cockroach_cloud');
+    // Admin switch audit 12.11: the backup is read from RDS (ops-guard
+    // backupCheck, OPS_DB_INSTANCE); the old database-provider key only
+    // counts for a stand without RDS. Before, RDS without that key stayed
+    // grey («подключится после запуска на AWS») even when no backup was found.
+    const configured =
+      !!this.config.get<string>('OPS_DB_INSTANCE') ||
+      !!(await this.secrets.get('cockroach_cloud'));
     if (!b) {
       return {
-        status: creds ? 'yellow' : 'grey',
-        detail: { configured: !!creds, ageHours: null, maxHours: maxH },
+        status: configured ? 'yellow' : 'grey',
+        detail: { configured, ageHours: null, maxHours: maxH },
       };
     }
     const age = ageSec(b.at, now);
@@ -564,7 +577,7 @@ export class SystemHealthService implements OnModuleInit, OnModuleDestroy {
     return {
       status,
       detail: {
-        configured: !!creds,
+        configured,
         at: b.at,
         ageHours,
         maxHours: maxH,
