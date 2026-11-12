@@ -39,6 +39,8 @@ export interface CapacityMetrics {
   dbConnections: number | null;
   dbMaxConnections: number | null;
   redisMemoryPercent: number | null;
+  /** Owner 2026-11-11: average CPU of the read copies (null = none / unknown). */
+  replicaCpuPercent?: number | null;
 }
 
 export interface CapacityInfo {
@@ -233,6 +235,26 @@ export class AwsCapacityService {
       const cls = await this.dbClass();
       const tier = DB_TIERS.find((t) => t.name === cls);
       out.dbMaxConnections = tier ? dbMaxConnections(tier.memoryGb) : null;
+      // The read copies are `<db>-replica-N` (infra/modules/growth), up to 5.
+      const copies: number[] = [];
+      for (let n = 1; n <= 5; n++) {
+        const v = await this.avg(
+          'AWS/RDS',
+          'CPUUtilization',
+          [
+            {
+              Name: 'DBInstanceIdentifier',
+              Value: `${this.dbInstance}-replica-${n}`,
+            },
+          ],
+          now,
+        ).catch(() => null);
+        if (v == null) break;
+        copies.push(v);
+      }
+      out.replicaCpuPercent = copies.length
+        ? copies.reduce((a, b) => a + b, 0) / copies.length
+        : null;
     }
     // Owner 2026-11-11 («Масштаб» без AWS): what CloudWatch does not cover
     // is read from the services themselves.

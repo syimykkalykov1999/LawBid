@@ -434,3 +434,86 @@ describe('autoWants: the position picked per item (infra-modes)', () => {
     ).toEqual(['aws.rds_replicas:on']);
   });
 });
+
+// Owner 2026-11-11: read copies 2..5 «Авто» by count (Aurora Auto Scaling).
+describe('autoWants: read copies by count', () => {
+  const ids = (w: AutoWant[]) =>
+    w
+      .map((x) => `${x.id}:${x.to}`)
+      .filter((x) => x.startsWith('aws.rds_replicas'))
+      .sort();
+  const liveOf =
+    (on: string[]) =>
+    (id: string): 'on' | 'off' =>
+      on.includes(id) ? 'on' : 'off';
+
+  it('copies busy → one more copy (the next one only)', () => {
+    expect(
+      ids(
+        autoWants(
+          { ...calm, pressures: ['replica_cpu'] },
+          liveOf(['aws.rds_replicas']),
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.rds_replicas_2:on']);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, pressures: ['replica_cpu'] },
+          liveOf(['aws.rds_replicas', 'aws.rds_replicas_2']),
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.rds_replicas_3:on']);
+  });
+
+  it('copies idle → the highest extra copy goes, never two at once', () => {
+    expect(
+      ids(
+        autoWants(
+          { ...calm, pressures: ['replica_idle'] },
+          liveOf([
+            'aws.rds_replicas',
+            'aws.rds_replicas_2',
+            'aws.rds_replicas_3',
+          ]),
+          new Set(['aws.rds_replicas']),
+        ),
+      ),
+    ).toEqual(['aws.rds_replicas_3:off']);
+  });
+
+  it('the first copy does not go while an extra one is on', () => {
+    expect(
+      ids(
+        autoWants(
+          { ...calm, pressures: [] },
+          liveOf(['aws.rds_replicas', 'aws.rds_replicas_2']),
+          new Set(['aws.rds_replicas']),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('Выкл on an extra copy: never by itself; no copy at all → nothing', () => {
+    expect(
+      ids(
+        autoWants(
+          {
+            ...calm,
+            pressures: ['replica_cpu'],
+            modes: { 'aws.rds_replicas_2': 'off' },
+          },
+          liveOf(['aws.rds_replicas']),
+          new Set(),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      ids(
+        autoWants({ ...calm, pressures: ['replica_cpu'] }, offAll, new Set()),
+      ),
+    ).toEqual([]);
+  });
+});

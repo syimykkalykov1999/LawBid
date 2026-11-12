@@ -210,6 +210,42 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
       'Без перерыва: копия базы создаётся 15–40 минут, приложение работает как обычно.',
   },
   {
+    id: 'aws.rds_replicas_2',
+    values: {
+      off: { 'growth.rds_read_replicas': 1 },
+      on: { 'growth.rds_read_replicas': 2 },
+    },
+    impact:
+      'Без перерыва: ещё одна копия базы создаётся 15–40 минут; чтения сами делятся между копиями.',
+  },
+  {
+    id: 'aws.rds_replicas_3',
+    values: {
+      off: { 'growth.rds_read_replicas': 2 },
+      on: { 'growth.rds_read_replicas': 3 },
+    },
+    impact:
+      'Без перерыва: ещё одна копия базы создаётся 15–40 минут; чтения сами делятся между копиями.',
+  },
+  {
+    id: 'aws.rds_replicas_4',
+    values: {
+      off: { 'growth.rds_read_replicas': 3 },
+      on: { 'growth.rds_read_replicas': 4 },
+    },
+    impact:
+      'Без перерыва: ещё одна копия базы создаётся 15–40 минут; чтения сами делятся между копиями.',
+  },
+  {
+    id: 'aws.rds_replicas_5',
+    values: {
+      off: { 'growth.rds_read_replicas': 4 },
+      on: { 'growth.rds_read_replicas': 5 },
+    },
+    impact:
+      'Без перерыва: ещё одна копия базы создаётся 15–40 минут; чтения сами делятся между копиями.',
+  },
+  {
     id: 'aws.db_shards',
     values: {
       off: { db_shards: 0 },

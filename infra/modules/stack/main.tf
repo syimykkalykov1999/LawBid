@@ -2047,7 +2047,9 @@ locals {
   # to be filled by hand. Empty map while the switch is off = env unchanged.
   db_replica_env = merge(
     var.growth.rds_read_replicas > 0 ? {
-      DB_REPLICA_HOST = module.growth.replica_host
+      # Owner 2026-11-11 («Авто» by count): every copy, comma separated; the
+      # api shares the reads between them (prisma-read.service.ts).
+      DB_REPLICA_HOST = join(",", module.growth.replica_endpoints)
     } : {},
     # Admin button «Копия базы для чтения» (owner 2026-10-24): the API creates
     # and deletes ONE replica itself through the RDS API. Only these names are

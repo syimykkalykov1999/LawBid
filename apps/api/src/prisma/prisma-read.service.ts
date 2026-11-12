@@ -13,7 +13,7 @@ import { AppSettingsService } from '../common/app-settings/app-settings.service'
 import { PrismaClient } from '@prisma/client';
 import { demoContext } from '../common/demo/demo-context';
 import { withPoolerRouting } from './pooler-url';
-import { resolveReplicaUrl } from './replica-url';
+import { resolveReplicaUrl, resolveReplicaUrls } from './replica-url';
 import { shardContext } from '../sharding/shard-context';
 import {
   extend,
@@ -72,6 +72,12 @@ export class PrismaReadService implements OnModuleInit, OnModuleDestroy {
    * every data part is read from the copy of its own server.
    */
   private routed: PrismaService | null = null;
+  /** Owner 2026-11-11: the other read copies (beyond the first), by URL. */
+  private readonly others = new Map<
+    string,
+    { raw: PrismaClient; client: PrismaService }
+  >();
+  private turn = 0;
   private downUntil = 0;
   /** Last sampled lag in ms; null = not sampled yet / sampling failed. */
   private lagMs: number | null = null;
@@ -226,37 +232,61 @@ export class PrismaReadService implements OnModuleInit, OnModuleDestroy {
     }
     if (!this.replica) {
       this.replicaUrl = url;
-      const datasourceUrl = withPoolDefaults(
-        withPoolerRouting(url, process.env, 'DB_REPLICA_POOLER_HOST'),
-        process.env,
-        'DB_READ_POOL_SIZE',
-      );
-      this.raw = new PrismaClient(
-        datasourceUrl ? { datasourceUrl } : undefined,
-      );
-      const markDown = (e: unknown) => {
-        const code = (e as { code?: string } | null)?.code;
-        if (code && CONNECTION_ERRORS.has(code)) {
-          this.downUntil = Date.now() + 15_000;
-          this.log.warn(`read replica unreachable (${code}); primary for 15 s`);
-        }
-      };
-      this.replica = extend(this.raw).$extends({
-        name: 'replica-health',
-        query: {
-          async $allOperations({ args, query }) {
-            try {
-              return (await query(args)) as unknown;
-            } catch (e) {
-              markDown(e);
-              throw e;
-            }
-          },
-        },
-      }) as unknown as PrismaService;
+      const made = this.makeCopy(url);
+      this.raw = made.raw;
+      this.replica = made.client;
     }
     this.startSampler();
-    return this.replica;
+    // Owner 2026-11-11 («Авто» by count): with several copies the reads are
+    // shared between them, one after the other (round robin).
+    const urls = resolveReplicaUrls();
+    if (urls.length <= 1) return this.replica;
+    for (const u of urls.slice(1)) {
+      if (!this.others.has(u)) this.others.set(u, this.makeCopy(u));
+    }
+    for (const [u, c] of this.others) {
+      if (!urls.includes(u)) {
+        this.others.delete(u);
+        void c.raw.$disconnect().catch(() => undefined);
+      }
+    }
+    const all = [
+      this.replica,
+      ...[...this.others.values()].map((c) => c.client),
+    ];
+    this.turn = (this.turn + 1) % all.length;
+    return all[this.turn];
+  }
+
+  /** One read copy client, marked down for 15 s when it does not answer. */
+  private makeCopy(url: string): { raw: PrismaClient; client: PrismaService } {
+    const datasourceUrl = withPoolDefaults(
+      withPoolerRouting(url, process.env, 'DB_REPLICA_POOLER_HOST'),
+      process.env,
+      'DB_READ_POOL_SIZE',
+    );
+    const raw = new PrismaClient(datasourceUrl ? { datasourceUrl } : undefined);
+    const markDown = (e: unknown) => {
+      const code = (e as { code?: string } | null)?.code;
+      if (code && CONNECTION_ERRORS.has(code)) {
+        this.downUntil = Date.now() + 15_000;
+        this.log.warn(`read replica unreachable (${code}); primary for 15 s`);
+      }
+    };
+    const client = extend(raw).$extends({
+      name: 'replica-health',
+      query: {
+        async $allOperations({ args, query }) {
+          try {
+            return (await query(args)) as unknown;
+          } catch (e) {
+            markDown(e);
+            throw e;
+          }
+        },
+      },
+    }) as unknown as PrismaService;
+    return { raw, client };
   }
 
   /** Builds the routed copy client when extra servers and a copy exist, in
@@ -300,5 +330,8 @@ export class PrismaReadService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     if (this.raw) await this.raw.$disconnect().catch(() => undefined);
+    for (const c of this.others.values()) {
+      await c.raw.$disconnect().catch(() => undefined);
+    }
   }
 }
