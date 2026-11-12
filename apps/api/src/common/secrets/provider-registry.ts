@@ -123,6 +123,86 @@ async function probe(
 export const PAGERDUTY_URL =
   /^https:\/\/events(\.eu)?\.pagerduty\.com\/integration\/[A-Za-z0-9]{16,64}\/enqueue$/;
 
+/**
+ * Owner 2026-11-12 (row 54): the key slot of a paid attorney-license data
+ * service (verification/providers/bar-lookup/paid-bar-vendors.ts). The key
+ * plus where to send the request and where the answer keeps the status and
+ * the name, as in the vendor's API documentation (given after sign-up).
+ * Nothing is asked until its switch in «Настройки» is on.
+ */
+function barVendorFields(): ProviderField[] {
+  const opt = (name: string, label: string, hint?: string): ProviderField => ({
+    name,
+    label,
+    secret: false,
+    required: false,
+    ...(hint && { patternHint: hint }),
+  });
+  return [
+    {
+      name: 'apiKey',
+      label: 'API key',
+      secret: true,
+      required: true,
+      normalize: cleanPasted,
+    },
+    {
+      name: 'urlTemplate',
+      label: 'Request URL ({state}, {bar_number}, {first_name}, {last_name})',
+      secret: false,
+      required: true,
+      pattern: /^https:\/\/\S+$/,
+      patternHint:
+        'https://api.vendor.example/v1/licenses?state={state}&number={bar_number}',
+      normalize: cleanPasted,
+    },
+    {
+      name: 'authType',
+      label: 'How the key is sent (bearer, header, query)',
+      secret: false,
+      required: false,
+      pattern: /^(none|header|bearer|query)$/,
+      patternHint: 'bearer',
+      normalize: (v) => cleanPasted(v).toLowerCase(),
+    },
+    opt('authName', 'Header / parameter name of the key', 'X-API-Key'),
+    {
+      name: 'method',
+      label: 'HTTP method (GET or POST)',
+      secret: false,
+      required: false,
+      pattern: /^(GET|POST)$/,
+      normalize: (v) => cleanPasted(v).toUpperCase(),
+    },
+    {
+      name: 'bodyType',
+      label: 'POST body type (json or form)',
+      secret: false,
+      required: false,
+      pattern: /^(json|form)$/,
+      normalize: (v) => cleanPasted(v).toLowerCase(),
+    },
+    opt(
+      'bodyTemplate',
+      'POST body',
+      '{"state":"{state}","license_number":"{bar_number}"}',
+    ),
+    opt('headers', 'Extra headers (JSON)'),
+    opt('recordPath', 'Path to the record in the answer', 'data.0'),
+    opt('numberPath', 'Bar number path (pick the record from a list)'),
+    opt('statusPath', 'Status path', 'status'),
+    opt('activeValues', 'Statuses that mean "active"', 'Active'),
+    opt('firstNamePath', 'First name path', 'first_name'),
+    opt('middleNamePath', 'Middle name path', 'middle_name'),
+    opt('lastNamePath', 'Last name path', 'last_name'),
+    opt('fullNamePath', 'Full name path', 'name'),
+    opt('admittedPath', 'Admission date path'),
+    opt('expiresPath', 'Valid-until date path', 'expiration_date'),
+    opt('profileUrl', 'Public profile link'),
+    opt('ratePerMin', 'Requests per minute (limit)', '10'),
+  ];
+}
+
 export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'bunny_stream',
@@ -1080,6 +1160,20 @@ export const PROVIDERS: ProviderDefinition[] = [
         normalize: (v) => cleanPasted(v).toUpperCase(),
       },
     ],
+  },
+  {
+    id: 'bar_vendor_microbilt',
+    label: 'MicroBilt Professional License Search (paid, attorney licenses)',
+    description:
+      'Paid. Attorney license status for states without a free registry. Switch: Настройки → verification.bar_vendor_microbilt_enabled (off by default). Keys: developer.microbilt.com (MicroBilt Compliance issues production keys).',
+    fields: barVendorFields(),
+  },
+  {
+    id: 'bar_vendor_surepass',
+    label: 'Surepass US Professional License Verification (paid)',
+    description:
+      'Paid. Professional license status (license number + state) for states without a free registry. Switch: Настройки → verification.bar_vendor_surepass_enabled (off by default). Key: surepass.io/global/get-api-key.',
+    fields: barVendorFields(),
   },
   {
     // Owner 2026-10-04: lawyers verify with state + bar number only. New

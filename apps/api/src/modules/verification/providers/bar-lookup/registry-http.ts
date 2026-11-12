@@ -21,26 +21,81 @@ export function normalizeName(s: string | null | undefined): string {
     .replace(/[^A-Z]/g, '');
 }
 
+/** Name endings that are not a name: "John Smith Jr., Esq." */
+const NAME_SUFFIXES = new Set(['JR', 'SR', 'II', 'III', 'IV', 'V', 'ESQ']);
+
+/** "Smith, John M. Jr." -> ['SMITH', 'JOHN', 'M'] (normalizeName per word). */
+export function nameWords(s: unknown): string[] {
+  if (typeof s !== 'string') return [];
+  return s
+    .split(/[\s,.]+/)
+    .map((w) => normalizeName(w))
+    .filter((w) => w.length > 0 && !NAME_SUFFIXES.has(w));
+}
+
+/** "MICHAEL" ~ "MICHAEL", "M" ~ "MICHAEL" (an initial matches the name). */
+function sameNameOrInitial(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length === 1) return b.startsWith(a);
+  if (b.length === 1) return a.startsWith(b);
+  return false;
+}
+
+/** Both sides know a middle name: they must agree (or be its initial). */
+function middlesAgree(account: string[], registry: string[]): boolean {
+  if (account.length === 0 || registry.length === 0) return true;
+  return account.some((a) => registry.some((r) => sameNameOrInitial(a, r)));
+}
+
 /**
- * The account's name against the registry's: first + last when the
- * registry has them apart, otherwise both inside the full name.
+ * The account's name against the registry's (owner 2026-11-12: first,
+ * middle and last name). First + last when the registry has them apart,
+ * otherwise all of them inside the full name. A middle name is compared
+ * only when both sides have one ("John Michael" ~ "John M."); a first name
+ * typed with the middle name ("John Michael") matches a registry first name
+ * "John" with middle "M". Letters only, accents and punctuation dropped
+ * (normalizeName), so "O'Brien-Smith" and "OBRIEN SMITH" match.
  */
 export function namesMatch(
-  account: { firstName: string; lastName: string },
-  registry: { first?: unknown; last?: unknown; full?: unknown },
+  account: { firstName: string; lastName: string; middleName?: string },
+  registry: {
+    first?: unknown;
+    middle?: unknown;
+    last?: unknown;
+    full?: unknown;
+  },
 ): boolean {
   const first = normalizeName(account.firstName);
   const last = normalizeName(account.lastName);
   if (!last) return false;
+  const accWords = nameWords(account.firstName);
+  const accFirst = accWords[0] ?? '';
+  const ownMiddle = nameWords(account.middleName);
+  const accMiddle = [...accWords.slice(1), ...ownMiddle];
   if (typeof registry.last === 'string') {
     if (normalizeName(registry.last) !== last) return false;
-    return typeof registry.first === 'string'
-      ? normalizeName(registry.first) === first
-      : true;
+    if (typeof registry.first !== 'string') return true;
+    // "Jose Maria" typed and registered alike: only a separate middle
+    // name is left to compare.
+    if (normalizeName(registry.first) === first) {
+      return middlesAgree(ownMiddle, nameWords(registry.middle));
+    }
+    const regWords = nameWords(registry.first);
+    if (accFirst === '' || regWords[0] !== accFirst) return false;
+    const regMiddle = [...regWords.slice(1), ...nameWords(registry.middle)];
+    return middlesAgree(accMiddle, regMiddle);
   }
   if (typeof registry.full === 'string') {
     const full = normalizeName(registry.full);
-    return full.includes(last) && (!first || full.includes(first));
+    if (!full.includes(last)) return false;
+    if (!first) return true;
+    const words = nameWords(registry.full);
+    if (!full.includes(first) && !words.includes(accFirst)) return false;
+    const lastWords = new Set(nameWords(account.lastName));
+    const extra = words.filter(
+      (w) => w !== accFirst && w !== last && !lastWords.has(w),
+    );
+    return middlesAgree(accMiddle, extra);
   }
   return false;
 }
@@ -252,6 +307,8 @@ export function toIsoDate(raw: string | null | undefined): string | null {
 export interface RegistryRecord {
   status: unknown;
   first: unknown;
+  /** Owner 2026-11-12: the middle name, when the registry has it apart. */
+  middle?: unknown;
   last: unknown;
   full: unknown;
   admitted: unknown;
@@ -277,7 +334,7 @@ const str = (v: unknown): string | null =>
  */
 export function outcomeFor(
   provider: string,
-  input: { firstName: string; lastName: string },
+  input: { firstName: string; lastName: string; middleName?: string },
   record: RegistryRecord | null,
   activeValues: string[],
   sourceUrl: string | null,
@@ -304,7 +361,10 @@ export function outcomeFor(
   details.registryStatus = status;
   details.name =
     str(record.full) ??
-    ([str(record.first), str(record.last)].filter(Boolean).join(' ') || null);
+    ([str(record.first), str(record.middle), str(record.last)]
+      .filter(Boolean)
+      .join(' ') ||
+      null);
   details.admittedAt = str(record.admitted);
   details.firm = str(record.firm);
   if (record.expiresAt) details.registryExpiresAt = record.expiresAt;

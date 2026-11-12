@@ -60,6 +60,7 @@ export class NyOpenDataAdapter implements StateBarAdapter {
       row && {
         status: row.status,
         first: row.first_name,
+        middle: row.middle_name,
         last: row.last_name,
         full: [row.first_name, row.middle_name, row.last_name]
           .filter(Boolean)

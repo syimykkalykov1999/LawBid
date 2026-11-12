@@ -82,6 +82,16 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
       'Приложение Azure для привязки календаря Outlook / Microsoft 365. По умолчанию выключено (Настройки → calendar.microsoft_enabled).',
     warning: 'В Azure адрес перенаправления (Redirect URI) должен быть https://api.lawbid.dev/api/v1/calendar/oauth/microsoft/callback',
   },
+  bar_vendor_microbilt: {
+    label: 'MicroBilt — платная проверка лицензий адвокатов',
+    description:
+      'Платный сервис: статус лицензии адвоката для штатов без бесплатного реестра. По умолчанию выключено (Настройки → verification.bar_vendor_microbilt_enabled).',
+  },
+  bar_vendor_surepass: {
+    label: 'Surepass — платная проверка лицензий',
+    description:
+      'Платный сервис: статус профессиональной лицензии по номеру и штату, для штатов без бесплатного реестра. По умолчанию выключено (Настройки → verification.bar_vendor_surepass_enabled).',
+  },
   ny_registry: {
     label: 'Реестр адвокатов Нью-Йорка (data.ny.gov)',
     description: 'Автоматическая проверка номеров лицензий Нью-Йорка. Работает без ключа; ключ data.ny.gov только поднимает лимит.',
