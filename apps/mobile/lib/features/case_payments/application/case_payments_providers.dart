@@ -46,6 +46,15 @@ final casePaymentsHistoryProvider = AsyncNotifierProvider.autoDispose<
 );
 
 class CasePaymentsHistoryNotifier extends PagedNotifier<CasePayment> {
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<CasePayment>?> cachedFirstPage() {
+    final repo = ref.read(casePaymentsRepositoryProvider);
+    return phoneCopy(repo.history);
+  }
+
   @override
   Future<CursorPage<CasePayment>> fetch(String? cursor) =>
       ref.read(casePaymentsRepositoryProvider).history(cursor: cursor);

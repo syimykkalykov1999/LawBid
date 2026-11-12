@@ -154,4 +154,30 @@ describe('I18nBundleService.getTranslations', () => {
     expect(translations).toEqual({});
     expect(findMany).not.toHaveBeenCalled();
   });
+
+  // Owner 2026-11-11 (web start): the full bundle is built once per
+  // (language, version), not on every request.
+  it('builds a full bundle once per version and again after a new version', async () => {
+    const { service, findMany } = buildService([
+      { lang: 'en', value: 'Cancel', i18n_key: { key: 'common.cancel' } },
+    ]);
+
+    await service.getTranslations('en', 5, undefined);
+    const again = await service.getTranslations('en', 5, undefined);
+    expect(again).toEqual({ 'common.cancel': 'Cancel' });
+    expect(findMany).toHaveBeenCalledTimes(1);
+
+    await service.getTranslations('en', 6, undefined);
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('a delta request is never served from the kept full bundle', async () => {
+    const { service, findMany } = buildService([
+      { lang: 'en', value: 'Cancel', i18n_key: { key: 'common.cancel' } },
+    ]);
+
+    await service.getTranslations('en', 5, undefined);
+    await service.getTranslations('en', 5, 3);
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
 });

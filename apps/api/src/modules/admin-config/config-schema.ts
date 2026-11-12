@@ -562,6 +562,15 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['db.shards_mode'],
     pattern: /^(off|on|auto)$/,
   };
+  for (const k of [
+    'infra.mode.rds_replicas',
+    'infra.mode.pgbouncer',
+    'infra.mode.opensearch',
+    'infra.mode.events_stream',
+    'infra.mode.partition_role',
+  ]) {
+    out[k] = { ...out[k], pattern: /^(off|on|auto)$/ };
+  }
   out['db.shards_move_hours'] = {
     ...out['db.shards_move_hours'],
     // Same rule as infra.quiet_hours (infra-change.logic QUIET_HOURS_PATTERN).

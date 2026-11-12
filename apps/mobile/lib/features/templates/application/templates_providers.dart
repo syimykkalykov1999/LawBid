@@ -27,6 +27,15 @@ class TemplatesNotifier extends PagedNotifier<DocTemplate> {
 
   final TemplatesQuery query;
 
+  // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the
+  // page this phone showed last time; the live page swaps in behind it
+  // (PagedNotifier.phoneCopy, no extra request).
+  @override
+  Future<CursorPage<DocTemplate>?> cachedFirstPage() {
+    final repo = ref.read(templatesRepositoryProvider);
+    return phoneCopy(() => repo.list(query), when: query.q.trim().isEmpty);
+  }
+
   @override
   Future<CursorPage<DocTemplate>> fetch(String? cursor) => ref
       .read(templatesRepositoryProvider)
