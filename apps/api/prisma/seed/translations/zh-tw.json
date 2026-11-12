@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "範例：一個人把證件拿在臉旁",
   "verification.idSelfie.hint.blink": "請眨眼",
   "verification.idSelfie.hint.centerFace": "請將臉部對準橢圓中央",
+  "verification.idSelfie.hint.holdSteady": "請保持穩定",
   "verification.idSelfie.hint.holdStill": "請保持不動…",
   "verification.idSelfie.hint.moreLight": "請增加光線",
   "verification.idSelfie.hint.moveBack": "請稍微後退",

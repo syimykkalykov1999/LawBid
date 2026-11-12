@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "例：顔の横に身分証明書を持っている人",
   "verification.idSelfie.hint.blink": "まばたきしてください",
   "verification.idSelfie.hint.centerFace": "顔を楕円の中央に合わせてください",
+  "verification.idSelfie.hint.holdSteady": "しっかり固定してください",
   "verification.idSelfie.hint.holdStill": "動かないでください…",
   "verification.idSelfie.hint.moreLight": "もっと明るくしてください",
   "verification.idSelfie.hint.moveBack": "少し離れてください",

@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/verification/domain/selfie_liveness.dart';
 import 'package:lawbid/features/verification/presentation/widgets/id_selfie_capture_view.dart';
+import 'package:lawbid/features/verification/presentation/widgets/id_selfie_overlay.dart';
 
 /// Owner 2026-10-28 (ID selfie camera): the guided view without a camera —
 /// overlay, localized instruction and live hint, shutter disabled until
@@ -18,6 +19,7 @@ void main() {
     bool canCapture = false,
     bool showFallback = false,
     OvalTone tone = OvalTone.neutral,
+    SelfieGuide? guide,
   }) =>
       SelfieLivenessView(
         hint: hint,
@@ -29,6 +31,7 @@ void main() {
         canCapture: canCapture,
         showFallback: showFallback,
         holdProgress: 0,
+        guide: guide,
       );
 
   // The example animation loops forever, so no pumpAndSettle: one frame
@@ -160,5 +163,67 @@ void main() {
     await tester.tap(find.text('Use photo'));
     await tester.pump();
     expect(r.taps, ['retake', 'use']);
+  });
+
+  // Owner 2026-11-12 (row 62): live distance / steadiness hints and a
+  // guide that is drawn around the face.
+  IdSelfieGuidePainter painter(WidgetTester tester) => tester
+      .widget<CustomPaint>(find.byKey(const ValueKey('id-selfie-overlay')))
+      .painter! as IdSelfieGuidePainter;
+
+  testWidgets('live hints: closer, back, centre, card, steady', (tester) async {
+    final r = await pump(tester, initial: view(hint: SelfieHint.moveCloser));
+    for (final (hint, text) in [
+      (SelfieHint.moveCloser, 'Move closer'),
+      (SelfieHint.moveBack, 'Move back a little'),
+      (SelfieHint.centerFace, 'Center your face in the oval'),
+      (SelfieHint.showId, 'Show your ID in the frame'),
+      (SelfieHint.holdSteady, 'Hold steady'),
+    ]) {
+      r.v.value = view(hint: hint, tone: OvalTone.active);
+      await settle(tester);
+      expect(find.text(text), findsOneWidget, reason: hint.name);
+    }
+  });
+
+  testWidgets('the oval and card frame glide to the guide around the face',
+      (tester) async {
+    final r = await pump(tester);
+    // No face yet: the rest layout (the previous fixed spots).
+    const rest = SelfieGuideLayout(Size(390, 844));
+    expect(painter(tester).ovalRect, rest.rest.oval);
+    final placed = const SelfieGuideGeometry().around(
+      Rect.fromCenter(
+        center: const Offset(0.6, 0.45),
+        width: 0.3,
+        height: 0.16,
+      ),
+    );
+    r.v.value = view(
+      hint: SelfieHint.blink,
+      tone: OvalTone.active,
+      guide: placed.guide,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    // Mid-way: moving, not jumping.
+    final mid = painter(tester).ovalRect;
+    expect(mid, isNot(rest.rest.oval));
+    expect(mid, isNot(placed.guide.oval));
+    await settle(tester);
+    expect(painter(tester).ovalRect, placed.guide.oval);
+    expect(painter(tester).cardRect, placed.guide.card);
+  });
+
+  testWidgets('reduce motion: the guide moves without animation',
+      (tester) async {
+    final r = await pump(tester, disableAnimations: true);
+    final placed = const SelfieGuideGeometry().around(
+      Rect.fromCenter(center: const Offset(0.4, 0.4), width: 0.35, height: 0.2),
+    );
+    r.v.value = view(tone: OvalTone.active, guide: placed.guide);
+    await tester.pump();
+    await tester.pump();
+    expect(painter(tester).ovalRect, placed.guide.oval);
   });
 }

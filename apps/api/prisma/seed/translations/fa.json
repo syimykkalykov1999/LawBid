@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "مثال: فردی که کارت شناسایی را کنار صورتش گرفته است",
   "verification.idSelfie.hint.blink": "پلک بزنید",
   "verification.idSelfie.hint.centerFace": "صورت خود را در مرکز بیضی قرار دهید",
+  "verification.idSelfie.hint.holdSteady": "گوشی را ثابت نگه دارید",
   "verification.idSelfie.hint.holdStill": "بی‌حرکت بمانید…",
   "verification.idSelfie.hint.moreLight": "لطفاً نور بیشتری فراهم کنید",
   "verification.idSelfie.hint.moveBack": "کمی عقب بروید",

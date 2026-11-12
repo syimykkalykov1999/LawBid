@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Esimerkki: henkilö pitää henkilöllisyystodistusta kasvojensa vieressä",
   "verification.idSelfie.hint.blink": "Räpäytä silmiä",
   "verification.idSelfie.hint.centerFace": "Aseta kasvosi soikion keskelle",
+  "verification.idSelfie.hint.holdSteady": "Pidä puhelin vakaana",
   "verification.idSelfie.hint.holdStill": "Pysy paikallasi…",
   "verification.idSelfie.hint.moreLight": "Lisää valoa, kiitos",
   "verification.idSelfie.hint.moveBack": "Siirry hieman kauemmas",

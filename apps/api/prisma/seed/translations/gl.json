@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Exemplo: unha persoa sostendo un documento de identidade xunto á cara",
   "verification.idSelfie.hint.blink": "Pestanexe",
   "verification.idSelfie.hint.centerFace": "Centre a cara no óvalo",
+  "verification.idSelfie.hint.holdSteady": "Mantéñao firme",
   "verification.idSelfie.hint.holdStill": "Non se mova…",
   "verification.idSelfie.hint.moreLight": "Máis luz, por favor",
   "verification.idSelfie.hint.moveBack": "Afástese un pouco",

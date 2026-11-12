@@ -7,22 +7,34 @@ import 'package:lawbid/features/verification/domain/selfie_liveness.dart';
 /// Owner 2026-10-28 (ID selfie camera): the guide over the front-camera
 /// preview — a face oval and an ID-card frame beside it, the rest dimmed.
 /// The oval's colour follows [tone] (neutral → gold → green), the card
-/// frame turns green once a card is seen, and a ring fills around the oval
-/// during the short hold before the auto-capture. Colour and ring changes
-/// are implicit animations (no per-frame setState); the painter repaints
-/// only when its values change; it sits in its own RepaintBoundary so the
-/// camera texture under it never repaints with it.
+/// frame turns green while a card is seen beside the face, and a ring
+/// fills around the oval during the short hold before the auto-capture.
+///
+/// Owner 2026-11-12 (row 62): the oval and the card frame are drawn where
+/// [guide] says (placed around the attorney's face, so any arm length
+/// works) and glide there; without a face they rest at the screen's
+/// default spots. Colour, ring and position changes are implicit
+/// animations (no per-frame setState); the painter repaints only when its
+/// values change; it sits in its own RepaintBoundary so the camera
+/// texture under it never repaints with it.
 class IdSelfieOverlay extends StatelessWidget {
   const IdSelfieOverlay({
     required this.tone,
     required this.cardDetected,
     required this.holdProgress,
+    this.guide,
     super.key,
   });
 
   final OvalTone tone;
   final bool cardDetected;
   final double holdProgress;
+
+  /// Normalized oval + card frame; null = the rest layout.
+  final SelfieGuide? guide;
+
+  /// How long the guide glides to a new spot (short: it follows the face).
+  static const Duration follow = Duration(milliseconds: 220);
 
   @override
   Widget build(BuildContext context) {
@@ -33,34 +45,55 @@ class IdSelfieOverlay extends StatelessWidget {
       OvalTone.ready => colors.success,
     };
     final card = cardDetected ? colors.success : colors.goldLight;
-    final duration =
-        context.reduceMotion ? Duration.zero : AppMotion.stateChange;
+    final reduce = context.reduceMotion;
+    final duration = reduce ? Duration.zero : AppMotion.stateChange;
+    final move = reduce ? Duration.zero : follow;
     return ExcludeSemantics(
       child: RepaintBoundary(
-        child: TweenAnimationBuilder<Color?>(
-          tween: ColorTween(end: oval),
-          duration: duration,
-          builder: (context, ovalColor, _) => TweenAnimationBuilder<Color?>(
-            tween: ColorTween(end: card),
-            duration: duration,
-            builder: (context, cardColor, _) => TweenAnimationBuilder<double>(
-              tween: Tween(end: holdProgress),
-              duration: context.reduceMotion
-                  ? Duration.zero
-                  : const Duration(milliseconds: 180),
-              builder: (context, progress, _) => CustomPaint(
-                key: const ValueKey('id-selfie-overlay'),
-                size: Size.infinite,
-                painter: IdSelfieGuidePainter(
-                  scrim: colors.navy.withValues(alpha: 0.62),
-                  oval: ovalColor ?? oval,
-                  card: cardColor ?? card,
-                  progress: progress,
-                  ring: colors.success,
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final g = guide ?? SelfieGuideLayout(box.biggest).rest;
+            return TweenAnimationBuilder<Rect?>(
+              tween: RectTween(end: g.oval),
+              duration: move,
+              curve: Curves.easeOutCubic,
+              builder: (context, ovalRect, _) => TweenAnimationBuilder<Rect?>(
+                tween: RectTween(end: g.card),
+                duration: move,
+                curve: Curves.easeOutCubic,
+                builder: (context, cardRect, _) =>
+                    TweenAnimationBuilder<Color?>(
+                  tween: ColorTween(end: oval),
+                  duration: duration,
+                  builder: (context, ovalColor, _) =>
+                      TweenAnimationBuilder<Color?>(
+                    tween: ColorTween(end: card),
+                    duration: duration,
+                    builder: (context, cardColor, _) =>
+                        TweenAnimationBuilder<double>(
+                      tween: Tween(end: holdProgress),
+                      duration: reduce
+                          ? Duration.zero
+                          : const Duration(milliseconds: 180),
+                      builder: (context, progress, _) => CustomPaint(
+                        key: const ValueKey('id-selfie-overlay'),
+                        size: Size.infinite,
+                        painter: IdSelfieGuidePainter(
+                          ovalRect: ovalRect ?? g.oval,
+                          cardRect: cardRect ?? g.card,
+                          scrim: colors.navy.withValues(alpha: 0.62),
+                          oval: ovalColor ?? oval,
+                          card: cardColor ?? card,
+                          progress: progress,
+                          ring: colors.success,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -69,6 +102,8 @@ class IdSelfieOverlay extends StatelessWidget {
 
 class IdSelfieGuidePainter extends CustomPainter {
   IdSelfieGuidePainter({
+    required this.ovalRect,
+    required this.cardRect,
     required this.scrim,
     required this.oval,
     required this.card,
@@ -76,6 +111,9 @@ class IdSelfieGuidePainter extends CustomPainter {
     required this.ring,
   });
 
+  /// Normalized (0..1 of the canvas).
+  final Rect ovalRect;
+  final Rect cardRect;
   final Color scrim;
   final Color oval;
   final Color card;
@@ -84,9 +122,10 @@ class IdSelfieGuidePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final layout = SelfieGuideLayout(size);
-    final o = layout.oval;
-    final c = layout.card;
+    final guide =
+        SelfieGuide(oval: ovalRect, card: cardRect, cardOnRight: true);
+    final o = guide.ovalOn(size);
+    final c = guide.cardOn(size);
     final cardShape = RRect.fromRectAndRadius(
       c,
       const Radius.circular(AppRadii.card),
@@ -148,6 +187,8 @@ class IdSelfieGuidePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(IdSelfieGuidePainter old) =>
+      old.ovalRect != ovalRect ||
+      old.cardRect != cardRect ||
       old.oval != oval ||
       old.card != card ||
       old.progress != progress ||

@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Пример: человек держит удостоверение рядом с лицом",
   "verification.idSelfie.hint.blink": "Моргните",
   "verification.idSelfie.hint.centerFace": "Поместите лицо в центр овала",
+  "verification.idSelfie.hint.holdSteady": "Держите ровно",
   "verification.idSelfie.hint.holdStill": "Не двигайтесь…",
   "verification.idSelfie.hint.moreLight": "Нужно больше света",
   "verification.idSelfie.hint.moveBack": "Отодвиньте телефон",

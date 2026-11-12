@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Example: a person holding an ID card next to their face",
   "verification.idSelfie.hint.blink": "Blink",
   "verification.idSelfie.hint.centerFace": "Center your face in the oval",
+  "verification.idSelfie.hint.holdSteady": "Hold steady",
   "verification.idSelfie.hint.holdStill": "Hold still…",
   "verification.idSelfie.hint.moreLight": "More light, please",
   "verification.idSelfie.hint.moveBack": "Move back a little",

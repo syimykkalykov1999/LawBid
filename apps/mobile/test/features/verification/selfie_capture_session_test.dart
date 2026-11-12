@@ -173,6 +173,25 @@ void main() {
       expect(r.center.dy, closeTo(0.5, 0.01));
     });
 
+    test('front camera: left/right flipped like the mirrored preview', () {
+      final plain = CoverMapping(
+        image: const Size(720, 1280),
+        screen: const Size(390, 844),
+      );
+      final mirrored = CoverMapping(
+        image: const Size(720, 1280),
+        screen: const Size(390, 844),
+        mirror: true,
+      );
+      const box = Rect.fromLTWH(100, 400, 160, 200);
+      final a = plain.normalize(box);
+      final b = mirrored.normalize(box);
+      expect(b.left, closeTo(1 - a.right, 1e-9));
+      expect(b.right, closeTo(1 - a.left, 1e-9));
+      expect(b.top, a.top);
+      expect(b.width, closeTo(a.width, 1e-9));
+    });
+
     test('card hint: text beside the face counts, text on it does not', () {
       final face = Rect.fromCenter(
         center: const Offset(0.36, 0.40),

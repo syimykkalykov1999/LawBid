@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Halimbawa: isang taong may hawak na ID sa tabi ng mukha niya",
   "verification.idSelfie.hint.blink": "Kumurap",
   "verification.idSelfie.hint.centerFace": "Ilagay sa gitna ng oval ang iyong mukha",
+  "verification.idSelfie.hint.holdSteady": "Hawakan nang matatag",
   "verification.idSelfie.hint.holdStill": "Huwag gumalaw…",
   "verification.idSelfie.hint.moreLight": "Pakidagdagan ang liwanag",
   "verification.idSelfie.hint.moveBack": "Umatras nang kaunti",

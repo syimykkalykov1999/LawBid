@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Exemple : une personne tenant une pièce d'identité à côté de son visage",
   "verification.idSelfie.hint.blink": "Clignez des yeux",
   "verification.idSelfie.hint.centerFace": "Centrez votre visage dans l'ovale",
+  "verification.idSelfie.hint.holdSteady": "Tenez le téléphone stable",
   "verification.idSelfie.hint.holdStill": "Ne bougez pas…",
   "verification.idSelfie.hint.moreLight": "Plus de lumière, s'il vous plaît",
   "verification.idSelfie.hint.moveBack": "Reculez un peu",
