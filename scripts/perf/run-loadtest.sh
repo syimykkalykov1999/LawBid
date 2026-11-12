@@ -81,7 +81,7 @@ cmd_check() {
   echo "== images in ECR (the 2026-11-02 runs died here):"
   local reg; reg="$(aws ecr describe-registry --query registryId --output text 2>/dev/null || echo '?')"
   echo "  registry: $reg"
-  aws ecr describe-images --repository-name lawbid-pgbouncer --image-ids imageTag=1.24.0-1 --query 'imageDetails[0].imagePushedAt' --output text 2>/dev/null | sed 's/^/  lawbid-pgbouncer:1.24.0-1 pushed /' || echo "  lawbid-pgbouncer:1.24.0-1 MISSING -> Actions -> Build PgBouncer"
+  aws ecr describe-images --repository-name lawbid-pgbouncer --image-ids imageTag=1.24.0-3 --query 'imageDetails[0].imagePushedAt' --output text 2>/dev/null | sed 's/^/  lawbid-pgbouncer:1.24.0-3 pushed /' || echo "  lawbid-pgbouncer:1.24.0-3 MISSING -> Actions -> Build PgBouncer"
   aws ecr describe-images --repository-name lawbid-api --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' --output text 2>/dev/null | sed 's/^/  newest lawbid-api tag: /' || echo "  lawbid-api: cannot read (no AWS login?)"
   echo "== gate: the previous stage must be green in the last 3 days"
   local need=""; case "$p" in m1|m10|u1k) need=smoke;; u10k) need=u1k;; u100k) need=u10k;; calls-full) need=calls-smoke;; esac

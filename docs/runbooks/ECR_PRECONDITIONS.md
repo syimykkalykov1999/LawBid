@@ -9,7 +9,7 @@
 | Репозиторий ECR | Кто создаёт репозиторий | Кто кладёт образ | Какие тесты/запуски его требуют |
 |---|---|---|---|
 | `lawbid-api`, `lawbid-admin` | `infra/bootstrap` | `deploy.yml` (тег = SHA коммита) | Deploy, Rollback, Load test |
-| `lawbid-pgbouncer` | `infra/bootstrap` | «Build PgBouncer», тег `1.24.0-1` | Load test, прод при `db_pooler_enabled` |
+| `lawbid-pgbouncer` | `infra/bootstrap` | «Build PgBouncer», тег `1.24.0-3` | Load test, прод при `db_pooler_enabled` |
 | `lawbid-clamav` | `infra/bootstrap` | «Mirror ClamAV», тег `1.4-debian` | Load test, прод (ARM64) |
 
 Роли workflow не умеют создавать репозитории (нет `ecr:CreateRepository`, так задумано: репозитории с
