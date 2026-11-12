@@ -1,8 +1,10 @@
 import {
+  Inject,
   Injectable,
   Logger,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { queryTap } from './query-tap';
@@ -154,15 +156,25 @@ export function demoDatabaseName(): string | null {
   }
 }
 
+/** Optional environment for a PrismaService built by hand (read copies). */
+export const PRISMA_ENV = Symbol('PRISMA_ENV');
+
 @Injectable()
 export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  constructor() {
+  /**
+   * [env] (owner 2026-11-11): the read path builds a second, routed client
+   * whose servers are the read copies (prisma-read.service.ts); Nest gives
+   * none and the process environment is used.
+   */
+  constructor(@Optional() @Inject(PRISMA_ENV) env?: NodeJS.ProcessEnv) {
+    const e = env ?? process.env;
     // DB_POOLER_HOST set: the main client goes through our PgBouncer.
     const datasourceUrl = withPoolDefaults(
-      withPoolerRouting(process.env.DATABASE_URL),
+      withPoolerRouting(e.DATABASE_URL, e),
+      e,
     );
     super({
       ...(datasourceUrl ? { datasourceUrl } : {}),
@@ -181,9 +193,7 @@ export class PrismaService
     // closure below.
     const real = extend(this) as unknown as PrismaService;
     const rawPrimary = this as PrismaClient;
-    const shardUrls = shardDatabaseUrlsFromEnv(process.env, (m) =>
-      shardLog.error(m),
-    );
+    const shardUrls = shardDatabaseUrlsFromEnv(e, (m) => shardLog.error(m));
     const shardClients = new Map<
       string,
       { raw: PrismaClient; ext: PrismaService }
@@ -206,7 +216,7 @@ export class PrismaService
       const url = shardUrls[key];
       if (!url) throw new ShardDatabaseNotConfiguredError(key);
       const raw = new PrismaClient({
-        datasourceUrl: withPoolDefaults(url, process.env, 'DB_POOL_SIZE_SHARD'),
+        datasourceUrl: withPoolDefaults(url, e, 'DB_POOL_SIZE_SHARD'),
       });
       const ext = extend(raw, () => real) as unknown as PrismaService;
       shardClients.set(key, { raw, ext });

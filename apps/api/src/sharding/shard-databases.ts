@@ -88,3 +88,36 @@ export function shardDatabaseUrlsFromEnv(
     ...parseShardDatabaseUrls(env.DATABASE_URL_SHARDS, onError),
   };
 }
+
+/**
+ * Owner 2026-11-11: each extra database server may have its own read copy
+ * (`DB_SHARD_REPLICA_HOSTS`, the same `{"db1":"host"}` shape as
+ * DB_SHARD_HOSTS, set by Terraform). The read path (prisma-read.service.ts)
+ * routes every data part to the copy of its own server; a server without a
+ * copy is read from itself, so the map always covers every server.
+ */
+export function shardReplicaUrlsFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  onError: (message: string) => void = () => undefined,
+): Record<string, string> {
+  const servers = shardDatabaseUrlsFromEnv(env, onError);
+  const copies = parseShardDatabaseUrls(env.DB_SHARD_REPLICA_HOSTS, (m) =>
+    onError(m.replace(/DATABASE_URL_SHARDS/g, 'DB_SHARD_REPLICA_HOSTS')),
+  );
+  const out: Record<string, string> = {};
+  for (const [key, url] of Object.entries(servers)) {
+    const host = copies[key];
+    if (!host) {
+      out[key] = url;
+      continue;
+    }
+    try {
+      const u = new URL(url);
+      u.hostname = host;
+      out[key] = u.toString();
+    } catch {
+      out[key] = url;
+    }
+  }
+  return out;
+}

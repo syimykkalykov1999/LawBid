@@ -1,4 +1,5 @@
 import {
+  shardReplicaUrlsFromEnv,
   parseShardDatabaseUrls,
   shardDatabaseUrlsFromEnv,
 } from './shard-databases';
@@ -61,6 +62,40 @@ describe('shardDatabaseUrlsFromEnv', () => {
     expect(shardDatabaseUrlsFromEnv({ DATABASE_URL: base })).toEqual({});
     expect(
       shardDatabaseUrlsFromEnv({ DB_SHARD_HOSTS: '{"db1":"db1.rds"}' }),
+    ).toEqual({});
+  });
+});
+
+// Owner 2026-11-11: each extra server's own read copy.
+describe('shardReplicaUrlsFromEnv', () => {
+  const base = {
+    DATABASE_URL:
+      'postgresql://app:pw@primary.example:5432/lawbid?sslmode=require',
+    DB_SHARD_HOSTS: '{"db1":"db1.example","db2":"db2.example"}',
+  };
+
+  it('a server with a copy is read from the copy, the others from themselves', () => {
+    expect(
+      shardReplicaUrlsFromEnv({
+        ...base,
+        DB_SHARD_REPLICA_HOSTS: '{"db1":"db1-replica.example"}',
+      }),
+    ).toEqual({
+      db1: 'postgresql://app:pw@db1-replica.example:5432/lawbid?sslmode=require',
+      db2: 'postgresql://app:pw@db2.example:5432/lawbid?sslmode=require',
+    });
+  });
+
+  it('no copies: every server is read from itself', () => {
+    expect(shardReplicaUrlsFromEnv(base)).toEqual({
+      db1: 'postgresql://app:pw@db1.example:5432/lawbid?sslmode=require',
+      db2: 'postgresql://app:pw@db2.example:5432/lawbid?sslmode=require',
+    });
+  });
+
+  it('one database: nothing', () => {
+    expect(
+      shardReplicaUrlsFromEnv({ DATABASE_URL: base.DATABASE_URL }),
     ).toEqual({});
   });
 });

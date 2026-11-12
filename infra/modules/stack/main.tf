@@ -1247,11 +1247,47 @@ module "postgres_shard" {
   recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
+# Owner 2026-11-11: each extra database server gets its own read copies
+# (as many as the primary: growth.rds_read_replicas), the same module and
+# alarm as the primary's copy. The api reads each data part from the copy of
+# its own server (prisma-read.service.ts); a server without a copy is read
+# from itself.
+module "growth_shard" {
+  count  = var.db_shards
+  source = "../growth"
+  name   = "${local.name}-db${count.index + 1}"
+  tags   = local.tags
+
+  vpc_id                  = module.network.vpc_id
+  private_subnet_ids      = module.network.private_subnet_ids
+  kms_key_arn             = module.kms.key_arn
+  tasks_security_group_id = aws_security_group.tasks.id
+  alerts_topic_arn        = module.monitoring.alerts_topic_arn
+  alarms_enabled          = true
+  has_source_db           = true
+  event_loop_p99_alarm_ms = 0
+
+  rds_read_replicas             = var.growth.rds_read_replicas
+  rds_source_identifier         = module.postgres_shard[count.index].instance_id
+  rds_source_arn                = module.postgres_shard[count.index].arn
+  rds_replica_instance_class    = var.growth.rds_replica_instance_class
+  rds_primary_instance_class    = local.db_shard_class
+  rds_replica_lag_alarm_seconds = var.growth.rds_replica_lag_alarm_s
+  rds_subnet_group_name         = "${local.name}-db${count.index + 1}-postgres"
+  rds_security_group_ids        = [module.postgres_shard[count.index].security_group_id]
+  rds_kms_key_arn               = module.kms.key_arn
+  rds_parameter_group_name      = "${local.name}-db${count.index + 1}-postgres16"
+  # A read copy holds no data of its own: «Авто» may remove it (KNOWN_ERRORS 103).
+  rds_deletion_protection = false
+}
+
 locals {
   # Only the hosts reach the api / worker (same login as DATABASE_URL).
-  db_shard_env = var.db_shards > 0 ? {
-    DB_SHARD_HOSTS = jsonencode({ for i, m in module.postgres_shard : "db${i + 1}" => m.endpoint })
-  } : {}
+  db_shard_replica_hosts = { for i, g in module.growth_shard : "db${i + 1}" => g.replica_host if g.replica_host != "" }
+  db_shard_env = var.db_shards > 0 ? merge(
+    { DB_SHARD_HOSTS = jsonencode({ for i, m in module.postgres_shard : "db${i + 1}" => m.endpoint }) },
+    length(local.db_shard_replica_hosts) > 0 ? { DB_SHARD_REPLICA_HOSTS = jsonencode(local.db_shard_replica_hosts) } : {},
+  ) : {}
   # The migrate task: each server's master login plus the runtime logins.
   db_shard_migrate_secrets = var.db_shards > 0 ? concat(
     [for i, m in module.postgres_shard : { name = "DB_SHARD_MASTER_DB${i + 1}", valueFrom = m.master_secret_arn }],

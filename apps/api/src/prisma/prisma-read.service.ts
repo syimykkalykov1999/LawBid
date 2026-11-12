@@ -1,5 +1,14 @@
-import { shardDatabaseUrlsFromEnv } from '../sharding/shard-databases';
-import { Injectable, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
+import {
+  shardDatabaseUrlsFromEnv,
+  shardReplicaUrlsFromEnv,
+} from '../sharding/shard-databases';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import { AppSettingsService } from '../common/app-settings/app-settings.service';
 import { PrismaClient } from '@prisma/client';
 import { demoContext } from '../common/demo/demo-context';
@@ -51,11 +60,18 @@ const CONNECTION_ERRORS = new Set([
  *   front of the replica (see pooler-url.ts for why it is not DB_POOLER_HOST).
  */
 @Injectable()
-export class PrismaReadService implements OnModuleDestroy {
+export class PrismaReadService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('PrismaRead');
   private raw: PrismaClient | null = null;
   private replica: PrismaService | null = null;
   private replicaUrl = '';
+  /**
+   * Owner 2026-11-11: with extra database servers, the read client is a
+   * routed PrismaService whose servers are the read copies (the primary's
+   * copy, each extra server's copy or the server itself without one), so
+   * every data part is read from the copy of its own server.
+   */
+  private routed: PrismaService | null = null;
   private downUntil = 0;
   /** Last sampled lag in ms; null = not sampled yet / sampling failed. */
   private lagMs: number | null = null;
@@ -177,12 +193,11 @@ export class PrismaReadService implements OnModuleDestroy {
     const url = resolveReplicaUrl();
     if (!url || process.env.DB_REPLICA_ENABLED === 'false') return null;
     if (demoContext.isDemo()) return null;
-    if (this.shardedDatabases()) return null;
-    // The replica copies the PRIMARY family only: a request pinned to another
-    // physical database, or any request once extra shard databases are
-    // configured, reads from its own primary (SHARDING_READY.md).
-    if (shardContext.current()?.physical) return null;
-    if (Object.keys(shardDatabaseUrlsFromEnv()).length > 0) return null;
+    const sharded =
+      this.shardedDatabases() ||
+      Object.keys(shardDatabaseUrlsFromEnv()).length > 0;
+    // One server: a request pinned to a physical database reads its primary.
+    if (!sharded && shardContext.current()?.physical) return null;
     if (Date.now() < this.downUntil) return null;
     // Admin switch: off = primary only; on = replica whatever its lag.
     if (this.mode === 'off') return null;
@@ -195,6 +210,12 @@ export class PrismaReadService implements OnModuleDestroy {
       (this.lagMs === null || this.lagMs > budget)
     ) {
       return null;
+    }
+    // Extra servers: the routed copy client (built at start; until then, and
+    // if it could not be built, the primary).
+    if (sharded) {
+      this.startSampler();
+      return this.routed;
     }
     if (this.replica && this.replicaUrl !== url) {
       // The replica moved (admin button: deleted and created again).
@@ -238,7 +259,44 @@ export class PrismaReadService implements OnModuleDestroy {
     return this.replica;
   }
 
+  /** Builds the routed copy client when extra servers and a copy exist, in
+   * the background: a copy that does not answer never holds the start. */
+  onModuleInit(): void {
+    void this.buildRouted();
+  }
+
+  private async buildRouted(): Promise<void> {
+    const url = resolveReplicaUrl();
+    const servers = shardReplicaUrlsFromEnv(process.env, (m) =>
+      this.log.warn(m),
+    );
+    if (!url || Object.keys(servers).length === 0) return;
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      DATABASE_URL: url,
+      // The copies are reached directly (or through their own pooler).
+      DB_POOLER_HOST: process.env.DB_REPLICA_POOLER_HOST ?? '',
+      DB_POOL_SIZE: process.env.DB_READ_POOL_SIZE ?? process.env.DB_POOL_SIZE,
+      DB_SHARD_HOSTS: '',
+      DATABASE_URL_SHARDS: JSON.stringify(servers),
+    };
+    try {
+      const routed = new PrismaService(env);
+      await (
+        routed as unknown as { onModuleInit(): Promise<void> }
+      ).onModuleInit();
+      this.routed = routed;
+    } catch (e) {
+      this.log.warn(`read copies of the extra servers not used: ${String(e)}`);
+    }
+  }
+
   async onModuleDestroy(): Promise<void> {
+    if (this.routed) {
+      await (this.routed as unknown as { onModuleDestroy(): Promise<void> })
+        .onModuleDestroy()
+        .catch(() => undefined);
+    }
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     if (this.raw) await this.raw.$disconnect().catch(() => undefined);
