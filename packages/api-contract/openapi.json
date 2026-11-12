@@ -165071,6 +165071,15 @@
             "type": "string",
             "nullable": true
           },
+          "liveState": {
+            "nullable": true,
+            "enum": [
+              "off",
+              "on"
+            ],
+            "type": "string",
+            "description": "Cloud items with Выкл / Вкл / Авто: whether the item runs now (state is the position picked); null elsewhere."
+          },
           "stateHints": {
             "type": "object",
             "additionalProperties": {
@@ -165201,6 +165210,7 @@
           "state",
           "stateKnown",
           "stateNote",
+          "liveState",
           "stateHints",
           "ceilingLabel",
           "ceilingKey",

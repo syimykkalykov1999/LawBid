@@ -275,6 +275,13 @@ export class CostRegistryRowDto {
   stateKnown!: boolean;
   @ApiProperty({ type: String, nullable: true }) stateNote!: string | null;
   @ApiProperty({
+    enum: ['off', 'on'],
+    nullable: true,
+    description:
+      'Cloud items with Выкл / Вкл / Авто: whether the item runs now (state is the position picked); null elsewhere.',
+  })
+  liveState!: 'off' | 'on' | null;
+  @ApiProperty({
     type: 'object',
     additionalProperties: { type: 'string' },
     description: 'state → what that position means, where it is not obvious.',

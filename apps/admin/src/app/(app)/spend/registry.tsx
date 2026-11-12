@@ -38,6 +38,7 @@ import {
   InfraChip,
   InfraPlanSheet,
   useInfra,
+  useInfraModePick,
 } from "@/components/infra-plan-sheet";
 import {
   isActive,
@@ -84,8 +85,13 @@ export function CostRegistry() {
   const [sheetFor, setSheetFor] = useState<string | null>(null);
   const requests = infra.data?.requests;
   const sheet = sheetFor ? latestFor(requests, sheetFor) : null;
+  const modePick = useInfraModePick(infra, setSheetFor);
   const pick = (id: string, state: CostState) => {
     const row = q.data?.rows.find((x) => x.id === id);
+    if (row?.infraSwitch && row.liveState != null) {
+      modePick.pick(row, state);
+      return;
+    }
     if (!row?.infraSwitch) {
       setMode.mutate({ id, state });
       return;

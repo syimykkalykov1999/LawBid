@@ -1,3 +1,4 @@
+import type { InfraMode } from '../../../common/ops/infra-modes';
 import type { InfraTarget } from '../../../common/ops/infra-switches';
 import { infraSuggestions, type SuggestionSignals } from './infra-change.logic';
 
@@ -48,6 +49,12 @@ export interface AutoSignals extends SuggestionSignals {
    * «Здоровье системы» (green / yellow at 80 % / red). */
   shardsMode?: string;
   shardGrowth?: 'green' | 'yellow' | 'red';
+  /** Owner 2026-11-11: the position picked on «Масштаб» for each item the
+   * automation switches (common/ops/infra-modes.ts; missing = Авто), and
+   * the items the owner set to Авто himself (handed to the automation: it
+   * may switch them off too, not only what it switched on itself). */
+  modes?: Readonly<Record<string, InfraMode>>;
+  pickedAuto?: ReadonlySet<string>;
 }
 
 /** People at which the search engine (OpenSearch) is switched on, and the
@@ -204,16 +211,39 @@ export function autoWants(
         'Таблица подходит к порогу деления «Авто»: нужен вход роли lawbid_partition.',
     });
   }
+  const modeOf = (id: string): InfraMode => s.modes?.[id] ?? 'auto';
   for (const [id, keep] of Object.entries(KEEP_ON)) {
-    if (autoOn.has(id) && live(id) === 'on' && !keep(s)) {
+    const handed = autoOn.has(id) || s.pickedAuto?.has(id) === true;
+    if (handed && modeOf(id) === 'auto' && live(id) === 'on' && !keep(s)) {
       out.push({
         id,
         to: 'off',
-        reason: 'Сигнал, ради которого это включилось само, давно пропал.',
+        reason: autoOn.has(id)
+          ? 'Сигнал, ради которого это включилось само, давно пропал.'
+          : 'Стоит «Авто», а нужды в этом давно нет.',
       });
     }
   }
-  return out;
+  // Вкл = kept on: switched on again if it is off.
+  for (const [id, mode] of Object.entries(s.modes ?? {})) {
+    if (
+      mode === 'on' &&
+      live(id) !== 'on' &&
+      !out.some((x) => x.id === id && x.to === 'on')
+    ) {
+      out.push({
+        id,
+        to: 'on',
+        reason: 'Стоит «Вкл», а сейчас выключено.',
+      });
+    }
+  }
+  // Выкл = never switched on by itself; Вкл = never switched off by itself.
+  return out.filter(
+    (w) =>
+      !(w.to === 'on' && modeOf(w.id) === 'off') &&
+      !(w.to === 'off' && modeOf(w.id) === 'on'),
+  );
 }
 
 export const wantKey = (w: Pick<AutoWant, 'id' | 'to'>): string =>

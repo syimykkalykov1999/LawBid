@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'cost_registry_row_dto_control_type.dart';
 import 'cost_registry_row_dto_default_state.dart';
 import 'cost_registry_row_dto_kind.dart';
+import 'cost_registry_row_dto_live_state.dart';
 import 'cost_registry_row_dto_month_source.dart';
 import 'cost_registry_row_dto_needed.dart';
 import 'cost_registry_row_dto_state.dart';
@@ -32,6 +33,7 @@ class CostRegistryRowDto {
     required this.state,
     required this.id,
     required this.stateNote,
+    required this.liveState,
     required this.stateHints,
     required this.ceilingLabel,
     required this.ceilingKey,
@@ -41,8 +43,8 @@ class CostRegistryRowDto {
     required this.priceSourceUrl,
     required this.priceCheckedAt,
     required this.priceVerified,
-    required this.usdLaunch,
     required this.steps,
+    required this.usdK100,
     required this.usdM1,
     required this.ifOnUsd,
     required this.needed,
@@ -54,7 +56,7 @@ class CostRegistryRowDto {
     required this.monthUsd,
     required this.projectedUsd,
     required this.monthSource,
-    required this.usdK100,
+    required this.usdLaunch,
   });
 
   factory CostRegistryRowDto.fromJson(Map<String, Object?> json) =>
@@ -82,6 +84,9 @@ class CostRegistryRowDto {
   /// false: the state is the code default or unreadable.
   final bool stateKnown;
   final String? stateNote;
+
+  /// Cloud items with Выкл / Вкл / Авто: whether the item runs now (state is the position picked); null elsewhere.
+  final CostRegistryRowDtoLiveState? liveState;
 
   /// state → what that position means, where it is not obvious.
   final Map<String, String> stateHints;

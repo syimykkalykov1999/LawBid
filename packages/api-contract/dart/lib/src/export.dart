@@ -2898,6 +2898,7 @@ export 'models/cost_registry_row_dto_control_type.dart';
 export 'models/cost_registry_row_dto_states.dart';
 export 'models/cost_registry_row_dto_default_state.dart';
 export 'models/cost_registry_row_dto_state.dart';
+export 'models/cost_registry_row_dto_live_state.dart';
 export 'models/cost_registry_row_dto_needed.dart';
 export 'models/cost_registry_row_dto_month_source.dart';
 export 'models/cost_mode_result_dto_state.dart';

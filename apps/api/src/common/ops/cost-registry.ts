@@ -479,7 +479,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       off: 'redis_cache_node = false',
       on: 'redis_cache_node = true',
     }),
-    states: ['off', 'on'],
+    states: ['off', 'on', 'auto'],
     defaultState: 'off',
     ceiling: null,
     price: price(
@@ -1375,7 +1375,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       off: 'growth = { rds_read_replicas = 0 }',
       on: 'growth = { rds_read_replicas = 1 }',
     }),
-    states: ['off', 'on'],
+    states: ['off', 'on', 'auto'],
     defaultState: 'off',
     ceiling: tfCeil('growth.rds_read_replicas', 'Сколько копий (0–5)'),
     price: price(
@@ -1400,7 +1400,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       off: 'db_shards = 0',
       on: 'db_shards = 1',
     }),
-    states: ['off', 'on'],
+    states: ['off', 'on', 'auto'],
     defaultState: 'off',
     ceiling: tfCeil('db_shards', 'Сколько серверов (0–3)'),
     price: price(
@@ -1425,7 +1425,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       off: 'growth = { opensearch_enabled = false }',
       on: 'growth = { opensearch_enabled = true }',
     }),
-    states: ['off', 'on'],
+    states: ['off', 'on', 'auto'],
     defaultState: 'off',
     ceiling: null,
     price: price(
@@ -1452,7 +1452,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       off: 'growth = { events_stream_enabled = false }',
       on: 'growth = { events_stream_enabled = true }',
     }),
-    states: ['off', 'on'],
+    states: ['off', 'on', 'auto'],
     defaultState: 'off',
     ceiling: null,
     price: price(
@@ -1509,7 +1509,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       off: 'db_pooler_enabled = false',
       on: 'db_pooler_enabled = true',
     }),
-    states: ['off', 'on'],
+    states: ['off', 'on', 'auto'],
     defaultState: 'off',
     ceiling: tfCeil('pgbouncer_max_tasks', 'Сколько копий привратника'),
     price: price('unit', '≈ $18 за копию в месяц', U.fargate),
@@ -1530,7 +1530,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       off: 'partition_role_enabled = false',
       on: 'partition_role_enabled = true',
     }),
-    states: ['off', 'on'],
+    states: ['off', 'on', 'auto'],
     defaultState: 'off',
     ceiling: null,
     price: price('unit', '≈ $0,40 в месяц (один секрет)', U.sm, false),
@@ -2854,6 +2854,23 @@ export function entryById(id: string): CostEntry | undefined {
 }
 
 /** Terraform / SSM / app steps (plain Russian) to put [entry] in [state]. */
+/**
+ * Owner 2026-11-11 («Масштаб»: Выкл / Вкл / Авто must really rule each cloud
+ * item the automation switches): the setting that holds the position picked
+ * per item (infra-modes.ts reads it). Two items keep the setting they had.
+ * Here, not in infra-modes.ts: this file is loaded by Node without imports
+ * (scripts/cost-ladder.mjs).
+ */
+export const INFRA_MODE_KEYS: Readonly<Record<string, string>> = {
+  'aws.rds_replicas': 'infra.mode.rds_replicas',
+  'aws.pgbouncer': 'infra.mode.pgbouncer',
+  'aws.opensearch': 'infra.mode.opensearch',
+  'aws.events_stream': 'infra.mode.events_stream',
+  'aws.partition_role': 'infra.mode.partition_role',
+  'aws.db_shards': 'db.shards_mode',
+  'aws.redis_cache': 'cache.redis_mode',
+};
+
 export function stepsFor(entry: CostEntry, state: CostState): string[] {
   const c = entry.control;
   const label = STATE_LABEL[state];
@@ -2868,6 +2885,19 @@ export function stepsFor(entry: CostEntry, state: CostState): string[] {
     return [
       `Админка → «Расходы» → строка «${entry.name}» → выберите «${label}» → подтвердите кодом 2FA.`,
       'Переключатель лежит в AWS Systems Manager (Parameter Store) и действует на следующем запуске (до 5 минут).',
+      ...(entry.extraSteps ?? []),
+    ];
+  }
+  // Owner 2026-11-11: the items the cloud automation switches are ruled by
+  // the three buttons on «Масштаб» (infra-modes.ts).
+  if (INFRA_MODE_KEYS[entry.id]) {
+    return [
+      `Админка → «Масштаб» → строка «${entry.name}» → нажмите «${label}» → подтвердите кодом 2FA.`,
+      state === 'auto'
+        ? 'Дальше само: включается, когда нужно, и выключается, когда не нужно (каждые 10 минут смотрит на нагрузку).'
+        : state === 'on'
+          ? 'Если сейчас выключено, готовится план включения: прочитайте его и подтвердите кодом 2FA. Само не выключается.'
+          : 'Если сейчас включено, готовится план выключения: прочитайте его и подтвердите кодом 2FA. Само не включается.',
       ...(entry.extraSteps ?? []),
     ];
   }
