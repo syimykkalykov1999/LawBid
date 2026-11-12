@@ -101,6 +101,11 @@ variable "slow_start_seconds" {
     error_message = "slow_start_seconds: 0 or 30..900."
   }
 }
+variable "admin_api_target_group_enabled" {
+  type        = bool
+  default     = true
+  description = "Owner 2026-11-11 («А»): requests of the admin panel to the API (/api/v1/admin/*) go to their own target group served by the api-admin service, so a heavy admin page never slows the people using the app (bulkhead) nor trips the api deployment alarms."
+}
 variable "ws_target_group_enabled" {
   type        = bool
   default     = false
@@ -271,6 +276,42 @@ resource "aws_lb_listener_rule" "api_ws" {
   }
   condition {
     path_pattern { values = ["/socket.io/*", "/socket.io"] }
+  }
+}
+
+# Owner 2026-11-11 («А»): the API of the admin panel on its own service.
+resource "aws_lb_target_group" "api_admin" {
+  count                = var.admin_api_target_group_enabled ? 1 : 0
+  name                 = "${var.name}-api-admin"
+  port                 = 3000
+  protocol             = "HTTP"
+  target_type          = "ip"
+  vpc_id               = var.vpc_id
+  deregistration_delay = 30
+  health_check {
+    path                = "/health/live"
+    matcher             = "200"
+    interval            = 15
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
+  tags = var.tags
+}
+
+resource "aws_lb_listener_rule" "api_admin" {
+  count        = var.admin_api_target_group_enabled ? 1 : 0
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 8
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.api_admin[0].arn
+  }
+  condition {
+    host_header { values = [var.api_host] }
+  }
+  condition {
+    path_pattern { values = ["/api/v1/admin/*", "/api/v1/admin"] }
   }
 }
 
@@ -885,6 +926,7 @@ output "dns_name" { value = aws_lb.this.dns_name }
 output "zone_id" { value = aws_lb.this.zone_id }
 output "arn_suffix" { value = aws_lb.this.arn_suffix }
 output "api_target_group_arn" { value = aws_lb_target_group.api.arn }
+output "api_admin_target_group_arn" { value = var.admin_api_target_group_enabled ? aws_lb_target_group.api_admin[0].arn : "" }
 output "api_ws_target_group_arn" { value = var.ws_target_group_enabled ? aws_lb_target_group.api_ws[0].arn : "" }
 output "api_target_group_arn_suffix" { value = aws_lb_target_group.api.arn_suffix }
 output "admin_target_group_arn" { value = aws_lb_target_group.admin.arn }

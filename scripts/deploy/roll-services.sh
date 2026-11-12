@@ -47,6 +47,14 @@ for SVC in $SERVICES; do
   aws ecs update-service --cluster "$CLUSTER" --service "$SVC" --task-definition "$REV" >/dev/null
   echo "$SVC -> $REV"
   REVS="$REVS $SVC=$REV"
+  # Owner 2026-11-11 («А»): the admin panel's API service runs the same
+  # revision as api (infra/modules/ecs aws_ecs_service.api_admin), when it exists.
+  if [ "$SVC" = api ] && [ "$(aws ecs describe-services --cluster "$CLUSTER" --services api-admin \
+      --query 'services[?status==`ACTIVE`] | length(@)' --output text 2>/dev/null || echo 0)" = "1" ]; then
+    aws ecs update-service --cluster "$CLUSTER" --service api-admin --task-definition "$REV" >/dev/null
+    echo "api-admin -> $REV"
+    REVS="$REVS api-admin=$REV"
+  fi
 done
 
 # Wait until every service has OUR revision as COMPLETED, nothing else left.
