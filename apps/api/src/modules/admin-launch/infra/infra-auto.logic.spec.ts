@@ -10,7 +10,7 @@ import {
 } from './infra-auto.logic';
 import { COST_REGISTRY } from '../../../common/ops/cost-registry';
 import { switchFor } from '../../../common/ops/infra-switches';
-import { costDelta } from './infra-change.logic';
+import { changesFor, costDelta } from './infra-change.logic';
 
 const calm: AutoSignals = {
   pressures: [],
@@ -904,6 +904,47 @@ describe('autoWants: the two WAF protections on an attack', () => {
     expect(r.due).toEqual([]);
     r = dueWants(off, r.seen, 74 * H, 30 * MIN, 72 * H);
     expect(r.due).toEqual(off);
+  });
+
+  it('own waits: on after 5 minutes of attack, off after 3 hours of calm; others keep theirs', () => {
+    const per = {
+      'aws.waf_bot_control': { onMs: 5 * MIN, offMs: 3 * H },
+    };
+    const on: AutoWant = { id: 'aws.waf_bot_control', to: 'on', reason: '' };
+    const off: AutoWant = { id: 'aws.waf_bot_control', to: 'off', reason: '' };
+    const other: AutoWant = { id: 'aws.pgbouncer', to: 'on', reason: '' };
+    let r = dueWants([on, other], {}, 0, 30 * MIN, 72 * H, per);
+    r = dueWants([on, other], r.seen, 4 * MIN, 30 * MIN, 72 * H, per);
+    expect(r.due).toEqual([]);
+    r = dueWants([on, other], r.seen, 5 * MIN, 30 * MIN, 72 * H, per);
+    expect(r.due).toEqual([on]);
+    let q = dueWants([off], {}, 0, 30 * MIN, 72 * H, per);
+    q = dueWants([off], q.seen, 3 * H - 1, 30 * MIN, 72 * H, per);
+    expect(q.due).toEqual([]);
+    q = dueWants([off], q.seen, 3 * H, 30 * MIN, 72 * H, per);
+    expect(q.due).toEqual([off]);
+  });
+
+  it('an automatic switch-on writes block mode; a manual Вкл writes count', () => {
+    const bot = switchFor('aws.waf_bot_control')!;
+    expect(changesFor(bot, 'on', true)).toEqual({
+      waf_bot_control_enabled: true,
+      waf_bot_control_block: true,
+    });
+    expect(changesFor(bot, 'on')).toEqual({
+      waf_bot_control_enabled: true,
+      waf_bot_control_block: false,
+    });
+    expect(changesFor(bot, 'off', true)).toEqual({
+      waf_bot_control_enabled: false,
+      waf_bot_control_block: false,
+    });
+    const extra = switchFor('aws.waf_extra_rules')!;
+    expect(changesFor(extra, 'on', true).waf_auth_rate_action).toBe('block');
+    expect(changesFor(extra, 'on').waf_auth_rate_action).toBe('count');
+    // a switch without autoOn: the same values either way
+    const pg = switchFor('aws.pgbouncer')!;
+    expect(changesFor(pg, 'on', true)).toEqual(changesFor(pg, 'on'));
   });
 
   it('money: both cost at most $100 a month, so infra.auto_max_usd_month does not hold them back', () => {

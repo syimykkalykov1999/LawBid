@@ -1885,7 +1885,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     id: 'aws.waf_extra_rules',
     name: 'Дополнительные правила WAF (по устройству, подбор входа)',
     purpose:
-      'Правила по заголовку устройства и по частоте попыток входа. Сначала только считают, потом блокируют. Авто: включаются сами, пока идёт атака (много отбитых запросов или неудачных входов за 5 минут), и выключаются после спокойных infra.auto_off_hours.',
+      'Правила по заголовку устройства и по частоте попыток входа. Сначала только считают, потом блокируют. Авто: через infra.waf_attack_on_minutes атаки (много отбитых запросов или неудачных входов за 5 минут) включаются сами и сразу блокируют, выключаются после infra.waf_calm_off_hours спокойствия.',
     kind: 'aws',
     control: tf(
       ['waf_device_header', 'waf_auth_rules_enabled', 'waf_auth_rate_action'],
@@ -1915,7 +1915,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     id: 'aws.waf_bot_control',
     name: 'Фильтр ботов WAF Bot Control',
     purpose:
-      'Платное правило, которое отличает ботов от людей. Сначала только считает. Авто: включается само, пока идёт атака (много отбитых запросов или неудачных входов за 5 минут), и выключается после спокойных infra.auto_off_hours.',
+      'Платное правило, которое отличает ботов от людей. Сначала только считает. Авто: через infra.waf_attack_on_minutes атаки (много отбитых запросов или неудачных входов за 5 минут) включается само и сразу блокирует, выключается после infra.waf_calm_off_hours спокойствия.',
     kind: 'aws',
     control: tf(['waf_bot_control_enabled', 'waf_bot_control_block'], {
       off: 'waf_bot_control_enabled = false',

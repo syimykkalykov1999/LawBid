@@ -466,6 +466,9 @@ export function dueWants(
   nowMs: number,
   onMs: number,
   offMs: number,
+  /** Per item: its own on / off wait (the WAF protections react to an
+   * attack in minutes, like AWS Shield Advanced). */
+  per: Readonly<Record<string, { onMs: number; offMs: number }>> = {},
 ): { due: AutoWant[]; seen: Record<string, number> } {
   const next: Record<string, number> = {};
   const due: AutoWant[] = [];
@@ -473,7 +476,9 @@ export function dueWants(
     const k = wantKey(w);
     const first = seen[k] ?? nowMs;
     next[k] = first;
-    if (nowMs - first >= (w.to === 'on' ? onMs : offMs)) due.push(w);
+    const own = per[w.id];
+    const wait = w.to === 'on' ? (own?.onMs ?? onMs) : (own?.offMs ?? offMs);
+    if (nowMs - first >= wait) due.push(w);
   }
   return { due, seen: next };
 }

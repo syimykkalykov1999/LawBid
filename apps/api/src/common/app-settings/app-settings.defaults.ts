@@ -1232,6 +1232,11 @@ export const OWNER_STORAGE_SETTINGS = {
    * in 5 minutes; calm = below half of both for infra.auto_off_hours. */
   'infra.waf_attack_blocked_per_5m': 1000,
   'infra.waf_attack_auth_failed_per_5m': 50,
+  /** Foreman 2026-11-12: the two WAF protections react like AWS Shield
+   * Advanced (minutes): on after this many minutes of the attack signal,
+   * off after this many hours of calm (their own infra.auto_* waits). */
+  'infra.waf_attack_on_minutes': 5,
+  'infra.waf_calm_off_hours': 3,
   /** Database CPU % above which «busy» starts (read copy, size step). */
   'economy.db_cpu_limit_percent': 70,
   /** Owner 2026-11-02: «time to prepare a second database». Health turns

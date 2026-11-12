@@ -268,11 +268,15 @@ export function serverRemovedBy(itemId: string, to: string): string | null {
   return n < 0 ? null : `db${n + 1}`;
 }
 
-/** The values a request writes into growth.auto.tfvars.json. */
+/** The values a request writes into growth.auto.tfvars.json. An automatic
+ * switch-on uses the switch's `autoOn` values when it has them (the WAF
+ * protections block during an attack; a manual Вкл only counts). */
 export function changesFor(
   sw: InfraSwitch,
   to: InfraTarget,
+  auto = false,
 ): Record<string, InfraValue> {
+  if (auto && to === 'on' && sw.autoOn) return { ...sw.autoOn };
   return { ...sw.values[to] };
 }
 
