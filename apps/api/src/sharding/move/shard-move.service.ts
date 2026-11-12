@@ -5,7 +5,11 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ShardMapSync } from '../shard-map-sync';
 import { LOGICAL_SHARDS } from '../shard-id';
 import { PRIMARY_DB } from '../shard-router';
-import { autoSplitTarget, type ShardGrowth } from '../shard-growth';
+import {
+  splitSource,
+  type ServerFill,
+  type ShardGrowth,
+} from '../shard-growth';
 import { remainingCrossFamilyForeignKeys } from './cross-family-fks';
 import { MemoryMoveLease, RedisMoveLease } from './move-lease';
 import { MoveDbPool } from './move-db';
@@ -69,6 +73,54 @@ export class ShardMoveService {
         new PgMoveOps(this.pool.get(from), this.pool.get(to)),
       options: this.options,
     });
+  }
+
+  /**
+   * Owner 2026-11-11: size and planner row estimate of every server against
+   * the split threshold (the same cheap catalog numbers as the primary's
+   * signal), with the shards each one holds.
+   */
+  async serverFill(
+    thresholdGb: number,
+    thresholdRows: number,
+  ): Promise<ServerFill[]> {
+    const map = await this.prisma.global().shardMap.groupBy({
+      by: ['physical_db'],
+      where: { state: 'active' },
+      _count: { _all: true },
+    });
+    const tables = buildMoveTables().map((t) => t.table);
+    const out: ServerFill[] = [];
+    for (const key of this.pool.keys()) {
+      try {
+        const db = this.pool.get(key);
+        const [size] = await db.query<{ bytes: number }>(
+          'SELECT pg_database_size(current_database())::float8 AS bytes',
+        );
+        const [est] = await db.query<{ rows: number }>(
+          `SELECT COALESCE(sum(CASE WHEN c.relkind = 'p'
+                     THEN (SELECT COALESCE(sum(GREATEST(p.reltuples, 0)), 0) FROM pg_inherits i JOIN pg_class p ON p.oid = i.inhrelid WHERE i.inhparent = c.oid)
+                     ELSE GREATEST(c.reltuples, 0) END), 0)::float8 AS rows
+             FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND c.relkind IN ('r','p') AND NOT c.relispartition
+              AND c.relname = ANY($1::text[])`,
+          [tables],
+        );
+        const gb = Number(size?.bytes ?? 0) / 1024 ** 3;
+        const rows = Number(est?.rows ?? 0);
+        out.push({
+          key,
+          ratio: Math.max(
+            thresholdGb > 0 ? gb / thresholdGb : 0,
+            thresholdRows > 0 ? rows / thresholdRows : 0,
+          ),
+          shards: map.find((m) => m.physical_db === key)?._count._all ?? 0,
+        });
+      } catch (e) {
+        this.log.warn(`server fill of ${key} not read: ${String(e)}`);
+      }
+    }
+    return out;
   }
 
   /** Configured physical databases other than the primary one. */
@@ -280,40 +332,41 @@ export class ShardMoveService {
    */
   async autoSplit(p: {
     mode: string;
-    growth: Pick<ShardGrowth, 'status' | 'plan'>;
+    growth: Pick<
+      ShardGrowth,
+      'status' | 'plan' | 'thresholdGb' | 'thresholdRows'
+    >;
     inWindow: boolean;
   }): Promise<string | null> {
     const extra = this.extraDatabases();
     if (extra.length === 0) return null;
-    const map = await this.prisma.global().shardMap.groupBy({
-      by: ['physical_db'],
-      where: { state: 'active' },
-      _count: { _all: true },
-    });
-    const busy = (await this.store.unfinished()) > 0;
-    const d = autoSplitTarget({
-      mode: p.mode,
-      growth: p.growth,
-      targets: extra.map((key) => ({
-        key,
-        shards: map.find((m) => m.physical_db === key)?._count._all ?? 0,
-      })),
-      busy,
-      inWindow: p.inWindow,
-    });
-    if (!d.target) return null;
-    const plan = await this.splitPlan(d.target);
+    if (p.mode !== 'auto' || !p.inWindow) return null;
+    if ((await this.store.unfinished()) > 0) return null;
+    // Owner 2026-11-11 (third and fourth servers): the fullest server over
+    // the threshold (the primary or an extra one) gives half of its shards
+    // to an empty extra server — the same plan, queue and rollback as the
+    // owner's «Разделить базу».
+    const fill: ServerFill[] = await this.serverFill(
+      p.growth.thresholdGb,
+      p.growth.thresholdRows,
+    );
+    const empty = extra.find(
+      (key) => (fill.find((f) => f.key === key)?.shards ?? 0) === 0,
+    );
+    const source = splitSource(fill);
+    if (!empty || !source) return null;
+    const plan = await this.splitPlan(empty, source);
     if (!plan.readiness.ok || plan.shards.length === 0) {
       this.log.warn(
-        `auto split to ${d.target} waits: ${plan.readiness.problems.join('; ') || 'no shards'}`,
+        `auto split ${source} -> ${empty} waits: ${plan.readiness.problems.join('; ') || 'no shards'}`,
       );
       return null;
     }
     this.log.log(
-      `auto split: ${plan.shards.length} shards to ${d.target} (db.shards_mode = auto)`,
+      `auto split: ${plan.shards.length} shards ${source} -> ${empty} (Авто)`,
     );
-    await this.startSplit(d.target, plan.shards, null);
-    return d.target;
+    await this.startSplit(empty, plan.shards, null);
+    return empty;
   }
 
   /** Everything the admin screen shows. */

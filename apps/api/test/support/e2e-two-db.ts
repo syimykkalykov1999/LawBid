@@ -21,7 +21,7 @@ import { familyOf } from '../../src/sharding/shard-manifest';
  * database and works there; what it cannot prove yet is listed in
  * two-db-suites.json (`knownLimitations`) for the plan's steps 6 to 8.
  */
-export type TwoDbMode = 'off' | 'odd' | 'all';
+export type TwoDbMode = 'off' | 'odd' | 'all' | 'empty';
 
 /**
  * `E2E_TWO_DB=1` (or `odd`): odd shards on db1, even on primary, the plan's
@@ -33,6 +33,9 @@ export type TwoDbMode = 'off' | 'odd' | 'all';
 export function twoDbMode(env: NodeJS.ProcessEnv = process.env): TwoDbMode {
   const v = (env.E2E_TWO_DB ?? '').trim().toLowerCase();
   if (v === 'all') return 'all';
+  // Owner 2026-11-11: a second server that exists but holds no shard yet
+  // (what «Второй сервер базы» creates), for the automatic first split.
+  if (v === 'empty') return 'empty';
   return ['1', 'true', 'odd'].includes(v) ? 'odd' : 'off';
 }
 

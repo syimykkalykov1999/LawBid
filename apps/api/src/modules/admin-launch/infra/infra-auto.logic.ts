@@ -49,6 +49,10 @@ export interface AutoSignals extends SuggestionSignals {
    * «Здоровье системы» (green / yellow at 80 % / red). */
   shardsMode?: string;
   shardGrowth?: 'green' | 'yellow' | 'red';
+  /** Owner 2026-11-11: some database server (the primary or an extra one) is
+   * at 80 % of the split threshold and every extra server already holds
+   * data parts — the next server (third, fourth) is needed. */
+  serversFull?: boolean;
   /** Owner 2026-11-11: the position picked on «Масштаб» for each item the
    * automation switches (common/ops/infra-modes.ts; missing = Авто), and
    * the items the owner set to Авто himself (handed to the automation: it
@@ -203,6 +207,24 @@ export function autoWants(
       });
     }
   }
+  // Owner 2026-11-11: the third and fourth servers, one after the other, on
+  // the same rule once the servers before are taken (Aurora Limitless adds
+  // capacity the same way). Never switched off by itself (data lives there).
+  const MORE = ['aws.db_shards', 'aws.db_shards_2', 'aws.db_shards_3'];
+  for (let i = 1; i < MORE.length; i++) {
+    const id = MORE[i];
+    const mode = s.modes?.[id] ?? 'auto';
+    if (live(MORE[i - 1]) !== 'on' || live(id) === 'on') continue;
+    if (mode === 'auto' && s.serversFull === true) {
+      out.push({
+        id,
+        to: 'on',
+        reason:
+          'Все серверы базы уже с данными, а один подходит к порогу деления: нужен следующий сервер.',
+      });
+    }
+    break;
+  }
   if (s.partitionNeedsRunner && live('aws.partition_role') !== 'on') {
     out.push({
       id: 'aws.partition_role',
@@ -226,6 +248,9 @@ export function autoWants(
   }
   // Вкл = kept on: switched on again if it is off.
   for (const [id, mode] of Object.entries(s.modes ?? {})) {
+    // A later database server needs the one before it.
+    const n = MORE.indexOf(id);
+    if (n > 0 && live(MORE[n - 1]) !== 'on') continue;
     if (
       mode === 'on' &&
       live(id) !== 'on' &&
