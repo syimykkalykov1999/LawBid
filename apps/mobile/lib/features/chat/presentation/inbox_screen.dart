@@ -812,6 +812,7 @@ class ConversationsView extends ConsumerWidget {
         t: t,
         itemKey: (e) => e.id,
         edgeToEdge: true,
+        prefetch: _prefetchEntry,
         itemBuilder: (context, e, _) => _entryRow(e, highlight: query),
         empty: AppEmptyState(
           icon: AppIcons.searchRounded,
@@ -835,6 +836,7 @@ class ConversationsView extends ConsumerWidget {
         t: t,
         itemKey: (e) => e.id,
         edgeToEdge: true,
+        prefetch: _prefetchEntry,
         itemBuilder: (context, e, _) => _entryRow(e),
         // Owner 2026-10-20 (Telegram): «Archive (N)» leads the list.
         header: archived > 0 ? _ArchiveRow(count: archived) : null,
@@ -856,6 +858,7 @@ class ConversationsView extends ConsumerWidget {
         t: t,
         itemKey: (c) => c.id,
         edgeToEdge: true,
+        prefetch: prefetchChatAvatar,
         itemBuilder: (context, c, _) => ConversationRow(
           conversation: c,
           showAwaiting: folder == ChatListFolder.cases,
@@ -1015,6 +1018,51 @@ class _ArchiveRow extends ConsumerWidget {
   }
 }
 
+/// Item 38 (owner, Instagram/Telegram): the avatars of the next rows are
+/// read and decoded while the list scrolls, so a row never comes in with
+/// letters first. Groups draw their own collage and are left as they are.
+void _prefetchEntry(BuildContext context, ChatListEntry e) {
+  switch (e) {
+    case DirectChatEntry(:final conversation):
+      prefetchChatAvatar(context, conversation);
+    case PersonChatEntry(:final row):
+      prefetchChatAvatar(context, row);
+    case GroupChatEntry():
+      break;
+  }
+}
+
+/// Warms [CounterpartAvatar]'s photo exactly as a [ConversationRow] draws
+/// it (same link, provider and decode width), so the decode found on screen
+/// is this one (Flutter's precacheImage, as post_prefetch.dart does).
+void prefetchChatAvatar(BuildContext context, Conversation c) {
+  final p = c.counterpart;
+  final url = p.avatarUrl;
+  if (p.hidden || url == null) return;
+  const size = ConversationRow.avatarSize;
+  final dpr = MediaQuery.devicePixelRatioOf(context);
+  final full = p.avatarFullUrl;
+  // GoldRingAvatar: the ring takes 4 dp of a verified person's circle.
+  final drawn = p.verified ? size - 4 : size;
+  precacheImage(
+    ResizeImage.resizeIfNeeded(
+      (drawn * dpr).round(),
+      null,
+      stableNetworkImage(
+        avatarUrlFor(
+          url,
+          logicalSize: size,
+          devicePixelRatio: dpr,
+          fullUrl: full,
+        ),
+        fallbackUrls: [if (full != null) full],
+      ),
+    ),
+    context,
+    onError: (_, __) {},
+  );
+}
+
 Widget _entryRow(ChatListEntry e, {String highlight = ''}) => switch (e) {
       DirectChatEntry(:final conversation) =>
         ConversationRow(conversation: conversation, highlight: highlight),
@@ -1138,7 +1186,10 @@ class ConversationRow extends ConsumerWidget {
   /// side's — it waits for my answer.
   final bool showAwaiting;
 
-  static const double _avatar = 54;
+  static const double _avatar = avatarSize;
+
+  /// The row's avatar diameter (also what [prefetchChatAvatar] warms).
+  static const double avatarSize = 54;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

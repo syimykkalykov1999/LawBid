@@ -13,6 +13,7 @@ import {
 } from '@/components/support/support-labels';
 import { TicketRowItem } from '@/components/support/ticket-row';
 import { Button } from '@/components/ui/button';
+import { PrefetchSentinel } from '@/components/legacy/prefetch-sentinel';
 import { Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Input, Select } from '@/components/ui/input';
@@ -265,6 +266,9 @@ export default function SupportInboxPage() {
           </ul>
         )}
       </Card>
+      {list.hasNextPage ? (
+        <PrefetchSentinel enabled={!list.isFetchingNextPage} onNear={() => void list.fetchNextPage()} />
+      ) : null}
       {list.hasNextPage ? (
         <div className="mt-4 flex justify-center">
           <Button variant="outline" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>

@@ -6,6 +6,7 @@
  * ceiling, (3) hands it a digest without personal data, (4) books what each
  * run cost. Pure parts live here.
  */
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /** The label the workflow listens to. */
 export const AI_TASK_LABEL = 'ai-task';
@@ -95,4 +96,87 @@ export function safeCost(v: unknown, max = 100): number {
   const n = typeof v === 'number' ? v : Number(v);
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.min(max, Math.round(n * 10_000) / 10_000);
+}
+
+/**
+ * 12.11.2026 (owner): «реагировать сразу, а не раз в 2 часа». A CloudWatch
+ * alarm (POST /internal/alarm-events) or a new Sentry error
+ * (POST /webhooks/sentry) starts the workflow at once with these inputs.
+ */
+export type AiTriggerReason = 'alarm' | 'sentry';
+
+/** One dispatch per alarm name / Sentry issue id per hour (Redis NX EX). */
+export const AI_TRIGGER_DEBOUNCE_S = 3600;
+
+/** Pure: the Redis debounce key of one trigger. */
+export function triggerKey(reason: AiTriggerReason, key: string): string {
+  const safe = key.replace(/[^\w.:-]/g, '_').slice(0, 120);
+  return `ai:trigger:${reason}:${safe}`;
+}
+
+/** Pure: the workflow_dispatch inputs (strings only, scrubbed: public repo). */
+export function triggerInputs(
+  reason: AiTriggerReason,
+  text: string,
+): Record<string, string> {
+  const field = reason === 'alarm' ? 'alarm' : 'issue';
+  return { reason, [field]: scrub(text, 200) };
+}
+
+/** Sentry's internal-integration signature header (lowercase on the wire). */
+export const SENTRY_SIGNATURE_HEADER = 'sentry-hook-signature';
+/** Sentry's resource header: `issue`, `error`, `event_alert`, … */
+export const SENTRY_RESOURCE_HEADER = 'sentry-hook-resource';
+
+/**
+ * Pure: Sentry signs every webhook with the integration's Client Secret:
+ * hex HMAC-SHA256 of the request body (docs.sentry.io → Integration
+ * Platform → Webhooks → «Verifying the Signature»). Constant-time compare.
+ */
+export function sentrySignatureValid(
+  rawBody: Buffer,
+  signature: string | undefined,
+  clientSecret: string,
+): boolean {
+  const sig = signature?.trim() ?? '';
+  if (!clientSecret || !/^[0-9a-f]{64}$/i.test(sig)) return false;
+  const expected = createHmac('sha256', clientSecret).update(rawBody).digest();
+  const got = Buffer.from(sig.toLowerCase(), 'hex');
+  return got.length === expected.length && timingSafeEqual(got, expected);
+}
+
+const SENTRY_LEVELS = new Set(['error', 'fatal']);
+
+/**
+ * Pure: a Sentry webhook worth a run — a NEW issue (`issue` / `created`) at
+ * level error or fatal. Only the id, title and culprit are kept (no user,
+ * tags or event data: the repository is public).
+ */
+export function sentryNewIssue(
+  resource: string | undefined,
+  body: unknown,
+): { id: string; text: string } | null {
+  if ((resource ?? '').trim().toLowerCase() !== 'issue') return null;
+  const b = body as {
+    action?: unknown;
+    data?: { issue?: Record<string, unknown> };
+  } | null;
+  if (b?.action !== 'created') return null;
+  const issue = b.data?.issue;
+  if (!issue) return null;
+  const level =
+    typeof issue.level === 'string' ? issue.level.toLowerCase() : '';
+  if (!SENTRY_LEVELS.has(level)) return null;
+  const id =
+    typeof issue.id === 'string' || typeof issue.id === 'number'
+      ? String(issue.id)
+      : '';
+  if (!/^\d{1,20}$/.test(id)) return null;
+  const title = typeof issue.title === 'string' ? issue.title : '';
+  const culprit = typeof issue.culprit === 'string' ? issue.culprit : '';
+  const text = scrub(
+    [`${level}: ${title}`, culprit].filter(Boolean).join(' @ '),
+    200,
+  );
+  return { id, text };
 }

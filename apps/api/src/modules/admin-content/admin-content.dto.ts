@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { OWNER_BULK_MAX } from '../../common/admin-bulk/admin-bulk';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -102,10 +103,16 @@ export type AdminPostClassAction = (typeof ADMIN_POST_CLASS_ACTIONS)[number];
 /** Owner 2026-10-05: moderation reclassifies posts. legal / general sticks
  * (the author's edits no longer change it); auto = back to the topic rule. */
 export class AdminClassifyPostsDto {
-  @ApiProperty({ type: [String], format: 'uuid', maxItems: 200 })
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    maxItems: OWNER_BULK_MAX,
+    description:
+      'Staff: at most 200; the owner: any number (processed in chunks).',
+  })
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(200)
+  @ArrayMaxSize(OWNER_BULK_MAX)
   @ArrayUnique()
   @IsUUID('all', { each: true })
   ids!: string[];
@@ -436,7 +443,10 @@ export class AdminClientReviewRowDto {
 
 // --- Owner 2026-10-04: bulk moderation ---------------------------------------
 
+/** Staff cap per request (owner 2026-11-12: the owner has none). */
 export const BULK_MAX = 500;
+/** Staff cap for post reclassification. */
+export const CLASSIFY_MAX = 200;
 
 export const BULK_CONTENT_TYPES = [
   'post',
@@ -452,10 +462,15 @@ export type BulkContentAction = (typeof BULK_CONTENT_ACTIONS)[number];
 
 /** Many ids and one reason (10–500 characters, same as single actions). */
 export class AdminBulkReasonDto extends AdminReasonDto {
-  @ApiProperty({ type: [String], format: 'uuid', maxItems: BULK_MAX })
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    maxItems: OWNER_BULK_MAX,
+    description: `Staff: at most ${BULK_MAX}; the owner: any number (processed in chunks).`,
+  })
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(BULK_MAX)
+  @ArrayMaxSize(OWNER_BULK_MAX)
   @IsUUID('all', { each: true })
   ids!: string[];
 }

@@ -1,9 +1,14 @@
+import { createHmac } from 'node:crypto';
 import {
   aiGate,
   monthKey,
   safeCost,
   scrub,
+  sentryNewIssue,
+  sentrySignatureValid,
   taskIssueBody,
+  triggerInputs,
+  triggerKey,
 } from './ai-assistant.logic';
 
 describe('AI assistant logic (09.11.2026)', () => {
@@ -62,5 +67,67 @@ describe('AI assistant logic (09.11.2026)', () => {
     expect(b.startsWith('Fix the crash')).toBe(true);
     expect(b).toContain('.github/ai-assistant/POLICY.md');
     expect(b).toContain('admin 1234abcd');
+  });
+});
+
+describe('AI assistant triggers (12.11.2026)', () => {
+  it('builds a safe debounce key and scrubbed workflow inputs', () => {
+    expect(triggerKey('alarm', 'lawbid-prod-db down')).toBe(
+      'ai:trigger:alarm:lawbid-prod-db_down',
+    );
+    expect(triggerKey('sentry', 'x'.repeat(300)).length).toBeLessThan(150);
+    expect(triggerInputs('alarm', 'a\nb anna@example.com')).toEqual({
+      reason: 'alarm',
+      alarm: 'a b [email]',
+    });
+    expect(triggerInputs('sentry', 't').issue).toBe('t');
+  });
+
+  const secret = 'c'.repeat(64);
+  const raw = Buffer.from('{"action":"created"}');
+  const sign = (b: Buffer, k = secret) =>
+    createHmac('sha256', k).update(b).digest('hex');
+
+  it('checks the Sentry HMAC of the body in constant time', () => {
+    expect(sentrySignatureValid(raw, sign(raw), secret)).toBe(true);
+    expect(sentrySignatureValid(raw, sign(raw).toUpperCase(), secret)).toBe(
+      true,
+    );
+    expect(sentrySignatureValid(raw, undefined, secret)).toBe(false);
+    expect(sentrySignatureValid(raw, 'abc', secret)).toBe(false);
+    expect(sentrySignatureValid(raw, sign(raw, 'other'), secret)).toBe(false);
+    expect(sentrySignatureValid(Buffer.from('{}'), sign(raw), secret)).toBe(
+      false,
+    );
+    expect(sentrySignatureValid(raw, sign(raw, ''), '')).toBe(false);
+  });
+
+  const issue = (o: Record<string, unknown> = {}) => ({
+    action: 'created',
+    data: {
+      issue: {
+        id: '4512',
+        level: 'error',
+        title: 'TypeError for bob@example.com',
+        culprit: 'CasesService.list',
+        ...o,
+      },
+    },
+  });
+
+  it('only a NEW error/fatal issue starts a run, with title and culprit only', () => {
+    expect(sentryNewIssue('issue', issue())).toEqual({
+      id: '4512',
+      text: 'error: TypeError for [email] @ CasesService.list',
+    });
+    expect(sentryNewIssue('issue', issue({ level: 'fatal' }))?.id).toBe('4512');
+    expect(sentryNewIssue('issue', issue({ level: 'warning' }))).toBeNull();
+    expect(sentryNewIssue('issue', { ...issue(), action: 'resolved' })).toBe(
+      null,
+    );
+    expect(sentryNewIssue('event_alert', issue())).toBeNull();
+    expect(sentryNewIssue(undefined, issue())).toBeNull();
+    expect(sentryNewIssue('issue', issue({ id: '../x' }))).toBeNull();
+    expect(sentryNewIssue('issue', null)).toBeNull();
   });
 });
