@@ -2075,6 +2075,7 @@ module "ecs" {
   tasks_security_group_id         = aws_security_group.tasks.id
   api_target_group_arn            = module.alb.api_target_group_arn
   api_ws_target_group_arn         = module.alb.api_ws_target_group_arn
+  api_admin_target_group_arn      = module.alb.api_admin_target_group_arn
   admin_target_group_arn          = module.alb.admin_target_group_arn
   api_image                       = var.api_image
   admin_image                     = var.admin_image

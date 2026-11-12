@@ -20,6 +20,16 @@ variable "tasks_security_group_id" {
 }
 variable "api_target_group_arn" { type = string }
 variable "admin_target_group_arn" { type = string }
+variable "api_admin_target_group_arn" {
+  type        = string
+  default     = ""
+  description = "Owner 2026-11-11 («А»): target group of the admin panel's API calls; set = an api-admin service (same task definition as api) serves them. Empty = none."
+}
+variable "api_admin_tasks" {
+  type        = number
+  default     = 1
+  description = "Tasks of the api-admin service."
+}
 variable "api_ws_target_group_arn" {
   type        = string
   default     = ""
@@ -807,6 +817,43 @@ resource "aws_ecs_service" "api" {
   }
   lifecycle { ignore_changes = [desired_count] }
   tags = merge(var.tags, { Component = "api" })
+}
+
+# Owner 2026-11-11 («А»): the API for the admin panel only (bulkhead). Same
+# image and task definition as api; the ALB sends /api/v1/admin/* here, so
+# admin pages never take CPU or database connections from the app's users.
+# The deploy rolls it with api (scripts/deploy/roll-services.sh).
+resource "aws_ecs_service" "api_admin" {
+  count                             = var.api_admin_target_group_arn == "" ? 0 : 1
+  name                              = "api-admin"
+  cluster                           = aws_ecs_cluster.this.id
+  task_definition                   = aws_ecs_task_definition.api.arn
+  desired_count                     = var.api_admin_tasks
+  launch_type                       = "FARGATE"
+  force_new_deployment              = true
+  platform_version                  = "LATEST"
+  health_check_grace_period_seconds = 60
+  enable_execute_command            = false
+  propagate_tags                    = "SERVICE"
+
+  network_configuration {
+    subnets          = var.private_subnet_ids
+    security_groups  = [var.tasks_security_group_id]
+    assign_public_ip = false
+  }
+  load_balancer {
+    target_group_arn = var.api_admin_target_group_arn
+    container_name   = "api"
+    container_port   = 3000
+  }
+  deployment_minimum_healthy_percent = 100
+  deployment_maximum_percent         = 200
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+  lifecycle { ignore_changes = [desired_count] }
+  tags = merge(var.tags, { Component = "api-admin" })
 }
 
 resource "aws_ecs_service" "worker" {
