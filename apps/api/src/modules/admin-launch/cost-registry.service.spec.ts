@@ -194,7 +194,7 @@ describe('CostRegistryService.setMode', () => {
       'admin-1',
       'ops.cost_registry_mode',
       {
-        'moderation.image.enabled': false,
+        'moderation.image.enabled': 'off',
       },
     );
   });
