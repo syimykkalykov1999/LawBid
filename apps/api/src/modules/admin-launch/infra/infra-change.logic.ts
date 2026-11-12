@@ -239,7 +239,8 @@ export function createRefusal(i: {
     return 'no_price';
   }
   if (i.activeCount > 0) return 'busy';
-  if (i.last24h >= i.dailyCap) return 'daily_cap';
+  // Owner 2026-11-12: 0 = no daily limit («убери его»).
+  if (i.dailyCap > 0 && i.last24h >= i.dailyCap) return 'daily_cap';
   if (!i.configured) return 'not_configured';
   return null;
 }

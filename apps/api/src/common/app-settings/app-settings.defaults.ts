@@ -1928,7 +1928,8 @@ export const OWNER_COST_REGISTRY_SETTINGS = {
  * infra-from-admin.md). Guards of the «План → код 2FA → применить» flow:
  * - `infra.dry_run`: true = the cloud is only planned, never changed (the
  *   admin shows the plan and stops). Start with true, flip after one look.
- * - `infra.daily_cap`: at most this many change requests per 24 hours.
+ * - `infra.daily_cap`: at most this many change requests per 24 hours;
+ *   0 = no limit (owner 2026-11-12, the default).
  * - `infra.quiet_hours`: "HH:MM-HH:MM" (America/Chicago) when an apply may
  *   start; empty = any time.
  * Automation audit 2026-11-08 (owner: «Авто» must really act, both ways):
@@ -1943,7 +1944,7 @@ export const OWNER_COST_REGISTRY_SETTINGS = {
  */
 export const OWNER_INFRA_SETTINGS = {
   'infra.dry_run': true,
-  'infra.daily_cap': 3,
+  'infra.daily_cap': 0,
   'infra.quiet_hours': '',
   'infra.auto_mode': 'auto',
   'infra.auto_on_minutes': 30,
