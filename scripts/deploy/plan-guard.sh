@@ -20,6 +20,11 @@ BAD=$(printf '%s' "$JSON" | jq -r '
   .resource_changes[]?
   | select(.change.actions | index("delete"))
   | select(.type | test("^(aws_db_instance|aws_secretsmanager_secret|aws_secretsmanager_secret_version|aws_kms_key|aws_elasticache_replication_group|aws_elasticache_cluster|aws_s3_bucket|aws_dynamodb_table|aws_backup_vault)$"))
+  # Owner 2026-11-11 («да»): a READ COPY of a database (module growth /
+  # growth_shard, aws_db_instance.replica) holds no data of its own, it is
+  # rebuilt from its server, so «Авто» may remove it again (as AWS Aurora
+  # Auto Scaling does). Every other database stays protected. KNOWN_ERRORS 103.
+  | select((.type == "aws_db_instance" and (.address | test("module\\.growth(_shard\\[[0-9]+\\])?\\.aws_db_instance\\.replica\\["))) | not)
   | "\(.address)  [\(.change.actions | join("+"))]"')
 if [ -n "$BAD" ]; then
   echo "STOP: the plan deletes or replaces protected resources:" >&2

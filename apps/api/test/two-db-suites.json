@@ -133,6 +133,7 @@
     "profiles-onboarding",
     "profiles-practices",
     "realtime-lifecycle",
+    "replica-per-server",
     "reviews",
     "search-filters-audit",
     "search-text-audit",

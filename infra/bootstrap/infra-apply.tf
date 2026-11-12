@@ -142,10 +142,15 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
   }
   statement {
     # Only the read replicas (…-postgres-replica-N) may be deleted.
-    sid           = "KeepThePrimaryDatabase"
-    effect        = "Deny"
-    actions       = ["rds:DeleteDBInstance"]
-    not_resources = ["arn:aws:rds:*:${local.account}:db:${local.name}-postgres-replica-*"]
+    sid     = "KeepThePrimaryDatabase"
+    effect  = "Deny"
+    actions = ["rds:DeleteDBInstance"]
+    # 11.11 (owner «да»): also the read copies of the extra database servers
+    # (…-db<N>-postgres-replica-N). Never a server itself.
+    not_resources = [
+      "arn:aws:rds:*:${local.account}:db:${local.name}-postgres-replica-*",
+      "arn:aws:rds:*:${local.account}:db:${local.name}-db*-postgres-replica-*",
+    ]
   }
   statement {
     sid       = "NoAdminPolicy"
