@@ -16,6 +16,7 @@ class ReplicaStatusDto {
     required this.instanceClass,
     required this.serving,
     required this.note,
+    required this.copies,
   });
 
   factory ReplicaStatusDto.fromJson(Map<String, Object?> json) =>
@@ -32,6 +33,9 @@ class ReplicaStatusDto {
 
   /// Plain-words explanation for the card.
   final String note;
+
+  /// Read copies the app knows: the button copy (0/1) or the copies the infra pipeline made (DB_REPLICA_HOST, state «managed»).
+  final int copies;
 
   Map<String, Object?> toJson() => _$ReplicaStatusDtoToJson(this);
 }

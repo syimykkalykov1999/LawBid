@@ -61,7 +61,7 @@ export function poolerLine(x: ScaleExtras | undefined): { label: string; tone: T
     return {
       label: 'Выключен',
       tone: 'neutral',
-      line: 'Приложение ходит в базу напрямую. Включается в Terraform (db_pooler_enabled), откат так же.',
+      line: 'Приложение ходит в базу напрямую. Включается строкой «Свой пул соединений базы (PgBouncer на Fargate)» в разделе «Облако» ниже (Выкл / Вкл / Авто).',
     };
   }
   const copies =
@@ -82,6 +82,25 @@ const SEARCH_NAMES: Record<string, string> = {
 export function searchLine(engine: string | undefined): string {
   if (!engine) return '—';
   return SEARCH_NAMES[engine] ?? engine;
+}
+
+/**
+ * Owner 2026-11-12: the «Поиск» card says who searches now AND whether the
+ * OpenSearch domain runs (cloud row aws.opensearch), so a running domain
+ * that waits for the switch is not hidden behind «PostgreSQL».
+ */
+export function searchNote(engine: string | undefined, openSearchLive: 'on' | 'off' | null | undefined): string {
+  const switchNote = 'Движок задаёт настройка search.engine: переключается без выката, откат так же.';
+  if (!engine) return switchNote;
+  const domain =
+    openSearchLive === 'on'
+      ? engine === 'opensearch'
+        ? ' OpenSearch (облако) работает и ищет.'
+        : ' OpenSearch (облако) работает и ждёт переключения: сейчас не ищет.'
+      : openSearchLive === 'off'
+        ? ' OpenSearch (облако) выключен.'
+        : '';
+  return `Ищет: ${searchLine(engine)}.${domain} ${switchNote}`;
 }
 
 // --- usage (Cloudflare, Bunny) -------------------------------------------
@@ -222,8 +241,11 @@ export function buildAlarms(h: Health, e: Economy | undefined, now = Date.now())
 
   for (const i of h.incidents ?? []) {
     if (i.closedAt || seen.has(i.component)) continue;
-    seen.add(i.component);
     const item = h.items.find((x) => x.key === i.component);
+    // Owner 2026-11-12: grey = off / not used on purpose («так и задумано»);
+    // an old incident of such a part is not a red problem.
+    if (item?.status === 'grey') continue;
+    seen.add(i.component);
     alarms.push({
       id: `incident:${i.id}`,
       component: i.component,

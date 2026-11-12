@@ -2,6 +2,7 @@ import {
   LAG_START_S,
   LAG_STOP_S,
   ReplicaAdminService,
+  decideManaged,
   decideReplica,
   decideReplicaAuto,
 } from './replica-admin.service';
@@ -82,6 +83,64 @@ describe('replica host reaches the Prisma read client', () => {
     expect(svc.available).toBe(false);
     expect((await svc.status()).state).toBe('unavailable');
     expect(replicaLive.get()).toBeNull();
+  });
+});
+
+describe('copies made by the infra pipeline (owner 2026-11-12)', () => {
+  const env = (vars: Record<string, string>) =>
+    ({ get: (k: string) => vars[k] }) as never;
+
+  it('DB_REPLICA_HOST without the button switch is «managed», not «Недоступно»', async () => {
+    const read = { replicaLagMs: 1500, usingReplica: true };
+    const svc = new ReplicaAdminService(
+      env({
+        DB_REPLICA_HOST: 'lawbid-prod-postgres-replica-1.x.rds.amazonaws.com',
+      }),
+      undefined,
+      undefined,
+      read as never,
+    );
+    expect(svc.available).toBe(false);
+    const s = await svc.status();
+    expect(s).toMatchObject({
+      state: 'managed',
+      copies: 1,
+      serving: true,
+      lagSeconds: 1.5,
+    });
+    expect(s.note).toContain('Копий для чтения: 1');
+    expect(s.note).toContain('«Копии базы только для чтения»');
+    expect(s.note).not.toContain('db_replica_toggle');
+  });
+
+  it('counts every copy and says when reads are on the primary', () => {
+    const s = decideManaged({
+      copies: 3,
+      serving: false,
+      lagSeconds: null,
+      disabled: false,
+    });
+    expect(s.copies).toBe(3);
+    expect(s.serving).toBe(false);
+    expect(s.note).toContain('из основной базы');
+  });
+
+  it('DB_REPLICA_ENABLED=false is never «serving»', () => {
+    const s = decideManaged({
+      copies: 1,
+      serving: true,
+      lagSeconds: 0,
+      disabled: true,
+    });
+    expect(s.serving).toBe(false);
+    expect(s.note).toContain('DB_REPLICA_ENABLED=false');
+  });
+
+  it('no copies at all points to the cloud rows, not to Terraform', async () => {
+    const s = await new ReplicaAdminService(env({})).status();
+    expect(s.state).toBe('unavailable');
+    expect(s.copies).toBe(0);
+    expect(s.note).not.toContain('db_replica_toggle');
   });
 });
 

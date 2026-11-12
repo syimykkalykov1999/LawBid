@@ -100,4 +100,12 @@ describe('«Масштаб» page (R-369)', () => {
     expect(screen.getByText('Масштаб')).toBeTruthy();
     expect(screen.queryByText('Тревог нет')).toBeNull();
   });
+
+  it('«Поиск» tells that the OpenSearch domain runs while PostgreSQL searches (owner 2026-11-12)', async () => {
+    pending.set('/admin/economy', new Promise(() => undefined));
+    answers.set('/admin/spend/registry', { rows: [{ id: 'aws.opensearch', liveState: 'on' }] });
+    renderPage();
+    expect(await screen.findByText(/OpenSearch \(облако\) работает и ждёт переключения/)).toBeTruthy();
+    expect(screen.getByText(/Ищет: Встроенный поиск \(PostgreSQL\)/)).toBeTruthy();
+  });
 });

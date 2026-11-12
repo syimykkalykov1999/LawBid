@@ -41,16 +41,19 @@ export function DbSplitCard({ enabled }: { enabled: boolean }) {
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1 text-sm font-medium text-heading">Разделить базу</div>
           <span className="shrink-0">
-            <Badge tone="neutral">Пока недоступно</Badge>
+            <Badge tone="neutral">Выключено настройкой</Badge>
           </span>
         </div>
         <p className="break-words text-sm text-muted">
-          Разнос данных по двум базам, когда одной станет тесно. Кнопка включится, когда будут готовы проверки и откат.
+          Разнос данных по двум базам, когда одной станет тесно. Всё для этого уже построено: вторая база, 256 частей и
+          перенос с откатом. Карточку с проверками готовности включает настройка scale.db_split_enabled.
         </p>
         <Button variant="outline" size="sm" disabled className="self-start">
           Разделить базу
         </Button>
-        <p className="text-xs text-muted">появится после шагов 9-10</p>
+        <Link href="/config" className="text-xs text-gold-600 underline-offset-2 hover:underline">
+          Включить в настройках (scale.db_split_enabled)
+        </Link>
       </Card>
     );
   }

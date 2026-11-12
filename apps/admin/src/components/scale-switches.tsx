@@ -26,6 +26,7 @@ interface Replica {
   instanceClass: string | null;
   serving: boolean;
   note: string;
+  copies: number;
 }
 
 interface PartCard {
@@ -58,7 +59,7 @@ type Pending =
   | { kind: 'mode'; table: string; mode: 'off' | 'on' | 'auto' };
 
 const REPLICA_BADGE: Record<string, [string, Tone]> = {
-  unavailable: ['Недоступно', 'neutral'],
+  unavailable: ['Копий нет', 'neutral'],
   off: ['Выключено', 'neutral'],
   creating: ['Создаётся', 'warning'],
   on: ['Включено', 'success'],
@@ -187,7 +188,16 @@ export function ScaleSwitches() {
   });
 
   const r = replica.data;
-  const rb = r ? (REPLICA_BADGE[r.state] ?? ['—', 'neutral' as Tone]) : null;
+  // Owner 2026-11-12: copies made by the cloud rows below («managed»), and no
+  // copy at all, have no app-side button: the rows below move them.
+  const rb: [string, Tone] | null = r
+    ? r.state === 'managed'
+      ? r.serving
+        ? ['Работает', 'success']
+        : ['Чтения из основной базы', 'warning']
+      : (REPLICA_BADGE[r.state] ?? ['—', 'neutral'])
+    : null;
+  const appPath = !!r && r.state !== 'managed' && r.state !== 'unavailable';
 
   return (
     <>
@@ -215,24 +225,26 @@ export function ScaleSwitches() {
               ) : null}
             </div>
           ) : null}
-          <div className="mt-auto flex flex-wrap gap-2 pt-1">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!r || r.state !== 'off'}
-              onClick={() => setConfirm({ kind: 'replica', enabled: true })}
-            >
-              Включить
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!r || ['unavailable', 'off', 'deleting'].includes(r.state)}
-              onClick={() => setConfirm({ kind: 'replica', enabled: false })}
-            >
-              Выключить
-            </Button>
-          </div>
+          {appPath ? (
+            <div className="mt-auto flex flex-wrap gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!r || r.state !== 'off'}
+                onClick={() => setConfirm({ kind: 'replica', enabled: true })}
+              >
+                Включить
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!r || ['off', 'deleting'].includes(r.state)}
+                onClick={() => setConfirm({ kind: 'replica', enabled: false })}
+              >
+                Выключить
+              </Button>
+            </div>
+          ) : null}
           <p className="text-xs text-muted">
             Пока копия есть, автоматическое изменение размера базы на паузе: размер основной и копии меняется вручную вместе.
           </p>
@@ -280,6 +292,26 @@ export function ScaleSwitches() {
   );
 }
 
+/** Security journals are split only by a migration, by design. */
+function securityJournal(c: PartCard): boolean {
+  return c.blockedBy.some((b) => b.startsWith('журнал безопасности'));
+}
+
+/**
+ * Owner 2026-11-12: the truth about the runner's login (role lawbid_partition).
+ * The cloud row «Вход для деления больших таблиц» stands on «Авто»: the login
+ * is created by itself when a table in «Вкл», or in «Авто» near the threshold,
+ * needs it; then the background jobs convert and carry out these buttons.
+ */
+export function runnerHint(c: PartCard): string | null {
+  if (c.state !== 'idle' && c.state !== 'blocked') return null;
+  if (securityJournal(c)) return null;
+  if (c.runnerConfigured) return null;
+  return c.mode
+    ? `Авто: вход для деления (роль lawbid_partition) появится сам, когда таблица подойдёт к ${count(c.autoRows)} строк или когда здесь выбрано «Вкл»; тогда разделение пойдёт само и заработает «Запустить».`
+    : `Вход для деления (роль lawbid_partition) появится сам, когда одна из больших таблиц подойдёт к ${count(c.autoRows)} строк, или по строке «Вход для деления больших таблиц» в разделе «Облако» (Вкл). Тогда заработает «Запустить».`;
+}
+
 function PartitionCardView({ c, onAct }: { c: PartCard; onAct: (p: Pending) => void }) {
   const monthly = c.state === 'monthly';
   const tone: Tone = monthly || c.state === 'swapped' ? 'success' : c.state === 'error' ? 'danger' : c.state === 'blocked' ? 'neutral' : c.state === 'idle' ? (c.overThreshold ? 'warning' : 'neutral') : 'warning';
@@ -310,7 +342,7 @@ function PartitionCardView({ c, onAct }: { c: PartCard; onAct: (p: Pending) => v
               key={m}
               variant={c.mode === m ? 'gold' : 'outline'}
               size="sm"
-              disabled={c.mode === m || !c.runnerConfigured}
+              disabled={c.mode === m}
               onClick={() => onAct({ kind: 'mode', table: c.table, mode: m })}
             >
               {m === 'off' ? 'Выкл' : m === 'on' ? 'Вкл' : 'Авто'}
@@ -382,9 +414,7 @@ function PartitionCardView({ c, onAct }: { c: PartCard; onAct: (p: Pending) => v
           </>
         ) : null}
       </div>
-      {!c.runnerConfigured && (c.state === 'idle' || c.state === 'blocked') ? (
-        <p className="text-xs text-muted">Кнопка заработает после настройки отдельной роли базы (PARTITION_DATABASE_URL), см. инструкцию.</p>
-      ) : null}
+      {runnerHint(c) ? <p className="text-xs text-muted">{runnerHint(c)}</p> : null}
     </Card>
   );
 }

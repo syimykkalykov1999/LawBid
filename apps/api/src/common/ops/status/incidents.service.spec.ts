@@ -62,9 +62,16 @@ function fakes() {
         where,
         data,
       }: {
-        where: { id: string; OR?: unknown[] };
+        where: { id?: string; OR?: unknown[]; component?: { in: string[] } };
         data: Record<string, unknown>;
       }) => {
+        if (where.component) {
+          const hit = rows.filter(
+            (x) => where.component!.in.includes(x.component) && !x.closed_at,
+          );
+          for (const x of hit) x.closed_at = data.closed_at as Date;
+          return { count: hit.length };
+        }
         const r = rows.find((x) => x.id === where.id && !x.closed_at);
         if (!r) return { count: 0 };
         if (where.OR) {
@@ -97,6 +104,32 @@ const probe = (key: string, status: ProbeResult['status']): ProbeResult => ({
 describe('IncidentsService', () => {
   const t0 = new Date('2026-10-23T10:00:00Z');
   const at = (min: number) => new Date(t0.getTime() + min * 60_000);
+
+  it('closeUnwatched closes what a no-longer-paged probe left open, never alarm rows', async () => {
+    const { svc, rows } = fakes();
+    await svc.reconcile([probe('turn', 'red')], at(0));
+    await svc.reconcile([probe('turn', 'red')], at(1));
+    rows.push({
+      id: 'a1',
+      component: 'alarm:api-5xx',
+      severity: 'red',
+      title: 'x',
+      detail: {},
+      opened_at: at(0),
+      closed_at: null,
+      last_notified_at: null,
+      notify_count: 0,
+    });
+    expect(
+      await svc.closeUnwatched(
+        ['turn', 'alarm:api-5xx', 'cloudflare_usage'],
+        at(2),
+      ),
+    ).toBe(1);
+    expect(rows.find((r) => r.component === 'turn')?.closed_at).toEqual(at(2));
+    expect(rows.find((r) => r.id === 'a1')?.closed_at).toBeNull();
+    expect(await svc.closeUnwatched([], at(3))).toBe(0);
+  });
 
   it('opens only after two red checks in a row', async () => {
     const { svc, rows } = fakes();

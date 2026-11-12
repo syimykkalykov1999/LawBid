@@ -2,7 +2,12 @@ import type { ConfigService } from '@nestjs/config';
 import type { AppSettingsService } from '../common/app-settings/app-settings.service';
 import type { AppSettingsWriter } from '../common/app-settings/app-settings.writer';
 import type { PrismaService } from '../prisma/prisma.service';
-import { MONTHS_AHEAD, PartitionService } from './partition.service';
+import {
+  COMMANDS_KEY,
+  MONTHS_AHEAD,
+  PartitionService,
+  RUNNER_KEY,
+} from './partition.service';
 
 function make(values: Record<string, string | number>) {
   const writes: unknown[] = [];
@@ -277,5 +282,103 @@ describe('PartitionService.maintain SQL signature', () => {
     for (const sql of calls) {
       expect(sql).toMatch(/\(\$1::text, \$2::int\)/);
     }
+  });
+});
+
+describe('PartitionService buttons when only the worker has the login (owner 2026-11-12)', () => {
+  /** A tiny in-memory Redis: exists / set / get / del / rpush / lpop. */
+  function fakeRedis() {
+    const kv = new Map<string, string>();
+    const lists = new Map<string, string[]>();
+    return {
+      kv,
+      lists,
+      exists: (k: string) => Promise.resolve(kv.has(k) ? 1 : 0),
+      set: (k: string, v: string) => {
+        kv.set(k, v);
+        return Promise.resolve('OK');
+      },
+      get: (k: string) => Promise.resolve(kv.get(k) ?? null),
+      del: (k: string) => Promise.resolve(kv.delete(k) ? 1 : 0),
+      rpush: (k: string, v: string) => {
+        const l = lists.get(k) ?? [];
+        l.push(v);
+        lists.set(k, l);
+        return Promise.resolve(l.length);
+      },
+      lpop: (k: string) => Promise.resolve(lists.get(k)?.shift() ?? null),
+    };
+  }
+  const build = (redis: ReturnType<typeof fakeRedis>, login: boolean) =>
+    new PartitionService(
+      {} as PrismaService,
+      {
+        get: (k: string) =>
+          login && k === 'PARTITION_DATABASE_URL'
+            ? 'postgresql://lawbid_partition:x@db/lawbid'
+            : undefined,
+      } as unknown as ConfigService,
+      undefined,
+      undefined,
+      redis as never,
+    );
+
+  it('API without the login and no worker heartbeat: the plain «no login» error', async () => {
+    const redis = fakeRedis();
+    const api = build(redis, false);
+    expect(await api.runnerReady()).toBe(false);
+    await expect(api.start('messages', 'admin-1')).rejects.toThrow(
+      /lawbid_partition/,
+    );
+    expect(redis.lists.get(COMMANDS_KEY)).toBeUndefined();
+  });
+
+  it('API queues the button while the worker has the login; the worker carries it out', async () => {
+    const redis = fakeRedis();
+    redis.kv.set(RUNNER_KEY, '1');
+    const api = build(redis, false);
+    expect(await api.runnerReady()).toBe(true);
+    await api.start('messages', 'admin-1');
+    await api.pause('messages', true);
+    expect(redis.lists.get(COMMANDS_KEY)).toHaveLength(2);
+
+    const worker = build(redis, true);
+    const did: string[] = [];
+    (worker as unknown as { runnerRw: () => unknown }).runnerRw = () => ({
+      start: (spec: { table: string }, by: string) => {
+        did.push(`start ${spec.table} ${by}`);
+        return Promise.resolve({});
+      },
+      pause: (table: string, paused: boolean) => {
+        did.push(`pause ${table} ${paused}`);
+        return Promise.resolve();
+      },
+    });
+    expect(await worker.drainCommands()).toBe(2);
+    expect(did).toEqual(['start messages admin-1', 'pause messages true']);
+    expect(redis.lists.get(COMMANDS_KEY)).toEqual([]);
+  });
+
+  it('a queued command that fails is kept as the card error, not lost', async () => {
+    const redis = fakeRedis();
+    redis.kv.set(RUNNER_KEY, '1');
+    await build(redis, false).retry('notifications');
+    const worker = build(redis, true);
+    (worker as unknown as { runnerRw: () => unknown }).runnerRw = () => ({
+      retry: () => Promise.reject(new Error('lock timeout')),
+    });
+    expect(await worker.drainCommands()).toBe(0);
+    expect(redis.kv.get('ops:partition:cmd-error:notifications')).toBe(
+      'lock timeout',
+    );
+  });
+
+  it('unknown tables are refused before anything is queued', async () => {
+    const redis = fakeRedis();
+    redis.kv.set(RUNNER_KEY, '1');
+    await expect(build(redis, false).undo('users')).rejects.toThrow(
+      /нельзя разделить/,
+    );
+    expect(redis.lists.get(COMMANDS_KEY)).toBeUndefined();
   });
 });
