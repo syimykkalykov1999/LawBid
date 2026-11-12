@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+/// ai.assistant_model: the Claude model of the runs.
 @JsonEnum()
 enum AiWorkerModel {
   @JsonValue('claude-haiku-5-5')

@@ -103,6 +103,9 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   // «ИИ-сотрудник» runs and proposals made on test-period requests.
   ai_runs: 'AI employee background runs (test period)',
   ai_run_items: 'AI employee proposals on queue items (test period)',
+  // Owner 2026-11-12: links of the owner's AI pictures (their files rows go
+  // with the files wipe).
+  ai_attachments: 'AI pictures of tasks, roles and corrections (test period)',
   // #388 compliance: test-period records
   age_attestations: 'age confirmations given at sign-up (test accounts)',
   email_suppressions:

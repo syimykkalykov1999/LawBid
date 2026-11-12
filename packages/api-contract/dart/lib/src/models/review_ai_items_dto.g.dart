@@ -14,6 +14,9 @@ ReviewAiItemsDto _$ReviewAiItemsDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : AiWorkerDecision.fromJson(json['ownerDecision'] as String),
       ownerNote: json['ownerNote'] as String?,
+      imageFileIds: (json['imageFileIds'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
     );
 
 Map<String, dynamic> _$ReviewAiItemsDtoToJson(ReviewAiItemsDto instance) =>
@@ -22,4 +25,5 @@ Map<String, dynamic> _$ReviewAiItemsDtoToJson(ReviewAiItemsDto instance) =>
       'verdict': instance.verdict.toJson(),
       'ownerDecision': ?instance.ownerDecision?.toJson(),
       'ownerNote': ?instance.ownerNote,
+      'imageFileIds': ?instance.imageFileIds,
     };

@@ -82,3 +82,22 @@
 
 Остановить: нажмите «Выкл» на странице «Задача для ИИ» (следующий запуск откажется). Другой
 способ: удалите переменную `AI_ASSISTANT_ENABLED`, тогда workflow не запустится совсем.
+
+## Screenshots, models and cleanup (owner 2026-11-12, rows 48, 49, 55)
+- **Screenshots.** On «Новая задача» the owner pastes (Ctrl/⌘+V), drops or picks up to 10 pictures
+  (JPEG, PNG, GIF, WebP, 10 MB each). They go through the normal files pipeline into the private
+  bucket (purpose `ai_attachment`, magic bytes, antivirus, re-encoded without EXIF / GPS). The
+  public issue gets only one line `AI attachments: <ids>` (opaque ids, never a link or bytes).
+  The workflow step «Pictures» reads the ids, fetches the pictures from
+  `POST /api/v1/ai-assistant/workflow/attachments` (GitHub OIDC, only rows of that issue) into
+  `.ai-attachments/` on the runner (git-excluded, forbidden by the path guard, removed after the
+  run) and lists the paths in Claude's prompt.
+- **Model.** `ai.assistant_model` (default `claude-opus-5-5`), picked on the page from the known
+  list; a change needs a fresh 2FA code. The gate answers it; the workflow accepts only a known
+  model id (anything else runs Opus 5.5).
+- **Branches.** `delete_branch_on_merge` is off in the repository, so the API deletes the `ai/…`
+  branch itself after «Разрешить» (merge) and «Отклонить» (close). Only `ai/` branches.
+- **Cleanup.** Pictures go `ai.retention_images_days` (15, 0 = keep forever) after the task
+  closes (issue closed, PR merged or rejected; a task the API never saw closed counts as closed
+  after 30 days). «Хранение» on the page: change the days (2FA) or «Очистить сейчас» (2FA, audit
+  row `ai.retention_purge`). Nightly cron `ai.retention`.

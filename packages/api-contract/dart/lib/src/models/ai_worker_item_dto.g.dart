@@ -36,6 +36,9 @@ AiWorkerItemDto _$AiWorkerItemDtoFromJson(Map<String, dynamic> json) =>
       reviewedAt: json['reviewedAt'] == null
           ? null
           : DateTime.parse(json['reviewedAt'] as String),
+      images: (json['images'] as List<dynamic>)
+          .map((e) => AiAttachmentViewDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
 
 Map<String, dynamic> _$AiWorkerItemDtoToJson(AiWorkerItemDto instance) =>
@@ -58,4 +61,5 @@ Map<String, dynamic> _$AiWorkerItemDtoToJson(AiWorkerItemDto instance) =>
       'error': ?instance.error,
       'costCents': instance.costCents,
       'reviewedAt': ?instance.reviewedAt?.toIso8601String(),
+      'images': instance.images.map((e) => e.toJson()).toList(),
     };

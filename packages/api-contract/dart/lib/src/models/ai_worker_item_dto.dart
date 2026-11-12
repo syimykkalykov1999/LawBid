@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'ai_attachment_view_dto.dart';
 import 'ai_worker_evidence_dto.dart';
 import 'ai_worker_item_dto_decision.dart';
 import 'ai_worker_item_dto_lane.dart';
@@ -31,6 +32,7 @@ class AiWorkerItemDto {
     required this.error,
     required this.costCents,
     required this.reviewedAt,
+    required this.images,
   });
 
   factory AiWorkerItemDto.fromJson(Map<String, Object?> json) =>
@@ -58,6 +60,9 @@ class AiWorkerItemDto {
   final String? error;
   final num costCents;
   final DateTime? reviewedAt;
+
+  /// Pictures of the owner’s correction note.
+  final List<AiAttachmentViewDto> images;
 
   Map<String, Object?> toJson() => _$AiWorkerItemDtoToJson(this);
 }

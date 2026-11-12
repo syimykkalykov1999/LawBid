@@ -18,6 +18,9 @@ AiWorkerRoleDto _$AiWorkerRoleDtoFromJson(Map<String, dynamic> json) =>
       reviewed: json['reviewed'] as num,
       agreed: json['agreed'] as num,
       agreementPct: json['agreementPct'] as num?,
+      images: (json['images'] as List<dynamic>)
+          .map((e) => AiAttachmentViewDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
 
@@ -33,5 +36,6 @@ Map<String, dynamic> _$AiWorkerRoleDtoToJson(AiWorkerRoleDto instance) =>
       'reviewed': instance.reviewed,
       'agreed': instance.agreed,
       'agreementPct': ?instance.agreementPct,
+      'images': instance.images.map((e) => e.toJson()).toList(),
       'createdAt': instance.createdAt.toIso8601String(),
     };

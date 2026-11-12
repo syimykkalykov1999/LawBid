@@ -319,6 +319,9 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'AiRole',
       'AiRun',
       'AiRunItem',
+      // Owner 2026-11-12: the owner's pictures for the AIs (owner_id = the
+      // owner); removed by AiRetentionService after the task / item closes.
+      'AiAttachment',
       'SupportAgent',
       'OutreachTemplate',
       'OutreachSuppression',

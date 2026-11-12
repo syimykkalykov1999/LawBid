@@ -18,6 +18,7 @@ class UpdateAiRoleDto {
     this.instructions,
     this.queue,
     this.model,
+    this.imageFileIds,
   });
 
   factory UpdateAiRoleDto.fromJson(Map<String, Object?> json) =>
@@ -29,6 +30,9 @@ class UpdateAiRoleDto {
   final AiWorkerModel? model;
   final num confidenceMin;
   final num auditPct;
+
+  /// Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads); the exact set replaces the old one.
+  final List<String>? imageFileIds;
 
   Map<String, Object?> toJson() => _$UpdateAiRoleDtoToJson(this);
 }

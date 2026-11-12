@@ -12,7 +12,15 @@ vi.mock('@/lib/api/client', () => ({
   ApiError: class ApiError extends Error {},
   errorText: (e: unknown) => String(e),
   api: {
-    GET: vi.fn(async (path: string) => ({ data: { data: path.endsWith('/pulls') ? pullList : status } })),
+    GET: vi.fn(async (path: string) => ({
+      data: {
+        data: path.endsWith('/pulls')
+          ? pullList
+          : path.endsWith('/retention')
+            ? { recordsDays: 15, imagesDays: 15 }
+            : status,
+      },
+    })),
     PUT: vi.fn(async (_path: string, init: { params: { path: { key: string } }; body: unknown }) => {
       puts.push({ key: init.params.path.key, body: init.body });
       return { data: { data: {} } };
@@ -23,6 +31,14 @@ vi.mock('@/lib/api/client', () => ({
       return { data: { data: { number: n ?? 42, url: 'https://github.com/o/r/issues/42', mergedSha: 'b' } } };
     }),
   },
+}));
+
+
+// Owner 2026-11-12 (row 48): the upload itself is the files pipeline (tested
+// in lib); here a picked / pasted picture resolves to a file id at once.
+vi.mock('@/lib/ai-images', async (orig) => ({
+  ...(await orig<typeof import('@/lib/ai-images')>()),
+  uploadAiImage: vi.fn(async () => 'file-1'),
 }));
 
 import AiAssistantPage from './page';
@@ -47,6 +63,8 @@ const base = {
   tasksReason: null,
   monthUsd: 1.5,
   maxUsd: 30,
+  model: 'claude-opus-5-5',
+  models: ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5'],
   tasks: [
     {
       number: 7,
@@ -167,5 +185,60 @@ describe('«Задача для ИИ»', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Отклонить' }));
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0].path).toBe('/admin/ai-assistant/pulls/9/reject');
+  });
+});
+
+describe('AiAssistantPage: screenshots and the model (owner 2026-11-12)', () => {
+  it('a pasted screenshot goes with the task as a file id only', async () => {
+    status = { ...base, mode: 'on' };
+    pullList = { pulls: [], error: null };
+    renderPage();
+    fireEvent.change(await screen.findByLabelText('Коротко: что не так'), { target: { value: 'Кнопка не работает' } });
+    const details = screen.getByLabelText('Подробно: где, как повторить, что должно быть');
+    fireEvent.change(details, { target: { value: 'Нажимаю «Сохранить» — ничего' } });
+    const shot = new File([new Uint8Array([137, 80, 78, 71])], 'image.png', { type: 'image/png' });
+    fireEvent.paste(details, { clipboardData: { files: [shot] } });
+    await screen.findByText('image.png');
+    const send = screen.getByRole('button', { name: 'Отдать ИИ' });
+    await waitFor(() => expect((send as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(send);
+    await waitFor(() => expect(posts.some((p) => p.path === '/admin/ai-assistant/tasks')).toBe(true));
+    const task = posts.find((p) => p.path === '/admin/ai-assistant/tasks')!;
+    expect(task.body).toEqual({
+      title: 'Кнопка не работает',
+      details: 'Нажимаю «Сохранить» — ничего',
+      imageFileIds: ['file-1'],
+    });
+  });
+
+  it('a dropped picture is attached too; other files are ignored', async () => {
+    status = { ...base, mode: 'on' };
+    pullList = { pulls: [], error: null };
+    renderPage();
+    const zone = (await screen.findAllByTestId('ai-image-attach'))[0];
+    const pdf = new File(['%PDF'], 'a.pdf', { type: 'application/pdf' });
+    const jpg = new File([new Uint8Array([255, 216, 255])], 'photo.jpg', { type: 'image/jpeg' });
+    fireEvent.drop(zone, { dataTransfer: { files: [pdf, jpg], types: ['Files'] } });
+    await screen.findByText('photo.jpg');
+    expect(screen.queryByText('a.pdf')).toBeNull();
+  });
+
+  it('the model is picked from the known list (a 2FA-guarded setting)', async () => {
+    status = { ...base };
+    pullList = { pulls: [], error: null };
+    renderPage();
+    const pick = await screen.findByLabelText(/Модель/);
+    fireEvent.change(pick, { target: { value: 'claude-haiku-5-5' } });
+    await waitFor(() => expect(puts).toContainEqual({ key: 'ai.assistant_model', body: { value: 'claude-haiku-5-5' } }));
+  });
+
+  it('«Очистить сейчас» on the technician page removes only its pictures', async () => {
+    status = { ...base };
+    pullList = { pulls: [], error: null };
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Очистить сейчас: всё законченное' }));
+    await waitFor(() =>
+      expect(posts).toContainEqual({ path: '/admin/ai-attachments/retention/purge', body: { mode: 'all', scope: 'technician' } }),
+    );
   });
 });

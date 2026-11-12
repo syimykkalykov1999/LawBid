@@ -18,6 +18,7 @@ class CreateAiRoleDto {
     this.confidenceMin = 90,
     this.auditPct = 10,
     this.model,
+    this.imageFileIds,
   });
 
   factory CreateAiRoleDto.fromJson(Map<String, Object?> json) =>
@@ -31,6 +32,9 @@ class CreateAiRoleDto {
   final AiWorkerModel? model;
   final num confidenceMin;
   final num auditPct;
+
+  /// Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads); the exact set replaces the old one.
+  final List<String>? imageFileIds;
 
   Map<String, Object?> toJson() => _$CreateAiRoleDtoToJson(this);
 }

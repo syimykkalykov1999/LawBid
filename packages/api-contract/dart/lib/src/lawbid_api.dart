@@ -92,6 +92,7 @@ import 'clients/admin_ops_client.dart';
 import 'clients/admin_shards_client.dart';
 import 'clients/admin_ai_assistant_client.dart';
 import 'clients/admin_ai_worker_client.dart';
+import 'clients/admin_ai_attachments_client.dart';
 import 'clients/admin_promotion_client.dart';
 import 'clients/public_client.dart';
 import 'clients/admin_experiments_client.dart';
@@ -248,6 +249,7 @@ class LawbidApi {
   AdminShardsClient? _adminShards;
   AdminAiAssistantClient? _adminAiAssistant;
   AdminAiWorkerClient? _adminAiWorker;
+  AdminAiAttachmentsClient? _adminAiAttachments;
   AdminPromotionClient? _adminPromotion;
   PublicClient? _public;
   AdminExperimentsClient? _adminExperiments;
@@ -559,6 +561,9 @@ class LawbidApi {
 
   AdminAiWorkerClient get adminAiWorker =>
       _adminAiWorker ??= AdminAiWorkerClient(_dio, baseUrl: _baseUrl);
+
+  AdminAiAttachmentsClient get adminAiAttachments =>
+      _adminAiAttachments ??= AdminAiAttachmentsClient(_dio, baseUrl: _baseUrl);
 
   AdminPromotionClient get adminPromotion =>
       _adminPromotion ??= AdminPromotionClient(_dio, baseUrl: _baseUrl);

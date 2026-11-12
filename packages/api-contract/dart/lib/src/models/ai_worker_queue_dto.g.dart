@@ -10,7 +10,12 @@ AiWorkerQueueDto _$AiWorkerQueueDtoFromJson(Map<String, dynamic> json) =>
     AiWorkerQueueDto(
       key: AiWorkerQueueKey.fromJson(json['key'] as String),
       label: json['label'] as String,
+      defaultModel: AiWorkerModel.fromJson(json['defaultModel'] as String),
     );
 
 Map<String, dynamic> _$AiWorkerQueueDtoToJson(AiWorkerQueueDto instance) =>
-    <String, dynamic>{'key': instance.key.toJson(), 'label': instance.label};
+    <String, dynamic>{
+      'key': instance.key.toJson(),
+      'label': instance.label,
+      'defaultModel': instance.defaultModel.toJson(),
+    };
