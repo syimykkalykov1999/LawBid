@@ -504,6 +504,83 @@ describe('autoWants: the next database server', () => {
       ).filter((x) => x.id === 'aws.db_shards_2'),
     ).toEqual([]);
   });
+
+  // Owner 2026-11-12: «Авто» both ways — only an EMPTY extra server goes.
+  const servers = (w: AutoWant[]) =>
+    ids(w).filter((x) => x.startsWith('aws.db_shards'));
+
+  it('the last extra server goes when it is empty and not needed', () => {
+    expect(
+      servers(
+        autoWants(
+          { ...calm, emptyServers: ['db2'] },
+          liveOf(['aws.db_shards', 'aws.db_shards_2']),
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.db_shards_2:off']);
+    expect(
+      servers(
+        autoWants(
+          { ...calm, emptyServers: ['db1'] },
+          liveOf(['aws.db_shards']),
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.db_shards:off']);
+  });
+
+  it('a server with data, a lower empty one, or growth near: stays', () => {
+    // db2 holds data: nothing goes (db1 below it is not the last one).
+    expect(
+      servers(
+        autoWants(
+          { ...calm, emptyServers: ['db1'] },
+          liveOf(['aws.db_shards', 'aws.db_shards_2']),
+          new Set(),
+        ),
+      ),
+    ).toEqual([]);
+    // Some server nears the split threshold: the empty one takes the split.
+    expect(
+      servers(
+        autoWants(
+          { ...calm, emptyServers: ['db1'], shardGrowth: 'yellow' },
+          liveOf(['aws.db_shards']),
+          new Set(),
+        ),
+      ),
+    ).toEqual([]);
+    // Unknown emptiness (signal missing) = never.
+    expect(
+      servers(autoWants(calm, liveOf(['aws.db_shards']), new Set())),
+    ).toEqual([]);
+  });
+
+  it('Вкл or db.shards_mode = Вкл keeps an empty server', () => {
+    expect(
+      servers(
+        autoWants(
+          {
+            ...calm,
+            emptyServers: ['db1'],
+            modes: { 'aws.db_shards': 'on' },
+          },
+          liveOf(['aws.db_shards']),
+          new Set(),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      servers(
+        autoWants(
+          { ...calm, emptyServers: ['db1'], shardsMode: 'on' },
+          liveOf(['aws.db_shards']),
+          new Set(),
+        ),
+      ),
+    ).toEqual([]);
+  });
 });
 
 // Owner 2026-11-11: read copies 2..5 «Авто» by count (Aurora Auto Scaling).

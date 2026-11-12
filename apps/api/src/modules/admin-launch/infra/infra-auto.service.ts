@@ -276,6 +276,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       this.shardGrowth().catch(() => undefined),
     ]);
     const full = await this.serversFull().catch(() => false);
+    const empty: string[] = await this.emptyServers().catch(() => []);
     // Owner 2026-11-11: the position picked on «Масштаб» per item (a stored
     // row only; nothing stored = Авто by default, not picked by hand).
     const stored = await Promise.all(
@@ -315,7 +316,14 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       modes,
       pickedAuto,
       serversFull: full,
+      emptyServers: empty,
     };
+  }
+
+  /** Owner 2026-11-12: the extra servers that hold no data at all. */
+  private async emptyServers(): Promise<string[]> {
+    const moves = this.moduleRef?.get(ShardMoveService, { strict: false });
+    return moves ? moves.emptyServers() : [];
   }
 
   /** The split threshold status of «Здоровье системы» (PartitionService). */

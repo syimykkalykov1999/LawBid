@@ -123,6 +123,52 @@ export class ShardMoveService {
     return out;
   }
 
+  /**
+   * Owner 2026-11-12 («Авто» removes only an empty server): the extra
+   * servers that hold no data — no data part on them in shard_map (any
+   * state), no move to or from them in flight or waiting for its cleanup,
+   * and not one row in any table a move copies. A server that cannot be
+   * read counts as NOT empty.
+   */
+  async emptyServers(): Promise<string[]> {
+    const tables = buildMoveTables().map((t) => t.table);
+    const out: string[] = [];
+    for (const key of this.extraDatabases()) {
+      try {
+        const [parts, moves] = await Promise.all([
+          this.prisma.global().shardMap.count({ where: { physical_db: key } }),
+          this.prisma.global().shardMove.count({
+            where: {
+              OR: [
+                {
+                  status: { in: ['pending', 'running', 'waiting'] },
+                  OR: [{ from_db: key }, { to_db: key }],
+                },
+                { leftover_db: key },
+              ],
+            },
+          }),
+        ]);
+        if (parts > 0 || moves > 0) continue;
+        const db = this.pool.get(key);
+        let rows = false;
+        for (const t of tables) {
+          const [r] = await db.query<{ any: boolean }>(
+            `SELECT EXISTS (SELECT 1 FROM "${t.replace(/"/g, '""')}") AS any`,
+          );
+          if (r?.any !== false) {
+            rows = true;
+            break;
+          }
+        }
+        if (!rows) out.push(key);
+      } catch (e) {
+        this.log.warn(`emptiness of ${key} not read: ${String(e)}`);
+      }
+    }
+    return out;
+  }
+
   /** Configured physical databases other than the primary one. */
   extraDatabases(): string[] {
     return this.pool.keys().filter((k) => k !== PRIMARY_DB);

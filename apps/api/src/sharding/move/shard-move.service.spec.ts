@@ -53,3 +53,67 @@ describe('ShardMoveService.splitPlan', () => {
     expect(plan.readiness.ok).toBe(false); // db1 is not configured here
   });
 });
+
+/**
+ * Owner 2026-11-12: «Авто» removes an extra database server only while it
+ * holds no data at all. A data part, a move in flight or a single row keeps
+ * it; a server that cannot be read is kept too.
+ */
+describe('ShardMoveService.emptyServers', () => {
+  function make(o: {
+    parts?: Record<string, number>;
+    moves?: Record<string, number>;
+    rows?: Record<string, boolean>;
+    broken?: string;
+  }) {
+    const dbFor = (key: string) => ({
+      query: jest.fn(() => {
+        if (key === o.broken) return Promise.reject(new Error('down'));
+        return Promise.resolve([{ any: o.rows?.[key] ?? false }]);
+      }),
+      close: jest.fn(() => Promise.resolve()),
+    });
+    const pool = new MoveDbPool(
+      {
+        primary: 'postgresql://x/primary',
+        db1: 'postgresql://x/db1',
+        db2: 'postgresql://x/db2',
+        db3: 'postgresql://x/db3',
+      },
+      (key) => dbFor(key) as never,
+    );
+    const keyOf = (w: { physical_db?: string; OR?: unknown[] }): string =>
+      w.physical_db ??
+      ((w.OR?.[1] as { leftover_db: string }) ?? {}).leftover_db;
+    const prisma = {
+      global: () => ({
+        shardMap: {
+          count: jest.fn((a: { where: { physical_db: string } }) =>
+            Promise.resolve(o.parts?.[a.where.physical_db] ?? 0),
+          ),
+        },
+        shardMove: {
+          count: jest.fn((a: { where: { OR: unknown[] } }) =>
+            Promise.resolve(o.moves?.[keyOf(a.where)] ?? 0),
+          ),
+        },
+      }),
+    };
+    return new ShardMoveService(prisma as never, {} as never, undefined, pool);
+  }
+
+  it('lists only servers with no part, no move and not one row', async () => {
+    const svc = make({
+      parts: { db1: 3 },
+      moves: { db2: 1 },
+      rows: { db3: false },
+    });
+    expect(await svc.emptyServers()).toEqual(['db3']);
+  });
+
+  it('a single row or an unreadable server keeps it', async () => {
+    expect(
+      await make({ rows: { db1: true }, broken: 'db2' }).emptyServers(),
+    ).toEqual(['db3']);
+  });
+});

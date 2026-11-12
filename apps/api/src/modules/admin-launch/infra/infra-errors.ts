@@ -17,6 +17,7 @@ export function infraHttp(e: unknown): never {
     quiet_hours: [HttpStatus.CONFLICT, ErrorCode.FEATURE_DISABLED],
     not_configured: [HttpStatus.CONFLICT, ErrorCode.FEATURE_DISABLED],
     bad_plan: [HttpStatus.CONFLICT, ErrorCode.FEATURE_DISABLED],
+    server_has_data: [HttpStatus.CONFLICT, ErrorCode.FEATURE_DISABLED],
   };
   const [status, code] = map[e.code];
   throw new HttpException({ code, message: e.message }, status);

@@ -304,6 +304,12 @@ resource "aws_cloudwatch_log_group" "rds" {
   tags              = var.tags
 }
 
+# 12.11: a unique final snapshot name per server, so a server removed,
+# created again and removed again does not hit the name of the first one.
+resource "random_id" "final_snapshot" {
+  byte_length = 4
+}
+
 resource "aws_db_instance" "this" {
   identifier     = "${var.name}-postgres"
   engine         = "postgres"
@@ -334,7 +340,7 @@ resource "aws_db_instance" "this" {
   delete_automated_backups  = var.skip_final_snapshot
   deletion_protection       = var.deletion_protection
   skip_final_snapshot       = var.skip_final_snapshot
-  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name}-postgres-final"
+  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name}-postgres-final-${random_id.final_snapshot.hex}"
 
   auto_minor_version_upgrade   = var.auto_minor_version_upgrade
   monitoring_interval          = var.monitoring_interval

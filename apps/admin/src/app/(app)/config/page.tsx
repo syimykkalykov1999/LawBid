@@ -175,7 +175,7 @@ const KEY_TEXT: Record<string, string> = {
   "compliance.sms.disclosure_text":
     "Текст, который человек видит перед согласием на СМС (частота, «возможна плата оператора», STOP/HELP).",
   "compliance.sms.help_text":
-    "Ответ на HELP, если включено «Отвечать на HELP сами».",
+    "Не действует: своё СМС в ответ на HELP не отправляется (СМС только при регистрации и «Забыл пароль»), поэтому этот текст никуда не уходит. На HELP отвечает Twilio (Advanced Opt-Out в Twilio Console).",
   "compliance.sms.reply_to_help":
     "Не действует: своё СМС в ответ на HELP не отправляется (правило владельца — СМС только при регистрации и «Забыл пароль»). На HELP и STOP отвечает Twilio (Advanced Opt-Out в Twilio Console).",
   "compliance.sns.topic_arns":

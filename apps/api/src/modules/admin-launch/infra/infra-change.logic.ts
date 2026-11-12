@@ -209,7 +209,8 @@ export type CreateRefusal =
   | 'no_price'
   | 'busy'
   | 'daily_cap'
-  | 'not_configured';
+  | 'not_configured'
+  | 'server_has_data';
 
 /**
  * Whether a new request may be created. [current] is the live position
@@ -253,7 +254,19 @@ export const REFUSAL_TEXT: Record<CreateRefusal, string> = {
     'Достигнут дневной предел изменений в облаке (настройка infra.daily_cap).',
   not_configured:
     'GitHub-приложение для запуска изменений не подключено (Интеграции → «GitHub: изменения облака»).',
+  server_has_data:
+    'На этом сервере базы есть данные: убрать можно только пустой сервер (сначала данные переезжают на другие).',
 };
+
+/** Owner 2026-11-12: the extra database server a switch-off removes
+ * (`aws.db_shards` off = db1, `_2` = db2, `_3` = db3), or null. */
+export function serverRemovedBy(itemId: string, to: string): string | null {
+  if (to !== 'off') return null;
+  const n = ['aws.db_shards', 'aws.db_shards_2', 'aws.db_shards_3'].indexOf(
+    itemId,
+  );
+  return n < 0 ? null : `db${n + 1}`;
+}
 
 /** The values a request writes into growth.auto.tfvars.json. */
 export function changesFor(
