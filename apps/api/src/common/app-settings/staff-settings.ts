@@ -613,6 +613,32 @@ export const STAFF_NUMBER_DEFS: Readonly<
   },
 };
 
+/**
+ * Admin switch audit 12.11: staff settings that nothing reads yet (the part
+ * behind them is not built). The admin shows «Пока не действует» next to
+ * them so a switch never pretends to work; staff-not-built.spec.ts fails
+ * once code starts reading one, so the mark is dropped with the feature.
+ */
+export const STAFF_NOT_BUILT: ReadonlySet<string> = new Set([
+  'staff.push_offer_enabled',
+  'staff.trust_tiers_enabled',
+  'staff.case_appeals_enabled',
+  'staff.nav_groups_enabled',
+  'staff.pins_enabled',
+  'staff.forecast_enabled',
+  'staff.offer.ttl_sec',
+  'staff.offer.max_rounds',
+  'staff.load.red_per_online',
+  'staff.pins_max',
+  'staff.case_appeal.window_days',
+  'staff.case_appeal.max_per_case',
+  'staff.head.weight_speed_pct',
+  'staff.rating.min_decisions_first_window',
+]);
+
+export const STAFF_NOT_BUILT_NOTE =
+  ' Пока не действует: эта часть ещё не построена, значение ни на что не влияет.';
+
 export const STAFF_SWITCH_KEYS = Object.keys(
   STAFF_SWITCH_LABELS,
 ) as StaffSwitchKey[];
