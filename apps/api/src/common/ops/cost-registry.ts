@@ -2578,6 +2578,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'cockroach_cloud',
       'github',
       'github_infra',
+      'sentry_webhook',
     ],
   },
   {
