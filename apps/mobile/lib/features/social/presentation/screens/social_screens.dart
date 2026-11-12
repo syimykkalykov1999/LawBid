@@ -384,6 +384,11 @@ class PostScreen extends ConsumerWidget {
   }
 }
 
+/// Item 38: comments left below the one being built when the next page
+/// is asked for (infinite_scroll_pagination's default threshold is 3; a
+/// comment row is short, so a little more).
+const int kCommentsLoadAhead = 5;
+
 /// Comments of a thread (a post, or a case — OQ-034) as slivers: empty
 /// text, list with paging, retry, skeleton.
 List<Widget> commentThreadSlivers(
@@ -439,6 +444,14 @@ List<Widget> commentThreadSlivers(
                 );
               }
               return const SizedBox(height: AppSpacing.xl);
+            }
+            // Item 38 (infinite_scroll_pagination «invisibleItemsThreshold»):
+            // the next page is asked for while the reader is still
+            // [kCommentsLoadAhead] comments from the end, not at the end.
+            if (value.canLoadMore &&
+                i == value.items.length - kCommentsLoadAhead) {
+              WidgetsBinding.instance
+                  .addPostFrameCallback((_) => notifier.loadMore());
             }
             final c = value.items[i];
             return CommentTile(
