@@ -572,6 +572,8 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'infra.mode.rds_replicas_3',
     'infra.mode.rds_replicas_4',
     'infra.mode.rds_replicas_5',
+    'infra.mode.db_shards_2',
+    'infra.mode.db_shards_3',
   ]) {
     out[k] = { ...out[k], pattern: /^(off|on|auto)$/ };
   }

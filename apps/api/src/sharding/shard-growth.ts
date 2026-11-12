@@ -113,3 +113,34 @@ export function autoSplitTarget(i: {
   if (!empty) return { target: null, why: 'no_empty_server' };
   return { target: empty.key, why: 'split' };
 }
+
+/**
+ * Owner 2026-11-11 (third and fourth servers): how full each database server
+ * is against the split threshold, and whether the next server is needed.
+ */
+export interface ServerFill {
+  key: string;
+  /** The larger of size / threshold and rows / threshold (1 = at threshold). */
+  ratio: number;
+  /** Active logical shards on this server. */
+  shards: number;
+}
+
+/**
+ * The next server is needed when some server is at PREPARE_FROM of the
+ * threshold and no extra server is still empty (an empty one takes the next
+ * split first). Pure.
+ */
+export function serversFull(fill: readonly ServerFill[]): boolean {
+  const near = fill.some((f) => f.ratio >= PREPARE_FROM);
+  const emptyExtra = fill.some((f) => f.key !== 'primary' && f.shards === 0);
+  return near && !emptyExtra;
+}
+
+/** The fullest server over the threshold that can give half its shards. */
+export function splitSource(fill: readonly ServerFill[]): string | null {
+  const over = fill
+    .filter((f) => f.ratio >= 1 && f.shards >= 2)
+    .sort((a, b) => b.ratio - a.ratio);
+  return over[0]?.key ?? null;
+}

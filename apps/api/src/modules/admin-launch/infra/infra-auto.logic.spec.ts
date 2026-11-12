@@ -435,6 +435,70 @@ describe('autoWants: the position picked per item (infra-modes)', () => {
   });
 });
 
+// Owner 2026-11-11: the third and fourth database servers on «Авто».
+describe('autoWants: the next database server', () => {
+  const ids = (w: AutoWant[]) => w.map((x) => `${x.id}:${x.to}`).sort();
+  const liveOf =
+    (on: string[]) =>
+    (id: string): 'on' | 'off' =>
+      on.includes(id) ? 'on' : 'off';
+
+  it('servers full and the second is on → the third, not the fourth', () => {
+    expect(
+      ids(
+        autoWants(
+          { ...calm, serversFull: true },
+          liveOf(['aws.db_shards', 'aws.rds_replicas', 'aws.pgbouncer']),
+          new Set(),
+        ),
+      ).filter((x) => x.startsWith('aws.db_shards')),
+    ).toEqual(['aws.db_shards_2:on']);
+  });
+
+  it('the fourth only after the third', () => {
+    expect(
+      ids(
+        autoWants(
+          { ...calm, serversFull: true },
+          liveOf(['aws.db_shards', 'aws.db_shards_2']),
+          new Set(),
+        ),
+      ).filter((x) => x.startsWith('aws.db_shards')),
+    ).toEqual(['aws.db_shards_3:on']);
+  });
+
+  it('nothing while some server is still empty or no server is near', () => {
+    expect(
+      autoWants(
+        { ...calm, serversFull: false },
+        liveOf(['aws.db_shards']),
+        new Set(),
+      ).filter((x) => x.id.startsWith('aws.db_shards')),
+    ).toEqual([]);
+  });
+
+  it('Выкл on the third: never by itself; Вкл: only after the second', () => {
+    expect(
+      autoWants(
+        {
+          ...calm,
+          serversFull: true,
+          modes: { 'aws.db_shards_2': 'off' },
+        },
+        liveOf(['aws.db_shards']),
+        new Set(),
+      ).filter((x) => x.id.startsWith('aws.db_shards')),
+    ).toEqual([]);
+    expect(
+      autoWants(
+        { ...calm, modes: { 'aws.db_shards_2': 'on' } },
+        offAll,
+        new Set(),
+      ).filter((x) => x.id === 'aws.db_shards_2'),
+    ).toEqual([]);
+  });
+});
+
 // Owner 2026-11-11: read copies 2..5 «Авто» by count (Aurora Auto Scaling).
 describe('autoWants: read copies by count', () => {
   const ids = (w: AutoWant[]) =>

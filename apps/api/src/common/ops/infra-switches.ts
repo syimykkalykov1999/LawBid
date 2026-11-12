@@ -254,6 +254,27 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     impact:
       'Без перерыва: сервер создаётся 15–40 минут и стоит пустым; при следующей выкладке на нём сами появляются схема и роли. Данные переезжают только по кнопке «Разделить базу».',
   },
+  // Owner 2026-11-11: the third and fourth database servers (same db_shards
+  // count; on = one more than the previous row). Off only lowers the count
+  // back by one; the plan guard refuses to delete a server with data.
+  {
+    id: 'aws.db_shards_2',
+    values: {
+      off: { db_shards: 1 },
+      on: { db_shards: 2 },
+    },
+    impact:
+      'Без перерыва: третий сервер создаётся 15–40 минут и стоит пустым; при следующей выкладке на нём сами появляются схема и роли. Данные переезжают ночью сами (Авто) или по кнопке.',
+  },
+  {
+    id: 'aws.db_shards_3',
+    values: {
+      off: { db_shards: 2 },
+      on: { db_shards: 3 },
+    },
+    impact:
+      'Без перерыва: четвёртый сервер создаётся 15–40 минут и стоит пустым; при следующей выкладке на нём сами появляются схема и роли. Данные переезжают ночью сами (Авто) или по кнопке.',
+  },
   {
     id: 'aws.opensearch',
     values: {

@@ -1,4 +1,6 @@
 import {
+  serversFull,
+  splitSource,
   assessShardGrowth,
   autoSplitTarget,
   PREPARE_FROM,
@@ -114,5 +116,45 @@ describe('autoSplitTarget (db.shards_mode = auto)', () => {
     expect(
       autoSplitTarget({ ...base, growth: { status: 'red', plan: null } }).why,
     ).toBe('nothing_to_move');
+  });
+});
+
+// Owner 2026-11-11: third and fourth servers.
+describe('serversFull / splitSource', () => {
+  it('the next server when one is at 80 % and no extra server is empty', () => {
+    expect(
+      serversFull([
+        { key: 'primary', ratio: 0.85, shards: 128 },
+        { key: 'db1', ratio: 0.5, shards: 128 },
+      ]),
+    ).toBe(true);
+    expect(
+      serversFull([
+        { key: 'primary', ratio: 0.85, shards: 256 },
+        { key: 'db1', ratio: 0, shards: 0 },
+      ]),
+    ).toBe(false);
+    expect(
+      serversFull([
+        { key: 'primary', ratio: 0.5, shards: 128 },
+        { key: 'db1', ratio: 0.6, shards: 128 },
+      ]),
+    ).toBe(false);
+  });
+
+  it('splits the fullest server over the threshold that has shards to give', () => {
+    expect(
+      splitSource([
+        { key: 'primary', ratio: 1.1, shards: 128 },
+        { key: 'db1', ratio: 1.4, shards: 128 },
+        { key: 'db2', ratio: 0, shards: 0 },
+      ]),
+    ).toBe('db1');
+    expect(
+      splitSource([
+        { key: 'primary', ratio: 0.9, shards: 256 },
+        { key: 'db1', ratio: 0, shards: 0 },
+      ]),
+    ).toBeNull();
   });
 });
