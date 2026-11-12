@@ -285,7 +285,11 @@ describe('AiAssistantService', () => {
     red.github.commitChecks.mockResolvedValueOnce({
       runs: [
         { name: 'API', status: 'completed', conclusion: 'success' },
-        { name: 'e2e', status: 'in_progress', conclusion: null },
+        {
+          name: 'e2e',
+          status: 'in_progress',
+          conclusion: null as unknown as string,
+        },
       ],
       statuses: [],
     });
