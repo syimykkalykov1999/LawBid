@@ -30,7 +30,7 @@ LADDER = (
     spec("db.r7g.2xlarge", 8, 64, 1396.49),
 )
 CFG = d.Config(ladder=LADDER, min_class="db.t4g.micro", max_class="db.r7g.xlarge")
-WINDOW = CFG.down_window_h * H // CFG.period_s  # 864 points
+WINDOW = CFG.down_window_h * H // CFG.period_s  # 72 points (6 h)
 
 
 def inst(cls="db.t4g.small", **kw):
@@ -163,11 +163,22 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(self.go({"status": "modifying"}).reason, "not_available")
         self.assertEqual(self.go({"status": "backing-up"}).reason, "not_available")
         self.assertEqual(self.go({"pending": True}).reason, "pending_modification")
-        self.assertEqual(self.go({"has_replicas": True}).reason, "has_replicas")
         self.assertEqual(self.go({"multi_az": False}).reason, "not_multi_az")
         self.assertEqual(self.go(deploying=True).reason, "deploying")
         self.assertEqual(self.go(oneoff_tasks=True).reason, "oneoff_tasks")
         self.assertEqual(self.go(ecs_unknown=True).reason, "ecs_unknown")
+
+    def test_read_replica_does_not_pause_resizing(self):
+        # KNOWN_ERRORS 109: RDS lets a replica have another class and raises
+        # its max_connections itself, so neither direction waits for it.
+        self.assertEqual(self.go({"has_replicas": True}).action, "up")
+        r = d.decide(CFG, "night", inst("db.t4g.medium", has_replicas=True), d.Guards(), OLD, quiet_week(), NOW)
+        self.assertEqual(r.action, "down")
+
+    def test_single_az_shrinks_at_night_but_does_not_grow(self):
+        r = d.decide(CFG, "night", inst("db.t4g.medium", multi_az=False), d.Guards(), OLD, quiet_week(), NOW)
+        self.assertEqual(r.action, "down")
+        self.assertEqual(self.go({"multi_az": False}).reason, "not_multi_az")
 
     def test_single_az_allowed_when_configured(self):
         cfg = replace(CFG, require_multi_az=False)
@@ -187,8 +198,28 @@ class DownTests(unittest.TestCase):
     def go(self, m=None, cls="db.t4g.medium", state=OLD, guards=None, cfg=CFG):
         return d.decide(cfg, "night", inst(cls), guards or d.Guards(), state, m or quiet_week(cls), NOW)
 
-    def test_quiet_three_days_goes_down_one_step(self):
+    def test_quiet_window_goes_straight_to_the_smallest_fit(self):
+        # medium, 5 % CPU, 10 % connections, 70 % free: micro fits too
         r = self.go()
+        self.assertEqual((r.action, r.target), ("down", "db.t4g.micro"))
+
+    def test_defaults_6h_window_6h_cooldown(self):
+        self.assertEqual((CFG.down_window_h, CFG.down_cooldown_h), (6, 6))
+
+    def test_multi_step_the_11_11_case(self):
+        # prod 12.11: r7g.large, CPU max 4.7 %, avg 3 %, 10.2 of 16 GiB free
+        # (4 GiB of the 5.8 GiB used is shared_buffers, which shrinks with the class)
+        s = CFG.spec("db.r7g.large")
+        m = d.Metrics(cpu=(4.7,) * WINDOW, mem_free=(10.2 * GIB,) * WINDOW,
+                      conns=(s.max_connections * 0.02,) * WINDOW)
+        r = self.go(m, cls="db.r7g.large")
+        # outside shared_buffers 1.8 GiB in use: t4g.medium would sit at 70.0x %
+        # (just over the 70 % band), so t4g.large; the next night measures again
+        self.assertEqual((r.action, r.target), ("down", "db.t4g.large"))
+
+    def test_multi_step_respects_min_class(self):
+        cfg = replace(CFG, min_class="db.t4g.small")
+        r = self.go(cfg=cfg)
         self.assertEqual((r.action, r.target), ("down", "db.t4g.small"))
 
     def test_only_at_night(self):
@@ -200,14 +231,14 @@ class DownTests(unittest.TestCase):
         cfg = replace(CFG, min_class="db.t4g.medium")
         self.assertEqual(self.go(cfg=cfg).reason, "at_min")
 
-    def test_no_down_within_72h_of_an_up(self):
-        st = d.State(cls="db.t4g.medium", last_up=NOW - 71 * H, last_change=NOW - 71 * H)
+    def test_no_down_within_6h_of_an_up(self):
+        st = d.State(cls="db.t4g.medium", last_up=NOW - 5 * H, last_change=NOW - 5 * H)
         self.assertEqual(self.go(state=st).reason, "cooldown_down")
-        st = d.State(cls="db.t4g.medium", last_up=NOW - 73 * H, last_change=NOW - 73 * H)
+        st = d.State(cls="db.t4g.medium", last_up=NOW - 7 * H, last_change=NOW - 7 * H)
         self.assertEqual(self.go(state=st).action, "down")
 
-    def test_no_down_within_72h_of_a_down(self):
-        st = d.State(cls="db.t4g.medium", last_down=NOW - 24 * H, last_change=NOW - 24 * H)
+    def test_no_down_within_6h_of_a_down(self):
+        st = d.State(cls="db.t4g.medium", last_down=NOW - 2 * H, last_change=NOW - 2 * H)
         self.assertEqual(self.go(state=st).reason, "cooldown_down")
 
     def test_manual_change_counts_as_a_change(self):
@@ -218,7 +249,7 @@ class DownTests(unittest.TestCase):
     def test_cpu_peak_blocks(self):
         m = quiet_week()
         cpu = list(m.cpu)
-        cpu[400] = 35.0
+        cpu[40] = 35.0
         self.assertEqual(self.go(replace(m, cpu=tuple(cpu))).reason, "cpu_not_low")
 
     def test_connections_block(self):
@@ -233,7 +264,7 @@ class DownTests(unittest.TestCase):
         self.assertEqual(self.go(m).reason, "busy_now")
 
     def test_not_enough_history(self):
-        self.assertEqual(self.go(quiet_week(n=300)).reason, "not_enough_data")
+        self.assertEqual(self.go(quiet_week(n=30)).reason, "not_enough_data")
 
     def test_target_must_have_room_for_cpu(self):
         # 29 % of 4 cores on r7g.xlarge becomes 58 % of 2 cores... fine; 29 % * 2 = 58 < 60
@@ -264,8 +295,12 @@ class DownTests(unittest.TestCase):
         self.assertEqual(self.go(m).action, "down")
         m = quiet_week("db.t4g.large", free_pct=75, conns_pct=10)  # 2 GiB used
         self.assertEqual(self.go(m, cls="db.t4g.large").action, "down")
-        m = quiet_week("db.t4g.large", free_pct=62, conns_pct=10)  # 3 GiB used > 70 % of 4
-        self.assertEqual(self.go(m, cls="db.t4g.large").action, "none")
+        # 4.8 GiB used, 2.8 of it outside shared_buffers: 2.8 + 1 GiB > 70 % of 4
+        m = quiet_week("db.t4g.large", free_pct=40, conns_pct=10)
+        self.assertEqual(self.go(m, cls="db.t4g.large").reason, "target_memory_tight")
+        # 3 GiB used but 2 GiB of it is shared_buffers, which shrinks with the class
+        m = quiet_week("db.t4g.large", free_pct=62, conns_pct=10)
+        self.assertEqual(self.go(m, cls="db.t4g.large").action, "down")
 
     def test_guards_apply_to_down_too(self):
         self.assertEqual(self.go(guards=d.Guards(deploying=True)).reason, "deploying")

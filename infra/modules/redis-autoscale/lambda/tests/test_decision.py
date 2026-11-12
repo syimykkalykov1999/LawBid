@@ -28,7 +28,7 @@ LADDER = (
     spec("cache.r7g.2xlarge", 8, 52.82, 1274.58, None, 1.3),
 )
 CFG = d.Config(ladder=LADDER, min_class="cache.t4g.micro", max_class="cache.r7g.xlarge")
-WINDOW = CFG.down_window_h * H // CFG.period_s  # 864 points
+WINDOW = int(CFG.down_window_h * H // CFG.period_s)  # 12 points (1 h)
 
 
 def inst(cls="cache.t4g.small", **kw):
@@ -151,7 +151,7 @@ class DownTests(unittest.TestCase):
     def go(self, m, cls="cache.t4g.medium", state=OLD, guards=None, cfg=CFG, **kw):
         return d.decide(cfg, "night", inst(cls, **kw), guards or d.Guards(), state, m, NOW)
 
-    def test_quiet_three_days_goes_one_step_down(self):
+    def test_quiet_hour_goes_down(self):
         r = self.go(quiet())
         self.assertEqual((r.action, r.target), ("down", "cache.t4g.small"))
         self.assertEqual(r.facts["cpu_max"], 5.0)
@@ -167,17 +167,17 @@ class DownTests(unittest.TestCase):
         self.assertEqual(self.go(quiet(), cfg=cfg).reason, "at_min")
 
     def test_cooldown_after_recent_up(self):
-        st = d.State(cls="cache.t4g.medium", last_up=NOW - 48 * H, last_change=NOW - 48 * H)
+        st = d.State(cls="cache.t4g.medium", last_up=NOW - 0.5 * H, last_change=NOW - 0.5 * H)
         self.assertEqual(self.go(quiet(), state=st).reason, "cooldown_down")
 
-    def test_cooldown_ends_after_72h(self):
-        st = d.State(cls="cache.t4g.medium", last_up=NOW - 73 * H, last_change=NOW - 73 * H)
+    def test_cooldown_ends_after_1h(self):
+        st = d.State(cls="cache.t4g.medium", last_up=NOW - 1.1 * H, last_change=NOW - 1.1 * H)
         self.assertEqual(self.go(quiet(), state=st).action, "down")
 
     def test_one_busy_hour_blocks(self):
         m = quiet()
         cpu = list(m.cpu)
-        cpu[100] = 35.0
+        cpu[5] = 35.0
         self.assertEqual(self.go(replace(m, cpu=tuple(cpu))).reason, "cpu_not_low")
 
     def test_memory_peak_blocks(self):
@@ -192,7 +192,7 @@ class DownTests(unittest.TestCase):
         self.assertEqual(self.go(m).reason, "busy_now")
 
     def test_missing_data_blocks(self):
-        self.assertEqual(self.go(quiet(n=100)).reason, "not_enough_data")
+        self.assertEqual(self.go(quiet(n=5)).reason, "not_enough_data")
 
     def test_smaller_size_needs_room_in_memory(self):
         # 30 % of 3.09 GiB = 0.93 GiB; on the 1.37 GiB node that is 68 % > 60 %
@@ -207,17 +207,55 @@ class DownTests(unittest.TestCase):
         self.assertEqual(self.go(quiet(cpu=17.0)).reason, "target_burst_tight")
 
     def test_cross_family_uses_engine_speed(self):
-        # r7g.large -> t4g.medium: the engine runs 1.3x slower, so the burst
-        # baseline (20) is exceeded at 26 % but not at 10 %
+        # r7g.large -> t4g.*: the engine runs 1.3x slower, so the burst
+        # baseline (20) is exceeded at 26 % but not at 10 %; at 10 % and 5 %
+        # memory it goes straight past t4g.medium to t4g.small (micro: 5 % of
+        # 13 GiB does not fit 0.5 GiB)
         r = self.go(quiet(cpu=26.0, mem=5.0), cls="cache.r7g.large")
         self.assertEqual(r.reason, "target_burst_tight")  # 26 * 1.3 = 33.8 > 16
         r = self.go(quiet(cpu=14.0, mem=5.0), cls="cache.r7g.large")
         self.assertEqual(r.reason, "target_burst_tight")  # 14 * 1.3 = 18.2 > 16
         r = self.go(quiet(cpu=10.0, mem=5.0), cls="cache.r7g.large")
-        self.assertEqual((r.action, r.target), ("down", "cache.t4g.medium"))
+        self.assertEqual((r.action, r.target), ("down", "cache.t4g.small"))
 
     def test_same_family_step_keeps_cpu(self):
         self.assertEqual(self.go(quiet(cpu=29.0, mem=5.0), cls="cache.r7g.xlarge").action, "down")
+
+    def test_multi_step_straight_to_the_smallest_fit(self):
+        # the 11.11 case: r7g.large at ~3 % CPU and ~0 % memory -> t4g.micro at once
+        r = self.go(quiet(cpu=3.0, mem=0.5), cls="cache.r7g.large")
+        self.assertEqual((r.action, r.target), ("down", "cache.t4g.micro"))
+
+    def test_multi_step_respects_min_class(self):
+        cfg = replace(CFG, min_class="cache.t4g.small")
+        r = self.go(quiet(cpu=3.0, mem=0.5), cls="cache.r7g.large", cfg=cfg)
+        self.assertEqual((r.action, r.target), ("down", "cache.t4g.small"))
+
+    def test_multi_step_skips_sizes_that_do_not_fit(self):
+        # 20 % of 13.07 GiB = 2.6 GiB: only t4g.medium (3.09) is too tight too,
+        # so nothing below r7g.large fits -> the reason of the next size down
+        r = self.go(quiet(cpu=3.0, mem=20.0), cls="cache.r7g.large")
+        self.assertEqual((r.action, r.reason), ("none", "target_memory_tight"))
+        # 12 % = 1.57 GiB fits t4g.medium (51 %) but not t4g.small (114 %)
+        r = self.go(quiet(cpu=3.0, mem=12.0), cls="cache.r7g.large")
+        self.assertEqual((r.action, r.target), ("down", "cache.t4g.medium"))
+
+    def test_defaults_1h_window_1h_cooldown_on_every_tick(self):
+        self.assertEqual((CFG.down_window_h, CFG.down_cooldown_h, CFG.down_on_tick), (1, 1, True))
+
+    def test_tick_shrinks_without_night(self):
+        r = d.decide(CFG, "tick", inst("cache.r7g.large"), d.Guards(night_ok=False), OLD, quiet(cpu=3.0, mem=0.5), NOW)
+        self.assertEqual((r.action, r.target), ("down", "cache.t4g.micro"))
+
+    def test_tick_down_can_be_switched_to_night_only(self):
+        cfg = replace(CFG, down_on_tick=0)  # tuning numbers: 0 = off
+        r = d.decide(cfg, "tick", inst("cache.r7g.large"), d.Guards(), OLD, quiet(cpu=3.0, mem=0.5), NOW)
+        self.assertEqual((r.action, r.reason), ("none", "calm"))
+
+    def test_tick_without_a_shrink_stays_calm_and_says_why(self):
+        st = d.State(cls="cache.t4g.medium", last_up=NOW - 0.5 * H, last_change=NOW - 0.5 * H)
+        r = d.decide(CFG, "tick", inst("cache.t4g.medium"), d.Guards(), st, quiet(), NOW)
+        self.assertEqual((r.action, r.reason, r.facts["down"]), ("none", "calm", "cooldown_down"))
 
     def test_guards_apply_to_night_too(self):
         self.assertEqual(self.go(quiet(), status="modifying").reason, "not_available")

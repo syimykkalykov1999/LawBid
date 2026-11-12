@@ -4,7 +4,7 @@
 # docs/runbooks/db-autoscale.md.
 #
 #   EventBridge Scheduler  every 5 min  {"mode":"tick"}  -> Lambda -> one step UP when loaded
-#   EventBridge Scheduler  03:30 Chicago {"mode":"night"} -> Lambda -> one step DOWN after 3 quiet days
+#   EventBridge Scheduler  03:30 Chicago {"mode":"night"} -> Lambda -> DOWN to the size the quiet window needs
 #
 # The Lambda re-reads the facts on every run (class, status, metrics, ECS
 # rollouts), so no static CloudWatch alarm threshold has to follow the size
@@ -90,6 +90,16 @@ variable "night_timezone" {
 variable "tick_minutes" {
   type    = number
   default = 5
+}
+variable "down_window_h" {
+  type        = number
+  default     = 6
+  description = "Hours of calm before a shrink; the shrink goes straight to the smallest size whose capacity keeps the window peak under the target (KNOWN_ERRORS 109). Owner 12.11: the primary is single-AZ, a resize is minutes of downtime, so the shrink runs only in the night window."
+}
+variable "down_cooldown_h" {
+  type        = number
+  default     = 6
+  description = "No shrink for this many hours after any size change (including the last scale-up)."
 }
 variable "tuning" {
   type        = map(number)
@@ -305,7 +315,7 @@ resource "aws_lambda_function" "this" {
       MIN_CLASS        = var.min_class
       MAX_CLASS        = var.max_class
       REQUIRE_MULTI_AZ = tostring(var.require_multi_az)
-      TUNING           = jsonencode(var.tuning)
+      TUNING           = jsonencode(merge({ down_window_h = var.down_window_h, down_cooldown_h = var.down_cooldown_h }, var.tuning))
       DB_ID            = var.db_instance_id
       TOPIC_ARN        = var.alerts_topic_arn
       STATE_PARAM      = aws_ssm_parameter.state.name
@@ -368,7 +378,7 @@ resource "aws_scheduler_schedule" "tick" {
 
 resource "aws_scheduler_schedule" "night" {
   name                         = "${local.fn_name}-night"
-  description                  = "Database autoscale: night check for a reason to shrink (after 3 quiet days)"
+  description                  = "Database autoscale: night check for a reason to shrink (after 6 quiet hours)"
   schedule_expression          = var.night_schedule
   schedule_expression_timezone = var.night_timezone
   flexible_time_window { mode = "OFF" }

@@ -10,9 +10,11 @@ prod по умолчанию `true`). Инструкция «как выключ
 
 **Что делает.** Каждые 5 минут маленькая программа (Lambda) смотрит, как себя
 чувствует `lawbid-prod-redis`. Если ему тяжело, она переводит оба узла (основной
-и реплику) на **один размер больше** и пишет вам письмо. Раз в сутки, в 03:30
-ночи по Чикаго, она смотрит последние 3 суток: если все 3 суток было спокойно,
-переводит на **один размер меньше** и тоже пишет письмо. Вы ничего не нажимаете.
+и реплику) на **один размер больше** и пишет вам письмо. Каждые 5 минут она же
+смотрит последний час: если весь час было спокойно и с последнего изменения
+прошёл час, переводит **сразу на самый маленький размер, которому хватит
+замеренной нагрузки** (смена онлайн, без простоя; с 12.11, KNOWN_ERRORS 109,
+раньше был один шаг раз в 3 суток) и тоже пишет письмо. Вы ничего не нажимаете.
 Кнопка в админке «Экономика» двигает Redis по **той же лесенке**.
 
 **Когда растёт (любое одно условие, держится 15 минут):**
@@ -29,7 +31,7 @@ prod по умолчанию `true`). Инструкция «как выключ
 счёл это бесполезной тратой денег. Если нужно иначе, это одна строка в
 `_decide_up`.)
 
-**Когда уменьшается (только ночью, всё сразу):** за 72 часа процессор ни разу
+**Когда уменьшается (в любое время, всё сразу):** за 1 час процессор ни разу
 не поднимался выше 30 %, память ни разу не была выше 40 %, и на меньшем размере
 остаётся запас (память после уменьшения не выше 60 %, процессор не выше 50 %,
 а у `t4g` ещё и в пределах «базовой» нормы), иначе размер сразу вырос бы обратно
@@ -47,7 +49,7 @@ prod по умолчанию `true`). Инструкция «как выключ
 - не трогает, если группа не `available`, есть незавершённое изменение, нет реплики или автопереключения, Redis в кластерном режиме;
 - не трогает во время выкладки новой версии (ECS rollout api/worker) и пока работает разовая задача;
 - перед сменой спрашивает у AWS (`ListAllowedNodeTypeModifications`), разрешён ли такой переход;
-- вверх не чаще раза в 30 минут; вниз не чаще раза в 72 часа и не раньше 72 часов после любого изменения (в том числе ручного);
+- вверх не чаще раза в 30 минут; вниз не раньше 1 часа после любого изменения, в том числе ручного (`down_window_h` / `down_cooldown_h`, Terraform-переменные модуля; `down_on_tick = 0` в `tuning` вернёт проверку только ночью);
 - потолок `redis_autoscale_max_class` (по умолчанию `cache.r7g.large`, ≈ $320/мес с репликой) и пол `redis_autoscale_min_class`;
 - на потолке: только письмо «нужно ваше решение»;
 - если что-то непонятно (нет данных, не удалось прочитать ECS, незнакомый размер), **ничего не делает**;
@@ -106,8 +108,8 @@ Checked live (read-only AWS CLI, account 047754151252, us-east-1) on 2026-10-24:
   Старая лесенка админки (`t4g` до `m7g.xlarge`) заменена.
 - Уже были: кнопка «Увеличить» в админке (`aws-capacity.service.ts`,
   `REDIS_TIERS` в `economy.rules.ts`) и `ignore_changes = [node_type]` в
-  `modules/redis`. Автоматика определяет ручную смену (как у базы) и 72 часа не
-  уменьшает после неё.
+  `modules/redis`. Автоматика определяет ручную смену (как у базы) и `down_cooldown_h`
+  (1 час) не уменьшает после неё.
 
 From the AWS documentation (ElastiCache User Guide, «Online vertical scaling by
 modifying node type»; fetched 2026-10-24):
@@ -164,14 +166,16 @@ EventBridge Scheduler (5 min tick / 03:30 Chicago night)
   `AutomaticFailover != enabled`), `ecs_unknown`, `deploying`, `oneoff_tasks`.
 - **Up** (tick): the triggers of the summary; one step; cooldown 30 min after
   any change; stops at `redis_autoscale_max_class` with an e-mail every 6 h.
-- **Down** (night, 01:00-06:00 local): quiet 72 h; 85 % data coverage; no up
-  trigger right now; 72 h after the last change; the smaller size has room
-  (see the summary); never below `redis_autoscale_min_class`.
+- **Down** (every tick when `down_on_tick`, and the night check): quiet
+  `down_window_h` = 1 h; 85 % data coverage; no up trigger right now;
+  `down_cooldown_h` = 1 h after the last change; straight to the smallest size
+  that has room (see the summary), not one step; never below
+  `redis_autoscale_min_class` (KNOWN_ERRORS 109).
 - **Manual button** (admin «Экономика», `AwsCapacityService.increase`) steps
   `REDIS_TIERS` (`apps/api/src/common/economy/economy.rules.ts`), the same six
   names and order as the Lambda ladder (`modules/redis-autoscale/main.tf`,
-  `ladder`). The Lambda notices the change at the next run and starts the 72 h
-  no-shrink cooldown. A spec test fixes the ladder order on the API side.
+  `ladder`). The Lambda notices the change at the next run and starts the
+  `down_cooldown_h` no-shrink cooldown. A spec test fixes the ladder order on the API side.
 - **Failure of the Lambda itself:** alarm `<stack>-redis-autoscale-errors`
   (3 errors in 30 min) to the alerts topic. A refused modify is e-mailed at
   most once per 6 hours, not once per tick.

@@ -50,10 +50,15 @@ class Config:
     up_credit_points: int = 3
     up_cooldown_min: int = 30
     # --- down: the whole window must be quiet ------------------------------
-    down_window_h: int = 72
+    # Owner 12.11 (KNOWN_ERRORS 109): the resize is online (no downtime), so
+    # 1 h of calm, 1 h after the last change, checked on every tick (not only
+    # at night), then straight to the smallest size the measured peak fits
+    # (target tracking, like AWS Application Auto Scaling), not one step.
+    down_window_h: float = 1
     down_cpu_max_pct: float = 30
     down_mem_max_pct: float = 40
-    down_cooldown_h: int = 72
+    down_cooldown_h: float = 1
+    down_on_tick: bool = True  # 0 in tuning = shrink only in the night check
     down_min_coverage: float = 0.85  # share of the window that has data
     # --- the smaller size must have room (prevents up/down flapping) -------
     target_cpu_max_pct: float = 50
@@ -125,7 +130,7 @@ def reconcile_state(cfg, state, current_cls, now):
     """Notice a size change made by somebody else (admin button, console).
 
     It counts as a change now, so a manual "up" also blocks an automatic
-    "down" for 72 hours.
+    "down" for down_cooldown_h hours.
     """
     if state.cls is None:
         return replace(state, cls=current_cls)
@@ -200,7 +205,13 @@ def decide(cfg, mode, inst, guards, state, metrics, now):
     if bad:
         return Decision("none", bad)
     if mode == "tick":
-        return _decide_up(cfg, cur, state, metrics, now)
+        up = _decide_up(cfg, cur, state, metrics, now)
+        if up.reason == "calm" and cfg.down_on_tick:
+            down = _decide_down(cfg, cur, guards, state, metrics, now, at_night=False)
+            if down.action == "down":
+                return down
+            return Decision("none", "calm", facts={"down": down.reason, **down.facts})
+        return up
     if mode == "night":
         return _decide_down(cfg, cur, guards, state, metrics, now)
     return Decision("none", "bad_mode")
@@ -224,19 +235,19 @@ def _decide_up(cfg, cur, state, m, now):
     return Decision("up", "load", cfg.ladder[i + 1].name, facts)
 
 
-def _decide_down(cfg, cur, guards, state, m, now):
-    if not guards.night_ok:
+def _decide_down(cfg, cur, guards, state, m, now, at_night=True):
+    if at_night and not guards.night_ok:
         return Decision("none", "not_night")
     i = cfg.index(cur.name)
     if i <= cfg.index(cfg.min_class) or i == 0:
         return Decision("none", "at_min")
     if _since(now, state.last_up, state.last_down, state.last_change) < cfg.down_cooldown_h * HOUR:
         return Decision("none", "cooldown_down")
-    # An up condition right now means the load is not low, whatever 72 h say.
+    # An up condition right now means the load is not low, whatever the window says.
     if up_triggers(cfg, cur, m):
         return Decision("none", "busy_now")
 
-    expected = cfg.down_window_h * HOUR // cfg.period_s
+    expected = int(cfg.down_window_h * HOUR // cfg.period_s)
     need = int(expected * cfg.down_min_coverage)
     if min(len(m.cpu), len(m.mem_pct)) < need:
         return Decision("none", "not_enough_data")
@@ -254,17 +265,31 @@ def _decide_down(cfg, cur, guards, state, m, now):
     if mem_max >= cfg.down_mem_max_pct:
         return Decision("none", "memory_not_low", facts=facts)
 
-    tgt = cfg.ladder[i - 1]
+    # Smallest first: the first size where the measured peak stays inside the
+    # target band wins. None fits: report why the next size down does not.
+    lo = max(cfg.index(cfg.min_class), 0)
+    first_fail = None
+    for j in range(lo, i):
+        why = _target_tight(cfg, cur, cfg.ladder[j], cpu_max, cpu_avg, mem_max)
+        if why is None:
+            return Decision("down", "quiet", cfg.ladder[j].name, facts)
+        if j == i - 1:
+            first_fail = why
+    return Decision("none", first_fail or "target_tight", facts=facts)
+
+
+def _target_tight(cfg, cur, tgt, cpu_max, cpu_avg, mem_max):
+    """None when the load measured on `cur` fits `tgt`, else the reason."""
     # The engine thread is one core: only its speed matters, not the core count.
     scale = cur.speed / tgt.speed
     if cpu_max * scale > cfg.target_cpu_max_pct:
-        return Decision("none", "target_cpu_tight", facts=facts)
+        return "target_cpu_tight"
     if tgt.baseline_pct is not None and cpu_avg * scale > cfg.target_burst_avg_ratio * tgt.baseline_pct:
-        return Decision("none", "target_burst_tight", facts=facts)
+        return "target_burst_tight"
     # Same share of maxmemory on every node type, so the percent scales with GiB.
     if mem_max * cur.memory_gib / tgt.memory_gib > cfg.target_mem_used_max_pct:
-        return Decision("none", "target_memory_tight", facts=facts)
-    return Decision("down", "quiet", tgt.name, facts)
+        return "target_memory_tight"
+    return None
 
 
 # --- messages (plain Russian, for the owner) --------------------------------
@@ -300,7 +325,7 @@ def message(cfg, decision, from_cls, dry_run=False):
     f = decision.facts
     return (
         f"{prefix}Redis уменьшен: {a.name} → {b.name} "
-        f"(3 суток нагрузка была низкой: процессор до {f['cpu_max']:g} %, "
+        f"({cfg.down_window_h:g} ч нагрузка была низкой: процессор до {f['cpu_max']:g} %, "
         f"память до {f['mem_max']:g} %). "
         f"Цена ≈ {_price(b)}/мес, экономия ≈ ${a.monthly_usd - b.monthly_usd:,.0f}/мес. {PAUSE_RU}"
     )
