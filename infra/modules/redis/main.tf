@@ -184,7 +184,7 @@ resource "aws_elasticache_replication_group" "this" {
     # remaining node is …-002; the AWS provider then sends the old
     # snapshotting cluster (…-001) with any snapshot change → 404 and every
     # apply stopped. Snapshots follow the nodes «Авто» manages, not Terraform.
-    ignore_changes = [node_type, auth_token, num_cache_clusters, automatic_failover_enabled, multi_az_enabled, snapshot_retention_limit, snapshotting_cluster_id]
+    ignore_changes = [node_type, auth_token, num_cache_clusters, automatic_failover_enabled, multi_az_enabled, snapshot_retention_limit]
     # Failover needs a second Availability Zone to fail over into.
     precondition {
       condition     = var.replicas == 0 || length(var.subnet_ids) >= 2
