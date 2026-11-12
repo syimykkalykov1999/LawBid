@@ -45,6 +45,12 @@ variable "growth" {
     error_message = "growth.rds_read_replicas: 0..5."
   }
   validation {
+    # Owner 2026-11-12: the search engine data nodes, 1, 2 or 4. Across two
+    # Availability Zones AWS accepts only an even count of data nodes.
+    condition     = contains([1, 2, 4], var.growth.opensearch_instance_count)
+    error_message = "growth.opensearch_instance_count: 1, 2 or 4 (two zones need an even count)."
+  }
+  validation {
     condition     = contains(["cloudfront", "bunny"], var.growth.cdn_images_provider)
     error_message = "growth.cdn_images_provider: cloudfront or bunny."
   }

@@ -1839,6 +1839,10 @@ locals {
     # «search.engine» to shadow / engine (docs/architecture/SEARCH_READY.md).
     OPENSEARCH_URL      = var.growth.opensearch_enabled ? "https://${module.growth.opensearch_endpoint}" : ""
     OPENSEARCH_REPLICAS = tostring(module.growth.opensearch_replicas)
+    # Owner 2026-11-12 («Авто» by count): the domain name the API reads the
+    # AWS/ES CPU and JVM pressure of (aws-capacity.service.ts). A name built
+    # from the stack name, never a resource attribute (KNOWN_ERRORS 104).
+    OPS_SEARCH_DOMAIN = var.growth.opensearch_enabled ? "${local.name}-search" : ""
     # Events pipeline (growth.events_stream_enabled): empty while off.
     EVENTS_STREAM_NAME = var.growth.events_stream_enabled ? aws_kinesis_stream.events[0].name : ""
     # N-11: set only with growth.opensearch_serverless_enabled; the app uses

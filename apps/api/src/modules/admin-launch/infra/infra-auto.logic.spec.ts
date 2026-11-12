@@ -142,7 +142,9 @@ describe('autoWants', () => {
       ),
     ).toEqual([]);
     // the one switched on by itself goes off below 80 % of the line
-    const onAll = () => 'on' as const;
+    // One search node (the extra node steps are off, owner 2026-11-12).
+    const onAll = (id: string): 'on' | 'off' =>
+      id.startsWith('aws.opensearch_nodes') ? 'off' : 'on';
     const mine = new Set(['aws.opensearch']);
     expect(
       ids(autoWants({ ...calm, people: 7, searchOnPeople: 10 }, onAll, mine)),
@@ -174,7 +176,9 @@ describe('autoWants', () => {
         ),
       ),
     ).toEqual(['aws.opensearch:on']);
-    const onAll = () => 'on' as const;
+    // One search node (the extra node steps are off, owner 2026-11-12).
+    const onAll = (id: string): 'on' | 'off' =>
+      id.startsWith('aws.opensearch_nodes') ? 'off' : 'on';
     const mine = new Set(['aws.opensearch']);
     // between the two lines: stays on, nothing to do
     expect(
@@ -577,6 +581,123 @@ describe('autoWants: read copies by count', () => {
     expect(
       ids(
         autoWants({ ...calm, pressures: ['replica_cpu'] }, offAll, new Set()),
+      ),
+    ).toEqual([]);
+  });
+});
+
+// Owner 2026-11-12: search engine nodes 1→2→4 «Авто» by count.
+describe('autoWants: search engine nodes by count', () => {
+  const ids = (w: AutoWant[]) =>
+    w
+      .map((x) => `${x.id}:${x.to}`)
+      .filter((x) => x.startsWith('aws.opensearch'))
+      .sort();
+  const liveOf =
+    (on: string[]) =>
+    (id: string): 'on' | 'off' =>
+      on.includes(id) ? 'on' : 'off';
+
+  it('engine busy → the next step only', () => {
+    expect(
+      ids(
+        autoWants(
+          { ...calm, pressures: ['search_busy'] },
+          liveOf(['aws.opensearch']),
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.opensearch_nodes_2:on']);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, pressures: ['search_busy'] },
+          liveOf(['aws.opensearch', 'aws.opensearch_nodes_2']),
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.opensearch_nodes_4:on']);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, pressures: ['search_busy'] },
+          liveOf([
+            'aws.opensearch',
+            'aws.opensearch_nodes_2',
+            'aws.opensearch_nodes_4',
+          ]),
+          new Set(),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('engine idle → the highest step goes, never two at once', () => {
+    expect(
+      ids(
+        autoWants(
+          { ...calm, pressures: ['search_idle'], searchEngine: 'engine' },
+          liveOf([
+            'aws.opensearch',
+            'aws.opensearch_nodes_2',
+            'aws.opensearch_nodes_4',
+          ]),
+          new Set(['aws.opensearch']),
+        ),
+      ),
+    ).toEqual(['aws.opensearch_nodes_4:off']);
+  });
+
+  it('the engine does not go while an extra step is on', () => {
+    expect(
+      ids(
+        autoWants(
+          { ...calm, pressures: [] },
+          liveOf(['aws.opensearch', 'aws.opensearch_nodes_2']),
+          new Set(['aws.opensearch']),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('engine off → no step on; a step left on goes', () => {
+    expect(
+      ids(
+        autoWants({ ...calm, pressures: ['search_busy'] }, offAll, new Set()),
+      ),
+    ).toEqual([]);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, pressures: [] },
+          liveOf(['aws.opensearch_nodes_2']),
+          new Set(),
+        ),
+      ),
+    ).toEqual(['aws.opensearch_nodes_2:off']);
+  });
+
+  it('Выкл on a step: never by itself; Вкл needs the step before', () => {
+    expect(
+      ids(
+        autoWants(
+          {
+            ...calm,
+            pressures: ['search_busy'],
+            modes: { 'aws.opensearch_nodes_2': 'off' },
+          },
+          liveOf(['aws.opensearch']),
+          new Set(),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      ids(
+        autoWants(
+          { ...calm, modes: { 'aws.opensearch_nodes_4': 'on' } },
+          liveOf(['aws.opensearch']),
+          new Set(),
+        ),
       ),
     ).toEqual([]);
   });

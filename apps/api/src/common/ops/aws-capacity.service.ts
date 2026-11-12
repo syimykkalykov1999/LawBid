@@ -41,6 +41,10 @@ export interface CapacityMetrics {
   redisMemoryPercent: number | null;
   /** Owner 2026-11-11: average CPU of the read copies (null = none / unknown). */
   replicaCpuPercent?: number | null;
+  /** Owner 2026-11-12: the search engine domain (AWS/ES): CPU (Average) and
+   * JVM memory pressure (Maximum); null = no domain / unknown. */
+  searchCpuPercent?: number | null;
+  searchJvmPercent?: number | null;
 }
 
 export interface CapacityInfo {
@@ -87,6 +91,11 @@ export class AwsCapacityService {
 
   get redisGroup(): string | undefined {
     return this.env('OPS_REDIS_GROUP');
+  }
+
+  /** The search engine domain (`<name>-search`, empty while it is off). */
+  get searchDomain(): string | undefined {
+    return this.env('OPS_SEARCH_DOMAIN');
   }
 
   get available(): boolean {
@@ -188,12 +197,14 @@ export class AwsCapacityService {
     return { ...db, redisClass };
   }
 
-  /** Average of the last datapoints (5-minute periods over 15 minutes). */
+  /** Average of the last datapoints (5-minute periods over 15 minutes);
+   * with `Maximum`, the highest of those points' maxima. */
   private async avg(
     namespace: string,
     metric: string,
     dimensions: Dimension[],
     now: Date,
+    stat: 'Average' | 'Maximum' = 'Average',
   ): Promise<number | null> {
     const res = await this.cwClient().send(
       new GetMetricStatisticsCommand({
@@ -203,17 +214,17 @@ export class AwsCapacityService {
         StartTime: new Date(now.getTime() - WINDOW_MS),
         EndTime: now,
         Period: 300,
-        Statistics: ['Average'],
+        Statistics: [stat],
       }),
     );
     const points = (res.Datapoints ?? [])
-      .filter((p) => typeof p.Average === 'number' && p.Timestamp)
+      .filter((p) => typeof p[stat] === 'number' && p.Timestamp)
       .sort((a, b) => a.Timestamp!.getTime() - b.Timestamp!.getTime())
       .slice(-2);
     if (points.length === 0) return null;
-    return (
-      points.reduce((s, p) => s + (p.Average as number), 0) / points.length
-    );
+    const values = points.map((p) => p[stat] as number);
+    if (stat === 'Maximum') return Math.max(...values);
+    return values.reduce((a, b) => a + b, 0) / values.length;
   }
 
   async metrics(now: Date = new Date()): Promise<CapacityMetrics> {
@@ -255,6 +266,30 @@ export class AwsCapacityService {
       out.replicaCpuPercent = copies.length
         ? copies.reduce((a, b) => a + b, 0) / copies.length
         : null;
+    }
+    // Owner 2026-11-12 («Авто» by count for the search engine nodes): AWS
+    // advises scaling the domain out on CPUUtilization and JVMMemoryPressure
+    // (repost.aws knowledge-center opensearch-scale-up). Domain metrics
+    // carry the account as ClientId.
+    const account = this.env('OPS_AWS_ACCOUNT_ID');
+    if (this.searchDomain && account) {
+      const dim = [
+        { Name: 'DomainName', Value: this.searchDomain },
+        { Name: 'ClientId', Value: account },
+      ];
+      out.searchCpuPercent = await this.avg(
+        'AWS/ES',
+        'CPUUtilization',
+        dim,
+        now,
+      ).catch(() => null);
+      out.searchJvmPercent = await this.avg(
+        'AWS/ES',
+        'JVMMemoryPressure',
+        dim,
+        now,
+        'Maximum',
+      ).catch(() => null);
     }
     // Owner 2026-11-11 («Масштаб» без AWS): what CloudWatch does not cover
     // is read from the services themselves.
