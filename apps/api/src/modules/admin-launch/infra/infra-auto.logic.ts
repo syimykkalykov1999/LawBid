@@ -53,6 +53,9 @@ export interface AutoSignals extends SuggestionSignals {
    * at 80 % of the split threshold and every extra server already holds
    * data parts — the next server (third, fourth) is needed. */
   serversFull?: boolean;
+  /** Owner 2026-11-12: the extra database servers (`db1`, `db2`, `db3`)
+   * that hold no data at all (ShardMoveService.emptyServers). */
+  emptyServers?: readonly string[];
   /** Owner 2026-11-11: the position picked on «Масштаб» for each item the
    * automation switches (common/ops/infra-modes.ts; missing = Авто), and
    * the items the owner set to Авто himself (handed to the automation: it
@@ -208,7 +211,7 @@ export function autoWants(
   // Owner 2026-11-11: the second database server. Auto: when the database
   // nears the split threshold (a server takes 15-40 min, so from 80 %), or
   // its CPU stays high although the read copy and the pooler already run.
-  // Never switched off by itself (data lives there).
+  // Switched off by itself only when empty (below).
   const shardsMode = (s.shardsMode ?? 'auto').trim().toLowerCase();
   if (live('aws.db_shards') !== 'on') {
     const near = s.shardGrowth === 'yellow' || s.shardGrowth === 'red';
@@ -231,7 +234,7 @@ export function autoWants(
   }
   // Owner 2026-11-11: the third and fourth servers, one after the other, on
   // the same rule once the servers before are taken (Aurora Limitless adds
-  // capacity the same way). Never switched off by itself (data lives there).
+  // capacity the same way). Switched off by itself only when empty (below).
   const MORE = ['aws.db_shards', 'aws.db_shards_2', 'aws.db_shards_3'];
   for (let i = 1; i < MORE.length; i++) {
     const id = MORE[i];
@@ -246,6 +249,32 @@ export function autoWants(
       });
     }
     break;
+  }
+  // Owner 2026-11-12 («Авто» both ways): the last extra server goes again
+  // only while it is EMPTY (no data part, no move, not one row) and no
+  // server nears the split threshold (then the empty one takes the next
+  // split). One at a time, the highest first; AWS keeps a final snapshot.
+  // A server with data is never removed (the API and the plan guard check
+  // emptiness again).
+  let last = -1;
+  while (last + 1 < MORE.length && live(MORE[last + 1]) === 'on') last++;
+  if (last >= 0 && s.emptyServers?.includes(`db${last + 1}`)) {
+    const id = MORE[last];
+    const near = s.shardGrowth === 'yellow' || s.shardGrowth === 'red';
+    const cpu =
+      last === 0 &&
+      s.pressures.includes('db_cpu') &&
+      live('aws.rds_replicas') === 'on' &&
+      live('aws.pgbouncer') === 'on';
+    const kept = last === 0 && shardsMode === 'on';
+    if ((s.modes?.[id] ?? 'auto') === 'auto' && !near && !cpu && !kept) {
+      out.push({
+        id,
+        to: 'off',
+        reason:
+          'Сервер базы пустой (на нём нет ни одной части данных) и для роста не нужен: уходит, AWS оставляет его последний снимок.',
+      });
+    }
   }
   // Owner 2026-11-11: read copies 2..5, like Aurora Auto Scaling: one more
   // while the copies' average CPU is over the line (`replica_cpu`), the last

@@ -192,6 +192,35 @@ describe('infra switch whitelist', () => {
     ]);
   });
 
+  it('lowering db_shards to K may remove the servers K and above only', () => {
+    const plan = [
+      {
+        address: 'module.stack.module.postgres_shard[1].aws_db_instance.this',
+        action: 'delete',
+      },
+      {
+        address:
+          'module.stack.module.postgres_shard[1].aws_secretsmanager_secret.master',
+        action: 'delete',
+      },
+      {
+        address: 'module.stack.module.postgres_shard[0].aws_db_instance.this',
+        action: 'delete',
+      },
+      {
+        address: 'module.stack.module.postgres_shard[1].aws_kms_key.x',
+        action: 'delete-create',
+      },
+    ];
+    expect(forbiddenDestroys(plan, { db_shards: 1 })).toEqual([
+      'module.stack.module.postgres_shard[0].aws_db_instance.this',
+      'module.stack.module.postgres_shard[1].aws_kms_key.x',
+    ]);
+    // Without the lowering change every server stays protected.
+    expect(forbiddenDestroys(plan)).toHaveLength(4);
+    expect(forbiddenDestroys(plan, { waf_enabled: false })).toHaveLength(4);
+  });
+
   it('the CI plan summary uses the same forbidden list', () => {
     const src = readFileSync(
       join(ROOT, 'scripts/infra/plan-summary.mjs'),

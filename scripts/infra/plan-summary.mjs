@@ -44,14 +44,25 @@ export function summarize(plan) {
   return { add, change, destroy, resources };
 }
 
-export function forbidden(summary) {
+// Owner 2026-11-12: a request that lowers db_shards to K may remove the
+// extra servers K and above (postgres_shard[N] / growth_shard[N], N >= K;
+// a plain delete, never a replacement). The API allows such a request only
+// while those servers hold no data; AWS keeps a final snapshot.
+const SHARD_MODULE = /(^|\.)module\.(postgres_shard|growth_shard)\[(\d+)\]\./;
+
+export function forbidden(summary, changes = {}) {
+  const keep = changes?.db_shards;
   return summary.resources
     .filter((r) => r.action.includes('delete'))
-    .filter(
-      (r) =>
+    .filter((r) => {
+      const m = SHARD_MODULE.exec(r.address);
+      const removed = typeof keep === 'number' && m && Number(m[3]) >= keep && r.action === 'delete';
+      return (
         r.address.split('.').some((p) => FORBIDDEN_DESTROY.includes(p.replace(/\[.*$/, ''))) &&
-        !DESTROY_ALLOWED.some((re) => re.test(r.address)),
-    )
+        !removed &&
+        !DESTROY_ALLOWED.some((re) => re.test(r.address))
+      );
+    })
     .map((r) => r.address);
 }
 
@@ -59,12 +70,12 @@ const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.
 if (isMain) {
   const path = process.argv[2];
   if (!path) {
-    process.stderr.write('usage: plan-summary.mjs plan.json\n');
+    process.stderr.write('usage: plan-summary.mjs plan.json [changes.json]\n');
     process.exit(1);
   }
   const s = summarize(JSON.parse(readFileSync(path, 'utf8')));
   process.stdout.write(`${JSON.stringify(s)}\n`);
-  const bad = forbidden(s);
+  const bad = forbidden(s, process.argv[3] ? JSON.parse(readFileSync(process.argv[3], 'utf8')) : {});
   if (bad.length) {
     process.stderr.write(`plan-summary: the plan destroys protected data: ${bad.join(', ')}\n`);
     process.exit(3);
