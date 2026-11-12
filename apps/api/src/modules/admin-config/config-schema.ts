@@ -15,6 +15,7 @@ import { COST_PROVIDERS } from '../../common/cost-guard/cost-guard.constants';
 import type { ConfigValueType } from './admin-config.dto';
 import { ADMIN_AREAS } from '../admin-auth/admin-permissions';
 import { SEATS_HARD_CAP, TRIAL_DAYS_MAX } from '../billing/billing.constants';
+import { STAFF_AI_MODELS } from '../staff-ai/staff-ai.types';
 import {
   ADMIN_THROTTLE_MAX,
   ADMIN_THROTTLE_MIN,
@@ -597,6 +598,15 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 1000,
   };
+  // Owner 2026-11-12 (row 55): only a known Claude model id.
+  out['ai.assistant_model'] = {
+    ...out['ai.assistant_model'],
+    pattern: new RegExp(`^(${STAFF_AI_MODELS.join('|')})$`),
+  };
+  // Owner 2026-11-12: «Хранить N дней» (0 = keep forever).
+  for (const k of ['ai.retention_records_days', 'ai.retention_images_days']) {
+    out[k] = { ...out[k], min: 0, max: 365 };
+  }
   out['db.replica_provision'] = {
     ...out['db.replica_provision'],
     pattern: /^(off|auto)$/,

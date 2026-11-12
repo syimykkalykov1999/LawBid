@@ -125,7 +125,12 @@ export const OWNER_STAFF_SETTINGS = {
   'staff.anomalies.top_n': 20,
   // --- AI mode (T12; the switches above are OFF) ---
   'staff.ai.monthly_cents': 500,
-  'staff.ai.model_tier': 0,
+  // Owner 2026-11-12 (row 55): the model follows the task. Codes:
+  // 0 = Haiku 5.5, 1 = Sonnet 5.5, 2 = Opus 5.5. Tier 1 = complex work
+  // (the nightly re-check of decisions) on Opus; tier 2 = simple, short
+  // texts (desk hint, recommendation summary) on Haiku.
+  'staff.ai.model_tier1': 2,
+  'staff.ai.model_tier2': 0,
   'staff.ai.qa_sample_pct': 0,
   'staff.ai.qa_max_cases': 500,
   'staff.ai.disagree_min_conf': 70,
@@ -563,11 +568,17 @@ export const STAFF_NUMBER_DEFS: Readonly<
     labelRu:
       'ИИ: потолок расходов в месяц, центов (500 = $5; дошли до потолка — вызовы ИИ останавливаются, 0 = ИИ ничего не тратит)',
   },
-  'staff.ai.model_tier': {
+  'staff.ai.model_tier1': {
     min: 0,
-    max: 1,
+    max: 2,
     labelRu:
-      'ИИ: модель (0 = Haiku 5.5, дешёвая; 1 = Sonnet 5.5, точнее и примерно в 20 раз дороже)',
+      'ИИ, сложная работа (ночная перепроверка решений): модель. 0 = Haiku 5.5 (дешёвая), 1 = Sonnet 5.5 (примерно в 20 раз дороже), 2 = Opus 5.5 (самая точная, примерно в 40 раз дороже Haiku). По умолчанию 2. Расход держит месячный потолок.',
+  },
+  'staff.ai.model_tier2': {
+    min: 0,
+    max: 2,
+    labelRu:
+      'ИИ, простая работа (подсказка в столе, текст под рекомендацией): модель. 0 = Haiku 5.5 (по умолчанию), 1 = Sonnet 5.5, 2 = Opus 5.5.',
   },
   'staff.ai.qa_sample_pct': {
     min: 0,

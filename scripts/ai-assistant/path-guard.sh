@@ -29,6 +29,7 @@ FORBIDDEN='
 ^AGENTS\.md$
 ^docs/dev/STRICT_RULES\.md$
 ^\.claude/
+^\.ai-attachments/
 '
 
 BAD=$(grep -E -f <(printf '%s\n' "$FORBIDDEN" | sed '/^$/d') || true)

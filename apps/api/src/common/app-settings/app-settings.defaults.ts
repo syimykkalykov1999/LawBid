@@ -1342,6 +1342,16 @@ export const OWNER_STORAGE_SETTINGS = {
   // GitHub the workflow does not start at all. 0 = no runs.
   'ai.assistant_mode': 'on', // owner 12.11: watches AND takes his tasks by default
   'ai.monthly_max_usd': 30,
+  // Owner 2026-11-12 (row 49, final): nothing the AI makes piles up. Days
+  // after which finished «ИИ-сотрудник» runs and their decided items go
+  // (the owner's newest learning examples per role always stay), and days
+  // after a task / item closes that its images go (both AIs). 1-365,
+  // 0 = keep forever. The owner changes them on the AI pages (2FA).
+  // Owner 2026-11-12 (row 55): the model of the AI technician's runs (one
+  // of STAFF_AI_MODELS; the workflow re-checks it against the same list).
+  'ai.assistant_model': 'claude-opus-5-5',
+  'ai.retention_records_days': 15,
+  'ai.retention_images_days': 15,
   'db.health_table_size_gb': 20,
   'db.health_dead_ratio_percent': 20,
   'storage.growth_alert_percent': 20,

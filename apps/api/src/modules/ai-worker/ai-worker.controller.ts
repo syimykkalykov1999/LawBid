@@ -23,6 +23,7 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
+import { AiAttachmentError } from '../ai-attachments/ai-attachments.logic';
 import {
   AiRoleIdParamDto,
   ApproveBulkAiItemsDto,
@@ -116,7 +117,7 @@ export class AiWorkerController {
   ): Promise<AiWorkerIdDto> {
     ownerOnly(admin);
     await this.auth.assertStepUp(admin.sessionId);
-    return this.wrap(() => this.worker.updateRole(p.id, dto));
+    return this.wrap(() => this.worker.updateRole(p.id, dto, admin.id));
   }
 
   // flag: none owner only, fresh 2FA
@@ -209,6 +210,12 @@ export class AiWorkerController {
     try {
       return await fn();
     } catch (e) {
+      if (e instanceof AiAttachmentError) {
+        throw new HttpException(
+          { code: E.VALIDATION_ERROR, message: e.message },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
       if (e instanceof AiWorkerError) {
         throw new HttpException(
           {

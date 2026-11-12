@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
+  IsArray,
   IsIn,
   IsInt,
   IsOptional,
@@ -13,6 +14,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { AiAttachmentViewDto } from '../ai-attachments/ai-attachments.dto';
 import { STAFF_AI_MODELS } from '../staff-ai/staff-ai.types';
 import { VERDICT_DECISIONS } from './ai-worker.prompt';
 import { AI_WORKER_QUEUES } from './ai-worker.queues';
@@ -22,6 +24,12 @@ export class AiWorkerQueueDto {
   @ApiProperty({ enum: AI_WORKER_QUEUES, enumName: 'AiWorkerQueueKey' })
   key!: string;
   @ApiProperty() label!: string;
+  @ApiProperty({
+    enum: STAFF_AI_MODELS,
+    enumName: 'AiWorkerModel',
+    description: 'Model a new role of this queue starts with.',
+  })
+  defaultModel!: string;
 }
 
 export class AiWorkerRoleDto {
@@ -45,6 +53,11 @@ export class AiWorkerRoleDto {
     description: 'Agreement with the owner, %.',
   })
   agreementPct!: number | null;
+  @ApiProperty({
+    type: [AiAttachmentViewDto],
+    description: 'Example screenshots / instructions of the role.',
+  })
+  images!: AiAttachmentViewDto[];
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
@@ -152,6 +165,11 @@ export class AiWorkerItemDto {
   @ApiProperty() costCents!: number;
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })
   reviewedAt!: string | null;
+  @ApiProperty({
+    type: [AiAttachmentViewDto],
+    description: 'Pictures of the owner’s correction note.',
+  })
+  images!: AiAttachmentViewDto[];
 }
 
 export class AiWorkerItemsDto {
@@ -239,6 +257,19 @@ export class CreateAiRoleDto {
   @Min(0)
   @Max(100)
   auditPct?: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    maxItems: 10,
+    description:
+      'Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads); the exact set replaces the old one.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsUUID('all', { each: true })
+  imageFileIds?: string[];
 }
 
 export class UpdateAiRoleDto {
@@ -279,6 +310,19 @@ export class UpdateAiRoleDto {
   @Min(0)
   @Max(100)
   auditPct?: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    maxItems: 10,
+    description:
+      'Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads); the exact set replaces the old one.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsUUID('all', { each: true })
+  imageFileIds?: string[];
 }
 
 export class AiRoleIdParamDto {
@@ -326,6 +370,19 @@ export class ReviewAiItemsDto {
   @IsString()
   @MaxLength(1000)
   ownerNote?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    maxItems: 10,
+    description:
+      'Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads); the exact set replaces the old one.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsUUID('all', { each: true })
+  imageFileIds?: string[];
 }
 
 export class ApproveBulkAiItemsDto {

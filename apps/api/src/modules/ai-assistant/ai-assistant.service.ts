@@ -6,10 +6,20 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
+  extensionOf,
+  issueAttachmentsLine,
+} from '../ai-attachments/ai-attachments.logic';
+import { AiAttachmentsService } from '../ai-attachments/ai-attachments.service';
+import {
   GithubMergeError,
   InfraGithubClient,
 } from '../admin-launch/infra-github';
 import { SentryIssuesClient } from '../staff-home/sentry-issues.client';
+import {
+  STAFF_AI_MODELS,
+  isStaffAiModel,
+  type StaffAiModel,
+} from '../staff-ai/staff-ai.types';
 import {
   AI_REFUSAL_TEXT,
   AI_TASK_LABEL,
@@ -53,6 +63,9 @@ export interface AiPullRow {
   costUsd: number | null;
 }
 
+/** Owner 2026-11-12 (row 55): every AI starts on Opus 5.5. */
+export const DEFAULT_AI_MODEL: StaffAiModel = 'claude-opus-5-5';
+
 /** Last runs kept for the admin page (Redis list, newest first). */
 const RUNS_KEY = 'ai:runs';
 const RUNS_KEEP = 50;
@@ -88,6 +101,8 @@ export interface AiStatus {
   }[];
   tasksError: string | null;
   runs: AiRunRecord[];
+  model: StaffAiModel;
+  models: StaffAiModel[];
 }
 
 /**
@@ -107,6 +122,7 @@ export class AiAssistantService {
     private readonly audit: AuditLogService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Optional() private readonly sentry?: SentryIssuesClient,
+    @Optional() private readonly attachments?: AiAttachmentsService,
   ) {}
 
   private async mode(): Promise<string> {
@@ -114,6 +130,18 @@ export class AiAssistantService {
       (await this.settings.string('ai.assistant_mode').catch(() => 'off')) ??
       'off'
     );
+  }
+
+  /**
+   * Owner 2026-11-12 (row 55): the model of the runs (`ai.assistant_model`,
+   * Opus 5.5 by default). Only a known model id ever leaves here: anything
+   * else falls back to the default, and the workflow re-checks the list.
+   */
+  async model(): Promise<StaffAiModel> {
+    const m = await this.settings
+      .string('ai.assistant_model')
+      .catch(() => DEFAULT_AI_MODEL);
+    return isStaffAiModel(m) ? m : DEFAULT_AI_MODEL;
   }
 
   private async maxUsd(): Promise<number> {
@@ -130,16 +158,18 @@ export class AiAssistantService {
 
   /** [kind]: the scheduled look or an owner task (Авто runs only the first). */
   async gate(now: Date = new Date(), kind: AiRunKind = 'schedule') {
-    const [mode, connected, monthUsd, maxUsd] = await Promise.all([
+    const [mode, connected, monthUsd, maxUsd, model] = await Promise.all([
       this.mode(),
       this.github.configured(),
       this.monthUsd(now),
       this.maxUsd(),
+      this.model(),
     ]);
     const g = aiGate({ mode, connected, monthUsd, maxUsd, kind });
     return {
       ...g,
       reasonText: g.reason ? AI_REFUSAL_TEXT[g.reason] : null,
+      model,
       mode,
       connected,
       monthUsd,
@@ -154,6 +184,13 @@ export class AiAssistantService {
     if (g.connected) {
       try {
         tasks = await this.github.issuesWithPulls(AI_TASK_LABEL, 20);
+        // Owner 2026-11-12 (row 49): a closed task's pictures start their
+        // ai.retention_images_days clock.
+        await this.attachments
+          ?.closeTasks(
+            tasks.filter((t) => t.state === 'closed').map((t) => t.number),
+          )
+          .catch(() => 0);
       } catch (e) {
         tasksError = (e as Error).message.slice(0, 200);
       }
@@ -178,6 +215,8 @@ export class AiAssistantService {
       tasks,
       tasksError,
       runs,
+      model: g.model,
+      models: [...STAFF_AI_MODELS],
     };
   }
 
@@ -298,6 +337,7 @@ export class AiAssistantService {
         ip: admin.ip ?? null,
       });
       this.log.log(`ai PR #${n} merged by the owner (${merged.sha})`);
+      await this.afterPull(pull.headRef);
       return { number: n, mergedSha: merged.sha };
     } finally {
       await this.redis
@@ -332,6 +372,7 @@ export class AiAssistantService {
         .filter(Boolean)
         .join('\n\n'),
     );
+    await this.afterPull(pull.headRef);
     await this.audit.record({
       adminId: admin.id,
       action: 'ai.pull_reject',
@@ -347,7 +388,7 @@ export class AiAssistantService {
   /** The owner's task becomes an `ai-task` issue (the workflow picks it up). */
   async createTask(
     admin: { id: string; ip?: string | null },
-    input: { title: string; details: string },
+    input: { title: string; details: string; imageFileIds?: string[] },
   ): Promise<{ number: number; url: string }> {
     // Owner 12.11: the admin's tasks run only in Вкл (Авто = by itself only).
     const g = await this.gate(new Date(), 'task');
@@ -355,21 +396,87 @@ export class AiAssistantService {
       throw new AiAssistantError(g.reason);
     }
     if (!g.connected) throw new AiAssistantError('not_connected');
-    const issue = await this.github.createIssue({
-      title: input.title.trim().slice(0, 200),
-      body: taskIssueBody(input.details, `admin ${admin.id.slice(0, 8)}`),
-      labels: [AI_TASK_LABEL],
-    });
+    // Owner 2026-11-12 (row 48): the pictures stay in our private storage;
+    // the PUBLIC issue gets only their opaque ids (never a URL or bytes).
+    const attachmentIds =
+      input.imageFileIds?.length && this.attachments
+        ? await this.attachments.prepareTask(admin.id, input.imageFileIds)
+        : [];
+    let issue: { number: number; url: string };
+    try {
+      issue = await this.github.createIssue({
+        title: input.title.trim().slice(0, 200),
+        body: [
+          taskIssueBody(input.details, `admin ${admin.id.slice(0, 8)}`),
+          issueAttachmentsLine(attachmentIds),
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+        labels: [AI_TASK_LABEL],
+      });
+    } catch (e) {
+      await this.attachments?.close(attachmentIds);
+      throw e;
+    }
+    await this.attachments?.bindTask(attachmentIds, issue.number);
     await this.audit.record({
       adminId: admin.id,
       action: 'ai.task_create',
       targetType: 'system',
       targetId: null,
       before: null,
-      after: { issue: issue.number, url: issue.url },
+      after: {
+        issue: issue.number,
+        url: issue.url,
+        images: attachmentIds.length,
+      },
       ip: admin.ip ?? null,
     });
     return { number: issue.number, url: issue.url };
+  }
+
+  /**
+   * Owner 2026-11-12 (row 49): a merged or rejected AI branch is deleted
+   * (the repository keeps head branches: delete_branch_on_merge is false)
+   * and the task's pictures start their retention clock. A failure here is
+   * logged only: the merge / close already happened.
+   */
+  private async afterPull(headRef: string): Promise<void> {
+    if (!headRef.startsWith(AI_BRANCH_PREFIX)) return;
+    await this.github
+      .deleteBranch(headRef)
+      .catch((e: Error) =>
+        this.log.warn(`branch ${headRef} not deleted: ${e.message}`),
+      );
+    const issue = /^ai\/issue-(\d+)$/.exec(headRef);
+    if (issue) {
+      await this.attachments
+        ?.closeTasks([Number(issue[1])])
+        .catch(() => undefined);
+    }
+  }
+
+  /**
+   * The workflow's pictures for issue [issueNumber] (OIDC-checked caller):
+   * only the open rows of that issue among the ids its body lists, each at
+   * most 1568 px with no metadata. The bytes go to the runner only, never
+   * into GitHub.
+   */
+  async taskImages(issueNumber: number, ids: string[]) {
+    if (!this.attachments) return { images: [], pending: 0 };
+    const { images, pending } = await this.attachments.taskImages(
+      issueNumber,
+      ids,
+    );
+    return {
+      images: images.map((i) => ({
+        id: i.id,
+        mime: i.mediaType,
+        ext: extensionOf(i.mediaType),
+        base64: i.data,
+      })),
+      pending,
+    };
   }
 
   /**
