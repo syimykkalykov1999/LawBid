@@ -123,7 +123,10 @@ export class AiWorkerController {
   // flag: none owner only, fresh 2FA
   @Post('roles/:id/archive')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'AI worker: put a role away (kept for history)' })
+  @ApiOperation({
+    summary:
+      'AI worker: «Удалить» a role (soft delete; its runs stop, history stays until the retention cleanup)',
+  })
   @ApiEnvelopeResponse(AiWorkerIdDto)
   @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 404: [E.NOT_FOUND] })
   async archiveAiRole(

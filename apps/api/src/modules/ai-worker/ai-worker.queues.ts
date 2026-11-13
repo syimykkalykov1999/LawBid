@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { StaffAiModel } from '../staff-ai/staff-ai.types';
+import { stateBarLookupUrl } from '../verification/verification.public';
 import type { ItemData } from './ai-worker.prompt';
+import { AiWorkerSources } from './ai-worker.sources';
 
 /**
  * Owner 2026-11-12 «ИИ-сотрудник»: the admin queues a role may work on and
@@ -10,14 +12,27 @@ import type { ItemData } from './ai-worker.prompt';
  * item and hands it over as data. Nothing here writes, and nothing reads
  * secrets, money or private chats (ai-worker.guard.spec.ts checks it).
  */
-export const AI_WORKER_QUEUES = ['attorney_verification'] as const;
+export const AI_WORKER_QUEUES = [
+  'attorney_verification',
+  // Owner 2026-11-12 (row 51): support replies and complaint triage.
+  'support_reply',
+  'complaint_triage',
+] as const;
 export type AiWorkerQueue = (typeof AI_WORKER_QUEUES)[number];
 export const isAiWorkerQueue = (q: string): q is AiWorkerQueue =>
   (AI_WORKER_QUEUES as readonly string[]).includes(q);
 
 export const QUEUE_LABEL: Readonly<Record<AiWorkerQueue, string>> = {
   attorney_verification: 'Проверка документов адвокатов',
+  support_reply: 'Ответы в поддержку',
+  complaint_triage: 'Разбор жалоб',
 };
+
+/** Owner 2026-11-12 (row 51): the queue whose approved proposals are sent
+ * (a support reply); every other queue's approval only records. */
+export const SENDS_REPLY: ReadonlySet<AiWorkerQueue> = new Set([
+  'support_reply',
+]);
 
 /**
  * Owner 2026-11-12 (row 55): a new role's model follows its queue (the role's
@@ -30,6 +45,8 @@ export const QUEUE_DEFAULT_MODEL: Readonly<
   Record<AiWorkerQueue, StaffAiModel>
 > = {
   attorney_verification: 'claude-opus-5-5',
+  support_reply: 'claude-haiku-5-5',
+  complaint_triage: 'claude-haiku-5-5',
 };
 
 /** Verification requests a human still has to decide. */
@@ -44,7 +61,10 @@ export interface QueueExample {
 /** «Лицензия, штат, срок, совпадение имени»: what the reviewer sees. */
 @Injectable()
 export class AiWorkerQueues {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sources: AiWorkerSources,
+  ) {}
 
   /** Ids of open items, oldest first, keyset after [afterId]. */
   async openIds(
@@ -63,6 +83,10 @@ export class AiWorkerQueues {
         });
         return rows.map((r) => r.id);
       }
+      case 'support_reply':
+        return this.sources.supportOpenIds(take, afterId);
+      case 'complaint_triage':
+        return this.sources.complaintOpenIds(take, afterId);
     }
   }
 
@@ -72,6 +96,10 @@ export class AiWorkerQueues {
         return this.prisma.verificationRequest.count({
           where: { status: { in: [...OPEN_VERIFICATION] } },
         });
+      case 'support_reply':
+        return this.sources.supportOpenCount();
+      case 'complaint_triage':
+        return this.sources.complaintOpenCount();
     }
   }
 
@@ -115,6 +143,10 @@ export class AiWorkerQueues {
           };
         });
       }
+      case 'support_reply':
+        return this.sources.supportExamples(n, now);
+      case 'complaint_triage':
+        return this.sources.complaintExamples(n, now);
     }
   }
 
@@ -130,6 +162,10 @@ export class AiWorkerQueues {
           !!r && (OPEN_VERIFICATION as readonly string[]).includes(r.status)
         );
       }
+      case 'support_reply':
+        return this.sources.supportStillOpen(itemId);
+      case 'complaint_triage':
+        return this.sources.complaintStillOpen(itemId);
     }
   }
 
@@ -142,7 +178,61 @@ export class AiWorkerQueues {
     switch (queue) {
       case 'attorney_verification':
         return this.verification(itemId, now);
+      case 'support_reply':
+        return this.sources.support(itemId, now);
+      case 'complaint_triage':
+        return this.sources.complaint(itemId, now);
     }
+  }
+
+  /** The admin page of each item («Открыть»), by queue. */
+  async openPaths(
+    rows: ReadonlyArray<{ queue: string; itemId: string }>,
+  ): Promise<Map<string, string>> {
+    const complaints = await this.sources.complaintPaths(
+      rows.filter((r) => r.queue === 'complaint_triage').map((r) => r.itemId),
+    );
+    const out = new Map<string, string>();
+    for (const r of rows) {
+      if (r.queue === 'support_reply')
+        out.set(r.itemId, `/support/${r.itemId}`);
+      else if (r.queue === 'complaint_triage') {
+        const p = complaints.get(r.itemId);
+        if (p) out.set(r.itemId, p);
+      } else out.set(r.itemId, `/verification/${r.itemId}`);
+    }
+    return out;
+  }
+
+  /** Owner 2026-11-12 (row 50): the registry links of the states the
+   * owner has to check by hand, for the review cards (never the model). */
+  async registryLinks(
+    requestIds: readonly string[],
+  ): Promise<Map<string, Array<{ stateCode: string; url: string }>>> {
+    const out = new Map<string, Array<{ stateCode: string; url: string }>>();
+    if (requestIds.length === 0) return out;
+    const rows = await this.prisma.verificationRequest.findMany({
+      where: { id: { in: [...requestIds] } },
+      select: {
+        id: true,
+        attorney: {
+          select: {
+            licenses: {
+              select: { state_code: true, bar_number: true },
+              take: 10,
+            },
+          },
+        },
+      },
+    });
+    for (const r of rows) {
+      const links = r.attorney.licenses.flatMap((l) => {
+        const url = stateBarLookupUrl(l.state_code, l.bar_number);
+        return url ? [{ stateCode: l.state_code, url }] : [];
+      });
+      out.set(r.id, links);
+    }
+    return out;
   }
 
   private async verification(id: string, now: Date): Promise<ItemData | null> {
@@ -256,8 +346,47 @@ export class AiWorkerQueues {
         c.details,
       );
     });
-    return { facts, data, flags: verificationFlags(v, docTypes, hasId, now) };
+    // Owner 2026-11-12 (PR #961): the automatic face comparison (selfie vs
+    // the ID photo), read from verification_checks when it is there.
+    const face = v.checks.find((c) => String(c.check_type) === 'face_match');
+    if (face) facts.push(faceMatchFact(face));
+    // Owner 2026-11-12 (row 50): the server asks the official registries
+    // itself and hands the answer over as platform facts.
+    const first = a.verified_first_name || a.user.first_name || '';
+    const last = a.verified_last_name || a.user.last_name || '';
+    const reg = await this.sources.registry(a.licenses, { first, last }, now);
+    if (reg.retryLater) return { facts, data, flags: [], retryLater: true };
+    facts.push(...reg.facts);
+    Object.assign(data, reg.data);
+    const flags = [
+      ...new Set([
+        ...verificationFlags(v, docTypes, hasId, now),
+        ...reg.flags,
+        ...(face && String(face.result) === 'manual_review'
+          ? ['face_match_needs_review']
+          : []),
+      ]),
+    ];
+    return { facts, data, flags };
   }
+}
+
+/** One line about the face comparison: result, similarity, reason (all
+ * computed by the platform's provider, never typed by a user). */
+export function faceMatchFact(c: {
+  provider: unknown;
+  result: unknown;
+  details: unknown;
+  checked_at: Date;
+}): string {
+  const d = (c.details ?? {}) as Record<string, unknown>;
+  const sim =
+    typeof d.similarity === 'number' ? `${d.similarity}%` : 'not measured';
+  const reason =
+    typeof d.reason === 'string' && /^[a-z_]{1,40}$/.test(d.reason)
+      ? `; reason ${d.reason}`
+      : '';
+  return `face match (selfie vs the ID photo, ${String(c.provider)}): ${String(c.result)}; similarity ${sim}${reason}; on ${c.checked_at.toISOString().slice(0, 10)}`;
 }
 
 /** The platform's own red flags of a verification request (server facts,

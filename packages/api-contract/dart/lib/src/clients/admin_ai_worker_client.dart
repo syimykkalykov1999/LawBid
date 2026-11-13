@@ -56,7 +56,7 @@ abstract class AdminAiWorkerClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// AI worker: put a role away (kept for history)
+  /// AI worker: «Удалить» a role (soft delete; its runs stop, history stays until the retention cleanup)
   @POST('/admin/ai-worker/roles/{id}/archive')
   Future<AiWorkerIdEnvelope> archiveAiRole({
     @Path('id') required String id,

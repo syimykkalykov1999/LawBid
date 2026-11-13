@@ -16,6 +16,7 @@ import {
   type PreparedImage,
 } from '../ai-attachments/ai-attachments.service';
 import { StaffAiBudgetService } from '../staff-ai/staff-ai-budget.service';
+import { AdminSupportService } from '../support/admin-support.service';
 import {
   StaffAiClient,
   type AiBatchItem,
@@ -49,6 +50,7 @@ import {
   AiWorkerQueues,
   QUEUE_DEFAULT_MODEL,
   QUEUE_LABEL,
+  SENDS_REPLY,
   isAiWorkerQueue,
   type AiWorkerQueue,
   type QueueExample,
@@ -64,6 +66,10 @@ const RUNS_PER_TICK = 5;
 const ITEM_PAGE = 50;
 const INSERT_PAGE = 1000;
 const ACTIVE_ITEM = ['pending', 'sent', 'proposed'];
+/** Owner 2026-11-12 (row 51): proposals whose «reply» may go to the user. */
+const SENDABLE: readonly string[] = ['approve', 'request_info'];
+/** How many approved replies one review call sends (the rest: next call). */
+const DELIVER_PAGE = 500;
 /** How many of the owner's latest decisions are read / fed back as examples. */
 const FEEDBACK_READ = AI_FEEDBACK_KEEP;
 /** A Message Batch may be 256 MB; the pictures of a chunk stay well under. */
@@ -91,6 +97,10 @@ export interface RoleInput {
   auditPct?: number;
   /** Owner 2026-11-12: the role's example screenshots (exact set). */
   imageFileIds?: string[];
+  /** Owner 2026-11-12 (row 53): «Вкл / Выкл». */
+  enabled?: boolean;
+  /** Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам». */
+  autoSend?: boolean;
 }
 
 export interface ReviewInput {
@@ -141,6 +151,9 @@ export class AiWorkerService {
     private readonly budget: StaffAiBudgetService,
     private readonly queues: AiWorkerQueues,
     @Optional() private readonly attachments?: AiAttachmentsService,
+    // Owner 2026-11-12 (row 51): an approved support reply goes out through
+    // the support page's own path (macros, status, push, staff stats).
+    @Optional() private readonly support?: AdminSupportService,
   ) {}
 
   // ------------------------------------------------------------- overview
@@ -196,6 +209,8 @@ export class AiWorkerService {
         model: r.model,
         confidenceMin: r.confidence_min,
         auditPct: r.audit_pct,
+        enabled: r.enabled,
+        autoSend: r.auto_send,
         ...stats[i],
         images: images.get(r.id) ?? [],
         createdAt: r.created_at.toISOString(),
@@ -244,13 +259,14 @@ export class AiWorkerService {
   /** «Могу взять на себя X, вот 3 примера»: open work no role covers yet,
    * or a role whose queue has items no run has taken. Counts only, no AI. */
   async proposals(
-    roles: Array<{ id: string; queue: string }>,
+    roles: Array<{ id: string; queue: string; enabled?: boolean }>,
   ): Promise<Proposal[]> {
     const out: Proposal[] = [];
     for (const queue of AI_WORKER_QUEUES) {
       const open = await this.queues.openCount(queue);
       if (open === 0) continue;
-      const role = roles.find((r) => r.queue === queue) ?? null;
+      const of = roles.filter((r) => r.queue === queue);
+      const role = of.find((r) => r.enabled !== false) ?? of[0] ?? null;
       const label = QUEUE_LABEL[queue];
       out.push({
         queue,
@@ -258,7 +274,9 @@ export class AiWorkerService {
         open,
         roleId: role?.id ?? null,
         text: role
-          ? `Ждут ${open}. Могу пройти их ролью — нажмите «Запустить».`
+          ? role.enabled === false
+            ? `Ждут ${open}. Роль выключена — включите её, чтобы я прошёл их.`
+            : `Ждут ${open}. Могу пройти их ролью — нажмите «Запустить».`
           : `Могу взять на себя «${label}»: ждут ${open}. Опишите роль один раз — дальше я готовлю предложения, вы утверждаете.`,
         examples: await this.queues.examples(queue, 3),
       });
@@ -278,6 +296,7 @@ export class AiWorkerService {
         // Owner 2026-11-12 (row 55): no model chosen = the queue's default.
         model: asModel(input.model ?? QUEUE_DEFAULT_MODEL[queue]),
         ...this.policy(input),
+        ...this.switches(input),
         created_by: adminId,
       },
     });
@@ -302,9 +321,19 @@ export class AiWorkerService {
         ...(input.queue !== undefined ? { queue: asQueue(input.queue) } : {}),
         ...(input.model !== undefined ? { model: asModel(input.model) } : {}),
         ...this.policy(input),
+        ...this.switches(input),
       },
     });
     return { id };
+  }
+
+  /** Owner 2026-11-12 (rows 53, 51): «Вкл / Выкл» and the auto-send switch
+   * of support replies. Off = no run starts and the cron skips the role. */
+  private switches(input: Partial<RoleInput>) {
+    return {
+      ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      ...(input.autoSend !== undefined ? { auto_send: input.autoSend } : {}),
+    };
   }
 
   private policy(input: Partial<RoleInput>) {
@@ -352,12 +381,25 @@ export class AiWorkerService {
     );
   }
 
+  /**
+   * Owner 2026-11-12 (row 53) «Удалить»: a soft delete (the controller asks
+   * for the 2FA code). The role disappears from the page and does nothing
+   * more: its queued / running runs stop like «Остановить» (a batch already
+   * in flight is still collected once, so the money spent is counted). Its
+   * runs and items stay in history until the retention cleanup.
+   */
   async archiveRole(id: string) {
     await this.role(id);
+    const now = new Date();
     await this.prisma.aiRole.update({
       where: { id },
-      data: { archived_at: new Date() },
+      data: { archived_at: now },
     });
+    const runs = await this.prisma.aiRun.findMany({
+      where: { role_id: id, status: { in: ['queued', 'running'] } },
+      select: { id: true },
+    });
+    for (const r of runs) await this.cancelRun(r.id);
     await this.attachments?.closeRole(id);
     return { id };
   }
@@ -376,6 +418,11 @@ export class AiWorkerService {
    * not already pending or waiting for review in another run of this role. */
   async startRun(adminId: string, roleId: string, limit?: number) {
     const role = await this.role(roleId);
+    if (!role.enabled)
+      throw new AiWorkerError(
+        'Роль выключена: включите её («Вкл»), чтобы запустить.',
+        'disabled',
+      );
     if (!(await this.client.isEnabled('worker')))
       throw new AiWorkerError(
         'Режим ИИ выключен: включите мастер-тумблер «Режим ИИ для сотрудников» в Настройках.',
@@ -452,12 +499,20 @@ export class AiWorkerService {
     if (!(await this.client.isEnabled('worker'))) return { skipped: 'off' };
     const runs = await this.prisma.aiRun.findMany({
       where: {
+        // Owner 2026-11-12 (row 53): a role switched off does nothing at
+        // all (not even collecting); a deleted role only has its last batch
+        // collected (its runs were canceled).
         OR: [
           {
             status: { in: ['queued', 'running'] },
             OR: [{ next_attempt_at: null }, { next_attempt_at: { lte: now } }],
+            role: { enabled: true, archived_at: null },
           },
-          { status: 'canceled', batch_id: { not: null } },
+          {
+            status: 'canceled',
+            batch_id: { not: null },
+            role: { enabled: true },
+          },
         ],
       },
       orderBy: { created_at: 'asc' },
@@ -518,6 +573,9 @@ export class AiWorkerService {
       const data = (await this.queues.stillOpen(queue, item.item_id))
         ? await this.queues.load(queue, item.item_id, now)
         : null;
+      // Owner 2026-11-12 (row 50): the registry's rate limit was reached;
+      // the item stays pending and is read again on the next tick.
+      if (data?.retryLater) continue;
       if (!data) {
         skipped++;
         await this.prisma.aiRunItem.update({
@@ -594,7 +652,15 @@ export class AiWorkerService {
     );
     const role = await this.prisma.aiRole.findUnique({
       where: { id: run.role_id },
-      select: { confidence_min: true, audit_pct: true },
+      select: {
+        confidence_min: true,
+        audit_pct: true,
+        queue: true,
+        auto_send: true,
+        enabled: true,
+        archived_at: true,
+        created_by: true,
+      },
     });
     const policy = {
       confidenceMin: role?.confidence_min ?? 90,
@@ -611,6 +677,18 @@ export class AiWorkerService {
     let proposed = 0;
     let failed = 0;
     const seen = new Set<string>();
+    // Owner 2026-11-12 (row 51): with «Отправлять уверенные ответы сам» on,
+    // a confident support reply (bulk lane: no red flag, no injection
+    // attempt, not picked for the audit) goes out at once.
+    const autoSend =
+      !!role &&
+      role.auto_send &&
+      role.enabled &&
+      !role.archived_at &&
+      run.status !== 'canceled' &&
+      isAiWorkerQueue(role.queue) &&
+      SENDS_REPLY.has(role.queue);
+    const toSend: string[] = [];
     for (const r of results) {
       seen.add(r.customId);
       const itemCost = r.usage ? costMillicents(model, r.usage, true) : 0;
@@ -630,6 +708,13 @@ export class AiWorkerService {
             error: null,
           },
         });
+        if (
+          autoSend &&
+          lane === 'bulk' &&
+          r.value.decision === 'approve' &&
+          r.value.reply
+        )
+          toSend.push(r.customId);
       } else if (!r.ok) {
         failed++;
         await this.prisma.aiRunItem.updateMany({
@@ -663,7 +748,76 @@ export class AiWorkerService {
         error: null,
       },
     });
+    if (toSend.length && role) {
+      const res = await this.prisma.aiRunItem.updateMany({
+        where: { id: { in: toSend }, status: 'proposed' },
+        data: { status: 'auto_sent' },
+      });
+      if (res.count) await this.deliver(role.created_by, toSend, 'auto_sent');
+    }
     return 'collected';
+  }
+
+  /**
+   * Owner 2026-11-12 (row 51): sends the «reply» of decided support
+   * proposals to the user through AdminSupportService.reply (the support
+   * page's own path). Each item is claimed once (delivered_at), the ticket
+   * must still wait for our answer, and a failure frees the claim with the
+   * reason on the card. Complaints and verification never send anything.
+   */
+  private async deliver(
+    authorId: string,
+    ids: readonly string[],
+    status: 'approved' | 'auto_sent',
+  ): Promise<number> {
+    if (!this.support || ids.length === 0) return 0;
+    const rows = await this.prisma.aiRunItem.findMany({
+      where: {
+        id: { in: [...ids] },
+        status,
+        delivered_at: null,
+        decision: { in: [...SENDABLE] },
+      },
+      select: {
+        id: true,
+        item_id: true,
+        proposal: true,
+        run: { select: { role: { select: { queue: true } } } },
+      },
+      take: DELIVER_PAGE,
+    });
+    let sent = 0;
+    for (const r of rows) {
+      const queue = r.run.role.queue;
+      if (!isAiWorkerQueue(queue) || !SENDS_REPLY.has(queue)) continue;
+      const reply = ((r.proposal ?? {}) as Partial<Verdict>).reply?.trim();
+      if (!reply) continue;
+      const claim = await this.prisma.aiRunItem.updateMany({
+        where: { id: r.id, delivered_at: null },
+        data: { delivered_at: new Date() },
+      });
+      if (claim.count === 0) continue;
+      try {
+        if (!(await this.queues.stillOpen(queue, r.item_id))) {
+          throw new Error('обращение уже не ждёт ответа');
+        }
+        await this.support.reply(authorId, r.item_id, { body: reply });
+        sent++;
+      } catch (e) {
+        await this.prisma.aiRunItem.update({
+          where: { id: r.id },
+          data: {
+            delivered_at: null,
+            // An auto reply that could not go out waits for the owner.
+            ...(status === 'auto_sent' ? { status: 'proposed' } : {}),
+            error: `Ответ не отправлен: ${
+              e instanceof Error ? e.message : 'ошибка'
+            }`.slice(0, 300),
+          },
+        });
+      }
+    }
+    return sent;
   }
 
   private async backoff(run: AiRun, e: unknown, now: Date): Promise<void> {
@@ -715,12 +869,37 @@ export class AiWorkerService {
       orderBy: { id: 'asc' },
       take: ITEM_PAGE + 1,
       ...(filter.cursor ? { cursor: { id: filter.cursor }, skip: 1 } : {}),
-      include: { run: { select: { role: { select: { name: true } } } } },
+      include: {
+        run: { select: { role: { select: { name: true, queue: true } } } },
+      },
     });
     const page = rows.slice(0, ITEM_PAGE);
     const images =
       (await this.attachments?.views({ runItemIds: page.map((i) => i.id) })) ??
       new Map<string, AiAttachmentView[]>();
+    // Owner 2026-11-12 (row 50): states the owner checks by hand get the
+    // official registry link on the card.
+    const manual = (flags: readonly string[]) =>
+      new Set(
+        flags
+          .map((f) =>
+            /^licence_([A-Z]{2})_registry_(manual|unavailable)$/.exec(f),
+          )
+          .filter((m): m is RegExpExecArray => !!m)
+          .map((m) => m[1]),
+      );
+    const paths = await this.queues.openPaths(
+      page.map((i) => ({ queue: i.run.role.queue, itemId: i.item_id })),
+    );
+    const links = await this.queues.registryLinks(
+      page
+        .filter(
+          (i) =>
+            i.run.role.queue === 'attorney_verification' &&
+            manual(i.flags).size > 0,
+        )
+        .map((i) => i.item_id),
+    );
     return {
       items: page.map((i) => {
         const p = (i.proposal ?? null) as
@@ -730,10 +909,13 @@ export class AiWorkerService {
               injectionSuspected?: boolean;
             })
           | null;
+        const states = manual(i.flags);
         return {
           id: i.id,
           runId: i.run_id,
           roleName: i.run.role.name,
+          queue: i.run.role.queue,
+          openPath: paths.get(i.item_id) ?? null,
           itemId: i.item_id,
           status: i.status,
           decision: i.decision,
@@ -746,6 +928,12 @@ export class AiWorkerService {
           ownerNote: i.owner_note,
           draftNote: p?.draftNote ?? '',
           injectionSuspected: p?.injectionSuspected ?? false,
+          reply: p?.reply ?? '',
+          action: p?.action ?? 'none',
+          deliveredAt: i.delivered_at?.toISOString() ?? null,
+          registryLinks: (links.get(i.item_id) ?? []).filter((l) =>
+            states.has(l.stateCode),
+          ),
           error: i.error,
           costCents: i.cost_millicents / 1000,
           reviewedAt: i.reviewed_at?.toISOString() ?? null,
@@ -797,6 +985,10 @@ export class AiWorkerService {
         input.imageFileIds ?? [],
       );
     }
+    // Owner 2026-11-12 (row 51): «Утвердить» on a support draft sends it.
+    if (input.verdict === 'approved' && res.count > 0) {
+      await this.deliver(adminId, input.ids, 'approved');
+    }
     return { updated: res.count };
   }
 
@@ -846,6 +1038,7 @@ export class AiWorkerService {
     adminId: string,
     runId?: string,
   ): Promise<{ updated: number }> {
+    const at = new Date();
     const res = await this.prisma.aiRunItem.updateMany({
       where: {
         status: 'proposed',
@@ -855,9 +1048,36 @@ export class AiWorkerService {
       data: {
         status: 'approved',
         reviewed_by: adminId,
-        reviewed_at: new Date(),
+        reviewed_at: at,
       },
     });
+    // Owner 2026-11-12 (row 51): the approved support drafts go out, page
+    // by page (each page claims its items, so nothing goes twice).
+    let after: string | undefined;
+    for (;;) {
+      const page = await this.prisma.aiRunItem.findMany({
+        where: {
+          status: 'approved',
+          reviewed_by: adminId,
+          reviewed_at: at,
+          delivered_at: null,
+          decision: { in: [...SENDABLE] },
+          run: { role: { queue: { in: [...SENDS_REPLY] } } },
+        },
+        orderBy: { id: 'asc' },
+        select: { id: true },
+        take: DELIVER_PAGE,
+        ...(after ? { cursor: { id: after }, skip: 1 } : {}),
+      });
+      if (page.length === 0) break;
+      await this.deliver(
+        adminId,
+        page.map((p) => p.id),
+        'approved',
+      );
+      if (page.length < DELIVER_PAGE) break;
+      after = page[page.length - 1].id;
+    }
     return { updated: res.count };
   }
 }

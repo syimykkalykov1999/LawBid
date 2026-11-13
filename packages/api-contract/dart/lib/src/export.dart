@@ -1585,6 +1585,8 @@ export 'models/ai_worker_proposal_dto.dart';
 export 'models/ai_worker_status_dto.dart';
 export 'models/ai_worker_status_envelope.dart';
 export 'models/ai_worker_evidence_dto.dart';
+export 'models/ai_worker_action.dart';
+export 'models/ai_worker_registry_link_dto.dart';
 export 'models/ai_worker_item_dto.dart';
 export 'models/ai_worker_items_dto.dart';
 export 'models/ai_worker_item_status.dart';
