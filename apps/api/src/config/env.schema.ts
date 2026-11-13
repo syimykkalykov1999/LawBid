@@ -664,21 +664,27 @@ export const envSchema = z
       .nonnegative()
       .default(200),
     // S3 uploads (docs/03 stage 3.2): one unit per pre-signed upload.
-    // Owner 2026-11-13 (row 77, «Да»): no platform-wide upload cap (0 = none;
-    // the 1B load test hit 120/min for ALL users: 80 of 200 refused). Each
-    // person keeps theirs: storage.daily_upload_mb_per_user, the chat quota,
-    // the per-user rate limit and budget.money.user_daily_cents.
+    // Owner 2026-11-13 (row 77, «Да»): no platform-wide upload cap (the 1B
+    // load test hit 120/min for ALL users: 80 of 200 refused). The highest
+    // value the admin accepts (AUTOSCALE_MAX_VALUE), NOT 0: a call cap of 0
+    // switches the service OFF (CONSUME_LUA has no «0 = none»). Each person
+    // keeps theirs: storage.daily_upload_mb_per_user, the chat quota, the
+    // per-user rate limit and budget.money.user_daily_cents.
     BUDGET_STORAGE_PER_MINUTE_MAX: z.coerce
       .number()
       .int()
       .nonnegative()
-      .default(0),
-    BUDGET_STORAGE_DAILY_MAX: z.coerce.number().int().nonnegative().default(0),
+      .default(10_000_000),
+    BUDGET_STORAGE_DAILY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(10_000_000),
     BUDGET_STORAGE_MONTHLY_MAX: z.coerce
       .number()
       .int()
       .nonnegative()
-      .default(0),
+      .default(10_000_000),
     // Google Translate (chat): one unit per uncached message translation.
     BUDGET_TRANSLATE_PER_MINUTE_MAX: z.coerce
       .number()
