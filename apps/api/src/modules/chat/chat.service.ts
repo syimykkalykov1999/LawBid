@@ -1407,6 +1407,7 @@ export class ChatService {
               conversation_id: id,
               shard_id: slot.shard_id,
               seq: slot.seq,
+              created_at: slot.created_at,
               sender_id: user.sub,
               sent_by_membership_id: user.assistant?.membershipId ?? null,
               sent_by_name: user.assistant?.name.slice(0, 80) ?? null,

@@ -43,6 +43,7 @@ describe('chat send bookkeeping (e2e)', () => {
             conversation_id: conversationId,
             shard_id: slot.shard_id,
             seq: slot.seq,
+            created_at: slot.created_at,
             sender_id: senderId,
             type: 'text',
             body_original: body,
@@ -69,7 +70,6 @@ describe('chat send bookkeeping (e2e)', () => {
     });
     expect(c.last_seq).toBe(1);
     expect(c.last_message_id).toBe(m.id);
-    // Same now() of the same transaction as the created_at default.
     expect(c.last_message_at?.getTime()).toBe(m.created_at.getTime());
     const rows = await prisma.conversationParticipant.findMany({
       where: { conversation_id: conv.id },

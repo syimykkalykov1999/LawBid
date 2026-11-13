@@ -4,6 +4,8 @@ import type { Prisma } from '@prisma/client';
 export interface ChatSendSlot {
   /** The message's per-chat number (migration 20261109090000_message_seq). */
   seq: number;
+  /** The message's `created_at` (= the chat's new `last_message_at`). */
+  created_at: Date;
   contacts_unlocked: boolean;
   disappear_after_s: number | null;
   shard_id: number;
@@ -34,9 +36,11 @@ export interface ChatSendSlot {
  * closed chat returns null. The insert is given `seq`, so the trigger
  * `messages_assign_seq` (which still numbers every other write path) skips it.
  *
- * Times: `last_message_at` is `now()` (transaction start), the very value
- * the insert's `created_at` default takes in the same transaction; read
- * markers use `clock_timestamp()` as before.
+ * Times: the message's `created_at` is the moment the row lock was taken,
+ * on the database clock (`clock_timestamp()` cut to milliseconds, what a JS
+ * Date holds), and the same value goes to `last_message_at`: one clock for
+ * every API host, so `created_at` order follows `seq` order. Read markers
+ * use `clock_timestamp()` as before.
  *
  * Throws when the sender has no participant row (the send is rolled back, as
  * the Prisma `update` the bookkeeping replaced did, P2025).
@@ -50,12 +54,13 @@ export async function claimChatSendSlot(
     WITH c AS (
       UPDATE conversations
          SET last_seq = last_seq + 1,
-             last_message_at = now(),
+             last_message_at = date_trunc('milliseconds', clock_timestamp()),
              last_message_id = ${m.messageId}::uuid,
              updated_at = clock_timestamp()
        WHERE id = ${m.conversationId}::uuid
          AND status <> 'closed'
-      RETURNING last_seq, contacts_unlocked, disappear_after_s, shard_id
+      RETURNING last_seq, last_message_at, contacts_unlocked, disappear_after_s,
+                shard_id
     ), p AS (
       UPDATE conversation_participants
          SET hidden_at = NULL,
@@ -70,7 +75,7 @@ export async function claimChatSendSlot(
          AND EXISTS (SELECT 1 FROM c)
       RETURNING (user_id = ${senderId}::uuid) AS mine
     )
-    SELECT c.last_seq AS seq, c.contacts_unlocked,
+    SELECT c.last_seq AS seq, c.last_message_at AS created_at, c.contacts_unlocked,
            c.disappear_after_s, c.shard_id,
            (SELECT count(*) FROM p WHERE p.mine)::int AS touched
       FROM c`;
@@ -84,6 +89,7 @@ export async function claimChatSendSlot(
   }
   return {
     seq: row.seq,
+    created_at: row.created_at,
     contacts_unlocked: row.contacts_unlocked,
     disappear_after_s: row.disappear_after_s,
     shard_id: row.shard_id,
