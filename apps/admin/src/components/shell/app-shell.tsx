@@ -100,13 +100,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {desk ? null : (
-        <m.aside
-          animate={{ width: collapsed ? 76 : 264 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-          className="fixed inset-y-0 left-0 z-30 hidden border-r border-line bg-canvas/80 backdrop-blur-xl lg:block"
+        // Owner row 88 (2026-11-13): the rail width and the content padding
+        // move on ONE clock and curve (shadcn/ui sidebar, MIT:
+        // `transition-[width] duration-200 ease-linear`), so the edges no
+        // longer drift apart (it was a spring on width + a 300 ms CSS padding).
+        <aside
+          style={{ width: collapsed ? 76 : 264 }}
+          className="fixed inset-y-0 left-0 z-30 hidden border-r border-line bg-canvas/80 backdrop-blur-xl transition-[width] duration-200 ease-linear lg:block"
         >
           <Sidebar me={me} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
-        </m.aside>
+        </aside>
       )}
 
       <AnimatePresence>
@@ -126,7 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ) : null}
       </AnimatePresence>
 
-      <div className={cn('relative min-w-0 overflow-x-clip transition-[padding] duration-300', desk ? '' : collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]')}>
+      <div className={cn('relative min-w-0 overflow-x-clip transition-[padding] duration-200 ease-linear', desk ? '' : collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]')}>
         <Topbar me={me} onMenu={() => setDrawer(true)} onSearch={openPalette} />
         <main className="mx-auto w-full max-w-[1480px] px-3 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-7 lg:px-10 lg:py-9">
           {/* Owner 2026-10-07: the tabs stay put while the page below
@@ -140,11 +143,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ) : (
             <SectionTabs me={me} />
           )}
+          {/* Owner row 88 (2026-11-13): a short opacity-only swap. No `y`, so
+              the wrapper never becomes a transform containing block and sticky
+              / fixed parts inside a page no longer jump (was y 8 + 0.4 s). */}
           <m.div
             key={pathname}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
           >
             {hidden ? (
               <div className="py-24 text-center">

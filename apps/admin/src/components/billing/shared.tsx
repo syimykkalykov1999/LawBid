@@ -29,8 +29,10 @@ export function useBillingRole() {
   };
 }
 
+// Owner row 88 (2026-11-13): no entrance on navigation (`initial: false` renders
+// the end state at once); the name stays for the existing call sites.
 export const fadeUp = (i = 0) => ({
-  initial: { opacity: 0, y: 10 },
+  initial: false as const,
   animate: { opacity: 1, y: 0 },
   transition: { duration: 0.45, delay: Math.min(i, 12) * 0.04, ease: [0.16, 1, 0.3, 1] as const },
 });

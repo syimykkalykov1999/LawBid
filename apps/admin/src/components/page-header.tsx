@@ -24,7 +24,7 @@ export function PageHeader({
   }
   return (
     <m.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-7 sm:gap-4"
