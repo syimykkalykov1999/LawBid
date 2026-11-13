@@ -48,10 +48,14 @@ export class PostEngagementService {
     const post = await this.visible(postId);
     await assertNoBlock(this.prisma, userId, post.author_id);
     await this.limits.consume('like', userId);
-    const { count } = await this.prisma.postLike.createMany({
-      data: [{ post_id: postId, user_id: userId }],
-      skipDuplicates: true,
-    });
+    // Row 63 (like spike 12.11): one statement instead of Prisma's
+    // createMany, which ran BEGIN + INSERT + COMMIT and, for a post with a
+    // legacy v4 id, a SELECT of the post's shard_id (already read above).
+    // Same idempotency: the primary key (post_id, user_id) + DO NOTHING.
+    const count = await this.prisma.$executeRaw`
+      INSERT INTO post_likes (post_id, user_id, shard_id)
+      VALUES (${postId}::UUID, ${userId}::UUID, ${post.shard_id}::SMALLINT)
+      ON CONFLICT DO NOTHING`;
     if (count === 0) return;
     await this.counters.bump('post', postId, 'like_count', 1);
     if (post.author_id !== userId) {
@@ -59,6 +63,8 @@ export class PostEngagementService {
         type: 'post_like',
         recipientId: post.author_id,
         payload: { postId, actorId: userId },
+        // assertNoBlock above already checked this pair.
+        actorBlockChecked: true,
       });
     }
   }
@@ -377,7 +383,7 @@ export class PostEngagementService {
   private async visible(postId: string) {
     const post = await this.prisma.post.findFirst({
       where: { ...VISIBLE_POST_WHERE, id: postId },
-      select: { id: true, author_id: true, hide_likes: true },
+      select: { id: true, author_id: true, hide_likes: true, shard_id: true },
     });
     if (!post) throw postNotFound();
     return post;
