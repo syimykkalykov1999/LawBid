@@ -449,6 +449,21 @@ erDiagram
     DateTime checked_at
     DateTime created_at
   }
+  verification_auto_decisions {
+    String id PK
+    String request_id FK,UK
+    String attorney_id
+    String outcome
+    String proposal
+    String reason "nullable"
+    Int sample_pct
+    Json evidence
+    String auto_action_id "nullable"
+    String owner_outcome "nullable"
+    DateTime owner_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   cases {
     String id PK
     String client_id FK
@@ -3978,6 +3993,7 @@ erDiagram
   verification_documents }o--|| files : "file_id"
   verification_documents }o--o| states : "state_code"
   verification_checks }o--|| verification_requests : "request_id"
+  verification_auto_decisions |o--|| verification_requests : "request_id"
   cases }o--|| users : "client_id"
   cases }o--|| practice_areas : "practice_area_id"
   cases }o--|| states : "primary_state_code"

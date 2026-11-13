@@ -14,6 +14,9 @@ describe('AwsOpsService ceilings keep the live floor (G1)', () => {
     OPS_API_MAX_TASKS: '50',
     OPS_WORKER_MAX_TASKS: '20',
     OPS_MIN_TASKS: '1',
+    OPS_API_ADMIN_SERVICE: 'api-admin',
+    OPS_ADMIN_SERVICE: 'admin',
+    OPS_POOLER_SERVICE: 'pgbouncer',
   };
   let live: Record<string, { min: number; max: number } | undefined>;
   let sent: Record<string, unknown>[];
@@ -64,9 +67,9 @@ describe('AwsOpsService ceilings keep the live floor (G1)', () => {
     expect(sent[0]).toMatchObject({ MaxCapacity: 2 });
   });
 
-  it('caps at the Terraform maximum', async () => {
+  it("no upper bound: the owner's number goes above the Terraform start ceiling (row 67)", async () => {
     await svc().setCeilings({ api: 500, worker: 500 });
-    expect(sent.map((c) => c.MaxCapacity)).toEqual([50, 20]);
+    expect(sent.map((c) => c.MaxCapacity)).toEqual([500, 500]);
   });
 
   it('nothing is written when the ceiling is already right', async () => {
@@ -99,5 +102,32 @@ describe('AwsOpsService ceilings keep the live floor (G1)', () => {
         MaxCapacity: 3,
       }),
     ]);
+  });
+
+  it("the other services get the owner's ceiling, never a floor (row 67)", async () => {
+    live = {
+      'api-admin': { min: 1, max: 2 },
+      admin: { min: 2, max: 2 },
+      pgbouncer: { min: 2, max: 4 },
+    };
+    const out = await svc().setOtherCeilings({
+      api_admin: 100,
+      admin: 100,
+      pgbouncer: 250,
+    });
+    expect(out).toEqual({ api_admin: 100, admin: 100, pgbouncer: 250 });
+    expect(sent.map((c) => [c.ResourceId, c.MaxCapacity])).toEqual([
+      ['service/lawbid-prod/api-admin', 100],
+      ['service/lawbid-prod/admin', 100],
+      ['service/lawbid-prod/pgbouncer', 250],
+    ]);
+    for (const c of sent) expect(c).not.toHaveProperty('MinCapacity');
+  });
+
+  it('a service Terraform did not register (no pooler) is skipped', async () => {
+    live = { admin: { min: 2, max: 100 } };
+    const out = await svc().setOtherCeilings({ admin: 100, pgbouncer: 100 });
+    expect(out).toEqual({ admin: 100 });
+    expect(sent).toEqual([]);
   });
 });

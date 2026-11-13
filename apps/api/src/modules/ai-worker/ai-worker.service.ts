@@ -17,6 +17,7 @@ import {
 } from '../ai-attachments/ai-attachments.service';
 import { StaffAiBudgetService } from '../staff-ai/staff-ai-budget.service';
 import { AdminSupportService } from '../support/admin-support.service';
+import { VerificationAutoDecisionService } from '../verification/verification.public';
 import {
   StaffAiClient,
   type AiBatchItem,
@@ -154,6 +155,9 @@ export class AiWorkerService {
     // Owner 2026-11-12 (row 51): an approved support reply goes out through
     // the support page's own path (macros, status, push, staff stats).
     @Optional() private readonly support?: AdminSupportService,
+    // Owner 2026-11-12 (row 60): a proposal on an attorney request feeds
+    // «Автоматическое решение по адвокатам» (off by default: no-op).
+    @Optional() private readonly autoDecision?: VerificationAutoDecisionService,
   ) {}
 
   // ------------------------------------------------------------- overview
@@ -689,6 +693,7 @@ export class AiWorkerService {
       isAiWorkerQueue(role.queue) &&
       SENDS_REPLY.has(role.queue);
     const toSend: string[] = [];
+    const decided: string[] = [];
     for (const r of results) {
       seen.add(r.customId);
       const itemCost = r.usage ? costMillicents(model, r.usage, true) : 0;
@@ -708,6 +713,7 @@ export class AiWorkerService {
             error: null,
           },
         });
+        decided.push(row.item_id);
         if (
           autoSend &&
           lane === 'bulk' &&
@@ -754,6 +760,10 @@ export class AiWorkerService {
         data: { status: 'auto_sent' },
       });
       if (res.count) await this.deliver(role.created_by, toSend, 'auto_sent');
+    }
+    if (this.autoDecision && role?.queue === 'attorney_verification') {
+      for (const itemId of decided)
+        await this.autoDecision.evaluateSafe(itemId);
     }
     return 'collected';
   }

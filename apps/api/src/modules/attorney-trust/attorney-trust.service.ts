@@ -218,24 +218,26 @@ type ProfileRow = Prisma.AttorneyProfileGetPayload<{
 }>;
 
 /** The facts that can put an attorney in the staff queue (mirrors
- * `queueReasonsOf`): a SQL pre-filter, the snapshot still decides. */
-const QUEUE_PREFILTER: Prisma.AttorneyProfileWhereInput = {
-  OR: [
-    { trust: { firm_link_status: FIRM_LINK.pending } },
-    { trust: { name_check: NAME_CHECK.mismatch } },
-    { trust: { payments_hold: HOLD.complaint } },
-    { trust: { bids_hold: HOLD.complaint } },
-    { licenses: { some: { registry_flag: { not: null } } } },
-    {
-      verification_requests: {
-        some: {
-          status: { in: ['submitted', 'in_review'] },
-          documents: { some: {} },
-        },
+ * `queueReasonsOf`): a SQL pre-filter, the snapshot still decides. Each
+ * fact is its own query (see {@link AttorneyTrustService.queue}). */
+const QUEUE_PREFILTER_BRANCHES: Prisma.AttorneyProfileWhereInput[] = [
+  { trust: { firm_link_status: FIRM_LINK.pending } },
+  { trust: { name_check: NAME_CHECK.mismatch } },
+  { trust: { payments_hold: HOLD.complaint } },
+  { trust: { bids_hold: HOLD.complaint } },
+  { licenses: { some: { registry_flag: { not: null } } } },
+  {
+    verification_requests: {
+      some: {
+        status: { in: ['submitted', 'in_review'] },
+        documents: { some: {} },
       },
     },
-  ],
-};
+  },
+];
+
+/** Profiles the staff queue reads before the snapshots decide. */
+const QUEUE_SCAN = 2000;
 
 /** Attorneys read per query by {@link AttorneyTrustService.scan}. */
 const SCAN_BATCH = 500;
@@ -1296,48 +1298,66 @@ export class AttorneyTrustService {
     limit?: number;
   }): Promise<TrustSnapshot[]> {
     const limit = opts.limit ?? 100;
-    const rows = await this.prisma.attorneyProfile.findMany({
-      where: {
-        verification_status: { in: ['verified', 'pending'] },
-        AND: [
-          { OR: [{ trust: null }, { trust: { staff_cleared_at: null } }] },
-          // Owner 2026-10-23: only a profile with one of the facts that
-          // queueReasonsOf() looks at can be in the queue — so the database
-          // narrows 100 000 attorneys to the few hundred that need a person
-          // before any snapshot is built.
-          QUEUE_PREFILTER,
-          ...(opts.q
-            ? [
+    const scope: Prisma.AttorneyProfileWhereInput[] = [
+      { OR: [{ trust: null }, { trust: { staff_cleared_at: null } }] },
+      ...(opts.q
+        ? [
+            {
+              OR: [
+                { username_lower: { contains: opts.q.toLowerCase() } },
                 {
-                  OR: [
-                    { username_lower: { contains: opts.q.toLowerCase() } },
-                    {
-                      user: {
-                        OR: [
-                          {
-                            first_name: {
-                              contains: opts.q,
-                              mode: 'insensitive' as const,
-                            },
-                          },
-                          {
-                            last_name: {
-                              contains: opts.q,
-                              mode: 'insensitive' as const,
-                            },
-                          },
-                        ],
+                  user: {
+                    OR: [
+                      {
+                        first_name: {
+                          contains: opts.q,
+                          mode: 'insensitive' as const,
+                        },
                       },
-                    },
-                  ],
+                      {
+                        last_name: {
+                          contains: opts.q,
+                          mode: 'insensitive' as const,
+                        },
+                      },
+                    ],
+                  },
                 },
-              ]
-            : []),
-        ],
-      },
+              ],
+            },
+          ]
+        : []),
+    ];
+    // Owner 2026-10-23: only a profile with one of the facts that
+    // queueReasonsOf() looks at can be in the queue — so the database
+    // narrows the attorneys to the few that need a person before any
+    // snapshot is built.
+    // Row 37 (load stack 13.11, 1 M attorneys): those facts as ONE `OR`
+    // across four relations could use no index — PostgreSQL walked all
+    // 980 000 profiles by id with six joins and filtered them (3.4 s, and
+    // /admin/trust/stats waits for this too). The standard OR-to-UNION
+    // rewrite (as CallHistoryService.newestMine): each fact alone is an
+    // indexed lookup (0.1 ms); the first QUEUE_SCAN ids of every branch
+    // hold the first QUEUE_SCAN of their union, so the rows are the same.
+    // One branch after another: prod runs DB_POOL_SIZE=3.
+    const ids = new Set<string>();
+    for (const branch of QUEUE_PREFILTER_BRANCHES) {
+      const hits = await this.prisma.attorneyProfile.findMany({
+        where: {
+          verification_status: { in: ['verified', 'pending'] },
+          AND: [...scope, branch],
+        },
+        select: { user_id: true },
+        orderBy: { user_id: 'asc' },
+        take: QUEUE_SCAN,
+      });
+      for (const h of hits) ids.add(h.user_id);
+    }
+    if (ids.size === 0) return [];
+    const rows = await this.prisma.attorneyProfile.findMany({
+      where: { user_id: { in: [...ids].sort().slice(0, QUEUE_SCAN) } },
       select: PROFILE_SELECT,
       orderBy: { user_id: 'asc' },
-      take: 2000,
     });
     const out: TrustSnapshot[] = [];
     for (const row of rows) {

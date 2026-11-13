@@ -18,6 +18,15 @@ import { opsCredentials } from './ops-credentials';
 
 export type TaskKind = 'api' | 'worker';
 
+/** Owner 2026-11-12 (row 67): the other services with an owner's ceiling
+ * (`scale.max_tasks.<kind>`), named by OPS_*_SERVICE (empty = not here). */
+export type OtherKind = 'api_admin' | 'admin' | 'pgbouncer';
+export const OTHER_SERVICE_ENV: Readonly<Record<OtherKind, string>> = {
+  api_admin: 'OPS_API_ADMIN_SERVICE',
+  admin: 'OPS_ADMIN_SERVICE',
+  pgbouncer: 'OPS_POOLER_SERVICE',
+};
+
 /**
  * Owner 2026-10-05: the few infrastructure actions an owner may need,
  * done with the task role (infra/modules/stack grants exactly these):
@@ -115,8 +124,10 @@ export class AwsOpsService {
     return this.num('OPS_MIN_TASKS', 1);
   }
 
-  /** The Terraform maximum of a service: the hard cap no automation or
-   * override ever exceeds. */
+  /** The Terraform start ceiling of a service (OPS_*_MAX_TASKS). Since
+   * 2026-11-12 (row 67) the cap is the owner's admin setting
+   * `scale.max_tasks.<kind>` (no upper bound), passed by the economy job;
+   * this number is only the fallback when no setting can be read. */
   hardCap(kind: TaskKind): number {
     return kind === 'api'
       ? this.num('OPS_API_MAX_TASKS', 4)
@@ -156,14 +167,16 @@ export class AwsOpsService {
     for (const s of this.services()) {
       const kind: TaskKind =
         s.service === this.env('OPS_API_SERVICE') ? 'api' : 'worker';
-      const normal = Math.min(s.normalMax, applied?.[kind] ?? s.normalMax);
+      // Owner 2026-11-12: the owner's ceiling may be above Terraform's.
+      const normal = applied?.[kind] ?? s.normalMax;
       // 'min' = the ceiling drops to whatever the floor is right now.
       await this.registerMax(s.service, mode === 'min' ? 0 : normal);
     }
   }
 
-  /** Sets the autoscaling ceilings (never below the floor nor above the
-   * Terraform maximum). */
+  /** Sets the autoscaling ceilings (never below the floor). Owner
+   * 2026-11-12 (row 67): no upper bound here, only the owner's number
+   * (`scale.max_tasks.*`, applied by the caller) limits it. */
   async setCeilings(c: Record<TaskKind, number>): Promise<void> {
     if (!this.available) throw new Error('not on AWS');
     const api = this.env('OPS_API_SERVICE');
@@ -174,8 +187,28 @@ export class AwsOpsService {
     ];
     for (const [service, kind] of pairs) {
       if (!service) continue;
-      await this.registerMax(service, Math.min(c[kind], this.hardCap(kind)));
+      await this.registerMax(service, c[kind]);
     }
+  }
+
+  /**
+   * Owner 2026-11-12 (row 67): the owner's ceiling of api-admin, admin and
+   * the pooler. Only a target Terraform already registered is changed (its
+   * floor is never written); a service missing from this stack is skipped.
+   * Returns the ceiling now in AWS per kind.
+   */
+  async setOtherCeilings(
+    c: Partial<Record<OtherKind, number>>,
+  ): Promise<Partial<Record<OtherKind, number>>> {
+    if (!this.available) throw new Error('not on AWS');
+    const out: Partial<Record<OtherKind, number>> = {};
+    for (const [kind, wanted] of Object.entries(c) as [OtherKind, number][]) {
+      const service = this.env(OTHER_SERVICE_ENV[kind]);
+      if (!service || !Number.isFinite(wanted) || wanted < 1) continue;
+      const max = await this.registerMax(service, Math.floor(wanted), false);
+      if (max !== null) out[kind] = max;
+    }
+    return out;
   }
 
   /**
@@ -188,7 +221,11 @@ export class AwsOpsService {
    * ceiling is kept at or above the live floor (the call fails otherwise).
    * A target that is not registered yet gets both, floor = OPS_MIN_TASKS.
    */
-  private async registerMax(service: string, wanted: number): Promise<void> {
+  private async registerMax(
+    service: string,
+    wanted: number,
+    registerNew = true,
+  ): Promise<number | null> {
     const resourceId = `service/${this.cluster}/${service}`;
     const res = await this.scalingClient().send(
       new DescribeScalableTargetsCommand({
@@ -202,8 +239,9 @@ export class AwsOpsService {
     );
     const floor =
       typeof live?.MinCapacity === 'number' ? live.MinCapacity : undefined;
+    if (floor === undefined && !registerNew) return null;
     const max = Math.max(floor ?? this.minTasks, wanted);
-    if (floor !== undefined && live?.MaxCapacity === max) return;
+    if (floor !== undefined && live?.MaxCapacity === max) return max;
     await this.scalingClient().send(
       new RegisterScalableTargetCommand({
         ServiceNamespace: 'ecs',
@@ -213,6 +251,7 @@ export class AwsOpsService {
         MaxCapacity: max,
       }),
     );
+    return max;
   }
 
   /** Tasks running / wanted now per service (null off AWS). */

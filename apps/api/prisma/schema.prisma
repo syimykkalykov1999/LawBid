@@ -1884,8 +1884,9 @@ model VerificationRequest {
   created_at           DateTime                  @default(now()) @db.Timestamptz
   updated_at           DateTime                  @updatedAt @db.Timestamptz
 
-  documents VerificationDocument[]
-  checks    VerificationCheck[]
+  documents     VerificationDocument[]
+  checks        VerificationCheck[]
+  autoDecisions VerificationAutoDecision[]
 
   @@index([attorney_id])
   @@index([status, submitted_at])
@@ -1930,6 +1931,40 @@ model VerificationCheck {
 
   @@index([request_id])
   @@map("verification_checks")
+}
+
+/// Owner 2026-11-12 (row 60): «Автоматическое решение по адвокатам». One row
+/// per request: the automatic decision and ALL its evidence (registry,
+/// face match band, liveness, the AI proposal, the switches in force). While
+/// `outcome` is `queue` it is refreshed on every evaluation; approve / reject
+/// / request_info / sample are final. A `sample` row (the random audit)
+/// stays in the owner's queue and records his own decision for the
+/// agreement rate that lowers the sample.
+model VerificationAutoDecision {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id     String              @unique @db.Uuid
+  request        VerificationRequest @relation(fields: [request_id], references: [id], onDelete: Cascade)
+  attorney_id    String              @db.Uuid
+  /// approve | reject | request_info | queue | sample
+  outcome        String              @db.VarChar(16)
+  /// What the rules said (approve | reject | request_info | queue).
+  proposal       String              @db.VarChar(16)
+  /// The reject code (REJECTION_CODES) or why it waits (a short code).
+  reason         String?             @db.VarChar(40)
+  /// The audit sample % in force when it was decided.
+  sample_pct     Int                 @default(0) @db.SmallInt
+  evidence       Json
+  /// The moderation_auto_actions row an automatic rejection is appealed by.
+  auto_action_id String?             @db.Uuid
+  /// sample rows: the owner's own decision (approve | reject | request_info).
+  owner_outcome  String?             @db.VarChar(16)
+  owner_at       DateTime?           @db.Timestamptz
+  created_at     DateTime            @default(now()) @db.Timestamptz
+  updated_at     DateTime            @updatedAt @db.Timestamptz
+
+  @@index([outcome, owner_at])
+  @@index([attorney_id])
+  @@map("verification_auto_decisions")
 }
 
 // -----------------------------------------------------------------------
@@ -5310,6 +5345,9 @@ model AttorneyTrust {
   @@index([level])
   @@index([payments_hold])
   @@index([bids_hold])
+  // Row 37: the staff queue's firm-link and name-check facts.
+  @@index([firm_link_status])
+  @@index([name_check])
   @@map("attorney_trust")
 }
 

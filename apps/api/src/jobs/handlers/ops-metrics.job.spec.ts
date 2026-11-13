@@ -1,21 +1,46 @@
 import { ConfigService } from '@nestjs/config';
+import type { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { STRIPE_WEBHOOKS_DLQ } from '../../modules/billing/billing.constants';
 import { OpsMetricsJob } from './ops-metrics.job';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 
-const fakeQueue = (name: string, waiting: number, failed5m = 0) => ({
-  name,
-  getJobCounts: jest.fn(() =>
-    Promise.resolve({ waiting, active: 0, delayed: 0, failed: 0 }),
-  ),
-  getWaiting: jest.fn(() => Promise.resolve([])),
-  getMetrics: jest.fn(() =>
-    Promise.resolve({ meta: {}, data: [failed5m, 0, 0, 0, 0], count: 5 }),
-  ),
-  close: jest.fn(() => Promise.resolve()),
-});
+/** A queue whose failed set holds jobs finished at [failedAt] (ms), newest
+ * first like BullMQ's `getFailed`. */
+const queueWithFailed = (name: string, waiting: number, failedAt: number[]) => {
+  const failed = [...failedAt]
+    .sort((a, b) => b - a)
+    .map((finishedOn) => ({ finishedOn }));
+  return {
+    name,
+    getJobCounts: jest.fn(() =>
+      Promise.resolve({
+        waiting,
+        active: 0,
+        delayed: 0,
+        failed: failed.length,
+      }),
+    ),
+    getWaiting: jest.fn(() => Promise.resolve([])),
+    getFailed: jest.fn((start: number, end: number) =>
+      Promise.resolve(failed.slice(start, end + 1)),
+    ),
+    // Prod 2026-11-13: BullMQ's failed metrics keep the last points until
+    // the next failure; the job must not read them.
+    getMetrics: jest.fn(() =>
+      Promise.resolve({ meta: {}, data: [33, 0, 0, 0, 0], count: 5 }),
+    ),
+    close: jest.fn(() => Promise.resolve()),
+  };
+};
+
+const fakeQueue = (name: string, waiting: number, failed5m = 0) =>
+  queueWithFailed(
+    name,
+    waiting,
+    Array.from({ length: failed5m }, () => Date.now() - 1_000),
+  );
 
 const settings = (mode: string) =>
   ({
@@ -88,6 +113,57 @@ describe('OpsMetricsJob.queueDepths', () => {
       ['data-export', 2],
       ['push', 0],
     ]);
+  });
+
+  it('counts only failures finished in the last 5 minutes, never stale metric points (KNOWN_ERRORS 125)', async () => {
+    const logger = { setContext: jest.fn(), info: jest.fn() };
+    const job = new OpsMetricsJob(
+      {} as ConfigService,
+      {} as PrismaService,
+      logger as unknown as PinoLogger,
+    );
+    const now = new Date('2026-11-13T06:00:00Z');
+    const t = now.getTime();
+    // The 11.11 outage left 200 old failures and a stale metrics list (33).
+    const outage = Array.from({ length: 200 }, (_, i) => t - 40 * 3600_000 - i);
+    const quiet = queueWithFailed('cron-fast', 0, outage);
+    const fresh = queueWithFailed('cron', 0, [
+      t - 10_000,
+      t - 4 * 60_000,
+      t - 6 * 60_000,
+      ...outage,
+    ]);
+    (job as unknown as { queues: unknown[] }).queues = [quiet, fresh];
+    const rows = await job.queueDepths(now);
+    expect(rows.map((r) => [r.queue, r.failed5m])).toEqual([
+      ['cron-fast', 0],
+      ['cron', 2],
+    ]);
+    // A quiet queue costs one page read, and the metrics list is not used.
+    expect(quiet.getFailed).toHaveBeenCalledTimes(1);
+    expect(quiet.getMetrics).not.toHaveBeenCalled();
+  });
+
+  it('pages through a burst and caps at the failed-set size', async () => {
+    const job = new OpsMetricsJob(
+      {} as ConfigService,
+      {} as PrismaService,
+      { setContext: jest.fn(), info: jest.fn() } as unknown as PinoLogger,
+    );
+    const t = Date.parse('2026-11-13T06:00:00Z');
+    const burst = queueWithFailed(
+      'push',
+      0,
+      Array.from({ length: 45 }, (_, i) => t - i * 1000),
+    );
+    const flood = queueWithFailed(
+      'files',
+      0,
+      Array.from({ length: 500 }, () => t - 1000),
+    );
+    expect(await job.failedLast5m(burst as unknown as Queue, t)).toBe(45);
+    expect(burst.getFailed).toHaveBeenCalledTimes(3);
+    expect(await job.failedLast5m(flood as unknown as Queue, t)).toBe(200);
   });
 });
 

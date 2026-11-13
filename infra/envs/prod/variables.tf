@@ -95,12 +95,14 @@ variable "redis_replicas" {
   description = "Standby Redis nodes at creation. Owner 2026-11-02: 0 (saves about $12 a month); the API adds the node by itself once people are online and the module ignores node-count drift (docs/runbooks/ha-auto.md)."
 }
 variable "api_max_tasks" {
-  type    = number
-  default = 20
+  type        = number
+  default     = 100
+  description = "Owner 2026-11-12 (row 67): start ceiling of the api service. After creation the admin setting scale.max_tasks.api (no upper bound) moves it."
 }
 variable "worker_max_tasks" {
-  type    = number
-  default = 10
+  type        = number
+  default     = 100
+  description = "Owner 2026-11-12 (row 67): start ceiling of the worker service; then scale.max_tasks.worker."
 }
 variable "p95_target_ms" {
   type    = number
@@ -138,6 +140,21 @@ variable "api_spot" {
   type        = bool
   default     = false
   description = "API tasks added by autoscaling run on Fargate Spot; the first stays on regular Fargate."
+}
+variable "api_admin_spot" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-11-12 (row 67): the api-admin service on Fargate Spot like api_spot (admin switch aws.graviton_spot)."
+}
+variable "admin_spot" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-11-12 (row 67): the admin web service on Fargate Spot like api_spot (admin switch aws.graviton_spot)."
+}
+variable "pgbouncer_spot" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-11-12 (row 67): the PgBouncer pooler on Fargate Spot like api_spot (admin switch aws.graviton_spot)."
 }
 variable "admin_tasks" {
   type    = number
@@ -306,8 +323,14 @@ variable "pgbouncer_image" {
   description = "<ECR_REGISTRY>/lawbid-pgbouncer:<tag> (workflow Build PgBouncer)."
 }
 variable "pgbouncer_max_tasks" {
-  type    = number
-  default = 4
+  type        = number
+  default     = 100
+  description = "Owner 2026-11-12 (row 67): start ceiling of the pooler; then scale.max_tasks.pgbouncer. The database connections are split by pgbouncer_pool_tasks, not by this."
+}
+variable "pgbouncer_pool_tasks" {
+  type        = number
+  default     = null
+  description = "Pooler copies the database connection budget is split between (each gets budget / this). null = min(pgbouncer_max_tasks, 4), the same pools as before 12.11."
 }
 # Security pass 2026-10-25 (S3-7, runbook docs/runbooks/DB_POOLER.md section
 # "Verified TLS"): both keep today's behaviour until the owner flips them.
@@ -323,7 +346,7 @@ variable "pgbouncer_client_tls_private_ca" {
 }
 variable "clamav_image" {
   type    = string
-  default = "clamav/clamav:1.4"
+  default = "clamav/clamav-debian:1.4" # 13.11 KE 126: multi-arch; clamav/clamav:1.4 is amd64 only
 }
 # Browser beta (owner 2026-10-07): the web app's origin, for direct S3
 # uploads (presigned POST) and signed GET reads. Origin only: no path.

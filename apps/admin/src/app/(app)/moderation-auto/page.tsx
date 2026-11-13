@@ -32,6 +32,8 @@ const KIND: Record<string, string> = {
   account_suspend_temp: 'Публикации приостановлены',
   account_suspend: 'Аккаунт заблокирован',
   review_needed: 'Нужна проверка человеком',
+  // Owner 2026-11-12 (row 60): «Автоматическое решение по адвокатам».
+  verification_reject: 'Проверка адвоката отклонена автоматически',
 };
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;

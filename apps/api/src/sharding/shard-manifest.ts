@@ -243,6 +243,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   'VerificationRequest',
   'VerificationDocument',
   'VerificationCheck',
+  // Owner 2026-11-12 (row 60): the automatic decision of a request.
+  'VerificationAutoDecision',
   'Tag',
   'StripeCustomer',
   'Subscription',

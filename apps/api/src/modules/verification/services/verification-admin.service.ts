@@ -77,6 +77,7 @@ import {
   syncProfileStatus,
 } from '../verification.helpers';
 import { VerificationChecksService } from './verification-checks.service';
+import { VerificationAutoDecisionService } from './verification-auto-decision.service';
 import {
   REGISTRY_CHECK_TIMEOUT_MS,
   RegistryCheckQueue,
@@ -144,6 +145,8 @@ export class VerificationAdminService {
     @Optional() registryWorker?: RegistryCheckWorker,
     // R-403: a decision drops the shared sidebar counts (badge = list).
     @Optional() private readonly summary?: AdminSummaryService,
+    // Row 60: the owner's decision on an audit-sampled request.
+    @Optional() private readonly autoDecision?: VerificationAutoDecisionService,
   ) {
     registryWorker?.handle((data) => this.runRegistryCheck(data));
   }
@@ -602,6 +605,7 @@ export class VerificationAdminService {
       outcome: 'approve',
     });
     await this.endLease(admin, requestId, 'approve');
+    await this.autoDecision?.recordOwnerDecision(requestId, 'approve');
     await this.dropCounts();
     return this.card(requestId);
   }
@@ -643,6 +647,7 @@ export class VerificationAdminService {
       });
     });
     await this.endLease(admin, requestId, 'request_info');
+    await this.autoDecision?.recordOwnerDecision(requestId, 'request_info');
     await this.dropCounts();
     return this.card(requestId);
   }
@@ -732,6 +737,7 @@ export class VerificationAdminService {
       outcome: 'reject',
     });
     await this.endLease(admin, requestId, 'reject');
+    await this.autoDecision?.recordOwnerDecision(requestId, 'reject');
     await this.dropCounts();
     return this.card(requestId);
   }

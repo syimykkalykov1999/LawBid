@@ -488,6 +488,33 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
    * (approved / rejected), then deleted by privacy.retention. The legal
    * texts state no period yet: 30 until the owner's lawyer sets one. */
   'verification.face_match.retention_days': 30,
+  // Owner 2026-11-12 (row 60): «Автоматическое решение по адвокатам»
+  // (verification-auto-decision.service.ts, the Persona / Onfido / Stripe
+  // Identity pattern: approve / decline / review). Off (default) = nothing
+  // automatic, every request waits for a person as today. On = everything
+  // matched (registry number + full name + active, face match at or above
+  // the threshold, liveness, the AI employee's confident «approve») is
+  // approved; a clear failure (number not in the registry, not active, the
+  // face far below the threshold) is rejected with an appeal; anything else
+  // stays in the queue. Owner only, a fresh 2FA code to change; never for
+  // an owner or staff account, never without the biometric consent.
+  'verification.auto_decision.enabled': false,
+  /** Face similarity, %, under which the faces count as clearly different
+   * (an automatic rejection with an appeal). Between it and the face match
+   * threshold the request waits for a person. */
+  'verification.auto_decision.face_reject_below': 50,
+  /** % of the automatic decisions shown to the owner first (the random
+   * audit) until his agreement with them is proven high… */
+  'verification.auto_decision.audit_pct': 10,
+  /** …then the sample drops by itself to this floor (2–5). */
+  'verification.auto_decision.audit_pct_min': 2,
+  /** Optional lever, off: an approval also needs a passing Persona document
+   * (authenticity) check of the same request. */
+  'verification.auto_decision.persona_document_enabled': false,
+  /** Optional lever, off: a blurry photo, a missing ID side or the AI's
+   * confident «request info» asks the attorney to upload again (the
+   * verifier's «Запросить информацию» flow) instead of waiting. */
+  'verification.auto_decision.ai_request_info_enabled': false,
 } as const;
 
 // Owner 2026-11-12 (row 54, docs/dev/BAR_SOURCES_2026-11-12.md): paid
@@ -1485,6 +1512,22 @@ export const OWNER_OPS_SETTINGS = {
    * Lambda (S3 object ops/scale-controls.json). */
   'scale.endpoints.mode': 'auto',
   'scale.endpoints.ceiling': 4,
+  /** Owner 2026-11-12 (row 67): the most copies autoscaling may run of each
+   * ECS service. 100 each by default, NO upper bound: only the owner's
+   * number limits it (the economy job writes it into AWS every 5 minutes;
+   * the money ceiling economy.aws_cap_usd, when he types one, can only
+   * hold api / worker lower). Growth stays by need (target tracking). */
+  'scale.max_tasks.api': 100,
+  'scale.max_tasks.worker': 100,
+  'scale.max_tasks.api_admin': 100,
+  'scale.max_tasks.admin': 100,
+  'scale.max_tasks.pgbouncer': 100,
+  /** Owner 2026-11-12 (row 67): Fargate Spot fallback. auto (default) = a
+   * service whose Spot tasks cannot start moves to regular Fargate at once
+   * and back to Spot after a quiet hold (modules/spot-fallback Lambda);
+   * on = hold every service on regular Fargate now; off = hands off. The
+   * economy job copies it to ops/scale-controls.json. */
+  'scale.spot_fallback.mode': 'auto',
   /** Own coturn box (owner 2026-11-02): auto = the API starts it only while
    * Cloudflare is down and stops it after 30 quiet minutes; on = always
    * running; off = never (stopped at once when no call runs). Only counts

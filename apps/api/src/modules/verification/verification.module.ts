@@ -38,6 +38,7 @@ import {
 } from './providers/verification-providers';
 import { VerificationAdminService } from './services/verification-admin.service';
 import { VerificationChecksService } from './services/verification-checks.service';
+import { VerificationAutoDecisionService } from './services/verification-auto-decision.service';
 import { StateRegistryService } from './services/state-registry.service';
 import { VerificationRequestsService } from './services/verification-requests.service';
 import { SelfieCaptureTokensService } from './services/selfie-capture-tokens.service';
@@ -114,6 +115,8 @@ import {
       useExisting: ManualIdVerificationProvider,
     },
     VerificationChecksService,
+    // Owner 2026-11-12 (row 60): «Автоматическое решение по адвокатам».
+    VerificationAutoDecisionService,
     // Owner 2026-11-08: Persona ID checks, only with the admin card set up.
     PersonaClient,
     PersonaVerificationService,
@@ -130,6 +133,8 @@ import {
   exports: [
     // docs/06 §3.4: user suspension applies the §2.5 attorney effects.
     VerificationAdminService,
+    // Row 60: the AI employee's proposals feed the automatic decision.
+    VerificationAutoDecisionService,
     BAR_LOOKUP_PROVIDER,
     ID_VERIFICATION_PROVIDER,
     VerificationProviderSelector,
