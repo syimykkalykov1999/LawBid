@@ -82,6 +82,11 @@ export const SLOW_LANE_QUEUES: readonly string[] = [
   BROADCAST_QUEUE,
 ];
 
+/** `failedLast5m` reads the failed set in pages of this many jobs... */
+const FAILED_5M_PAGE = 20;
+/** ...and stops here: the alarms fire at 1 and 10, the failed set keeps 200. */
+const FAILED_5M_MAX = 200;
+
 export interface QueueDepth {
   queue: string;
   waiting: number;
@@ -173,7 +178,7 @@ export class OpsMetricsJob implements OnModuleDestroy {
         active: counts.active ?? 0,
         delayed: counts.delayed ?? 0,
         failed: counts.failed ?? 0,
-        failed5m: await this.failedLast5m(q),
+        failed5m: await this.failedLast5m(q, now.getTime()),
         oldestAgeSeconds: oldest ? waitingAgeSeconds(oldest, now) : 0,
       };
       out.push(row);
@@ -202,12 +207,28 @@ export class OpsMetricsJob implements OnModuleDestroy {
     return out;
   }
 
-  /** Failures of the last 5 minutes from BullMQ's own metrics (needs
-   * `metrics` on the workers, see workerTuning); 0 when not available. */
-  private async failedLast5m(q: Queue): Promise<number> {
+  /**
+   * Jobs that failed for good in the last 5 minutes, read from the failed
+   * set itself (BullMQ scores it by finish time; `getFailed` is newest
+   * first). Prod 2026-11-13 (KNOWN_ERRORS 125): `getMetrics('failed')` was
+   * used before, but BullMQ appends a metrics point only when the NEXT job
+   * fails, so after the 11.11 outage the last five points (33) were read
+   * every minute for 40 hours and `queue-failed-many` stayed in ALARM with
+   * zero failures. Paged so a quiet queue costs one job read; 0 on error.
+   */
+  async failedLast5m(q: Queue, now: number = Date.now()): Promise<number> {
+    const since = now - 5 * 60_000;
+    let count = 0;
     try {
-      const m = await q.getMetrics('failed', 0, 4);
-      return m.data.reduce((sum, n) => sum + n, 0);
+      for (let start = 0; start < FAILED_5M_MAX; start += FAILED_5M_PAGE) {
+        const page = await q.getFailed(start, start + FAILED_5M_PAGE - 1);
+        for (const job of page) {
+          if ((job.finishedOn ?? 0) < since) return count;
+          count++;
+        }
+        if (page.length < FAILED_5M_PAGE) return count;
+      }
+      return count;
     } catch {
       return 0;
     }
