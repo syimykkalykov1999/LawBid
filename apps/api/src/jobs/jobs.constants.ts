@@ -485,6 +485,9 @@ export const HEAVY_JOBS: readonly CronJobName[] = [
   CRON_JOBS.contactsPepperBackfill,
   CRON_JOBS.treasuryDaily,
   CRON_JOBS.seoGenerate,
+  // 13.11 (owner list row 76): ~900 000 attorneys at 10M held the `cron`
+  // lane for ~21 minutes (partition.tick and 64 jobs waited).
+  CRON_JOBS.bidSubscriptionLapse,
   // Staff package: the nightly aggregates.
   CRON_JOBS.staffDailyStats,
   CRON_JOBS.staffRatingNightly,

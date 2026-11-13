@@ -97,6 +97,48 @@ describe('OpsMetricsJob.queueDepths', () => {
     expect(total?.waiting).toBe(105);
   });
 
+  it('counts prioritized jobs as waiting — every push job has a priority (row 79, 1B load test)', async () => {
+    const logger = { setContext: jest.fn(), info: jest.fn() };
+    const job = new OpsMetricsJob(
+      {} as ConfigService,
+      {} as PrismaService,
+      logger as unknown as PinoLogger,
+      settings('off'),
+    );
+    const now = new Date('2026-11-13T08:40:00Z');
+    const push = {
+      ...fakeQueue('push', 0),
+      // The stand: wait list empty, 386 409 push jobs in `prioritized`.
+      getJobCounts: jest.fn(() =>
+        Promise.resolve({
+          waiting: 0,
+          prioritized: 386_409,
+          active: 20,
+          delayed: 0,
+          failed: 0,
+        }),
+      ),
+      getPrioritized: jest.fn(() =>
+        Promise.resolve([{ timestamp: now.getTime() - 601_000, delay: 1000 }]),
+      ),
+    };
+    (job as unknown as { queues: unknown[] }).queues = [push];
+    const [row] = await job.queueDepths(now);
+    expect(push.getJobCounts).toHaveBeenCalledWith(
+      'waiting',
+      'prioritized',
+      'active',
+      'delayed',
+      'failed',
+    );
+    expect(row.waiting).toBe(386_409);
+    expect(row.oldestAgeSeconds).toBe(600);
+    const total = logger.info.mock.calls
+      .map(([o]) => o as { metric?: string; waiting?: number })
+      .find((o) => o.metric === 'queue_waiting_total');
+    expect(total?.waiting).toBe(386_409);
+  });
+
   it('reports exhausted failures of the last 5 minutes per queue (S10-7)', async () => {
     const logger = { setContext: jest.fn(), info: jest.fn() };
     const job = new OpsMetricsJob(

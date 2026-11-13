@@ -6,6 +6,7 @@ import {
   BID_SUBSCRIPTION_LAPSE_BATCH,
   BidSubscriptionLapseJob,
 } from './bid-subscription-lapse.job';
+import { CRON_HEAVY_QUEUE, CRON_JOBS, cronLaneOf } from '../jobs.constants';
 
 const logger = {
   setContext: jest.fn(),
@@ -13,6 +14,10 @@ const logger = {
 } as unknown as PinoLogger;
 
 describe('BidSubscriptionLapseJob (docs/04 §2, stage 4.4 safety net)', () => {
+  it('runs on the heavy lane, not the one-at-a-time default lane (row 76)', () => {
+    expect(cronLaneOf(CRON_JOBS.bidSubscriptionLapse)).toBe(CRON_HEAVY_QUEUE);
+  });
+
   it('withdraws only attorneys who are no longer isActive(), paginating past a full batch', () => {
     return runScenario();
   });
@@ -38,8 +43,15 @@ describe('BidSubscriptionLapseJob (docs/04 §2, stage 4.4 safety net)', () => {
       },
     );
     const prisma = { bid: { groupBy } } as unknown as PrismaService;
-    const isActive = jest.fn((id: string) => Promise.resolve(id === ids[0]));
-    const subscriptions = { isActive } as unknown as SubscriptionAccessService;
+    // Row 76: one set-based check per batch, never isActive() per attorney.
+    const activeAmong = jest.fn((batch: string[]) =>
+      Promise.resolve(new Set(batch.filter((id) => id === ids[0]))),
+    );
+    const isActive = jest.fn();
+    const subscriptions = {
+      activeAmong,
+      isActive,
+    } as unknown as SubscriptionAccessService;
     const withdrawActiveBidsForAttorney = jest.fn(() => Promise.resolve(2));
     const bids = { withdrawActiveBidsForAttorney } as unknown as BidsService;
 
@@ -52,6 +64,12 @@ describe('BidSubscriptionLapseJob (docs/04 §2, stage 4.4 safety net)', () => {
     const result = await job.run();
 
     expect(groupBy).toHaveBeenCalledTimes(2);
+    expect(activeAmong).toHaveBeenCalledTimes(2);
+    expect(activeAmong.mock.calls[0][0]).toHaveLength(
+      BID_SUBSCRIPTION_LAPSE_BATCH,
+    );
+    expect(activeAmong.mock.calls[1][0]).toEqual([ids[total - 1]]);
+    expect(isActive).not.toHaveBeenCalled();
     expect(result.attorneysChecked).toBe(total);
     // Every attorney but ids[0] is lapsed.
     expect(withdrawActiveBidsForAttorney).toHaveBeenCalledTimes(total - 1);
