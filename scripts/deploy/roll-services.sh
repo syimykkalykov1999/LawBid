@@ -40,6 +40,12 @@ for SVC in $SERVICES; do
       c.environment = (c.environment || []).filter((e) => e.name !== "APP_VERSION");
       c.environment.push({ name: "APP_VERSION", value: process.argv[2] });
     }
+    // 13.11 (KNOWN_ERRORS 126): lawbid-clamav:1.4 is amd64 only, so on ARM64
+    // the worker cannot start; :1.4-debian is the same ClamAV, multi-arch
+    // (the same rule as infra/envs/prod/main.tf).
+    if ((td.runtimePlatform || {}).cpuArchitecture === "ARM64") {
+      for (const c of td.containerDefinitions) c.image = c.image.replace(/(\/lawbid-clamav:1\.4)$/, "$1-debian");
+    }
     for (const k of ["taskDefinitionArn","revision","status","requiresAttributes","compatibilities","registeredAt","registeredBy","deregisteredAt"]) delete td[k];
     fs.writeFileSync("td.new.json", JSON.stringify(td));
   ' "$IMAGE" "$TAG" "$SVC"
