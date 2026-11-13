@@ -36,6 +36,8 @@ interface Opts {
   stored?: Record<string, unknown>;
   capacityMetrics?: Partial<CapacityReading>;
   mode?: 'auto' | 'manual';
+  /** Row 67: scale.max_tasks.api / .worker (default 50 / 20 here). */
+  maxTasks?: { api: number; worker: number };
   /** R-369: the shared admin summary (absent = no cache). */
   summary?: AdminSummaryService;
 }
@@ -110,6 +112,11 @@ function setup(o: Opts = {}) {
     'economy.aws_fallback_usd': 150,
     // The owner's sum; the older cases ran with the AWS budget as the cap.
     'economy.aws_cap_usd': o.awsCap ?? o.awsBudget ?? 200,
+    // Owner 2026-11-12 (row 67): the owner's ceilings (default 100); the
+    // older cases ran with Terraform caps 50 / 20.
+    'scale.max_tasks.api': o.maxTasks?.api ?? 50,
+    'scale.max_tasks.worker': o.maxTasks?.worker ?? 20,
+    'scale.spot_fallback.mode': 'auto',
   };
   const settings = {
     number: jest.fn(async (k: string) => settingValues[k] as number),
@@ -157,6 +164,7 @@ function setup(o: Opts = {}) {
     ceilingsNow: jest.fn(async () => null),
     setScale: jest.fn(async () => undefined),
     setCeilings: jest.fn(async () => undefined),
+    setOtherCeilings: jest.fn(async (c: Record<string, number>) => c),
   };
   const cap = {
     available: !!o.capacityMetrics,
@@ -376,11 +384,13 @@ describe('EconomyService.tick', () => {
     expect(t.storage.put).toHaveBeenCalledWith(
       'docs-bucket',
       'ops/scale-controls.json',
-      Buffer.from('{"endpoints":{"mode":"auto","ceiling":4}}'),
+      Buffer.from(
+        '{"endpoints":{"mode":"auto","ceiling":4},"spot_fallback":{"mode":"auto"}}',
+      ),
       'application/json',
     );
     (t.redis.get as jest.Mock).mockResolvedValue(
-      '{"endpoints":{"mode":"auto","ceiling":4}}',
+      '{"endpoints":{"mode":"auto","ceiling":4},"spot_fallback":{"mode":"auto"}}',
     );
     t.storage.put.mockClear();
     await t.svc.tick(NOW);
@@ -531,6 +541,35 @@ describe('EconomyService.tick', () => {
       jest.fn(async () => false);
     await t.svc.tick(NOW);
     expect(t.aws.setCeilings).toHaveBeenLastCalledWith({ api: 50, worker: 20 });
+  });
+
+  it('row 67: the owner ceilings of api-admin, admin and the pooler are written every tick', async () => {
+    const t = setup({ awsActual: 50, awsForecast: 100 });
+    await t.svc.tick(NOW);
+    expect(t.aws.setOtherCeilings).toHaveBeenLastCalledWith({
+      api_admin: 100,
+      admin: 100,
+      pgbouncer: 100,
+    });
+    (t.svc as unknown as { flags: { isEnabled: jest.Mock } }).flags.isEnabled =
+      jest.fn(async () => false);
+    t.aws.setOtherCeilings.mockClear();
+    await t.svc.tick(NOW);
+    expect(t.aws.setOtherCeilings).toHaveBeenCalledTimes(1);
+  });
+
+  it('row 67: no upper bound — the owner number above the Terraform start ceiling is used as is', async () => {
+    const t = setup({
+      awsActual: 50,
+      awsForecast: 100,
+      awsCap: 0,
+      maxTasks: { api: 5000, worker: 300 },
+    });
+    await t.svc.tick(NOW);
+    expect(t.aws.setCeilings).toHaveBeenLastCalledWith({
+      api: 5000,
+      worker: 300,
+    });
   });
 
   it('owner 2026-11-10: switched off, it still reads the database and Redis size for «Масштаб»', async () => {

@@ -5,6 +5,7 @@ import {
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   Optional,
@@ -19,6 +20,7 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { dropAppConfigCache } from '../feature-flags/services/app-config.service';
 import { BootstrapService } from '../feature-flags/services/bootstrap.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
@@ -50,6 +52,18 @@ export const CONFIG_AUDIT = {
  * server env (owner 2026-10-01: Bunny Stream replaces Mux for video).
  */
 import { SecretsService } from '../../common/secrets/secrets.service';
+
+/** Owner 2026-11-12 (row 60): «Автоматическое решение по адвокатам» —
+ * settings only the owner (super admin) may change, always with a fresh
+ * 2FA code. Any other admin gets 403 FORBIDDEN. */
+export const OWNER_ONLY_CONFIG_KEYS: ReadonlySet<string> = new Set([
+  'verification.auto_decision.enabled',
+  'verification.auto_decision.face_reject_below',
+  'verification.auto_decision.audit_pct',
+  'verification.auto_decision.audit_pct_min',
+  'verification.auto_decision.persona_document_enabled',
+  'verification.auto_decision.ai_request_info_enabled',
+]);
 export const PAID_FLAGS: Record<
   string,
   { integration?: string; keys: string[] }
@@ -98,7 +112,29 @@ export class AdminConfigService {
     private readonly bootstrap: BootstrapService,
     private readonly audit: AuditLogService,
     @Optional() private readonly secrets?: SecretsService,
+    // Owner 2026-11-12 (row 60): the fresh 2FA code of owner-only keys.
+    @Optional() private readonly adminAuth?: AdminAuthService,
   ) {}
+
+  /** Owner 2026-11-12 (row 60): OWNER_ONLY_CONFIG_KEYS change only by the
+   * owner (super admin) and only with a fresh 2FA code. Fails closed: no
+   * 2FA service = no change. */
+  private async assertOwnerOnly(admin: AdminActor, key: string): Promise<void> {
+    if (!OWNER_ONLY_CONFIG_KEYS.has(key)) return;
+    if (admin.adminRole !== 'super_admin') {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Only the owner can change this setting.',
+      });
+    }
+    if (!this.adminAuth) {
+      throw new ForbiddenException({
+        code: ErrorCode.ADMIN_STEP_UP_REQUIRED,
+        message: 'A fresh 2FA code is required.',
+      });
+    }
+    await this.adminAuth.assertStepUp(admin.sessionId);
+  }
 
   // ---- flags ----------------------------------------------------------
 
@@ -404,6 +440,7 @@ export class AdminConfigService {
     key: string,
     value: unknown,
   ): Promise<ConfigEntryDto> {
+    await this.assertOwnerOnly(admin, key);
     const schema = configSchema()[key];
     if (!schema) {
       throw new BadRequestException({

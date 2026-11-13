@@ -5,6 +5,12 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "admin_spot": {
+      "type": "boolean"
+    },
+    "api_admin_spot": {
+      "type": "boolean"
+    },
     "api_min_tasks": {
       "type": "integer",
       "minimum": 1,
@@ -92,6 +98,9 @@
       "type": "boolean"
     },
     "partition_role_enabled": {
+      "type": "boolean"
+    },
+    "pgbouncer_spot": {
       "type": "boolean"
     },
     "rds_cross_region_backups": {

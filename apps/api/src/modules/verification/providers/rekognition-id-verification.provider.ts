@@ -65,6 +65,12 @@ function manual(
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 
+/** Owner 2026-11-12 (row 60): CompareFaces only returns the similarity of
+ * faces at or above SimilarityThreshold, so it is asked from 0 % and the
+ * admin threshold is applied here; «far below» (an automatic rejection)
+ * needs the number. */
+export const MEASURE_FROM = 0;
+
 function lowQuality(face: ComparedFace | undefined): boolean {
   const q = face?.Quality;
   if (!q) return false;
@@ -87,22 +93,33 @@ function lowQuality(face: ComparedFace | undefined): boolean {
  * - several faces on the ID where they do not all agree (a ghost image that
  *   did not match, a second person) → manual `several_faces`.
  * The result never approves or rejects a request on its own: the request
- * stays in the verifier queue (VerificationChecksService).
+ * stays in the verifier queue (VerificationChecksService) unless the owner
+ * switched on «Автоматическое решение по адвокатам» (row 60), which reads
+ * it together with the registry, liveness and the AI employee.
  */
 export function mapCompareFaces(
   res: CompareFacesCommandOutput,
   threshold: number,
 ): CheckOutcome {
-  const matches = res.FaceMatches ?? [];
-  const unmatched = res.UnmatchedFaces ?? [];
-  const best = matches.reduce<number | null>(
+  // Row 60: the call asks from 0 % (MEASURE_FROM) so a face below the
+  // threshold still comes back with its similarity; split here.
+  const all = res.FaceMatches ?? [];
+  const matches = all.filter(
+    (f) => f.Similarity !== undefined && f.Similarity >= threshold,
+  );
+  const unmatched: ComparedFace[] = [
+    ...all.filter((f) => !matches.includes(f)).map((f) => f.Face ?? {}),
+    ...(res.UnmatchedFaces ?? []),
+  ];
+  const measured = all.reduce<number | null>(
     (m, f) => (f.Similarity === undefined ? m : Math.max(m ?? 0, f.Similarity)),
     null,
   );
+  const best = matches.length > 0 ? measured : null;
   const base = {
     threshold,
-    similarity: best === null ? null : round1(best),
-    targetFaces: matches.length + unmatched.length,
+    similarity: measured === null ? null : round1(measured),
+    targetFaces: all.length + (res.UnmatchedFaces ?? []).length,
   };
   const sourceConfidence = res.SourceImageFace?.Confidence;
   if (
@@ -183,7 +200,7 @@ export class RekognitionIdVerificationProvider
       const images = await this.images(input.requestId);
       if ('reason' in images) return manual(images.reason);
       const threshold = await this.threshold();
-      const res = await this.compare(images.selfie, images.id, threshold);
+      const res = await this.compare(images.selfie, images.id);
       return mapCompareFaces(res, threshold);
     } catch (err) {
       const name = err instanceof Error ? err.name : 'Error';
@@ -258,7 +275,6 @@ export class RekognitionIdVerificationProvider
   private async compare(
     source: StoredImage,
     target: StoredImage,
-    threshold: number,
   ): Promise<CompareFacesCommandOutput> {
     const client = await this.client();
     // An own S3-compatible store (S3_ENDPOINT) is out of Rekognition's reach.
@@ -267,7 +283,9 @@ export class RekognitionIdVerificationProvider
       client.compareFaces({
         SourceImage: await this.image(source, bytes),
         TargetImage: await this.image(target, bytes),
-        SimilarityThreshold: threshold,
+        // Row 60: measured from 0 %, compared with [threshold] in
+        // mapCompareFaces (a clear mismatch then has its similarity).
+        SimilarityThreshold: MEASURE_FROM,
         QualityFilter: 'AUTO',
       });
     try {

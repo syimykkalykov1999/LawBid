@@ -314,7 +314,7 @@
   "link-preview": 1,
   "media-moderation": 5,
   "mentions": 2,
-  "moderation": 10,
+  "moderation": 11,
   "notifications": 9,
   "outreach": 5,
   "partners": 6,
@@ -357,7 +357,7 @@
   "user-brief": 2,
   "usernames": 2,
   "users": 8,
-  "verification": 13,
+  "verification": 14,
   "videos": 3,
   "work-lease": 5,
   "workspace": 4

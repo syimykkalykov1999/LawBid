@@ -159,7 +159,11 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
       "elasticache:ModifyReplicationGroup",
       "es:*", "s3:PutReplicationConfiguration", "s3:PutBucket*", "s3:CreateBucket",
       "s3:PutLifecycleConfiguration", "s3:PutEncryptionConfiguration", "s3:PutObject",
-      "lambda:*", "events:*", "sns:*", "cloudfront:GetDistribution*", "cloudfront:UpdateDistribution",
+      "lambda:*", "events:*",
+      # 13.11 (KNOWN_ERRORS 126): the db/redis autoscale night schedules are
+      # EventBridge SCHEDULER (not events:*); UpdateSchedule was AccessDenied.
+      "scheduler:GetSchedule", "scheduler:UpdateSchedule", "scheduler:CreateSchedule",
+      "scheduler:DeleteSchedule", "scheduler:TagResource", "scheduler:ListTagsForResource", "sns:*", "cloudfront:GetDistribution*", "cloudfront:UpdateDistribution",
       "cloudfront:TagResource", "servicediscovery:*", "ssm:PutParameter", "ssm:AddTagsToResource",
     ]
     resources = ["*"]

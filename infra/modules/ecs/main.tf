@@ -37,8 +37,8 @@ variable "api_admin_tasks" {
 }
 variable "api_admin_max_tasks" {
   type        = number
-  default     = 2
-  description = "Most tasks the api-admin service scales out to (CPU 70 %)."
+  default     = 100
+  description = "Start ceiling of the api-admin service (CPU 70 %). Owner 2026-11-12: 100, then the admin setting scale.max_tasks.api_admin (no upper bound) moves it."
 }
 variable "api_ws_target_group_arn" {
   type        = string
@@ -111,7 +111,7 @@ variable "worker_memory" {
 }
 variable "clamav_image" {
   type        = string
-  default     = "clamav/clamav:1.4"
+  default     = "clamav/clamav-debian:1.4" # 13.11 KE 126: multi-arch; clamav/clamav:1.4 is amd64 only
   description = "Antivirus sidecar of the worker (uploads stay «pending» without it)."
 }
 variable "clamav_memory" {
@@ -141,12 +141,19 @@ variable "admin_tasks" {
   default = 2
 }
 variable "api_max_tasks" {
-  type    = number
-  default = 20
+  type        = number
+  default     = 100
+  description = "Start ceiling of the api service (owner 2026-11-12: 100; the admin setting scale.max_tasks.api moves it later, no upper bound)."
 }
 variable "worker_max_tasks" {
-  type    = number
-  default = 10
+  type        = number
+  default     = 100
+  description = "Start ceiling of the worker service (owner 2026-11-12: 100; admin setting scale.max_tasks.worker)."
+}
+variable "admin_max_tasks" {
+  type        = number
+  default     = 100
+  description = "Start ceiling of the admin web service (CPU 70 %); admin setting scale.max_tasks.admin."
 }
 variable "cpu_architecture" {
   type        = string
@@ -169,12 +176,31 @@ variable "container_insights" {
 variable "worker_spot" {
   type        = bool
   default     = false
-  description = "Run the worker on Fargate Spot (up to 70 % cheaper): one task stays on regular Fargate, the rest are split half on regular Fargate, half on Spot (weight 1:1). Safe for the queue: an interrupted job is retried."
+  description = "Run the worker on Fargate Spot (up to 70 % cheaper): strategy spot_strategy (one regular task, the rest mostly Spot). Safe for the queue: an interrupted job is retried."
 }
 variable "api_spot" {
   type        = bool
   default     = false
-  description = "Run extra API tasks on Fargate Spot (up to 70 % cheaper): the first task stays on regular Fargate (base 1), tasks added by autoscaling are split half regular, half Spot (weight 1:1; ECS does not fall back to regular Fargate when Spot has no capacity, so half of the new tasks always start). A Spot interruption gives 2 minutes: the ALB drains the task and the app reconnects through the other tasks."
+  description = "Run the api service on Fargate Spot: one task stays on regular Fargate (base), tasks added by autoscaling go mostly to Spot (spot_strategy). A Spot interruption gives 2 minutes: the ALB drains the task and the app reconnects through the other tasks. No Spot capacity: modules/spot-fallback moves the service to regular Fargate and back."
+}
+variable "api_admin_spot" {
+  type        = bool
+  default     = false
+  description = "Same as api_spot for the api-admin service (owner 2026-11-12, row 67)."
+}
+variable "admin_spot" {
+  type        = bool
+  default     = false
+  description = "Same as api_spot for the admin web service (owner 2026-11-12, row 67)."
+}
+variable "spot_strategy" {
+  type = object({
+    base           = number
+    fargate_weight = number
+    spot_weight    = number
+  })
+  default     = { base = 1, fargate_weight = 1, spot_weight = 4 }
+  description = "Owner 2026-11-12 (row 67): every service on Spot keeps `base` regular Fargate tasks always; tasks above it go fargate_weight : spot_weight (1:4 = about 80 % on Spot). Applied at creation; later the spot-fallback Lambda keeps the live services on it (the services ignore the strategy in Terraform so a fallback survives an apply)."
 }
 variable "night_scale_mode" {
   type        = string
@@ -748,7 +774,13 @@ resource "aws_ecs_task_definition" "admin" {
 # docs/06 §7.3): run by the pipeline with `aws ecs run-task` before the
 # prod rollout; never part of a long-running service.
 resource "aws_ecs_task_definition" "migrate" {
-  family                   = "${var.name}-migrate"
+  family = "${var.name}-migrate"
+  # 13.11 (KE 126 audit): same processor as the services (it ran on the
+  # X86_64 default; the api image is multi-arch).
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = var.cpu_architecture
+  }
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 512
@@ -786,6 +818,20 @@ resource "aws_ecs_task_definition" "migrate" {
 }
 
 # --- services --------------------------------------------------------------
+locals {
+  # Owner 2026-11-12 (row 67): one strategy for every service on Spot.
+  spot_providers = {
+    FARGATE      = { base = var.spot_strategy.base, weight = var.spot_strategy.fargate_weight }
+    FARGATE_SPOT = { base = 0, weight = var.spot_strategy.spot_weight }
+  }
+  spot_services = merge(
+    var.api_spot ? { api = aws_ecs_service.api.id } : {},
+    var.worker_spot ? { worker = aws_ecs_service.worker.id } : {},
+    var.admin_spot ? { admin = aws_ecs_service.admin.id } : {},
+    var.api_admin_spot && var.api_admin_enabled ? { "api-admin" = aws_ecs_service.api_admin[0].id } : {},
+  )
+}
+
 resource "aws_ecs_service" "api" {
   name            = "api"
   cluster         = aws_ecs_cluster.this.id
@@ -803,7 +849,7 @@ resource "aws_ecs_service" "api" {
   propagate_tags                    = "SERVICE"
 
   dynamic "capacity_provider_strategy" {
-    for_each = var.api_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 1 } } : {}
+    for_each = var.api_spot ? local.spot_providers : {}
     content {
       capacity_provider = capacity_provider_strategy.key
       base              = capacity_provider_strategy.value.base
@@ -846,7 +892,9 @@ resource "aws_ecs_service" "api" {
       rollback    = true
     }
   }
-  lifecycle { ignore_changes = [desired_count] }
+  # The spot-fallback Lambda changes the strategy at run time (no Spot
+  # capacity -> regular Fargate, and back); an apply must not undo that.
+  lifecycle { ignore_changes = [desired_count, capacity_provider_strategy] }
   tags = merge(var.tags, { Component = "api" })
 }
 
@@ -860,12 +908,21 @@ resource "aws_ecs_service" "api_admin" {
   cluster                           = aws_ecs_cluster.this.id
   task_definition                   = aws_ecs_task_definition.api.arn
   desired_count                     = var.api_admin_tasks
-  launch_type                       = "FARGATE"
+  launch_type                       = var.api_admin_spot ? null : "FARGATE"
   force_new_deployment              = true
   platform_version                  = "LATEST"
   health_check_grace_period_seconds = 60
   enable_execute_command            = false
   propagate_tags                    = "SERVICE"
+
+  dynamic "capacity_provider_strategy" {
+    for_each = var.api_admin_spot ? local.spot_providers : {}
+    content {
+      capacity_provider = capacity_provider_strategy.key
+      base              = capacity_provider_strategy.value.base
+      weight            = capacity_provider_strategy.value.weight
+    }
+  }
 
   network_configuration {
     subnets          = var.private_subnet_ids
@@ -883,7 +940,9 @@ resource "aws_ecs_service" "api_admin" {
     enable   = true
     rollback = true
   }
-  lifecycle { ignore_changes = [desired_count] }
+  # The spot-fallback Lambda changes the strategy at run time (no Spot
+  # capacity -> regular Fargate, and back); an apply must not undo that.
+  lifecycle { ignore_changes = [desired_count, capacity_provider_strategy] }
   tags = merge(var.tags, { Component = "api-admin" })
 }
 
@@ -897,6 +956,8 @@ resource "aws_appautoscaling_target" "api_admin" {
   resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.api_admin[0].name}"
   min_capacity       = var.api_admin_tasks
   max_capacity       = var.api_admin_max_tasks
+  # The app (economy job) writes the owner's ceiling scale.max_tasks.api_admin.
+  lifecycle { ignore_changes = [max_capacity] }
 }
 
 resource "aws_appautoscaling_policy" "api_admin_cpu" {
@@ -931,7 +992,7 @@ resource "aws_ecs_service" "worker" {
   enable_execute_command = false
   propagate_tags         = "SERVICE"
   dynamic "capacity_provider_strategy" {
-    for_each = var.worker_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 1 } } : {}
+    for_each = var.worker_spot ? local.spot_providers : {}
     content {
       capacity_provider = capacity_provider_strategy.key
       base              = capacity_provider_strategy.value.base
@@ -958,7 +1019,9 @@ resource "aws_ecs_service" "worker" {
       rollback    = true
     }
   }
-  lifecycle { ignore_changes = [desired_count] }
+  # The spot-fallback Lambda changes the strategy at run time (no Spot
+  # capacity -> regular Fargate, and back); an apply must not undo that.
+  lifecycle { ignore_changes = [desired_count, capacity_provider_strategy] }
   tags = merge(var.tags, { Component = "worker" })
 }
 
@@ -967,10 +1030,19 @@ resource "aws_ecs_service" "admin" {
   cluster                           = aws_ecs_cluster.this.id
   task_definition                   = aws_ecs_task_definition.admin.arn
   desired_count                     = var.admin_tasks
-  launch_type                       = "FARGATE"
+  launch_type                       = var.admin_spot ? null : "FARGATE"
+  force_new_deployment              = true
   platform_version                  = "LATEST"
   health_check_grace_period_seconds = 30
   propagate_tags                    = "SERVICE"
+  dynamic "capacity_provider_strategy" {
+    for_each = var.admin_spot ? local.spot_providers : {}
+    content {
+      capacity_provider = capacity_provider_strategy.key
+      base              = capacity_provider_strategy.value.base
+      weight            = capacity_provider_strategy.value.weight
+    }
+  }
   network_configuration {
     subnets          = var.private_subnet_ids
     security_groups  = [var.tasks_security_group_id]
@@ -996,7 +1068,38 @@ resource "aws_ecs_service" "admin" {
       rollback    = true
     }
   }
+  # desired_count: the admin CPU autoscaling below owns it now (owner
+  # 2026-11-12, ceiling scale.max_tasks.admin); strategy: spot-fallback.
+  lifecycle { ignore_changes = [desired_count, capacity_provider_strategy] }
   tags = merge(var.tags, { Component = "admin" })
+}
+
+# Owner 2026-11-12 (row 67): the admin web grows by need too (same CPU
+# target tracking as api-admin: out fast, in slowly), up to the ceiling.
+resource "aws_appautoscaling_target" "admin" {
+  service_namespace  = "ecs"
+  scalable_dimension = "ecs:service:DesiredCount"
+  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.admin.name}"
+  min_capacity       = var.admin_tasks
+  max_capacity       = var.admin_max_tasks
+  # The app (economy job) writes the owner's ceiling scale.max_tasks.admin.
+  lifecycle { ignore_changes = [max_capacity] }
+}
+
+resource "aws_appautoscaling_policy" "admin_cpu" {
+  name               = "${var.name}-admin-cpu"
+  policy_type        = "TargetTrackingScaling"
+  service_namespace  = aws_appautoscaling_target.admin.service_namespace
+  scalable_dimension = aws_appautoscaling_target.admin.scalable_dimension
+  resource_id        = aws_appautoscaling_target.admin.resource_id
+  target_tracking_scaling_policy_configuration {
+    target_value       = 70
+    scale_in_cooldown  = 900
+    scale_out_cooldown = 60
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+  }
 }
 
 # --- autoscaling (§6.3: CPU 60 %, min var.min_tasks, max per env) --------------------
@@ -1091,6 +1194,10 @@ output "api_service_arn" { value = aws_ecs_service.api.id }
 output "worker_service_arn" { value = aws_ecs_service.worker.id }
 output "worker_service_name" { value = aws_ecs_service.worker.name }
 output "admin_service_name" { value = aws_ecs_service.admin.name }
+output "admin_service_arn" { value = aws_ecs_service.admin.id }
+output "api_admin_service_name" { value = one(aws_ecs_service.api_admin[*].name) }
+# Services on Fargate Spot (name => ARN) for modules/spot-fallback.
+output "spot_services" { value = local.spot_services }
 output "migrate_task_definition_arn" { value = aws_ecs_task_definition.migrate.arn }
 output "log_group_names" { value = { for k, g in aws_cloudwatch_log_group.svc : k => g.name } }
 

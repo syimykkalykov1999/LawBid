@@ -87,6 +87,13 @@ export class VerificationChecksService {
     }
   }
 
+  /** Owner 2026-11-12 (row 60): called after every automatic check run
+   * (VerificationAutoDecisionService registers itself; no cycle). */
+  private afterChecks: ((requestId: string) => Promise<void>) | null = null;
+  onChecksDone(fn: (requestId: string) => Promise<void>): void {
+    this.afterChecks = fn;
+  }
+
   /** After a draft is submitted. Best effort: failures are logged. */
   async runOnSubmit(requestId: string): Promise<void> {
     try {
@@ -97,6 +104,8 @@ export class VerificationChecksService {
         'Automatic verification checks failed — request stays in manual review',
       );
     }
+    // Row 60: «Автоматическое решение по адвокатам» (off by default).
+    if (this.afterChecks) await this.afterChecks(requestId);
   }
 
   private async run(requestId: string): Promise<void> {
