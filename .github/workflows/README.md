@@ -9,7 +9,7 @@ subset of §7.2's eventual PR-check list it covers today.
 
 | Workflow | Triggers | What it does |
 |---|---|---|
-| `api-ci.yml` | PR / push / merge queue touching `apps/api/**`, root `package(-lock).json`, `scripts/ci/**` | S11-7: five parallel jobs, each with its own digest-pinned Postgres 16 + Redis 7 (+ Mailhog) services: `static` (migrations on a clean and on the previous release's DB, drift, expand/contract check, i18n, ERD, lint, tsc, unit tests with a `coverageThreshold` floor + ratchet note, OpenAPI breaking-change diff, contract, flag-first, audit), `e2e` (3-way matrix, one retry per failed suite, `flaky.json` artifact), `two-db`, `n1` (the PREVIOUS release's e2e smoke suites on the NEW schema, only when migrations change) and the single required check **`API CI`** that needs them all. `cancel-in-progress` for PRs only. |
+| `api-ci.yml` | PR / push / merge queue touching `apps/api/**`, root `package(-lock).json`, `scripts/ci/**` | S11-7: five parallel jobs, each with its own digest-pinned Postgres 16 + Redis 7 (+ Mailpit) services, on GitHub's ARM64 runner `ubuntu-24.04-arm` (prod is Graviton linux/arm64, 2026-11-13): `static` (migrations on a clean and on the previous release's DB, drift, expand/contract check, i18n, ERD, lint, tsc, unit tests with a `coverageThreshold` floor + ratchet note, OpenAPI breaking-change diff, contract, flag-first, audit), `e2e` (3-way matrix, one retry per failed suite, `flaky.json` artifact), `two-db`, `n1` (the PREVIOUS release's e2e smoke suites on the NEW schema, only when migrations change) and the single required check **`API CI`** that needs them all. `cancel-in-progress` for PRs only. |
 | `mobile-ci.yml` | PR/push to `main`/`master` touching `apps/mobile/**` | `analyze-and-test` (Ubuntu; the golden files run in `golden-tests` on macOS, only when the app changes): `flutter pub get`, codegen (`build_runner`), `flutter analyze`, blocking hardcoded-string/hardcoded-color scans of `lib/` against a baseline (`apps/mobile/tool/ci/hardcoded_check.py`), `flutter test` (unit/widget/golden). `build-android` (Ubuntu) and `build-ios` (macOS) then each build an unsigned debug build as a build-check only — no signing, no store upload. |
 | `notify-failure.yml` | `workflow_call` (reusable) | S11-6: one "tell the owner" job used by deploy / rollback / web-deploy / self-check / drift / main scans / CI on main: GitHub issue `ci-alert` (one per kind, no spam) + SNS `lawbid-prod-alerts` (secret `AWS_NOTIFY_ROLE`) + chat webhook (secret `ALERT_WEBHOOK_URL`). |
 | `synthetic.yml` | cron every 5 min + manual | S11-5: `scripts/ops/synthetic-check.mjs` against production (health + version, bootstrap, sign-in validation; with `SYNTHETIC_IDENTIFIER/PASSWORD`: login, authenticated call, Socket.IO handshake, logout). Failure notifies. |
@@ -54,7 +54,7 @@ subset of §7.2's eventual PR-check list it covers today.
   workflow reads it (`jq -r .flutter apps/mobile/.fvmrc`) and passes it as
   `flutter-version`. Bump the file, not the workflows. Dart for the API
   contract stays pinned in `api-ci.yml`.
-- Container images used by CI (`postgres`, `redis`, `mailhog`, `oasdiff`) and the
+- Container images used by CI (`postgres`, `redis`, `axllent/mailpit`, `oasdiff`; each must be a multi-arch index with linux/arm64) and the
   `node:26-alpine` base of the Dockerfiles are pinned by digest (S11-7/10).
   Dependabot's `docker` ecosystem bumps the Dockerfiles; the digests inside
   workflows are bumped by hand (`docker buildx imagetools inspect <image:tag>`).
