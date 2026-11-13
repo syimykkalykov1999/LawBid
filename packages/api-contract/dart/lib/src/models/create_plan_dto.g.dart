@@ -9,6 +9,7 @@ part of 'create_plan_dto.dart';
 CreatePlanDto _$CreatePlanDtoFromJson(
   Map<String, dynamic> json,
 ) => CreatePlanDto(
+  amountCents: (json['amountCents'] as num).toInt(),
   code: json['code'] as String,
   audience: CreatePlanDtoAudience.fromJson(json['audience'] as String),
   interval: CreatePlanDtoInterval.fromJson(json['interval'] as String),
@@ -27,7 +28,6 @@ CreatePlanDto _$CreatePlanDtoFromJson(
   highlights: (json['highlights'] as List<dynamic>?)
       ?.map((e) => LocalizedTextInputDto.fromJson(e as Map<String, dynamic>))
       .toList(),
-  amountCents: (json['amountCents'] as num?)?.toInt(),
   compareAtCents: (json['compareAtCents'] as num?)?.toInt(),
   showDiscount: json['showDiscount'] as bool?,
   status: json['status'] == null
@@ -46,7 +46,7 @@ Map<String, dynamic> _$CreatePlanDtoToJson(CreatePlanDto instance) =>
       'description': ?instance.description?.toJson(),
       'entitlements': ?instance.entitlements,
       'highlights': ?instance.highlights?.map((e) => e.toJson()).toList(),
-      'amountCents': ?instance.amountCents,
+      'amountCents': instance.amountCents,
       'compareAtCents': ?instance.compareAtCents,
       'showDiscount': ?instance.showDiscount,
       'status': ?instance.status?.toJson(),
