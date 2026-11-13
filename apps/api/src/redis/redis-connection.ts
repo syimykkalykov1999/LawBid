@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { Logger } from '@nestjs/common';
+import type { Telemetry } from 'bullmq';
+import { demoTelemetryFor } from '../common/queues/demo-job-context';
 import Redis, {
   Cluster,
   type ClusterOptions,
@@ -375,12 +377,17 @@ export function bullOptions(
   url: string,
   opts: { worker?: boolean } = {},
   env: RedisEnv = process.env,
-): { connection: any; prefix?: string } {
+): { connection: any; prefix?: string; telemetry?: Telemetry } {
+  // Owner row 83: every queue and worker carries the demo flag of the
+  // request into its jobs (BullMQ context propagation, demo-job-context.ts).
+  const telemetry = demoTelemetryFor(queueName);
+  const carry = telemetry ? { telemetry } : {};
   if (!isRedisClusterMode(env)) {
     return {
       connection: opts.worker
         ? { url, maxRetriesPerRequest: null, ...redisOptions() }
         : sharedProducer(url, env),
+      ...carry,
     };
   }
   return {
@@ -388,5 +395,6 @@ export function bullOptions(
       ? createRedisClient(url, { maxRetriesPerRequest: null }, env)
       : sharedProducer(url, env),
     prefix: env.REDIS_BULL_PREFIX?.trim() || `{${queueName}}`,
+    ...carry,
   };
 }
