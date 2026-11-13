@@ -19,6 +19,8 @@ class CreateAiRoleDto {
     this.auditPct = 10,
     this.model,
     this.imageFileIds,
+    this.enabled,
+    this.autoSend,
   });
 
   factory CreateAiRoleDto.fromJson(Map<String, Object?> json) =>
@@ -35,6 +37,12 @@ class CreateAiRoleDto {
 
   /// Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads); the exact set replaces the old one.
   final List<String>? imageFileIds;
+
+  /// Owner 2026-11-12 (row 53): «Вкл / Выкл».
+  final bool? enabled;
+
+  /// Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support replies only).
+  final bool? autoSend;
 
   Map<String, Object?> toJson() => _$CreateAiRoleDtoToJson(this);
 }

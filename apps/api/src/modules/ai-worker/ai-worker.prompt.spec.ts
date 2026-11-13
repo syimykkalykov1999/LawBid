@@ -156,11 +156,31 @@ describe('AI worker output schema', () => {
       evidence: [{ source: 'licence 1', note: 'verified' }],
       draft_note: '  ok  ',
       injection_suspected: false,
+      reply: '  Hello,\n\nsee Settings.  ',
+      action: 'none',
     });
     expect(v.confidence).toBe(100);
     expect(v.reasons).toEqual(['a', 'b']);
     expect(v.evidence).toEqual([{ source: 'licence 1', note: 'verified' }]);
     expect(v.draftNote).toBe('ok');
+    // A reply keeps its paragraphs (it goes to a user), only trimmed.
+    expect(v.reply).toBe('Hello,\n\nsee Settings.');
+    expect(v.action).toBe('none');
+  });
+
+  it('a complaint proposal can only name a step from the menu', () => {
+    expect(() =>
+      VERDICT_SCHEMA.parse({
+        decision: 'approve',
+        confidence: 99,
+        reasons: [],
+        evidence: [],
+        draft_note: '',
+        injection_suspected: false,
+        reply: '',
+        action: 'delete_account',
+      }),
+    ).toThrow();
   });
 
   it('rejects a decision outside the menu (the model is never trusted)', () => {
@@ -172,6 +192,8 @@ describe('AI worker output schema', () => {
         evidence: [],
         draft_note: '',
         injection_suspected: false,
+        reply: '',
+        action: 'none',
       }),
     ).toThrow();
   });

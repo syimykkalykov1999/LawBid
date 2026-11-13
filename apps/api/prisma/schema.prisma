@@ -9115,7 +9115,15 @@ model AiRole {
   /// Random audit: this % of high-confidence proposals still goes to the
   /// owner first (catches drift).
   audit_pct      Int       @default(10) @db.SmallInt
+  /// Owner 2026-11-12 (row 53): «Вкл / Выкл». Off = the role does nothing:
+  /// no new run, the cron skips its runs, no AI call at all.
+  enabled        Boolean   @default(true)
+  /// Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support
+  /// replies only). Off = every draft waits for the owner's one tap.
+  auto_send      Boolean   @default(false)
   created_by     String    @db.Uuid
+  /// Owner 2026-11-12 (row 53): «Удалить» (soft delete with 2FA). Runs and
+  /// items stay in history until the retention cleanup.
   archived_at    DateTime? @db.Timestamptz
   created_at     DateTime  @default(now()) @db.Timestamptz
   updated_at     DateTime  @updatedAt @db.Timestamptz
@@ -9165,7 +9173,8 @@ model AiRunItem {
   run_id          String    @db.Uuid
   run             AiRun     @relation(fields: [run_id], references: [id], onDelete: Cascade)
   item_id         String    @db.Uuid
-  /// pending | sent | proposed | failed | approved | rejected
+  /// pending | sent | proposed | failed | approved | rejected | skipped |
+  /// auto_sent (a confident support reply the role sent itself)
   status          String    @default("pending") @db.VarChar(16)
   proposal        Json?
   decision        String?   @db.VarChar(32)
@@ -9182,6 +9191,9 @@ model AiRunItem {
   owner_note      String?   @db.VarChar(1000)
   reviewed_by     String?   @db.Uuid
   reviewed_at     DateTime? @db.Timestamptz
+  /// Owner 2026-11-12 (row 51): when the approved (or, with the role's
+  /// switch on, auto_sent) support reply went to the user.
+  delivered_at    DateTime? @db.Timestamptz
   created_at      DateTime  @default(now()) @db.Timestamptz
   updated_at      DateTime  @updatedAt @db.Timestamptz
 

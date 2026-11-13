@@ -19,6 +19,8 @@ CreateAiRoleDto _$CreateAiRoleDtoFromJson(Map<String, dynamic> json) =>
       imageFileIds: (json['imageFileIds'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      enabled: json['enabled'] as bool?,
+      autoSend: json['autoSend'] as bool?,
     );
 
 Map<String, dynamic> _$CreateAiRoleDtoToJson(CreateAiRoleDto instance) =>
@@ -30,4 +32,6 @@ Map<String, dynamic> _$CreateAiRoleDtoToJson(CreateAiRoleDto instance) =>
       'confidenceMin': instance.confidenceMin,
       'auditPct': instance.auditPct,
       'imageFileIds': ?instance.imageFileIds,
+      'enabled': ?instance.enabled,
+      'autoSend': ?instance.autoSend,
     };

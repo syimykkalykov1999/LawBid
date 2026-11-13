@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -16,7 +17,7 @@ import {
 } from 'class-validator';
 import { AiAttachmentViewDto } from '../ai-attachments/ai-attachments.dto';
 import { STAFF_AI_MODELS } from '../staff-ai/staff-ai.types';
-import { VERDICT_DECISIONS } from './ai-worker.prompt';
+import { VERDICT_ACTIONS, VERDICT_DECISIONS } from './ai-worker.prompt';
 import { AI_WORKER_QUEUES } from './ai-worker.queues';
 import { LANES } from './ai-worker.routing';
 
@@ -44,6 +45,16 @@ export class AiWorkerRoleDto {
   confidenceMin!: number;
   @ApiProperty({ description: '% of confident proposals still audited.' })
   auditPct!: number;
+  @ApiProperty({
+    description:
+      'Owner 2026-11-12 (row 53): «Вкл / Выкл». Off = no run, no AI call, the cron skips it.',
+  })
+  enabled!: boolean;
+  @ApiProperty({
+    description:
+      'Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support replies; default off).',
+  })
+  autoSend!: boolean;
   @ApiProperty({ description: 'Proposals the owner decided.' })
   reviewed!: number;
   @ApiProperty({ description: 'Of them, the owner agreed.' }) agreed!: number;
@@ -130,10 +141,24 @@ export class AiWorkerEvidenceDto {
   @ApiProperty() note!: string;
 }
 
+export class AiWorkerRegistryLinkDto {
+  @ApiProperty() stateCode!: string;
+  @ApiProperty({ description: 'The state bar’s official lookup page.' })
+  url!: string;
+}
+
 export class AiWorkerItemDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ format: 'uuid' }) runId!: string;
   @ApiProperty() roleName!: string;
+  @ApiProperty({ enum: AI_WORKER_QUEUES, enumName: 'AiWorkerQueueKey' })
+  queue!: string;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'The admin page of the item (request, ticket, report card).',
+  })
+  openPath!: string | null;
   @ApiProperty({ format: 'uuid', description: 'The queue item (request id).' })
   itemId!: string;
   @ApiProperty() status!: string;
@@ -161,6 +186,29 @@ export class AiWorkerItemDto {
   @ApiProperty({ type: String, nullable: true }) ownerNote!: string | null;
   @ApiProperty() draftNote!: string;
   @ApiProperty() injectionSuspected!: boolean;
+  @ApiProperty({
+    description:
+      'Support queue: the draft answer to the user (sent on «Утвердить»).',
+  })
+  reply!: string;
+  @ApiProperty({
+    enum: VERDICT_ACTIONS,
+    enumName: 'AiWorkerAction',
+    description: 'Complaint queue: the proposed step (never applied).',
+  })
+  action!: string;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    format: 'date-time',
+    description: 'When the support reply went to the user.',
+  })
+  deliveredAt!: string | null;
+  @ApiProperty({
+    type: [AiWorkerRegistryLinkDto],
+    description: 'Registries the owner checks by hand (no automatic source).',
+  })
+  registryLinks!: AiWorkerRegistryLinkDto[];
   @ApiProperty({ type: String, nullable: true }) error!: string | null;
   @ApiProperty() costCents!: number;
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })
@@ -187,6 +235,7 @@ export class AiWorkerItemsQueryDto {
       'pending',
       'sent',
       'skipped',
+      'auto_sent',
     ],
     enumName: 'AiWorkerItemStatus',
   })
@@ -199,6 +248,7 @@ export class AiWorkerItemsQueryDto {
     'pending',
     'sent',
     'skipped',
+    'auto_sent',
   ])
   status?: string;
 
@@ -268,6 +318,21 @@ export class CreateAiRoleDto {
   @IsArray()
   @IsUUID('all', { each: true })
   imageFileIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Owner 2026-11-12 (row 53): «Вкл / Выкл».',
+  })
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support replies only).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  autoSend?: boolean;
 }
 
 export class UpdateAiRoleDto {
@@ -319,6 +384,21 @@ export class UpdateAiRoleDto {
   @IsArray()
   @IsUUID('all', { each: true })
   imageFileIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Owner 2026-11-12 (row 53): «Вкл / Выкл».',
+  })
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support replies only).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  autoSend?: boolean;
 }
 
 export class AiRoleIdParamDto {
