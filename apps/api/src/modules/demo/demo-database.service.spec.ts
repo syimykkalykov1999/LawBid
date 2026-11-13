@@ -156,10 +156,12 @@ describe('demo world: a half-applied migration (prod 2026-11-08)', () => {
     expect(h.demo.$transaction).toHaveBeenCalledTimes(1);
   });
 
-  it('a half-applied replay stays statement by statement (outside a transaction)', async () => {
+  it('a half-applied replay runs in one transaction with a savepoint per statement (LOCK TABLE needs a transaction)', async () => {
     const h = harness(['20260101_a']);
     await h.apply();
-    expect(h.demo.$transaction).not.toHaveBeenCalled();
+    expect(h.demo.$transaction).toHaveBeenCalledTimes(1);
+    expect(h.ran).toContain('ROLLBACK TO SAVEPOINT demo_stmt');
+    expect(h.ran.filter((s) => s === 'SAVEPOINT demo_stmt')).toHaveLength(2);
   });
 
   it('a migration left half-applied is replayed past «already exists» and finished', async () => {
