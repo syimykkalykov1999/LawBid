@@ -44,6 +44,7 @@ import {
   isActive,
   latestFor,
   requestDot,
+  showsFailure,
   type InfraRequest,
 } from "@/lib/infra";
 
@@ -491,7 +492,7 @@ function Row({
           status={running && request ? requestDot(request) : row.status}
           testId={`dot-${row.id}`}
         />
-        {request && (running || request.status === "failed") ? (
+        {request && (running || showsFailure(request)) ? (
           <button
             type="button"
             onClick={onOpenRequest}

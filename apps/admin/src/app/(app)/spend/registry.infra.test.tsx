@@ -84,6 +84,7 @@ const planned: InfraRequest = {
   plannedAt: "2026-10-26T10:02:00Z",
   expiresAt: new Date(Date.now() + 25 * 60_000).toISOString(),
   finishedAt: null,
+  settled: false,
 };
 
 let requests: InfraRequest[] = [];
@@ -204,5 +205,32 @@ describe("cloud switch on «Расходы»", () => {
       body: { state: "on" },
     });
     report.rows = [os];
+  });
+
+  // Owner row 86: a failure stays on the row only while the cloud does not
+  // hold its target yet; a settled one (API) leaves the row quiet.
+  const failed = (settled: boolean): InfraRequest => ({
+    ...planned,
+    status: "failed",
+    expiresAt: null,
+    finishedAt: "2026-11-12T09:25:00Z",
+    error: "elasticache:ModifyReplicationGroup AccessDenied",
+    settled,
+  });
+
+  it("a failed request shows «Не получилось» on its row", async () => {
+    requests = [failed(false)];
+    renderWith(os);
+    const chip = await screen.findByTestId("infra-chip-aws.opensearch");
+    expect(chip.textContent).toContain("Не получилось");
+  });
+
+  it("a settled failure is not the row's state (row 86)", async () => {
+    requests = [failed(true)];
+    renderWith(os);
+    await screen.findByTestId("state-aws.opensearch-on");
+    await waitFor(() => expect(post).not.toHaveBeenCalled());
+    expect(screen.queryByTestId("infra-chip-aws.opensearch")).toBeNull();
+    expect(screen.queryByText("Не получилось")).toBeNull();
   });
 });

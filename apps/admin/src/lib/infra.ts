@@ -48,6 +48,32 @@ export function infraTone(status: string): InfraTone {
 }
 
 /**
+ * Owner row 86 (13.11): a failed request whose target the cloud already
+ * holds (API `settled`: the last finished change set it, or its plan touched
+ * nothing of the item) is not the row's state any more. The request keeps
+ * «failed» and its error; only the chip and the sheet badge stop saying
+ * «Не получилось».
+ */
+export const SETTLED_WORD = "В облаке уже так";
+
+export function showsFailure(
+  r: Pick<InfraRequest, "status" | "settled"> | null | undefined,
+): boolean {
+  return !!r && r.status === "failed" && !r.settled;
+}
+
+/** The chip / badge word of a request (a settled failure reads SETTLED_WORD). */
+export function requestWord(r: Pick<InfraRequest, "status" | "settled">): string {
+  if (r.status === "failed" && r.settled) return SETTLED_WORD;
+  return INFRA_STATUS_WORD[r.status] ?? r.status;
+}
+
+export function requestTone(r: Pick<InfraRequest, "status" | "settled">): InfraTone {
+  if (r.status === "failed" && r.settled) return "success";
+  return infraTone(r.status);
+}
+
+/**
  * The quiet dot for a row while a request runs: yellow when the owner has
  * to act (plan waiting / failed), grey while GitHub works.
  */

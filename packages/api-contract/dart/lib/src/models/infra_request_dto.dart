@@ -31,6 +31,7 @@ class InfraRequestDto {
     required this.plannedAt,
     required this.expiresAt,
     required this.finishedAt,
+    required this.settled,
   });
 
   factory InfraRequestDto.fromJson(Map<String, Object?> json) =>
@@ -55,6 +56,7 @@ class InfraRequestDto {
   final String? plannedAt;
   final String? expiresAt;
   final String? finishedAt;
+  final bool settled;
 
   Map<String, Object?> toJson() => _$InfraRequestDtoToJson(this);
 }

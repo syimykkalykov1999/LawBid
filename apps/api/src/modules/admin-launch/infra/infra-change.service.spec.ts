@@ -347,6 +347,70 @@ describe('InfraChangeService', () => {
       svc.planReady(r.id, { ...RUN, runId: '99' }, PLAN),
     ).rejects.toBeInstanceOf(InfraRequestError);
   });
+
+  it('row 86: a failure whose target the cloud already holds is settled, the error stays', async () => {
+    const { svc } = make();
+    const fail = async (runId: string, plan: typeof PLAN) => {
+      const r = await svc.create('a', null, 'aws.opensearch', 'on');
+      const run = { ...RUN, runId };
+      await svc.jobStart(r.id, run);
+      await svc.planReady(r.id, run, plan);
+      await svc.confirm('a', null, r.id);
+      await svc.report(r.id, run, { status: 'applying' });
+      await svc.report(r.id, run, {
+        status: 'failed',
+        error: 'elasticache:ModifyReplicationGroup AccessDenied',
+      });
+      return r.id;
+    };
+    // 12.11: the first apply created the domain, then failed on Redis.
+    const first = await fail('50', PLAN);
+    // The next «Вкл»: the domain is there, the plan only touches Redis.
+    const second = await fail('51', {
+      add: 0,
+      change: 1,
+      destroy: 0,
+      resources: [
+        {
+          address: 'module.stack.aws_elasticache_replication_group.redis',
+          action: 'update',
+        },
+      ],
+      fileBefore: PLAN.fileBefore,
+    });
+    const list = await svc.recent();
+    const a = list.find((x) => x.id === first)!;
+    const b = list.find((x) => x.id === second)!;
+    expect(a).toMatchObject({ status: 'failed', settled: false });
+    expect(b).toMatchObject({
+      status: 'failed',
+      settled: true,
+      error: 'elasticache:ModifyReplicationGroup AccessDenied',
+    });
+  });
+
+  it('row 86: a failure is settled once a finished change set its target', async () => {
+    const { svc } = make();
+    const r = await svc.create('a', null, 'aws.opensearch', 'on');
+    const run = { ...RUN, runId: '60' };
+    await svc.jobStart(r.id, run);
+    await svc.report(r.id, run, { status: 'plan_failed', error: 'no plan' });
+    expect((await svc.recent()).find((x) => x.id === r.id)).toMatchObject({
+      status: 'failed',
+      settled: false,
+    });
+    const ok = await svc.create('a', null, 'aws.opensearch', 'on');
+    await svc.jobStart(ok.id, RUN);
+    await svc.planReady(ok.id, RUN, PLAN);
+    await svc.confirm('a', null, ok.id);
+    await svc.report(ok.id, RUN, { status: 'applying' });
+    await svc.report(ok.id, RUN, { status: 'done' });
+    expect((await svc.recent()).find((x) => x.id === r.id)).toMatchObject({
+      status: 'failed',
+      settled: true,
+      error: 'no plan',
+    });
+  });
 });
 
 describe('workflow OIDC claims', () => {

@@ -7,13 +7,13 @@ import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api/client";
 import {
-  INFRA_STATUS_WORD,
   costLine,
-  infraTone,
   isActive,
   latestFor,
   minutesLeft,
   planLine,
+  requestTone,
+  requestWord,
   targetWord,
   type InfraOverview,
   type InfraRequest,
@@ -162,11 +162,11 @@ function useInfraAction(
 export function InfraChip({ request }: { request: InfraRequest }) {
   return (
     <Badge
-      tone={infraTone(request.status)}
+      tone={requestTone(request)}
       dot
       data-testid={`infra-chip-${request.itemId}`}
     >
-      {INFRA_STATUS_WORD[request.status] ?? request.status}
+      {requestWord(request)}
     </Badge>
   );
 }
@@ -209,11 +209,11 @@ export function InfraPlanSheet({
         <div className="flex flex-col gap-3" data-testid="infra-sheet">
           <div className="flex flex-wrap items-center gap-2">
             <Badge
-              tone={infraTone(r.status)}
+              tone={requestTone(r)}
               dot
               data-testid="infra-sheet-status"
             >
-              {INFRA_STATUS_WORD[r.status] ?? r.status}
+              {requestWord(r)}
             </Badge>
             {r.runUrl ? (
               <a

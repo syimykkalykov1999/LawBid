@@ -31,6 +31,7 @@ InfraRequestDto _$InfraRequestDtoFromJson(Map<String, dynamic> json) =>
       plannedAt: json['plannedAt'] as String?,
       expiresAt: json['expiresAt'] as String?,
       finishedAt: json['finishedAt'] as String?,
+      settled: json['settled'] as bool,
     );
 
 Map<String, dynamic> _$InfraRequestDtoToJson(InfraRequestDto instance) =>
@@ -54,4 +55,5 @@ Map<String, dynamic> _$InfraRequestDtoToJson(InfraRequestDto instance) =>
       'plannedAt': ?instance.plannedAt,
       'expiresAt': ?instance.expiresAt,
       'finishedAt': ?instance.finishedAt,
+      'settled': instance.settled,
     };

@@ -167679,6 +167679,9 @@
           "finishedAt": {
             "type": "string",
             "nullable": true
+          },
+          "settled": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -167700,7 +167703,8 @@
           "createdAt",
           "plannedAt",
           "expiresAt",
-          "finishedAt"
+          "finishedAt",
+          "settled"
         ]
       },
       "InfraSuggestionDto": {

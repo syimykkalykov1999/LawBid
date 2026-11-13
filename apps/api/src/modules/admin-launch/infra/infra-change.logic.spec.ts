@@ -7,6 +7,7 @@ import {
   costDelta,
   createRefusal,
   dueTimeEvent,
+  failureSettled,
   inQuietWindow,
   infraSuggestions,
   serverRemovedBy,
@@ -201,5 +202,50 @@ describe('Авто for infra = suggestions only', () => {
         live,
       ),
     ).toEqual([]);
+  });
+});
+
+describe('failureSettled (row 86)', () => {
+  const types = entry('aws.opensearch').awsTypes;
+  const domain = {
+    address: 'module.stack.module.growth.aws_opensearch_domain.search[0]',
+    action: 'create',
+  };
+  const redis = {
+    address: 'module.stack.aws_elasticache_replication_group.redis',
+    action: 'update',
+  };
+  const failed = (resources: { address: string; action: string }[] | null) => ({
+    status: 'failed',
+    toState: 'on',
+    plan: resources ? { resources } : null,
+  });
+
+  it('the plan touched nothing of the item: the cloud already holds it', () => {
+    expect(failureSettled(failed([redis]), types, undefined)).toBe(true);
+    expect(failureSettled(failed([]), types, undefined)).toBe(true);
+  });
+
+  it('the plan still changed the item: a real failure', () => {
+    expect(failureSettled(failed([domain, redis]), types, undefined)).toBe(
+      false,
+    );
+  });
+
+  it('the last finished change set this target', () => {
+    expect(failureSettled(failed(null), undefined, 'on')).toBe(true);
+    expect(failureSettled(failed(null), undefined, 'off')).toBe(false);
+  });
+
+  it('unknown stays a failure: no plan, a cut list, no types, not failed', () => {
+    expect(failureSettled(failed(null), types, undefined)).toBe(false);
+    expect(
+      failureSettled(failed(Array(60).fill(redis)), types, undefined),
+    ).toBe(false);
+    expect(failureSettled(failed([redis]), [], undefined)).toBe(false);
+    expect(failureSettled(failed([redis]), undefined, undefined)).toBe(false);
+    expect(
+      failureSettled({ ...failed([redis]), status: 'done' }, types, 'on'),
+    ).toBe(false);
   });
 });
