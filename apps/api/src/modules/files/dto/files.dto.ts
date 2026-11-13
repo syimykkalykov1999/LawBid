@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { FilePurpose, ScanStatus } from '@prisma/client';
+import { FilePurpose, ScanStatus } from '../../../generated/prisma/client';
 import {
   IsBoolean,
   IsEnum,

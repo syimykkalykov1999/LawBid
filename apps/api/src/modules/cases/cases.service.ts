@@ -29,7 +29,7 @@ import type {
   CaseState,
   CaseStatus,
   Prisma,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,

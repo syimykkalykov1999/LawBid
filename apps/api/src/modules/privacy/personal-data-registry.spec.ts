@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import { familyOf } from '../../sharding/shard-manifest';
 import {
   ERASURE_POLICIES,
@@ -10,8 +9,9 @@ import {
   registeredModels,
   userReferenceFields,
 } from './personal-data-registry';
+import { datamodel as prismaDatamodel } from '../../generated/prisma-dmmf';
 
-const models = Prisma.dmmf.datamodel.models;
+const models = prismaDatamodel.models;
 const byName = new Map(models.map((m) => [m.name, m]));
 
 describe('personal data registry', () => {

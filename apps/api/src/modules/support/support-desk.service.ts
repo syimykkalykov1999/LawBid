@@ -1,6 +1,6 @@
 import { ServerTextsService } from '../../common/i18n/server-texts.service';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import type { Prisma, SupportTicket } from '@prisma/client';
+import type { Prisma, SupportTicket } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AppSettingsWriter } from '../../common/app-settings/app-settings.writer';

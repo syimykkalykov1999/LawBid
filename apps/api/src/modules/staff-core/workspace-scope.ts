@@ -1,4 +1,4 @@
-import type { AdminRole, AdminWorkspace } from '@prisma/client';
+import type { AdminRole, AdminWorkspace } from '../../generated/prisma/client';
 
 /**
  * Staff package T1 (plan C3, «Пространства»): the most a staff member of

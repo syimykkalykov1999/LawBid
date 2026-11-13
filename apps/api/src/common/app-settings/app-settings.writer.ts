@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { AuditLogService } from '../../modules/admin-access/audit-log.service';
 import { dropAppConfigCache } from '../../modules/feature-flags/services/app-config.service';

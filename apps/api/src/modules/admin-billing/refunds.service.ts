@@ -8,7 +8,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { Payment, Prisma, Refund } from '@prisma/client';
+import type { Payment, Prisma, Refund } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { LedgerPostingService } from '../ledger/ledger.public';
 import { PrismaService } from '../../prisma/prisma.service';

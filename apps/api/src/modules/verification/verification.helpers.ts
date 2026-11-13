@@ -3,7 +3,7 @@ import type {
   Prisma,
   VerificationRequestStatus,
   VerificationStatus,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { notifySeoPagesChanged } from '../../common/seo/seo-generator.trigger';
 import { NAME_RECHECK_NOTE_PREFIX } from '../users/services/attorney-name-recheck';

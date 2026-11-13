@@ -1,5 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { PrismaService } from '../src/prisma/prisma.service';
 import type { RateLimitService } from '../src/modules/auth/services/rate-limit.service';
@@ -7,6 +7,7 @@ import { SessionService } from '../src/modules/auth/services/session.service';
 import type { TokenService } from '../src/modules/auth/services/token.service';
 import type { SessionRevocationService } from '../src/modules/auth/services/session-revocation.service';
 import type { AuthEventService } from '../src/modules/auth/services/auth-event.service';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * docs/01 §10.6 new-device signal / docs/02 §5: SessionService.isNewDevice
@@ -18,7 +19,10 @@ describe('DB sessions — (user_id, device_id) lookup (e2e)', () => {
   // App boot + PostgreSQL fixtures exceed Jest's 5 s default under load.
   jest.setTimeout(60_000);
 
-  const prisma = new PrismaClient({ log: [{ emit: 'event', level: 'query' }] });
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+    log: [{ emit: 'event', level: 'query' }],
+  });
   const captured: { query: string; params: string }[] = [];
   prisma.$on('query', (e) =>
     captured.push({ query: e.query, params: e.params }),

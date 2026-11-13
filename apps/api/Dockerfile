@@ -13,6 +13,9 @@ COPY apps/api/package.json apps/api/package.json
 COPY packages ./packages
 RUN npm ci --workspace apps/api --include-workspace-root
 COPY apps/api ./apps/api
+# Prisma 7: `prisma generate` writes the Rust-free client (TypeScript) into
+# src/generated, which `nest build` compiles with the rest of the API. No
+# query-engine binary any more: the image is the same on X86_64 and ARM64.
 RUN npx --workspace apps/api prisma generate \
  && npm run build --workspace apps/api \
  && cp -r apps/api/prisma/seed apps/api/dist/prisma/seed \
@@ -43,6 +46,9 @@ COPY --from=build /repo/node_modules ./node_modules
 COPY --from=build /repo/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /repo/apps/api/dist ./apps/api/dist
 COPY --from=build /repo/apps/api/prisma ./apps/api/prisma
+# Prisma 7 CLI configuration (schema, DATABASE_URL): the migrate task runs
+# `npx prisma migrate deploy` in this image.
+COPY --from=build /repo/apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 # PDF fonts and the default legal texts (assets/legal/*.md) are read at runtime.
 COPY --from=build /repo/apps/api/assets ./apps/api/assets
 COPY --from=build /repo/apps/api/package.json ./apps/api/package.json

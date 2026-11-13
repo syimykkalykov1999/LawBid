@@ -16,7 +16,12 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { ContentStatus, File, Post, Prisma } from '@prisma/client';
+import type {
+  ContentStatus,
+  File,
+  Post,
+  Prisma,
+} from '../../generated/prisma/client';
 import { classifyPost, isPostContentClass } from './content-filter.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { activeClientBadgeIds } from '../client-badge/client-badge.util';

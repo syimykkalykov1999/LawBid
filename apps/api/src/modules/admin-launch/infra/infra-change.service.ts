@@ -1,6 +1,9 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { Prisma, type InfraChangeRequest } from '@prisma/client';
+import {
+  Prisma,
+  type InfraChangeRequest,
+} from '../../../generated/prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { COST_REGISTRY } from '../../../common/ops/cost-registry';
 import {

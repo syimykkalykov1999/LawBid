@@ -1,5 +1,5 @@
 import { type CountryScope, userInScope } from '../countries/country-scope';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import {
   ConflictException,
   ForbiddenException,
@@ -14,7 +14,7 @@ import {
   type ContentModerationHook,
 } from '../moderation/content-moderation.hook';
 import { screenContent } from '../moderation/content-screen';
-import type { ReportReason } from '@prisma/client';
+import type { ReportReason } from '../../generated/prisma/client';
 import { ModerationService } from '../moderation/moderation.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';

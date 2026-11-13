@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * Deploy safety audit 2026-10-27: CI connects as a superuser, production as
@@ -11,7 +12,9 @@ import { PrismaClient } from '@prisma/client';
  * which also sets the default for sequences created later).
  */
 describe('DB — the app role can use every sequence (prod connects as lawbid_app)', () => {
-  const root = new PrismaClient();
+  const root = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
 
   afterAll(async () => {
     await root.$disconnect();

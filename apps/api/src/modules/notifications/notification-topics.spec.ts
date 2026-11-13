@@ -1,4 +1,7 @@
-import type { NotificationCategory, NotificationType } from '@prisma/client';
+import type {
+  NotificationCategory,
+  NotificationType,
+} from '../../generated/prisma/client';
 import { BadgesService } from './badges.service';
 import { DEFAULT_PUSH } from './notification-rules';
 import {

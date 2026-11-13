@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, PickType } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsOptional, IsString, Matches } from 'class-validator';
-import { ContactMethod } from '@prisma/client';
+import { ContactMethod } from '../../../generated/prisma/client';
 import { OnboardingProfileDto } from '../../users/dto/onboarding-profile.dto';
 import { USERNAME_PATTERN } from '../../users/services/username.util';
 import { StateRefDto } from './attorney-profile.dto';

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -20,6 +20,7 @@ import {
   paramLiterals,
   type PlanNode,
 } from '../src/common/perf/query-plan-judge';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * Perf guard of the USER-FACING API (owner 2026-11-08: «as users and data
@@ -417,7 +418,7 @@ interface Result {
     prisma = app.get(PrismaService);
     tokens = app.get(TokenService);
     // A plain client for fixtures and EXPLAIN: not tapped, no extensions.
-    raw = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
+    raw = new PrismaClient({ adapter: pgAdapter(process.env.DATABASE_URL) });
   });
 
   afterAll(async () => {

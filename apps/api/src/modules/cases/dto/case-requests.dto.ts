@@ -8,7 +8,7 @@ import {
   type CaseUrgency,
 } from '../domain/case-urgency';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BudgetMode } from '@prisma/client';
+import { BudgetMode } from '../../../generated/prisma/client';
 import { PERCENT_BPS_MAX, PERCENT_BPS_MIN } from '../domain/contingency';
 import { Transform, Type } from 'class-transformer';
 import {

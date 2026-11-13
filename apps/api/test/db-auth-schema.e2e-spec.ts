@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * docs/02_DATABASE.md §8, stage 2.2 acceptance, against a real
@@ -8,7 +9,9 @@ import { randomUUID } from 'node:crypto';
  * creating a session and an auth event. Plus the files table added here.
  */
 describe('DB schema — stage 2.2 acceptance', () => {
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
 
   afterAll(async () => {
     await prisma.$disconnect();

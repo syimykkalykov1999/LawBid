@@ -20,7 +20,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { User } from '@prisma/client';
+import type { User } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { randomBytes } from 'node:crypto';
 import { REDIS_CLIENT } from '../../redis/redis.constants';

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await -- in-memory fakes of async Prisma / settings calls */
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../generated/prisma/client';
 import { InfraChangeService, InfraRequestError } from './infra-change.service';
 import { callerFromClaims, InfraAuthError } from './infra-github.client';
 import { SYSTEM_ACTOR_ID } from './infra-auto.logic';

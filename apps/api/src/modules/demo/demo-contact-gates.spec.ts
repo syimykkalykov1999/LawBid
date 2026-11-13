@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma/client';
 import type { PinoLogger } from 'nestjs-pino';
 import { demoContext } from '../../common/demo/demo-context';
 import { ErrorCode } from '../../common/errors/error-code.enum';

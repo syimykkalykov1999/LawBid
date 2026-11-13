@@ -8,7 +8,7 @@ import {
   randomUUID,
 } from 'node:crypto';
 import type Redis from 'ioredis';
-import type { Session } from '@prisma/client';
+import type { Session } from '../../../generated/prisma/client';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';

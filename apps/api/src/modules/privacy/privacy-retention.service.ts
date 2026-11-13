@@ -1,11 +1,12 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { heldSqlFor, requestHeldSql } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
+import { pgAdapter } from '../../prisma/pg-adapter';
 
 const DAY_MS = 24 * 3600 * 1000;
 /** Default of `privacy.retention_batch`: rows per statement. */
@@ -299,7 +300,7 @@ export class PrivacyRetentionService implements OnModuleDestroy {
   private retention(): PrismaClient | PrismaService {
     const url = this.config.get<string>('RETENTION_DATABASE_URL');
     if (!url) return this.prisma;
-    this.retentionDb ??= new PrismaClient({ datasourceUrl: url });
+    this.retentionDb ??= new PrismaClient({ adapter: pgAdapter(url) });
     return this.retentionDb;
   }
 

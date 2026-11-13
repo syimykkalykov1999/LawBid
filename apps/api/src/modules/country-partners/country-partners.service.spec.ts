@@ -1,4 +1,4 @@
-import type { CountryPartner } from '@prisma/client';
+import type { CountryPartner } from '../../generated/prisma/client';
 import { CountryPartnersService } from './country-partners.service';
 
 function partner(over: Partial<CountryPartner> = {}): CountryPartner {

@@ -6,7 +6,7 @@ import {
   UnprocessableEntityException,
   Optional,
 } from '@nestjs/common';
-import type { Comment } from '@prisma/client';
+import type { Comment } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,

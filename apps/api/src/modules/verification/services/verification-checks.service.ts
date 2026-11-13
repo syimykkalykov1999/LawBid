@@ -5,7 +5,7 @@ import type {
   Prisma,
   VerificationCheckType,
   VerificationProvider,
-} from '@prisma/client';
+} from '../../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';

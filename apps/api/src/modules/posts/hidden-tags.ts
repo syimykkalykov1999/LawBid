@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 
 /**
  * Owner 2026-10-13: ONE tag algorithm for Topics, search, the Reels filters,

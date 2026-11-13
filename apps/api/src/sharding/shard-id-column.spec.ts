@@ -1,9 +1,7 @@
-import { Prisma } from '@prisma/client';
 import { GLOBAL_MODELS, SHARDED_MODELS } from './shard-manifest';
+import { datamodel as prismaDatamodel } from '../generated/prisma-dmmf';
 
-const byName = new Map(
-  Prisma.dmmf.datamodel.models.map((m) => [m.name, m] as const),
-);
+const byName = new Map(prismaDatamodel.models.map((m) => [m.name, m] as const));
 
 describe('shard_id column (shard-ready step 2)', () => {
   it.each(Object.keys(SHARDED_MODELS))(

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await -- in-memory fakes */
-import type { Call, CallParticipant } from '@prisma/client';
+import type { Call, CallParticipant } from '../../generated/prisma/client';
 import { CallsService } from './calls.service';
 import { FakeCloudflare } from './cloudflare-sfu.fake';
 import { CloudflareSfuProvider } from './cloudflare-sfu.provider';

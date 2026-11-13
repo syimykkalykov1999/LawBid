@@ -1,4 +1,4 @@
-import type { AttorneyTaskRepeat, Prisma } from '@prisma/client';
+import type { AttorneyTaskRepeat, Prisma } from '../../generated/prisma/client';
 import {
   nextOccurrenceZoned,
   safeTimeZone,

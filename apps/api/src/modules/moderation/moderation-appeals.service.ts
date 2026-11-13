@@ -5,7 +5,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { Prisma, type ReportTargetType } from '@prisma/client';
+import { Prisma, type ReportTargetType } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   STAFF_RECORDER,

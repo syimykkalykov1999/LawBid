@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/client';
+import { pgAdapter } from '../prisma/pg-adapter';
 
 /**
  * The few things the partition runner needs from a database connection.
@@ -44,7 +45,7 @@ function wrap(c: Exec): Sql {
 
 /** A Prisma-backed connection. `url` must be a role that owns the table. */
 export function prismaSql(url: string): SqlDb {
-  const client = new PrismaClient({ datasourceUrl: url });
+  const client = new PrismaClient({ adapter: pgAdapter(url) });
   const base = wrap(client);
   return {
     ...base,

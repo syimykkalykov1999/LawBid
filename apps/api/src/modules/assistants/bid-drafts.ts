@@ -20,7 +20,11 @@ import {
   ApiPropertyOptional,
   ApiTags,
 } from '@nestjs/swagger';
-import { FeeType, type Prisma, StartAvailability } from '@prisma/client';
+import {
+  FeeType,
+  type Prisma,
+  StartAvailability,
+} from '../../generated/prisma/client';
 import {
   IsDateString,
   IsEnum,

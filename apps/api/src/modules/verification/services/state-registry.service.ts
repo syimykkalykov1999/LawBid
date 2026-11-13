@@ -8,7 +8,10 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Prisma, StateBarRegistry } from '@prisma/client';
+import type {
+  Prisma,
+  StateBarRegistry,
+} from '../../../generated/prisma/client';
 import { barRegistryAad } from '../../../common/secrets/aad';
 import { readKey } from '../../../common/secrets/key-holder';
 import { ErrorCode } from '../../../common/errors/error-code.enum';

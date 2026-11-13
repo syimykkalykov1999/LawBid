@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Call, Prisma } from '@prisma/client';
+import type { Call, Prisma } from '../../generated/prisma/client';
 import {
   decodeCursor,
   encodeCursor,

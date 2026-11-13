@@ -1,7 +1,10 @@
 import { jitterTtl, singleFlight } from '../../../common/cache/single-flight';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { I18nLanguage, LegalDocument } from '@prisma/client';
+import type {
+  I18nLanguage,
+  LegalDocument,
+} from '../../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { weakEtag } from '../../../common/sync/cheap-etag';
 import {

@@ -4,7 +4,11 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { LegalExport, LegalHold, Prisma } from '@prisma/client';
+import type {
+  LegalExport,
+  LegalHold,
+  Prisma,
+} from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { CronIdleBackoffService } from '../../common/ops/cron-idle-backoff.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';

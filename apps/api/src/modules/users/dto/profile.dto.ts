@@ -14,7 +14,7 @@ import {
   Length,
   Matches,
 } from 'class-validator';
-import { ThemePref } from '@prisma/client';
+import { ThemePref } from '../../../generated/prisma/client';
 
 /** docs/01_FOUNDATION_AUTH.md §11 step 2: only client/attorney are
  * selectable; admin accounts are created by seed/admin tooling. */

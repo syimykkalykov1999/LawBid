@@ -6,7 +6,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type DmcaNotice, type ReportTargetType } from '@prisma/client';
+import {
+  Prisma,
+  type DmcaNotice,
+  type ReportTargetType,
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,

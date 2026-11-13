@@ -1,4 +1,4 @@
-import type { ConsentType, LegalDocType } from '@prisma/client';
+import type { ConsentType, LegalDocType } from '../../generated/prisma/client';
 
 /** Owner 2026-10-05 (legal documents): every legal text of LawBid, in the
  * order the admin shows them. */

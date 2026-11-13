@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ReportReason } from '@prisma/client';
+import { ReportReason } from '../../generated/prisma/client';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,

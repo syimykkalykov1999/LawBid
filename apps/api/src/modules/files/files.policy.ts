@@ -1,4 +1,4 @@
-import { FilePurpose } from '@prisma/client';
+import { FilePurpose } from '../../generated/prisma/client';
 import { shardOf } from '../../sharding/shard-id';
 
 /** MIME types the upload pipeline understands (docs/03 §2.2, §4.1;

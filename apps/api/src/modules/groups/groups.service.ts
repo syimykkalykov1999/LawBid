@@ -19,14 +19,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import type {
   ChatGroup,
   ChatGroupInvite,
   ChatGroupMember,
   ChatGroupMessage,
   ChatGroupTopic,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { Subject } from 'rxjs';
 import { REDIS_CLIENT } from '../../redis/redis.constants';

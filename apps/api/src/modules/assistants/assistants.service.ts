@@ -6,7 +6,10 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { AssistantMembership, Prisma } from '@prisma/client';
+import type {
+  AssistantMembership,
+  Prisma,
+} from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {

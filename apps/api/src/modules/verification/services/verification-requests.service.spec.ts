@@ -1,5 +1,5 @@
 import { HttpException } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../../generated/prisma/client';
 import { APP_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { syncProfileStatus } from '../verification.helpers';

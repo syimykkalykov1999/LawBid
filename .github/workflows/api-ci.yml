@@ -191,7 +191,9 @@ jobs:
           models=$(npx prisma db pull --print | grep -c '^model ')
           echo "introspected models: $models"
           test "$models" -gt 0
-          npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
+          # Prisma 7: --from-schema-datasource → --from-config-datasource
+          # (DATABASE_URL via prisma.config.ts), --to-schema-datamodel → --to-schema.
+          npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
 
       - name: Migrations apply on the previous release's database
         # docs/02_DATABASE.md §8 stage 2.7: "миграции применяются на чистой

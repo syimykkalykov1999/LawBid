@@ -1,12 +1,12 @@
-import { Prisma } from '@prisma/client';
 import {
   GLOBAL_MODELS,
   SHARDED_MODELS,
   familyOf,
   manifestModels,
 } from './shard-manifest';
+import { datamodel as prismaDatamodel } from '../generated/prisma-dmmf';
 
-const models = Prisma.dmmf.datamodel.models;
+const models = prismaDatamodel.models;
 const byName = new Map(models.map((m) => [m.name, m]));
 
 describe('shard family manifest (shard-ready step 0)', () => {

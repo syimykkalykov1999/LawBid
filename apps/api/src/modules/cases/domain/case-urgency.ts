@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../generated/prisma/client';
 import type { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 
 /**

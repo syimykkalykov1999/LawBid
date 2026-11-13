@@ -1,5 +1,9 @@
 import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
-import { CaseStatus, ConversationStatus, FeeType } from '@prisma/client';
+import {
+  CaseStatus,
+  ConversationStatus,
+  FeeType,
+} from '../../../../generated/prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsIn,

@@ -2,7 +2,7 @@ import { imageFormatContext } from './processing/image-format-context';
 import { createHash } from 'node:crypto';
 import { HttpException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
-import { Prisma, type File } from '@prisma/client';
+import { Prisma, type File } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import type { PinoLogger } from 'nestjs-pino';
 import { FilesService } from './files.service';

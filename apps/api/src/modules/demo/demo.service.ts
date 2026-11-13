@@ -8,7 +8,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import type { DemoAccount, Prisma } from '@prisma/client';
+import type { DemoAccount, Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';

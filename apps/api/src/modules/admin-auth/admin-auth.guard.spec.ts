@@ -6,7 +6,7 @@ import {
   type ExecutionContext,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { AdminRole } from '@prisma/client';
+import type { AdminRole } from '../../generated/prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import {
   TokenService,

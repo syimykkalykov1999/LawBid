@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../generated/prisma/client';
 
 /**
  * Opt-in tap on every SQL statement the primary Prisma client sends

@@ -1,6 +1,10 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
-import { NotificationCategory, NotificationType, Prisma } from '@prisma/client';
+import {
+  NotificationCategory,
+  NotificationType,
+  Prisma,
+} from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashShard } from '../../sharding/shard-id';
 import { shardContext } from '../../sharding/shard-context';
