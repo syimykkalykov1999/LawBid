@@ -11,7 +11,7 @@ import { ErrorNote, PageHeader } from "@/components/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
-import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { SortTh, Table, TableEmpty, Td } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { api, errorText } from "@/lib/api/client";
 import { useMe } from "@/lib/hooks";
@@ -26,9 +26,12 @@ import {
 } from "@/lib/labels";
 import { canOpen } from "@/lib/rbac";
 import { MODERATION_REVIEW_PATH } from "@/lib/review-flow";
+import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
 
 type QStatus = "open" | "actioned" | "dismissed";
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's, oldest first). */
+const SORT_KEYS = ["target", "reports", "reasons", "author", "targetStatus", "first"] as const;
 
 /** docs/06 §3.2: reports grouped by object, oldest first. */
 export default function ModerationQueuePage() {
@@ -58,7 +61,18 @@ export default function ModerationQueuePage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    target: (r) => TARGET_TYPE[r.targetType] ?? r.targetType,
+    reports: (r) => r.reports,
+    reasons: (r) => r.reasons.map((x) => REPORT_REASON[x] ?? x).join(", "),
+    author: (r) =>
+      r.author
+        ? [r.author.firstName, r.author.lastName].filter(Boolean).join(" ") || r.author.username || r.author.id
+        : null,
+    targetStatus: (r) => (r.targetStatus ? (TARGET_STATUS[r.targetStatus] ?? r.targetStatus) : null),
+    first: (r) => r.firstReportedAt,
+  });
 
   return (
     <>
@@ -115,12 +129,12 @@ export default function ModerationQueuePage() {
         <Table>
           <thead>
             <tr>
-              <Th>Объект</Th>
-              <Th>Жалоб</Th>
-              <Th>Причины</Th>
-              <Th>Автор</Th>
-              <Th>Статус объекта</Th>
-              <Th>Первая жалоба</Th>
+              <SortTh {...header("target")}>Объект</SortTh>
+              <SortTh {...header("reports")}>Жалоб</SortTh>
+              <SortTh {...header("reasons")}>Причины</SortTh>
+              <SortTh {...header("author")}>Автор</SortTh>
+              <SortTh {...header("targetStatus")}>Статус объекта</SortTh>
+              <SortTh {...header("first")}>Первая жалоба</SortTh>
             </tr>
           </thead>
           <tbody>

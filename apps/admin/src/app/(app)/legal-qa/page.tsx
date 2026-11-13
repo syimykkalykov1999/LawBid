@@ -9,11 +9,12 @@ import { useReason } from '@/components/reason-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Input, Label, Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Status = 'all' | 'published' | 'hidden' | 'removed';
@@ -21,6 +22,9 @@ type Action = 'hide' | 'remove' | 'restore';
 
 const STATUS_LABEL: Record<string, string> = { published: 'виден', hidden: 'скрыт', removed: 'удалён' };
 const ACTION_LABEL: Record<Action, string> = { hide: 'Скрыть', remove: 'Удалить', restore: 'Вернуть' };
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const QUESTION_SORT = ['title', 'author', 'answers', 'status', 'created'] as const;
+const ANSWER_SORT = ['body', 'attorney', 'likes', 'status'] as const;
 
 /**
  * Owner 2026-10-20: «Вопрос юристу» in the admin. Find a question, read its
@@ -51,7 +55,14 @@ export default function LegalQaPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(QUESTION_SORT, 'questionSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    title: (r) => r.title,
+    author: (r) => r.author.name,
+    answers: (r) => r.answerCount,
+    status: (r) => STATUS_LABEL[r.status] ?? r.status,
+    created: (r) => r.createdAt,
+  });
 
   const detail = useQuery({
     queryKey: ['legal-qa-question', open],
@@ -102,6 +113,13 @@ export default function LegalQaPage() {
   });
 
   const q = detail.data;
+  const answerSort = useTableSort(ANSWER_SORT, 'answerSort');
+  const answers = sortRows(q?.answers ?? [], answerSort.sort, {
+    body: (a) => a.body,
+    attorney: (a) => a.attorney.name,
+    likes: (a) => a.likeCount,
+    status: (a) => STATUS_LABEL[a.status] ?? a.status,
+  });
 
   return (
     <>
@@ -137,11 +155,11 @@ export default function LegalQaPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Вопрос</Th>
-            <Th>Автор</Th>
-            <Th>Ответов</Th>
-            <Th>Статус</Th>
-            <Th>Создан</Th>
+            <SortTh {...header('title')}>Вопрос</SortTh>
+            <SortTh {...header('author')}>Автор</SortTh>
+            <SortTh {...header('answers')}>Ответов</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
+            <SortTh {...header('created')}>Создан</SortTh>
             <Th />
           </tr>
         </thead>
@@ -221,16 +239,16 @@ export default function LegalQaPage() {
               <Table>
                 <thead>
                   <tr>
-                    <Th>Ответ</Th>
-                    <Th>Адвокат</Th>
-                    <Th>Лайков</Th>
-                    <Th>Статус</Th>
+                    <SortTh {...answerSort.header('body')}>Ответ</SortTh>
+                    <SortTh {...answerSort.header('attorney')}>Адвокат</SortTh>
+                    <SortTh {...answerSort.header('likes')}>Лайков</SortTh>
+                    <SortTh {...answerSort.header('status')}>Статус</SortTh>
                     <Th />
                   </tr>
                 </thead>
                 <tbody>
                   {q.answers.length === 0 ? <TableEmpty colSpan={5}>Ответов нет.</TableEmpty> : null}
-                  {q.answers.map((a) => (
+                  {answers.map((a) => (
                     <tr key={a.id}>
                       <Td className="max-w-md whitespace-pre-wrap text-xs">
                         {a.isBest ? <Badge tone="gold" dot>лучший</Badge> : null} {a.body}

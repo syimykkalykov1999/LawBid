@@ -18,7 +18,7 @@ import { Badge, Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/empty";
 import { Field, Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { SortTh, Table, TableEmpty, Td } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { UpdatedAgo } from "@/components/updated-ago";
 import { ApiError, api, errorText } from "@/lib/api/client";
@@ -26,6 +26,7 @@ import type { components } from "@/lib/api/schema";
 import { useMe } from "@/lib/hooks";
 import { centsToInput, money, parseDollars } from "@/lib/payroll";
 import { can } from "@/lib/rbac";
+import { sortRows, useTableSort } from "@/lib/table-sort";
 import {
   bankText,
   COST_LINE_LABEL,
@@ -43,6 +44,9 @@ type ExpenseAction =
   | { op: "add"; name: string; monthlyCents: number }
   | { op: "edit"; id: string; monthlyCents?: number; active?: boolean }
   | { op: "delete"; id: string };
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ["created", "destination", "amount", "status"] as const;
 
 const dateOnly = (iso: string) =>
   new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" }).format(
@@ -783,22 +787,29 @@ function payrollStatus(t: TreasuryOverview): { ok: boolean; text: string } {
 }
 
 function PayoutsTable({ t }: { t: TreasuryOverview }) {
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(t.payouts, sort, {
+    created: (p) => p.createdAt,
+    destination: (p) => PAYOUT_KIND[p.kind] ?? p.kind,
+    amount: (p) => p.amountCents,
+    status: (p) => PAYOUT_STATUS[p.status]?.label ?? p.status,
+  });
   return (
     <Card className="overflow-x-auto">
       <Table>
         <thead>
           <tr>
-            <Th>Когда</Th>
-            <Th>Куда</Th>
-            <Th>Сумма</Th>
-            <Th>Статус</Th>
+            <SortTh {...header("created")}>Когда</SortTh>
+            <SortTh {...header("destination")}>Куда</SortTh>
+            <SortTh {...header("amount")}>Сумма</SortTh>
+            <SortTh {...header("status")}>Статус</SortTh>
           </tr>
         </thead>
         <tbody>
-          {t.payouts.length === 0 ? (
+          {rows.length === 0 ? (
             <TableEmpty colSpan={4}>Выплат ещё не было</TableEmpty>
           ) : (
-            t.payouts.map((p) => {
+            rows.map((p) => {
               const st = PAYOUT_STATUS[p.status] ?? {
                 label: p.status,
                 tone: "neutral" as const,

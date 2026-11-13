@@ -7,9 +7,10 @@ import { VirtualRows } from '@/components/ui/virtual-rows';
 import { MoreButton } from '@/components/legacy/more-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/card';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { api, errorText } from '@/lib/api/client';
 import { MOD_ACTION, TARGET_TYPE } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 const APPEAL: Record<string, string> = {
@@ -17,6 +18,9 @@ const APPEAL: Record<string, string> = {
   accepted: 'обжалование принято',
   rejected: 'обжалование отклонено',
 };
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['created', 'action', 'target', 'reason', 'admin', 'appeal'] as const;
 
 /** Owner 2026-10-20: every moderation decision, who took it and why. */
 export default function ModerationJournalPage() {
@@ -31,7 +35,15 @@ export default function ModerationJournalPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    created: (r) => r.createdAt,
+    action: (r) => MOD_ACTION[r.action] ?? r.action,
+    target: (r) => TARGET_TYPE[r.targetType] ?? r.targetType,
+    reason: (r) => r.reason,
+    admin: (r) => r.adminName ?? r.adminId,
+    appeal: (r) => (r.appealStatus ? APPEAL[r.appealStatus] : null),
+  });
   return (
     <>
       <PageHeader
@@ -43,12 +55,12 @@ export default function ModerationJournalPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Когда</Th>
-            <Th>Действие</Th>
-            <Th>Объект</Th>
-            <Th>Причина</Th>
-            <Th>Модератор</Th>
-            <Th>Обжалование</Th>
+            <SortTh {...header('created')}>Когда</SortTh>
+            <SortTh {...header('action')}>Действие</SortTh>
+            <SortTh {...header('target')}>Объект</SortTh>
+            <SortTh {...header('reason')}>Причина</SortTh>
+            <SortTh {...header('admin')}>Модератор</SortTh>
+            <SortTh {...header('appeal')}>Обжалование</SortTh>
           </tr>
         </thead>
         <tbody>

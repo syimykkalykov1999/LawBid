@@ -16,11 +16,12 @@ import { Badge, Card } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/empty";
 import { Field, Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { SortTh, Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { api, errorText } from "@/lib/api/client";
 import { usd } from "@/lib/economy";
+import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
 import { LazyImg } from '@/components/ui/lazy-img';
 
@@ -39,6 +40,25 @@ const KIND: Record<string, string> = {
 };
 
 const stars = (n: number) => `${n.toLocaleString("ru-RU")} ⭐`;
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const TOP_GIFT_SORT_KEYS = ["title", "sent", "stars"] as const;
+const KIND_SORT_KEYS = ["kind", "count", "stars"] as const;
+const DEBT_SORT_KEYS = ["user", "debt", "balance"] as const;
+const GIFT_SORT_KEYS = [
+  "title",
+  "price",
+  "position",
+  "sent",
+  "status",
+] as const;
+const LEDGER_SORT_KEYS = [
+  "created",
+  "kind",
+  "delta",
+  "balance",
+  "note",
+] as const;
 
 /**
  * Owner 2026-10-20 «Звёзды»: the in-app balance bought only on the web.
@@ -148,6 +168,18 @@ function ReportTab() {
       ).data!.data,
   });
   const r = q.data;
+  const topGiftSort = useTableSort(TOP_GIFT_SORT_KEYS, "topGiftSort");
+  const topGiftRows = sortRows(r?.topGifts ?? [], topGiftSort.sort, {
+    title: (g) => g.title,
+    sent: (g) => g.sent,
+    stars: (g) => g.stars,
+  });
+  const kindSort = useTableSort(KIND_SORT_KEYS, "kindSort");
+  const kindRows = sortRows(r?.byKind ?? [], kindSort.sort, {
+    kind: (k) => KIND[k.kind] ?? k.kind,
+    count: (k) => k.count,
+    stars: (k) => k.stars,
+  });
   return (
     <>
       <div className="mb-4">
@@ -207,13 +239,23 @@ function ReportTab() {
               <Table>
                 <thead>
                   <tr>
-                    <Th>Подарок</Th>
-                    <Th className="text-right">Отправлено</Th>
-                    <Th className="text-right">Звёзд</Th>
+                    <SortTh {...topGiftSort.header("title")}>Подарок</SortTh>
+                    <SortTh
+                      {...topGiftSort.header("sent")}
+                      className="text-right"
+                    >
+                      Отправлено
+                    </SortTh>
+                    <SortTh
+                      {...topGiftSort.header("stars")}
+                      className="text-right"
+                    >
+                      Звёзд
+                    </SortTh>
                   </tr>
                 </thead>
                 <tbody>
-                  {r.topGifts.map((g) => (
+                  {topGiftRows.map((g) => (
                     <tr key={g.title}>
                       <Td>{g.title}</Td>
                       <Td className="text-right tabular-nums">{g.sent}</Td>
@@ -231,16 +273,20 @@ function ReportTab() {
             <Table>
               <thead>
                 <tr>
-                  <Th>Вид</Th>
-                  <Th className="text-right">Операций</Th>
-                  <Th className="text-right">Звёзд (+/−)</Th>
+                  <SortTh {...kindSort.header("kind")}>Вид</SortTh>
+                  <SortTh {...kindSort.header("count")} className="text-right">
+                    Операций
+                  </SortTh>
+                  <SortTh {...kindSort.header("stars")} className="text-right">
+                    Звёзд (+/−)
+                  </SortTh>
                 </tr>
               </thead>
               <tbody>
                 {r.byKind.length === 0 ? (
                   <TableEmpty colSpan={3} />
                 ) : (
-                  r.byKind.map((k) => (
+                  kindRows.map((k) => (
                     <tr key={k.kind}>
                       <Td>{KIND[k.kind] ?? k.kind}</Td>
                       <Td className="text-right tabular-nums">{k.count}</Td>
@@ -264,16 +310,25 @@ function DebtsTable() {
     queryKey: ["admin-stars-debts"],
     queryFn: async () => (await api.GET("/admin/stars/debts")).data!.data,
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(DEBT_SORT_KEYS, "debtSort");
+  const rows = sortRows(q.data ?? [], sort, {
+    user: (d) => d.userId,
+    debt: (d) => d.debt,
+    balance: (d) => d.balance,
+  });
   return (
     <div>
       <SectionTitle>Должники (возврат Stripe после трат)</SectionTitle>
       <Table>
         <thead>
           <tr>
-            <Th>Пользователь</Th>
-            <Th className="text-right">Долг</Th>
-            <Th className="text-right">Баланс</Th>
+            <SortTh {...header("user")}>Пользователь</SortTh>
+            <SortTh {...header("debt")} className="text-right">
+              Долг
+            </SortTh>
+            <SortTh {...header("balance")} className="text-right">
+              Баланс
+            </SortTh>
           </tr>
         </thead>
         <tbody>
@@ -561,7 +616,14 @@ function GiftsTab() {
     onError: (e) => toast.error(e),
   });
   const [edit, setEdit] = useState<Record<string, string>>({});
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(GIFT_SORT_KEYS, "giftSort");
+  const rows = sortRows(q.data ?? [], sort, {
+    title: (g) => g.title,
+    price: (g) => g.priceStars,
+    position: (g) => g.position,
+    sent: (g) => g.sentCount,
+    status: (g) => (g.status === "active" ? "в каталоге" : "скрыт"),
+  });
   return (
     <div className="space-y-5">
       <GiftUploader onAdded={refresh} />
@@ -576,11 +638,15 @@ function GiftsTab() {
         <Table>
           <thead>
             <tr>
-              <Th>Подарок</Th>
-              <Th>Цена, звёзд</Th>
-              <Th className="text-right">Порядок</Th>
-              <Th className="text-right">Отправлено</Th>
-              <Th>Статус</Th>
+              <SortTh {...header("title")}>Подарок</SortTh>
+              <SortTh {...header("price")}>Цена, звёзд</SortTh>
+              <SortTh {...header("position")} className="text-right">
+                Порядок
+              </SortTh>
+              <SortTh {...header("sent")} className="text-right">
+                Отправлено
+              </SortTh>
+              <SortTh {...header("status")}>Статус</SortTh>
               <Th />
             </tr>
           </thead>
@@ -733,7 +799,14 @@ function HistoryTab() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(LEDGER_SORT_KEYS, "ledgerSort");
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    created: (i) => i.createdAt,
+    kind: (i) => KIND[i.kind] ?? i.kind,
+    delta: (i) => i.delta,
+    balance: (i) => i.balanceAfter,
+    note: (i) => i.note ?? null,
+  });
   const grant = useMutation({
     mutationFn: async () =>
       (
@@ -800,11 +873,15 @@ function HistoryTab() {
       <Table>
         <thead>
           <tr>
-            <Th>Когда</Th>
-            <Th>Вид</Th>
-            <Th className="text-right">Звёзд</Th>
-            <Th className="text-right">Баланс после</Th>
-            <Th>Заметка</Th>
+            <SortTh {...header("created")}>Когда</SortTh>
+            <SortTh {...header("kind")}>Вид</SortTh>
+            <SortTh {...header("delta")} className="text-right">
+              Звёзд
+            </SortTh>
+            <SortTh {...header("balance")} className="text-right">
+              Баланс после
+            </SortTh>
+            <SortTh {...header("note")}>Заметка</SortTh>
           </tr>
         </thead>
         <tbody>

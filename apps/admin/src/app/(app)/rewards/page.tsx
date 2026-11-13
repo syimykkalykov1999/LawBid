@@ -9,18 +9,22 @@ import { Badge, Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { centsToInput, money, parseDollars } from '@/lib/payroll';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 
 type Settings = components['schemas']['RewardsSettingsDto'];
 type Board = components['schemas']['RewardDepartmentBoardDto'];
 type Row = components['schemas']['RewardLeaderRowDto'];
 type Dept = Settings['departments'][number] & { bonusText: string };
 type Which = 'current' | 'previous';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const AWARD_SORT_KEYS = ['period', 'department', 'name', 'prize', 'bonus'] as const;
 
 /** "2026-10" / "2026-W41" for the period before the current one (UTC). */
 function previousPeriod(kind: Settings['period'], now = new Date()): string {
@@ -126,6 +130,14 @@ export default function RewardsPage() {
   };
   const setDept = (key: Dept['key'], patch: Partial<Dept>) =>
     draft && setDraft({ ...draft, departments: draft.departments.map((d) => (d.key === key ? { ...d, ...patch } : d)) });
+  const { sort, header } = useTableSort(AWARD_SORT_KEYS, 'awardSort');
+  const awardRows = sortRows(awards.data ?? [], sort, {
+    period: (a) => a.period,
+    department: (a) => draft?.departments.find((d) => d.key === a.department)?.label ?? a.department,
+    name: (a) => a.name,
+    prize: (a) => a.prize || null,
+    bonus: (a) => a.bonusCents || null,
+  });
 
   return (
     <>
@@ -329,15 +341,15 @@ export default function RewardsPage() {
                     <Table>
                       <thead>
                         <tr>
-                          <Th>Период</Th>
-                          <Th>Отдел</Th>
-                          <Th>Сотрудник</Th>
-                          <Th>Приз</Th>
-                          <Th className="text-right">Бонус</Th>
+                          <SortTh {...header('period')}>Период</SortTh>
+                          <SortTh {...header('department')}>Отдел</SortTh>
+                          <SortTh {...header('name')}>Сотрудник</SortTh>
+                          <SortTh {...header('prize')}>Приз</SortTh>
+                          <SortTh {...header('bonus')} className="text-right">Бонус</SortTh>
                         </tr>
                       </thead>
                       <tbody>
-                        {(awards.data ?? []).map((a) => (
+                        {awardRows.map((a) => (
                           <tr key={a.id}>
                             <Td className="whitespace-nowrap">{a.period}</Td>
                             <Td>{draft.departments.find((d) => d.key === a.department)?.label ?? a.department}</Td>

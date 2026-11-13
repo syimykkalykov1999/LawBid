@@ -19,7 +19,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { EmptyState, Skeleton } from "@/components/ui/empty";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { SortTh, Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { errorText } from "@/lib/api/client";
 import {
@@ -31,9 +31,12 @@ import {
   type DemoStatusDto,
 } from "@/lib/api/demo";
 import { ROLE_TEXT, label as labelOf } from "@/lib/labels";
+import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
 
 const PAGE = 20;
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ["role", "name", "creator", "label", "seen", "expires", "code"] as const;
 
 /** Деньги → Партнёры → «Демо-доступ» (docs/ops/demo-world.md). */
 export function DemoTab({
@@ -118,7 +121,16 @@ export function DemoTab({
     onError: (e) => toast.error(errorText(e)),
   });
 
-  const rows = accounts.data?.items ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS, "demoSort");
+  const rows = sortRows(accounts.data?.items ?? [], sort, {
+    role: (a) => labelOf(ROLE_TEXT, a.role),
+    name: (a) => a.displayName,
+    creator: (a) => a.createdBy.name,
+    label: (a) => a.label || null,
+    seen: (a) => a.lastSeenAt ?? null,
+    expires: (a) => a.expiresAt,
+    code: (a) => (a.hasInvite ? "есть" : "нет"),
+  });
   const total = accounts.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE));
   const cols = canWrite ? 8 : 7;
@@ -230,13 +242,13 @@ export function DemoTab({
         <Table>
           <thead>
             <tr>
-              <Th>Роль</Th>
-              <Th>Имя</Th>
-              <Th>Кто создал</Th>
-              <Th>Метка</Th>
-              <Th>Активность</Th>
-              <Th>Удалится</Th>
-              <Th>Код</Th>
+              <SortTh {...header("role")}>Роль</SortTh>
+              <SortTh {...header("name")}>Имя</SortTh>
+              <SortTh {...header("creator")}>Кто создал</SortTh>
+              <SortTh {...header("label")}>Метка</SortTh>
+              <SortTh {...header("seen")}>Активность</SortTh>
+              <SortTh {...header("expires")}>Удалится</SortTh>
+              <SortTh {...header("code")}>Код</SortTh>
               {canWrite ? <Th className="text-right">Действия</Th> : null}
             </tr>
           </thead>

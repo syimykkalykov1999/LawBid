@@ -15,7 +15,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
@@ -34,6 +34,7 @@ import {
   StatusPill,
   usd,
 } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Payment = components['schemas']['AdminCasePaymentRowDto'];
@@ -50,6 +51,12 @@ type StatusTab = 'all' | PaymentStatus | 'disputes';
 
 const STATUSES: PaymentStatus[] = ['succeeded', 'pending_payment', 'partially_refunded', 'refunded', 'disputed', 'canceled', 'failed'];
 const ACCOUNT_STATUSES: AccountStatus[] = ['active', 'onboarding', 'restricted', 'disabled', 'pending'];
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const PAYMENT_SORT = ['case', 'parties', 'kind', 'attorney', 'fee', 'client', 'status', 'when'] as const;
+const REQUEST_SORT = ['created', 'case', 'attorney', 'client', 'description', 'amount', 'due', 'feePayer', 'status'] as const;
+const ACCOUNT_SORT = ['attorney', 'status', 'missing', 'feePayer', 'received', 'created'] as const;
+/** The name a PartyCell shows (empty → null, so the row sorts last). */
+const partyName = (p: Party | null) => p?.name || (p?.username ? `@${p.username}` : null);
 
 function PartyCell({ p, id }: { p: Party | null; id: string }) {
   const name = p?.name || (p?.username ? `@${p.username}` : id.slice(0, 8));
@@ -148,7 +155,17 @@ function PaymentsTab({ canWrite }: { canWrite: boolean }) {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(PAYMENT_SORT, 'paymentSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    case: (p) => p.caseTitle ?? p.caseId.slice(0, 8),
+    parties: (p) => partyName(p.client),
+    kind: (p) => CASE_PAYMENT_KIND[p.kind] ?? p.kind,
+    attorney: (p) => p.attorneyNetCents,
+    fee: (p) => p.platformFeeCents,
+    client: (p) => p.clientTotalCents,
+    status: (p) => CASE_PAYMENT_STATUS[p.status] ?? p.status,
+    when: (p) => p.paidAt ?? p.createdAt,
+  });
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['case-payments'] });
     void qc.invalidateQueries({ queryKey: ['case-payments-stats'] });
@@ -178,14 +195,14 @@ function PaymentsTab({ canWrite }: { canWrite: boolean }) {
         <Table>
           <thead>
             <tr>
-              <Th>Кейс</Th>
-              <Th>Клиент → адвокат</Th>
-              <Th>Тип</Th>
-              <Th className="text-right">Адвокату</Th>
-              <Th className="text-right">Комиссия</Th>
-              <Th className="text-right">Списано с клиента</Th>
-              <Th>Статус</Th>
-              <Th>Когда</Th>
+              <SortTh {...header('case')}>Кейс</SortTh>
+              <SortTh {...header('parties')}>Клиент → адвокат</SortTh>
+              <SortTh {...header('kind')}>Тип</SortTh>
+              <SortTh {...header('attorney')} className="text-right">Адвокату</SortTh>
+              <SortTh {...header('fee')} className="text-right">Комиссия</SortTh>
+              <SortTh {...header('client')} className="text-right">Списано с клиента</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('when')}>Когда</SortTh>
               {canWrite ? <Th /> : null}
             </tr>
           </thead>
@@ -334,7 +351,18 @@ function RequestsTab() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(REQUEST_SORT, 'requestSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    created: (r) => r.createdAt,
+    case: (r) => r.caseTitle,
+    attorney: (r) => partyName(r.attorney),
+    client: (r) => partyName(r.client),
+    description: (r) => r.description,
+    amount: (r) => r.amountCents,
+    due: (r) => r.dueAt,
+    feePayer: (r) => PROCESSING_FEE_PAYER[r.processingFeePayer],
+    status: (r) => PAYMENT_REQUEST_STATUS[r.status],
+  });
   return (
     <>
       <Card className="mb-3 p-3">
@@ -355,15 +383,15 @@ function RequestsTab() {
         <Table>
           <thead>
             <tr>
-              <Th>Дата</Th>
-              <Th>Дело</Th>
-              <Th>Адвокат</Th>
-              <Th>Клиент</Th>
-              <Th>За что</Th>
-              <Th className="text-right">Сумма</Th>
-              <Th>Срок</Th>
-              <Th>Комиссия Stripe</Th>
-              <Th>Статус</Th>
+              <SortTh {...header('created')}>Дата</SortTh>
+              <SortTh {...header('case')}>Дело</SortTh>
+              <SortTh {...header('attorney')}>Адвокат</SortTh>
+              <SortTh {...header('client')}>Клиент</SortTh>
+              <SortTh {...header('description')}>За что</SortTh>
+              <SortTh {...header('amount')} className="text-right">Сумма</SortTh>
+              <SortTh {...header('due')}>Срок</SortTh>
+              <SortTh {...header('feePayer')}>Комиссия Stripe</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
             </tr>
           </thead>
           <tbody>
@@ -420,7 +448,15 @@ function AccountsTab({ canWrite }: { canWrite: boolean }) {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(ACCOUNT_SORT, 'accountSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    attorney: (a) => partyName(a.user) ?? a.userId.slice(0, 8),
+    status: (a) => PAYOUT_ACCOUNT_STATUS[a.status] ?? a.status,
+    missing: (a) => a.disabledReason ?? (a.requirementsDue.join(', ') || null),
+    feePayer: (a) => (a.processingFeePayer ? PROCESSING_FEE_PAYER[a.processingFeePayer] : null),
+    received: (a) => a.receivedCents,
+    created: (a) => a.createdAt,
+  });
   const sync = useMutation({
     mutationFn: async (a: Account) =>
       (await api.POST('/admin/case-payments/payout-accounts/{userId}/sync', { params: { path: { userId: a.userId } } })).data!.data,
@@ -450,12 +486,12 @@ function AccountsTab({ canWrite }: { canWrite: boolean }) {
         <Table>
           <thead>
             <tr>
-              <Th>Адвокат</Th>
-              <Th>Статус</Th>
-              <Th>Чего не хватает</Th>
-              <Th>Комиссия Stripe</Th>
-              <Th className="text-right">Получено</Th>
-              <Th>Подключён</Th>
+              <SortTh {...header('attorney')}>Адвокат</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('missing')}>Чего не хватает</SortTh>
+              <SortTh {...header('feePayer')}>Комиссия Stripe</SortTh>
+              <SortTh {...header('received')} className="text-right">Получено</SortTh>
+              <SortTh {...header('created')}>Подключён</SortTh>
               {canWrite ? <Th /> : null}
             </tr>
           </thead>

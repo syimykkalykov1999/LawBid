@@ -12,15 +12,18 @@ import { ErrorNote, PageHeader } from '@/components/page-header';
 import { buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { api, errorText } from '@/lib/api/client';
 import { REQUEST_STATUS, StatusPill } from '@/lib/labels';
 import { queueSearch } from '@/lib/registry-conveyor';
 import { VERIFICATION_REVIEW_PATH } from '@/lib/review-flow';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime, formatDuration } from '@/lib/utils';
 
 type QueueStatus = '' | 'submitted' | 'needs_more_info' | 'in_review' | 'registry';
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's, old first). */
+const SORT_KEYS = ['attorney', 'states', 'status', 'submitted', 'waiting', 'reviewer'] as const;
 
 /** docs/06 §2.3 item 2 — the verifier queue over the file-03 API. */
 export default function VerificationQueuePage() {
@@ -49,8 +52,17 @@ export default function VerificationQueuePage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
   const now = Date.now();
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    attorney: (r) => [r.attorney.firstName, r.attorney.lastName].filter(Boolean).join(' ') || r.attorney.username,
+    states: (r) => r.stateCodes.join(', '),
+    status: (r) => REQUEST_STATUS[r.status] ?? r.status,
+    submitted: (r) => r.submittedAt,
+    // waiting longer = submitted earlier
+    waiting: (r) => (r.submittedAt ? now - new Date(r.submittedAt).getTime() : null),
+    reviewer: (r) => r.reviewerId,
+  });
   // R-400: the card carries the filter, so «после решения — следующая» stays inside it.
   const href = (id: string) => `/verification/${id}${queueSearch(filters)}`;
 
@@ -99,12 +111,12 @@ export default function VerificationQueuePage() {
           <Table>
             <thead>
               <tr>
-                <Th>Адвокат</Th>
-                <Th>Штаты</Th>
-                <Th>Статус</Th>
-                <Th>Подана</Th>
-                <Th>Ожидает</Th>
-                <Th>Проверяющий</Th>
+                <SortTh {...header('attorney')}>Адвокат</SortTh>
+                <SortTh {...header('states')}>Штаты</SortTh>
+                <SortTh {...header('status')}>Статус</SortTh>
+                <SortTh {...header('submitted')}>Подана</SortTh>
+                <SortTh {...header('waiting')}>Ожидает</SortTh>
+                <SortTh {...header('reviewer')}>Проверяющий</SortTh>
               </tr>
             </thead>
             <tbody>

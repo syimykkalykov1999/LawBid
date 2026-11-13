@@ -2,9 +2,60 @@
 
 import { ArrowSquareOut, Copy } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
-import { copyChips, openRegistry, registryButtonLabel, registryLinks, type CopyChipSource } from '@/lib/registry-conveyor';
+import { copyChips, openRegistry, REGISTRY_TAB, registryButtonLabel, registryLinks, type CopyChipSource } from '@/lib/registry-conveyor';
 import { cn } from '@/lib/utils';
+
+const POPUP_BLOCKED = 'Браузер не дал открыть вкладку реестра — разрешите всплывающие окна для админки';
+
+/**
+ * Owner 2026-11-12 (row 57): the ONE registry link of a licence, in the
+ * licences list (it was also under the documents and in «Борьба с
+ * мошенниками»). Opens in the one registry tab like «Открыть реестр штата»;
+ * says «Открыть запись №…» when the registry page opens straight on the
+ * number and shows the block-list mark — both from the trust lookup, when
+ * the screen has it.
+ */
+export function LicenseRegistryLink({
+  url,
+  barNumber,
+  lookup,
+  className,
+}: {
+  url: string | null;
+  barNumber: string;
+  lookup?: { url: string | null; prefilled: boolean; blocked: boolean };
+  className?: string;
+}) {
+  const toast = useToast();
+  const href = url ?? lookup?.url ?? null;
+  return (
+    <>
+      {lookup?.blocked ? (
+        <div className="mt-1 font-sans">
+          <Badge tone="danger">в блок-листе</Badge>
+        </div>
+      ) : null}
+      {href ? (
+        <a
+          href={href}
+          target={REGISTRY_TAB}
+          data-testid="license-registry-link"
+          className={cn('mt-1 block font-sans text-primary underline', className)}
+          onClick={(e) => {
+            e.preventDefault();
+            if (!openRegistry(href)) toast.error(new Error(POPUP_BLOCKED));
+          }}
+        >
+          {lookup?.prefilled ? `Открыть запись № ${barNumber} в коллегии` : 'Открыть в коллегии штата'}
+        </a>
+      ) : (
+        <span className={cn('mt-1 block font-sans text-xs text-faint', className)}>реестра штата нет</span>
+      )}
+    </>
+  );
+}
 
 /**
  * Owner 2026-11-04 (R-400): the verifier's hands on the state registry. One
@@ -15,9 +66,20 @@ import { cn } from '@/lib/utils';
  * `tone="overlay"` matches the lightbox's white-on-dark controls on its last
  * slide. Same data, same handlers in both places.
  */
-export function RegistryActions({ card, tone = 'page', className }: { card: CopyChipSource; tone?: 'page' | 'overlay'; className?: string }) {
+export function RegistryActions({
+  card,
+  tone = 'page',
+  showRegistry = true,
+  className,
+}: {
+  card: CopyChipSource;
+  tone?: 'page' | 'overlay';
+  /** Row 57: false where the same screen already has the registry link per licence (copy chips only). */
+  showRegistry?: boolean;
+  className?: string;
+}) {
   const toast = useToast();
-  const links = registryLinks(card.licenses);
+  const links = showRegistry ? registryLinks(card.licenses) : [];
   const chips = copyChips(card);
   if (links.length === 0 && chips.length === 0) return null;
 
@@ -33,7 +95,7 @@ export function RegistryActions({ card, tone = 'page', className }: { card: Copy
     );
   };
   const open = (url: string) => {
-    if (!openRegistry(url)) toast.error(new Error('Браузер не дал открыть вкладку реестра — разрешите всплывающие окна для админки'));
+    if (!openRegistry(url)) toast.error(new Error(POPUP_BLOCKED));
   };
 
   const overlay = tone === 'overlay';

@@ -13,12 +13,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Input, Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { PAYMENT_STATUS, PLAN, StatusPill, SUBSCRIPTION_STATUS, usd } from '@/lib/labels';
 import { Reason } from '@/lib/reasons';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Status = 'all' | 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'incomplete';
@@ -26,6 +27,10 @@ type Plan = '' | 'monthly' | 'yearly';
 type GrantFilter = '' | 'yes' | 'no';
 type Seats = '' | 'none' | 'some' | 'full';
 type YesNo = '' | 'yes' | 'no';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SUB_SORT_KEYS = ['attorney', 'plan', 'monthly', 'status', 'until', 'contract', 'stripe'] as const;
+const SEAT_SORT_KEYS = ['created', 'attorney', 'seats', 'amount', 'status', 'invoice'] as const;
 
 /** Subscriptions: KPIs, list by status / plan / search, details with extend and contract grant. */
 export default function SubscriptionsPage() {
@@ -72,7 +77,16 @@ export default function SubscriptionsPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SUB_SORT_KEYS, 'subSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    attorney: (s) => userName(s.user, s.userId),
+    plan: (s) => PLAN[s.plan] ?? s.plan,
+    monthly: (s) => s.monthlyEquivalentCents,
+    status: (s) => SUBSCRIPTION_STATUS[s.status] ?? s.status,
+    until: (s) => (s.status === 'trialing' ? s.trialEndsAt : s.currentPeriodEnd) ?? null,
+    contract: (s) => s.contractGrant?.endsAt ?? null,
+    stripe: (s) => s.stripeSubscriptionId ?? null,
+  });
   const o = ov.data;
 
   return (
@@ -173,13 +187,13 @@ export default function SubscriptionsPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Адвокат</Th>
-            <Th>Тариф</Th>
-            <Th className="text-right">В месяц</Th>
-            <Th>Статус</Th>
-            <Th>До</Th>
-            <Th>Договор</Th>
-            <Th>Stripe</Th>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('plan')}>Тариф</SortTh>
+            <SortTh {...header('monthly')} className="text-right">В месяц</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
+            <SortTh {...header('until')}>До</SortTh>
+            <SortTh {...header('contract')}>Договор</SortTh>
+            <SortTh {...header('stripe')}>Stripe</SortTh>
           </tr>
         </thead>
         <tbody>
@@ -451,7 +465,15 @@ function SeatChanges() {
       (await api.GET('/admin/billing/seat-changes', { params: { query: { cursor: pageParam } } })).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SEAT_SORT_KEYS, 'seatSort');
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    created: (c) => c.createdAt,
+    attorney: (c) => userName(c.user, c.userId),
+    seats: (c) => c.toSeats,
+    amount: (c) => c.amountCents || null,
+    status: (c) => SEAT_CHANGE_STATUS[c.status] ?? c.status,
+    invoice: (c) => c.stripeInvoiceId ?? null,
+  });
   return (
     <div className="mt-8">
       <h2 className="mb-1 text-sm font-medium text-heading">Покупки мест</h2>
@@ -463,12 +485,12 @@ function SeatChanges() {
       <Table>
         <thead>
           <tr>
-            <Th>Когда</Th>
-            <Th>Адвокат</Th>
-            <Th className="text-right">Мест</Th>
-            <Th className="text-right">Сумма</Th>
-            <Th>Статус</Th>
-            <Th>Счёт Stripe</Th>
+            <SortTh {...header('created')}>Когда</SortTh>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('seats')} className="text-right">Мест</SortTh>
+            <SortTh {...header('amount')} className="text-right">Сумма</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
+            <SortTh {...header('invoice')}>Счёт Stripe</SortTh>
           </tr>
         </thead>
         <tbody>

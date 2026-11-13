@@ -2,12 +2,16 @@
 
 import { Target } from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/card';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import type { components } from '@/lib/api/schema';
 import { GOAL_METRIC, GOAL_STATE, goalPercent, goalValue, periodLabel, SETTLEMENT_STATUS } from '@/lib/country-partners';
 import { money } from '@/lib/payroll';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 
 type Detail = components['schemas']['CountryPartnerDetailDto'];
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['period', 'gross', 'deductions', 'net', 'share', 'status'] as const;
 
 /** Owner 2026-10-06: blocks shared by Партнёры стран and the partner's own page. */
 export function MonthLine({ rows }: { rows: Detail['currentMonth'] }) {
@@ -51,17 +55,26 @@ export function Goals({ goals }: { goals: Detail['goals'] }) {
   );
 }
 
-export function Settlements({ rows }: { rows: Detail['settlements'] }) {
+export function Settlements({ rows: loaded }: { rows: Detail['settlements'] }) {
+  const { sort, header } = useTableSort(SORT_KEYS, 'settlementsSort');
+  const rows = sortRows(loaded, sort, {
+    period: (s) => s.period,
+    gross: (s) => s.grossCents,
+    deductions: (s) => s.refundsCents + s.feesCents,
+    net: (s) => s.netCents,
+    share: (s) => s.amountCents,
+    status: (s) => SETTLEMENT_STATUS[s.status]?.label ?? s.status,
+  });
   return (
     <Table>
       <thead>
         <tr>
-          <Th>Месяц</Th>
-          <Th>Оплачено</Th>
-          <Th>Возвраты и комиссии</Th>
-          <Th>Чистый доход</Th>
-          <Th>Доля</Th>
-          <Th>Статус</Th>
+          <SortTh {...header('period')}>Месяц</SortTh>
+          <SortTh {...header('gross')}>Оплачено</SortTh>
+          <SortTh {...header('deductions')}>Возвраты и комиссии</SortTh>
+          <SortTh {...header('net')}>Чистый доход</SortTh>
+          <SortTh {...header('share')}>Доля</SortTh>
+          <SortTh {...header('status')}>Статус</SortTh>
         </tr>
       </thead>
       <tbody>

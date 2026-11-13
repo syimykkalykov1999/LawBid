@@ -12,7 +12,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, api, errorText } from '@/lib/api/client';
@@ -37,10 +37,13 @@ import {
   toPayload,
 } from '@/lib/form-templates';
 import { useMe } from '@/lib/hooks';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 const QUERY_KEY = ['admin-form-templates'];
 const langName = (code: string) => FORM_LANGUAGES.find((l) => l.code === code)?.name ?? code.toUpperCase();
+/** Row 57: click-to-sort headers (the loaded rows; default order = the form order). */
+const SORT_KEYS = ['title', 'area', 'languages', 'fields', 'status', 'updated'] as const;
 
 /** Problems to show under the form: the API's own list, else its message. */
 function saveProblems(e: unknown): string[] {
@@ -68,7 +71,19 @@ export function FormTemplatesPanel() {
     },
   });
   const areas = useAreas();
-  const rows = [...(list.data ?? [])].sort((a, b) => a.position - b.position || a.slug.localeCompare(b.slug));
+  const { sort, header } = useTableSort(SORT_KEYS, 'formsSort');
+  const rows = sortRows(
+    [...(list.data ?? [])].sort((a, b) => a.position - b.position || a.slug.localeCompare(b.slug)),
+    sort,
+    {
+      title: (t) => t.title.ru || t.title.en || t.slug,
+      area: (t) => (t.practiceAreaId ? (areas.get(t.practiceAreaId) ?? null) : 'Любая'),
+      languages: (t) => languageList(t).join(', ') || null,
+      fields: (t) => t.fields.length,
+      status: (t) => (t.published ? 'опубликована' : 'черновик'),
+      updated: (t) => t.updatedAt,
+    },
+  );
 
   return (
     <>
@@ -86,12 +101,14 @@ export function FormTemplatesPanel() {
         <Table>
           <thead>
             <tr>
-              <Th>Форма</Th>
-              <Th>Практика</Th>
-              <Th>Языки</Th>
-              <Th className="text-right">Полей</Th>
-              <Th>Статус</Th>
-              <Th>Изменена</Th>
+              <SortTh {...header('title')}>Форма</SortTh>
+              <SortTh {...header('area')}>Практика</SortTh>
+              <SortTh {...header('languages')}>Языки</SortTh>
+              <SortTh {...header('fields')} className="text-right">
+                Полей
+              </SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('updated')}>Изменена</SortTh>
             </tr>
           </thead>
           <tbody>

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
-import { Table, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, Td } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import {
@@ -23,9 +23,15 @@ import {
   type ReviewMe,
   type ReviewSample,
 } from '@/lib/desk-review';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime, formatDuration } from '@/lib/utils';
 
 type Section = 'check' | 'team' | 'golden' | 'numbers';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const TEAM_SORT = ['name', 'decisions', 'returned', 'sampled', 'overturned', 'golden'] as const;
+const GOLDEN_SORT = ['worker', 'kind', 'created', 'state'] as const;
+const CALIBRATION_SORT = ['kind', 'pairs', 'agreement'] as const;
 
 /**
  * Staff package T9: the «Перепроверка» tab. A reviewer (owner, head or a
@@ -236,9 +242,17 @@ function SampleCard({ sample, children }: { sample: ReviewSample; children: Reac
 
 function TeamSection() {
   const q = useReviewTeam(true);
+  const { sort, header } = useTableSort(TEAM_SORT, 'teamSort');
   if (q.isPending) return <Skeleton className="h-32 w-full" />;
   if (!q.data || !q.data.ok) return <EmptyState icon={Scales} title="Пока нет данных" text="Ночной расчёт рейтинга ещё не включён." />;
-  const rows = q.data.data.items;
+  const rows = sortRows(q.data.data.items, sort, {
+    name: (r) => r.name,
+    decisions: (r) => r.decisions,
+    returned: (r) => r.returnedRate,
+    sampled: (r) => r.sampled,
+    overturned: (r) => r.overturned,
+    golden: (r) => r.goldenFailed,
+  });
   if (rows.length === 0) return <EmptyState icon={Scales} title="Пока нет данных" text="Цифры появятся после первого ночного расчёта." />;
   return (
     <div>
@@ -246,12 +260,12 @@ function TeamSection() {
       <Table>
         <thead>
           <tr>
-            <Th>Работник</Th>
-            <Th>Закрыто</Th>
-            <Th>Вернулось</Th>
-            <Th>Перепроверено</Th>
-            <Th>Отменено</Th>
-            <Th>Эталоны: провалено</Th>
+            <SortTh {...header('name')}>Работник</SortTh>
+            <SortTh {...header('decisions')}>Закрыто</SortTh>
+            <SortTh {...header('returned')}>Вернулось</SortTh>
+            <SortTh {...header('sampled')}>Перепроверено</SortTh>
+            <SortTh {...header('overturned')}>Отменено</SortTh>
+            <SortTh {...header('golden')}>Эталоны: провалено</SortTh>
           </tr>
         </thead>
         <tbody>
@@ -277,9 +291,15 @@ const GOLDEN_STATE = { pending: { label: 'ждёт ответа', tone: 'neutral
 
 function GoldenSection() {
   const q = useGolden(true);
+  const { sort, header } = useTableSort(GOLDEN_SORT, 'goldenSort');
   if (q.isPending) return <Skeleton className="h-32 w-full" />;
   if (!q.data || !q.data.ok) return <EmptyState icon={Scales} title="Эталонные задачи не включены" />;
-  const rows = q.data.data.items;
+  const rows = sortRows(q.data.data.items, sort, {
+    worker: (g) => g.worker.name,
+    kind: (g) => REVIEW_KIND_LABEL[g.decisionKind.replace(/^golden_/, '')] ?? g.decisionKind,
+    created: (g) => g.createdAt,
+    state: (g) => GOLDEN_STATE[g.state].label,
+  });
   if (rows.length === 0) {
     return <EmptyState icon={Scales} title="Эталонных задач пока нет" text="Подтвердите решение на вкладке «Проверка» и выдайте его как эталон." />;
   }
@@ -287,10 +307,10 @@ function GoldenSection() {
     <Table>
       <thead>
         <tr>
-          <Th>Работник</Th>
-          <Th>Тип</Th>
-          <Th>Выдана</Th>
-          <Th>Итог</Th>
+          <SortTh {...header('worker')}>Работник</SortTh>
+          <SortTh {...header('kind')}>Тип</SortTh>
+          <SortTh {...header('created')}>Выдана</SortTh>
+          <SortTh {...header('state')}>Итог</SortTh>
         </tr>
       </thead>
       <tbody>
@@ -313,9 +333,15 @@ const WS_LABEL: Record<string, string> = { mass: 'Массовая работа'
 
 function NumbersSection() {
   const q = useReviewStats(true);
+  const { sort, header } = useTableSort(CALIBRATION_SORT, 'calibrationSort');
   if (q.isPending) return <Skeleton className="h-32 w-full" />;
   if (!q.data || !q.data.ok) return <EmptyState icon={Scales} title="Пока нет данных" />;
   const s = q.data.data;
+  const calibration = sortRows(s.calibration, sort, {
+    kind: (c) => REVIEW_KIND_LABEL[c.decisionKind] ?? c.decisionKind,
+    pairs: (c) => c.pairs,
+    agreement: (c) => c.agreementPct,
+  });
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="review-numbers">
@@ -341,13 +367,13 @@ function NumbersSection() {
           <Table>
             <thead>
               <tr>
-                <Th>Тип дела</Th>
-                <Th>Пар</Th>
-                <Th>Совпало</Th>
+                <SortTh {...header('kind')}>Тип дела</SortTh>
+                <SortTh {...header('pairs')}>Пар</SortTh>
+                <SortTh {...header('agreement')}>Совпало</SortTh>
               </tr>
             </thead>
             <tbody>
-              {s.calibration.map((c) => (
+              {calibration.map((c) => (
                 <tr key={c.decisionKind}>
                   <Td>{REVIEW_KIND_LABEL[c.decisionKind] ?? c.decisionKind}</Td>
                   <Td>{c.pairs}</Td>

@@ -10,10 +10,14 @@ import { MoreButton } from '@/components/legacy/more-button';
 import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Input, Label, Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { api, errorText } from '@/lib/api/client';
 import { BID_STATUS, FEE_TYPE, label, StatusPill, usd } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['case', 'attorney', 'amount', 'rounds', 'status', 'created'] as const;
 
 /** Owner 2026-09-30: every bid with its case, attorney, amount and status. */
 export default function BidsPage() {
@@ -31,7 +35,15 @@ export default function BidsPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    case: (b) => b.caseTitle,
+    attorney: (b) => b.attorneyName,
+    amount: (b) => (b.feeType === 'free_consultation' ? null : b.amountCents),
+    rounds: (b) => b.rounds,
+    status: (b) => BID_STATUS[b.status] ?? b.status,
+    created: (b) => b.createdAt,
+  });
   return (
     <>
       <PageHeader
@@ -64,12 +76,12 @@ export default function BidsPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Кейс</Th>
-            <Th>Адвокат</Th>
-            <Th>Сумма</Th>
-            <Th>Раунды</Th>
-            <Th>Статус</Th>
-            <Th>Создана</Th>
+            <SortTh {...header('case')}>Кейс</SortTh>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('amount')}>Сумма</SortTh>
+            <SortTh {...header('rounds')}>Раунды</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
+            <SortTh {...header('created')}>Создана</SortTh>
           </tr>
         </thead>
         <tbody>

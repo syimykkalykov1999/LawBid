@@ -3,9 +3,13 @@
 import { ChartBar } from '@phosphor-icons/react';
 import { Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { useMyDecisions } from '@/lib/desk-data';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDuration } from '@/lib/utils';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['day', 'decided', 'avg', 'reopened', 'late'] as const;
 
 /**
  * «Проверено» / «Решённые»: my own closed items per day, from the nightly
@@ -13,6 +17,7 @@ import { formatDuration } from '@/lib/utils';
  */
 export function DecisionsTab({ enabled }: { enabled: boolean }) {
   const q = useMyDecisions(enabled);
+  const { sort, header } = useTableSort(SORT_KEYS, 'decisionsSort');
   if (q.isPending && enabled) return <Skeleton className="h-32 w-full" />;
   if (!q.data || !q.data.ok) {
     return (
@@ -23,7 +28,14 @@ export function DecisionsTab({ enabled }: { enabled: boolean }) {
       />
     );
   }
-  const { days, decidedTotal } = q.data.data;
+  const { decidedTotal } = q.data.data;
+  const days = sortRows(q.data.data.days, sort, {
+    day: (d) => d.day,
+    decided: (d) => d.decided,
+    avg: (d) => (d.decided ? d.avgHandleSec : null),
+    reopened: (d) => d.reopened,
+    late: (d) => d.lateSla,
+  });
   return (
     <div className="space-y-3">
       <Card className="p-4 text-sm text-muted">
@@ -32,11 +44,11 @@ export function DecisionsTab({ enabled }: { enabled: boolean }) {
       <Table>
         <thead>
           <tr>
-            <Th>День</Th>
-            <Th>Закрыто</Th>
-            <Th>В среднем на элемент</Th>
-            <Th>Вернулись после закрытия</Th>
-            <Th>С опозданием</Th>
+            <SortTh {...header('day')}>День</SortTh>
+            <SortTh {...header('decided')}>Закрыто</SortTh>
+            <SortTh {...header('avg')}>В среднем на элемент</SortTh>
+            <SortTh {...header('reopened')}>Вернулись после закрытия</SortTh>
+            <SortTh {...header('late')}>С опозданием</SortTh>
           </tr>
         </thead>
         <tbody>

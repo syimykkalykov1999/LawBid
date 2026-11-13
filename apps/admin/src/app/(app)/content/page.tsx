@@ -13,7 +13,7 @@ import { useReason } from '@/components/reason-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Input, Label, Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { ClientReviewsPanel, RestoreContentButton } from '@/components/content/client-reviews-panel';
 import {
@@ -36,6 +36,7 @@ import { collectIds, dayBounds, type Noun } from '@/lib/bulk';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { CONTENT_STATUS, StatusPill } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Tab = 'posts' | 'comments' | 'reviews' | 'client-reviews';
@@ -45,6 +46,10 @@ type BulkAction = components['schemas']['AdminBulkContentAction'];
 const POSTS: Noun = ['публикацию', 'публикации', 'публикаций'];
 const COMMENTS: Noun = ['комментарий', 'комментария', 'комментариев'];
 const REVIEWS: Noun = ['отзыв', 'отзыва', 'отзывов'];
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const POST_SORT = ['title', 'author', 'practice', 'likes', 'created'] as const;
+const COMMENT_SORT = ['body', 'author', 'target', 'created'] as const;
+const REVIEW_SORT = ['rating', 'attorney', 'client', 'case', 'status'] as const;
 
 /** Owner 2026-10-04: one bulk endpoint for posts, comments and reviews. */
 async function sendBulk(action: BulkAction, type: BulkType, ids: string[], reason: string) {
@@ -240,7 +245,14 @@ function Posts({ ask }: { ask: Ask }) {
     },
     onError: (e) => toast.error(e),
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(POST_SORT, 'postSort');
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    title: (p) => p.title,
+    author: (p) => p.authorName,
+    practice: (p) => p.practice,
+    likes: (p) => p.likes,
+    created: (p) => p.createdAt,
+  });
   return (
     <>
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -308,11 +320,11 @@ function Posts({ ask }: { ask: Ask }) {
                 <PageSelectBox selected={sel.selected} ids={rows.map((p) => p.id)} onToggle={sel.togglePage} />
               </Th>
             ) : null}
-            <Th>Публикация</Th>
-            <Th>Автор</Th>
-            <Th>Квалификация</Th>
-            <Th>Лайки / комм.</Th>
-            <Th>Создана</Th>
+            <SortTh {...header('title')}>Публикация</SortTh>
+            <SortTh {...header('author')}>Автор</SortTh>
+            <SortTh {...header('practice')}>Квалификация</SortTh>
+            <SortTh {...header('likes')}>Лайки / комм.</SortTh>
+            <SortTh {...header('created')}>Создана</SortTh>
             <Th />
           </tr>
         </thead>
@@ -431,7 +443,13 @@ function Comments({ ask }: { ask: Ask }) {
     },
     onError: (e) => toast.error(e),
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(COMMENT_SORT, 'commentSort');
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    body: (c) => c.body,
+    author: (c) => c.authorName,
+    target: (c) => c.targetTitle,
+    created: (c) => c.createdAt,
+  });
   return (
     <>
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -472,10 +490,10 @@ function Comments({ ask }: { ask: Ask }) {
                 <PageSelectBox selected={sel.selected} ids={rows.map((c) => c.id)} onToggle={sel.togglePage} />
               </Th>
             ) : null}
-            <Th>Комментарий</Th>
-            <Th>Автор</Th>
-            <Th>{thread === 'post' ? 'Публикация' : 'Кейс'}</Th>
-            <Th>Создан</Th>
+            <SortTh {...header('body')}>Комментарий</SortTh>
+            <SortTh {...header('author')}>Автор</SortTh>
+            <SortTh {...header('target')}>{thread === 'post' ? 'Публикация' : 'Кейс'}</SortTh>
+            <SortTh {...header('created')}>Создан</SortTh>
             <Th />
           </tr>
         </thead>
@@ -589,7 +607,14 @@ function Reviews({ ask }: { ask: Ask }) {
     },
     onError: (e) => toast.error(e),
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(REVIEW_SORT, 'reviewSort');
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    rating: (r) => r.rating,
+    attorney: (r) => r.attorneyName,
+    client: (r) => r.clientName,
+    case: (r) => r.caseTitle,
+    status: (r) => REVIEW_STATUS[r.status] ?? r.status,
+  });
   return (
     <>
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -623,11 +648,11 @@ function Reviews({ ask }: { ask: Ask }) {
                 <PageSelectBox selected={sel.selected} ids={rows.map((r) => r.id)} onToggle={sel.togglePage} />
               </Th>
             ) : null}
-            <Th>Отзыв</Th>
-            <Th>Адвокат</Th>
-            <Th>Клиент</Th>
-            <Th>Кейс</Th>
-            <Th>Статус</Th>
+            <SortTh {...header('rating')}>Отзыв</SortTh>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('client')}>Клиент</SortTh>
+            <SortTh {...header('case')}>Кейс</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
             <Th />
           </tr>
         </thead>

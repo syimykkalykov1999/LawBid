@@ -11,13 +11,14 @@ import { Badge, Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Group = components['schemas']['SynonymGroupDto'];
@@ -26,6 +27,11 @@ type Stat = components['schemas']['SearchQueryStatDto'];
 type Tab = 'words' | 'empty' | 'top' | 'learned' | 'check';
 
 const SCOPE: Record<string, string> = { people: 'люди', cases: 'кейсы', posts: 'посты', practices: 'темы' };
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const WORDS_SORT = ['key', 'practice', 'status'] as const;
+const QUERIES_SORT = ['q', 'count', 'people', 'scopes', 'last'] as const;
+const LEARNED_SORT = ['q', 'practice', 'score'] as const;
 
 /** «ru: развод» per line ⇄ [{lang, term}]. */
 export function parseTerms(text: string, fallbackLang = 'ru'): Term[] {
@@ -113,7 +119,12 @@ function WordsPanel() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(WORDS_SORT, 'wordsSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    key: (g) => g.key,
+    practice: (g) => g.practiceCode ?? null,
+    status: (g) => (g.enabled ? 'работает' : 'выключена'),
+  });
   const meta = list.data?.pages[0]?.meta as { total?: number; terms?: number } | undefined;
   const refresh = () => void qc.invalidateQueries({ queryKey: ['search-synonyms'] });
 
@@ -152,10 +163,10 @@ function WordsPanel() {
         <Table>
           <thead>
             <tr>
-              <Th>Группа</Th>
-              <Th>Тема</Th>
+              <SortTh {...header('key')}>Группа</SortTh>
+              <SortTh {...header('practice')}>Тема</SortTh>
               <Th>Слова и фразы</Th>
-              <Th>Статус</Th>
+              <SortTh {...header('status')}>Статус</SortTh>
             </tr>
           </thead>
           <tbody>
@@ -365,7 +376,14 @@ function QueriesPanel({ kind }: { kind: 'no-results' | 'top' }) {
         })
       ).data!.data as Stat[],
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(QUERIES_SORT, kind === 'top' ? 'topSort' : 'emptySort');
+  const rows = sortRows(q.data ?? [], sort, {
+    q: (r) => r.q,
+    count: (r) => r.count,
+    people: (r) => r.people,
+    scopes: (r) => r.scopes.map((s) => SCOPE[s] ?? s).join(', ') || null,
+    last: (r) => r.lastAt,
+  });
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -389,11 +407,15 @@ function QueriesPanel({ kind }: { kind: 'no-results' | 'top' }) {
       <Table>
         <thead>
           <tr>
-            <Th>Запрос</Th>
-            <Th className="text-right">Раз</Th>
-            <Th className="text-right">Людей</Th>
-            <Th>Где искали</Th>
-            <Th>Последний раз</Th>
+            <SortTh {...header('q')}>Запрос</SortTh>
+            <SortTh {...header('count')} className="text-right">
+              Раз
+            </SortTh>
+            <SortTh {...header('people')} className="text-right">
+              Людей
+            </SortTh>
+            <SortTh {...header('scopes')}>Где искали</SortTh>
+            <SortTh {...header('last')}>Последний раз</SortTh>
             {kind === 'no-results' && canWrite ? <Th /> : null}
           </tr>
         </thead>
@@ -489,7 +511,12 @@ function LearnedPanel() {
     queryKey: ['search-learned'],
     queryFn: async () => (await api.GET('/admin/search/learned')).data!.data,
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(LEARNED_SORT, 'learnedSort');
+  const rows = sortRows(q.data ?? [], sort, {
+    q: (r) => r.q,
+    practice: (r) => r.practiceCode,
+    score: (r) => r.score,
+  });
   return (
     <>
       <p className="mb-4 text-sm text-muted">
@@ -499,9 +526,11 @@ function LearnedPanel() {
       <Table>
         <thead>
           <tr>
-            <Th>Запрос</Th>
-            <Th>Тема</Th>
-            <Th className="text-right">Людей</Th>
+            <SortTh {...header('q')}>Запрос</SortTh>
+            <SortTh {...header('practice')}>Тема</SortTh>
+            <SortTh {...header('score')} className="text-right">
+              Людей
+            </SortTh>
           </tr>
         </thead>
         <tbody>

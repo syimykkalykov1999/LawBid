@@ -9,13 +9,17 @@ import { useReason } from "@/components/reason-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/input";
-import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { SortTh, Table, TableEmpty, Td } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { growthError } from "@/components/growth/errors";
 import { api, errorText } from "@/lib/api/client";
+import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
 
 type Picked = { id: string; name: string | null; email?: string | null };
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ["code", "owner", "invited", "created"] as const;
 
 /** Referral codes: every code with its owner, and "your own word" as someone's code. */
 export function CodesCard({ canEdit }: { canEdit: boolean }) {
@@ -38,6 +42,13 @@ export function CodesCard({ canEdit }: { canEdit: boolean }) {
           params: { query: { q: filter || undefined } },
         })
       ).data!.data,
+  });
+  const { sort, header } = useTableSort(SORT_KEYS, "codesSort");
+  const codes = sortRows(list.data ?? [], sort, {
+    code: (r) => r.code,
+    owner: (r) => r.ownerName || null,
+    invited: (r) => r.invited,
+    created: (r) => r.createdAt,
   });
   const found = useQuery({
     queryKey: ["referral-code-owner-search", search],
@@ -212,15 +223,15 @@ export function CodesCard({ canEdit }: { canEdit: boolean }) {
         <Table>
           <thead>
             <tr>
-              <Th>Код</Th>
-              <Th>Владелец</Th>
-              <Th>Пригласил</Th>
-              <Th>Создан</Th>
+              <SortTh {...header("code")}>Код</SortTh>
+              <SortTh {...header("owner")}>Владелец</SortTh>
+              <SortTh {...header("invited")}>Пригласил</SortTh>
+              <SortTh {...header("created")}>Создан</SortTh>
             </tr>
           </thead>
           <tbody>
-            {list.data?.length ? (
-              list.data.map((r) => (
+            {codes.length ? (
+              codes.map((r) => (
                 <tr key={r.userId}>
                   <Td className="font-mono text-ink">{r.code}</Td>
                   <Td>

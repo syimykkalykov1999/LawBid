@@ -26,13 +26,16 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
 import { Field } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Status = 'active' | 'scheduled' | 'expired' | 'revoked';
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['user', 'months', 'seats', 'period', 'contract', 'created'] as const;
 
 /** Free contract subscriptions for blogger attorneys. */
 export default function ContractsPage() {
@@ -51,7 +54,15 @@ export default function ContractsPage() {
       (await api.GET('/admin/billing/contract-grants', { params: { query: { status, cursor: pageParam } } })).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    user: (g) => userName(g.user, g.userId),
+    months: (g) => g.months,
+    seats: (g) => g.assistantSeats,
+    period: (g) => g.startsAt,
+    contract: (g) => g.contractRef ?? g.note,
+    created: (g) => g.createdAt,
+  });
 
   const revoke = useMutation({
     mutationFn: async (g: ContractGrant) => {
@@ -118,12 +129,12 @@ export default function ContractsPage() {
         <Table>
           <thead>
             <tr>
-              <Th>Адвокат</Th>
-              <Th>Срок</Th>
-              <Th>Помощники</Th>
-              <Th className="min-w-44">Период</Th>
-              <Th>Договор</Th>
-              <Th>Выдал</Th>
+              <SortTh {...header('user')}>Адвокат</SortTh>
+              <SortTh {...header('months')}>Срок</SortTh>
+              <SortTh {...header('seats')}>Помощники</SortTh>
+              <SortTh {...header('period')} className="min-w-44">Период</SortTh>
+              <SortTh {...header('contract')}>Договор</SortTh>
+              <SortTh {...header('created')}>Выдал</SortTh>
               {canWrite ? <Th className="text-right">Действия</Th> : null}
             </tr>
           </thead>

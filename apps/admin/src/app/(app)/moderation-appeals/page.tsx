@@ -9,14 +9,17 @@ import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { MOD_ACTION, TARGET_TYPE } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Status = 'pending' | 'accepted' | 'rejected';
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['target', 'action', 'message', 'created'] as const;
 
 const STATUS_TAB: Record<Status, string> = {
   pending: 'Ждут решения',
@@ -46,7 +49,13 @@ export default function ModerationAppealsPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    target: (r) => TARGET_TYPE[r.targetType] ?? r.targetType,
+    action: (r) => MOD_ACTION[r.action] ?? r.action,
+    message: (r) => r.message,
+    created: (r) => r.createdAt,
+  });
   const pending = status === 'pending';
 
   const decide = useMutation({
@@ -85,10 +94,10 @@ export default function ModerationAppealsPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Объект</Th>
-            <Th>Решение модератора</Th>
-            <Th>Что пишет автор</Th>
-            <Th>Подано</Th>
+            <SortTh {...header('target')}>Объект</SortTh>
+            <SortTh {...header('action')}>Решение модератора</SortTh>
+            <SortTh {...header('message')}>Что пишет автор</SortTh>
+            <SortTh {...header('created')}>Подано</SortTh>
             <Th>{pending ? 'Решение' : 'Итог'}</Th>
           </tr>
         </thead>

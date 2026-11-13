@@ -10,7 +10,7 @@ import { Badge, type Tone } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Input, Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { VerifiedBadge } from '@/components/verified-badge';
@@ -18,6 +18,7 @@ import { api, errorText } from '@/lib/api/client';
 import { can } from '@/lib/rbac';
 import { useMe } from '@/lib/hooks';
 import { reelsClientMode } from '@/lib/reels-client-mode';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { LazyImg } from '@/components/ui/lazy-img';
 
@@ -37,6 +38,9 @@ const SUB_RU: Record<string, string> = {
   canceled: 'отменена',
   comped: 'бесплатно (подарок)',
 };
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['client', 'status', 'sub', 'docs', 'submitted'] as const;
 
 /** Owner 2026-10-02: paid gold badge for clients — application queue. */
 export default function ClientBadgesPage() {
@@ -78,7 +82,14 @@ export default function ClientBadgesPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    client: (r) => r.displayName || (r.username ? `@${r.username}` : r.userId.slice(0, 8)),
+    status: (r) => STATUS_RU[r.status]?.text ?? r.status,
+    sub: (r) => SUB_RU[r.subStatus] ?? r.subStatus,
+    docs: (r) => r.documentsCount,
+    submitted: (r) => r.submittedAt,
+  });
   const pendingRows = rows.filter((r) => r.status === 'pending');
   const allPicked = pendingRows.length > 0 && pendingRows.every((r) => picked.has(r.id));
 
@@ -211,11 +222,11 @@ export default function ClientBadgesPage() {
                 />
               ) : null}
             </Th>
-            <Th>Клиент</Th>
-            <Th>Заявка</Th>
-            <Th>Подписка</Th>
-            <Th>Документы</Th>
-            <Th>Подана</Th>
+            <SortTh {...header('client')}>Клиент</SortTh>
+            <SortTh {...header('status')}>Заявка</SortTh>
+            <SortTh {...header('sub')}>Подписка</SortTh>
+            <SortTh {...header('docs')}>Документы</SortTh>
+            <SortTh {...header('submitted')}>Подана</SortTh>
           </tr>
         </thead>
         <tbody>

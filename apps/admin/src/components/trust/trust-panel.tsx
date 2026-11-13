@@ -40,6 +40,7 @@ import {
   TRUST_ACTOR_RU,
   TRUST_EVENT_RU,
   TrustLevelChip,
+  dedupeTrustEvents,
   type DocTemplate,
 } from '@/lib/trust-labels';
 import { formatDateTime } from '@/lib/utils';
@@ -66,7 +67,27 @@ export function invalidateTrust(qc: ReturnType<typeof useQueryClient>, attorneyI
  * holds, Stripe identity, history and the verifier's actions over
  * /admin/trust/attorneys/:id/*. Writes need `verification: manage`.
  */
-export function TrustPanel({ attorneyId }: { attorneyId: string }) {
+/** One verifier action of the trust card (owner 2026-11-12, row 57: the
+ * request card shows each of them once, in its own decision area). */
+export interface TrustAction {
+  key: string;
+  /** The label in the «Борьба с мошенниками» grid (the trust page). */
+  label: string;
+  /** The label in the request card's «Ещё» menu, next to the request's own «Отклонить» / «Одобрить». */
+  menuLabel: string;
+  variant: 'gold' | 'outline' | 'danger' | 'ghost' | 'danger-soft' | 'soft';
+  danger?: boolean;
+  disabled: boolean;
+  title?: string;
+  run: () => void;
+}
+
+/**
+ * The trust card's data and the verifier's actions over
+ * /admin/trust/attorneys/:id/* — shared by the trust panel and the request
+ * card's one decision area. `actions` is empty without `verification: manage`.
+ */
+export function useTrustActions(attorneyId: string | undefined) {
   const qc = useQueryClient();
   const toast = useToast();
   const { data: me } = useMe();
@@ -77,12 +98,13 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
   const [holdOpen, setHoldOpen] = useState(false);
 
   const q = useQuery({
-    queryKey: trustCardKey(attorneyId),
+    queryKey: trustCardKey(attorneyId ?? ''),
+    enabled: Boolean(attorneyId),
     queryFn: async () =>
-      (await api.GET('/admin/trust/attorneys/{attorneyId}', { params: { path: { attorneyId } } })).data!.data,
+      (await api.GET('/admin/trust/attorneys/{attorneyId}', { params: { path: { attorneyId: attorneyId! } } })).data!.data,
   });
   const c = q.data;
-  const p = { params: { path: { attorneyId } } };
+  const p = { params: { path: { attorneyId: attorneyId ?? '' } } };
   const onError = (e: unknown) => toast.error(e);
   const done = (text: string) => {
     toast.success(text);
@@ -246,6 +268,70 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
     onError,
   });
 
+  const busy =
+    clear.isPending ||
+    unclear.isPending ||
+    requestDocuments.isPending ||
+    reject.isPending ||
+    confirmLicense.isPending ||
+    unconfirmLicense.isPending ||
+    confirmFirmLink.isPending ||
+    release.isPending ||
+    recompute.isPending;
+  const actions: TrustAction[] = [];
+  if (c && canManage) {
+    const s = c.signals;
+    const held = Boolean(c.holds.payments || c.holds.bids);
+    const staffLicense = s.licenseConfirmed && s.licenseConfirmedBy === 'staff';
+    const staffCleared = c.cleared && c.clearedBy === 'staff';
+    actions.push(
+      staffCleared
+        ? { key: 'unclear', label: 'Снять подтверждение', menuLabel: 'Снять подтверждение адвоката', variant: 'outline', danger: true, disabled: busy, run: () => unclear.mutate() }
+        : { key: 'clear', label: 'Подтвердить', menuLabel: 'Подтвердить адвоката', variant: 'gold', disabled: busy || c.cleared, run: () => clear.mutate() },
+      { key: 'request-documents', label: 'Запросить ещё', menuLabel: 'Запросить документы', variant: 'outline', disabled: busy, run: () => requestDocuments.mutate() },
+      { key: 'reject', label: 'Отклонить', menuLabel: 'Отклонить адвоката', variant: 'danger', danger: true, disabled: busy || c.staffStatus === 'suspended', run: () => reject.mutate() },
+      { key: 'recompute', label: 'Пересчитать', menuLabel: 'Пересчитать', variant: 'ghost', disabled: busy, run: () => recompute.mutate() },
+      staffLicense
+        ? { key: 'unconfirm-license', label: 'Снять подтверждение лицензии', menuLabel: 'Снять подтверждение лицензии', variant: 'outline', danger: true, disabled: busy, run: () => unconfirmLicense.mutate() }
+        : {
+            key: 'confirm-license',
+            label: 'Подтвердить лицензию',
+            menuLabel: 'Подтвердить лицензию',
+            variant: 'outline',
+            disabled: busy || s.licenseConfirmed,
+            title: s.licenseConfirmed ? 'Уже подтверждена реестром штата' : undefined,
+            run: () => confirmLicense.mutate(),
+          },
+      { key: 'confirm-firm-link', label: 'Подтвердить связь с фирмой', menuLabel: 'Подтвердить связь с фирмой', variant: 'outline', disabled: busy || c.firmLink.status === 'confirmed', run: () => confirmFirmLink.mutate() },
+      { key: 'hold', label: 'Поставить холд', menuLabel: 'Поставить холд', variant: 'danger-soft', danger: true, disabled: busy, run: () => setHoldOpen(true) },
+      { key: 'release', label: 'Снять холд', menuLabel: 'Снять холд', variant: 'soft', disabled: busy || !held, run: () => release.mutate() },
+    );
+  }
+  const dialogs = (
+    <>
+      {dialog}
+      {confirmDialog}
+      {docDialog}
+      {c ? <HoldDialog open={holdOpen} onClose={() => setHoldOpen(false)} pending={hold.isPending} current={c.holds} onSubmit={(v) => hold.mutate(v)} /> : null}
+    </>
+  );
+  return { query: q, card: c, actions, dialogs };
+}
+
+/**
+ * Owner 2026-10-05 — «Борьба с мошенниками» block of an attorney's card:
+ * status, requirements, why they wait in the queue, the facts behind it,
+ * holds, Stripe identity, history and the verifier's actions over
+ * /admin/trust/attorneys/:id/*. Writes need `verification: manage`.
+ *
+ * Owner 2026-11-12 (row 57): `embedded` = inside the request card, which has
+ * its own decision area (these actions sit in its «Ещё» menu) and the
+ * licences table (the registry link per licence): the panel then shows the
+ * facts only, without a second set of buttons or registry links.
+ */
+export function TrustPanel({ attorneyId, embedded = false }: { attorneyId: string; embedded?: boolean }) {
+  const { query: q, card: c, actions, dialogs } = useTrustActions(attorneyId);
+
   // R-394 (owner 2026-11-04): no untitled 220 px placeholder above «Лицензии»
   // while the trust card loads or after it failed — a one-line titled card.
   if (!c) {
@@ -271,28 +357,16 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
   }
 
   const s = c.signals;
-  const held = Boolean(c.holds.payments || c.holds.bids);
-  const busy =
-    clear.isPending ||
-    unclear.isPending ||
-    requestDocuments.isPending ||
-    reject.isPending ||
-    confirmLicense.isPending ||
-    unconfirmLicense.isPending ||
-    confirmFirmLink.isPending ||
-    release.isPending ||
-    recompute.isPending;
-  const staffLicense = s.licenseConfirmed && s.licenseConfirmedBy === 'staff';
-  const staffCleared = c.cleared && c.clearedBy === 'staff';
   const status = STAFF_STATUS_RU[c.staffStatus] ?? { text: c.staffStatus, tone: 'neutral' as const };
+  const approver = c.staffClearedBy
+    ? `${staffName(c.staffClearedBy)}${c.staffClearedBy.role ? ` (${ROLE_LABEL[c.staffClearedBy.role as AdminRole] ?? c.staffClearedBy.role})` : ''}`
+    : null;
+  const events = dedupeTrustEvents(c.events);
 
   return (
     <>
-      {dialog}
-      {confirmDialog}
-      {docDialog}
-      <HoldDialog open={holdOpen} onClose={() => setHoldOpen(false)} pending={hold.isPending} current={c.holds} onSubmit={(v) => hold.mutate(v)} />
-      <Card>
+      {embedded ? null : dialogs}
+      <Card data-testid="trust-panel">
         <CardHeader className="flex-wrap">
           <CardTitle>Борьба с мошенниками</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
@@ -309,24 +383,19 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
           <div className="grid gap-4 lg:grid-cols-2">
             <div>
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">Статус</h4>
-              <ul className="space-y-1.5">
-                <Row k="Статус" v={<Badge tone={status.tone} dot>{status.text}</Badge>} />
+              <ul className="space-y-1.5" data-testid="trust-status">
+                {/* Row 57: the staff status is the chip in the header; «Подтверждён» and «Одобрил» are one line. */}
                 {c.cleared ? (
                   <Row
                     k="Подтверждён"
-                    v={`${CLEARED_BY_RU[c.clearedBy ?? ''] ?? c.clearedBy ?? '—'}${c.staffClearedAt ? ` · ${formatDateTime(c.staffClearedAt)}` : ''}`}
+                    v={`${CLEARED_BY_RU[c.clearedBy ?? ''] ?? c.clearedBy ?? '—'}${approver && c.staffStatus !== 'suspended' ? `: ${approver}` : ''}${c.staffClearedAt ? ` · ${formatDateTime(c.staffClearedAt)}` : ''}`}
                   />
-                ) : null}
-                {c.staffClearedBy && c.staffStatus !== 'suspended' ? (
-                  <Row
-                    k="Одобрил"
-                    v={`${staffName(c.staffClearedBy)}${c.staffClearedBy.role ? ` (${ROLE_LABEL[c.staffClearedBy.role as AdminRole] ?? c.staffClearedBy.role})` : ''}${c.staffClearedAt ? `, ${formatDateTime(c.staffClearedAt)}` : ''}`}
-                  />
+                ) : approver && c.staffStatus !== 'suspended' ? (
+                  <Row k="Одобрил" v={`${approver}${c.staffClearedAt ? `, ${formatDateTime(c.staffClearedAt)}` : ''}`} />
                 ) : null}
                 {c.staffClearedBy && c.staffStatus === 'suspended' ? (
                   <li className="rounded-lg bg-warning-soft px-2.5 py-1.5 text-xs font-medium text-warning">
-                    Был одобрен: {staffName(c.staffClearedBy)}
-                    {c.staffClearedBy.role ? ` (${ROLE_LABEL[c.staffClearedBy.role as AdminRole] ?? c.staffClearedBy.role})` : ''}
+                    Был одобрен: {approver}
                     {c.staffClearedAt ? `, ${formatDateTime(c.staffClearedAt)}` : ''}
                     {c.staffClearedBy.email ? ` · ${c.staffClearedBy.email}` : ''}
                   </li>
@@ -376,51 +445,13 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
             </div>
           </div>
 
-          {canManage ? (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {staffCleared ? (
-                <Button size="sm" variant="outline" className="w-full" disabled={busy} onClick={() => unclear.mutate()}>
-                  Снять подтверждение
+          {!embedded && actions.length ? (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" data-testid="trust-actions">
+              {actions.map((a) => (
+                <Button key={a.key} size="sm" variant={a.variant} className="w-full" disabled={a.disabled} title={a.title} onClick={a.run}>
+                  {a.label}
                 </Button>
-              ) : (
-                <Button size="sm" variant="gold" className="w-full" disabled={busy || c.cleared} onClick={() => clear.mutate()}>
-                  Подтвердить
-                </Button>
-              )}
-              <Button size="sm" variant="outline" className="w-full" disabled={busy} onClick={() => requestDocuments.mutate()}>
-                Запросить ещё
-              </Button>
-              <Button size="sm" variant="danger" className="w-full" disabled={busy || c.staffStatus === 'suspended'} onClick={() => reject.mutate()}>
-                Отклонить
-              </Button>
-              <Button size="sm" variant="ghost" className="w-full" disabled={busy} onClick={() => recompute.mutate()}>
-                Пересчитать
-              </Button>
-              {staffLicense ? (
-                <Button size="sm" variant="outline" className="w-full" disabled={busy} onClick={() => unconfirmLicense.mutate()}>
-                  Снять подтверждение лицензии
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                  disabled={busy || s.licenseConfirmed}
-                  title={s.licenseConfirmed ? 'Уже подтверждена реестром штата' : undefined}
-                  onClick={() => confirmLicense.mutate()}
-                >
-                  Подтвердить лицензию
-                </Button>
-              )}
-              <Button size="sm" variant="outline" className="w-full" disabled={busy || c.firmLink.status === 'confirmed'} onClick={() => confirmFirmLink.mutate()}>
-                Подтвердить связь с фирмой
-              </Button>
-              <Button size="sm" variant="danger-soft" className="w-full" disabled={busy} onClick={() => setHoldOpen(true)}>
-                Поставить холд
-              </Button>
-              <Button size="sm" variant="soft" className="w-full" disabled={busy || !held} onClick={() => release.mutate()}>
-                Снять холд
-              </Button>
+              ))}
             </div>
           ) : null}
 
@@ -437,10 +468,7 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
                 <Signal ok={s.documentsVerified} text="Документы проверены сотрудником" />
                 <Signal ok={s.stripeKyc} text="Stripe KYC завершён" />
                 <Signal ok={s.stripeIdentity} text="Личность по Stripe (имя совпало)" />
-                <li className="flex items-center justify-between gap-3">
-                  <span className="text-muted">Сверка имени</span>
-                  <Badge tone={NAME_CHECK_RU[s.nameCheck]?.tone ?? 'neutral'}>{NAME_CHECK_RU[s.nameCheck]?.text ?? s.nameCheck}</Badge>
-                </li>
+                {/* Row 57: the name check is shown once, as «Сравнение с профилем» under Stripe. */}
                 <li className="flex items-center justify-between gap-3">
                   <span className="text-muted">Связь с фирмой</span>
                   <span className="text-right">
@@ -488,7 +516,8 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
                 />
                 <Row k="Чужих заявок на этот номер" v={<span className={c.duplicateClaims > 0 ? 'font-medium text-warning' : ''}>{c.duplicateClaims}</span>} />
               </ul>
-              {c.lookups.length ? (
+              {/* Row 57: in the request card the registry link is in the licences table, once per licence. */}
+              {embedded ? null : c.lookups.length ? (
                 <BarLookups lookups={c.lookups} className="mt-2" />
               ) : c.registryLinks.length ? (
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
@@ -509,9 +538,9 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
 
             <section>
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">Последние события</h4>
-              {c.events.length === 0 ? <p className="text-muted">Нет</p> : null}
-              <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
-                {c.events.map((e) => (
+              {events.length === 0 ? <p className="text-muted">Нет</p> : null}
+              <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-1" data-testid="trust-events">
+                {events.map((e) => (
                   <li key={e.id} className="rounded-xl bg-surface-2 px-2.5 py-2">
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-ink">

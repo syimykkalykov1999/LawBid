@@ -10,10 +10,11 @@ import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Status = 'pending' | 'accepted' | 'rejected' | 'auto_removed';
@@ -30,6 +31,9 @@ const STATUS_TAB: Record<Status, string> = {
   rejected: 'Отклонены',
   auto_removed: 'Удалены автоматически',
 };
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['review', 'author', 'client', 'reason', 'created', 'last'] as const;
 
 /**
  * Owner 2026-09-30: appeals of clients against reviews about them.
@@ -54,8 +58,16 @@ export default function ReviewAppealsPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
   const pending = status === 'pending';
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    review: (r) => r.rating,
+    author: (r) => r.authorName,
+    client: (r) => r.clientName,
+    reason: (r) => r.reason,
+    created: (r) => r.createdAt,
+    last: (r) => (pending ? r.autoRemoveAt : STATUS_LABEL[r.status as Status]),
+  });
 
   const decide = useMutation({
     mutationFn: async (input: { ids: string[]; decision: 'accept' | 'reject' }) => {
@@ -155,12 +167,12 @@ export default function ReviewAppealsPage() {
                 />
               </Th>
             ) : null}
-            <Th>Отзыв</Th>
-            <Th>Автор</Th>
-            <Th>Клиент</Th>
-            <Th>Причина обжалования</Th>
-            <Th>Подано</Th>
-            <Th>{pending ? 'Удалится автоматически' : 'Статус'}</Th>
+            <SortTh {...header('review')}>Отзыв</SortTh>
+            <SortTh {...header('author')}>Автор</SortTh>
+            <SortTh {...header('client')}>Клиент</SortTh>
+            <SortTh {...header('reason')}>Причина обжалования</SortTh>
+            <SortTh {...header('created')}>Подано</SortTh>
+            <SortTh {...header('last')}>{pending ? 'Удалится автоматически' : 'Статус'}</SortTh>
             {pending ? <Th /> : null}
           </tr>
         </thead>

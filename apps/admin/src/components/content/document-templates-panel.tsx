@@ -15,7 +15,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
@@ -25,6 +25,7 @@ import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { US_STATES } from '@/lib/us-states';
 import { putResumable, sendToStorage } from '@/lib/storage-upload';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Template = components['schemas']['AdminDocumentTemplateDto'];
@@ -33,6 +34,12 @@ type Audience = components['schemas']['TemplateAudience'];
 type Status = 'all' | 'published' | 'drafts';
 
 const TEMPLATES: Noun = ['шаблон', 'шаблона', 'шаблонов'];
+/**
+ * Row 57: click-to-sort headers. «Скачиваний» asks the server for its own
+ * `sort=popular` (most downloaded first, across every page); the other
+ * columns sort the loaded rows. Default order = the server's (newest first).
+ */
+const SORT_KEYS = ['title', 'state', 'language', 'audience', 'downloads', 'status', 'updated'] as const;
 const MIMES: Mime[] = [
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -87,6 +94,8 @@ export function DocumentTemplatesPanel() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<Template | 'new' | null>(null);
   const sel = useSelection(`${status}|${q}`);
+  const { sort, header } = useTableSort(SORT_KEYS, 'templatesSort');
+  const serverSort = sort.key === 'downloads' ? ('popular' as const) : undefined;
 
   const fetchPage = async (cursor: string | undefined) =>
     (
@@ -95,18 +104,27 @@ export function DocumentTemplatesPanel() {
           query: {
             cursor,
             q: q || undefined,
+            sort: serverSort,
             published: status === 'all' ? undefined : status === 'published',
           },
         },
       })
     ).data!;
   const list = useInfiniteQuery({
-    queryKey: ['document-templates', status, q],
+    queryKey: ['document-templates', status, q, serverSort],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    title: (t) => t.title,
+    state: (t) => t.state ?? 'Все',
+    language: (t) => t.language,
+    audience: (t) => (t.audience === 'lawyers' ? 'Адвокаты' : 'Все'),
+    downloads: (t) => t.downloadCount,
+    status: (t) => (t.published ? 'опубликован' : 'черновик'),
+    updated: (t) => t.updatedAt,
+  });
   const refresh = () => void qc.invalidateQueries({ queryKey: ['document-templates'] });
 
   const bulk = useMutation({
@@ -209,13 +227,15 @@ export function DocumentTemplatesPanel() {
                   <PageSelectBox selected={sel.selected} ids={rows.map((t) => t.id)} onToggle={sel.togglePage} />
                 </Th>
               ) : null}
-              <Th>Шаблон</Th>
-              <Th>Штат</Th>
-              <Th>Язык</Th>
-              <Th>Кому</Th>
-              <Th className="text-right">Скачиваний</Th>
-              <Th>Статус</Th>
-              <Th>Изменён</Th>
+              <SortTh {...header('title')}>Шаблон</SortTh>
+              <SortTh {...header('state')}>Штат</SortTh>
+              <SortTh {...header('language')}>Язык</SortTh>
+              <SortTh {...header('audience')}>Кому</SortTh>
+              <SortTh {...header('downloads')} className="text-right">
+                Скачиваний
+              </SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('updated')}>Изменён</SortTh>
             </tr>
           </thead>
           <tbody>
