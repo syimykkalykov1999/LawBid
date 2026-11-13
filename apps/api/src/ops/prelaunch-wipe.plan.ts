@@ -26,6 +26,9 @@ export const KEEP_TABLES: Readonly<Record<string, string>> = {
   _prisma_migrations: 'migration history',
   concurrent_migrations: 'online schema changes in progress (operations)',
   backfill_runs: 'progress of data backfills (operations)',
+  // Row 78: kept in step by triggers (TRUNCATE of messages/users clears its
+  // rows, the users DELETE filter takes them down one by one).
+  stat_counters: 'exact counters kept by triggers (follow their tables)',
   app_config: 'settings and cost caps (seed + admin)',
   shard_map:
     'which physical database holds each logical shard (routing config)',

@@ -4,6 +4,7 @@ import { AdminSummaryService } from '../../common/admin-summary/admin-summary.se
 import { dailyDue } from '../../common/admin-summary/snapshot-gate';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { liveSubscriptionWhere } from '../admin/subscription-metrics';
 import { maxAssistantSeats } from '../billing/seat-limit';
 import {
@@ -14,6 +15,13 @@ import type { AdminOverviewDto } from './admin-content.dto';
 
 /** The stored copy of GET /admin/overview (AdminSummaryService key). */
 export const ADMIN_OVERVIEW_KEY = 'overview';
+
+const HOUR_MS = 3_600_000;
+
+/** Start of the UTC hour [d] falls in (the counters' bucket). */
+export function hourFloor(d: Date): Date {
+  return new Date(Math.floor(d.getTime() / HOUR_MS) * HOUR_MS);
+}
 
 /**
  * GET /admin/overview: 17 counts over the big tables (users by role,
@@ -28,6 +36,14 @@ export const ADMIN_OVERVIEW_KEY = 'overview';
  * `admin.summaries` run recounts it (snapshot-gate.ts, 04 UTC); only when
  * nothing was ever stored does the first read count it once, and every
  * other reader waits for that one count (AdminSummaryService lock).
+ *
+ * Row 78 part 2 (1B messages): «messages in 7 days» was COUNT(*) over the
+ * whole messages table (> 30 s, every compute failed) and the two «users by
+ * role» counts a seq scan of users. They now read `stat_counters`, exact
+ * counts kept by triggers in the same transaction as each write (migration
+ * 20261128110000_stat_counters): live messages per UTC hour, live users by
+ * role. The 7-day window starts at the hour of now − 7 days (the daily run
+ * is at 04 UTC, so a few minutes wider than before at most).
  */
 @Injectable()
 export class AdminOverviewService {
@@ -64,8 +80,7 @@ export class AdminOverviewService {
     // shared with the dashboard tiles — see subscription-metrics.ts.
     const live = liveSubscriptionWhere(new Date());
     const [
-      clients,
-      attorneys,
+      counters,
       attorneysVerified,
       assistants,
       monthly,
@@ -75,15 +90,13 @@ export class AdminOverviewService {
       cases7d,
       bids7d,
       posts7d,
-      messages7d,
       calls7d,
       callsMissed7d,
       tasksOpen,
       tasksDone30d,
       requestsPending,
     ] = await Promise.all([
-      this.prisma.user.count({ where: { role: 'client', deleted_at: null } }),
-      this.prisma.user.count({ where: { role: 'attorney', deleted_at: null } }),
+      this.counters(hourFloor(d7)),
       this.prisma.attorneyProfile.count({
         where: { verification_status: 'verified' },
       }),
@@ -105,7 +118,6 @@ export class AdminOverviewService {
       this.prisma.case.count({ where: { created_at: { gte: d7 } } }),
       this.prisma.bid.count({ where: { created_at: { gte: d7 } } }),
       this.prisma.post.count({ where: { created_at: { gte: d7 } } }),
-      this.prisma.message.count({ where: { created_at: { gte: d7 } } }),
       this.prisma.call.count({ where: { created_at: { gte: d7 } } }),
       this.prisma.call.count({
         where: { created_at: { gte: d7 }, status: 'missed' },
@@ -119,8 +131,8 @@ export class AdminOverviewService {
       this.prisma.assistantRequest.count({ where: { status: 'pending' } }),
     ]);
     return {
-      clients,
-      attorneys,
+      clients: counters.clients,
+      attorneys: counters.attorneys,
       attorneysVerified,
       assistants,
       subscriptionsMonthly: monthly,
@@ -133,12 +145,40 @@ export class AdminOverviewService {
       cases7d,
       bids7d,
       posts7d,
-      messages7d,
+      messages7d: counters.messages,
       calls7d,
       callsMissed7d,
       tasksOpen,
       tasksDone30d,
       requestsPending,
+    };
+  }
+
+  /** Row 78: live users by role and live messages since [since] from the
+   * trigger-kept counters, summed over every physical database (messages
+   * can live on a shard database; a few hundred rows each). */
+  private async counters(
+    since: Date,
+  ): Promise<{ clients: number; attorneys: number; messages: number }> {
+    const parts = await forEachDatabase(
+      this.prisma,
+      () => this.prisma.$queryRaw<{ metric: string; n: bigint | number }[]>`
+        SELECT metric, COALESCE(SUM(n), 0)::bigint AS n
+          FROM stat_counters
+         WHERE (metric = 'messages' AND bucket >= ${since})
+            OR metric IN ('users.live.client', 'users.live.attorney')
+         GROUP BY metric`,
+      { withPrimary: true },
+    );
+    const sum = (metric: string) =>
+      parts
+        .flat()
+        .filter((r) => r.metric === metric)
+        .reduce((acc, r) => acc + Number(r.n), 0);
+    return {
+      clients: sum('users.live.client'),
+      attorneys: sum('users.live.attorney'),
+      messages: sum('messages'),
     };
   }
 

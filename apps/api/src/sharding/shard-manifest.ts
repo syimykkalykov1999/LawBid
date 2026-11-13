@@ -195,6 +195,8 @@ export const PER_DATABASE_MODELS: ReadonlySet<string> = new Set([
   'ShardChangeLog',
   'ShardMoveTrack',
   'ShardDroppedFk',
+  // Row 78: counters kept by triggers next to the counted rows.
+  'StatCounter',
 ]);
 
 export const GLOBAL_MODELS: readonly string[] = [
@@ -297,6 +299,9 @@ export const GLOBAL_MODELS: readonly string[] = [
   'AdminCredential',
   // Row 72: admin sign-ins (source of truth; Redis is the hot copy).
   'AdminSession',
+  // Row 78: exact counters kept by triggers (on every database, see
+  // PER_DATABASE_MODELS).
+  'StatCounter',
   'WebauthnCredential',
   'DataExportJob',
   'AssistantMembership',
