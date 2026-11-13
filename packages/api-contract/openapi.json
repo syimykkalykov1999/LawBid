@@ -165739,6 +165739,7 @@
           }
         },
         "required": [
+          "amountCents",
           "code",
           "audience",
           "interval"

@@ -15,6 +15,7 @@ part 'create_plan_dto.g.dart';
 @JsonSerializable()
 class CreatePlanDto {
   const CreatePlanDto({
+    required this.amountCents,
     required this.code,
     required this.audience,
     required this.interval,
@@ -23,7 +24,6 @@ class CreatePlanDto {
     this.description,
     this.entitlements,
     this.highlights,
-    this.amountCents,
     this.compareAtCents,
     this.showDiscount,
     this.status,
@@ -45,7 +45,7 @@ class CreatePlanDto {
   final List<LocalizedTextInputDto>? highlights;
 
   /// Price per interval in cents; a change creates a new Stripe price (history kept).
-  final int? amountCents;
+  final int amountCents;
 
   /// Owner 2026-10-07: the strikethrough old price in cents; null clears it, absent keeps it.
   final int? compareAtCents;
