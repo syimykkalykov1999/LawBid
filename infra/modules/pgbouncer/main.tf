@@ -81,6 +81,19 @@ variable "max_tasks" {
   default     = 3
   description = "Hard ceiling of CPU autoscaling. The per-task pool is sized so that max_tasks tasks fit the database budget."
 }
+variable "spot" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-11-12 (row 67): run the pooler on Fargate Spot with spot_strategy (one regular task always). No Spot capacity: modules/spot-fallback moves it to regular Fargate and back. The first switch recreates the service (KNOWN_ERRORS 119)."
+}
+variable "spot_strategy" {
+  type = object({
+    base           = number
+    fargate_weight = number
+    spot_weight    = number
+  })
+  default = { base = 1, fargate_weight = 1, spot_weight = 4 }
+}
 variable "pool_size" {
   type        = number
   description = "Server connections to the database per task (default_pool_size)."
@@ -412,7 +425,7 @@ resource "aws_ecs_service" "this" {
   cluster          = var.cluster_arn
   task_definition  = aws_ecs_task_definition.this.arn
   desired_count    = var.min_tasks
-  launch_type      = "FARGATE"
+  launch_type      = var.spot ? null : "FARGATE"
   platform_version = "LATEST"
   # Never more tasks than max_tasks (each one holds pool_size + reserve
   # database connections): a deploy stops one task, then starts its
@@ -423,6 +436,18 @@ resource "aws_ecs_service" "this" {
   enable_execute_command             = false
   propagate_tags                     = "SERVICE"
   force_new_deployment               = true
+
+  dynamic "capacity_provider_strategy" {
+    for_each = var.spot ? {
+      FARGATE      = { base = var.spot_strategy.base, weight = var.spot_strategy.fargate_weight }
+      FARGATE_SPOT = { base = 0, weight = var.spot_strategy.spot_weight }
+    } : {}
+    content {
+      capacity_provider = capacity_provider_strategy.key
+      base              = capacity_provider_strategy.value.base
+      weight            = capacity_provider_strategy.value.weight
+    }
+  }
 
   network_configuration {
     subnets          = var.private_subnet_ids
@@ -436,7 +461,8 @@ resource "aws_ecs_service" "this" {
     enable   = true
     rollback = true
   }
-  lifecycle { ignore_changes = [desired_count] }
+  # The spot-fallback Lambda changes the strategy at run time.
+  lifecycle { ignore_changes = [desired_count, capacity_provider_strategy] }
   tags = merge(var.tags, { Component = "pgbouncer" })
 }
 
@@ -447,6 +473,9 @@ resource "aws_appautoscaling_target" "this" {
   resource_id        = "service/${var.cluster_name}/${aws_ecs_service.this.name}"
   min_capacity       = var.min_tasks
   max_capacity       = var.max_tasks
+  # Owner 2026-11-12: the app (economy job) writes the owner's ceiling
+  # scale.max_tasks.pgbouncer (no upper bound); an apply keeps it.
+  lifecycle { ignore_changes = [max_capacity] }
 }
 
 resource "aws_appautoscaling_policy" "cpu" {
@@ -576,6 +605,7 @@ output "client_ca_pem" {
 }
 output "security_group_id" { value = aws_security_group.svc.id }
 output "service_name" { value = aws_ecs_service.this.name }
+output "service_arn" { value = aws_ecs_service.this.id }
 output "log_group_name" { value = aws_cloudwatch_log_group.this.name }
 output "server_connections_max" {
   value       = var.max_tasks * local.server_total

@@ -92,6 +92,10 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   cpu_architecture: choice('cpu_architecture', ['X86_64', 'ARM64']),
   api_spot: bool('api_spot'),
   worker_spot: bool('worker_spot'),
+  // Owner 2026-11-12 (row 67): Spot for every ECS service.
+  api_admin_spot: bool('api_admin_spot'),
+  admin_spot: bool('admin_spot'),
+  pgbouncer_spot: bool('pgbouncer_spot'),
   db_shards: int(['db_shards'], 0, 3),
   'growth.rds_read_replicas': int(
     [GROWTH_CONTAINER, 'rds_read_replicas'],
@@ -435,14 +439,32 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
   {
     id: 'aws.graviton_spot',
     values: {
-      off: { cpu_architecture: 'X86_64', api_spot: false, worker_spot: false },
+      off: {
+        cpu_architecture: 'X86_64',
+        api_spot: false,
+        worker_spot: false,
+        api_admin_spot: false,
+        admin_spot: false,
+        pgbouncer_spot: false,
+      },
       // 12.11 (KNOWN_ERRORS 119): turning Spot on changes launch_type, so the
-      // AWS provider recreates the api/worker services (minutes of downtime).
-      // The owner chose to take that once now, before launch, with no users.
-      on: { cpu_architecture: 'ARM64', api_spot: true, worker_spot: true },
+      // AWS provider recreates the ECS services (minutes of downtime). The
+      // owner chose to take that once now, before launch, with no users.
+      // Row 67 (12.11): all five services (api, api-admin, admin, worker,
+      // pgbouncer), one regular task each + FARGATE 1 : FARGATE_SPOT 4;
+      // modules/spot-fallback moves a service to regular Fargate while Spot
+      // has no capacity and back afterwards.
+      on: {
+        cpu_architecture: 'ARM64',
+        api_spot: true,
+        worker_spot: true,
+        api_admin_spot: true,
+        admin_spot: true,
+        pgbouncer_spot: true,
+      },
     },
     impact:
-      'Серверы перезапускаются по очереди. Нужен образ для ARM (выкат делает его сам).',
+      'Первое включение Spot пересоздаёт пять сервисов (API, API админки, админка, фоновые задачи, пул базы): несколько минут простоя, делать до запуска. Дальше без перерыва. Нужен образ для ARM (выкат делает его сам).',
   },
 ];
 

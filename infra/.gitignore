@@ -12,4 +12,5 @@ crash.log
 .db-autoscale-*.zip
 .redis-autoscale-*.zip
 .endpoints-autoscale-*.zip
+.spot-fallback-*.zip
 __pycache__/

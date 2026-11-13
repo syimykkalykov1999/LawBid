@@ -27,7 +27,11 @@ import {
   AwsCapacityService,
   type CapacityTarget,
 } from '../ops/aws-capacity.service';
-import { AwsOpsService, type TaskKind } from '../ops/aws-ops.service';
+import {
+  AwsOpsService,
+  type OtherKind,
+  type TaskKind,
+} from '../ops/aws-ops.service';
 import type {
   CapacityReading,
   EconomyEvent,
@@ -99,6 +103,39 @@ export interface EconomySettings {
   awsCapUsd: number;
   /** S9-4: the daily money brake = allowed / 30 × this many days. */
   dailyBrakeDays: number;
+  /** Owner 2026-11-12 (row 67): the owner's ceiling of every ECS service
+   * (`scale.max_tasks.*`, default 100, no upper bound). */
+  maxTasks: Record<TaskKind | OtherKind, number>;
+}
+
+/** Owner 2026-11-12 (row 67): the services with an owner's ceiling. */
+export const MAX_TASK_KINDS = [
+  'api',
+  'worker',
+  'api_admin',
+  'admin',
+  'pgbouncer',
+] as const;
+export const DEFAULT_MAX_TASKS = 100;
+
+/** A typed number, or the default 100 when it is missing or not >= 1. */
+export function ownerMaxTasks(v: unknown): number {
+  const n = typeof v === 'number' ? Math.floor(v) : Number.NaN;
+  return Number.isFinite(n) && n >= 1 ? n : DEFAULT_MAX_TASKS;
+}
+
+/** `scale.max_tasks.*` of every service (an unreadable one = 100). */
+export async function readMaxTasks(s: {
+  number(key: string): Promise<number>;
+}): Promise<EconomySettings['maxTasks']> {
+  const vals = await Promise.all(
+    MAX_TASK_KINDS.map((k) =>
+      s.number(`scale.max_tasks.${k}`).catch(() => DEFAULT_MAX_TASKS),
+    ),
+  );
+  return Object.fromEntries(
+    MAX_TASK_KINDS.map((k, i) => [k, ownerMaxTasks(vals[i])]),
+  ) as EconomySettings['maxTasks'];
 }
 
 export interface SpendLine {
@@ -256,6 +293,7 @@ export class EconomyService {
       awsFallbackUsd,
       dailyBrakeDays,
       awsCapUsd,
+      maxTasks,
     ] = await Promise.all([
       s.number('economy.max_spend_percent'),
       s.number('economy.min_threshold_usd'),
@@ -265,6 +303,7 @@ export class EconomyService {
       s.number('economy.aws_fallback_usd'),
       s.number('economy.daily_brake_days'),
       s.number('economy.aws_cap_usd'),
+      readMaxTasks(s),
     ]);
     return {
       percent,
@@ -275,7 +314,26 @@ export class EconomyService {
       awsFallbackUsd,
       dailyBrakeDays,
       awsCapUsd: Number.isFinite(awsCapUsd) && awsCapUsd > 0 ? awsCapUsd : 0,
+      maxTasks,
     };
+  }
+
+  /** Owner 2026-11-12 (row 67): `scale.max_tasks.*` (default 100). */
+  private maxTasks(): Promise<EconomySettings['maxTasks']> {
+    return readMaxTasks(this.settingsSvc);
+  }
+
+  /** Owner 2026-11-12 (row 67): api-admin, admin and the pooler always get
+   * the owner's ceiling (no money rule for them; growth is by CPU need). */
+  private async applyOtherCeilings(
+    max: EconomySettings['maxTasks'],
+  ): Promise<Record<string, unknown> | null> {
+    if (!this.aws.available) return null;
+    return this.aws.setOtherCeilings({
+      api_admin: max.api_admin,
+      admin: max.admin,
+      pgbouncer: max.pgbouncer,
+    });
   }
 
   /** S9-3: NET revenue since [since] — price before tax of succeeded
@@ -455,6 +513,9 @@ export class EconomyService {
       const lifted = await this.liftCeilings(now).catch((e: unknown) =>
         this.fail('lift_ceilings', e),
       );
+      const others = await this.maxTasks()
+        .then((m) => this.applyOtherCeilings(m))
+        .catch((e: unknown) => this.fail('other_ceilings', e));
       // Owner 2026-11-10: «Масштаб» showed «—» for the database and Redis
       // size: the reading was taken only with the guard on. Watching is not
       // limiting, so the size, CPU and memory are read (and their alerts
@@ -462,7 +523,12 @@ export class EconomyService {
       const pressure = await this.checkPressure(now).catch((e: unknown) =>
         this.fail('pressure', e),
       );
-      return { skipped: 'flag economy_guard is off', lifted, pressure };
+      return {
+        skipped: 'flag economy_guard is off',
+        lifted,
+        others,
+        pressure,
+      };
     }
     const cfg = await this.settings();
     const f = await this.figures(now, cfg);
@@ -494,6 +560,9 @@ export class EconomyService {
     };
     out.ceilings = await this.applyCeilings(f, cfg, now).catch((e: unknown) =>
       this.fail('ceilings', e),
+    );
+    out.otherCeilings = await this.applyOtherCeilings(cfg.maxTasks).catch(
+      (e: unknown) => this.fail('other_ceilings', e),
     );
     out.pressure = await this.checkPressure(now).catch((e: unknown) =>
       this.fail('pressure', e),
@@ -569,15 +638,19 @@ export class EconomyService {
     try {
       const bucket = this.storage?.awsBucket('documents');
       if (!this.storage || !bucket) return;
-      const [mode, ceiling] = await Promise.all([
+      const [mode, ceiling, spotMode] = await Promise.all([
         this.settingsSvc.string('scale.endpoints.mode'),
         this.settingsSvc.number('scale.endpoints.ceiling'),
+        this.settingsSvc.string('scale.spot_fallback.mode').catch(() => 'auto'),
       ]);
+      const tri = (m: string) => (m === 'on' || m === 'off' ? m : 'auto');
       const body = JSON.stringify({
         endpoints: {
-          mode: mode === 'on' || mode === 'off' ? mode : 'auto',
+          mode: tri(mode),
           ceiling: Math.max(0, Math.min(4, Math.floor(ceiling))),
         },
+        // Owner 2026-11-12 (row 67): modules/spot-fallback reads this.
+        spot_fallback: { mode: tri(spotMode) },
       });
       const last = await this.redis.get(SCALE_CONTROLS_KEY);
       if (last === body) return;
@@ -689,10 +762,9 @@ export class EconomyService {
       if (mode?.mode === 'min' && mode.source !== 'economy') {
         out.containers = { skipped: 'scaling capped by owner or AWS budget' };
       } else {
-        const target = {
-          api: this.aws.hardCap('api'),
-          worker: this.aws.hardCap('worker'),
-        };
+        // Owner 2026-11-12 (row 67): the owner's ceiling, no upper bound.
+        const max = await this.maxTasks();
+        const target = { api: max.api, worker: max.worker };
         await this.aws.setCeilings(target);
         if (mode?.mode === 'min') {
           await this.ops.setScaleMode({
@@ -750,10 +822,9 @@ export class EconomyService {
       return { skipped: 'scaling capped by owner or AWS budget' };
     }
     const min = this.aws.minTasks;
-    const hard = {
-      api: this.aws.hardCap('api'),
-      worker: this.aws.hardCap('worker'),
-    };
+    // Owner 2026-11-12 (row 67): the cap is the owner's number
+    // (scale.max_tasks.*, default 100, no upper bound), not Terraform's.
+    const hard = { api: cfg.maxTasks.api, worker: cfg.maxTasks.worker };
     let target: Record<TaskKind, number>;
     if (cfg.ceilingMode === 'manual') {
       target = {
@@ -761,7 +832,7 @@ export class EconomyService {
         worker: manualCeiling(cfg.manualWorker, min, hard.worker),
       };
     } else if (capUsd <= 0) {
-      // No sum typed: the ceiling is the Terraform maximum at once.
+      // No sum typed: the ceiling is the owner's maximum at once.
       target = { api: hard.api, worker: hard.worker };
     } else {
       const counts = await this.aws.taskCounts();
@@ -964,7 +1035,7 @@ export class EconomyService {
       running: counts?.[kind].running ?? null,
       desired: counts?.[kind].desired ?? null,
       ceiling: now2?.[kind] ?? applied?.[kind] ?? null,
-      hardCap: this.aws.hardCap(kind),
+      hardCap: cfg.maxTasks[kind],
       taskUsd: this.aws.taskUsd(kind),
     });
     return {

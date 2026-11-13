@@ -207,16 +207,17 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     id: 'aws.fargate_api',
     name: 'Серверы API',
     purpose:
-      'Отвечают приложению и сайту. Копий столько, сколько нужно по нагрузке.',
+      'Отвечают приложению и сайту (и отдельная копия для админки, api-admin). Копий столько, сколько нужно по нагрузке.',
     kind: 'aws',
     control: tf(['min_tasks', 'api_max_tasks'], {
-      auto: 'min_tasks = 1\napi_max_tasks = 50',
+      auto: 'min_tasks = 1\napi_max_tasks = 100',
     }),
     states: ['auto'],
     defaultState: 'auto',
-    ceiling: tfCeil(
-      'api_max_tasks',
-      'Жёсткий потолок копий API (по умолчанию 50)',
+    // Owner 2026-11-12 (row 67): the owner's number, no upper bound.
+    ceiling: setCeil(
+      'scale.max_tasks.api',
+      'Потолок копий API (по умолчанию 100, без верхней границы)',
     ),
     price: price(
       'unit',
@@ -226,8 +227,9 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(18), k100: R(110), m1: R(500, 900) },
     needed: 'auto',
     neededNote:
-      'Нужна минимум одна копия. Остальные добавляются сами по нагрузке; потолок задаёт правило «Экономика».',
-    alarm: 'потолок 50 копий + правило «Экономика» (админка → Экономика)',
+      'Нужна минимум одна копия (всегда на обычном Fargate). Остальные добавляются сами по нагрузке, при «Дешёвых серверах» в основном на Spot. Потолок API админки: scale.max_tasks.api_admin (100).',
+    alarm:
+      'потолок scale.max_tasks.api (100) + сумма «Потолок денег на Amazon», если задана',
     ceService: 'Amazon Elastic Container Service',
     awsTypes: [
       'aws_ecs_service',
@@ -242,31 +244,36 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     purpose: 'Письма, пуши, проверка файлов антивирусом, ночные работы.',
     kind: 'aws',
     control: tf(['min_tasks', 'worker_max_tasks'], {
-      auto: 'min_tasks = 1\nworker_max_tasks = 20',
+      auto: 'min_tasks = 1\nworker_max_tasks = 100',
     }),
     states: ['auto'],
     defaultState: 'auto',
-    ceiling: tfCeil(
-      'worker_max_tasks',
-      'Жёсткий потолок копий воркера (по умолчанию 20)',
+    ceiling: setCeil(
+      'scale.max_tasks.worker',
+      'Потолок копий воркера (по умолчанию 100, без верхней границы)',
     ),
     price: price('unit', '0,5 vCPU + 4 ГБ ≈ $28 в месяц за копию', U.fargate),
     usd: { launch: R(28), k100: R(85), m1: R(300, 550) },
     needed: 'auto',
     neededNote:
       'Нужна минимум одна копия (антивирус файлов). Остальные растут по длине очереди.',
-    alarm: 'потолок 20 копий; тревога «очередь растёт» (queue-backlog)',
+    alarm:
+      'потолок scale.max_tasks.worker (100); тревога «очередь растёт» (queue-backlog)',
     ceService: 'Amazon Elastic Container Service',
   },
   {
     id: 'aws.fargate_admin',
     name: 'Сервер админки',
-    purpose: 'Ваша админка (сайт управления). Содержит и @sentry/browser.',
+    purpose:
+      'Ваша админка (сайт управления). Содержит и @sentry/browser. Копии добавляются сами по процессору (70 %).',
     kind: 'aws',
     control: tf(['admin_tasks'], { auto: 'admin_tasks = 1' }),
     states: ['auto'],
     defaultState: 'auto',
-    ceiling: null,
+    ceiling: setCeil(
+      'scale.max_tasks.admin',
+      'Потолок копий админки (по умолчанию 100, без верхней границы)',
+    ),
     price: price('unit', '0,25 vCPU + 0,5 ГБ ≈ $9 в месяц', U.fargate),
     usd: { launch: R(9), k100: R(9), m1: R(18) },
     needed: 'yes',
@@ -1717,7 +1724,10 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     }),
     states: ['off', 'on', 'auto'],
     defaultState: 'off',
-    ceiling: tfCeil('pgbouncer_max_tasks', 'Сколько копий привратника'),
+    ceiling: setCeil(
+      'scale.max_tasks.pgbouncer',
+      'Потолок копий привратника (по умолчанию 100, без верхней границы)',
+    ),
     price: price('unit', '≈ $18 за копию в месяц', U.fargate),
     usd: { launch: R(0), k100: R(0), m1: R(0) },
     ifOnUsd: R(18, 70),
@@ -1967,12 +1977,22 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     id: 'aws.graviton_spot',
     name: 'Дешёвые серверы (Graviton ARM и Spot)',
     purpose:
-      'Те же серверы дешевле: ARM −20 %, Spot до −70 % на добавленных копиях. Первое включение Spot пересоздаёт серверы API и фоновых задач (несколько минут простоя, KNOWN_ERRORS 119) — делать без пользователей.',
+      'Те же серверы дешевле: ARM −20 %, Spot до −70 %. Все пять сервисов (API, API админки, админка, фоновые задачи, пул базы): одна копия всегда на обычном Fargate, добавленные копии примерно 80 % на Spot (вес 1:4). Нет места на Spot — копии сами запускаются на обычных серверах (строка «Запасной путь для Spot»). Первое включение пересоздаёт эти пять сервисов (несколько минут простоя, KNOWN_ERRORS 119) — делать без пользователей.',
     kind: 'aws',
-    control: tf(['cpu_architecture', 'api_spot', 'worker_spot'], {
-      off: 'cpu_architecture = "X86_64"\napi_spot = false\nworker_spot = false',
-      on: 'cpu_architecture = "ARM64"\napi_spot = true\nworker_spot = true',
-    }),
+    control: tf(
+      [
+        'cpu_architecture',
+        'api_spot',
+        'worker_spot',
+        'api_admin_spot',
+        'admin_spot',
+        'pgbouncer_spot',
+      ],
+      {
+        off: 'cpu_architecture = "X86_64"\napi_spot = false\nworker_spot = false\napi_admin_spot = false\nadmin_spot = false\npgbouncer_spot = false',
+        on: 'cpu_architecture = "ARM64"\napi_spot = true\nworker_spot = true\napi_admin_spot = true\nadmin_spot = true\npgbouncer_spot = true',
+      },
+    ),
     states: ['off', 'on'],
     defaultState: 'off',
     ceiling: null,
@@ -1986,6 +2006,34 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     neededNote:
       'После сборки образов под ARM: см. docs/runbooks/ARM64_SPOT.md.',
     alarm: null,
+  },
+  {
+    id: 'aws.spot_fallback',
+    name: 'Запасной путь для Spot (обычные серверы, когда Spot нет)',
+    purpose:
+      'AWS сам не заменяет Spot обычными серверами. Если Spot кончился, автоматика сразу запускает недостающие копии на обычном Fargate, а через 30 минут тишины (после повторов до 6 часов) по одной возвращает их на Spot без перерыва.',
+    kind: 'aws',
+    // Owner 2026-11-12 (row 67): Авто = fallback and back (Lambda
+    // modules/spot-fallback, EventBridge + every 5 minutes); Вкл = hold all
+    // services on regular Fargate; Выкл = hands off.
+    control: {
+      type: 'app-setting',
+      key: 'scale.spot_fallback.mode',
+      map: { off: 'off', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
+    ceiling: null,
+    price: price(
+      'free',
+      'Lambda раз в 5 минут и на событие: в бесплатном объёме Lambda и EventBridge; обычные серверы на время нехватки Spot — по цене Fargate',
+      U.lambda,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0, 5) },
+    needed: 'auto',
+    neededNote:
+      'Нужен, как только включены «Дешёвые серверы»: без него при нехватке Spot новые копии не запускаются.',
+    alarm: 'spot-fallback-errors (сбои автоматики Spot)',
   },
   {
     id: 'aws.guardduty_extras',

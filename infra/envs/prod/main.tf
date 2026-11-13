@@ -101,6 +101,8 @@ module "stack" {
   contacts_pepper_enabled         = var.contacts_pepper_enabled
   pgbouncer_image                 = var.pgbouncer_image
   pgbouncer_max_tasks             = var.pgbouncer_max_tasks
+  pgbouncer_pool_tasks            = var.pgbouncer_pool_tasks
+  pgbouncer_spot                  = var.pgbouncer_spot
   pgbouncer_db_tls_mode           = var.pgbouncer_db_tls_mode
   pgbouncer_client_tls_private_ca = var.pgbouncer_client_tls_private_ca
   fcm_project_id                  = var.fcm_project_id
@@ -117,6 +119,8 @@ module "stack" {
   container_insights              = var.container_insights
   worker_spot                     = var.worker_spot
   api_spot                        = var.api_spot
+  api_admin_spot                  = var.api_admin_spot
+  admin_spot                      = var.admin_spot
   turn_enabled                    = var.turn_enabled
   turn_on_demand                  = var.turn_on_demand
   turn_second_enabled             = var.turn_second_enabled

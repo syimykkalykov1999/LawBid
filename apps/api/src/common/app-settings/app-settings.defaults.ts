@@ -1485,6 +1485,22 @@ export const OWNER_OPS_SETTINGS = {
    * Lambda (S3 object ops/scale-controls.json). */
   'scale.endpoints.mode': 'auto',
   'scale.endpoints.ceiling': 4,
+  /** Owner 2026-11-12 (row 67): the most copies autoscaling may run of each
+   * ECS service. 100 each by default, NO upper bound: only the owner's
+   * number limits it (the economy job writes it into AWS every 5 minutes;
+   * the money ceiling economy.aws_cap_usd, when he types one, can only
+   * hold api / worker lower). Growth stays by need (target tracking). */
+  'scale.max_tasks.api': 100,
+  'scale.max_tasks.worker': 100,
+  'scale.max_tasks.api_admin': 100,
+  'scale.max_tasks.admin': 100,
+  'scale.max_tasks.pgbouncer': 100,
+  /** Owner 2026-11-12 (row 67): Fargate Spot fallback. auto (default) = a
+   * service whose Spot tasks cannot start moves to regular Fargate at once
+   * and back to Spot after a quiet hold (modules/spot-fallback Lambda);
+   * on = hold every service on regular Fargate now; off = hands off. The
+   * economy job copies it to ops/scale-controls.json. */
+  'scale.spot_fallback.mode': 'auto',
   /** Own coturn box (owner 2026-11-02): auto = the API starts it only while
    * Cloudflare is down and stops it after 30 quiet minutes; on = always
    * running; off = never (stopped at once when no call runs). Only counts
