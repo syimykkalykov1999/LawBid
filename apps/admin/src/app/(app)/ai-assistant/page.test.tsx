@@ -6,19 +6,21 @@ import { ToastProvider } from '@/components/ui/toast';
 const posts: { path: string; body?: unknown }[] = [];
 const puts: { key: string; body: unknown }[] = [];
 let status: Record<string, unknown>;
+let pullList: Record<string, unknown>;
 
 vi.mock('@/lib/api/client', () => ({
   ApiError: class ApiError extends Error {},
   errorText: (e: unknown) => String(e),
   api: {
-    GET: vi.fn(async () => ({ data: { data: status } })),
+    GET: vi.fn(async (path: string) => ({ data: { data: path.endsWith('/pulls') ? pullList : status } })),
     PUT: vi.fn(async (_path: string, init: { params: { path: { key: string } }; body: unknown }) => {
       puts.push({ key: init.params.path.key, body: init.body });
       return { data: { data: {} } };
     }),
-    POST: vi.fn(async (path: string, init: { body: unknown }) => {
-      posts.push({ path, body: init.body });
-      return { data: { data: { number: 42, url: 'https://github.com/o/r/issues/42' } } };
+    POST: vi.fn(async (path: string, init: { body: unknown; params?: { path: { n: number } } }) => {
+      const n = init.params?.path.n;
+      posts.push({ path: n ? path.replace('{n}', String(n)) : path, body: init.body });
+      return { data: { data: { number: n ?? 42, url: 'https://github.com/o/r/issues/42', mergedSha: 'b' } } };
     }),
   },
 }));
@@ -41,6 +43,8 @@ const base = {
   connected: true,
   allowed: true,
   reason: null,
+  tasksAllowed: true,
+  tasksReason: null,
   monthUsd: 1.5,
   maxUsd: 30,
   tasks: [
@@ -67,10 +71,24 @@ const base = {
   ],
 };
 
+const SHA = 'a'.repeat(40);
+const aiPull = {
+  number: 9,
+  title: 'fix: crash on the case screen',
+  url: 'https://github.com/o/r/pull/9',
+  summary: '## What\nCrash on open\n## Why\nnull title',
+  headSha: SHA,
+  branch: 'ai/issue-7',
+  createdAt: '2026-11-12T01:00:00Z',
+  checks: 'success',
+  costUsd: 0.4,
+};
+
 beforeEach(() => {
   posts.length = 0;
   puts.length = 0;
   status = { ...base };
+  pullList = { pulls: [aiPull], error: null };
 });
 afterEach(cleanup);
 
@@ -118,5 +136,36 @@ describe('«Задача для ИИ»', () => {
       path: '/admin/ai-assistant/tasks',
       body: { title: 'Fix the bid list', details: 'The list is empty after a refresh.' },
     });
+  });
+
+  it('Авто: the assistant watches by itself, tasks only in Вкл (says why)', async () => {
+    status = {
+      ...base,
+      tasksAllowed: false,
+      tasksReason: 'Режим «Авто»: задачи из админки он берёт только в режиме «Вкл».',
+    };
+    renderPage();
+    expect(await screen.findByText(/задачи из админки он берёт только/)).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Отдать ИИ' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('an AI PR: CI state, what/why, «Разрешить» sends the sha the owner saw', async () => {
+    renderPage();
+    expect(await screen.findByText(/PR #9 fix: crash on the case screen/)).toBeTruthy();
+    expect(screen.getByText('CI зелёный')).toBeTruthy();
+    expect(screen.getByText(/Crash on open/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Разрешить (код 2FA)' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toEqual({ path: '/admin/ai-assistant/pulls/9/approve', body: { headSha: SHA } });
+  });
+
+  it('CI not green: «Разрешить» stays off; «Отклонить» closes the PR', async () => {
+    pullList = { pulls: [{ ...aiPull, checks: 'pending' }], error: null };
+    renderPage();
+    await screen.findByText('CI идёт');
+    expect((screen.getByRole('button', { name: 'Разрешить (код 2FA)' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Отклонить' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0].path).toBe('/admin/ai-assistant/pulls/9/reject');
   });
 });

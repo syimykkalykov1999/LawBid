@@ -307,6 +307,284 @@ export class InfraGithubClient {
     }
     return out;
   }
+
+  /**
+   * 12.11.2026 (AI assistant like the foreman): the open PRs into main whose
+   * head branch starts with [prefix] and lives in THIS repository (a fork
+   * may name a branch ai/… too). Read-only token. At most 50, newest first.
+   */
+  async openPullsByPrefix(
+    prefix: string,
+  ): Promise<{ repo: string; pulls: GithubPull[] }> {
+    const c = await this.creds();
+    if (!c) throw new Error('GitHub App is not configured');
+    const token = await this.installationToken(c, { pull_requests: 'read' });
+    const res = await fetch(
+      `${GH_API}/repos/${c.repo}/pulls?state=open&base=main&sort=created&direction=desc&per_page=50`,
+      { headers: this.headers(token), signal: AbortSignal.timeout(10_000) },
+    );
+    if (!res.ok) {
+      throw new Error(`GitHub pull list failed (HTTP ${res.status})`);
+    }
+    const repo = c.repo.toLowerCase();
+    return {
+      repo: c.repo,
+      pulls: ((await res.json()) as RawPull[])
+        .map(toPull)
+        .filter(
+          (p) =>
+            p.headRef.startsWith(prefix) && p.headRepo.toLowerCase() === repo,
+        ),
+    };
+  }
+
+  /** One PR, read fresh (the approve step trusts nothing older). */
+  async pull(n: number): Promise<{ repo: string; pull: GithubPull | null }> {
+    const c = await this.creds();
+    if (!c) throw new Error('GitHub App is not configured');
+    const token = await this.installationToken(c, { pull_requests: 'read' });
+    const res = await fetch(`${GH_API}/repos/${c.repo}/pulls/${n}`, {
+      headers: this.headers(token),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.status === 404) return { repo: c.repo, pull: null };
+    if (!res.ok) {
+      throw new Error(`GitHub pull read failed (HTTP ${res.status})`);
+    }
+    return { repo: c.repo, pull: toPull((await res.json()) as RawPull) };
+  }
+
+  /**
+   * The PR's changed files with their diffs. GitHub lists at most 3000;
+   * `complete` is false when the list may be cut, so the guard refuses.
+   */
+  async pullFiles(n: number): Promise<{
+    files: GithubPullFile[];
+    complete: boolean;
+  }> {
+    const c = await this.creds();
+    if (!c) throw new Error('GitHub App is not configured');
+    const token = await this.installationToken(c, { pull_requests: 'read' });
+    const files: GithubPullFile[] = [];
+    const per = 100;
+    for (let page = 1; page <= 30; page++) {
+      const res = await fetch(
+        `${GH_API}/repos/${c.repo}/pulls/${n}/files?per_page=${per}&page=${page}`,
+        { headers: this.headers(token), signal: AbortSignal.timeout(10_000) },
+      );
+      if (!res.ok) {
+        throw new Error(`GitHub pull files failed (HTTP ${res.status})`);
+      }
+      const rows = (await res.json()) as {
+        filename: string;
+        previous_filename?: string;
+        patch?: string;
+      }[];
+      for (const f of rows) {
+        files.push({
+          filename: f.filename,
+          previousFilename: f.previous_filename ?? null,
+          patch: f.patch ?? null,
+        });
+      }
+      if (rows.length < per) return { files, complete: true };
+    }
+    return { files, complete: false };
+  }
+
+  /**
+   * CI of one commit: its check runs (latest per name) and commit statuses
+   * (latest per context). The App needs Checks + Commit statuses: read.
+   */
+  async commitChecks(sha: string): Promise<{
+    runs: { name: string; status: string; conclusion: string | null }[];
+    statuses: { context: string; state: string }[];
+  }> {
+    const c = await this.creds();
+    if (!c) throw new Error('GitHub App is not configured');
+    const token = await this.installationToken(c, {
+      checks: 'read',
+      statuses: 'read',
+    });
+    const runs: { name: string; status: string; conclusion: string | null }[] =
+      [];
+    for (let page = 1; page <= 5; page++) {
+      const res = await fetch(
+        `${GH_API}/repos/${c.repo}/commits/${sha}/check-runs?filter=latest&per_page=100&page=${page}`,
+        { headers: this.headers(token), signal: AbortSignal.timeout(10_000) },
+      );
+      if (!res.ok) {
+        throw new Error(`GitHub check runs failed (HTTP ${res.status})`);
+      }
+      const body = (await res.json()) as {
+        total_count?: number;
+        check_runs?: {
+          name: string;
+          status: string;
+          conclusion: string | null;
+        }[];
+      };
+      const rows = body.check_runs ?? [];
+      for (const r of rows) {
+        runs.push({
+          name: r.name,
+          status: r.status,
+          conclusion: r.conclusion,
+        });
+      }
+      if (rows.length < 100 || runs.length >= (body.total_count ?? 0)) break;
+    }
+    const s = await fetch(`${GH_API}/repos/${c.repo}/commits/${sha}/status`, {
+      headers: this.headers(token),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!s.ok) {
+      throw new Error(`GitHub commit status failed (HTTP ${s.status})`);
+    }
+    const st = (await s.json()) as {
+      statuses?: { context: string; state: string }[];
+    };
+    return {
+      runs,
+      statuses: (st.statuses ?? []).map((x) => ({
+        context: x.context,
+        state: x.state,
+      })),
+    };
+  }
+
+  /**
+   * Squash-merges PR [n] only while its head is still [sha] (GitHub answers
+   * 409 otherwise). Token narrowed to contents + pull requests: write.
+   * Returns the merge commit; throws GithubMergeError with GitHub's words.
+   */
+  async mergePull(
+    n: number,
+    sha: string,
+    title: string,
+  ): Promise<{ sha: string }> {
+    const c = await this.creds();
+    if (!c) throw new Error('GitHub App is not configured');
+    const token = await this.installationToken(c, {
+      contents: 'write',
+      pull_requests: 'write',
+    });
+    const res = await fetch(`${GH_API}/repos/${c.repo}/pulls/${n}/merge`, {
+      method: 'PUT',
+      headers: this.headers(token),
+      body: JSON.stringify({
+        merge_method: 'squash',
+        sha,
+        commit_title: `${title.slice(0, 200)} (#${n})`,
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      merged?: boolean;
+      sha?: string;
+      message?: string;
+    };
+    if (res.status !== 200 || !body.merged || !body.sha) {
+      throw new GithubMergeError(
+        res.status,
+        (body.message ?? `HTTP ${res.status}`).slice(0, 200),
+      );
+    }
+    this.log.log(`PR #${n} squash-merged at ${sha.slice(0, 12)}`);
+    return { sha: body.sha };
+  }
+
+  /** Closes PR [n], leaving [comment] first (pull requests + issues: write). */
+  async closePull(n: number, comment: string): Promise<void> {
+    const c = await this.creds();
+    if (!c) throw new Error('GitHub App is not configured');
+    const token = await this.installationToken(c, {
+      issues: 'write',
+      pull_requests: 'write',
+    });
+    const cm = await fetch(`${GH_API}/repos/${c.repo}/issues/${n}/comments`, {
+      method: 'POST',
+      headers: this.headers(token),
+      body: JSON.stringify({ body: comment }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (cm.status !== 201) {
+      throw new Error(`GitHub did not add the comment (HTTP ${cm.status})`);
+    }
+    const res = await fetch(`${GH_API}/repos/${c.repo}/pulls/${n}`, {
+      method: 'PATCH',
+      headers: this.headers(token),
+      body: JSON.stringify({ state: 'closed' }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      throw new Error(`GitHub did not close the PR (HTTP ${res.status})`);
+    }
+  }
+}
+
+/** A pull request, as the AI assistant page and its approve step need it. */
+export interface GithubPull {
+  number: number;
+  title: string;
+  body: string;
+  url: string;
+  state: string;
+  merged: boolean;
+  draft: boolean;
+  headRef: string;
+  headRepo: string;
+  headSha: string;
+  baseRef: string;
+  createdAt: string;
+}
+
+/** One changed file of a PR (patch missing for binary / too large). */
+export interface GithubPullFile {
+  filename: string;
+  previousFilename: string | null;
+  patch: string | null;
+}
+
+interface RawPull {
+  number: number;
+  title: string;
+  body?: string | null;
+  html_url: string;
+  state: string;
+  merged?: boolean;
+  merged_at?: string | null;
+  draft?: boolean;
+  created_at: string;
+  head: { ref: string; sha: string; repo?: { full_name?: string } | null };
+  base: { ref: string };
+}
+
+function toPull(r: RawPull): GithubPull {
+  return {
+    number: r.number,
+    title: r.title,
+    body: r.body ?? '',
+    url: r.html_url,
+    state: r.state,
+    merged: !!r.merged || !!r.merged_at,
+    draft: !!r.draft,
+    headRef: r.head.ref,
+    headRepo: r.head.repo?.full_name ?? '',
+    headSha: r.head.sha,
+    baseRef: r.base.ref,
+    createdAt: r.created_at,
+  };
+}
+
+/** GitHub refused a merge (405 not mergeable, 409 head moved, …). */
+export class GithubMergeError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
 }
 
 /** Pure check of the OIDC claims (exported for tests). */
