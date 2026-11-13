@@ -118,7 +118,11 @@ describe('demo world: a half-applied migration (prod 2026-11-08)', () => {
         if (sql.startsWith('CREATE TYPE')) return Promise.reject(exists());
         return Promise.resolve(0);
       }),
+      $transaction: jest.fn(
+        (fn: (tx: unknown) => Promise<unknown>): Promise<unknown> => fn(tx),
+      ),
     };
+    const tx = { $executeRawUnsafe: demo.$executeRawUnsafe };
     const logger = { setContext: jest.fn(), warn: jest.fn(), info: jest.fn() };
     const svc = new DemoDatabaseService(
       {} as never,
@@ -132,7 +136,7 @@ describe('demo world: a half-applied migration (prod 2026-11-08)', () => {
       (
         svc as unknown as { applyMigrations(d: unknown): Promise<void> }
       ).applyMigrations(demo);
-    return { apply, ran };
+    return { apply, ran, demo };
   }
 
   it('reads the SQLSTATE from a Prisma raw-query error', () => {
@@ -144,6 +148,18 @@ describe('demo world: a half-applied migration (prod 2026-11-08)', () => {
   it('a fresh migration still stops on «already exists»', async () => {
     const h = harness([]);
     await expect(h.apply()).rejects.toThrow('already exists');
+  });
+
+  it('a fresh migration runs in ONE transaction, like prisma migrate deploy (LOCK TABLE needs it, KE 124)', async () => {
+    const h = harness([]);
+    await expect(h.apply()).rejects.toThrow('already exists');
+    expect(h.demo.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('a half-applied replay stays statement by statement (outside a transaction)', async () => {
+    const h = harness(['20260101_a']);
+    await h.apply();
+    expect(h.demo.$transaction).not.toHaveBeenCalled();
   });
 
   it('a migration left half-applied is replayed past «already exists» and finished', async () => {
