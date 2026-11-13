@@ -152,3 +152,34 @@ class HandlerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeployQuietTests(unittest.TestCase):
+    """13.11: a rollout ECS calls COMPLETED still holds a resize for
+    DEPLOY_QUIET_SEC (the deploy job keeps smoke-testing prod)."""
+
+    def guards_with(self, updated_at):
+        class Ecs:
+            def describe_services(self, cluster, services):
+                dep = [{"rolloutState": "COMPLETED", "updatedAt": updated_at}]
+                return {"services": [{"deployments": dep}], "failures": []}
+
+            def list_tasks(self, **kw):
+                return {"taskArns": []}
+
+        old = h.client
+        h.client = lambda name: Ecs()
+        try:
+            return h.ecs_guards("c", ["api"])
+        finally:
+            h.client = old
+
+    def test_a_deploy_just_finished_still_counts(self):
+        import time as t
+        just = datetime.fromtimestamp(t.time() - 60, timezone.utc)
+        self.assertTrue(self.guards_with(just)[0])
+
+    def test_an_old_deploy_does_not(self):
+        import time as t
+        old = datetime.fromtimestamp(t.time() - h.DEPLOY_QUIET_SEC - 60, timezone.utc)
+        self.assertFalse(self.guards_with(old)[0])

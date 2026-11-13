@@ -109,6 +109,15 @@ def describe(db_id):
     )
 
 
+# 13.11: how long after a deployment changed a resize still waits (seconds).
+DEPLOY_QUIET_SEC = 15 * 60
+
+
+def _epoch(at):
+    """boto3 gives datetimes; tests may pass epoch seconds."""
+    return at.timestamp() if hasattr(at, "timestamp") else float(at)
+
+
 def ecs_guards(cluster, services):
     """(deploying, oneoff_tasks, unknown). A rollout, or a one-off task
     (migrate, i18n), must never meet a failover."""
@@ -120,10 +129,20 @@ def ecs_guards(cluster, services):
         r = ecs.describe_services(cluster=cluster, services=services)
         if r.get("failures"):
             return False, False, True
+        # 13.11: the deploy job keeps checking prod (smoke, synthetic user)
+        # for minutes AFTER ECS reports the rollout complete; the night DB
+        # resize at 09:32 UTC paused the database right then and the deploy's
+        # «Smoke (all services)» got a 500 (run 43393586005). A deployment
+        # that changed in the last DEPLOY_QUIET_SEC counts as deploying too.
+        quiet_since = time.time() - DEPLOY_QUIET_SEC
         for s in r["services"]:
             deps = s.get("deployments", [])
             if len(deps) > 1 or any(x.get("rolloutState") == "IN_PROGRESS" for x in deps):
                 deploying = True
+            for x in deps:
+                at = x.get("updatedAt")
+                if at is not None and _epoch(at) > quiet_since:
+                    deploying = True
     arns, token = [], None
     while True:
         kw = {"cluster": cluster, "desiredStatus": "RUNNING"}
