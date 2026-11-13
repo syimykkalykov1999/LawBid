@@ -6,7 +6,7 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
-import { recoCurrentKey, recoKey } from './feed.service';
+import { recoAuthorsKey, recoCurrentKey, recoKey } from './feed.service';
 import {} from '../../redis/redis-cluster-safe';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
@@ -76,8 +76,10 @@ export class FeedRecoJob {
     const split = readsAreSplit(this.prisma);
     const top = split
       ? await this.topSplit(now, since)
-      : await this.prisma.$queryRaw<{ id: string; score: number }[]>`
-      SELECT p.id::TEXT AS id,
+      : await this.prisma.$queryRaw<
+          { id: string; author: string; score: number }[]
+        >`
+      SELECT p.id::TEXT AS id, p.author_id::TEXT AS author,
              (p.like_count + 2 * p.comment_count + 2 * p.save_count)::FLOAT8
                / power(GREATEST(EXTRACT(EPOCH FROM (${now}::TIMESTAMPTZ - p.created_at)) / 3600, 0) + 2, 1.5)
                AS score
@@ -100,8 +102,8 @@ export class FeedRecoJob {
             taken,
             explore,
           )
-        : await this.prisma.$queryRaw<{ id: string }[]>`
-        SELECT p.id::TEXT AS id
+        : await this.prisma.$queryRaw<{ id: string; author: string }[]>`
+        SELECT p.id::TEXT AS id, p.author_id::TEXT AS author
         FROM posts AS p
         JOIN users AS u ON u.id = p.author_id AND u.status = 'active'
           AND NOT EXISTS (SELECT 1 FROM attorney_profiles sa
@@ -120,7 +122,11 @@ export class FeedRecoJob {
         );
         rows = [
           ...ranked,
-          ...fresh.map((f, i) => ({ id: f.id, score: scores[i] })),
+          ...fresh.map((f, i) => ({
+            id: f.id,
+            author: f.author,
+            score: scores[i],
+          })),
         ];
         // Fill what the fresh ones did not use with the next ranked rows.
         const used = new Set(rows.map((r) => r.id));
@@ -135,6 +141,13 @@ export class FeedRecoJob {
       const tx = this.redis.multi();
       tx.zadd(recoKey(version), ...rows.flatMap((r) => [r.score, r.id]));
       tx.expire(recoKey(version), SNAPSHOT_TTL_SEC);
+      // Row 64: each post's author beside the snapshot (FeedService
+      // recommendations), same lifetime.
+      tx.hset(
+        recoAuthorsKey(version),
+        Object.fromEntries(rows.map((r) => [r.id, r.author])),
+      );
+      tx.expire(recoAuthorsKey(version), SNAPSHOT_TTL_SEC);
       tx.set(recoCurrentKey(), version);
       await tx.exec();
     }
@@ -184,7 +197,7 @@ export class FeedRecoJob {
   private async topSplit(
     now: Date,
     since: Date,
-  ): Promise<{ id: string; score: number }[]> {
+  ): Promise<{ id: string; author: string; score: number }[]> {
     type Row = { id: string; author: string; score: number; created_at: Date };
     const rows = await this.pickSplit<Row>(
       (limit, offset) => this.prisma.$queryRaw<Row[]>`
@@ -201,14 +214,14 @@ export class FeedRecoJob {
       (a, b) =>
         b.score - a.score || b.created_at.getTime() - a.created_at.getTime(),
     );
-    return rows.map((r) => ({ id: r.id, score: r.score }));
+    return rows.map((r) => ({ id: r.id, author: r.author, score: r.score }));
   }
 
   private async freshSplit(
     after: Date,
     taken: string[],
     limit: number,
-  ): Promise<{ id: string }[]> {
+  ): Promise<{ id: string; author: string }[]> {
     type Row = { id: string; author: string; created_at: Date };
     const rows = await this.pickSplit<Row>(
       (n, offset) => this.prisma.$queryRaw<Row[]>`
@@ -223,6 +236,6 @@ export class FeedRecoJob {
       limit,
       (a, b) => b.created_at.getTime() - a.created_at.getTime(),
     );
-    return rows.map((r) => ({ id: r.id }));
+    return rows.map((r) => ({ id: r.id, author: r.author }));
   }
 }
