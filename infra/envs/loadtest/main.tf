@@ -85,7 +85,18 @@ module "stack" {
   database_instance_class = var.database_instance_class
   db_autoscale_enabled    = var.db_autoscale_enabled
   redis_autoscale_enabled = var.redis_autoscale_enabled
-  database_multi_az       = var.gameday_enabled # off: failover is not what a normal run measures and Multi-AZ doubles the DB price; the GameDay run (FIS rds-failover) needs it
+  # combat profile (row 59): the Lambdas really act; other profiles keep the defaults
+  db_autoscale_mode                     = var.db_autoscale_mode
+  db_autoscale_min_class                = var.database_instance_class
+  db_autoscale_initial_ceiling_class    = var.db_autoscale_initial_ceiling_class
+  db_autoscale_tuning                   = var.db_autoscale_tuning
+  redis_autoscale_min_class             = var.redis_node_type
+  redis_autoscale_initial_ceiling_class = var.redis_autoscale_initial_ceiling_class
+  redis_autoscale_tuning                = var.redis_autoscale_tuning
+  spot_fallback_tuning                  = var.spot_fallback_tuning
+  pgbouncer_spot                        = var.pgbouncer_spot
+  pgbouncer_max_tasks                   = var.pgbouncer_max_tasks
+  database_multi_az                     = var.gameday_enabled || var.database_multi_az # off: failover is not what a normal run measures and Multi-AZ doubles the DB price; the GameDay run (FIS rds-failover) needs it
   # RDS needs at least 7 days of automated backups to allow point-in-time
   # restore; the instance (and its backups) is deleted at the end.
   database_backup_retention_days = 7
@@ -103,7 +114,7 @@ module "stack" {
   api_spot                       = true
   worker_spot                    = true
   night_scale_mode               = "off"
-  worker_jobs_per_task           = 50
+  worker_jobs_per_task           = var.worker_jobs_per_task
   nat_per_az                     = false
   interface_endpoints            = ["ecr.api", "ecr.dkr", "logs", "secretsmanager"]
   interface_endpoint_azs         = 1
