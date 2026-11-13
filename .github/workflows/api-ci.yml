@@ -651,9 +651,19 @@ jobs:
           --health-retries 10
 
     steps:
+      # 12.11 (KNOWN_ERRORS 115): a full clone (fetch-depth 0) of the 3 GB history
+      # hung the whole hour on #950. Only two commits are needed: this one and
+      # the previous release, fetched by sha below.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+
+      - name: Fetch the previous release commit (shallow, by sha)
+        env:
+          PREV: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          case "$PREV" in ''|0000000000000000000000000000000000000000) exit 0 ;; esac
+          git fetch --no-tags --depth=1 origin "$PREV" || echo "previous commit not fetched: N-1 will be skipped"
 
       - name: Point the job at its service containers (random host ports)
         env:
