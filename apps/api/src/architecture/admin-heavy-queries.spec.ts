@@ -16,6 +16,8 @@ const BASELINE = join(__dirname, 'admin-heavy-queries.baseline.json');
 const SNAPSHOT_COMPUTE = new Set([
   'modules/admin/dashboard.service.ts',
   'modules/analytics/analytics.service.ts',
+  // Row 78: the overview's daily snapshot (read-only from the stored copy).
+  'modules/admin-content/admin-overview.service.ts',
 ]);
 const BIG_MODELS =
   'user|message|notification|case|bid|auditLog|payment|casePayment|userActivityDay';

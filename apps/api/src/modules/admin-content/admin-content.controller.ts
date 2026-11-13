@@ -56,6 +56,7 @@ import {
   UpdatePracticeAreaDto,
 } from './admin-content.dto';
 import { AdminContentService } from './admin-content.service';
+import { AdminOverviewService } from './admin-overview.service';
 import { AdminContentExtrasService } from './admin-content-extras.service';
 import { AdminContentBulkService } from './admin-content-bulk.service';
 import {
@@ -75,13 +76,14 @@ export class AdminContentController {
     private readonly content: AdminContentService,
     private readonly extras: AdminContentExtrasService,
     private readonly bulk: AdminContentBulkService,
+    private readonly overview: AdminOverviewService,
   ) {}
 
   @Get('overview')
   @ApiOperation({ summary: 'Extended numbers for the dashboard' })
   @ApiEnvelopeResponse(AdminOverviewDto)
   getAdminOverview(): Promise<AdminOverviewDto> {
-    return this.content.overview();
+    return this.overview.overview();
   }
 
   // --- content (moderators) ----------------------------------------------------

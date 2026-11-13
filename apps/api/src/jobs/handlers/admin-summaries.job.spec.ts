@@ -31,6 +31,7 @@ describe('AdminSummariesJob', () => {
         'dashboard',
         'analytics',
         'billing-overview',
+        'admin-overview',
         'access-report',
         'trust-scan',
         'economy-report',
@@ -61,6 +62,7 @@ describe('AdminSummariesJob', () => {
     expect(out.refreshed).toEqual([
       'analytics',
       'billing-overview',
+      'admin-overview',
       'access-report',
       'trust-scan',
       'economy-report',
@@ -84,6 +86,7 @@ describe('AdminSummariesJob', () => {
       'dashboard',
       'analytics',
       'billing-overview',
+      'admin-overview',
       'access-report',
       'trust-scan',
       'economy-report',

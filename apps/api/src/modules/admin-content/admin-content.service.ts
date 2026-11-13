@@ -17,9 +17,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { PRACTICE_TREE_CACHE_KEY } from '../../common/cache/cache-keys';
 import { caseIdsByTitle, postIdsMatching } from './admin-text-search';
-import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
-import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { maxAssistantSeats } from '../billing/seat-limit';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import {
   type ContentAction,
@@ -31,7 +28,6 @@ import type {
   AdminBulkResultDto,
   AdminBidRowDto,
   AdminCommentRowDto,
-  AdminOverviewDto,
   AdminPostRowDto,
   AdminPracticeAreaDto,
   AdminReviewRowDto,
@@ -40,11 +36,6 @@ import type {
   CreatePracticeAreaDto,
   UpdatePracticeAreaDto,
 } from './admin-content.dto';
-import {
-  effectiveSeats,
-  paidSeats,
-} from '../subscriptions/contract-grant.util';
-import { liveSubscriptionWhere } from '../admin/subscription-metrics';
 import { broadcastAudienceWhere } from './broadcast-audience';
 import { BroadcastFanoutRunner } from './broadcast-fanout.runner';
 
@@ -150,8 +141,6 @@ export class AdminContentService {
     private readonly notifications: NotificationsService,
     private readonly moderation: ModerationService,
     private readonly fanout: BroadcastFanoutRunner,
-    @Optional() private readonly settings?: AppSettingsService,
-    @Optional() private readonly summary?: AdminSummaryService,
     // Caching round 2 (S2-5): the practice-area tree copy is dropped on edit.
     @Optional() @Inject(REDIS_CACHE_CLIENT) private readonly cache?: Redis,
   ) {}
@@ -922,140 +911,6 @@ export class AdminContentService {
             })),
         };
     }
-  }
-
-  // --- overview -----------------------------------------------------------------
-
-  /** Owner 2026-10-23 (admin economy pass): 17 counts over the big tables
-   * (messages, calls, cases, bids, posts of the last 7 days…) — recounted
-   * once per 5 minutes for the whole team, not on every open. */
-  async overview(): Promise<AdminOverviewDto> {
-    if (!this.summary) return this.computeOverview();
-    return (
-      await this.summary.get('overview', () => this.computeOverview(), 300)
-    ).data;
-  }
-
-  private async computeOverview(): Promise<AdminOverviewDto> {
-    const d7 = new Date(Date.now() - 7 * 86400000);
-    const d30 = new Date(Date.now() - 30 * 86400000);
-    // Audit 2026-10-02: the gate's rule (past_due only while in grace),
-    // shared with the dashboard tiles — see subscription-metrics.ts.
-    const live = liveSubscriptionWhere(new Date());
-    const [
-      clients,
-      attorneys,
-      attorneysVerified,
-      assistants,
-      monthly,
-      yearly,
-      seats,
-      revenue,
-      cases7d,
-      bids7d,
-      posts7d,
-      messages7d,
-      calls7d,
-      callsMissed7d,
-      tasksOpen,
-      tasksDone30d,
-      requestsPending,
-    ] = await Promise.all([
-      this.prisma.user.count({ where: { role: 'client', deleted_at: null } }),
-      this.prisma.user.count({ where: { role: 'attorney', deleted_at: null } }),
-      this.prisma.attorneyProfile.count({
-        where: { verification_status: 'verified' },
-      }),
-      this.prisma.assistantMembership.count({ where: { status: 'active' } }),
-      this.prisma.subscription.count({
-        where: { ...live, plan: 'monthly' },
-      }),
-      this.prisma.subscription.count({
-        where: { ...live, plan: 'yearly' },
-      }),
-      this.prisma.subscription.aggregate({
-        where: { ...live, plan: 'monthly' },
-        _sum: { assistant_seats: true },
-      }),
-      this.prisma.payment.aggregate({
-        where: { status: 'succeeded', paid_at: { gte: d30 } },
-        _sum: { amount_cents: true },
-      }),
-      this.prisma.case.count({ where: { created_at: { gte: d7 } } }),
-      this.prisma.bid.count({ where: { created_at: { gte: d7 } } }),
-      this.prisma.post.count({ where: { created_at: { gte: d7 } } }),
-      this.prisma.message.count({ where: { created_at: { gte: d7 } } }),
-      this.prisma.call.count({ where: { created_at: { gte: d7 } } }),
-      this.prisma.call.count({
-        where: { created_at: { gte: d7 }, status: 'missed' },
-      }),
-      this.prisma.attorneyTask.count({
-        where: { status: { in: ['open', 'taken'] } },
-      }),
-      this.prisma.attorneyTask.count({
-        where: { status: 'done', done_at: { gte: d30 } },
-      }),
-      this.prisma.assistantRequest.count({ where: { status: 'pending' } }),
-    ]);
-    return {
-      clients,
-      attorneys,
-      attorneysVerified,
-      assistants,
-      subscriptionsMonthly: monthly,
-      subscriptionsYearly: yearly,
-      assistantSeats:
-        (seats._sum.assistant_seats ?? 0) +
-        yearly * 6 +
-        (await this.extraGrantSeats(live)),
-      revenue30dCents: revenue._sum.amount_cents ?? 0,
-      cases7d,
-      bids7d,
-      posts7d,
-      messages7d,
-      calls7d,
-      callsMissed7d,
-      tasksOpen,
-      tasksDone30d,
-      requestsPending,
-    };
-  }
-
-  /** Owner 2026-10-02: seats an active contract grant adds on top of the
-   * paid ones (per attorney: max(paid, grant) − paid). */
-  private async extraGrantSeats(
-    live: Prisma.SubscriptionWhereInput,
-  ): Promise<number> {
-    const now = new Date();
-    const grants = await this.prisma.contractGrant.findMany({
-      where: {
-        revoked_at: null,
-        starts_at: { lte: now },
-        ends_at: { gt: now },
-        assistant_seats: { gt: 0 },
-      },
-      select: { user_id: true, assistant_seats: true },
-    });
-    if (grants.length === 0) return 0;
-    const byUser = new Map<string, number>();
-    for (const g of grants) {
-      byUser.set(
-        g.user_id,
-        Math.max(byUser.get(g.user_id) ?? 0, g.assistant_seats),
-      );
-    }
-    const subs = await this.prisma.subscription.findMany({
-      where: { ...live, user_id: { in: [...byUser.keys()] } },
-      select: { user_id: true, plan: true, assistant_seats: true },
-    });
-    const maxSeats = await maxAssistantSeats(this.settings);
-    const paid = new Map(subs.map((x) => [x.user_id, paidSeats(x, maxSeats)]));
-    let extra = 0;
-    for (const [userId, g] of byUser) {
-      const p = paid.get(userId) ?? 0;
-      extra += effectiveSeats(p, g) - p;
-    }
-    return extra;
   }
 }
 
