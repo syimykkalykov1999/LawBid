@@ -27,9 +27,20 @@ export type StaffAiModel = (typeof STAFF_AI_MODELS)[number];
 export const isStaffAiModel = (m: string): m is StaffAiModel =>
   (STAFF_AI_MODELS as readonly string[]).includes(m);
 
-/** `staff.ai.model_tier`: 0 = Haiku 5.5 (default), 1 = Sonnet 5.5. */
-export function modelForTier(tier: number): StaffAiModel {
-  return tier === 1 ? 'claude-sonnet-5-5' : 'claude-haiku-5-5';
+/**
+ * Owner 2026-11-12 (row 55): the model follows the task. A model code of
+ * `staff.ai.model_tier1` (complex: the nightly re-check, default 2 = Opus
+ * 5.5) or `staff.ai.model_tier2` (simple: hint, summary, default 0 = Haiku
+ * 5.5): 0 = Haiku 5.5, 1 = Sonnet 5.5, 2 = Opus 5.5. The monthly budget
+ * stays the guard on cost.
+ */
+export const TIER_MODELS: readonly StaffAiModel[] = [
+  'claude-haiku-5-5',
+  'claude-sonnet-5-5',
+  'claude-opus-5-5',
+];
+export function modelForTier(code: number): StaffAiModel {
+  return TIER_MODELS[code] ?? 'claude-opus-5-5';
 }
 
 /** The AI switch (master or the feature's own) is off: nothing was called. */

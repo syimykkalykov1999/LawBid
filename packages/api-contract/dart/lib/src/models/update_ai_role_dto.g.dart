@@ -18,6 +18,9 @@ UpdateAiRoleDto _$UpdateAiRoleDtoFromJson(Map<String, dynamic> json) =>
       model: json['model'] == null
           ? null
           : AiWorkerModel.fromJson(json['model'] as String),
+      imageFileIds: (json['imageFileIds'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
     );
 
 Map<String, dynamic> _$UpdateAiRoleDtoToJson(UpdateAiRoleDto instance) =>
@@ -28,4 +31,5 @@ Map<String, dynamic> _$UpdateAiRoleDtoToJson(UpdateAiRoleDto instance) =>
       'model': ?instance.model?.toJson(),
       'confidenceMin': instance.confidenceMin,
       'auditPct': instance.auditPct,
+      'imageFileIds': ?instance.imageFileIds,
     };

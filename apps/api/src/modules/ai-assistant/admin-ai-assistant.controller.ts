@@ -22,6 +22,7 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
+import { AiAttachmentError } from '../ai-attachments/ai-attachments.logic';
 import {
   AiAssistantStatusDto,
   AiPullClosedDto,
@@ -81,7 +82,11 @@ export class AdminAiAssistantController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'AI assistant: open a task (GitHub issue)' })
   @ApiEnvelopeResponse(AiTaskCreatedDto)
-  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 409: [E.FEATURE_DISABLED] })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.FEATURE_DISABLED],
+  })
   async createAiTask(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: CreateAiTaskDto,
@@ -90,6 +95,12 @@ export class AdminAiAssistantController {
     try {
       return await this.ai.createTask({ id: admin.id, ip: admin.ip }, dto);
     } catch (e) {
+      if (e instanceof AiAttachmentError) {
+        throw new HttpException(
+          { code: E.VALIDATION_ERROR, message: e.message },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
       if (e instanceof AiAssistantError) {
         throw new HttpException(
           { code: E.FEATURE_DISABLED, message: e.message },

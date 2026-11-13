@@ -112,7 +112,7 @@ export class StaffAiSummaryService {
       )
         todo.push(sg);
     }
-    const model = modelForTier(s.numbers['staff.ai.model_tier']);
+    const model = modelForTier(s.numbers['staff.ai.model_tier2']);
     let written = 0;
     let failed = 0;
     let stop = false;

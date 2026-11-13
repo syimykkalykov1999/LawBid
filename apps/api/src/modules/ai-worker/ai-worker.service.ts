@@ -1,10 +1,25 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import type { AiRun, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  AI_FEEDBACK_KEEP,
+  fitRequest,
+} from '../ai-attachments/ai-attachments.logic';
+import {
+  AiAttachmentsService,
+  type AiAttachmentView,
+  type PreparedImage,
+} from '../ai-attachments/ai-attachments.service';
 import { StaffAiBudgetService } from '../staff-ai/staff-ai-budget.service';
 import {
   StaffAiClient,
   type AiBatchItem,
+  type AiImage,
 } from '../staff-ai/staff-ai-client.service';
 import { costMillicents } from '../staff-ai/staff-ai-pricing';
 import {
@@ -32,6 +47,7 @@ import {
 import {
   AI_WORKER_QUEUES,
   AiWorkerQueues,
+  QUEUE_DEFAULT_MODEL,
   QUEUE_LABEL,
   isAiWorkerQueue,
   type AiWorkerQueue,
@@ -49,7 +65,9 @@ const ITEM_PAGE = 50;
 const INSERT_PAGE = 1000;
 const ACTIVE_ITEM = ['pending', 'sent', 'proposed'];
 /** How many of the owner's latest decisions are read / fed back as examples. */
-const FEEDBACK_READ = 40;
+const FEEDBACK_READ = AI_FEEDBACK_KEEP;
+/** A Message Batch may be 256 MB; the pictures of a chunk stay well under. */
+const BATCH_BYTES = 150_000_000;
 export const FEEDBACK_EXAMPLES = 8;
 
 export type RunStatus = 'queued' | 'running' | 'done' | 'failed' | 'canceled';
@@ -71,6 +89,8 @@ export interface RoleInput {
   model?: string;
   confidenceMin?: number;
   auditPct?: number;
+  /** Owner 2026-11-12: the role's example screenshots (exact set). */
+  imageFileIds?: string[];
 }
 
 export interface ReviewInput {
@@ -79,6 +99,8 @@ export interface ReviewInput {
   /** On reject: what the owner says is right (fed back as an example). */
   ownerDecision?: string;
   ownerNote?: string;
+  /** Owner 2026-11-12: pictures of the correction (on reject). */
+  imageFileIds?: string[];
 }
 
 export interface Proposal {
@@ -118,6 +140,7 @@ export class AiWorkerService {
     private readonly client: StaffAiClient,
     private readonly budget: StaffAiBudgetService,
     private readonly queues: AiWorkerQueues,
+    @Optional() private readonly attachments?: AiAttachmentsService,
   ) {}
 
   // ------------------------------------------------------------- overview
@@ -145,13 +168,20 @@ export class AiWorkerService {
     ]);
     const lane = (l: Lane) => lanes.find((x) => x.lane === l)?._count._all ?? 0;
     const stats = await Promise.all(roles.map((r) => this.roleStats(r.id)));
+    const images =
+      (await this.attachments?.views({ roleIds: roles.map((r) => r.id) })) ??
+      new Map<string, AiAttachmentView[]>();
     return {
       enabled,
       budgetCents: Math.round(limit / 1000),
       spentCents: Math.round(spent / 1000),
       models: [...STAFF_AI_MODELS],
       defaultModel: DEFAULT_MODEL,
-      queues: AI_WORKER_QUEUES.map((q) => ({ key: q, label: QUEUE_LABEL[q] })),
+      queues: AI_WORKER_QUEUES.map((q) => ({
+        key: q,
+        label: QUEUE_LABEL[q],
+        defaultModel: QUEUE_DEFAULT_MODEL[q],
+      })),
       toReview: lane('priority') + lane('audit') + lane('bulk'),
       toReviewByLane: {
         priority: lane('priority'),
@@ -167,6 +197,7 @@ export class AiWorkerService {
         confidenceMin: r.confidence_min,
         auditPct: r.audit_pct,
         ...stats[i],
+        images: images.get(r.id) ?? [],
         createdAt: r.created_at.toISOString(),
       })),
       runs: runs.map((r) => this.runDto(r, r.role.name)),
@@ -238,21 +269,29 @@ export class AiWorkerService {
   // ---------------------------------------------------------------- roles
 
   async createRole(adminId: string, input: RoleInput) {
+    const queue = asQueue(input.queue);
     const r = await this.prisma.aiRole.create({
       data: {
         name: input.name.trim(),
         instructions: input.instructions.trim(),
-        queue: asQueue(input.queue),
-        model: asModel(input.model),
+        queue,
+        // Owner 2026-11-12 (row 55): no model chosen = the queue's default.
+        model: asModel(input.model ?? QUEUE_DEFAULT_MODEL[queue]),
         ...this.policy(input),
         created_by: adminId,
       },
     });
+    if (input.imageFileIds !== undefined) {
+      await this.attachments?.setRole(adminId, r.id, input.imageFileIds);
+    }
     return { id: r.id };
   }
 
-  async updateRole(id: string, input: Partial<RoleInput>) {
+  async updateRole(id: string, input: Partial<RoleInput>, adminId?: string) {
     await this.role(id);
+    if (input.imageFileIds !== undefined && adminId) {
+      await this.attachments?.setRole(adminId, id, input.imageFileIds);
+    }
     await this.prisma.aiRole.update({
       where: { id },
       data: {
@@ -290,6 +329,7 @@ export class AiWorkerService {
       orderBy: { reviewed_at: 'desc' },
       take: FEEDBACK_READ,
       select: {
+        id: true,
         decision: true,
         confidence: true,
         status: true,
@@ -300,6 +340,7 @@ export class AiWorkerService {
     });
     return pickFeedback(
       rows.map((r) => ({
+        id: r.id,
         decision: r.decision,
         confidence: r.confidence,
         status: r.status,
@@ -317,6 +358,7 @@ export class AiWorkerService {
       where: { id },
       data: { archived_at: new Date() },
     });
+    await this.attachments?.closeRole(id);
     return { id };
   }
 
@@ -463,10 +505,12 @@ export class AiWorkerService {
       return 'done';
     }
     const queue = asQueue(role.queue);
+    const feedback = await this.feedback(role.id);
     const system = systemBlocks(
       { name: role.name, instructions: role.instructions, queue },
-      await this.feedback(role.id),
+      feedback,
     );
+    const images = await this.promptImages(role.id, feedback);
     const batch: AiBatchItem[] = [];
     const flagsOf = new Map<string, string[]>();
     let skipped = 0;
@@ -490,7 +534,9 @@ export class AiWorkerService {
         customId: item.id,
         system,
         user: itemMessage(item.item_id, data),
+        ...(images.length ? { images } : {}),
       });
+      if (batch.length >= chunkFor(images)) break;
     }
     if (skipped) {
       await this.prisma.aiRun.update({
@@ -672,6 +718,9 @@ export class AiWorkerService {
       include: { run: { select: { role: { select: { name: true } } } } },
     });
     const page = rows.slice(0, ITEM_PAGE);
+    const images =
+      (await this.attachments?.views({ runItemIds: page.map((i) => i.id) })) ??
+      new Map<string, AiAttachmentView[]>();
     return {
       items: page.map((i) => {
         const p = (i.proposal ?? null) as
@@ -700,6 +749,7 @@ export class AiWorkerService {
           error: i.error,
           costCents: i.cost_millicents / 1000,
           reviewedAt: i.reviewed_at?.toISOString() ?? null,
+          images: images.get(i.id) ?? [],
         };
       }),
       nextCursor: rows.length > ITEM_PAGE ? page[page.length - 1].id : null,
@@ -718,6 +768,14 @@ export class AiWorkerService {
       !(VERDICT_DECISIONS as readonly string[]).includes(input.ownerDecision)
     )
       throw new AiWorkerError('Неизвестное решение', 'invalid');
+    const withImages =
+      input.verdict === 'rejected' && (input.imageFileIds?.length ?? 0) > 0;
+    const open = withImages
+      ? await this.prisma.aiRunItem.findMany({
+          where: { id: { in: input.ids }, status: 'proposed' },
+          select: { id: true },
+        })
+      : [];
     const res = await this.prisma.aiRunItem.updateMany({
       where: { id: { in: input.ids }, status: 'proposed' },
       data: {
@@ -732,7 +790,54 @@ export class AiWorkerService {
           : {}),
       },
     });
+    if (withImages && open.length > 0) {
+      await this.attachments?.addNotes(
+        adminId,
+        open.map((o) => o.id),
+        input.imageFileIds ?? [],
+      );
+    }
     return { updated: res.count };
+  }
+
+  /**
+   * Owner 2026-11-12 (row 48): the pictures of one request — the role's
+   * example screenshots, then the pictures of the corrections shown in
+   * <owner_feedback> (numbered like it). The last one closes the cached
+   * prefix, so a chunk pays for them once.
+   */
+  private async promptImages(
+    roleId: string,
+    feedback: readonly ReviewedRow[],
+  ): Promise<AiImage[]> {
+    if (!this.attachments) return [];
+    const role = await this.attachments.roleImages(roleId);
+    const ids = feedback.map((f) => f.id).filter((x): x is string => !!x);
+    const notes = await this.attachments.noteImages(ids);
+    const out: AiImage[] = role.map((img, i) => ({
+      mediaType: img.mediaType,
+      data: img.data,
+      label: `Picture ${i + 1} of the owner's role (trusted, from the owner):`,
+    }));
+    feedback.forEach((f, n) => {
+      for (const img of (f.id && notes.get(f.id)) || []) {
+        out.push({
+          mediaType: img.mediaType,
+          data: img.data,
+          label: `Picture of the owner's correction ${n + 1} in <owner_feedback> (trusted):`,
+        });
+      }
+    });
+    // Owner 2026-11-12: no cap of ours; only what one request can carry
+    // (600 pictures, ~100 MB). The page says so; the rest is logged.
+    const { sent, skipped } = fitRequest(out);
+    if (skipped > 0) {
+      this.logger.warn(
+        `role ${roleId}: ${skipped} picture(s) do not fit one Claude request and were not sent`,
+      );
+    }
+    if (sent.length) sent[sent.length - 1].cache = true;
+    return sent;
   }
 
   /** «Утвердить весь список»: every confident proposal of the bulk lane
@@ -755,4 +860,16 @@ export class AiWorkerService {
     });
     return { updated: res.count };
   }
+}
+
+/** Items per batch: CHUNK, fewer when the shared pictures are heavy. */
+export function chunkFor(
+  images: readonly Pick<PreparedImage, 'data'>[],
+): number {
+  const bytes = images.reduce((n, i) => n + i.data.length, 0);
+  if (bytes === 0) return CHUNK;
+  return Math.max(
+    1,
+    Math.min(CHUNK, Math.floor(BATCH_BYTES / (bytes + 20_000))),
+  );
 }

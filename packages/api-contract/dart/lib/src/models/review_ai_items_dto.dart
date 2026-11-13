@@ -16,6 +16,7 @@ class ReviewAiItemsDto {
     required this.verdict,
     this.ownerDecision,
     this.ownerNote,
+    this.imageFileIds,
   });
 
   factory ReviewAiItemsDto.fromJson(Map<String, Object?> json) =>
@@ -27,6 +28,9 @@ class ReviewAiItemsDto {
   /// On reject: what is right (taught back to the role).
   final AiWorkerDecision? ownerDecision;
   final String? ownerNote;
+
+  /// Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads); the exact set replaces the old one.
+  final List<String>? imageFileIds;
 
   Map<String, Object?> toJson() => _$ReviewAiItemsDtoToJson(this);
 }

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AiWorkerTickJob } from '../../jobs/handlers/ai-worker-tick.job';
+import { AiAttachmentsCoreModule } from '../ai-attachments/ai-attachments.module';
 import { StaffAiCoreModule } from '../staff-ai/staff-ai.module';
 import { AiWorkerController } from './ai-worker.controller';
 import { AiWorkerQueues } from './ai-worker.queues';
@@ -11,7 +12,8 @@ import { AiWorkerService } from './ai-worker.service';
  * the one Claude transport of staff AI mode (StaffAiClient).
  */
 @Module({
-  imports: [StaffAiCoreModule],
+  // AiAttachmentsCoreModule: the owner's pictures on roles / corrections.
+  imports: [StaffAiCoreModule, AiAttachmentsCoreModule],
   providers: [AiWorkerQueues, AiWorkerService, AiWorkerTickJob],
   exports: [AiWorkerService, AiWorkerTickJob],
 })

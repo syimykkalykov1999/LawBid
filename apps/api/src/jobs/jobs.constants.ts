@@ -265,6 +265,8 @@ export const CRON_JOBS = {
   staffWeeklyDigest: 'staff.weekly-digest',
   /** Owner 2026-11-12 «ИИ-сотрудник»: advance the owner's background AI runs. */
   aiWorkerTick: 'ai-worker.tick',
+  /** Owner 2026-11-12 (row 49): what the AIs made goes after the owner's days. */
+  aiRetention: 'ai.retention',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -435,6 +437,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Mondays 13:00 UTC (US morning).
   { name: CRON_JOBS.staffWeeklyDigest, pattern: '0 13 * * 1' },
   { name: CRON_JOBS.aiWorkerTick, pattern: '*/5 * * * *' },
+  { name: CRON_JOBS.aiRetention, pattern: '40 3 * * *' },
 ];
 
 export const FAST_JOBS: readonly CronJobName[] = [

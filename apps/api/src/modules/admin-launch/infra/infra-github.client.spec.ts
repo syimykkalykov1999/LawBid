@@ -125,3 +125,51 @@ describe('InfraGithubClient: AI assistant PRs (12.11.2026)', () => {
     expect(r.files).toHaveLength(3000);
   });
 });
+
+describe('InfraGithubClient: deleting AI branches (owner 2026-11-12, row 49)', () => {
+  function del(status: number) {
+    const { c, calls } = client(() => ({ status: 200, body: {} }));
+    const inner = global.fetch;
+    global.fetch = jest.fn((url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') {
+        calls.push({ url, method: 'DELETE', body: undefined });
+        return Promise.resolve(
+          new Response(status === 204 ? null : '{}', { status }),
+        );
+      }
+      return inner(url, init);
+    }) as unknown as typeof fetch;
+    return { c, calls };
+  }
+
+  it('deletes ai/ branches with a contents-write token only', async () => {
+    const { c, calls } = del(204);
+    await expect(c.deleteBranch('ai/issue-7')).resolves.toBe(true);
+    const d = calls.find((x) => x.method === 'DELETE');
+    expect(d?.url).toMatch(/\/repos\/o\/r\/git\/refs\/heads\/ai\/issue-7$/);
+    const token = calls.find((x) => x.url.endsWith('/access_tokens'));
+    expect(token?.body).toEqual({
+      repositories: ['r'],
+      permissions: { contents: 'write' },
+    });
+  });
+
+  it('a branch already gone is fine', async () => {
+    await expect(del(404).c.deleteBranch('ai/x')).resolves.toBe(false);
+    await expect(del(422).c.deleteBranch('ai/x')).resolves.toBe(false);
+  });
+
+  it('never deletes anything that is not an ai/ branch', async () => {
+    const { c, calls } = del(204);
+    for (const ref of [
+      'main',
+      'claude/x',
+      'ai/../main',
+      'ai/',
+      'feature/ai/x',
+    ]) {
+      await expect(c.deleteBranch(ref)).rejects.toThrow('Only ai/');
+    }
+    expect(calls).toHaveLength(0);
+  });
+});

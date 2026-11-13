@@ -54,6 +54,12 @@ export const STEP_UP_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'admin.ip_allowlist',
   'admin.max_concurrent_sessions',
   'admin.country_allowlist',
+  // Owner 2026-11-12 (rows 49, 55): what the AIs cost and keep.
+  'ai.assistant_model',
+  'staff.ai.model_tier1',
+  'staff.ai.model_tier2',
+  'ai.retention_records_days',
+  'ai.retention_images_days',
 ]);
 
 const E = ErrorCode;

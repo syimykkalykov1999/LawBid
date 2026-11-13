@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { StaffAiModel } from '../staff-ai/staff-ai.types';
 import type { ItemData } from './ai-worker.prompt';
 
 /**
@@ -16,6 +17,19 @@ export const isAiWorkerQueue = (q: string): q is AiWorkerQueue =>
 
 export const QUEUE_LABEL: Readonly<Record<AiWorkerQueue, string>> = {
   attorney_verification: 'Проверка документов адвокатов',
+};
+
+/**
+ * Owner 2026-11-12 (row 55): a new role's model follows its queue (the role's
+ * model field stays the owner's to change). Important or complex checks
+ * (documents, identity, licences; the future face / bar results review) get
+ * Opus 5.5; simple queues (the future support reply drafts, simple complaint
+ * triage) get Haiku 5.5. A new queue must be added here (the type demands it).
+ */
+export const QUEUE_DEFAULT_MODEL: Readonly<
+  Record<AiWorkerQueue, StaffAiModel>
+> = {
+  attorney_verification: 'claude-opus-5-5',
 };
 
 /** Verification requests a human still has to decide. */

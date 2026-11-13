@@ -61,6 +61,7 @@ import { AdminIntegrationsModule } from './modules/admin-integrations/admin-inte
 import { AdminLaunchModule } from './modules/admin-launch/admin-launch.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { AiWorkerModule } from './modules/ai-worker/ai-worker.module';
+import { AiAttachmentsModule } from './modules/ai-attachments/ai-attachments.module';
 import { AdminPromotionModule } from './modules/admin-promotion/admin-promotion.module';
 import { AdminOpsModule } from './modules/admin-ops/admin-ops.module';
 import { AdminShardsModule } from './modules/admin-shards/admin-shards.module';
@@ -395,6 +396,8 @@ const isDev =
     AiAssistantModule,
     // Owner 2026-11-12: «ИИ-сотрудник» (owner only, docs/runbooks/AI_WORKER.md).
     AiWorkerModule,
+    // Owner 2026-11-12: images for both AIs and their cleanup (rows 48, 49).
+    AiAttachmentsModule,
     AdminPromotionModule,
     // Owner 2026-10-25: A/B experiments + ranking events log.
     ExperimentsCoreModule,

@@ -49,12 +49,36 @@ export interface AiSystemBlock {
   cacheTtl?: '5m' | '1h';
 }
 
+/**
+ * Owner 2026-11-12 (row 48): a picture for the user turn, sent as a base64
+ * `image` content block before the text (docs.claude.com «Vision»: JPEG,
+ * PNG, GIF, WebP; long edge ≤ 2576 px is what the API keeps anyway). The
+ * caller has already downscaled it and stripped its metadata. [cache] marks
+ * the end of a cached prefix (the role's example screenshots are the same
+ * for every item of a run).
+ */
+export interface AiImage {
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  /** Base64 of the bytes. */
+  data: string;
+  /** A short trusted label printed before the picture. */
+  label?: string;
+  cache?: boolean;
+}
+
+/** docs.claude.com «Vision» (2026-11-12): a picture costs
+ * ceil(w/28) x ceil(h/28) visual tokens, at most 4,784 on Claude 4.7 and
+ * later (the worst case reserved). */
+export const IMAGE_TOKENS_MAX = 4784;
+
 export interface AiMessageRequest<T> {
   feature: StaffAiFeature;
   model: StaffAiModel;
   system: AiSystemBlock[];
   /** Goes through the PII scrubber before it leaves. */
   user: string;
+  /** Pictures before the text of the user turn. */
+  images?: AiImage[];
   schema: AiSchema<T>;
   maxTokens: number;
   timeoutMs: number;
@@ -77,6 +101,8 @@ export interface AiBatchItem {
   /** The (cached) rubric of this item's kind. */
   system: AiSystemBlock[];
   user: string;
+  /** Pictures before the text of the user turn. */
+  images?: AiImage[];
 }
 
 export interface AiBatchRequest<T> {
@@ -158,9 +184,12 @@ export class StaffAiClient {
     user: string,
     maxTokens: number,
     batch: boolean,
+    images = 0,
   ): number {
     const tokens =
-      estimateTokens(system.map((b) => b.text).join('')) + estimateTokens(user);
+      estimateTokens(system.map((b) => b.text).join('')) +
+      estimateTokens(user) +
+      images * IMAGE_TOKENS_MAX;
     return estimateMillicents(model, tokens, maxTokens, batch);
   }
 
@@ -177,6 +206,7 @@ export class StaffAiClient {
       req.schema,
       req.maxTokens,
       req.effort,
+      req.images,
     );
     const est = this.estimateItemMillicents(
       req.model,
@@ -184,6 +214,7 @@ export class StaffAiClient {
       req.user,
       req.maxTokens,
       false,
+      req.images?.length ?? 0,
     );
     const reservation = await this.budget.reserve(req.feature, est);
     let wire: WireMessage;
@@ -232,6 +263,7 @@ export class StaffAiClient {
           i.user,
           req.maxTokens,
           true,
+          i.images?.length ?? 0,
         ),
       0,
     );
@@ -247,6 +279,7 @@ export class StaffAiClient {
             req.schema,
             req.maxTokens,
             req.effort,
+            i.images,
           ),
         })),
       };
@@ -382,7 +415,30 @@ export class StaffAiClient {
     schema: AiSchema<T>,
     maxTokens: number,
     effort: AiEffort = 'low',
+    images: readonly AiImage[] = [],
   ): Record<string, unknown> {
+    // Owner 2026-11-12: pictures go first in the user turn (Anthropic's
+    // advice: images before the text about them), each after its label.
+    const content =
+      images.length === 0
+        ? user
+        : [
+            ...images.flatMap((img) => [
+              ...(img.label ? [{ type: 'text', text: img.label }] : []),
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: img.mediaType,
+                  data: img.data,
+                },
+                ...(img.cache
+                  ? { cache_control: { type: 'ephemeral', ttl: '1h' } }
+                  : {}),
+              },
+            ]),
+            { type: 'text', text: user },
+          ];
     return {
       model,
       max_tokens: maxTokens,
@@ -393,7 +449,7 @@ export class StaffAiClient {
           ? { cache_control: { type: 'ephemeral', ttl: b.cacheTtl } }
           : {}),
       })),
-      messages: [{ role: 'user', content: user }],
+      messages: [{ role: 'user', content }],
       // Short, mechanical judgement by default: no deep reasoning paid for.
       output_config: {
         effort,

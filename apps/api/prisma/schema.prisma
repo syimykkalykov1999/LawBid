@@ -166,6 +166,10 @@ enum FilePurpose {
   // Owner 2026-10-18 (OQ-055): photos, documents and videos in a support
   // ticket, both directions; private bucket.
   support_attachment
+  // Owner 2026-11-12: screenshots and photos the owner gives the AI
+  // technician / AI employee; private bucket, owner-only, deleted
+  // ai.retention_images_days after the task or item closes.
+  ai_attachment
 
   @@map("file_purpose")
 }
@@ -1086,6 +1090,7 @@ model File {
   sticker                Sticker?
   gift                   Gift?
   document_template      DocumentTemplate?
+  ai_attachments         AiAttachment[]
   expense_receipts       CaseExpense[]        @relation("ExpenseReceipt")
   support_message_files  SupportMessageFile[]
   stories                Story[]
@@ -9111,7 +9116,8 @@ model AiRole {
   created_at     DateTime  @default(now()) @db.Timestamptz
   updated_at     DateTime  @updatedAt @db.Timestamptz
 
-  runs AiRun[]
+  runs        AiRun[]
+  attachments AiAttachment[]
 
   @@index([archived_at, created_at(sort: Desc)])
   @@map("ai_roles")
@@ -9180,4 +9186,33 @@ model AiRunItem {
   @@index([status, lane, created_at])
   @@index([reviewed_at])
   @@map("ai_run_items")
+}
+
+/// Owner 2026-11-12: an image the owner attached for an AI (row 48). The
+/// bytes are a `files` row (purpose ai_attachment, private bucket); GitHub
+/// only ever sees this row's id. kind = task (AI technician issue
+/// [issue_number]), role (AI employee role [role_id]) or note (the owner's
+/// correction on AI employee item [run_item_id]). [closed_at] is when the
+/// task / item closed: the image and this row go
+/// `ai.retention_images_days` later (AiRetentionService).
+model AiAttachment {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  file_id      String    @db.Uuid
+  file         File      @relation(fields: [file_id], references: [id], onDelete: Cascade)
+  owner_id     String    @db.Uuid
+  kind         String    @db.VarChar(8)
+  issue_number Int?
+  role_id      String?   @db.Uuid
+  role         AiRole?   @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  run_item_id  String?   @db.Uuid
+  position     Int       @default(0) @db.SmallInt
+  closed_at    DateTime? @db.Timestamptz
+  created_at   DateTime  @default(now()) @db.Timestamptz
+
+  @@index([kind, issue_number])
+  @@index([role_id])
+  @@index([run_item_id])
+  @@index([closed_at])
+  @@index([file_id])
+  @@map("ai_attachments")
 }

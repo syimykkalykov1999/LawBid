@@ -3,7 +3,8 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import { AI_ON, clientKit, messageOf } from '../staff-ai/staff-ai.test-support';
 import type { ItemData } from './ai-worker.prompt';
 import type { AiWorkerQueues } from './ai-worker.queues';
-import { AiWorkerError, AiWorkerService } from './ai-worker.service';
+import { QUEUE_DEFAULT_MODEL } from './ai-worker.queues';
+import { AiWorkerError, AiWorkerService, chunkFor } from './ai-worker.service';
 import { MemAiDb } from './ai-worker.test-support';
 
 const A = '00000000-0000-4000-8000-00000000000a';
@@ -83,6 +84,7 @@ function setup(
     stored?: Record<string, unknown>;
     fail?: boolean;
     open?: string[];
+    attachments?: unknown;
   } = {},
 ) {
   const submitted: any[] = [];
@@ -99,7 +101,13 @@ function setup(
       const last = submitted[submitted.length - 1];
       return last.requests
         .map((r: any) => {
-          const text = r.params.messages[0].content as string;
+          const c = r.params.messages[0].content;
+          const text =
+            typeof c === 'string'
+              ? c
+              : (c as { type: string; text?: string }[])
+                  .map((b) => b.text ?? '')
+                  .join('\n');
           const key = Object.keys(ANSWERS).find((k) => text.includes(k))!;
           return JSON.stringify({
             custom_id: r.custom_id,
@@ -127,6 +135,7 @@ function setup(
     kit.client,
     kit.budget,
     queues,
+    opts.attachments as never,
   );
   return { svc, db, kit, submitted, queues };
 }
@@ -314,5 +323,141 @@ describe('AiWorkerService: a whole run with a fake Claude API', () => {
     });
     expect(st.proposals[0].examples).toHaveLength(3);
     expect(st.proposals[0].text).toMatch(/Могу взять на себя/);
+  });
+});
+
+// ---------------------------------------------- owner 2026-11-12 (rows 48, 55)
+
+describe("AiWorkerService: the owner's pictures and the models", () => {
+  const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
+  function attachmentsFake() {
+    return {
+      setRole: jest.fn(() => Promise.resolve()),
+      closeRole: jest.fn(() => Promise.resolve()),
+      addNotes: jest.fn(() => Promise.resolve()),
+      views: jest.fn(() => Promise.resolve(new Map())),
+      roleImages: jest.fn(() =>
+        Promise.resolve([{ id: 'r1', mediaType: 'image/png', data: PNG }]),
+      ),
+      noteImages: jest.fn(() => Promise.resolve(new Map())),
+    };
+  }
+
+  it("a role's example screenshot reaches the Anthropic batch request as a base64 image block", async () => {
+    const attachments = attachmentsFake();
+    const { svc, submitted } = setup({ attachments });
+    const files = ['11111111-1111-4111-8111-111111111111'];
+    const { id: roleId } = await svc.createRole(OWNER, {
+      name: 'Документы',
+      instructions: 'Проверь лицензию как на скриншоте',
+      queue: 'attorney_verification',
+      imageFileIds: files,
+    });
+    expect(attachments.setRole).toHaveBeenCalledWith(OWNER, roleId, files);
+    await svc.startRun(OWNER, roleId);
+    await svc.tick(new Date());
+    const req = submitted[0].requests[0];
+    const content = req.params.messages[0].content as Array<
+      Record<string, any>
+    >;
+    const img = content.find((b) => b.type === 'image');
+    expect(img).toEqual({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/png', data: PNG },
+      cache_control: { type: 'ephemeral', ttl: '1h' },
+    });
+    // The picture comes first, labelled as the owner's, the item text last.
+    expect(content[0].text).toContain("owner's role");
+    expect(content[content.length - 1].type).toBe('text');
+    expect(attachments.roleImages).toHaveBeenCalledWith(roleId);
+  });
+
+  it("the owner's correction pictures are kept with his rejection", async () => {
+    const attachments = attachmentsFake();
+    const { svc, db } = setup({ attachments });
+    const { id: roleId } = await svc.createRole(OWNER, {
+      name: 'r',
+      instructions: 'instructions here',
+      queue: 'attorney_verification',
+    });
+    await svc.startRun(OWNER, roleId);
+    await svc.tick(new Date());
+    await svc.tick(new Date());
+    const proposed = db.aiRunItemRows.filter((r) => r.status === 'proposed');
+    expect(proposed.length).toBeGreaterThan(0);
+    const files = ['22222222-2222-4222-8222-222222222222'];
+    await svc.review(OWNER, {
+      ids: [proposed[0].id],
+      verdict: 'rejected',
+      ownerDecision: 'reject',
+      ownerNote: 'см. скриншот',
+      imageFileIds: files,
+    });
+    expect(attachments.addNotes).toHaveBeenCalledWith(
+      OWNER,
+      [proposed[0].id],
+      files,
+    );
+  });
+
+  it('archiving a role closes its pictures (their retention clock starts)', async () => {
+    const attachments = attachmentsFake();
+    const { svc } = setup({ attachments });
+    const { id } = await svc.createRole(OWNER, {
+      name: 'r',
+      instructions: 'instructions here',
+      queue: 'attorney_verification',
+    });
+    await svc.archiveRole(id);
+    expect(attachments.closeRole).toHaveBeenCalledWith(id);
+  });
+
+  it("a new role gets its queue's default model; the owner's pick wins", async () => {
+    const { svc, db } = setup();
+    const a = await svc.createRole(OWNER, {
+      name: 'r',
+      instructions: 'instructions here',
+      queue: 'attorney_verification',
+    });
+    expect(db.aiRoleRows.find((r) => r.id === a.id)?.model).toBe(
+      'claude-opus-5-5',
+    );
+    const b = await svc.createRole(OWNER, {
+      name: 'r2',
+      instructions: 'instructions here',
+      queue: 'attorney_verification',
+      model: 'claude-haiku-5-5',
+    });
+    expect(db.aiRoleRows.find((r) => r.id === b.id)?.model).toBe(
+      'claude-haiku-5-5',
+    );
+    await svc.updateRole(b.id, { model: 'claude-sonnet-5-5' });
+    expect(db.aiRoleRows.find((r) => r.id === b.id)?.model).toBe(
+      'claude-sonnet-5-5',
+    );
+    const status = await svc.status();
+    expect(status.queues[0]).toMatchObject({
+      key: 'attorney_verification',
+      defaultModel: 'claude-opus-5-5',
+    });
+    expect(status.models).toEqual([
+      'claude-haiku-5-5',
+      'claude-sonnet-5-5',
+      'claude-opus-5-5',
+    ]);
+  });
+
+  it('heavy pictures make smaller batches (a batch stays far under 256 MB)', () => {
+    expect(chunkFor([])).toBe(100);
+    expect(chunkFor([{ data: 'x'.repeat(10_000_000) }])).toBe(14);
+    expect(chunkFor([{ data: 'x'.repeat(400_000_000) }])).toBe(1);
+  });
+});
+
+describe('per-queue default models (row 55)', () => {
+  it('every queue has one, important checks on Opus 5.5', () => {
+    expect(QUEUE_DEFAULT_MODEL).toEqual({
+      attorney_verification: 'claude-opus-5-5',
+    });
   });
 });

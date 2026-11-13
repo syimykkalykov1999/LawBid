@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ImageAttach, anyUploading, readyIds, type AttachedImage } from '@/components/ai/image-attach';
+import { AiRetentionPanel } from '@/components/ai/retention-panel';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
@@ -54,6 +56,10 @@ export default function AiWorkerPage() {
   const [form, setForm] = useState({ name: '', instructions: '', queue: 'attorney_verification', model: '', confidenceMin: 90, auditPct: 10 });
   // The action waiting for a fresh 2FA code (re-run after the code).
   const [pending, setPending] = useState<null | (() => void)>(null);
+  // Owner 2026-11-12 (row 48): example screenshots of a new role, and the
+  // pictures of a correction.
+  const [roleImages, setRoleImages] = useState<AttachedImage[]>([]);
+  const [fixImages, setFixImages] = useState<AttachedImage[]>([]);
 
   const refresh = () => {
     setSelected([]);
@@ -76,19 +82,26 @@ export default function AiWorkerPage() {
       if (r.error) throw r.error;
     });
 
-  const review = (ids: string[], verdict: 'approved' | 'rejected', correction?: { decision: string; note: string }) =>
+  const review = (
+    ids: string[],
+    verdict: 'approved' | 'rejected',
+    correction?: { decision: string; note: string; imageFileIds?: string[] },
+  ) =>
     run(() =>
       api.POST('/admin/ai-worker/items/review', {
         body: {
           ids,
           verdict,
           ...(correction ? { ownerDecision: correction.decision as never, ownerNote: correction.note || undefined } : {}),
+          ...(correction?.imageFileIds?.length ? { imageFileIds: correction.imageFileIds } : {}),
         },
       }),
     );
 
   const d = page.data;
   const list = items.data?.items ?? [];
+  // Owner 2026-11-12 (row 55): a new role starts on its queue's model.
+  const queueModel = d?.queues.find((q) => q.key === form.queue)?.defaultModel ?? d?.defaultModel ?? '';
   return (
     <>
       <PageHeader
@@ -232,12 +245,14 @@ export default function AiWorkerPage() {
                               </option>
                             ))}
                           </Select>
-                          <Input aria-label="Почему" placeholder="Почему (ИИ учтёт)" maxLength={1000} value={fix.note} onChange={(e) => setFix((f) => ({ ...f, note: e.target.value }))} />
+                          <ImageAttach value={fixImages} onChange={setFixImages} label="Скриншот">
+                            <Input aria-label="Почему" placeholder="Почему (ИИ учтёт)" maxLength={1000} value={fix.note} onChange={(e) => setFix((f) => ({ ...f, note: e.target.value }))} />
+                          </ImageAttach>
                           <div className="flex gap-2">
-                            <Button size="sm" variant="danger" onClick={() => { review([i.id], 'rejected', fix); setCorrecting(null); }}>
+                            <Button size="sm" variant="danger" disabled={anyUploading(fixImages)} onClick={() => { review([i.id], 'rejected', { ...fix, imageFileIds: readyIds(fixImages) }); setFixImages([]); setCorrecting(null); }}>
                               Сохранить
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => setCorrecting(null)}>
+                            <Button size="sm" variant="outline" onClick={() => { setFixImages([]); setCorrecting(null); }}>
                               Отмена
                             </Button>
                           </div>
@@ -280,6 +295,7 @@ export default function AiWorkerPage() {
                     <Td>
                       <div className="font-medium text-heading">{r.name}</div>
                       <div className="line-clamp-2 max-w-sm text-xs text-muted">{r.instructions}</div>
+                      {r.images.length ? <div className="text-xs text-faint">Картинок: {r.images.length}</div> : null}
                     </Td>
                     <Td>{d.queues.find((q) => q.key === r.queue)?.label ?? r.queue}</Td>
                     <Td className="text-xs">{r.model}</Td>
@@ -315,12 +331,14 @@ export default function AiWorkerPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Что делать (своими словами)" htmlFor="ai-role-text" hint="Например: проверяй лицензию, штат, срок и совпадение имени; при истёкшей лицензии — отклонить.">
-              <Textarea id="ai-role-text" maxLength={8000} value={form.instructions} onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))} />
-            </Field>
+            <ImageAttach value={roleImages} onChange={setRoleImages} label="Примеры и инструкции картинками">
+              <Field label="Что делать (своими словами)" htmlFor="ai-role-text" hint="Например: проверяй лицензию, штат, срок и совпадение имени; при истёкшей лицензии — отклонить.">
+                <Textarea id="ai-role-text" maxLength={8000} value={form.instructions} onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))} />
+              </Field>
+            </ImageAttach>
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Модель" htmlFor="ai-role-model">
-                <Select id="ai-role-model" value={form.model || d.defaultModel} onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}>
+                <Select id="ai-role-model" value={form.model || queueModel} onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}>
                   {d.models.map((m) => (
                     <option key={m} value={m}>
                       {m}
@@ -338,7 +356,7 @@ export default function AiWorkerPage() {
             <div>
               <Button
                 loading={act.isPending}
-                disabled={form.name.trim().length < 2 || form.instructions.trim().length < 10}
+                disabled={form.name.trim().length < 2 || form.instructions.trim().length < 10 || anyUploading(roleImages)}
                 onClick={() =>
                   run(async () => {
                     const r = await api.POST('/admin/ai-worker/roles', {
@@ -346,12 +364,16 @@ export default function AiWorkerPage() {
                         name: form.name,
                         instructions: form.instructions,
                         queue: form.queue as never,
-                        model: (form.model || d.defaultModel) as never,
+                        model: (form.model || queueModel) as never,
                         confidenceMin: form.confidenceMin,
                         auditPct: form.auditPct,
+                        ...(readyIds(roleImages).length ? { imageFileIds: readyIds(roleImages) } : {}),
                       },
                     });
-                    if (!r.error) setForm((f) => ({ ...f, name: '', instructions: '' }));
+                    if (!r.error) {
+                      setForm((f) => ({ ...f, name: '', instructions: '' }));
+                      setRoleImages([]);
+                    }
                     return r;
                   })
                 }
@@ -360,6 +382,8 @@ export default function AiWorkerPage() {
               </Button>
             </div>
           </Card>
+
+          <AiRetentionPanel scope="worker" />
 
           <SectionTitle>Запуски</SectionTitle>
           <Card className="divide-y divide-line">

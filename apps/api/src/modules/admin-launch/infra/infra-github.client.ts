@@ -521,6 +521,35 @@ export class InfraGithubClient {
       throw new Error(`GitHub did not close the PR (HTTP ${res.status})`);
     }
   }
+
+  /**
+   * Owner 2026-11-12 (row 49): deletes branch [ref] of the App's repo after
+   * its PR was merged or rejected (the repo does not auto-delete head
+   * branches: delete_branch_on_merge is false). Only `ai/…` branches, never
+   * anything else; a branch already gone (404 / 422) is fine.
+   */
+  async deleteBranch(ref: string): Promise<boolean> {
+    if (!/^ai\/[\w.-]+$/.test(ref)) {
+      throw new Error('Only ai/… branches are deleted here');
+    }
+    const c = await this.creds();
+    if (!c) throw new Error('GitHub App is not configured');
+    const token = await this.installationToken(c, { contents: 'write' });
+    const res = await fetch(
+      `${GH_API}/repos/${c.repo}/git/refs/heads/${ref
+        .split('/')
+        .map(encodeURIComponent)
+        .join('/')}`,
+      {
+        method: 'DELETE',
+        headers: this.headers(token),
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (res.status === 204) return true;
+    if (res.status === 404 || res.status === 422) return false;
+    throw new Error(`GitHub did not delete the branch (HTTP ${res.status})`);
+  }
 }
 
 /** A pull request, as the AI assistant page and its approve step need it. */

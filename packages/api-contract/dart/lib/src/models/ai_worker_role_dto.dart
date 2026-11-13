@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'ai_attachment_view_dto.dart';
 import 'ai_worker_model.dart';
 import 'ai_worker_queue_key.dart';
 
@@ -22,6 +23,7 @@ class AiWorkerRoleDto {
     required this.reviewed,
     required this.agreed,
     required this.agreementPct,
+    required this.images,
     required this.createdAt,
   });
 
@@ -48,6 +50,9 @@ class AiWorkerRoleDto {
 
   /// Agreement with the owner, %.
   final num? agreementPct;
+
+  /// Example screenshots / instructions of the role.
+  final List<AiAttachmentViewDto> images;
   final DateTime createdAt;
 
   Map<String, Object?> toJson() => _$AiWorkerRoleDtoToJson(this);

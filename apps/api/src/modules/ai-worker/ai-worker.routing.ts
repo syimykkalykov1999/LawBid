@@ -64,6 +64,8 @@ export function routeLane(
 // ------------------------------------------------------------- feedback
 
 export interface ReviewedRow {
+  /** The run item (its correction pictures are looked up by it). */
+  id?: string;
   decision: string | null;
   confidence: number | null;
   status: string;

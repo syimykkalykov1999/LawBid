@@ -138,7 +138,7 @@ export class StaffAiQaService {
     const cases = await this.pickCases(start, end, now, s);
     if (cases.length === 0) return { submitted: 0, reason: 'no cases' };
 
-    const model = modelForTier(s.numbers['staff.ai.model_tier']);
+    const model = modelForTier(s.numbers['staff.ai.model_tier1']);
     let remaining = await this.budget.remaining(now);
     const items: AiBatchItem[] = [];
     let noContext = 0;
