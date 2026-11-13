@@ -230,7 +230,12 @@ variable "alb_resource_label" {
 }
 variable "api_requests_per_task" {
   type    = number
-  default = 200
+  default = 3000
+  # 13.11 live scale test (owner row 61/75): with 200 one task at 15 req/s
+  # (933 per minute) ran at 8-13 % CPU, yet the policy asked for 17 tasks.
+  # 3000 a minute (50 req/s) is measured headroom at well under the CPU
+  # target; CPU and sockets still add tasks first when a request is heavy.
+  description = "ALB requests per minute one api task takes before the service adds a task (ALBRequestCountPerTarget)."
 }
 variable "api_sockets_per_task" {
   type        = number
@@ -970,7 +975,7 @@ resource "aws_appautoscaling_policy" "api_admin_cpu" {
   target_tracking_scaling_policy_configuration {
     target_value       = 70
     scale_in_cooldown  = 900
-    scale_out_cooldown = 60
+    scale_out_cooldown = 180 # 13.11 (KE 133): > metric lag + task start, else stale numbers add tasks
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
@@ -1095,7 +1100,7 @@ resource "aws_appautoscaling_policy" "admin_cpu" {
   target_tracking_scaling_policy_configuration {
     target_value       = 70
     scale_in_cooldown  = 900
-    scale_out_cooldown = 60
+    scale_out_cooldown = 180 # 13.11 (KE 133): > metric lag + task start, else stale numbers add tasks
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
@@ -1178,7 +1183,7 @@ resource "aws_appautoscaling_policy" "cpu" {
     # min_tasks with a scheduled action (the night_end_cron pattern above)
     # instead of letting the policy shrink the service before the peak.
     scale_in_cooldown  = 600
-    scale_out_cooldown = 60
+    scale_out_cooldown = 180 # 13.11 (KE 133): > metric lag + task start, else stale numbers add tasks
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
@@ -1212,7 +1217,7 @@ resource "aws_appautoscaling_policy" "api_requests" {
   target_tracking_scaling_policy_configuration {
     target_value       = var.api_requests_per_task
     scale_in_cooldown  = 600
-    scale_out_cooldown = 60
+    scale_out_cooldown = 180 # 13.11 (KE 133): > metric lag + task start, else stale numbers add tasks
     predefined_metric_specification {
       predefined_metric_type = "ALBRequestCountPerTarget"
       resource_label         = var.alb_resource_label
@@ -1237,7 +1242,7 @@ resource "aws_appautoscaling_policy" "api_sockets" {
   target_tracking_scaling_policy_configuration {
     target_value       = var.api_sockets_per_task
     scale_in_cooldown  = 600
-    scale_out_cooldown = 60
+    scale_out_cooldown = 180 # 13.11 (KE 133): > metric lag + task start, else stale numbers add tasks
     customized_metric_specification {
       metric_name = "OpenSockets"
       namespace   = "LawBid/Runtime"
@@ -1276,7 +1281,7 @@ resource "aws_appautoscaling_policy" "worker_queue" {
   target_tracking_scaling_policy_configuration {
     target_value       = var.worker_jobs_per_task
     scale_in_cooldown  = 600
-    scale_out_cooldown = 60
+    scale_out_cooldown = 180 # 13.11 (KE 133): > metric lag + task start, else stale numbers add tasks
     customized_metric_specification {
       metrics {
         id          = "waiting"
