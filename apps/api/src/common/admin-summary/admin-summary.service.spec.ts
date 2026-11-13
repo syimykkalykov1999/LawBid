@@ -119,6 +119,32 @@ describe('AdminSummaryService', () => {
       }
     });
 
+    it('a waiter fails with the holder instead of running the same failing count again', async () => {
+      jest.useFakeTimers();
+      try {
+        const redis = fakeRedis();
+        const holder = new AdminSummaryService(redis as never);
+        const waiter = new AdminSummaryService(redis as never);
+        let fail!: (e: Error) => void;
+        const slow = jest.fn(
+          () => new Promise<number>((_, rej) => (fail = rej)),
+        );
+        const other = jest.fn(() => Promise.resolve(-1));
+        const first = holder.get('k', slow, 60);
+        const firstDone = first.catch((e: Error) => e);
+        await jest.advanceTimersByTimeAsync(0);
+        const second = waiter.get('k', other, 60).catch((e: Error) => e);
+        await jest.advanceTimersByTimeAsync(30_000);
+        fail(new Error('canceling statement due to statement timeout'));
+        await jest.advanceTimersByTimeAsync(300);
+        expect(await firstDone).toBeInstanceOf(Error);
+        expect(await second).toBeInstanceOf(Error);
+        expect(other).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('a waiter counts by itself once the holder died (lock gone, nothing stored)', async () => {
       jest.useFakeTimers();
       try {

@@ -33,6 +33,9 @@ const LOCK_SECONDS = 120;
  * still alive (its lock), and computes by itself only when it is not. */
 const WAIT_MS = 4000;
 const WAIT_STEP_MS = 150;
+/** After a failed count, its waiters fail with it for this long instead of
+ * counting again one after another. */
+const FAIL_SECONDS = 15;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -263,6 +266,7 @@ export class AdminSummaryService {
     waitForOther: boolean,
   ): Promise<Summary<T>> {
     const lockKey = `${PREFIX}lock:${key}`;
+    const failKey = `${PREFIX}fail:${key}`;
     let locked: boolean;
     try {
       locked =
@@ -287,6 +291,11 @@ export class AdminSummaryService {
           const hit = await this.peek<T>(key);
           if (hit) return hit;
           if (waited >= WAIT_MS && !(await this.lockHeld(lockKey))) {
+            // The holder's count just failed (a timeout on a huge table):
+            // answer as it did instead of starting the same count again.
+            if (await this.lockHeld(failKey)) {
+              throw new Error(`admin summary ${key}: the running count failed`);
+            }
             locked = await this.takeLock(lockKey);
             if (locked) break;
           }
@@ -298,8 +307,18 @@ export class AdminSummaryService {
       }
     }
     try {
+      let data: T;
+      try {
+        data = await compute();
+      } catch (e) {
+        // Tells the waiters of this count that it failed (see above).
+        await this.redis
+          .set(failKey, '1', 'EX', FAIL_SECONDS)
+          .catch(() => undefined);
+        throw e;
+      }
       const summary: Summary<T> = {
-        data: await compute(),
+        data,
         computedAt: new Date().toISOString(),
       };
       // The copy this one replaces: announced only when the DATA differs
