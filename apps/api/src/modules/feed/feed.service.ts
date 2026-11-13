@@ -45,6 +45,12 @@ import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 
 export const recoCurrentKey = () => ck('reco', 'feed:reco:current');
 export const recoKey = (version: string) => ck('reco', `feed:reco:${version}`);
+/** Row 64 (10M load test 2026-11-12): post id → author id of one snapshot,
+ * written next to it by FeedRecoJob. A timeline entry that carries its
+ * author (Twitter "Timelines at Scale": tweet id + user id per entry) lets
+ * the feed drop followed / own / blocked authors without reading posts. */
+export const recoAuthorsKey = (version: string) =>
+  ck('reco', `feed:reco:${version}:authors`);
 const seenKey = (uid: string) => `feed:seen:${uid}`;
 const firstPageKey = (
   uid: string,
@@ -496,14 +502,29 @@ export class FeedService implements FeedProvider {
     only: Prisma.PostWhereInput,
     onPage: Set<string>,
   ): Promise<{ post: Post; userId: string; at: Date }[]> {
+    const reposters = authorIds.filter((id) => id !== viewer.sub);
+    if (reposters.length === 0) return [];
+    const window = {
+      user_id: { in: reposters },
+      created_at: {
+        ...(upper ? { lt: upper } : {}),
+        ...(lower ? { gt: lower } : {}),
+      },
+    };
+    // Row 64 (10M spike 2026-11-12): the read below joins posts, users and
+    // attorney_profiles; the database plans it on every call (force_custom_
+    // plan), 0.9 ms of planning for 0.01 ms of execution, and it nearly
+    // always finds nothing. One look at post_reposts (user_id, created_at)
+    // first: no repost in the window, nothing to read.
+    const any = await this.prisma.postRepost.findFirst({
+      where: window,
+      select: { id: true },
+    });
+    if (!any) return [];
     const blocked = await this.blockedAuthors(viewer);
     const rows = await this.prisma.postRepost.findMany({
       where: {
-        user_id: { in: authorIds.filter((id) => id !== viewer.sub) },
-        created_at: {
-          ...(upper ? { lt: upper } : {}),
-          ...(lower ? { gt: lower } : {}),
-        },
+        ...window,
         post: {
           AND: [
             VISIBLE_POST_WHERE,
@@ -561,9 +582,9 @@ export class FeedService implements FeedProvider {
     // were never shown to them.
     const depth = await this.num('feed.reco_scan_max', RECO_SCAN, 5000);
     const ids: string[] = [];
-    const pickedIds: string[] = [];
+    const picked: Post[] = [];
     const pickedIdx: number[] = [];
-    while (pickedIds.length < need && ids.length < depth) {
+    while (picked.length < need && ids.length < depth) {
       const from = offset + ids.length;
       const chunk = await this.redis.zrevrange(
         recoKey(version),
@@ -578,43 +599,47 @@ export class FeedService implements FeedProvider {
       const scores = await this.cache
         .zmscore(seenKey(viewer.sub), ...chunk)
         .catch(() => chunk.map(() => null));
-      const fresh = chunk.filter((_, i) => scores?.[i] == null);
+      const fresh = chunk.flatMap((id, i) =>
+        scores?.[i] == null ? [{ id, i }] : [],
+      );
       if (fresh.length === 0) continue;
-      // Load test round 2 (docs/perf/LOCAL_LOAD_TEST_2026-10-28.md): the
-      // filter needs only id + author; full rows are read below for the
-      // ≤ `need` posts actually picked, not for the whole chunk of 200
-      // (was the top query by database time and most of the feed's API CPU).
-      const rows = await this.prisma.post.findMany({
-        where: { ...VISIBLE_POST_WHERE, ...only, id: { in: fresh } },
-        select: { id: true, author_id: true },
+      // Row 64 (10M spike 2026-11-12): the chunk filter read id + author of
+      // every fresh id of the chunk (~200, joined with users and
+      // attorney_profiles for the visibility rule) to keep ≤ `need` of them
+      // — the top feed query by database time. The snapshot now carries
+      // each post's author, so excluded authors drop out here and only the
+      // next ≤ `need` candidates are read, full rows with the visibility
+      // rule in one query, in snapshot order, until `need` are found: the
+      // same posts, ranks and offsets as before.
+      const authors = await this.snapshotAuthors(
+        version,
+        fresh.map((f) => f.id),
+      );
+      const candidates = fresh.filter((f) => {
+        const a = authors.get(f.id);
+        return a !== undefined && !exclude.has(a);
       });
-      const authorOf = new Map(rows.map((p) => [p.id, p.author_id]));
-      chunk.forEach((id, i) => {
-        const author = authorOf.get(id);
-        if (
-          author !== undefined &&
-          !exclude.has(author) &&
-          pickedIds.length < need
-        ) {
-          pickedIds.push(id);
-          pickedIdx.push(base + i);
+      for (let c = 0; picked.length < need && c < candidates.length;) {
+        const batch = candidates.slice(c, c + need - picked.length);
+        c += batch.length;
+        const rows = await this.prisma.post.findMany({
+          where: {
+            ...VISIBLE_POST_WHERE,
+            ...only,
+            id: { in: batch.map((b) => b.id) },
+          },
+        });
+        const byId = new Map(rows.map((p) => [p.id, p]));
+        for (const b of batch) {
+          const p = byId.get(b.id);
+          if (p && !exclude.has(p.author_id)) {
+            picked.push(p);
+            pickedIdx.push(base + b.i);
+          }
         }
-      });
+      }
     }
     if (ids.length === 0) return { posts: [], next: () => offset, version };
-    const full = pickedIds.length
-      ? await this.prisma.post.findMany({ where: { id: { in: pickedIds } } })
-      : [];
-    const fullById = new Map(full.map((p) => [p.id, p]));
-    const picked: Post[] = [];
-    // A post hard-deleted between the two reads drops out with its rank.
-    for (let i = pickedIds.length - 1; i >= 0; i -= 1) {
-      if (!fullById.has(pickedIds[i])) pickedIdx.splice(i, 1);
-    }
-    for (const id of pickedIds) {
-      const p = fullById.get(id);
-      if (p) picked.push(p);
-    }
     return {
       posts: picked,
       version,
@@ -623,6 +648,34 @@ export class FeedService implements FeedProvider {
           ? offset + (picked.length === 0 ? ids.length : (pickedIdx[0] ?? 0))
           : offset + pickedIdx[used - 1] + 1,
     };
+  }
+
+  /** post id → author id for [postIds] of snapshot [version]: from the
+   * snapshot's author hash; ids it lacks (a snapshot written before the
+   * hash existed, or a Redis error) are read from posts (primary key, no
+   * joins). A post that no longer exists has no entry. */
+  private async snapshotAuthors(
+    version: string,
+    postIds: string[],
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const hint = await this.redis
+      .hmget(recoAuthorsKey(version), ...postIds)
+      .catch(() => postIds.map(() => null));
+    const missing: string[] = [];
+    postIds.forEach((id, i) => {
+      const a = hint?.[i];
+      if (a) out.set(id, a);
+      else missing.push(id);
+    });
+    if (missing.length > 0) {
+      const rows = await this.prisma.post.findMany({
+        where: { id: { in: missing } },
+        select: { id: true, author_id: true },
+      });
+      for (const r of rows) out.set(r.id, r.author_id);
+    }
+    return out;
   }
 
   /** Every other visible post, newest first, after [after]: not by a

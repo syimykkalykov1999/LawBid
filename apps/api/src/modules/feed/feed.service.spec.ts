@@ -1,10 +1,16 @@
-import { FeedService, recoCurrentKey, recoKey } from './feed.service';
+import {
+  FeedService,
+  recoAuthorsKey,
+  recoCurrentKey,
+  recoKey,
+} from './feed.service';
 
 /** Algo audit 2026-10-27 (CONTENT H-3, M-3, M-4) — FeedService over fakes. */
 function fakeRedis(seed: {
   snapshot?: string[];
   seen?: Set<string>;
   kv?: Record<string, string>;
+  authors?: Record<string, string>;
 }) {
   const kv = new Map<string, string>(Object.entries(seed.kv ?? {}));
   const snap = seed.snapshot ?? [];
@@ -36,6 +42,13 @@ function fakeRedis(seed: {
     zmscore: jest.fn((_k: string, ...ids: string[]) =>
       Promise.resolve(ids.map((id) => (seed.seen?.has(id) ? '1' : null))),
     ),
+    hmget: jest.fn((k: string, ...fields: string[]) =>
+      Promise.resolve(
+        fields.map((f) =>
+          k === recoAuthorsKey('v1') ? (seed.authors?.[f] ?? null) : null,
+        ),
+      ),
+    ),
     multi: jest.fn(() => multi),
   };
 }
@@ -60,7 +73,10 @@ function build(opts: {
     post: { findMany },
     follow: { findMany: jest.fn().mockResolvedValue([]) },
     userBlock: { findMany: jest.fn().mockResolvedValue([]) },
-    postRepost: { findMany: jest.fn().mockResolvedValue([]) },
+    postRepost: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
   };
   const presenter = {
     present: jest.fn((rows: { id: string }[]) =>
@@ -131,35 +147,131 @@ describe('FeedService recommendations depth (CONTENT H-3)', () => {
   });
 });
 
-describe('FeedService recommendation reads (load test round 2)', () => {
-  it('filters the chunk by id + author only and reads full rows for the picked posts', async () => {
-    const redis = fakeRedis({ snapshot: ids(1000), seen: new Set(ids(5)) });
+describe('FeedService recommendation reads (row 64, 10M spike)', () => {
+  /** Snapshot ids with authors, some posts hidden, some authors followed. */
+  function world(opts: {
+    n: number;
+    hash: boolean;
+    hidden?: Set<string>;
+    followed?: string[];
+    seen?: Set<string>;
+  }) {
+    const snapshot = ids(opts.n);
+    const authorOf = (id: string) => `a${Number(id.slice(1)) % 7}`;
+    const redis = fakeRedis({
+      snapshot,
+      seen: opts.seen,
+      authors: opts.hash
+        ? Object.fromEntries(snapshot.map((id) => [id, authorOf(id)]))
+        : undefined,
+    });
     const { svc, prisma } = build({ redis });
-    const page = await svc.page(viewer, undefined, 10);
-    expect(page.items.map((p) => p.id)).toEqual(ids(10, 5));
-    const calls = prisma.post.findMany.mock.calls.map(
-      (c) => c[0] as { where: { id?: { in: string[] } }; select?: unknown },
+    prisma.follow.findMany.mockResolvedValue(
+      (opts.followed ?? []).map((followee_id) => ({ followee_id })),
     );
-    const chunk = calls.find((c) => c.select);
-    expect(chunk?.select).toEqual({ id: true, author_id: true });
-    expect(chunk?.where.id?.in).toHaveLength(195);
-    const full = calls.filter((c) => !c.select && c.where.id?.in);
-    expect(full[0].where.id?.in).toEqual(ids(10, 5));
+    prisma.post.findMany.mockImplementation(
+      (args: {
+        where: { id?: { in: string[] }; status?: string; author_id?: unknown };
+        select?: unknown;
+      }) => {
+        if (!args.where.id?.in) return Promise.resolve([]);
+        return Promise.resolve(
+          args.where.id.in
+            .filter((id) => !(args.where.status && opts.hidden?.has(id)))
+            .map((id) => postOf(id, authorOf(id))),
+        );
+      },
+    );
+    /** The old rule: snapshot order, unseen, visible, author not followed. */
+    const expected = (need: number) =>
+      snapshot
+        .filter(
+          (id) =>
+            !opts.seen?.has(id) &&
+            !opts.hidden?.has(id) &&
+            !(opts.followed ?? []).includes(authorOf(id)),
+        )
+        .slice(0, need);
+    return { svc, prisma, redis, expected };
+  }
+
+  const calls = (prisma: ReturnType<typeof build>['prisma']) =>
+    prisma.post.findMany.mock.calls.map(
+      (c) =>
+        c[0] as {
+          where: { id?: { in: string[] }; status?: string };
+          select?: unknown;
+        },
+    );
+
+  it('with the author hash: no chunk-wide read, only the needed full rows', async () => {
+    const w = world({ n: 1000, hash: true, seen: new Set(ids(5)) });
+    const page = await w.svc.page(viewer, undefined, 10);
+    expect(page.items.map((p) => p.id)).toEqual(w.expected(10));
+    const reads = calls(w.prisma).filter((c) => c.where.id?.in);
+    expect(reads.every((c) => !c.select)).toBe(true);
+    expect(reads.every((c) => c.where.status === 'published')).toBe(true);
+    expect(reads.map((c) => c.where.id!.in.length)).toEqual([10]);
   });
 
-  it('a post gone between the two reads drops out with its snapshot rank', async () => {
-    const redis = fakeRedis({ snapshot: ids(1000) });
-    const { svc, prisma } = build({ redis });
-    prisma.post.findMany.mockImplementation(
-      (args: { where: { id?: { in: string[] } }; select?: unknown }) =>
-        Promise.resolve(
-          (args.where.id?.in ?? [])
-            .filter((id) => args.select || id !== 'p1')
-            .map((id) => postOf(id)),
+  it('followed authors are dropped by the hash, hidden posts by the read', async () => {
+    const w = world({
+      n: 1000,
+      hash: true,
+      followed: ['a1', 'a3'],
+      hidden: new Set(['p0', 'p2', 'p4', 'p13']),
+      seen: new Set(['p5', 'p6']),
+    });
+    const page = await w.svc.page(viewer, undefined, 10);
+    expect(page.items.map((p) => p.id)).toEqual(w.expected(10));
+    const reads = calls(w.prisma).filter((c) => c.where.id?.in);
+    // No followed author is ever read.
+    const read = reads.flatMap((c) => c.where.id!.in);
+    expect(
+      read.some((id) => ['a1', 'a3'].includes(`a${+id.slice(1) % 7}`)),
+    ).toBe(false);
+  });
+
+  it('a snapshot without the hash (written before it) gives the same page', async () => {
+    const opts = {
+      n: 1000,
+      followed: ['a2'],
+      hidden: new Set(['p1', 'p9']),
+      seen: new Set(['p3']),
+    };
+    const old = world({ ...opts, hash: false });
+    const now = world({ ...opts, hash: true });
+    const a = await old.svc.page(viewer, undefined, 10);
+    const b = await now.svc.page(viewer, undefined, 10);
+    expect(a.items.map((p) => p.id)).toEqual(old.expected(10));
+    expect(b.items.map((p) => p.id)).toEqual(a.items.map((p) => p.id));
+    expect(b.nextCursor).toEqual(a.nextCursor);
+    // Old snapshot: authors of the chunk by primary key, no visibility join.
+    const authorRead = calls(old.prisma).find((c) => c.select);
+    expect(authorRead?.select).toEqual({ id: true, author_id: true });
+    expect(authorRead?.where.status).toBeUndefined();
+  });
+
+  it('random worlds: same posts and next rank as the old rule', async () => {
+    let seed = 7;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+    for (let t = 0; t < 25; t += 1) {
+      const n = 50 + Math.floor(rnd() * 600);
+      const pick = (p: number) => new Set(ids(n).filter(() => rnd() < p));
+      const w = world({
+        n,
+        hash: rnd() < 0.7,
+        hidden: pick(0.1),
+        seen: pick(0.3),
+        followed: ['a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6'].filter(
+          () => rnd() < 0.3,
         ),
-    );
-    const first = await svc.page(viewer, undefined, 3);
-    expect(first.items.map((p) => p.id)).toEqual(['p0', 'p2']);
+      });
+      const limit = 5 + Math.floor(rnd() * 20);
+      const page = await w.svc.page(viewer, undefined, limit);
+      const want = w.expected(limit);
+      expect(page.items.map((p) => p.id).slice(0, want.length)).toEqual(want);
+    }
   });
 });
 
@@ -186,6 +298,7 @@ describe('FeedService cached first page (CONTENT M-3)', () => {
 describe('FeedService reposts per page (CONTENT M-4)', () => {
   const run = async (stored?: Record<string, number>) => {
     const { svc, prisma } = build({ redis: fakeRedis({}), stored });
+    prisma.postRepost.findFirst.mockResolvedValue({ id: 'r1' });
     await (
       svc as unknown as {
         repostsInWindow: (...a: unknown[]) => Promise<unknown>;
@@ -199,5 +312,29 @@ describe('FeedService reposts per page (CONTENT M-4)', () => {
   it('follows the admin value, clamped', async () => {
     expect((await run({ 'feed.reposts_per_page': 10 })).take).toBe(10);
     expect((await run({ 'feed.reposts_per_page': 5000 })).take).toBe(100);
+  });
+  it('no repost in the window: the joined read is skipped (row 64)', async () => {
+    const { svc, prisma } = build({ redis: fakeRedis({}) });
+    const out = await (
+      svc as unknown as {
+        repostsInWindow: (...a: unknown[]) => Promise<unknown[]>;
+      }
+    ).repostsInWindow(
+      viewer,
+      ['x', 'viewer'],
+      new Date(2),
+      new Date(1),
+      {},
+      new Set(),
+    );
+    expect(out).toEqual([]);
+    expect(prisma.postRepost.findMany).not.toHaveBeenCalled();
+    expect(prisma.postRepost.findFirst.mock.calls[0][0]).toEqual({
+      where: {
+        user_id: { in: ['x'] },
+        created_at: { lt: new Date(2), gt: new Date(1) },
+      },
+      select: { id: true },
+    });
   });
 });
