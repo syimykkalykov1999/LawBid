@@ -306,15 +306,17 @@ export class CommentsService {
   async like(userId: string, commentId: string): Promise<void> {
     const c = await this.prisma.comment.findFirst({
       where: { id: commentId, ...LIVE, post: VISIBLE_POST_WHERE },
-      select: { id: true, author_id: true, post_id: true },
+      select: { id: true, author_id: true, post_id: true, shard_id: true },
     });
     if (!c) throw commentNotFound();
     await assertNoBlock(this.prisma, userId, c.author_id);
     await this.limits.consume('like', userId);
-    const { count } = await this.prisma.commentLike.createMany({
-      data: [{ comment_id: commentId, user_id: userId }],
-      skipDuplicates: true,
-    });
+    // Row 63: one statement (see PostEngagementService.like): no BEGIN /
+    // COMMIT around it, no second read of the comment's shard_id.
+    const count = await this.prisma.$executeRaw`
+      INSERT INTO comment_likes (comment_id, user_id, shard_id)
+      VALUES (${commentId}::UUID, ${userId}::UUID, ${c.shard_id}::SMALLINT)
+      ON CONFLICT DO NOTHING`;
     if (count === 0) return;
     await this.counters.bump('comment', commentId, 'like_count', 1);
     if (c.author_id !== userId) {
@@ -322,6 +324,8 @@ export class CommentsService {
         type: 'comment_like',
         recipientId: c.author_id,
         payload: { postId: c.post_id, commentId, actorId: userId },
+        // assertNoBlock above already checked this pair.
+        actorBlockChecked: true,
       });
     }
   }
