@@ -325,15 +325,32 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
         name,
       );
       let steps = 0;
-      for (const statement of statements) {
-        try {
-          await demo.$executeRawUnsafe(statement);
-        } catch (e) {
-          if (!recovering || !ALREADY_EXISTS_CODES.has(pgErrorCode(e))) {
-            throw e;
+      if (recovering) {
+        // A half-applied replay skips «already exists» one statement at a
+        // time, so it cannot run inside one transaction (an error aborts it).
+        for (const statement of statements) {
+          try {
+            await demo.$executeRawUnsafe(statement);
+          } catch (e) {
+            if (!ALREADY_EXISTS_CODES.has(pgErrorCode(e))) throw e;
           }
+          steps += 1;
         }
-        steps += 1;
+      } else {
+        // 12.11 (KNOWN_ERRORS 124): one transaction per migration, exactly as
+        // `prisma migrate deploy` runs a migration.sql. Statement by statement
+        // in autocommit broke on 20261109090000_message_seq («LOCK TABLE can
+        // only be used in transaction blocks») and the demo world stopped at
+        // 171 migrations; `SET LOCAL lock_timeout` lines also only work here.
+        await demo.$transaction(
+          async (tx) => {
+            for (const statement of statements) {
+              await tx.$executeRawUnsafe(statement);
+              steps += 1;
+            }
+          },
+          { timeout: 10 * 60_000, maxWait: 60_000 },
+        );
       }
       await demo.$executeRawUnsafe(
         `UPDATE "_prisma_migrations" SET finished_at = now(), applied_steps_count = $2 WHERE id = $1`,
