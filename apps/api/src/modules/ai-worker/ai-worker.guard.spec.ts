@@ -132,6 +132,16 @@ describe('AI worker: structural guards', () => {
     expect(q).not.toMatch(/payment|ledger|message\.|supportMessage|file\./i);
   });
 
+  it('the support / complaint / registry sources only read, and never a private chat or a file', () => {
+    const q = src('ai-worker.sources.ts');
+    expect(q).not.toMatch(/\.(create|update|upsert|delete)(Many)?\(/);
+    expect(q).not.toMatch(
+      /payment|ledger|prisma\.(message|conversation|file)\b/i,
+    );
+    // A reported chat message is never resolved to its text.
+    expect(q).toMatch(/type === 'message' \|\| !this\.moderation/);
+  });
+
   it('the AI never acts on the queue item: the service writes only its own tables', () => {
     const s = src('ai-worker.service.ts');
     const writes = [

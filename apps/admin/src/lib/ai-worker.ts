@@ -22,6 +22,16 @@ export const DECISION_LABEL: Record<string, string> = {
   unclear: 'Неясно',
 };
 
+/** Owner 2026-11-12 (row 51): what a complaint proposal suggests. */
+export const ACTION_LABEL: Record<string, string> = {
+  none: 'ничего',
+  dismiss: 'отклонить жалобу',
+  hide: 'скрыть',
+  remove: 'удалить',
+  warn: 'предупредить автора',
+  suspend: 'заблокировать автора',
+};
+
 export const DECISION_TONE: Record<string, Tone> = {
   approve: 'success',
   reject: 'danger',

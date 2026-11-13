@@ -8,6 +8,10 @@ import 'package:json_annotation/json_annotation.dart';
 enum AiWorkerQueueKey {
   @JsonValue('attorney_verification')
   attorneyVerification('attorney_verification'),
+  @JsonValue('support_reply')
+  supportReply('support_reply'),
+  @JsonValue('complaint_triage')
+  complaintTriage('complaint_triage'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

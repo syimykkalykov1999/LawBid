@@ -20,6 +20,11 @@ function matches(row: Row, where: Row | undefined, db: MemAiDb): boolean {
       if (!run || !matches(run, cond, db)) return false;
       continue;
     }
+    if (k === 'role') {
+      const role = db.aiRoleRows.find((r) => r.id === row.role_id);
+      if (!role || !matches(role, cond, db)) return false;
+      continue;
+    }
     const v = row[k];
     if (cond !== null && typeof cond === 'object' && !(cond instanceof Date)) {
       if ('in' in cond && !cond.in.includes(v)) return false;
@@ -140,6 +145,8 @@ export class MemAiDb {
   aiRunItemRows: any[] = [];
   aiRole = table(this.aiRoleRows, this, () => ({
     archived_at: null,
+    enabled: true,
+    auto_send: false,
     model: 'claude-opus-5-5',
     output: 'verdict',
     confidence_min: 90,
@@ -178,6 +185,7 @@ export class MemAiDb {
       owner_note: null,
       reviewed_by: null,
       reviewed_at: null,
+      delivered_at: null,
     }),
     (r) => {
       const run = this.aiRunRows.find((x) => x.id === r.run_id);

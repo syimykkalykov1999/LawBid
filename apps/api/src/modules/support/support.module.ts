@@ -34,6 +34,8 @@ import { SupportService } from './support.service';
     SupportTeamService,
     SupportFilesService,
   ],
-  exports: [SupportDeskService, SupportTeamService],
+  // AdminSupportService: «ИИ-сотрудник» sends the owner-approved reply
+  // through the same path as the support page (owner 2026-11-12, row 51).
+  exports: [SupportDeskService, SupportTeamService, AdminSupportService],
 })
 export class SupportModule {}

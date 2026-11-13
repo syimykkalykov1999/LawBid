@@ -120,6 +120,8 @@ describe('AI retention', () => {
       'rejected',
       'failed',
       'skipped',
+      // Owner 2026-11-12 (row 51): a support reply the role sent itself.
+      'auto_sent',
     ]);
     for (const v of t.queries[0].values) {
       if (Array.isArray(v)) {

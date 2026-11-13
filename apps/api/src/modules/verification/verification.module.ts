@@ -132,6 +132,9 @@ import {
     VerificationProviderSelector,
     // Owner 2026-10-04: the monthly registry re-check job reads the states.
     StateRegistryService,
+    // Owner 2026-11-12 (row 50): «ИИ-сотрудник» asks the registries the
+    // same way a submission does.
+    AutoBarLookupProvider,
   ],
 })
 export class VerificationModule {}

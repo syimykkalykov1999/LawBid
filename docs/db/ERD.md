@@ -3874,6 +3874,8 @@ erDiagram
     String output
     Int confidence_min
     Int audit_pct
+    Boolean enabled
+    Boolean auto_send
     String created_by
     DateTime archived_at "nullable"
     DateTime created_at
@@ -3913,6 +3915,7 @@ erDiagram
     String owner_note "nullable"
     String reviewed_by "nullable"
     DateTime reviewed_at "nullable"
+    DateTime delivered_at "nullable"
     DateTime created_at
     DateTime updated_at
   }

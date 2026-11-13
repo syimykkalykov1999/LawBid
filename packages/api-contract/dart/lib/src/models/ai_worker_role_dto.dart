@@ -20,6 +20,8 @@ class AiWorkerRoleDto {
     required this.model,
     required this.confidenceMin,
     required this.auditPct,
+    required this.enabled,
+    required this.autoSend,
     required this.reviewed,
     required this.agreed,
     required this.agreementPct,
@@ -41,6 +43,12 @@ class AiWorkerRoleDto {
 
   /// % of confident proposals still audited.
   final num auditPct;
+
+  /// Owner 2026-11-12 (row 53): «Вкл / Выкл». Off = no run, no AI call, the cron skips it.
+  final bool enabled;
+
+  /// Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support replies; default off).
+  final bool autoSend;
 
   /// Proposals the owner decided.
   final num reviewed;
