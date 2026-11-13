@@ -42,6 +42,9 @@ export function installOutboundAgents(
   installed = true;
   setGlobalDispatcher(
     new Agent({
+      // undici 8 turned h2 on by default (nodejs/undici#4828); the global
+      // agent stays HTTP/1.1 as described above.
+      allowH2: false,
       keepAliveTimeout: KEEP_ALIVE_MS,
       keepAliveMaxTimeout: KEEP_ALIVE_MAX_MS,
     }),
