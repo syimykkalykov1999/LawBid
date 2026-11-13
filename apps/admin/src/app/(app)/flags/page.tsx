@@ -478,7 +478,7 @@ function FlagCard({
   const blocked = !f.enabled && f.paid && f.missingKeys.length > 0;
   return (
     <m.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: i * 0.04, ease: [0.16, 1, 0.3, 1] }}
     >

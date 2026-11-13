@@ -2,7 +2,10 @@
 
 import * as m from 'motion/react-m';
 
-/** Subtle entrance: fade + 10px rise, small stagger by index. */
+/**
+ * Card wrapper. Owner row 88 (2026-11-13): no entrance on navigation, the
+ * content is simply there (Telegram / Instagram / Linear swap a page in place).
+ */
 export function FadeIn({
   children,
   i = 0,
@@ -14,7 +17,7 @@ export function FadeIn({
 }) {
   return (
     <m.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: Math.min(i, 10) * 0.04, ease: [0.16, 1, 0.3, 1] }}
       className={className}
@@ -24,7 +27,10 @@ export function FadeIn({
   );
 }
 
-/** Row for list tables: fades in with a small stagger. */
+/**
+ * Row for list tables. Owner row 88: no entrance, so rows that VirtualRows
+ * mounts while scrolling no longer fade in again (the scroll flicker).
+ */
 export function MotionRow({
   children,
   i = 0,
@@ -45,7 +51,7 @@ export function MotionRow({
     <m.tr
       ref={ref}
       data-index={dataIndex}
-      initial={{ opacity: 0, y: 6 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(i, 12) * 0.03, ease: [0.16, 1, 0.3, 1] }}
       className={className}

@@ -82,9 +82,7 @@ describe('pgAdapterConfig (Prisma 6 URL → node-pg, Prisma 7)', () => {
   ])('TLS: %s', async (_name, query, ssl) => {
     expect(pgAdapterConfig(`${BASE}${query}`).pool.ssl).toEqual(ssl);
     // The plain-Node migrate scripts use the same rule (prisma/pg-client.mjs).
-    const { pgClientConfig } = (await import('../../prisma/pg-client.mjs')) as {
-      pgClientConfig: (u: string) => { ssl: unknown };
-    };
+    const { pgClientConfig } = await import('../../prisma/pg-client.mjs');
     expect(pgClientConfig(`${BASE}${query}`).ssl).toEqual(ssl);
   });
 
@@ -98,9 +96,7 @@ describe('pgAdapterConfig (Prisma 6 URL → node-pg, Prisma 7)', () => {
     const { pool } = pgAdapterConfig(url!);
     expect(pool.ssl).toEqual({ rejectUnauthorized: true, ca: `${pem}\n` });
     expect(new URL(pool.connectionString!).hostname).toBe('pooler.internal');
-    const { pgClientConfig } = (await import('../../prisma/pg-client.mjs')) as {
-      pgClientConfig: (u: string) => { ssl: unknown };
-    };
+    const { pgClientConfig } = await import('../../prisma/pg-client.mjs');
     expect(pgClientConfig(url!).ssl).toEqual(pool.ssl);
   });
 

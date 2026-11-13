@@ -365,6 +365,12 @@ describe('InfraChangeService', () => {
     };
     // 12.11: the first apply created the domain, then failed on Redis.
     const first = await fail('50', PLAN);
+    expect((await svc.recent()).find((x) => x.id === first)).toMatchObject({
+      status: 'failed',
+      settled: false,
+    });
+    // Its plan created the domain: unknown whether it stayed, not live yet.
+    expect((await svc.liveStates()).get('aws.opensearch')).toBeUndefined();
     // The next «Вкл»: the domain is there, the plan only touches Redis.
     const second = await fail('51', {
       add: 0,
@@ -381,7 +387,10 @@ describe('InfraChangeService', () => {
     const list = await svc.recent();
     const a = list.find((x) => x.id === first)!;
     const b = list.find((x) => x.id === second)!;
-    expect(a).toMatchObject({ status: 'failed', settled: false });
+    // Row 9: the second plan proves the domain is up, so «Авто» sees it on
+    // (and may switch it off later) and the first failure is settled too.
+    expect((await svc.liveStates()).get('aws.opensearch')).toBe('on');
+    expect(a).toMatchObject({ status: 'failed', settled: true });
     expect(b).toMatchObject({
       status: 'failed',
       settled: true,

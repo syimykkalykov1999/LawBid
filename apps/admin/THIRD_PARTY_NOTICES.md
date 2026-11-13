@@ -37,3 +37,22 @@ https://github.com/TanStack/virtual
 
 MIT License — Copyright (c) 2021-present Tanner Linsley. Same permission
 notice as above.
+
+## Calmer motion (owner row 88, 2026-11-13): code and numbers copied, no package added
+
+- **next-themes** — `disableAnimation` (the code behind `disableTransitionOnChange`),
+  copied into `src/lib/theme.tsx`. https://github.com/pacocoursey/next-themes
+  MIT License — Copyright (c) 2022 Paco Coursey.
+- **sonner** — swipe-to-dismiss threshold (45 px) and velocity (0.11 px/ms) and
+  the 16 px phone offset, in `src/components/ui/toast.tsx`. https://github.com/emilkowalski/sonner
+  MIT License — Copyright (c) 2023 Emil Kowalski.
+- **shadcn/ui** — sidebar collapse on one CSS clock (`transition-[width]
+  duration-200 ease-linear`), in `src/components/shell/app-shell.tsx`; Skeleton
+  = opacity pulse. https://github.com/shadcn-ui/ui
+  MIT License — Copyright (c) 2023 shadcn.
+- **Tailwind CSS** — the `animate-pulse` keyframes and timing (2 s,
+  cubic-bezier(0.4, 0, 0.6, 1), opacity 0.5), as `skeleton-pulse` in
+  `src/app/globals.css`. https://github.com/tailwindlabs/tailwindcss
+  MIT License — Copyright (c) Tailwind Labs, Inc.
+
+Same permission notice as above.
