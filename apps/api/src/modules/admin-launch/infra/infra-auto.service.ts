@@ -186,6 +186,10 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     const held: { want: AutoWant; reason: string }[] = [];
     if (due.length === 0) return { started: null, held };
 
+    // Rows 8 / 85 (13.11): a request left active by a cancelled run is
+    // timed out by sweep(), which only the admin pages and the workflow
+    // called; the automation counted it as «busy» until an admin looked.
+    await this.infra.sweep(now);
     const g = await this.infra.guards();
     const since = new Date(now.getTime() - 24 * 3600_000);
     const [activeCount, last24h] = await Promise.all([
@@ -541,21 +545,10 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  /** Items whose last finished change was an automatic switch-on. */
+  /** Items whose settled position is an automatic switch-on (rows 8 / 9:
+   * the same rule as the live state, InfraChangeService.autoOwned). */
   private async autoOwned(): Promise<Set<string>> {
-    const rows = await this.prisma.infraChangeRequest.findMany({
-      where: { status: 'done' },
-      orderBy: { finished_at: 'desc' },
-      distinct: ['item_id'],
-      select: { item_id: true, to_state: true, requested_by: true },
-    });
-    return new Set(
-      rows
-        .filter(
-          (r) => r.to_state === 'on' && r.requested_by === SYSTEM_ACTOR_ID,
-        )
-        .map((r) => r.item_id),
-    );
+    return this.infra.autoOwned();
   }
 
   private async readSeen(): Promise<Record<string, number>> {

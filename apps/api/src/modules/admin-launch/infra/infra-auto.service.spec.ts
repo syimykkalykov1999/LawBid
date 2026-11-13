@@ -47,6 +47,8 @@ function make(
       inQuietWindow: true,
     })),
     liveStates: jest.fn(async () => new Map()),
+    autoOwned: jest.fn(async () => new Set<string>()),
+    sweep: jest.fn(async () => undefined),
     create: jest.fn(async () => ({ id: 'req-1', status: 'requested' })),
   };
   const registry = {
