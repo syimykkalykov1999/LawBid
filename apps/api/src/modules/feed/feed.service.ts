@@ -69,6 +69,11 @@ const RECO_SCAN = 200;
 /** Followed authors considered for the stream. */
 const FOLLOWEES_MAX = 2000;
 
+/** VISIBLE_POST_WHERE split in its post half and its author half (derived,
+ * so the two can never drift from the shared rule). */
+const { author: AUTHOR_VISIBLE, ...POST_VISIBLE_WHERE } = VISIBLE_POST_WHERE;
+const AUTHOR_VISIBLE_WHERE = AUTHOR_VISIBLE as Prisma.UserWhereInput;
+
 function badCursor(): BadRequestException {
   return new BadRequestException({
     code: ErrorCode.VALIDATION_ERROR,
@@ -309,12 +314,19 @@ export class FeedService implements FeedProvider {
     // cursor.f later; cursor.f === null on a later page = exhausted.
     const streamOpen = authorIds.length > 0 && (first || cursor.f !== null);
     const after = first ? null : cursor.f;
-    const following = streamOpen
+    // Row 64 (10M spike 2026-11-12): VISIBLE_POST_WHERE joined users and
+    // attorney_profiles for EVERY post of every followed author before the
+    // top-N sort (15 follows: 450 posts, 4 110 buffers, 3.5 ms; grows with
+    // follows × posts). The author half of the rule depends only on the
+    // author, so it is checked once per followed author and the posts are
+    // read with the post half only (630 buffers, 1.1 ms): the same rows.
+    const shownAuthors = streamOpen ? await this.shownAuthors(authorIds) : [];
+    const following = shownAuthors.length
       ? await this.prisma.post.findMany({
           where: {
-            ...VISIBLE_POST_WHERE,
+            ...POST_VISIBLE_WHERE,
             ...only,
-            author_id: { in: authorIds },
+            author_id: { in: shownAuthors },
             ...(after
               ? {
                   OR: [
@@ -648,6 +660,16 @@ export class FeedService implements FeedProvider {
           ? offset + (picked.length === 0 ? ids.length : (pickedIdx[0] ?? 0))
           : offset + pickedIdx[used - 1] + 1,
     };
+  }
+
+  /** [authorIds] whose posts may be shown: the author half of
+   * VISIBLE_POST_WHERE (active; a client, or an attorney not suspended). */
+  private async shownAuthors(authorIds: string[]): Promise<string[]> {
+    const rows = await this.prisma.user.findMany({
+      where: { ...AUTHOR_VISIBLE_WHERE, id: { in: authorIds } },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
   }
 
   /** post id → author id for [postIds] of snapshot [version]: from the

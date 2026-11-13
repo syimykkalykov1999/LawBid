@@ -4,6 +4,7 @@ import {
   recoCurrentKey,
   recoKey,
 } from './feed.service';
+import { VISIBLE_POST_WHERE } from '../posts/post-presenter.service';
 
 /** Algo audit 2026-10-27 (CONTENT H-3, M-3, M-4) — FeedService over fakes. */
 function fakeRedis(seed: {
@@ -72,6 +73,15 @@ function build(opts: {
   const prisma = {
     post: { findMany },
     follow: { findMany: jest.fn().mockResolvedValue([]) },
+    user: {
+      findMany: jest.fn((args: { where: { id: { in: string[] } } }) =>
+        Promise.resolve(
+          args.where.id.in
+            .filter((id) => !id.startsWith('suspended'))
+            .map((id) => ({ id })),
+        ),
+      ),
+    },
     userBlock: { findMany: jest.fn().mockResolvedValue([]) },
     postRepost: {
       findMany: jest.fn().mockResolvedValue([]),
@@ -272,6 +282,45 @@ describe('FeedService recommendation reads (row 64, 10M spike)', () => {
       const want = w.expected(limit);
       expect(page.items.map((p) => p.id).slice(0, want.length)).toEqual(want);
     }
+  });
+});
+
+describe('FeedService followed stream (row 64)', () => {
+  it('checks the author rule once per followed author, posts without the join', async () => {
+    const { svc, prisma } = build({ redis: fakeRedis({}) });
+    prisma.follow.findMany.mockResolvedValue([
+      { followee_id: 'att-1' },
+      { followee_id: 'suspended-2' },
+    ]);
+    await svc.page(viewer, undefined, 10);
+    const userWhere = prisma.user.findMany.mock.calls[0][0].where as Record<
+      string,
+      unknown
+    >;
+    expect(userWhere).toEqual({
+      ...(VISIBLE_POST_WHERE.author as object),
+      id: { in: ['att-1', 'suspended-2'] },
+    });
+    const stream = prisma.post.findMany.mock.calls
+      .map((c) => c[0])
+      .find((c) => c.where.author_id);
+    expect(stream?.where.author_id).toEqual({ in: ['att-1'] });
+    expect(stream?.where.author).toBeUndefined();
+    expect(stream?.where).toMatchObject({
+      status: 'published',
+      deleted_at: null,
+      archived_at: null,
+    });
+  });
+
+  it('no shown author: no posts read for the stream', async () => {
+    const { svc, prisma } = build({ redis: fakeRedis({}) });
+    prisma.follow.findMany.mockResolvedValue([{ followee_id: 'suspended-1' }]);
+    await svc.page(viewer, undefined, 10);
+    const stream = prisma.post.findMany.mock.calls
+      .map((c) => c[0])
+      .find((c) => c.where.author_id);
+    expect(stream).toBeUndefined();
   });
 });
 
