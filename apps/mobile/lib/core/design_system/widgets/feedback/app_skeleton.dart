@@ -47,6 +47,10 @@ class _ShimmerClock extends ChangeNotifier implements TickerProvider {
   Ticker? _ticker;
   double value = 0;
 
+  /// What the painters repaint from. Listening to it never starts the
+  /// ticker (only a visible, moving block holds the clock itself).
+  final ChangeNotifier frames = ChangeNotifier();
+
   @override
   Ticker createTicker(TickerCallback onTick) => Ticker(onTick);
 
@@ -57,6 +61,7 @@ class _ShimmerClock extends ChangeNotifier implements TickerProvider {
       value = (elapsed.inMicroseconds % AppMotion.shimmer.inMicroseconds) /
           AppMotion.shimmer.inMicroseconds;
       notifyListeners();
+      frames.notifyListeners();
     })
       ..start();
   }
@@ -77,16 +82,17 @@ class _AppSkeletonState extends State<AppSkeleton> {
   void _sync({required bool want}) {
     if (want == _listening) return;
     _listening = want;
+    // Owner row 88 (2026-11-13): the block no longer rebuilds on every
+    // frame — its painter repaints from the clock — but it still holds the
+    // clock only while it is visible and motion is allowed.
     if (want) {
-      _ShimmerClock.instance.addListener(_tick);
+      _ShimmerClock.instance.addListener(_noop);
     } else {
-      _ShimmerClock.instance.removeListener(_tick);
+      _ShimmerClock.instance.removeListener(_noop);
     }
   }
 
-  void _tick() {
-    if (mounted) setState(() {});
-  }
+  static void _noop() {}
 
   @override
   void didChangeDependencies() {
@@ -134,30 +140,78 @@ class _AppSkeletonState extends State<AppSkeleton> {
       );
     }
 
-    // Highlight travels from fully off the left edge to fully off the right
-    // edge each cycle.
-    final shift = _ShimmerClock.instance.value * 3 - 1.5;
+    // Owner row 88 (2026-11-13), Flutter cookbook "Create a shimmer
+    // loading effect" (docs.flutter.dev, BSD-3): ONE gradient laid over the
+    // whole screen and shown through every block, so the band sweeps the
+    // screen in step instead of each block having its own; the band is
+    // the same shape as before (a block-wide gradient, now screen-wide).
+    final view = View.of(context);
     return ExcludeSemantics(
       child: RepaintBoundary(
-        child: Container(
-          width: widget.width,
-          height: widget.height,
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            gradient: LinearGradient(
-              begin: Alignment(shift - 1, 0),
-              end: Alignment(shift + 1, 0),
-              colors: [
-                colors.skeletonBase,
-                colors.skeletonHighlight,
-                colors.skeletonBase,
-              ],
-            ),
+        child: CustomPaint(
+          painter: _ShimmerPainter(
+            box: () => context.findRenderObject() as RenderBox?,
+            screen: view.physicalSize / view.devicePixelRatio,
+            radius: radius,
+            base: colors.skeletonBase,
+            highlight: colors.skeletonHighlight,
           ),
+          // The same box as before (a child-less Container: fills a given
+          // width when none is set), now without its own gradient.
+          // ignore: sized_box_for_whitespace
+          child: Container(width: widget.width, height: widget.height),
         ),
       ),
     );
   }
+}
+
+class _ShimmerPainter extends CustomPainter {
+  _ShimmerPainter({
+    required this.box,
+    required this.screen,
+    required this.radius,
+    required this.base,
+    required this.highlight,
+  }) : super(repaint: _ShimmerClock.instance.frames);
+
+  final RenderBox? Function() box;
+  final Size screen;
+  final BorderRadius radius;
+  final Color base;
+  final Color highlight;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final render = box();
+    var at = render != null && render.attached && render.hasSize
+        ? render.localToGlobal(Offset.zero)
+        : Offset.zero;
+    // Under a transform that cannot be inverted (scaled to nothing while
+    // a row collapses) there is no position: the band stays on the block.
+    if (!at.isFinite) at = Offset.zero;
+    // Highlight travels from fully off the left edge to fully off the right
+    // edge each cycle.
+    final shift = _ShimmerClock.instance.value * 3 - 1.5;
+    final shader = LinearGradient(
+      begin: Alignment(shift - 1, 0),
+      end: Alignment(shift + 1, 0),
+      colors: [base, highlight, base],
+    ).createShader(
+      Rect.fromLTWH(-at.dx, -at.dy, screen.width, screen.height),
+    );
+    canvas.drawRRect(
+      radius.toRRect(Offset.zero & size),
+      Paint()..shader = shader,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ShimmerPainter old) =>
+      old.screen != screen ||
+      old.radius != radius ||
+      old.base != base ||
+      old.highlight != highlight;
 }
 
 /// Skeleton shaped like a list card (medallion + two text lines), used by
