@@ -523,6 +523,12 @@ export class EconomyService {
       const pressure = await this.checkPressure(now).catch((e: unknown) =>
         this.fail('pressure', e),
       );
+      // 13.11 (KNOWN_ERRORS 135): the owner's three-state controls (Spot
+      // fallback, endpoints) are commands, not limits — they must reach the
+      // Lambdas with the guard off too. Before, a switched-off tick returned
+      // here and «держать на обычных серверах» never arrived (S3 object
+      // stale since 12:50 while economy_guard was off since 09.11).
+      await this.publishScaleControls();
       return {
         skipped: 'flag economy_guard is off',
         lifted,

@@ -558,6 +558,19 @@ describe('EconomyService.tick', () => {
     expect(t.aws.setOtherCeilings).toHaveBeenCalledTimes(1);
   });
 
+  it('13.11 (KE 135): switched off, the owner controls still reach the Lambdas (ops/scale-controls.json)', async () => {
+    const t = setup({ awsActual: 50, awsForecast: 100 });
+    (t.svc as unknown as { flags: { isEnabled: jest.Mock } }).flags.isEnabled =
+      jest.fn(async () => false);
+    await t.svc.tick(NOW);
+    expect(t.storage.put).toHaveBeenCalledWith(
+      expect.anything(),
+      'ops/scale-controls.json',
+      expect.anything(),
+      'application/json',
+    );
+  });
+
   it('row 67: no upper bound — the owner number above the Terraform start ceiling is used as is', async () => {
     const t = setup({
       awsActual: 50,
