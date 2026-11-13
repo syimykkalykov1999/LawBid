@@ -1359,13 +1359,17 @@ export class ChatService {
         async (tx) => {
           // Serializes with the file-04 transactions that close the chat or
           // unlock contacts.
+          // Row 69 (KE 123): shard_id is read here and given to the message
+          // insert, so the shard extension does not look the conversation up
+          // again (it would be a second query on this transaction).
           const [locked] = await tx.$queryRaw<
             {
               status: string;
               contacts_unlocked: boolean;
               disappear_after_s: number | null;
+              shard_id: number;
             }[]
-          >`SELECT status, contacts_unlocked, disappear_after_s FROM conversations
+          >`SELECT status, contacts_unlocked, disappear_after_s, shard_id FROM conversations
             WHERE id = ${id}::UUID FOR UPDATE`;
           if (!locked || locked.status === 'closed') throw closed();
           if (attachment && !locked.contacts_unlocked) {
@@ -1395,6 +1399,7 @@ export class ChatService {
             data: {
               id: messageId,
               conversation_id: id,
+              shard_id: locked.shard_id,
               sender_id: user.sub,
               sent_by_membership_id: user.assistant?.membershipId ?? null,
               sent_by_name: user.assistant?.name.slice(0, 80) ?? null,

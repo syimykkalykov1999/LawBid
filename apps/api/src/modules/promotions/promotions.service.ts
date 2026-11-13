@@ -608,7 +608,8 @@ export class PromotionsService {
         // boost behaves like a free one (no checkout) — all or nothing.
         let starsCharged = 0;
         if (dto.payWith === 'stars' && q.totalCents > 0) {
-          starsCharged = (await this.stars?.starsForCents(q.totalCents)) ?? 0;
+          starsCharged =
+            (await this.stars?.starsForCents(q.totalCents, tx)) ?? 0;
           if (starsCharged <= 0) {
             throw new ForbiddenException({
               code: ErrorCode.FEATURE_DISABLED,

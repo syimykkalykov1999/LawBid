@@ -6,7 +6,12 @@ import {
   shardOf,
   timestampOf,
 } from './shard-id';
-import { shardOperationHandler } from './shard.extension';
+import {
+  shardOperationHandler,
+  txAwareLookup,
+  txParentShardLookup,
+  withTxShardLookup,
+} from './shard.extension';
 import { shardStats } from './shard-stats';
 
 type Args = Record<string, any>;
@@ -310,5 +315,102 @@ describe('shard id v4 share counter (DB-ops S5-12)', () => {
       v4ByModel: { Message: 2 },
     });
     expect(shardStats.drainIds()).toBeNull();
+  });
+});
+
+describe('shard extension inside an interactive transaction (row 69, KE 123)', () => {
+  it('a legacy-parent create looks the parent up on the transaction, not the raw client', async () => {
+    const root = jest.fn(() => Promise.resolve(99));
+    const inTx = jest.fn(() => Promise.resolve(42));
+    const handler = shardOperationHandler(txAwareLookup(root), () => true);
+    const caseId = randomUUID();
+    const sent: Args[] = [];
+    const query = jest.fn((a: Args) => {
+      sent.push(a);
+      return Promise.resolve('ok');
+    });
+    await withTxShardLookup(inTx, () =>
+      handler({
+        model: 'CaseJournal',
+        operation: 'create',
+        args: { data: { case_id: caseId } },
+        query: query as never,
+      }),
+    );
+    expect(inTx).toHaveBeenCalledWith('Case', caseId);
+    expect(root).not.toHaveBeenCalled();
+    expect(sent[0].data.shard_id).toBe(42);
+  });
+
+  it('createMany: every row is looked up on the transaction', async () => {
+    const root = jest.fn(() => Promise.resolve(1));
+    const inTx = jest.fn(() => Promise.resolve(5));
+    const handler = shardOperationHandler(txAwareLookup(root), () => true);
+    const caseId = randomUUID();
+    const sent: Args[] = [];
+    const query = jest.fn((a: Args) => {
+      sent.push(a);
+      return Promise.resolve('ok');
+    });
+    await withTxShardLookup(inTx, () =>
+      handler({
+        model: 'CasePhoto',
+        operation: 'createMany',
+        args: { data: [{ case_id: caseId }, { case_id: caseId }] },
+        query: query as never,
+      }),
+    );
+    expect(inTx).toHaveBeenCalledTimes(2);
+    expect(root).not.toHaveBeenCalled();
+    const rows = sent[0].data as Args[];
+    expect(rows.map((d) => d.shard_id as number)).toEqual([5, 5]);
+  });
+
+  it('outside a transaction, and after its callback returned, the raw lookup is used', async () => {
+    const root = jest.fn(() => Promise.resolve(7));
+    const inTx = jest.fn(() => Promise.resolve(8));
+    const lookup = txAwareLookup(root);
+    expect(await lookup('Case', 'a')).toBe(7);
+    let later: Promise<number | null> = Promise.resolve(null);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    await withTxShardLookup(inTx, () => {
+      // fire-and-forget work that outlives the transaction
+      later = gate.then(() => lookup('Case', 'b'));
+    });
+    release();
+    expect(await later).toBe(7);
+    expect(inTx).not.toHaveBeenCalled();
+    expect(root).toHaveBeenCalledTimes(2);
+  });
+
+  it('a failing transaction lookup (transaction already closed) falls back to the raw one', async () => {
+    const root = jest.fn(() => Promise.resolve(3));
+    const lookup = txAwareLookup(root);
+    const out = await withTxShardLookup(
+      () => Promise.reject(new Error('Transaction already closed')),
+      () => lookup('Case', 'x'),
+    );
+    expect(out).toBe(3);
+  });
+
+  it('txParentShardLookup reads shard_id through the tx delegate, soft-deleted rows included', async () => {
+    const findCase = jest.fn(() => Promise.resolve({ shard_id: 11 }));
+    const findConv = jest.fn(() => Promise.resolve(null));
+    const lookup = txParentShardLookup({
+      case: { findFirst: findCase },
+      conversation: { findFirst: findConv },
+    });
+    expect(await lookup('Case', 'c1')).toBe(11);
+    expect(findCase).toHaveBeenCalledWith({
+      where: { id: 'c1', deleted_at: {} },
+      select: { shard_id: true },
+    });
+    // Conversation has no deleted_at column: a plain id filter.
+    expect(await lookup('Conversation', 'v1')).toBeNull();
+    expect(findConv).toHaveBeenCalledWith({
+      where: { id: 'v1' },
+      select: { shard_id: true },
+    });
   });
 });

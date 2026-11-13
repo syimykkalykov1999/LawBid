@@ -203,34 +203,38 @@ export class ConsultationsService {
     }
   }
 
+  /** [tx]: the caller's transaction (row 69, KE 123). Inside one, these six
+   * reads took up to six more pool connections while it held its own. */
   private async settingsOf(
     attorneyId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<ConsultationSettingsDto> {
+    const db = tx ?? this.prisma;
     const [row, windows, timeOff, user, profile, subscribed] =
       await Promise.all([
-        this.prisma.consultationSettings.findUnique({
+        db.consultationSettings.findUnique({
           where: { attorney_id: attorneyId },
         }),
-        this.prisma.consultationWindow.findMany({
+        db.consultationWindow.findMany({
           where: { attorney_id: attorneyId },
           orderBy: [{ weekday: 'asc' }, { start_minute: 'asc' }],
         }),
-        this.prisma.consultationTimeOff.findMany({
+        db.consultationTimeOff.findMany({
           where: {
             attorney_id: attorneyId,
             ends_on: { gte: new Date(Date.now() - DAY_MS) },
           },
           orderBy: { starts_on: 'asc' },
         }),
-        this.prisma.user.findUnique({
+        db.user.findUnique({
           where: { id: attorneyId },
           select: { timezone: true },
         }),
-        this.prisma.attorneyProfile.findUnique({
+        db.attorneyProfile.findUnique({
           where: { user_id: attorneyId },
           select: { verification_status: true },
         }),
-        this.subscriptions.isActive(attorneyId),
+        this.subscriptions.isActive(attorneyId, tx),
       ]);
     const timezone = user?.timezone ?? null;
     const enabled = row?.enabled ?? false;
@@ -405,7 +409,10 @@ export class ConsultationsService {
     attorneyId: string,
     db: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<BookableAttorney> {
-    const s = await this.settingsOf(attorneyId);
+    const s = await this.settingsOf(
+      attorneyId,
+      db === this.prisma ? undefined : db,
+    );
     const user = await db.user.findFirst({
       where: { id: attorneyId, role: 'attorney', status: 'active' },
       select: { id: true },

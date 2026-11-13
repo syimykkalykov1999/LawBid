@@ -253,6 +253,14 @@ export class SubscriptionSyncService {
     let statusChanged = false;
     let previousStatus: string | null = null;
     let foreignOf: string | null = null;
+    // Row 69 (KE 123): the seat price ids (plan prices + Stripe keys) are
+    // read before the transaction; inside it they took a second pool
+    // connection (and on a cold key cache a second transaction) while it
+    // held its own.
+    const seatPriceIds =
+      remote.items && this.pricing
+        ? new Set(await this.pricing.allSeatPriceIds())
+        : null;
     const row = await withTxRetry(this.prisma, async (tx) => {
       foreignOf = null;
       const local =
@@ -295,7 +303,7 @@ export class SubscriptionSyncService {
           ? (local.grace_ends_at ??
             new Date(Date.now() + graceDays * 86_400_000))
           : null;
-      const seats = await this.seatSync(tx, local, remote);
+      const seats = await this.seatSync(tx, local, remote, seatPriceIds);
       const updated = await tx.subscription.update({
         where: { id: local.id },
         data: {
@@ -643,9 +651,9 @@ export class SubscriptionSyncService {
     tx: Prisma.TransactionClient,
     local: Subscription,
     remote: ProviderSubscription,
+    ids: ReadonlySet<string> | null,
   ): Promise<Partial<Prisma.SubscriptionUpdateInput>> {
-    if (!remote.items || !this.pricing || local.plan === 'yearly') return {};
-    const ids = new Set(await this.pricing.allSeatPriceIds());
+    if (!remote.items || !ids || local.plan === 'yearly') return {};
     const items = remote.items.filter((i) => ids.has(i.priceId));
     const scheduled = await tx.assistantSeatChange.findFirst({
       where: { user_id: local.user_id, status: 'scheduled' },
