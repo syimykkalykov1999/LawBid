@@ -124,6 +124,15 @@ class GuardTests(unittest.TestCase):
     def go(self, i, g=d.Guards()):
         return d.decide(CFG, "tick", i, g, d.State(cls=i.cls), replace(calm(), cpu=(90.0,) * 4), NOW)
 
+    def test_night_shrinks_without_a_standby(self):
+        # 13.11 row 66: the standby was removed; the night may still shrink,
+        # the day tick (growth) still needs it.
+        alone = inst(auto_failover=False, replicas=0)
+        night = d.decide(CFG, "night", alone, d.Guards(), d.State(), quiet(), NOW)
+        self.assertNotEqual(night.reason, "no_failover")
+        tick = d.decide(CFG, "tick", alone, d.Guards(), d.State(), calm(), NOW)
+        self.assertEqual(tick.reason, "no_failover")
+
     def test_each_guard_blocks(self):
         cases = [
             (inst(status="modifying"), d.Guards(), "not_available"),
