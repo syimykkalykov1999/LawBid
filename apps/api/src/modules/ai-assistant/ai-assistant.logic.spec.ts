@@ -17,15 +17,7 @@ describe('AI assistant logic (09.11.2026)', () => {
   it('runs only when switched on, connected and under the money ceiling', () => {
     expect(aiGate(on)).toEqual({ allowed: true, reason: null, leftUsd: 26 });
     expect(aiGate({ ...on, mode: 'off' }).reason).toBe('off');
-    // Owner rule 5c: Авто acts by itself (same gate as Вкл), unknown = off
-    expect(aiGate({ ...on, mode: 'auto' })).toEqual({
-      allowed: true,
-      reason: null,
-      leftUsd: 26,
-    });
-    expect(aiGate({ ...on, mode: 'Auto ' }).allowed).toBe(true);
     expect(aiGate({ ...on, mode: 'aut' }).reason).toBe('off');
-    expect(aiGate({ ...on, mode: 'auto', monthUsd: 31 }).reason).toBe('budget');
     expect(aiGate({ ...on, connected: false }).reason).toBe('not_connected');
     expect(aiGate({ ...on, monthUsd: 30 })).toEqual({
       allowed: false,
@@ -33,6 +25,30 @@ describe('AI assistant logic (09.11.2026)', () => {
       leftUsd: 0,
     });
     expect(aiGate({ ...on, maxUsd: 0 }).reason).toBe('budget');
+  });
+
+  it('owner 12.11: Выкл nothing, Авто the scheduled look only, Вкл also the owner tasks', () => {
+    const sched = { ...on, kind: 'schedule' as const };
+    const task = { ...on, kind: 'task' as const };
+    // Выкл: neither
+    expect(aiGate({ ...sched, mode: 'off' }).allowed).toBe(false);
+    expect(aiGate({ ...task, mode: 'off' }).reason).toBe('off');
+    // Авто: the scheduled look runs, a task waits for Вкл
+    expect(aiGate({ ...sched, mode: 'Auto ' })).toEqual({
+      allowed: true,
+      reason: null,
+      leftUsd: 26,
+    });
+    expect(aiGate({ ...task, mode: 'auto' }).reason).toBe('tasks_need_on');
+    // a caller that does not say its kind counts as a task
+    expect(aiGate({ ...on, mode: 'auto' }).reason).toBe('tasks_need_on');
+    // Вкл: both
+    expect(aiGate(sched).allowed).toBe(true);
+    expect(aiGate(task).allowed).toBe(true);
+    // the ceiling holds in every mode
+    expect(aiGate({ ...sched, mode: 'auto', monthUsd: 31 }).reason).toBe(
+      'budget',
+    );
   });
 
   it('the month key and a safe cost', () => {

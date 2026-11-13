@@ -5,6 +5,8 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Param,
+  ParseIntPipe,
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -20,12 +22,37 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
+import { AiAttachmentError } from '../ai-attachments/ai-attachments.logic';
 import {
   AiAssistantStatusDto,
+  AiPullClosedDto,
+  AiPullListDto,
+  AiPullMergedDto,
   AiTaskCreatedDto,
+  ApproveAiPullDto,
   CreateAiTaskDto,
+  RejectAiPullDto,
 } from './ai-assistant.dto';
-import { AiAssistantError, AiAssistantService } from './ai-assistant.service';
+import {
+  AiAssistantError,
+  AiAssistantService,
+  AiPullError,
+} from './ai-assistant.service';
+
+/** AiPullError → the API error envelope (code + the owner's words). */
+function pullHttp(e: unknown): never {
+  if (!(e instanceof AiPullError)) throw e;
+  if (e.reason === 'not_found') {
+    throw new HttpException(
+      { code: E.NOT_FOUND, message: e.message },
+      HttpStatus.NOT_FOUND,
+    );
+  }
+  throw new HttpException(
+    { code: E.FEATURE_DISABLED, message: e.message },
+    HttpStatus.CONFLICT,
+  );
+}
 
 /**
  * 09.11.2026: Система → «Задача для ИИ». The super admin writes a task, it
@@ -55,7 +82,11 @@ export class AdminAiAssistantController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'AI assistant: open a task (GitHub issue)' })
   @ApiEnvelopeResponse(AiTaskCreatedDto)
-  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 409: [E.FEATURE_DISABLED] })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.FEATURE_DISABLED],
+  })
   async createAiTask(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: CreateAiTaskDto,
@@ -64,6 +95,12 @@ export class AdminAiAssistantController {
     try {
       return await this.ai.createTask({ id: admin.id, ip: admin.ip }, dto);
     } catch (e) {
+      if (e instanceof AiAttachmentError) {
+        throw new HttpException(
+          { code: E.VALIDATION_ERROR, message: e.message },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
       if (e instanceof AiAssistantError) {
         throw new HttpException(
           { code: E.FEATURE_DISABLED, message: e.message },
@@ -71,6 +108,72 @@ export class AdminAiAssistantController {
         );
       }
       throw e;
+    }
+  }
+
+  // flag: none super-admin only; merging always needs the owner's 2FA
+  @Get('pulls')
+  @ApiOperation({
+    summary: 'AI assistant: its open PRs (ai/… branches), CI and cost',
+  })
+  @ApiEnvelopeResponse(AiPullListDto)
+  async listAiPulls(): Promise<AiPullListDto> {
+    return this.ai.pulls();
+  }
+
+  /**
+   * 12.11.2026 «Разрешить»: a fresh 2FA code, then the service re-checks
+   * everything on GitHub (CI green, path guard, the sha the owner saw, one
+   * merge at a time) and squash-merges pinned to that sha.
+   */
+  // flag: none super-admin only; merging always needs the owner's 2FA
+  @Post('pulls/:n/approve')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'AI assistant: merge its PR (needs a fresh 2FA code)',
+  })
+  @ApiEnvelopeResponse(AiPullMergedDto)
+  @ApiErrors({
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+    409: [E.FEATURE_DISABLED],
+  })
+  async approveAiPull(
+    @CurrentAdmin() admin: AdminActor,
+    @Param('n', ParseIntPipe) n: number,
+    @Body() dto: ApproveAiPullDto,
+  ): Promise<AiPullMergedDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    try {
+      return await this.ai.approvePull(
+        { id: admin.id, ip: admin.ip },
+        n,
+        dto.headSha,
+      );
+    } catch (e) {
+      pullHttp(e);
+    }
+  }
+
+  // flag: none super-admin only
+  @Post('pulls/:n/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'AI assistant: close its PR with a comment' })
+  @ApiEnvelopeResponse(AiPullClosedDto)
+  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.FEATURE_DISABLED] })
+  async rejectAiPull(
+    @CurrentAdmin() admin: AdminActor,
+    @Param('n', ParseIntPipe) n: number,
+    @Body() dto: RejectAiPullDto,
+  ): Promise<AiPullClosedDto> {
+    try {
+      return await this.ai.rejectPull(
+        { id: admin.id, ip: admin.ip },
+        n,
+        dto.reason,
+      );
+    } catch (e) {
+      pullHttp(e);
     }
   }
 }

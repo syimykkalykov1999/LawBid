@@ -89,7 +89,7 @@ type JournalReader = Pick<Prisma.TransactionClient, 'caseJournal'>;
  * edit, deletion or reordering is detectable by verifyChain().
  *
  * Per-case serialization (safe on PostgreSQL): append() first takes
- * `SELECT ... FOR UPDATE` on the case's `cases` row — the journal row
+ * `SELECT ... FOR NO KEY UPDATE` on the case's `cases` row — the journal row
  * itself can't be locked (lawbid_app has no UPDATE on case_journal, and
  * the first row doesn't exist yet) — so two transactions appending to the
  * same case run one after the other and each sees the other's tail. Under
@@ -109,8 +109,13 @@ export class CaseJournalService {
     tx: Prisma.TransactionClient,
     input: JournalAppendInput,
   ): Promise<CaseJournal> {
+    // 12.11 (KNOWN_ERRORS 121): NO KEY UPDATE, not UPDATE. A bid inserted in
+    // the same transaction already holds the FK's KEY SHARE lock on this case
+    // row; FOR UPDATE conflicts with another bid's KEY SHARE and two bids on
+    // one case deadlocked. NO KEY UPDATE still lets one journal writer per
+    // case at a time (it conflicts with itself) and never with KEY SHARE.
     const owner = await tx.$queryRaw<{ client_id: string }[]>`
-      SELECT client_id FROM cases WHERE id = ${input.caseId}::UUID FOR UPDATE`;
+      SELECT client_id FROM cases WHERE id = ${input.caseId}::UUID FOR NO KEY UPDATE`;
     if (owner.length === 0) throw caseNotFound();
     if (owner[0].client_id !== input.clientId) {
       throw new Error('case_journal: clientId does not own the case');

@@ -80583,6 +80583,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
             "content": {
@@ -80652,6 +80662,1666 @@
         "summary": "AI assistant: open a task (GitHub issue)",
         "tags": [
           "admin-ai-assistant"
+        ]
+      }
+    },
+    "/admin/ai-assistant/pulls": {
+      "get": {
+        "operationId": "listAiPulls",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiPullListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI assistant: its open PRs (ai/… branches), CI and cost",
+        "tags": [
+          "admin-ai-assistant"
+        ]
+      }
+    },
+    "/admin/ai-assistant/pulls/{n}/approve": {
+      "post": {
+        "operationId": "approveAiPull",
+        "parameters": [
+          {
+            "name": "n",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveAiPullDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiPullMergedEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI assistant: merge its PR (needs a fresh 2FA code)",
+        "tags": [
+          "admin-ai-assistant"
+        ]
+      }
+    },
+    "/admin/ai-assistant/pulls/{n}/reject": {
+      "post": {
+        "operationId": "rejectAiPull",
+        "parameters": [
+          {
+            "name": "n",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectAiPullDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiPullClosedEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI assistant: close its PR with a comment",
+        "tags": [
+          "admin-ai-assistant"
+        ]
+      }
+    },
+    "/admin/ai-worker": {
+      "get": {
+        "operationId": "getAiWorker",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiWorkerStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI worker: roles, runs, money, proposals",
+        "tags": [
+          "admin-ai-worker"
+        ]
+      }
+    },
+    "/admin/ai-worker/items": {
+      "get": {
+        "operationId": "getAiWorkerItems",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AiWorkerItemStatus"
+            }
+          },
+          {
+            "name": "lane",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AiWorkerLane"
+            }
+          },
+          {
+            "name": "runId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiWorkerItemsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI worker: the review queue (proposals)",
+        "tags": [
+          "admin-ai-worker"
+        ]
+      }
+    },
+    "/admin/ai-worker/roles": {
+      "post": {
+        "operationId": "createAiRole",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAiRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiWorkerIdEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI worker: write a role once",
+        "tags": [
+          "admin-ai-worker"
+        ]
+      }
+    },
+    "/admin/ai-worker/roles/{id}": {
+      "patch": {
+        "operationId": "updateAiRole",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAiRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiWorkerIdEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI worker: change a role",
+        "tags": [
+          "admin-ai-worker"
+        ]
+      }
+    },
+    "/admin/ai-worker/roles/{id}/archive": {
+      "post": {
+        "operationId": "archiveAiRole",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiWorkerIdEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI worker: «Удалить» a role (soft delete; its runs stop, history stays until the retention cleanup)",
+        "tags": [
+          "admin-ai-worker"
+        ]
+      }
+    },
+    "/admin/ai-worker/roles/{id}/runs": {
+      "post": {
+        "operationId": "startAiRun",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartAiRunDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiWorkerRunStartedEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI worker: start a background mass run of a role",
+        "tags": [
+          "admin-ai-worker"
+        ]
+      }
+    },
+    "/admin/ai-worker/runs/{id}/cancel": {
+      "post": {
+        "operationId": "cancelAiRun",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiWorkerIdEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI worker: stop a run",
+        "tags": [
+          "admin-ai-worker"
+        ]
+      }
+    },
+    "/admin/ai-worker/items/review": {
+      "post": {
+        "operationId": "reviewAiItems",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewAiItemsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiWorkerReviewedEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI worker: approve or reject proposals (one or many)",
+        "tags": [
+          "admin-ai-worker"
+        ]
+      }
+    },
+    "/admin/ai-worker/items/approve-bulk": {
+      "post": {
+        "operationId": "approveBulkAiItems",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveBulkAiItemsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiWorkerReviewedEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI worker: approve the whole confident («bulk») list",
+        "tags": [
+          "admin-ai-worker"
+        ]
+      }
+    },
+    "/admin/ai-attachments/uploads": {
+      "post": {
+        "operationId": "presignAiImage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiImageUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignedFileEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, FILE_TYPE_NOT_ALLOWED, FILE_TOO_LARGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: FILE_STORAGE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Step 1 of an image for an AI: presigned POST (then POST the file to S3)",
+        "tags": [
+          "admin-ai-attachments"
+        ]
+      }
+    },
+    "/admin/ai-attachments/uploads/{fileId}/confirm": {
+      "post": {
+        "operationId": "confirmAiImage",
+        "parameters": [
+          {
+            "name": "fileId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, FILE_TYPE_NOT_ALLOWED, FILE_CHECKSUM_MISMATCH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FILE_NOT_UPLOADED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Step 2: check the uploaded image (real type by its bytes, then antivirus)",
+        "tags": [
+          "admin-ai-attachments"
+        ]
+      }
+    },
+    "/admin/ai-attachments/retention": {
+      "get": {
+        "operationId": "getAiRetention",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiRetentionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI pages: how many days records and images stay",
+        "tags": [
+          "admin-ai-attachments"
+        ]
+      },
+      "patch": {
+        "operationId": "updateAiRetention",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAiRetentionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiRetentionEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI pages: «Хранить N дней» (0 = keep forever)",
+        "tags": [
+          "admin-ai-attachments"
+        ]
+      }
+    },
+    "/admin/ai-attachments/retention/purge": {
+      "post": {
+        "operationId": "purgeAiRetention",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurgeAiRetentionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiPurgedEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "AI pages: «Очистить сейчас» (undecided and pending items always stay)",
+        "tags": [
+          "admin-ai-attachments"
         ]
       }
     },
@@ -142430,7 +144100,8 @@
           "sticker",
           "post_attachment",
           "document_template",
-          "support_attachment"
+          "support_attachment",
+          "ai_attachment"
         ]
       },
       "PresignFileDto": {
@@ -178779,6 +180450,15 @@
           "prUrl"
         ]
       },
+      "AiWorkerModel": {
+        "type": "string",
+        "enum": [
+          "claude-haiku-5-5",
+          "claude-sonnet-5-5",
+          "claude-opus-5-5"
+        ],
+        "description": "ai.assistant_model: the Claude model of the runs."
+      },
       "AiAssistantStatusDto": {
         "type": "object",
         "properties": {
@@ -178798,6 +180478,15 @@
             "type": "string",
             "nullable": true,
             "description": "Why not, in words."
+          },
+          "tasksAllowed": {
+            "type": "boolean",
+            "description": "Owner tasks may be sent now (only in Вкл; Авто = the scheduled look only)."
+          },
+          "tasksReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why not."
           },
           "monthUsd": {
             "type": "number"
@@ -178820,6 +180509,21 @@
             "items": {
               "$ref": "#/components/schemas/AiRunDto"
             }
+          },
+          "model": {
+            "description": "ai.assistant_model: the Claude model of the runs.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerModel"
+              }
+            ]
+          },
+          "models": {
+            "description": "Models the owner may pick.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -178827,11 +180531,15 @@
           "connected",
           "allowed",
           "reason",
+          "tasksAllowed",
+          "tasksReason",
           "monthUsd",
           "maxUsd",
           "tasks",
           "tasksError",
-          "runs"
+          "runs",
+          "model",
+          "models"
         ]
       },
       "AiAssistantStatusEnvelope": {
@@ -178875,6 +180583,14 @@
             "type": "string",
             "minLength": 10,
             "maxLength": 5000
+          },
+          "imageFileIds": {
+            "description": "Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads). The issue gets only opaque ids; the workflow fetches the pictures from the API.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         },
         "required": [
@@ -178887,6 +180603,1282 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AiTaskCreatedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AiPullDto": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "description": "What / why: the PR body, cut."
+          },
+          "headSha": {
+            "type": "string",
+            "description": "The head commit the owner approves."
+          },
+          "branch": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checks": {
+            "type": "string",
+            "enum": [
+              "success",
+              "pending",
+              "failure",
+              "none",
+              "unknown"
+            ]
+          },
+          "costUsd": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "url",
+          "summary",
+          "headSha",
+          "branch",
+          "createdAt",
+          "checks",
+          "costUsd"
+        ]
+      },
+      "AiPullListDto": {
+        "type": "object",
+        "properties": {
+          "pulls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiPullDto"
+            }
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "pulls",
+          "error"
+        ]
+      },
+      "AiPullListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiPullListDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AiPullMergedDto": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "number"
+          },
+          "mergedSha": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "mergedSha"
+        ]
+      },
+      "ApproveAiPullDto": {
+        "type": "object",
+        "properties": {
+          "headSha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$",
+            "description": "The head sha the owner saw; the merge is pinned to it."
+          }
+        },
+        "required": [
+          "headSha"
+        ]
+      },
+      "AiPullMergedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiPullMergedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AiPullClosedDto": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "number"
+        ]
+      },
+      "RejectAiPullDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "AiPullClosedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiPullClosedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AiWorkerQueueKey": {
+        "type": "string",
+        "enum": [
+          "attorney_verification",
+          "support_reply",
+          "complaint_triage"
+        ]
+      },
+      "AiWorkerQueueDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerQueueKey"
+              }
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "defaultModel": {
+            "description": "Model a new role of this queue starts with.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerModel"
+              }
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "defaultModel"
+        ]
+      },
+      "AiWorkerLaneCountsDto": {
+        "type": "object",
+        "properties": {
+          "priority": {
+            "type": "number"
+          },
+          "audit": {
+            "type": "number"
+          },
+          "bulk": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "priority",
+          "audit",
+          "bulk"
+        ]
+      },
+      "AiAttachmentViewDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "previewUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Short signed preview link (owner page only)."
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "False while the antivirus check runs."
+          }
+        },
+        "required": [
+          "id",
+          "mime",
+          "previewUrl",
+          "ready"
+        ]
+      },
+      "AiWorkerRoleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "queue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerQueueKey"
+              }
+            ]
+          },
+          "model": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerModel"
+              }
+            ]
+          },
+          "confidenceMin": {
+            "type": "number",
+            "description": "Bulk lane from this confidence (0-100)."
+          },
+          "auditPct": {
+            "type": "number",
+            "description": "% of confident proposals still audited."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 53): «Вкл / Выкл». Off = no run, no AI call, the cron skips it."
+          },
+          "autoSend": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support replies; default off)."
+          },
+          "reviewed": {
+            "type": "number",
+            "description": "Proposals the owner decided."
+          },
+          "agreed": {
+            "type": "number",
+            "description": "Of them, the owner agreed."
+          },
+          "agreementPct": {
+            "type": "number",
+            "nullable": true,
+            "description": "Agreement with the owner, %."
+          },
+          "images": {
+            "description": "Example screenshots / instructions of the role.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiAttachmentViewDto"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "instructions",
+          "queue",
+          "model",
+          "confidenceMin",
+          "auditPct",
+          "enabled",
+          "autoSend",
+          "reviewed",
+          "agreed",
+          "agreementPct",
+          "images",
+          "createdAt"
+        ]
+      },
+      "AiWorkerRunStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "done",
+          "failed",
+          "canceled"
+        ]
+      },
+      "AiWorkerRunDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roleName": {
+            "type": "string"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerRunStatus"
+              }
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number"
+          },
+          "proposed": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "number"
+          },
+          "inFlight": {
+            "type": "boolean",
+            "description": "A Message Batch is being processed now."
+          },
+          "costCents": {
+            "type": "number",
+            "description": "What the run cost so far, cents."
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "roleId",
+          "roleName",
+          "status",
+          "model",
+          "total",
+          "proposed",
+          "failed",
+          "inFlight",
+          "costCents",
+          "error",
+          "createdAt",
+          "finishedAt"
+        ]
+      },
+      "AiWorkerExampleDto": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "summary"
+        ]
+      },
+      "AiWorkerProposalDto": {
+        "type": "object",
+        "properties": {
+          "queue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerQueueKey"
+              }
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "open": {
+            "type": "number"
+          },
+          "roleId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "text": {
+            "type": "string"
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiWorkerExampleDto"
+            }
+          }
+        },
+        "required": [
+          "queue",
+          "label",
+          "open",
+          "roleId",
+          "text",
+          "examples"
+        ]
+      },
+      "AiWorkerStatusDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Master switch staff.ai_enabled is on."
+          },
+          "budgetCents": {
+            "type": "number",
+            "description": "staff.ai.monthly_cents"
+          },
+          "spentCents": {
+            "type": "number"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultModel": {
+            "type": "string"
+          },
+          "queues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiWorkerQueueDto"
+            }
+          },
+          "toReview": {
+            "type": "number",
+            "description": "Proposals waiting for the owner."
+          },
+          "toReviewByLane": {
+            "$ref": "#/components/schemas/AiWorkerLaneCountsDto"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiWorkerRoleDto"
+            }
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiWorkerRunDto"
+            }
+          },
+          "proposals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiWorkerProposalDto"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "budgetCents",
+          "spentCents",
+          "models",
+          "defaultModel",
+          "queues",
+          "toReview",
+          "toReviewByLane",
+          "roles",
+          "runs",
+          "proposals"
+        ]
+      },
+      "AiWorkerStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiWorkerStatusDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AiWorkerEvidenceDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "A platform fact line or a data field name."
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "note"
+        ]
+      },
+      "AiWorkerAction": {
+        "type": "string",
+        "enum": [
+          "none",
+          "dismiss",
+          "hide",
+          "remove",
+          "warn",
+          "suspend"
+        ],
+        "description": "Complaint queue: the proposed step (never applied)."
+      },
+      "AiWorkerRegistryLinkDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "The state bar’s official lookup page."
+          }
+        },
+        "required": [
+          "stateCode",
+          "url"
+        ]
+      },
+      "AiWorkerItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roleName": {
+            "type": "string"
+          },
+          "queue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerQueueKey"
+              }
+            ]
+          },
+          "openPath": {
+            "type": "string",
+            "nullable": true,
+            "description": "The admin page of the item (request, ticket, report card)."
+          },
+          "itemId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The queue item (request id)."
+          },
+          "status": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "approve",
+              "reject",
+              "request_info",
+              "unclear"
+            ]
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true
+          },
+          "lane": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "priority",
+              "audit",
+              "bulk"
+            ]
+          },
+          "flags": {
+            "description": "Platform red flags.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiWorkerEvidenceDto"
+            }
+          },
+          "ownerDecision": {
+            "type": "string",
+            "nullable": true
+          },
+          "ownerNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "draftNote": {
+            "type": "string"
+          },
+          "injectionSuspected": {
+            "type": "boolean"
+          },
+          "reply": {
+            "type": "string",
+            "description": "Support queue: the draft answer to the user (sent on «Утвердить»)."
+          },
+          "action": {
+            "description": "Complaint queue: the proposed step (never applied).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerAction"
+              }
+            ]
+          },
+          "deliveredAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "When the support reply went to the user."
+          },
+          "registryLinks": {
+            "description": "Registries the owner checks by hand (no automatic source).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiWorkerRegistryLinkDto"
+            }
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "costCents": {
+            "type": "number"
+          },
+          "reviewedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "images": {
+            "description": "Pictures of the owner’s correction note.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiAttachmentViewDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "roleName",
+          "queue",
+          "openPath",
+          "itemId",
+          "status",
+          "decision",
+          "confidence",
+          "lane",
+          "flags",
+          "reasons",
+          "evidence",
+          "ownerDecision",
+          "ownerNote",
+          "draftNote",
+          "injectionSuspected",
+          "reply",
+          "action",
+          "deliveredAt",
+          "registryLinks",
+          "error",
+          "costCents",
+          "reviewedAt",
+          "images"
+        ]
+      },
+      "AiWorkerItemsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiWorkerItemDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "AiWorkerItemStatus": {
+        "type": "string",
+        "enum": [
+          "proposed",
+          "approved",
+          "rejected",
+          "failed",
+          "pending",
+          "sent",
+          "skipped",
+          "auto_sent"
+        ]
+      },
+      "AiWorkerLane": {
+        "type": "string",
+        "enum": [
+          "priority",
+          "audit",
+          "bulk"
+        ]
+      },
+      "AiWorkerItemsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiWorkerItemsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AiWorkerIdDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "CreateAiRoleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 8000,
+            "description": "What the role does, in the owner’s words."
+          },
+          "queue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerQueueKey"
+              }
+            ]
+          },
+          "model": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerModel"
+              }
+            ]
+          },
+          "confidenceMin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 90
+          },
+          "auditPct": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 10
+          },
+          "imageFileIds": {
+            "description": "Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads); the exact set replaces the old one.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 53): «Вкл / Выкл»."
+          },
+          "autoSend": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support replies only)."
+          }
+        },
+        "required": [
+          "name",
+          "instructions",
+          "queue"
+        ]
+      },
+      "AiWorkerIdEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiWorkerIdDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateAiRoleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 8000
+          },
+          "queue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerQueueKey"
+              }
+            ]
+          },
+          "model": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerModel"
+              }
+            ]
+          },
+          "confidenceMin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 90
+          },
+          "auditPct": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 10
+          },
+          "imageFileIds": {
+            "description": "Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads); the exact set replaces the old one.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 53): «Вкл / Выкл»."
+          },
+          "autoSend": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support replies only)."
+          }
+        }
+      },
+      "AiWorkerRunStartedDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "total"
+        ]
+      },
+      "StartAiRunDto": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000000,
+            "description": "Only the first N open items (empty = all of them)."
+          }
+        }
+      },
+      "AiWorkerRunStartedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiWorkerRunStartedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AiWorkerReviewedDto": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "updated"
+        ]
+      },
+      "AiWorkerVerdict": {
+        "type": "string",
+        "enum": [
+          "approved",
+          "rejected"
+        ]
+      },
+      "AiWorkerDecision": {
+        "type": "string",
+        "enum": [
+          "approve",
+          "reject",
+          "request_info",
+          "unclear"
+        ],
+        "description": "On reject: what is right (taught back to the role)."
+      },
+      "ReviewAiItemsDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "minItems": 1,
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "verdict": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerVerdict"
+              }
+            ]
+          },
+          "ownerDecision": {
+            "description": "On reject: what is right (taught back to the role).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerDecision"
+              }
+            ]
+          },
+          "ownerNote": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "imageFileIds": {
+            "description": "Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads); the exact set replaces the old one.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "ids",
+          "verdict"
+        ]
+      },
+      "AiWorkerReviewedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiWorkerReviewedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ApproveBulkAiItemsDto": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Only this run."
+          }
+        }
+      },
+      "AiImageMime": {
+        "type": "string",
+        "enum": [
+          "image/jpeg",
+          "image/png",
+          "image/gif",
+          "image/webp"
+        ]
+      },
+      "AiImageUploadDto": {
+        "type": "object",
+        "properties": {
+          "mime": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiImageMime"
+              }
+            ]
+          },
+          "sizeBytes": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1073741824,
+            "description": "Exact size in bytes. The files pipeline applies its chat-photo limit (no cap of ours)."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Lowercase hex SHA-256 of the file."
+          }
+        },
+        "required": [
+          "mime",
+          "sizeBytes",
+          "sha256"
+        ]
+      },
+      "AiRetentionDto": {
+        "type": "object",
+        "properties": {
+          "recordsDays": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 36500,
+            "description": "AI employee records (finished runs, decided items)."
+          },
+          "imagesDays": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 36500
+          }
+        },
+        "required": [
+          "recordsDays",
+          "imagesDays"
+        ]
+      },
+      "AiRetentionEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiRetentionDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AiRetentionWhat": {
+        "type": "string",
+        "enum": [
+          "records",
+          "images"
+        ]
+      },
+      "UpdateAiRetentionDto": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 36500
+          },
+          "what": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiRetentionWhat"
+              }
+            ]
+          }
+        },
+        "required": [
+          "days",
+          "what"
+        ]
+      },
+      "AiPurgedDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "number"
+          },
+          "runs": {
+            "type": "number"
+          },
+          "images": {
+            "type": "number"
+          },
+          "closedTasks": {
+            "type": "number"
+          },
+          "unattached": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "runs",
+          "images",
+          "closedTasks",
+          "unattached"
+        ]
+      },
+      "AiPurgeMode": {
+        "type": "string",
+        "enum": [
+          "older",
+          "all"
+        ],
+        "description": "older = past the chosen days; all = every finished record and closed image now."
+      },
+      "AiPurgeScope": {
+        "type": "string",
+        "enum": [
+          "worker",
+          "technician"
+        ],
+        "description": "worker = «ИИ-сотрудник» records and images; technician = «ИИ-техник» images."
+      },
+      "PurgeAiRetentionDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "description": "older = past the chosen days; all = every finished record and closed image now.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiPurgeMode"
+              }
+            ]
+          },
+          "scope": {
+            "description": "worker = «ИИ-сотрудник» records and images; technician = «ИИ-техник» images.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiPurgeScope"
+              }
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "scope"
+        ]
+      },
+      "AiPurgedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiPurgedDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

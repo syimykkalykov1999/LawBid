@@ -64,9 +64,14 @@ QUERIES = [
      "SELECT * FROM posts WHERE status = 'published' AND deleted_at IS NULL "
      "AND (created_at, id) < (now() - interval '3 days', 'ffffffff-ffff-4fff-bfff-ffffffffffff') "
      "ORDER BY created_at DESC, id DESC LIMIT 20"),
+    # The app's profile list (posts.service listByAuthor, VISIBLE_POST_WHERE):
+    # archived posts are left out, which is what posts_author_visible_idx
+    # covers; without "archived_at IS NULL" the check was a 9.7 s Seq Scan
+    # of a query the app never sends (10M run 2026-11-12).
     ("posts of one author", 50,
-     "SELECT * FROM posts WHERE author_id = '{user}' AND deleted_at IS NULL "
-     "ORDER BY created_at DESC LIMIT 20"),
+     "SELECT * FROM posts WHERE author_id = '{user}' AND status = 'published' "
+     "AND deleted_at IS NULL AND archived_at IS NULL "
+     "ORDER BY created_at DESC, id DESC LIMIT 21"),
     ("people search: name contains a common word", 300,
      "SELECT id FROM (SELECT id FROM users WHERE full_name_lower IS NOT NULL AND role = 'attorney' "
      "AND full_name_lower LIKE '%{word}%' LIMIT 20000) c LIMIT 1000"),
