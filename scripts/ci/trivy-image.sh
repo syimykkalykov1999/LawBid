@@ -15,11 +15,14 @@ for repo in mirror.gcr.io/aquasec/trivy-db:2 ghcr.io/aquasecurity/trivy-db:2 pub
 done
 [ -n "$ok" ] || { echo "::error::no Trivy DB mirror answered"; exit 1; }
 rc=0
+# 13.11 (KNOWN_ERRORS 132): Trivy's default --timeout is 5m; deploy 43413921302
+# failed with «failed to analyze bin/busybox: semaphore acquire: context
+# deadline exceeded» — an unfinished scan, not a finding.
 for PLATFORM in linux/amd64 linux/arm64; do
   echo "== Trivy $SEV on $REF ($PLATFORM)"
   docker run --rm -v "$CACHE:/root/.cache/trivy" -v "$PWD:/out" \
     -e TRIVY_USERNAME -e TRIVY_PASSWORD \
-    "$IMG" image --skip-db-update --platform "$PLATFORM" \
+    "$IMG" image --skip-db-update --platform "$PLATFORM" --timeout 20m \
     --severity "$SEV" --ignore-unfixed --exit-code 1 \
     --skip-dirs /usr/local/lib/node_modules/npm \
     --ignorefile /out/.trivyignore "$REF" || rc=1
