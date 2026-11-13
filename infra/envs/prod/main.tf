@@ -64,37 +64,44 @@ module "stack" {
 
   env = "prod"
   # Owner 2026-10-16: the launch database is RDS PostgreSQL in our AWS.
-  create_database                 = var.create_database
-  database_instance_class         = var.database_instance_class
-  database_max_connections        = var.database_max_connections
-  database_backup_retention_days  = var.database_backup_retention_days
-  azs                             = var.azs
-  vpc_cidr                        = var.vpc_cidr
-  domain                          = var.domain
-  api_host                        = var.api_host
-  admin_host                      = var.admin_host
-  app_link_base_url               = var.app_link_base_url
-  certificate_arn                 = var.certificate_arn
-  web_host                        = var.web_host
-  web_certificate_arn             = var.web_certificate_arn
-  web_create_certificate          = var.web_create_certificate
-  web_extra_hosts                 = var.web_extra_hosts
-  status_page_enabled             = var.status_page_enabled
-  status_host                     = var.status_host
-  status_certificate_arn          = var.status_certificate_arn
-  status_create_certificate       = var.status_create_certificate
-  hosted_zone_id                  = var.hosted_zone_id
-  dmarc_rua                       = var.dmarc_rua
-  ses_from_address                = var.ses_from_address
-  api_image                       = local.api_image
-  admin_image                     = local.admin_image
-  app_version                     = local.app_version
-  alert_emails                    = var.alert_emails
-  slack_webhook_url               = var.slack_webhook_url
-  stripe_price_id                 = var.stripe_price_id
-  extra_secrets                   = var.extra_secrets
-  documents_cdn_public_key_pem    = var.documents_cdn_public_key_pem
-  clamav_image                    = var.clamav_image
+  create_database                = var.create_database
+  database_instance_class        = var.database_instance_class
+  database_max_connections       = var.database_max_connections
+  database_backup_retention_days = var.database_backup_retention_days
+  azs                            = var.azs
+  vpc_cidr                       = var.vpc_cidr
+  domain                         = var.domain
+  api_host                       = var.api_host
+  admin_host                     = var.admin_host
+  app_link_base_url              = var.app_link_base_url
+  certificate_arn                = var.certificate_arn
+  web_host                       = var.web_host
+  web_certificate_arn            = var.web_certificate_arn
+  web_create_certificate         = var.web_create_certificate
+  web_extra_hosts                = var.web_extra_hosts
+  status_page_enabled            = var.status_page_enabled
+  status_host                    = var.status_host
+  status_certificate_arn         = var.status_certificate_arn
+  status_create_certificate      = var.status_create_certificate
+  hosted_zone_id                 = var.hosted_zone_id
+  dmarc_rua                      = var.dmarc_rua
+  ses_from_address               = var.ses_from_address
+  api_image                      = local.api_image
+  admin_image                    = local.admin_image
+  app_version                    = local.app_version
+  alert_emails                   = var.alert_emails
+  slack_webhook_url              = var.slack_webhook_url
+  stripe_price_id                = var.stripe_price_id
+  extra_secrets                  = var.extra_secrets
+  documents_cdn_public_key_pem   = var.documents_cdn_public_key_pem
+  # 13.11 (KNOWN_ERRORS 126): on ARM64 the worker could not start — the ECR
+  # mirror `lawbid-clamav:1.4` is amd64 only. `:1.4-debian` is the SAME ClamAV
+  # 1.4 published multi-arch (amd64 + arm64), mirrored by «Mirror ClamAV».
+  clamav_image = (
+    var.cpu_architecture == "ARM64" && can(regex(":1\\.4$", var.clamav_image))
+    ? "${var.clamav_image}-debian"
+    : var.clamav_image
+  )
   db_pooler_enabled               = var.db_pooler_enabled
   db_shards                       = var.db_shards
   partition_role_enabled          = var.partition_role_enabled
