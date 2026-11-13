@@ -198,7 +198,7 @@ export class StripePaymentProvider implements PaymentProvider {
   ): Promise<{ id: string; clientSecret: string }> {
     const si = await this.stripe.setupIntents.create({
       customer: customerId,
-      payment_method_types: ['card'],
+      allowed_payment_method_types: ['card'],
       usage: 'off_session',
       ...(metadata ? { metadata } : {}),
     });
@@ -683,7 +683,7 @@ export class StripePaymentProvider implements PaymentProvider {
       payment_method_collection: 'always',
       // Owner 2026-10-16: a card and nothing else (no Link, wallets, bank
       // methods) and no promotion-code box: our promo codes live in the app.
-      payment_method_types: ['card'],
+      allowed_payment_method_types: ['card'],
       subscription_data: {
         ...(input.trialDays ? { trial_period_days: input.trialDays } : {}),
         metadata: input.metadata,
@@ -740,7 +740,7 @@ export class StripePaymentProvider implements PaymentProvider {
       {
         mode: 'payment',
         // Owner 2026-10-16: a card and nothing else.
-        payment_method_types: ['card'],
+        allowed_payment_method_types: ['card'],
         ...(input.automaticTax
           ? {
               automatic_tax: { enabled: true },
@@ -785,7 +785,7 @@ export class StripePaymentProvider implements PaymentProvider {
         amount: input.amountCents,
         currency: input.currency,
         description: input.description,
-        payment_method_types: ['card'],
+        allowed_payment_method_types: ['card'],
         metadata: input.metadata,
         ...(input.receiptEmail ? { receipt_email: input.receiptEmail } : {}),
       },
