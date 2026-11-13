@@ -100,8 +100,8 @@ export class InfraRequestDto {
   @ApiProperty({ type: String, nullable: true }) plannedAt!: string | null;
   @ApiProperty({ type: String, nullable: true }) expiresAt!: string | null;
   @ApiProperty({ type: String, nullable: true }) finishedAt!: string | null;
-  /** Row 86: failed, but the cloud already holds this target (the last
-   * finished change set it, or the plan touched nothing of the item). */
+  // Row 86: failed, but the cloud already holds this target (the last
+  // finished change set it, or the plan touched nothing of the item).
   @ApiProperty() settled!: boolean;
 }
 
