@@ -70,6 +70,25 @@ describe('parseAutoscaleSettings', () => {
     expect(explicit.sms.daily.mode).toBe('auto');
   });
 
+  it('keeps an env default of 0 (no cap, storage since 13.11) in manual mode', () => {
+    const s = parseAutoscaleSettings(undefined, (p, w) =>
+      p === 'storage' ? 0 : env(p, w),
+    );
+    expect(s.storage.minute.mode).toBe('manual');
+    expect(s.storage.daily.mode).toBe('manual');
+    expect(s.sms.daily.mode).toBe('auto');
+    // A floor the owner stored still turns automatic mode on explicitly.
+    const explicit = parseAutoscaleSettings(
+      { storage: { daily: { mode: 'auto', floor: 100 } } },
+      () => 0,
+    );
+    expect(explicit.storage.daily).toEqual({
+      mode: 'auto',
+      floor: 100,
+      ceiling: 1000,
+    });
+  });
+
   it('gives a floor of 0 a usable default ceiling', () => {
     const s = parseAutoscaleSettings({ sms: { daily: { floor: 0 } } }, env);
     expect(s.sms.daily).toEqual({ mode: 'auto', floor: 0, ceiling: 10 });

@@ -86,10 +86,14 @@ export function parseAutoscaleSettings(
           AUTOSCALE_MAX_VALUE,
           Math.max(floor, 1) * AUTOSCALE_DEFAULT_CEILING_FACTOR,
         );
+      // A cap of 0 is «none» (stored by the owner, or the env default, e.g.
+      // storage since 13.11 row 77): manual, so the hourly raise never puts
+      // a small automatic cap there (floor 0 -> ceiling a few units).
+      const stored = storedCap(provider, window);
       const mode: AutoscaleMode =
         w?.mode === 'auto' || w?.mode === 'manual'
           ? w.mode
-          : storedCap(provider, window) === 0
+          : stored === 0 || (stored === undefined && env === 0)
             ? 'manual'
             : 'auto';
       out[provider][window] = { mode, floor, ceiling };
