@@ -24,6 +24,66 @@ const RESPONSE_CACHE_TTL_SEC = 60 * 60;
 const cacheKey = (clientId: string) => `case:resp24:${clientId}`;
 
 /**
+ * The answer samples of [clientIds] since [since]: (client_id, secs,
+ * asked_at), secs NULL while unanswered.
+ *
+ * Row 71 (1B load test 2026-11-13, /data/lt/results/NOTES.md): the reply was
+ * a correlated `(SELECT MIN(..))` in the select list. Postgres inlines the
+ * CTE and the outer `secs IS NOT NULL` filter copies that expression, so the
+ * subquery ran three times per attorney message (EXPLAIN: SubPlan 1, 3, 4),
+ * and each run read every client message of the chat through the
+ * (conversation_id, sender_id, client_message_id) index: 1.07 M buffers,
+ * 1.6 s cold for one feed page of 20 clients at 200 messages per chat. Now
+ * the reply is one `LEFT JOIN LATERAL .. ORDER BY created_at LIMIT 1`
+ * (MIN of the same rows = the first of them; same value, ties included)
+ * and the concurrent index messages_conv_sender_created_idx makes it, and
+ * the 30-day attorney scan, an index range. Results are unchanged
+ * (test/client-activity-samples.e2e-spec.ts compares with the old query).
+ */
+export function responseSamplesSql(clientIds: string[], since: Date) {
+  return Prisma.sql`
+        -- An attorney's message (the first of a run) and the client's next
+        -- message in the same case chat.
+        SELECT cv.client_id,
+               EXTRACT(EPOCH FROM (r.created_at - m.created_at)) AS secs,
+               m.created_at AS asked_at
+        FROM conversations cv
+        JOIN messages m ON m.conversation_id = cv.id
+                       AND m.sender_id = cv.attorney_id
+        LEFT JOIN LATERAL (
+          SELECT r.created_at FROM messages r
+           WHERE r.conversation_id = m.conversation_id
+             AND r.sender_id = cv.client_id
+             AND r.created_at > m.created_at AND r.deleted_at IS NULL
+           ORDER BY r.created_at
+           LIMIT 1) r ON TRUE
+        WHERE cv.client_id = ANY(${clientIds}::UUID[]) AND cv.case_id IS NOT NULL
+          AND m.created_at > ${since} AND m.deleted_at IS NULL
+          AND COALESCE((SELECT p.sender_id FROM messages p
+                         WHERE p.conversation_id = m.conversation_id
+                           AND p.created_at < m.created_at
+                         ORDER BY p.created_at DESC LIMIT 1),
+                       cv.client_id) <> cv.attorney_id
+        UNION ALL
+        -- A bid on the client's case and their first reaction: a counter,
+        -- an accept or a decline.
+        SELECT c.client_id,
+               EXTRACT(EPOCH FROM (
+                 LEAST(
+                   (SELECT MIN(o.created_at) FROM bid_offers o
+                     WHERE o.bid_id = b.id AND o.from_role = 'client'),
+                   CASE WHEN b.status IN ('accepted', 'rejected_by_client')
+                        THEN b.updated_at END)
+                 - b.created_at)) AS secs,
+               b.created_at AS asked_at
+        FROM bids b JOIN cases c ON c.id = b.case_id
+        WHERE c.client_id = ANY(${clientIds}::UUID[])
+          AND b.created_at > ${since}
+          AND b.status IN ('active', 'accepted', 'rejected_by_client',
+                           'failed_negotiation')`;
+}
+
+/**
  * «В сети / Был …» and «Отвечает за день» on an attorney's case card.
  * Online / last seen come from PresenceService and obey the reciprocal
  * "activity status" privacy switch (the viewer's and the client's own):
@@ -88,48 +148,9 @@ export class ClientActivityService {
     if (missing.length === 0) return fast;
     const since = new Date(now.getTime() - RESPONSE_WINDOW_DAYS * DAY_MS);
     const day = new Date(now.getTime() - DAY_MS);
-    const rows = await this.prisma.$queryRaw<
-      { client_id: string }[]
-    >(Prisma.sql`
-      WITH samples AS (
-        -- An attorney's message (the first of a run) and the client's next
-        -- message in the same case chat.
-        SELECT cv.client_id,
-               EXTRACT(EPOCH FROM (
-                 (SELECT MIN(r.created_at) FROM messages r
-                   WHERE r.conversation_id = m.conversation_id
-                     AND r.sender_id = cv.client_id
-                     AND r.created_at > m.created_at AND r.deleted_at IS NULL)
-                 - m.created_at)) AS secs,
-               m.created_at AS asked_at
-        FROM conversations cv
-        JOIN messages m ON m.conversation_id = cv.id
-                       AND m.sender_id = cv.attorney_id
-        WHERE cv.client_id = ANY(${missing}::UUID[]) AND cv.case_id IS NOT NULL
-          AND m.created_at > ${since} AND m.deleted_at IS NULL
-          AND COALESCE((SELECT p.sender_id FROM messages p
-                         WHERE p.conversation_id = m.conversation_id
-                           AND p.created_at < m.created_at
-                         ORDER BY p.created_at DESC LIMIT 1),
-                       cv.client_id) <> cv.attorney_id
-        UNION ALL
-        -- A bid on the client's case and their first reaction: a counter,
-        -- an accept or a decline.
-        SELECT c.client_id,
-               EXTRACT(EPOCH FROM (
-                 LEAST(
-                   (SELECT MIN(o.created_at) FROM bid_offers o
-                     WHERE o.bid_id = b.id AND o.from_role = 'client'),
-                   CASE WHEN b.status IN ('accepted', 'rejected_by_client')
-                        THEN b.updated_at END)
-                 - b.created_at)) AS secs,
-               b.created_at AS asked_at
-        FROM bids b JOIN cases c ON c.id = b.case_id
-        WHERE c.client_id = ANY(${missing}::UUID[])
-          AND b.created_at > ${since}
-          AND b.status IN ('active', 'accepted', 'rejected_by_client',
-                           'failed_negotiation')
-      ),
+    const rows = await this.prisma.$queryRaw<{ client_id: string }[]>(
+      Prisma.sql`
+      WITH samples AS (${responseSamplesSql(missing, since)}),
       -- Unanswered for over a day counts as a slow answer; unanswered for
       -- less is not a sample yet.
       timed AS (
@@ -142,7 +163,8 @@ export class ClientActivityService {
       WHERE secs IS NOT NULL
       GROUP BY client_id
       HAVING COUNT(*) >= ${RESPONSE_MIN_SAMPLES}
-         AND percentile_cont(0.5) WITHIN GROUP (ORDER BY secs) <= 86400`);
+         AND percentile_cont(0.5) WITHIN GROUP (ORDER BY secs) <= 86400`,
+    );
     const yes = new Set(rows.map((r) => r.client_id));
     for (const id of yes) fast.add(id);
     try {
