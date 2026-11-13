@@ -138,10 +138,14 @@ resource "aws_security_group" "db" {
 resource "aws_db_parameter_group" "this" {
   name   = "${var.name}-postgres16"
   family = "postgres16"
-  parameter {
-    name  = "rds.force_ssl"
-    value = "1"
-  }
+  # rds.force_ssl = 1, jit = 0 and track_io_timing = 1 are NOT set here: on
+  # RDS PostgreSQL 16 they already are the engine defaults (checked 13.11:
+  # describe-db-parameters Source = system). RDS does not keep a parameter
+  # that equals its default, so setting them made every plan and the nightly
+  # drift check show a change that never applies (KNOWN_ERRORS 136). Why each
+  # value matters: force_ssl — TLS only; jit — the JIT compiler cost
+  # 310-360 ms per case-feed call for nothing (load test 2026-10-28);
+  # track_io_timing — I/O time in EXPLAIN (BUFFERS) / pg_stat_statements.
   # Slow queries land in the log (the admin's «здоровье системы» reads them).
   parameter {
     name  = "log_min_duration_statement"
@@ -163,14 +167,6 @@ resource "aws_db_parameter_group" "this" {
     value        = "pg_stat_statements"
     apply_method = "pending-reboot"
   }
-  # Load test 2026-10-28 (docs/perf/LOCAL_LOAD_TEST_2026-10-28.md): the JIT
-  # compiler spent 310-360 ms per call of the attorneys' case feed to save
-  # nothing (the app's queries are short index lookups). Off for the whole
-  # database. Dynamic: applied at once, no reboot.
-  parameter {
-    name  = "jit"
-    value = "0"
-  }
 
   # --- autovacuum / bloat visibility (docs/runbooks/db-ops.md) -------------
   # All of these are dynamic (applied at once, no reboot).
@@ -187,11 +183,6 @@ resource "aws_db_parameter_group" "this" {
   parameter {
     name  = "deadlock_timeout"
     value = "1000"
-  }
-  # Time spent in I/O shows in EXPLAIN (BUFFERS) and pg_stat_statements.
-  parameter {
-    name  = "track_io_timing"
-    value = "1"
   }
   # Temp files over 10 MB (value in kB) mean a sort / hash spilled to disk.
   parameter {
