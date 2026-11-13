@@ -385,9 +385,20 @@ export class BidsService {
               }
             }
           }
+          // Row 68 (load test 12.11, P2028 under 400 parallel bids):
+          // shard_id is read here and handed to the bid / offer inserts, so
+          // the shard extension does not look the (legacy v4) parent up
+          // through a second pool connection inside this transaction - ten
+          // such transactions held all ten connections of a process, each
+          // waiting for an eleventh, until the 5 s timeout.
           const kase = await tx.case.findUnique({
             where: { id: caseId },
-            select: { client_id: true, status: true, deleted_at: true },
+            select: {
+              client_id: true,
+              status: true,
+              deleted_at: true,
+              shard_id: true,
+            },
           });
           if (!kase || kase.deleted_at) throw notFoundCase();
           if (kase.status !== 'open') {
@@ -440,12 +451,18 @@ export class BidsService {
             });
           } else {
             created = await tx.bid.create({
-              data: { case_id: caseId, attorney_id: user.sub, ...fresh },
+              data: {
+                case_id: caseId,
+                attorney_id: user.sub,
+                shard_id: kase.shard_id,
+                ...fresh,
+              },
             });
           }
           const offer = await tx.bidOffer.create({
             data: {
               bid_id: created.id,
+              shard_id: created.shard_id,
               round_no: 0,
               from_role: 'attorney',
               fee_type: dto.feeType,

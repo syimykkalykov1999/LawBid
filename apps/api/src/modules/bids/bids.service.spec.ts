@@ -159,11 +159,13 @@ describe('BidsService.create over an earlier bid row', () => {
       $transaction: jest.fn((fn: (t: unknown) => unknown) => fn(tx)),
       bidDraft: { deleteMany: jest.fn(() => Promise.resolve({ count: 0 })) },
     };
+    const journal = { append: jest.fn() };
+    const notifications = { emit: jest.fn() };
     const service = new BidsService(
       prisma as never,
       {} as never,
-      { append: jest.fn() } as never,
-      { emit: jest.fn() } as never,
+      journal as never,
+      notifications as never,
       { isActive: jest.fn(() => Promise.resolve(true)) } as never,
       {
         assertCanView: jest.fn(() =>
@@ -176,7 +178,7 @@ describe('BidsService.create over an earlier bid row', () => {
       {} as never,
       { assertCanBid: jest.fn(() => Promise.resolve()) } as never,
     );
-    return { service, tx };
+    return { service, tx, journal, notifications };
   }
 
   function row() {
@@ -212,6 +214,45 @@ describe('BidsService.create over an earlier bid row', () => {
     expect(tx.case.update).toHaveBeenCalledWith({
       where: { id: 'case-1' },
       data: { last_activity_at: expect.any(Date) },
+    });
+  });
+
+  it('a new bid row adds exactly one to bids_count', async () => {
+    const { service, tx } = setup(null);
+    await service.create(attorney, 'case-1', dto());
+    expect(tx.bid.create).toHaveBeenCalledTimes(1);
+    expect(tx.case.update).toHaveBeenCalledTimes(1);
+    expect(tx.case.update).toHaveBeenCalledWith({
+      where: { id: 'case-1' },
+      data: {
+        bids_count: { increment: 1 },
+        last_activity_at: expect.any(Date),
+      },
+    });
+  });
+
+  it('hands the case shard to the bid and offer inserts (no second-connection lookup, row 68)', async () => {
+    const { service, tx } = setup(null);
+    tx.case.findUnique.mockResolvedValueOnce({
+      client_id: 'cl-1',
+      status: 'open',
+      deleted_at: null,
+      shard_id: 4,
+    } as never);
+    tx.bid.create.mockImplementationOnce(({ data }: { data: object }) =>
+      Promise.resolve({ id: 'new', ...row(), ...data }),
+    );
+    await service.create(attorney, 'case-1', dto());
+    expect(tx.case.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({ shard_id: true }),
+      }),
+    );
+    expect(tx.bid.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ case_id: 'case-1', shard_id: 4 }),
+    });
+    expect(tx.bidOffer.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ bid_id: 'new', shard_id: 4 }),
     });
   });
 

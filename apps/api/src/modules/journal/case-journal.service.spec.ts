@@ -20,7 +20,9 @@ function fakeTx(clientId: string | null = 'client-1') {
       expect(strings.join('?')).toMatch(
         /FROM cases WHERE id = .* FOR NO KEY UPDATE/s,
       );
-      return Promise.resolve(clientId ? [{ client_id: clientId }] : []);
+      return Promise.resolve(
+        clientId ? [{ client_id: clientId, shard_id: 3 }] : [],
+      );
     }),
     caseJournal: {
       findFirst: jest.fn(() => {
@@ -131,6 +133,14 @@ describe('CaseJournalService (docs/02 §4.D hash chain)', () => {
     }
     expect(rows[4].actor_user_id).toBeNull();
     expect(verifyRows(rows)).toEqual({ valid: true, checked: 5 });
+  });
+
+  it('the row takes the shard of the locked case row (no second-connection lookup, row 68)', async () => {
+    const { tx, rows } = fakeTx();
+    await service.append(tx, input);
+    expect(rows[0].shard_id).toBe(3);
+    // shard_id is a routing column, outside the hash: the chain still verifies.
+    expect(verifyRows(rows)).toEqual({ valid: true, checked: 1 });
   });
 
   it('unknown case → CASE_NOT_FOUND; a clientId that does not own the case is refused', async () => {
