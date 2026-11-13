@@ -285,6 +285,16 @@ describe('FeedService recommendation reads (row 64, 10M spike)', () => {
   });
 });
 
+/** The `where` of every post.findMany call, as plain records (the mock's
+ * inferred arg type only knows the first call's shape). */
+function postWheres(prisma: {
+  post: { findMany: { mock: { calls: unknown[][] } } };
+}): Record<string, unknown>[] {
+  return prisma.post.findMany.mock.calls.map(
+    (c) => ((c[0] ?? {}) as { where?: Record<string, unknown> }).where ?? {},
+  );
+}
+
 describe('FeedService followed stream (row 64)', () => {
   it('checks the author rule once per followed author, posts without the join', async () => {
     const { svc, prisma } = build({ redis: fakeRedis({}) });
@@ -301,12 +311,10 @@ describe('FeedService followed stream (row 64)', () => {
       ...(VISIBLE_POST_WHERE.author as object),
       id: { in: ['att-1', 'suspended-2'] },
     });
-    const stream = prisma.post.findMany.mock.calls
-      .map((c) => c[0])
-      .find((c) => c.where.author_id);
-    expect(stream?.where.author_id).toEqual({ in: ['att-1'] });
-    expect(stream?.where.author).toBeUndefined();
-    expect(stream?.where).toMatchObject({
+    const stream = postWheres(prisma).find((w) => w.author_id);
+    expect(stream?.author_id).toEqual({ in: ['att-1'] });
+    expect(stream?.author).toBeUndefined();
+    expect(stream).toMatchObject({
       status: 'published',
       deleted_at: null,
       archived_at: null,
@@ -317,9 +325,7 @@ describe('FeedService followed stream (row 64)', () => {
     const { svc, prisma } = build({ redis: fakeRedis({}) });
     prisma.follow.findMany.mockResolvedValue([{ followee_id: 'suspended-1' }]);
     await svc.page(viewer, undefined, 10);
-    const stream = prisma.post.findMany.mock.calls
-      .map((c) => c[0])
-      .find((c) => c.where.author_id);
+    const stream = postWheres(prisma).find((w) => w.author_id);
     expect(stream).toBeUndefined();
   });
 });
