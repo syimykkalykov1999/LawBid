@@ -327,15 +327,27 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
       let steps = 0;
       if (recovering) {
         // A half-applied replay skips «already exists» one statement at a
-        // time, so it cannot run inside one transaction (an error aborts it).
-        for (const statement of statements) {
-          try {
-            await demo.$executeRawUnsafe(statement);
-          } catch (e) {
-            if (!ALREADY_EXISTS_CODES.has(pgErrorCode(e))) throw e;
-          }
-          steps += 1;
-        }
+        // time. 13.11: inside ONE transaction with a SAVEPOINT per statement
+        // (the PostgreSQL way to survive one failed statement): statement by
+        // statement in autocommit, 20261109090000_message_seq — left
+        // half-applied by the pre-KE-124 replay — failed again on «LOCK TABLE
+        // can only be used in transaction blocks» at every boot.
+        await demo.$transaction(
+          async (tx) => {
+            for (const statement of statements) {
+              await tx.$executeRawUnsafe('SAVEPOINT demo_stmt');
+              try {
+                await tx.$executeRawUnsafe(statement);
+                await tx.$executeRawUnsafe('RELEASE SAVEPOINT demo_stmt');
+              } catch (e) {
+                if (!ALREADY_EXISTS_CODES.has(pgErrorCode(e))) throw e;
+                await tx.$executeRawUnsafe('ROLLBACK TO SAVEPOINT demo_stmt');
+              }
+              steps += 1;
+            }
+          },
+          { timeout: 10 * 60_000, maxWait: 60_000 },
+        );
       } else {
         // 12.11 (KNOWN_ERRORS 124): one transaction per migration, exactly as
         // `prisma migrate deploy` runs a migration.sql. Statement by statement
