@@ -517,14 +517,25 @@ export class SystemHealthService implements OnModuleInit, OnModuleDestroy {
     let dlq = 0;
     const paused: string[] = [];
     for (const q of this.open()) {
-      const c = await withTimeout(q.getJobCounts('waiting', 'failed'));
+      // 13.11 (row 79, as ops-metrics in #988): prioritized jobs (every
+      // push) are not in `wait`; count both and take the older head.
+      const c = await withTimeout(
+        q.getJobCounts('waiting', 'prioritized', 'failed'),
+      );
       if (q.name === DLQ) {
-        dlq = c.waiting ?? 0;
+        dlq = (c.waiting ?? 0) + (c.prioritized ?? 0);
         continue;
       }
-      waiting += c.waiting ?? 0;
+      waiting += (c.waiting ?? 0) + (c.prioritized ?? 0);
       failed += c.failed ?? 0;
-      const [oldest] = await withTimeout(q.getWaiting(0, 0));
+      const [oldestWait] = await withTimeout(q.getWaiting(0, 0));
+      const [oldestPrio] =
+        (c.prioritized ?? 0) > 0
+          ? await withTimeout(q.getPrioritized(0, 0))
+          : [];
+      const oldest = [oldestWait, oldestPrio]
+        .filter((j) => !!j)
+        .sort((a, b) => a.timestamp - b.timestamp)[0];
       if (oldest) {
         const age = Math.floor((now.getTime() - oldest.timestamp) / 1000);
         // Long lanes (heavy cron, deletions, fan-outs) may wait for a while.
