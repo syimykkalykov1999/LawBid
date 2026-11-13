@@ -1,7 +1,13 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InfraRequest } from "@/lib/infra";
-import { costLine, minutesLeft, planLine } from "@/lib/infra";
+import {
+  costLine,
+  minutesLeft,
+  planLine,
+  requestWord,
+  showsFailure,
+} from "@/lib/infra";
 
 vi.mock("@/lib/api/client", () => ({
   ApiError: class ApiError extends Error {},
@@ -42,6 +48,7 @@ const req = (o: Partial<InfraRequest> = {}): InfraRequest => ({
   plannedAt: "2026-10-26T10:03:00Z",
   expiresAt: new Date(Date.now() + 20 * 60_000).toISOString(),
   finishedAt: null,
+  settled: false,
   ...o,
 });
 
@@ -109,6 +116,22 @@ describe("«План: …» sheet for a cloud switch", () => {
     expect(screen.queryByTestId("infra-confirm")).toBeNull();
   });
 
+  it("a settled failure (row 86) reads «В облаке уже так» and keeps its error", async () => {
+    sheet(
+      req({
+        status: "failed",
+        settled: true,
+        expiresAt: null,
+        error: "elasticache:ModifyReplicationGroup AccessDenied",
+      }),
+    );
+    const badge = await screen.findByTestId("infra-sheet-status");
+    expect(badge.textContent).toBe("В облаке уже так");
+    expect(screen.getByTestId("infra-sheet-error").textContent).toContain(
+      "AccessDenied",
+    );
+  });
+
   it("dry-run mode says the cloud is not changed", async () => {
     sheet(req({ status: "dry_run", expiresAt: null }), true);
     expect(await screen.findByText(/облако не меняется/)).toBeTruthy();
@@ -131,5 +154,15 @@ describe("infra helpers", () => {
     const now = new Date("2026-10-26T10:00:00Z");
     expect(minutesLeft({ expiresAt: "2026-10-26T10:29:30Z" }, now)).toBe(30);
     expect(minutesLeft({ expiresAt: null }, now)).toBeNull();
+  });
+
+  it("row 86: only an unsettled failure is shown as a failure", () => {
+    expect(showsFailure({ status: "failed", settled: false })).toBe(true);
+    expect(showsFailure({ status: "failed", settled: true })).toBe(false);
+    expect(showsFailure({ status: "done", settled: false })).toBe(false);
+    expect(showsFailure(null)).toBe(false);
+    expect(requestWord({ status: "failed", settled: false })).toBe("Не получилось");
+    expect(requestWord({ status: "failed", settled: true })).toBe("В облаке уже так");
+    expect(requestWord({ status: "done", settled: false })).toBe("Готово");
   });
 });

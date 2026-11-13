@@ -17,9 +17,11 @@ import {
   ACTIVE_STATUSES,
   REFUSAL_TEXT,
   changesFor,
+  PLAN_RESOURCE_LIMIT,
   costDelta,
   createRefusal,
   dueTimeEvent,
+  failureSettled,
   inQuietWindow,
   infraSuggestions,
   serverRemovedBy,
@@ -69,6 +71,9 @@ export interface InfraRequestView {
   /** When an unconfirmed plan is thrown away. */
   expiresAt: string | null;
   finishedAt: string | null;
+  /** Row 86: failed, but the cloud already holds its target (failureSettled):
+   * the row shows the item, not this failure; the request keeps its error. */
+  settled: boolean;
 }
 
 const PLAN_TTL_MS = 30 * 60_000;
@@ -108,7 +113,10 @@ export class InfraChangeService {
 
   // --- reads -----------------------------------------------------------------
 
-  view(r: InfraChangeRequest): InfraRequestView {
+  view(
+    r: InfraChangeRequest,
+    live?: ReadonlyMap<string, InfraTarget>,
+  ): InfraRequestView {
     const entry = COST_REGISTRY.find((e) => e.id === r.item_id);
     const plan = r.plan_summary as InfraRequestView['plan'];
     return {
@@ -134,6 +142,11 @@ export class InfraChangeService {
           ? new Date(r.planned_at.getTime() + PLAN_TTL_MS).toISOString()
           : null,
       finishedAt: r.finished_at?.toISOString() ?? null,
+      settled: failureSettled(
+        { status: r.status, toState: r.to_state, plan: plan ?? null },
+        entry?.awsTypes,
+        live?.get(r.item_id),
+      ),
     };
   }
 
@@ -171,7 +184,11 @@ export class InfraChangeService {
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit,
     });
-    return rows.map((r) => this.view(r));
+    // Row 86: a failure whose target the item already holds is «settled».
+    const live = rows.some((r) => r.status === 'failed')
+      ? await this.liveStates()
+      : undefined;
+    return rows.map((r) => this.view(r, live));
   }
 
   /**
@@ -593,7 +610,7 @@ export class InfraChangeService {
       add: p.add,
       change: p.change,
       destroy: p.destroy,
-      resources: p.resources.slice(0, 60).map((x) => ({
+      resources: p.resources.slice(0, PLAN_RESOURCE_LIMIT).map((x) => ({
         address: x.address.slice(0, 200),
         action: x.action.slice(0, 40),
       })),

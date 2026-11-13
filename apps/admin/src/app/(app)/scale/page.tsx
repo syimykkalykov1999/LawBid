@@ -41,7 +41,7 @@ import { HeavyUsersCard } from './heavy-users-card';
 import { LIGHT_TONE } from '@/lib/system-health';
 import { InfraChip, InfraPlanSheet, InfraSuggestionCards, useInfra, useInfraModePick } from '@/components/infra-plan-sheet';
 import { StateControl } from '@/app/(app)/spend/registry';
-import { isActive, latestFor, requestDot } from '@/lib/infra';
+import { isActive, latestFor, requestDot, showsFailure } from '@/lib/infra';
 
 type Target = 'db' | 'redis';
 type Action = AlarmAction | { kind: 'decrease'; target: Target };
@@ -471,7 +471,7 @@ export default function ScalePage() {
                       {row.name}
                     </span>
                     <StatusDot status={running && req ? requestDot(req) : row.status} testId={`scale-infra-dot-${row.id}`} />
-                    {req && (running || req.status === 'failed') ? (
+                    {req && (running || showsFailure(req)) ? (
                       <button type="button" onClick={() => setInfraSheet(row.id)} aria-label="Открыть план изменения">
                         <InfraChip request={req} />
                       </button>

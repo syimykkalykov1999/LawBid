@@ -2,6 +2,7 @@ import type { CostEntry } from '../../../common/ops/cost-registry';
 import {
   INFRA_KEYS,
   type InfraSwitch,
+  type PlanResource,
   type InfraTarget,
   type InfraValue,
 } from '../../../common/ops/infra-switches';
@@ -345,4 +346,42 @@ export function infraSuggestions(
     }
   }
   return out;
+}
+
+/** The plan summary keeps at most this many resources (planReady). */
+export const PLAN_RESOURCE_LIMIT = 60;
+
+/**
+ * Owner row 86 (13.11): a failed request whose target the cloud already
+ * holds. Proof 12.11: the search engine domain was created by an apply that
+ * then failed on an unrelated Redis change, and the ten automatic «Вкл»
+ * after it failed the same way; the row kept «Не получилось» although the
+ * domain ran. True when
+ *  - the item's last finished change already set this position, or
+ *  - the request's own plan (Terraform reads the real cloud before it plans)
+ *    touched no resource of the item's Terraform types: what the request
+ *    asked for was already there, the failure was about something else.
+ * Unknown stays false: no plan, a cut plan list, an item without types.
+ * The request itself keeps status «failed» and its error (history).
+ */
+export function failureSettled(
+  r: {
+    status: string;
+    toState: string;
+    plan: { resources: readonly PlanResource[] } | null;
+  },
+  awsTypes: readonly string[] | undefined,
+  live: InfraTarget | undefined,
+): boolean {
+  if (r.status !== 'failed') return false;
+  if (r.toState !== 'on' && r.toState !== 'off') return false;
+  if (live === r.toState) return true;
+  const resources = r.plan?.resources;
+  if (!resources || resources.length >= PLAN_RESOURCE_LIMIT) return false;
+  if (!awsTypes || awsTypes.length === 0) return false;
+  return !resources.some((x) =>
+    x.address
+      .split('.')
+      .some((part) => awsTypes.includes(part.replace(/\[.*$/, ''))),
+  );
 }
