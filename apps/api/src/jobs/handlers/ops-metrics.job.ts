@@ -89,6 +89,7 @@ const FAILED_5M_MAX = 200;
 
 export interface QueueDepth {
   queue: string;
+  /** Runnable now: the `wait` list plus the `prioritized` set. */
   waiting: number;
   active: number;
   delayed: number;
@@ -165,21 +166,34 @@ export class OpsMetricsJob implements OnModuleDestroy {
   async queueDepths(now: Date = new Date()): Promise<QueueDepth[]> {
     const out: QueueDepth[] = [];
     for (const q of this.open()) {
+      // 13.11 (owner list row 79, 1B load test): a job added with a
+      // `priority` waits in BullMQ's `prioritized` set, not in the `wait`
+      // list that getJobCounts('waiting') reads — every push job has one
+      // (PUSH_PRIORITY), so 386 409 waiting pushes were logged as
+      // `waiting: 0` and the worker never scaled out for them. Runnable =
+      // wait + prioritized; the older of the two heads gives the age.
       const counts = await q.getJobCounts(
         'waiting',
+        'prioritized',
         'active',
         'delayed',
         'failed',
       );
+      const prioritized = counts.prioritized ?? 0;
       const [oldest] = await q.getWaiting(0, 0);
+      const [nextPrioritized] =
+        prioritized > 0 ? await q.getPrioritized(0, 0) : [];
+      const ages = [oldest, nextPrioritized]
+        .filter((j) => j !== undefined && j !== null)
+        .map((j) => waitingAgeSeconds(j, now));
       const row: QueueDepth = {
         queue: q.name,
-        waiting: counts.waiting ?? 0,
+        waiting: (counts.waiting ?? 0) + prioritized,
         active: counts.active ?? 0,
         delayed: counts.delayed ?? 0,
         failed: counts.failed ?? 0,
         failed5m: await this.failedLast5m(q, now.getTime()),
-        oldestAgeSeconds: oldest ? waitingAgeSeconds(oldest, now) : 0,
+        oldestAgeSeconds: ages.length > 0 ? Math.max(...ages) : 0,
       };
       out.push(row);
       this.logger.info({ metric: 'queue_depth', ...row }, 'queue depth');

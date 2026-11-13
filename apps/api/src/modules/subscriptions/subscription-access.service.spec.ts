@@ -158,3 +158,81 @@ describe('SubscriptionAccessService (docs/06 §1.2)', () => {
     });
   });
 });
+
+describe('SubscriptionAccessService.activeAmong (row 76: set-based lapse sweep)', () => {
+  it('gives for every id the same answer as isActive, in two reads', async () => {
+    const now = new Date('2026-11-13T09:00:00Z');
+    const subs = [
+      { user_id: 'trial', status: 'trialing', grace_ends_at: null },
+      { user_id: 'paid', status: 'active', grace_ends_at: null },
+      {
+        user_id: 'grace',
+        status: 'past_due',
+        grace_ends_at: new Date(now.getTime() + DAY),
+      },
+      {
+        user_id: 'late',
+        status: 'past_due',
+        grace_ends_at: new Date(now.getTime() - DAY),
+      },
+      { user_id: 'gone', status: 'canceled', grace_ends_at: null },
+      { user_id: 'granted', status: 'canceled', grace_ends_at: null },
+    ];
+    const subFindMany = jest.fn().mockResolvedValue(subs);
+    const grantFindMany = jest
+      .fn()
+      .mockResolvedValue([{ user_id: 'granted' }, { user_id: 'granted' }]);
+    const prisma = {
+      subscription: { findMany: subFindMany },
+      contractGrant: { findMany: grantFindMany },
+    } as unknown as PrismaService;
+    const service = new SubscriptionAccessService(prisma, {} as Redis);
+    const ids = [
+      'trial',
+      'paid',
+      'grace',
+      'late',
+      'gone',
+      'granted',
+      'none',
+      'paid',
+    ];
+
+    const active = await service.activeAmong(ids, now);
+
+    expect([...active].sort()).toEqual(['grace', 'granted', 'paid', 'trial']);
+    expect(subFindMany).toHaveBeenCalledTimes(1);
+    expect(subFindMany.mock.calls[0][0].where).toEqual({
+      user_id: {
+        in: ['trial', 'paid', 'grace', 'late', 'gone', 'granted', 'none'],
+      },
+    });
+    // Grants are read only for those still without access, with the same
+    // window as activeGrantWhere.
+    expect(grantFindMany).toHaveBeenCalledTimes(1);
+    expect(grantFindMany.mock.calls[0][0].where).toEqual({
+      user_id: { in: ['late', 'gone', 'granted', 'none'] },
+      revoked_at: null,
+      starts_at: { lte: now },
+      ends_at: { gt: now },
+    });
+  });
+
+  it('skips the grant read when everyone is active and reads nothing for none', async () => {
+    const subFindMany = jest
+      .fn()
+      .mockResolvedValue([
+        { user_id: 'a', status: 'active', grace_ends_at: null },
+      ]);
+    const grantFindMany = jest.fn();
+    const prisma = {
+      subscription: { findMany: subFindMany },
+      contractGrant: { findMany: grantFindMany },
+    } as unknown as PrismaService;
+    const service = new SubscriptionAccessService(prisma, {} as Redis);
+    expect([...(await service.activeAmong(['a']))]).toEqual(['a']);
+    expect(grantFindMany).not.toHaveBeenCalled();
+    expect((await service.activeAmong([])).size).toBe(0);
+    expect(subFindMany).toHaveBeenCalledTimes(1);
+  });
+});

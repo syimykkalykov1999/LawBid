@@ -29,14 +29,21 @@ describe('VerificationLossBillingJob', () => {
       seatInvoices?: string[];
       credit?: { balance: number } | null;
       purchases?: Record<string, unknown>[];
+      lost?: string[];
     } = {},
   ) {
     const now = Date.now();
     const prisma = {
       attorneyProfile: {
-        findMany: jest.fn().mockResolvedValue([{ user_id: 'u1' }]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue(
+            (opts.lost ?? ['u1']).map((user_id) => ({ user_id })),
+          ),
       },
       subscription: {
+        // 13.11: the set-based pre-check (u1 has a live Stripe subscription).
+        findMany: jest.fn().mockResolvedValue([{ user_id: 'u1' }]),
         findUnique: jest.fn().mockResolvedValue({
           stripe_subscription_id: 'sub_1',
           status: 'active',
@@ -69,6 +76,11 @@ describe('VerificationLossBillingJob', () => {
         update: jest.fn(),
       },
       bidCredit: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue(
+            opts.credit && opts.credit.balance > 0 ? [{ user_id: 'u1' }] : [],
+          ),
         findUnique: jest.fn().mockResolvedValue(opts.credit ?? null),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
@@ -120,6 +132,36 @@ describe('VerificationLossBillingJob', () => {
       subscriptionsCanceled: 1,
       refundedCents: 20000,
     });
+  });
+
+  it('reads per attorney only those with something to stop, in set-based batches (13.11, 1B load test)', async () => {
+    // 2 001 lost attorneys; only u1 (a live subscription) has anything.
+    const lost = [...Array.from({ length: 2000 }, (_, i) => `idle-${i}`), 'u1'];
+    const { job, prisma, provider } = make({ lost });
+    const out = await job.run();
+    // Three reads per 1 000 attorneys, not four per attorney.
+    expect(prisma.subscription.findMany).toHaveBeenCalledTimes(3);
+    expect(prisma.bidCredit.findMany).toHaveBeenCalledTimes(3);
+    expect(prisma.subscription.findMany.mock.calls[0][0]).toEqual({
+      where: {
+        user_id: { in: lost.slice(0, 1000) },
+        stripe_subscription_id: { not: null },
+        status: { in: ['active', 'trialing', 'past_due'] },
+      },
+      select: { user_id: true },
+    });
+    expect(prisma.casePromotion.findMany.mock.calls[0][0].where).toEqual({
+      user_id: { in: lost.slice(0, 1000) },
+      status: { in: ['active', 'paused', 'pending_review'] },
+    });
+    expect(prisma.bidCredit.findMany.mock.calls[0][0].where).toEqual({
+      user_id: { in: lost.slice(0, 1000) },
+      balance: { gt: 0 },
+    });
+    expect(prisma.subscription.findUnique).toHaveBeenCalledTimes(1);
+    expect(prisma.bidCredit.findUnique).toHaveBeenCalledTimes(1);
+    expect(provider.cancelNow).toHaveBeenCalledTimes(1);
+    expect(out.attorneys).toBe(1);
   });
 
   it('does nothing when switched off', async () => {
