@@ -197,17 +197,38 @@ export class InfraChangeService {
    * / terraform.tfvars decides, the page shows the registry default).
    */
   async liveStates(): Promise<Map<string, InfraTarget>> {
+    // Row 9 (13.11): a failed request whose own plan touched nothing of the
+    // item (failureSettled) proves the cloud already holds its target. The
+    // search domain was created by an apply that then failed on Redis, so
+    // no request for it is «done»; without this «Авто» thought it was off
+    // and could never switch it off.
     const rows = await this.prisma.infraChangeRequest.findMany({
-      where: { status: 'done' },
+      where: { status: { in: ['done', 'failed'] }, finished_at: { not: null } },
       orderBy: { finished_at: 'desc' },
-      distinct: ['item_id'],
-      select: { item_id: true, to_state: true },
+      take: 1000,
+      select: {
+        item_id: true,
+        to_state: true,
+        status: true,
+        plan_summary: true,
+      },
     });
     const out = new Map<string, InfraTarget>();
     for (const r of rows) {
-      if (r.to_state === 'on' || r.to_state === 'off') {
-        out.set(r.item_id, r.to_state);
-      }
+      if (out.has(r.item_id)) continue;
+      if (r.to_state !== 'on' && r.to_state !== 'off') continue;
+      const known =
+        r.status === 'done' ||
+        failureSettled(
+          {
+            status: r.status,
+            toState: r.to_state,
+            plan: (r.plan_summary as InfraRequestView['plan']) ?? null,
+          },
+          COST_REGISTRY.find((e) => e.id === r.item_id)?.awsTypes,
+          undefined,
+        );
+      if (known) out.set(r.item_id, r.to_state);
     }
     return out;
   }
