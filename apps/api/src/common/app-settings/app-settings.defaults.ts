@@ -488,6 +488,33 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
    * (approved / rejected), then deleted by privacy.retention. The legal
    * texts state no period yet: 30 until the owner's lawyer sets one. */
   'verification.face_match.retention_days': 30,
+  // Owner 2026-11-12 (row 60): «Автоматическое решение по адвокатам»
+  // (verification-auto-decision.service.ts, the Persona / Onfido / Stripe
+  // Identity pattern: approve / decline / review). Off (default) = nothing
+  // automatic, every request waits for a person as today. On = everything
+  // matched (registry number + full name + active, face match at or above
+  // the threshold, liveness, the AI employee's confident «approve») is
+  // approved; a clear failure (number not in the registry, not active, the
+  // face far below the threshold) is rejected with an appeal; anything else
+  // stays in the queue. Owner only, a fresh 2FA code to change; never for
+  // an owner or staff account, never without the biometric consent.
+  'verification.auto_decision.enabled': false,
+  /** Face similarity, %, under which the faces count as clearly different
+   * (an automatic rejection with an appeal). Between it and the face match
+   * threshold the request waits for a person. */
+  'verification.auto_decision.face_reject_below': 50,
+  /** % of the automatic decisions shown to the owner first (the random
+   * audit) until his agreement with them is proven high… */
+  'verification.auto_decision.audit_pct': 10,
+  /** …then the sample drops by itself to this floor (2–5). */
+  'verification.auto_decision.audit_pct_min': 2,
+  /** Optional lever, off: an approval also needs a passing Persona document
+   * (authenticity) check of the same request. */
+  'verification.auto_decision.persona_document_enabled': false,
+  /** Optional lever, off: a blurry photo, a missing ID side or the AI's
+   * confident «request info» asks the attorney to upload again (the
+   * verifier's «Запросить информацию» flow) instead of waiting. */
+  'verification.auto_decision.ai_request_info_enabled': false,
 } as const;
 
 // Owner 2026-11-12 (row 54, docs/dev/BAR_SOURCES_2026-11-12.md): paid

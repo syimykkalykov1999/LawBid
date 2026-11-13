@@ -151,6 +151,8 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   verification_requests: 'attorney verification requests',
   verification_documents: 'verification uploads',
   verification_checks: 'verification checks',
+  // Owner 2026-11-12 (row 60): automatic decisions on test-period requests.
+  verification_auto_decisions: 'automatic verification decisions + evidence',
   attorney_trust: 'trust scores',
   attorney_ad_archive: 'attorney ad text archive',
   attorney_trust_events: 'trust history',

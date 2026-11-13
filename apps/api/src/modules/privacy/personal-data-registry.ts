@@ -49,6 +49,9 @@ export const ERASURE_POLICIES: readonly ErasurePolicy[] = [
  * leaf tables (no dependent rows) are listed here. */
 export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   // user family (swept in every database)
+  // Owner 2026-11-12 (row 60): the automatic decision and its evidence
+  // (registry verdicts, the face band) of the attorney's requests.
+  VerificationAutoDecision: ['attorney_id'],
   Notification: ['user_id'],
   NotificationSetting: ['user_id'],
   NotificationQuietHours: ['user_id'],

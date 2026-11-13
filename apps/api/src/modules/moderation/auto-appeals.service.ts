@@ -15,6 +15,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AutoModerationService } from './auto-moderation.service';
 import { ModerationService } from './moderation.service';
 import { ReporterReputationService } from './reporter-reputation.service';
+import {
+  AUTO_REJECT_KIND,
+  reopenAutoRejectedRequest,
+} from '../verification/verification.public';
 import { StrikesService } from './strikes.service';
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -303,6 +307,19 @@ export class AutoAppealsService {
     note: string,
   ): Promise<void> {
     const now = new Date();
+    // Owner 2026-11-12 (row 60): an automatic rejection of an attorney
+    // verification request — the request goes back to the owner's queue.
+    if (row.kind === AUTO_REJECT_KIND) {
+      await withTxRetry(this.prisma, async (tx) => {
+        if (row.target_id)
+          await reopenAutoRejectedRequest(tx, row.target_id, now);
+        await tx.moderationAutoAction.update({
+          where: { id: row.id },
+          data: { reversed_at: now },
+        });
+      });
+      return;
+    }
     const hidden: Row[] = [];
     if (row.kind === 'content_hide') hidden.push(row);
     else {
