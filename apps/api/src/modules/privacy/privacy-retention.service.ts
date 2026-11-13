@@ -26,6 +26,9 @@ export interface PrivacyRetentionResult {
   dataAccessLog: number;
   sessionIps: number;
   contactDisclosureIps: number;
+  /** Owner 2026-11-12 (row 52): Rekognition face comparison results of
+   * decided verification requests, deleted after the retention period. */
+  faceMatchResults: number;
   /** Tables whose purge failed (missing right, ...): the others still ran. */
   failed: string[];
 }
@@ -43,6 +46,11 @@ export interface PrivacyRetentionResult {
  * - contact_disclosures.ip / device_id
  *   (`privacy.retention_contact_disclosure_ip_days`, 730) are blanked (the
  *   disclosure record is the legal proof and stays).
+ * - verification_checks of type face_match from Amazon Rekognition
+ *   (`verification.face_match.retention_days`, 30): the biometric result
+ *   (similarity) of a request that was approved or rejected that long ago
+ *   is deleted (BIPA / CUBI / RCW 19.375: destroyed once the purpose is
+ *   met); requests still open keep theirs;
  * auth_events (IP + device) are removed by DataRetentionService
  * (`storage.retention_auth_events_days`, 730). audit_log, data_access_log
  * and contact_disclosures are append-only for the app role, so they are
@@ -87,12 +95,16 @@ export class PrivacyRetentionService implements OnModuleDestroy {
         this.settings.number('privacy.retention_session_ip_days'),
         this.settings.number('privacy.retention_contact_disclosure_ip_days'),
       ]);
+    const faceDays = await this.settings
+      .number('verification.face_match.retention_days')
+      .catch(() => NaN);
     const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
     const result: PrivacyRetentionResult = {
       auditLog: 0,
       dataAccessLog: 0,
       sessionIps: 0,
       contactDisclosureIps: 0,
+      faceMatchResults: 0,
       failed: [],
     };
     const attempt = async (
@@ -123,6 +135,9 @@ export class PrivacyRetentionService implements OnModuleDestroy {
     await attempt('contactDisclosureIps', disclosureDays > 0, () =>
       this.contactDisclosureIps(before(disclosureDays)),
     );
+    await attempt('faceMatchResults', faceDays > 0, () =>
+      this.faceMatchResults(before(faceDays)),
+    );
     if (Object.values(result).some((n) => typeof n === 'number' && n > 0)) {
       this.logger.info(result, 'privacy retention');
     }
@@ -152,6 +167,26 @@ export class PrivacyRetentionService implements OnModuleDestroy {
       );
     }
     return total;
+  }
+
+  /** Rekognition face comparison rows of requests decided before [cut];
+   * an attorney under a legal hold keeps them. Few rows (one per request),
+   * batched like the others. */
+  private async faceMatchResults(cut: Date): Promise<number> {
+    const held = await heldSqlFor(this.prisma);
+    return this.batched(
+      (limit) => this.prisma.$executeRaw`
+        DELETE FROM verification_checks
+        WHERE id IN (
+          SELECT c.id FROM verification_checks c
+          JOIN verification_requests r ON r.id = c.request_id
+          WHERE c.check_type = 'face_match'
+            AND c.details->>'provider' = 'aws_rekognition'
+            AND r.status IN ('approved', 'rejected')
+            AND r.reviewed_at < ${cut}
+            AND NOT ${held('user', Prisma.sql`r.attorney_id`)}
+          LIMIT ${limit})`,
+    );
   }
 
   private dataAccessLog(cut: Date): Promise<number> {

@@ -54,6 +54,9 @@ class SelfieCaptureSession<F> {
   /// true once the detector failed: manual capture from here on.
   final ValueNotifier<bool> manual = ValueNotifier(false);
 
+  /// How often text recognition looks for the card (heavier than faces).
+  static const Duration cardTextEvery = Duration(milliseconds: 600);
+
   Duration? _lastText;
   bool _disposed = false;
   int _generation = 0;
@@ -78,10 +81,14 @@ class SelfieCaptureSession<F> {
     final now = _clock();
     if (!throttle.offer(now)) return;
     final generation = _generation;
+    // Owner 2026-11-12 (row 62): the card is checked all along (not only
+    // until first seen), so its frame shows whether it is beside the face
+    // NOW and the auto-capture waits for it.
     final readText = DetectionThrottle.textDue(
       now: now,
       lastText: _lastText,
-      cardSeen: _machine.cardDetected,
+      cardSeen: false,
+      every: cardTextEvery,
     );
     if (readText) _lastText = now;
     try {

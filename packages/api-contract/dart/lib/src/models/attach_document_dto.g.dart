@@ -22,6 +22,7 @@ AttachDocumentDto _$AttachDocumentDtoFromJson(Map<String, dynamic> json) =>
               json['captureMeta'] as Map<String, dynamic>,
             ),
       handoffToken: json['handoffToken'] as String?,
+      biometricConsent: json['biometricConsent'] as bool?,
     );
 
 Map<String, dynamic> _$AttachDocumentDtoToJson(AttachDocumentDto instance) =>
@@ -34,4 +35,5 @@ Map<String, dynamic> _$AttachDocumentDtoToJson(AttachDocumentDto instance) =>
       'captureToken': ?instance.captureToken,
       'captureMeta': ?instance.captureMeta?.toJson(),
       'handoffToken': ?instance.handoffToken,
+      'biometricConsent': ?instance.biometricConsent,
     };

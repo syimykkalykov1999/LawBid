@@ -10,13 +10,14 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { formatBytes } from '@/lib/storage-format';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 
 type Overview = components['schemas']['StorageOverviewDto'];
 type Settings = components['schemas']['StorageSettingsDto'];
@@ -40,6 +41,11 @@ const PURPOSE: Record<string, string> = {
   data_export: 'Выгрузки данных',
   document_template: 'Шаблоны документов',
 };
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const PURPOSE_SORT_KEYS = ['purpose', 'count', 'bytes'] as const;
+const USER_SORT_KEYS = ['user', 'bytes', 'quota'] as const;
+const DB_TABLE_SORT_KEYS = ['table', 'rows', 'bytes'] as const;
 
 /**
  * Owner 2026-10-05 («хранение как у Telegram»): what files and the database
@@ -93,6 +99,24 @@ export default function StoragePage() {
   });
 
   const d = q.data;
+  const purposeSort = useTableSort(PURPOSE_SORT_KEYS, 'purposeSort');
+  const purposeRows = sortRows(d?.byPurpose ?? [], purposeSort.sort, {
+    purpose: (p) => PURPOSE[p.purpose] ?? p.purpose,
+    count: (p) => p.count,
+    bytes: (p) => p.bytes,
+  });
+  const userSort = useTableSort(USER_SORT_KEYS, 'userSort');
+  const userRows = sortRows(d?.topUsers ?? [], userSort.sort, {
+    user: (u) => u.name ?? null,
+    bytes: (u) => u.bytes,
+    quota: (u) => (u.quotaMb === 0 ? Number.MAX_SAFE_INTEGER : u.quotaMb),
+  });
+  const dbTableSort = useTableSort(DB_TABLE_SORT_KEYS, 'dbTableSort');
+  const dbTableRows = sortRows(d?.tables ?? [], dbTableSort.sort, {
+    table: (t) => t.table,
+    rows: (t) => t.rows,
+    bytes: (t) => t.bytes,
+  });
   return (
     <>
       {dialog}
@@ -136,15 +160,15 @@ export default function StoragePage() {
               <Table>
                 <thead>
                   <tr>
-                    <Th>Тип</Th>
-                    <Th className="text-right">Файлов</Th>
-                    <Th className="text-right">Объём</Th>
+                    <SortTh {...purposeSort.header('purpose')}>Тип</SortTh>
+                    <SortTh {...purposeSort.header('count')} className="text-right">Файлов</SortTh>
+                    <SortTh {...purposeSort.header('bytes')} className="text-right">Объём</SortTh>
                   </tr>
                 </thead>
                 <tbody>
                   {q.isPending ? <TableEmpty colSpan={3} loading /> : null}
                   {d && d.byPurpose.length === 0 ? <TableEmpty colSpan={3}>Файлов пока нет.</TableEmpty> : null}
-                  {d?.byPurpose.map((p) => (
+                  {purposeRows.map((p) => (
                     <tr key={p.purpose}>
                       <Td className="max-w-56 truncate" title={p.purpose}>
                         {PURPOSE[p.purpose] ?? p.purpose}
@@ -178,14 +202,14 @@ export default function StoragePage() {
               <Table>
                 <thead>
                   <tr>
-                    <Th>Пользователь</Th>
-                    <Th className="text-right">Объём</Th>
-                    <Th className="text-right">Лимит</Th>
+                    <SortTh {...userSort.header('user')}>Пользователь</SortTh>
+                    <SortTh {...userSort.header('bytes')} className="text-right">Объём</SortTh>
+                    <SortTh {...userSort.header('quota')} className="text-right">Лимит</SortTh>
                   </tr>
                 </thead>
                 <tbody>
                   {d && d.topUsers.length === 0 ? <TableEmpty colSpan={3}>Пока никого.</TableEmpty> : null}
-                  {d?.topUsers.map((u) => (
+                  {userRows.map((u) => (
                     <tr key={u.userId}>
                       <Td className="max-w-64">
                         <div className="truncate text-ink" title={u.name ?? undefined}>
@@ -231,13 +255,13 @@ export default function StoragePage() {
                 <Table>
                   <thead>
                     <tr>
-                      <Th>Таблица</Th>
-                      <Th className="text-right">Строк</Th>
-                      <Th className="text-right">Объём</Th>
+                      <SortTh {...dbTableSort.header('table')}>Таблица</SortTh>
+                      <SortTh {...dbTableSort.header('rows')} className="text-right">Строк</SortTh>
+                      <SortTh {...dbTableSort.header('bytes')} className="text-right">Объём</SortTh>
                     </tr>
                   </thead>
                   <tbody>
-                    {d.tables.map((t) => (
+                    {dbTableRows.map((t) => (
                       <tr key={t.table}>
                         <Td className="max-w-56 truncate font-mono text-xs" title={t.table}>
                           {t.table}

@@ -9,12 +9,15 @@ import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 const ROLE_LABEL: Record<string, string> = { owner: 'владелец', admin: 'админ', member: 'участник' };
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['title', 'owner', 'members', 'messages', 'polls', 'created', 'last'] as const;
 
 /**
  * Owner 2026-10-20: group chats. Find a group by title, look at who is in
@@ -40,7 +43,16 @@ export default function GroupChatsPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    title: (g) => g.title,
+    owner: (g) => g.ownerName,
+    members: (g) => g.memberCount,
+    messages: (g) => g.messageCount,
+    polls: (g) => g.pollCount,
+    created: (g) => g.createdAt,
+    last: (g) => g.lastMessageAt,
+  });
 
   const detail = useQuery({
     queryKey: ['group-chat', open],
@@ -120,13 +132,13 @@ export default function GroupChatsPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Группа</Th>
-            <Th>Владелец</Th>
-            <Th>Участников</Th>
-            <Th>Сообщений</Th>
-            <Th>Опросов</Th>
-            <Th>Создана</Th>
-            <Th>Последнее</Th>
+            <SortTh {...header('title')}>Группа</SortTh>
+            <SortTh {...header('owner')}>Владелец</SortTh>
+            <SortTh {...header('members')}>Участников</SortTh>
+            <SortTh {...header('messages')}>Сообщений</SortTh>
+            <SortTh {...header('polls')}>Опросов</SortTh>
+            <SortTh {...header('created')}>Создана</SortTh>
+            <SortTh {...header('last')}>Последнее</SortTh>
             <Th />
           </tr>
         </thead>

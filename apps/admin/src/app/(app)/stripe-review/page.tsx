@@ -11,12 +11,13 @@ import { Badge, Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/empty';
 import { Field, Textarea } from '@/components/ui/input';
-import { Table, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { usd } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Item = components['schemas']['StripeReviewItemDto'];
@@ -37,6 +38,9 @@ const SLA: Record<string, { label: string; tone: 'success' | 'warning' | 'danger
   due_soon: { label: 'скоро срок', tone: 'warning' },
   overdue: { label: 'просрочено', tone: 'danger' },
 };
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['kind', 'summary', 'amount', 'due', 'sla'] as const;
 
 /** Stripe robustness 2026-10-27: one queue for everything from Stripe that
  * needs a human look. Actions ask for one fresh 2FA code (the API client
@@ -63,7 +67,14 @@ export default function StripeReviewPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    kind: (r) => KINDS[r.kind] ?? r.kind,
+    summary: (r) => r.summary,
+    amount: (r) => r.amountCents ?? null,
+    due: (r) => r.dueAt ?? null,
+    sla: (r) => SLA[r.sla]?.label ?? r.sla,
+  });
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['stripe-review'] });
     void qc.invalidateQueries({ queryKey: ['stripe-review-summary'] });
@@ -115,11 +126,11 @@ export default function StripeReviewPage() {
         <Table>
           <thead>
             <tr>
-              <Th>Что</Th>
-              <Th>Описание</Th>
-              <Th className="text-right">Сумма</Th>
-              <Th>Срок</Th>
-              <Th>Статус</Th>
+              <SortTh {...header('kind')}>Что</SortTh>
+              <SortTh {...header('summary')}>Описание</SortTh>
+              <SortTh {...header('amount')} className="text-right">Сумма</SortTh>
+              <SortTh {...header('due')}>Срок</SortTh>
+              <SortTh {...header('sla')}>Статус</SortTh>
               <Th />
             </tr>
           </thead>

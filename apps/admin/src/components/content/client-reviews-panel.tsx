@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { growthError } from '@/components/growth/errors';
@@ -21,6 +21,7 @@ import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { CONTENT_STATUS, label, ROLE_TEXT, StatusPill } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { collectIds, dayBounds, type Noun } from '@/lib/bulk';
 import {
@@ -38,6 +39,8 @@ import {
 } from '@/components/bulk/bulk-controls';
 
 const REVIEWS: Noun = ['отзыв', 'отзыва', 'отзывов'];
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['rating', 'author', 'client', 'case', 'status'] as const;
 
 type ClientReview = components['schemas']['AdminClientReviewRowDto'];
 type ReviewStatus = components['schemas']['AdminReviewStatus'];
@@ -83,7 +86,14 @@ export function ClientReviewsPanel() {
     queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS, 'clientReviewsSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    rating: (r) => r.rating,
+    author: (r) => r.authorName,
+    client: (r) => r.clientName,
+    case: (r) => r.caseTitle ?? null,
+    status: (r) => REVIEW_STATUS[r.status] ?? r.status,
+  });
   const onBulk = (hide: boolean) =>
     bulk.run({
       ids: [...sel.selected],
@@ -183,11 +193,11 @@ export function ClientReviewsPanel() {
                   <PageSelectBox selected={sel.selected} ids={rows.map((r) => r.id)} onToggle={sel.togglePage} />
                 </Th>
               ) : null}
-              <Th>Отзыв</Th>
-              <Th>Автор</Th>
-              <Th>О ком</Th>
-              <Th>Кейс</Th>
-              <Th>Статус</Th>
+              <SortTh {...header('rating')}>Отзыв</SortTh>
+              <SortTh {...header('author')}>Автор</SortTh>
+              <SortTh {...header('client')}>О ком</SortTh>
+              <SortTh {...header('case')}>Кейс</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
               {canWrite ? <Th /> : null}
             </tr>
           </thead>

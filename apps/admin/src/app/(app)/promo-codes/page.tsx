@@ -22,6 +22,7 @@ import {
   TonePill,
   UserCell,
   useBillingRole,
+  userName,
   dollarsToCents,
 } from '@/components/billing/shared';
 import { ErrorNote, PageHeader } from '@/components/page-header';
@@ -33,14 +34,18 @@ import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { RowMenu } from '@/components/ui/menu';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { usd } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { cn, formatDateTime } from '@/lib/utils';
 
 type Filter = 'active' | 'expired' | 'inactive' | 'archived';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const REDEMPTION_SORT_KEYS = ['user', 'discount', 'created'] as const;
 
 /** Promo codes: list, create, on/off, delete / archive, redemptions. */
 export default function PromoCodesPage() {
@@ -450,7 +455,12 @@ function RedemptionsDialog({ p, onClose }: { p: PromoCode; onClose: () => void }
       (await api.GET('/admin/billing/promo-codes/{id}/redemptions', { params: { path: { id: p.id }, query: { cursor: pageParam } } })).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((x) => x.data) ?? [];
+  const { sort, header } = useTableSort(REDEMPTION_SORT_KEYS, 'redemptionSort');
+  const rows = sortRows(list.data?.pages.flatMap((x) => x.data) ?? [], sort, {
+    user: (r) => userName(r.user, r.userId),
+    discount: (r) => r.amountOffCents ?? null,
+    created: (r) => r.createdAt,
+  });
   return (
     <Dialog
       open
@@ -465,9 +475,9 @@ function RedemptionsDialog({ p, onClose }: { p: PromoCode; onClose: () => void }
       <Table>
         <thead>
           <tr>
-            <Th>Пользователь</Th>
-            <Th className="text-right">Скидка</Th>
-            <Th>Когда</Th>
+            <SortTh {...header('user')}>Пользователь</SortTh>
+            <SortTh {...header('discount')} className="text-right">Скидка</SortTh>
+            <SortTh {...header('created')}>Когда</SortTh>
           </tr>
         </thead>
         <tbody>

@@ -67,6 +67,8 @@ class IdSelfieCaptureView extends StatelessWidget {
                 : (manual ? OvalTone.active : v.tone),
             cardDetected: shot != null || v.cardDetected,
             holdProgress: shot != null || manual ? 0 : v.holdProgress,
+            // Review and manual mode keep the rest layout (no live face).
+            guide: shot != null || manual ? null : v.guide,
           ),
         ),
         SafeArea(

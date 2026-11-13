@@ -188,6 +188,22 @@ export const CHECK_TYPE: Record<string, string> = {
   face_match: 'сверка лица',
 };
 
+/** Owner 2026-11-12 (row 52): why a Rekognition face comparison did not
+ * give a clear answer (`details.reason` of a face_match check). */
+export const FACE_MATCH_REASON: Record<string, string> = {
+  selfie_mismatch: 'лица не совпали',
+  no_consent: 'нет согласия на биометрию — сравнивает человек',
+  no_face: 'лицо не найдено',
+  several_faces: 'несколько лиц',
+  low_quality: 'плохое качество фото',
+  unsupported_format: 'формат не JPEG / PNG',
+  image_too_large: 'фото слишком большое',
+  image_missing: 'нет селфи или лицевой стороны документа',
+  file_not_clean: 'файл ещё не прошёл проверку',
+  budget_exceeded: 'исчерпан дневной лимит проверок личности',
+  provider_error: 'ошибка Amazon — сравнивает человек',
+};
+
 export const CHECK_RESULT: Record<string, string> = {
   pass: 'пройдена',
   fail: 'не пройдена',

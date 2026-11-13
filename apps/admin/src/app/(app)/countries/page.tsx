@@ -12,14 +12,17 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 
 type Country = components['schemas']['CountryAdminDto'];
 type Filter = 'on' | 'ready' | 'all';
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['name', 'code', 'regions', 'people', 'waiting', 'enabled'] as const;
 
 const REGION_WORD: Record<string, string> = {
   state: 'штаты',
@@ -112,7 +115,7 @@ export default function CountriesPage() {
 
   const data = list.data;
   const all = useMemo(() => data?.countries ?? [], [data]);
-  const rows = useMemo(() => {
+  const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return all.filter((c) => {
       if (filter === 'on' && !c.isEnabled) return false;
@@ -125,6 +128,15 @@ export default function CountriesPage() {
       );
     });
   }, [all, filter, q]);
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(filtered, sort, {
+    name: (c) => c.name,
+    code: (c) => c.code,
+    regions: (c) => c.regions,
+    people: (c) => c.clients + c.attorneys || null,
+    waiting: (c) => c.waiting || null,
+    enabled: (c) => c.isEnabled,
+  });
   const enabled = all.filter((c) => c.isEnabled).length;
   const canBulk = data?.canBulk === true;
   const pick = (code: string, on: boolean) =>
@@ -172,12 +184,12 @@ export default function CountriesPage() {
             <thead>
               <tr>
                 {canBulk ? <Th className="w-8" /> : null}
-                <Th>Страна</Th>
-                <Th>Код</Th>
-                <Th>Регионы</Th>
-                <Th>Люди</Th>
-                <Th>Ждут</Th>
-                <Th className="text-right">Работает</Th>
+                <SortTh {...header('name')}>Страна</SortTh>
+                <SortTh {...header('code')}>Код</SortTh>
+                <SortTh {...header('regions')}>Регионы</SortTh>
+                <SortTh {...header('people')}>Люди</SortTh>
+                <SortTh {...header('waiting')}>Ждут</SortTh>
+                <SortTh {...header('enabled')} className="text-right">Работает</SortTh>
               </tr>
             </thead>
             <tbody>

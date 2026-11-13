@@ -81448,7 +81448,7 @@
             "admin": []
           }
         ],
-        "summary": "AI worker: put a role away (kept for history)",
+        "summary": "AI worker: «Удалить» a role (soft delete; its runs stop, history stays until the retention cleanup)",
         "tags": [
           "admin-ai-worker"
         ]
@@ -142429,6 +142429,10 @@
             "minLength": 16,
             "maxLength": 64,
             "description": "Selfie only, R-146: the code of POST verification/handoff when the phone opened the link from the computer. Must belong to this attorney and request (else 400 VALIDATION_ERROR, details.reason handoff_token_invalid / handoff_token_expired); the computer then reads `done`."
+          },
+          "biometricConsent": {
+            "type": "boolean",
+            "description": "Selfie only, owner 2026-11-12 (row 52): the attorney ticked the biometric consent (automatic comparison of this selfie with the ID photo, version BIOMETRIC_CONSENT_VERSION). Stored with the time on the request; a selfie attached without it clears an earlier consent, and without consent no face comparison runs (a person compares)."
           }
         },
         "required": [
@@ -143210,6 +143214,17 @@
             "nullable": true,
             "description": "Version of the sworn-statement text the attorney accepted"
           },
+          "biometricConsentAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Owner 2026-11-12 (row 52): when the attorney gave the biometric consent with the selfie (null = none: no automatic face comparison)"
+          },
+          "biometricConsentVersion": {
+            "type": "string",
+            "nullable": true,
+            "description": "Version of the biometric consent text the attorney accepted"
+          },
           "applicantComment": {
             "type": "string",
             "nullable": true
@@ -143273,6 +143288,8 @@
           "attestedAt",
           "attestationIp",
           "attestationVersion",
+          "biometricConsentAt",
+          "biometricConsentVersion",
           "applicantComment",
           "infoRequestMessage",
           "rejectionCode",
@@ -180761,7 +180778,9 @@
       "AiWorkerQueueKey": {
         "type": "string",
         "enum": [
-          "attorney_verification"
+          "attorney_verification",
+          "support_reply",
+          "complaint_triage"
         ]
       },
       "AiWorkerQueueDto": {
@@ -180873,6 +180892,14 @@
             "type": "number",
             "description": "% of confident proposals still audited."
           },
+          "enabled": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 53): «Вкл / Выкл». Off = no run, no AI call, the cron skips it."
+          },
+          "autoSend": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support replies; default off)."
+          },
           "reviewed": {
             "type": "number",
             "description": "Proposals the owner decided."
@@ -180906,6 +180933,8 @@
           "model",
           "confidenceMin",
           "auditPct",
+          "enabled",
+          "autoSend",
           "reviewed",
           "agreed",
           "agreementPct",
@@ -181149,6 +181178,34 @@
           "note"
         ]
       },
+      "AiWorkerAction": {
+        "type": "string",
+        "enum": [
+          "none",
+          "dismiss",
+          "hide",
+          "remove",
+          "warn",
+          "suspend"
+        ],
+        "description": "Complaint queue: the proposed step (never applied)."
+      },
+      "AiWorkerRegistryLinkDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "The state bar’s official lookup page."
+          }
+        },
+        "required": [
+          "stateCode",
+          "url"
+        ]
+      },
       "AiWorkerItemDto": {
         "type": "object",
         "properties": {
@@ -181162,6 +181219,18 @@
           },
           "roleName": {
             "type": "string"
+          },
+          "queue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerQueueKey"
+              }
+            ]
+          },
+          "openPath": {
+            "type": "string",
+            "nullable": true,
+            "description": "The admin page of the item (request, ticket, report card)."
           },
           "itemId": {
             "type": "string",
@@ -181227,6 +181296,31 @@
           "injectionSuspected": {
             "type": "boolean"
           },
+          "reply": {
+            "type": "string",
+            "description": "Support queue: the draft answer to the user (sent on «Утвердить»)."
+          },
+          "action": {
+            "description": "Complaint queue: the proposed step (never applied).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiWorkerAction"
+              }
+            ]
+          },
+          "deliveredAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "When the support reply went to the user."
+          },
+          "registryLinks": {
+            "description": "Registries the owner checks by hand (no automatic source).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiWorkerRegistryLinkDto"
+            }
+          },
           "error": {
             "type": "string",
             "nullable": true
@@ -181251,6 +181345,8 @@
           "id",
           "runId",
           "roleName",
+          "queue",
+          "openPath",
           "itemId",
           "status",
           "decision",
@@ -181263,6 +181359,10 @@
           "ownerNote",
           "draftNote",
           "injectionSuspected",
+          "reply",
+          "action",
+          "deliveredAt",
+          "registryLinks",
           "error",
           "costCents",
           "reviewedAt",
@@ -181297,7 +181397,8 @@
           "failed",
           "pending",
           "sent",
-          "skipped"
+          "skipped",
+          "auto_sent"
         ]
       },
       "AiWorkerLane": {
@@ -181381,6 +181482,14 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 53): «Вкл / Выкл»."
+          },
+          "autoSend": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support replies only)."
           }
         },
         "required": [
@@ -181449,6 +181558,14 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 53): «Вкл / Выкл»."
+          },
+          "autoSend": {
+            "type": "boolean",
+            "description": "Owner 2026-11-12 (row 51): «Отправлять уверенные ответы сам» (support replies only)."
           }
         }
       },

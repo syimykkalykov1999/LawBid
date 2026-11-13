@@ -10,14 +10,17 @@ import { VirtualRows } from '@/components/ui/virtual-rows';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { LazyImg } from '@/components/ui/lazy-img';
 
 type Filter = 'all' | 'hidden' | 'flagged' | 'csam_match' | 'skipped';
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['purpose', 'verdict', 'created'] as const;
 
 const TABS: Record<Filter, string> = {
   all: 'Все',
@@ -80,7 +83,12 @@ export default function MediaModerationPage() {
       ).data!.data,
     getNextPageParam: (last) => last?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p?.items ?? []) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(q.data?.pages.flatMap((p) => p?.items ?? []) ?? [], sort, {
+    purpose: (r) => PURPOSE[r.purpose] ?? r.purpose,
+    verdict: (r) => STATUS[r.status]?.text ?? r.status,
+    created: (r) => r.createdAt,
+  });
   const refresh = () => void qc.invalidateQueries({ queryKey: ['media-moderation'] });
 
   const decide = useMutation({
@@ -147,10 +155,10 @@ export default function MediaModerationPage() {
         <thead>
           <tr>
             <Th>Картинка</Th>
-            <Th>Что это</Th>
-            <Th>Вердикт</Th>
+            <SortTh {...header('purpose')}>Что это</SortTh>
+            <SortTh {...header('verdict')}>Вердикт</SortTh>
             <Th>Автор</Th>
-            <Th>Когда</Th>
+            <SortTh {...header('created')}>Когда</SortTh>
             <Th />
           </tr>
         </thead>

@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { VirtualRows } from '@/components/ui/virtual-rows';
 import { Tabs } from '@/components/ui/tabs';
 import { api, errorText } from '@/lib/api/client';
@@ -25,9 +25,12 @@ import { collectIds, type Noun } from '@/lib/bulk';
 import { useMe } from '@/lib/hooks';
 import { CASE_STATUS, StatusPill } from '@/lib/labels';
 import { can } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type CaseStatus = components['schemas']['AdminCaseStatus'];
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['title', 'client', 'status', 'state', 'bids', 'activity'] as const;
 type Tab = 'all' | CaseStatus;
 
 const STATUSES: CaseStatus[] = ['open', 'in_progress', 'pending_completion', 'disputed', 'closed', 'archived'];
@@ -96,7 +99,15 @@ export function CaseList() {
     queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    title: (c) => c.title,
+    client: (c) => c.clientName,
+    status: (c) => CASE_STATUS[c.status] ?? c.status,
+    state: (c) => c.stateCode,
+    bids: (c) => c.bidsCount,
+    activity: (c) => c.lastActivityAt,
+  });
   const filtered = tab !== 'all' || !!q || hasReports || !!stateCode || withDeadline;
 
   return (
@@ -183,12 +194,12 @@ export function CaseList() {
                   <PageSelectBox selected={sel.selected} ids={rows.map((c) => c.id)} onToggle={sel.togglePage} />
                 </Th>
               ) : null}
-              <Th>Кейс</Th>
-              <Th>Клиент</Th>
-              <Th>Статус</Th>
-              <Th>Штат</Th>
-              <Th className="text-right">Ставки</Th>
-              <Th>Активность</Th>
+              <SortTh {...header('title')}>Кейс</SortTh>
+              <SortTh {...header('client')}>Клиент</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('state')}>Штат</SortTh>
+              <SortTh {...header('bids')} className="text-right">Ставки</SortTh>
+              <SortTh {...header('activity')}>Активность</SortTh>
             </tr>
           </thead>
           <tbody>

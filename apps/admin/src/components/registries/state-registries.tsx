@@ -12,11 +12,12 @@ import { Dialog } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, ApiError, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { ADAPTER_RU, FIELD_RU, REASON_RU, RESULT_RU } from '@/lib/registry-labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { US_STATES } from '@/lib/us-states';
 import { formatDateTime } from '@/lib/utils';
 
@@ -27,6 +28,8 @@ type TestResult = components['schemas']['RegistryTestResultDto'];
 const adapterLabel = (type: string) => ADAPTER_RU[type]?.label ?? type;
 /** Every state the copy can target (the server skips the source). */
 const ALL_STATES = US_STATES.map((s) => s.code);
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['state', 'auto', 'adapter', 'key', 'tested', 'status'] as const;
 
 /**
  * Owner 2026-10-05 — "Реестры адвокатов по штатам": per state, how the bar
@@ -70,6 +73,16 @@ export function StateRegistries() {
   const items = q.data?.items ?? [];
   const on = items.filter((i) => i.enabled);
   const possible = items.filter((i) => i.support === 'automatic').map((i) => i.stateCode);
+  const { sort, header } = useTableSort(SORT_KEYS, 'registriesSort');
+  const rows = sortRows(items, sort, {
+    state: (it) => it.stateCode,
+    auto: (it) => (it.support === 'automatic' ? (it.presetAvailable ? 'Да — готовый' : 'Да') : `Нет — ${it.supportNote}`),
+    adapter: (it) => adapterLabel(it.adapter),
+    key: (it) => it.secretMasked ?? null,
+    tested: (it) => ((it.lastTestResult as { result?: string } | null)?.result ? it.lastTestAt : null),
+    status: (it) =>
+      it.enabled && it.pausedUntil ? 'Пауза' : it.enabled ? 'Включена' : it.adapter === 'manual' ? 'Вручную' : 'Выключена',
+  });
   return (
     <section className="mt-10">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -108,18 +121,18 @@ export function StateRegistries() {
           <Table>
             <thead>
               <tr>
-                <Th>Штат</Th>
+                <SortTh {...header('state')}>Штат</SortTh>
                 <Th>Поиск штата</Th>
-                <Th>Можно автоматически</Th>
-                <Th>Способ</Th>
-                <Th>Ключ</Th>
-                <Th>Последняя проверка</Th>
-                <Th>Статус</Th>
+                <SortTh {...header('auto')}>Можно автоматически</SortTh>
+                <SortTh {...header('adapter')}>Способ</SortTh>
+                <SortTh {...header('key')}>Ключ</SortTh>
+                <SortTh {...header('tested')}>Последняя проверка</SortTh>
+                <SortTh {...header('status')}>Статус</SortTh>
                 <Th />
               </tr>
             </thead>
             <tbody>
-              {items.map((it) => {
+              {rows.map((it) => {
                 const last = it.lastTestResult as { result?: string } | null;
                 return (
                   <tr key={it.stateCode}>

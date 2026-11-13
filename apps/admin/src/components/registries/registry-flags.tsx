@@ -4,12 +4,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { REASON_RU } from '@/lib/registry-labels';
 import { livePoll } from '@/lib/live';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['attorney', 'license', 'reason', 'registry', 'flagged'] as const;
 
 /**
  * Owner 2026-10-05 — Проверка → "Сверка с реестром": licenses approved on
@@ -50,7 +54,17 @@ export function RegistryFlags() {
     },
     onError: (e) => toast.error(e),
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS, 'flagsSort');
+  const rows = sortRows(q.data ?? [], sort, {
+    attorney: ({ attorney: a }) => [a.firstName, a.lastName].filter(Boolean).join(' ') || `@${a.username}`,
+    license: ({ license: l }) => `${l.stateCode} ${l.barNumber}`,
+    reason: ({ license: l }) => (l.registryFlag ? (REASON_RU[l.registryFlag] ?? l.registryFlag) : null),
+    registry: ({ license: l }) => {
+      const name = ((l.autoCheckResult ?? {}) as Record<string, unknown>).name;
+      return typeof name === 'string' && name ? name : null;
+    },
+    flagged: ({ license: l }) => l.registryFlaggedAt,
+  });
   return (
     <>
       <p className="mb-3 max-w-3xl text-sm text-muted">
@@ -62,11 +76,11 @@ export function RegistryFlags() {
       <Table>
         <thead>
           <tr>
-            <Th>Адвокат</Th>
-            <Th>Лицензия</Th>
-            <Th>Что не так</Th>
-            <Th>В реестре</Th>
-            <Th>Когда</Th>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('license')}>Лицензия</SortTh>
+            <SortTh {...header('reason')}>Что не так</SortTh>
+            <SortTh {...header('registry')}>В реестре</SortTh>
+            <SortTh {...header('flagged')}>Когда</SortTh>
             <Th />
           </tr>
         </thead>

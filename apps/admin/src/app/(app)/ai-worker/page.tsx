@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ImageAttach, anyUploading, readyIds, type AttachedImage } from '@/components/ai/image-attach';
 import { AiRetentionPanel } from '@/components/ai/retention-panel';
+import { useConfirm } from '@/components/legacy/confirm';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import {
+  ACTION_LABEL,
   DECISION_LABEL,
   DECISION_TONE,
   LANE_HINT,
@@ -40,6 +42,7 @@ const DECISIONS = ['approve', 'reject', 'request_info', 'unclear'] as const;
 export default function AiWorkerPage() {
   const qc = useQueryClient();
   const toast = useToast();
+  const { confirm, dialog } = useConfirm();
   const page = useQuery({
     queryKey: ['ai-worker'],
     queryFn: async () => (await api.GET('/admin/ai-worker')).data!.data,
@@ -212,9 +215,16 @@ export default function AiWorkerPage() {
                       <div className="mt-1 text-xs text-muted">
                         уверенность {i.confidence ?? '—'} % · {i.roleName}
                       </div>
-                      <a href={`/verification/${i.itemId}`} className="text-xs text-gold-600 hover:underline">
-                        Открыть заявку
-                      </a>
+                      {i.openPath ? (
+                        <a href={i.openPath} className="text-xs text-gold-600 hover:underline">
+                          Открыть
+                        </a>
+                      ) : null}
+                      {i.registryLinks.map((l) => (
+                        <a key={l.stateCode} href={l.url} target="_blank" rel="noopener noreferrer" className="block text-xs text-gold-600 hover:underline">
+                          Проверить в реестре {l.stateCode} вручную
+                        </a>
+                      ))}
                       {i.injectionSuspected ? (
                         <div className="mt-1">
                           <Badge tone="danger">Попытка обмана ИИ</Badge>
@@ -233,6 +243,11 @@ export default function AiWorkerPage() {
                         </p>
                       ) : null}
                       {i.draftNote ? <p className="mt-1 text-xs text-muted">Черновик: {i.draftNote}</p> : null}
+                      {i.reply ? <p className="mt-1 whitespace-pre-wrap rounded-[var(--radius-md)] bg-surface-2 p-2 text-xs">Ответ пользователю: {i.reply}</p> : null}
+                      {i.queue === 'complaint_triage' && i.action !== 'none' ? (
+                        <p className="mt-1 text-xs text-muted">Предлагает: {ACTION_LABEL[i.action] ?? i.action} (сам ничего не делает)</p>
+                      ) : null}
+                      {i.error ? <p className="mt-1 text-xs text-danger">{i.error}</p> : null}
                     </Td>
                     <Td className="text-xs text-muted">{i.flags.length ? i.flags.join(', ') : 'нет'}</Td>
                     <Td>
@@ -260,7 +275,7 @@ export default function AiWorkerPage() {
                       ) : (
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" disabled={act.isPending} onClick={() => review([i.id], 'approved')}>
-                            Верно
+                            {i.queue === 'support_reply' && i.reply ? 'Верно, отправить' : 'Верно'}
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => { setCorrecting(i.id); setFix({ decision: i.decision === 'approve' ? 'reject' : 'approve', note: '' }); }}>
                             Неверно
@@ -293,7 +308,12 @@ export default function AiWorkerPage() {
                 d.roles.map((r) => (
                   <tr key={r.id}>
                     <Td>
-                      <div className="font-medium text-heading">{r.name}</div>
+                      <div className="font-medium text-heading">
+                        {r.name}{' '}
+                        <Badge tone={r.enabled ? 'success' : 'neutral'} dot>
+                          {r.enabled ? 'Вкл' : 'Выкл'}
+                        </Badge>
+                      </div>
                       <div className="line-clamp-2 max-w-sm text-xs text-muted">{r.instructions}</div>
                       {r.images.length ? <div className="text-xs text-faint">Картинок: {r.images.length}</div> : null}
                     </Td>
@@ -305,13 +325,43 @@ export default function AiWorkerPage() {
                     <Td>{agreementText(r)}</Td>
                     <Td>
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" disabled={!d.enabled || act.isPending} onClick={() => run(() => api.POST('/admin/ai-worker/roles/{id}/runs', { params: { path: { id: r.id } }, body: {} }))}>
+                        <Button size="sm" disabled={!d.enabled || !r.enabled || act.isPending} onClick={() => run(() => api.POST('/admin/ai-worker/roles/{id}/runs', { params: { path: { id: r.id } }, body: {} }))}>
                           Запустить
                         </Button>
-                        <Button size="sm" variant="outline" disabled={act.isPending} onClick={() => run(() => api.POST('/admin/ai-worker/roles/{id}/archive', { params: { path: { id: r.id } } }))}>
-                          Убрать
+                        <Button size="sm" variant="outline" disabled={act.isPending} onClick={() => run(() => api.PATCH('/admin/ai-worker/roles/{id}', { params: { path: { id: r.id } }, body: { enabled: !r.enabled, confidenceMin: r.confidenceMin, auditPct: r.auditPct } }))}>
+                          {r.enabled ? 'Выкл' : 'Вкл'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          disabled={act.isPending}
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `Удалить роль «${r.name}»?`,
+                              description: 'Роль перестанет работать, её запуски остановятся. История предложений останется до очистки по сроку хранения.',
+                              confirm: 'Удалить',
+                              danger: true,
+                            });
+                            if (ok) run(() => api.POST('/admin/ai-worker/roles/{id}/archive', { params: { path: { id: r.id } } }));
+                          }}
+                        >
+                          Удалить
                         </Button>
                       </div>
+                      {r.queue === 'support_reply' ? (
+                        <label className="mt-2 flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={r.autoSend}
+                            disabled={act.isPending}
+                            onChange={(e) => {
+                              const autoSend = e.target.checked;
+                              run(() => api.PATCH('/admin/ai-worker/roles/{id}', { params: { path: { id: r.id } }, body: { autoSend, confidenceMin: r.confidenceMin, auditPct: r.auditPct } }));
+                            }}
+                          />
+                          Отправлять уверенные ответы сам
+                        </label>
+                      ) : null}
                     </Td>
                   </tr>
                 ))
@@ -418,6 +468,7 @@ export default function AiWorkerPage() {
           </Card>
         </>
       )}
+      {dialog}
       <StepUpDialog
         open={pending !== null}
         description="Изменение в ИИ-сотруднике. Подтвердите, что это вы."

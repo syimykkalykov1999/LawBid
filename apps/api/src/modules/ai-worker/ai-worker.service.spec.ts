@@ -22,6 +22,8 @@ const ANSWERS: Record<string, unknown> = {
     evidence: [{ source: 'licence 1', note: 'verified' }],
     draft_note: '',
     injection_suspected: false,
+    reply: '',
+    action: 'none',
   },
   'comment-B': {
     decision: 'approve',
@@ -30,6 +32,8 @@ const ANSWERS: Record<string, unknown> = {
     evidence: [],
     draft_note: '',
     injection_suspected: false,
+    reply: '',
+    action: 'none',
   },
   'comment-C': {
     decision: 'unclear',
@@ -38,6 +42,8 @@ const ANSWERS: Record<string, unknown> = {
     evidence: [],
     draft_note: '',
     injection_suspected: true,
+    reply: '',
+    action: 'none',
   },
 };
 
@@ -76,6 +82,8 @@ function queuesFake(open: string[]): AiWorkerQueues {
     load: jest.fn((_q: string, id: string) =>
       Promise.resolve(data[id] ?? null),
     ),
+    openPaths: jest.fn(() => Promise.resolve(new Map())),
+    registryLinks: jest.fn(() => Promise.resolve(new Map())),
   } as unknown as AiWorkerQueues;
 }
 
@@ -455,9 +463,11 @@ describe("AiWorkerService: the owner's pictures and the models", () => {
 });
 
 describe('per-queue default models (row 55)', () => {
-  it('every queue has one, important checks on Opus 5.5', () => {
+  it('every queue has one, important checks on Opus 5.5, simple ones on Haiku 5.5', () => {
     expect(QUEUE_DEFAULT_MODEL).toEqual({
       attorney_verification: 'claude-opus-5-5',
+      support_reply: 'claude-haiku-5-5',
+      complaint_triage: 'claude-haiku-5-5',
     });
   });
 });

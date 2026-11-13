@@ -10,10 +10,11 @@ import { VirtualRows } from '@/components/ui/virtual-rows';
 import { MoreButton } from '@/components/legacy/more-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/card';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { api, errorText } from '@/lib/api/client';
 import { CASE_STATUS, CONTACT_ISSUE_STATUS, ISSUE_TYPE, label, PARTY_ROLE, partyName, StatusPill } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Tab = 'cases' | 'disputes' | 'contact-issues';
@@ -21,6 +22,9 @@ type DisputeStatus = 'open' | 'resolved';
 type IssueStatus = 'open' | 'confirmed' | 'rejected';
 
 const DISPUTE_STATUS: Record<string, string> = { open: 'открыт', resolved: 'решён' };
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const DISPUTE_SORT = ['case', 'opener', 'reason', 'parties', 'opened', 'status'] as const;
+const ISSUE_SORT = ['case', 'attorney', 'client', 'reason', 'confirmed', 'status', 'created'] as const;
 
 /** docs/06 §2.3 item 5: the two support queues. */
 export default function CasesQueuesPage() {
@@ -82,19 +86,27 @@ function Disputes({ status }: { status: DisputeStatus }) {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(DISPUTE_SORT, 'disputesSort');
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    case: (d) => d.case.title,
+    opener: (d) => label(PARTY_ROLE, d.openedByRole),
+    reason: (d) => d.reason,
+    parties: (d) => `${partyName(d.case.client)} · ${partyName(d.case.attorney)}`,
+    opened: (d) => d.createdAt,
+    status: (d) => DISPUTE_STATUS[d.status] ?? d.status,
+  });
   return (
     <>
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>
           <tr>
-            <Th>Кейс</Th>
-            <Th>Кто открыл</Th>
-            <Th>Причина</Th>
-            <Th>Стороны</Th>
-            <Th>Открыт</Th>
-            <Th>Статус</Th>
+            <SortTh {...header('case')}>Кейс</SortTh>
+            <SortTh {...header('opener')}>Кто открыл</SortTh>
+            <SortTh {...header('reason')}>Причина</SortTh>
+            <SortTh {...header('parties')}>Стороны</SortTh>
+            <SortTh {...header('opened')}>Открыт</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
           </tr>
         </thead>
         <tbody>
@@ -149,20 +161,29 @@ function ContactIssues({ status }: { status: IssueStatus }) {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(ISSUE_SORT, 'issuesSort');
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    case: (r) => r.case.title,
+    attorney: (r) => partyName(r.attorney),
+    client: (r) => (r.case.client ? partyName(r.case.client) : null),
+    reason: (r) => ISSUE_TYPE[r.issueType] ?? r.issueType,
+    confirmed: (r) => r.clientConfirmedReports,
+    status: (r) => CONTACT_ISSUE_STATUS[r.status] ?? r.status,
+    created: (r) => r.createdAt,
+  });
   return (
     <>
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>
           <tr>
-            <Th>Кейс</Th>
-            <Th>Адвокат</Th>
-            <Th>Клиент</Th>
-            <Th>Причина</Th>
-            <Th>Подтверждено</Th>
-            <Th>Статус</Th>
-            <Th>Создано</Th>
+            <SortTh {...header('case')}>Кейс</SortTh>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('client')}>Клиент</SortTh>
+            <SortTh {...header('reason')}>Причина</SortTh>
+            <SortTh {...header('confirmed')}>Подтверждено</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
+            <SortTh {...header('created')}>Создано</SortTh>
           </tr>
         </thead>
         <tbody>

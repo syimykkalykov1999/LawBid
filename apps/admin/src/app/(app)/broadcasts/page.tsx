@@ -11,10 +11,11 @@ import { Badge, Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
 import { Field, Input, Label, Select, Textarea } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { StatesPicker } from '@/components/states-picker';
 import { api, errorText } from '@/lib/api/client';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { statesText } from '@/lib/us-states';
 import { cn, formatDateTime } from '@/lib/utils';
 
@@ -33,6 +34,9 @@ const AUDIENCE_HINT: Record<Audience, string> = {
   clients: 'Только клиенты, которые ищут адвоката.',
   assistants: 'Только помощники в командах адвокатов.',
 };
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['title', 'audience', 'recipients', 'created'] as const;
 
 const TITLE_MAX = 120;
 const BODY_MAX = 1000;
@@ -85,7 +89,13 @@ export default function BroadcastsPage() {
   const stateOk = stateMode === 'all' || states.length > 0;
   const ready = !!title.trim() && !!body.trim() && stateOk;
   const audienceText = `${AUDIENCE[audience]}${picked.length ? ` ${statesText(picked)}` : ', все штаты'}`;
-  const rows = history.data ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(history.data ?? [], sort, {
+    title: (b) => b.title,
+    audience: (b) => AUDIENCE[b.audience as Audience] ?? b.audience,
+    recipients: (b) => b.recipients,
+    created: (b) => b.createdAt,
+  });
 
   return (
     <>
@@ -181,10 +191,10 @@ export default function BroadcastsPage() {
         <Table>
           <thead>
             <tr>
-              <Th>Рассылка</Th>
-              <Th>Кому</Th>
-              <Th>Получателей</Th>
-              <Th>Когда</Th>
+              <SortTh {...header('title')}>Рассылка</SortTh>
+              <SortTh {...header('audience')}>Кому</SortTh>
+              <SortTh {...header('recipients')}>Получателей</SortTh>
+              <SortTh {...header('created')}>Когда</SortTh>
             </tr>
           </thead>
           <tbody>

@@ -13,7 +13,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
 import { Field, Input, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
@@ -35,6 +35,7 @@ import {
   totalsText,
 } from '@/lib/payroll';
 import { can } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Employee = components['schemas']['PayrollEmployeeDto'];
@@ -48,6 +49,11 @@ const STATUS_TONE: Record<string, 'success' | 'neutral' | 'warning' | 'danger'> 
   failed: 'danger',
   canceled: 'neutral',
 };
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const EMPLOYEE_SORT_KEYS = ['name', 'salary', 'pending', 'method', 'paidNow', 'lastPaid'] as const;
+const PAYOUT_SORT_KEYS = ['created', 'employee', 'period', 'gross', 'net', 'method', 'status', 'note'] as const;
+const ACCRUAL_SORT_KEYS = ['kind', 'period', 'amount', 'status'] as const;
 
 /**
  * Owner 2026-10-05 — Деньги → Зарплаты. The people on payroll with a fixed
@@ -128,6 +134,26 @@ export default function PayrollPage() {
   /** Something to pay: the salary for the period, or pending commissions. */
   const owed = (e: Employee) => e.active && ((!paidNow.has(e.id) && e.amountCents > 0) || e.pendingCents > 0);
   const unpaidActive = active.filter(owed).map((e) => e.id);
+  const employeeSort = useTableSort(EMPLOYEE_SORT_KEYS, 'employeeSort');
+  const employeeRows = sortRows(rows, employeeSort.sort, {
+    name: (e) => e.name,
+    salary: (e) => (e.amountCents > 0 ? e.amountCents : null),
+    pending: (e) => (e.pendingCents !== 0 ? e.pendingCents : null),
+    method: (e) => e.methodNote || null,
+    paidNow: (e) => paidNow.has(e.id),
+    lastPaid: (e) => e.lastPaidPeriod ?? null,
+  });
+  const payoutSort = useTableSort(PAYOUT_SORT_KEYS, 'payoutSort');
+  const payoutRows = sortRows(payouts.data ?? [], payoutSort.sort, {
+    created: (p) => p.createdAt,
+    employee: (p) => p.employeeName,
+    period: (p) => p.period,
+    gross: (p) => p.amountCents,
+    net: (p) => p.netCents || p.amountCents,
+    method: (p) => PAYOUT_METHOD[p.method] ?? p.method,
+    status: (p) => PAYOUT_STATUS[p.status] ?? p.status,
+    note: (p) => p.failure ?? p.cancelReason ?? p.note ?? null,
+  });
 
   const toggle = (id: string) =>
     setSelected((s) => {
@@ -303,12 +329,12 @@ export default function PayrollPage() {
           <thead>
             <tr>
               {canWrite ? <Th className="w-8" /> : null}
-              <Th>Сотрудник</Th>
-              <Th className="text-right">Оклад</Th>
-              <Th className="text-right">Начислено</Th>
-              <Th>Как платим</Th>
-              <Th>За {period}</Th>
-              <Th>Последняя выплата</Th>
+              <SortTh {...employeeSort.header('name')}>Сотрудник</SortTh>
+              <SortTh {...employeeSort.header('salary')} className="text-right">Оклад</SortTh>
+              <SortTh {...employeeSort.header('pending')} className="text-right">Начислено</SortTh>
+              <SortTh {...employeeSort.header('method')}>Как платим</SortTh>
+              <SortTh {...employeeSort.header('paidNow')}>За {period}</SortTh>
+              <SortTh {...employeeSort.header('lastPaid')}>Последняя выплата</SortTh>
               {canWrite ? <Th /> : null}
             </tr>
           </thead>
@@ -316,7 +342,7 @@ export default function PayrollPage() {
             {employees.isPending ? (
               <TableEmpty colSpan={cols} loading />
             ) : (
-              rows.map((e) => (
+              employeeRows.map((e) => (
                 <tr key={e.id} className={e.active ? undefined : 'opacity-60'}>
                   {canWrite ? (
                     <Td>
@@ -410,24 +436,24 @@ export default function PayrollPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Когда</Th>
-            <Th>Сотрудник</Th>
-            <Th>Период</Th>
-            <Th className="text-right">Начислено</Th>
-            <Th className="text-right">На руки</Th>
-            <Th>Способ</Th>
-            <Th>Статус</Th>
-            <Th>Примечание</Th>
+            <SortTh {...payoutSort.header('created')}>Когда</SortTh>
+            <SortTh {...payoutSort.header('employee')}>Сотрудник</SortTh>
+            <SortTh {...payoutSort.header('period')}>Период</SortTh>
+            <SortTh {...payoutSort.header('gross')} className="text-right">Начислено</SortTh>
+            <SortTh {...payoutSort.header('net')} className="text-right">На руки</SortTh>
+            <SortTh {...payoutSort.header('method')}>Способ</SortTh>
+            <SortTh {...payoutSort.header('status')}>Статус</SortTh>
+            <SortTh {...payoutSort.header('note')}>Примечание</SortTh>
             {canWrite ? <Th /> : null}
           </tr>
         </thead>
         <tbody>
           {payouts.isPending ? (
             <TableEmpty colSpan={canWrite ? 9 : 8} loading />
-          ) : (payouts.data ?? []).length === 0 ? (
+          ) : payoutRows.length === 0 ? (
             <TableEmpty colSpan={canWrite ? 9 : 8}>Выплат пока нет.</TableEmpty>
           ) : (
-            (payouts.data ?? []).map((p) => (
+            payoutRows.map((p) => (
               <tr key={p.id}>
                 <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(p.createdAt)}</Td>
                 <Td>{p.employeeName}</Td>
@@ -813,7 +839,13 @@ function ExtrasDialog({
       })
       .catch((e: unknown) => toast.error(e));
   };
-  const rows = list.data ?? [];
+  const { sort, header } = useTableSort(ACCRUAL_SORT_KEYS, 'accrualSort');
+  const rows = sortRows(list.data ?? [], sort, {
+    kind: (a) => ACCRUAL_KIND[a.kind] ?? a.kind,
+    period: (a) => a.period,
+    amount: (a) => a.amountCents,
+    status: (a) => ACCRUAL_STATUS[a.status] ?? a.status,
+  });
   return (
     <Dialog
       open
@@ -829,10 +861,10 @@ function ExtrasDialog({
           <Table>
             <thead>
               <tr>
-                <Th>Что</Th>
-                <Th>Период</Th>
-                <Th className="text-right">Сумма</Th>
-                <Th>Статус</Th>
+                <SortTh {...header('kind')}>Что</SortTh>
+                <SortTh {...header('period')}>Период</SortTh>
+                <SortTh {...header('amount')} className="text-right">Сумма</SortTh>
+                <SortTh {...header('status')}>Статус</SortTh>
                 {canWrite ? <Th /> : null}
               </tr>
             </thead>

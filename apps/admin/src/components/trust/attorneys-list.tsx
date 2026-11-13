@@ -15,11 +15,12 @@ import { invalidateTrust } from '@/components/trust/trust-panel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { trustStatsQuery } from '@/lib/live';
 import type { components } from '@/lib/api/schema';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import {
   attorneyName,
   BADGE_STATUS_RU,
@@ -42,6 +43,8 @@ type BulkAction = components['schemas']['BulkTrustDto']['action'];
 
 const ATTORNEYS = ['адвокат', 'адвоката', 'адвокатов'] as const;
 const LIMIT = 200;
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['attorney', 'status', 'level', 'missing', 'holds', 'clearedBy', 'complaints'] as const;
 
 /**
  * Owner 2026-10-05 — «Адвокаты»: every attorney with their badge status
@@ -69,7 +72,22 @@ export function AttorneysList({ canManage }: { canManage: boolean }) {
     queryFn: async () =>
       (await api.GET('/admin/trust/attorneys', { params: { query: { status: status || undefined, q: search || undefined, limit: LIMIT } } })).data!.data,
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS, 'attorneysSort');
+  const rows = sortRows(q.data ?? [], sort, {
+    attorney: (r) => attorneyName(r.attorney),
+    status: (r) => BADGE_STATUS_RU[r.badgeStatus]?.text ?? r.badgeStatus,
+    level: (r) => r.level ?? null,
+    missing: (r) => (r.missing.length ? missingText(r.missing) : null),
+    holds: (r) =>
+      [
+        r.holds.payments ? `платежи: ${HOLD_RU[r.holds.payments] ?? r.holds.payments}` : '',
+        r.holds.bids ? `ставки: ${HOLD_RU[r.holds.bids] ?? r.holds.bids}` : '',
+      ]
+        .filter(Boolean)
+        .join(' ') || null,
+    clearedBy: (r) => (r.staffClearedBy ? staffName(r.staffClearedBy) : null),
+    complaints: (r) => r.complaintsTotal,
+  });
   const ids = rows.map((r) => r.attorney.id);
   const onError = (e: unknown) => toast.error(e);
   const done = (t: string) => {
@@ -201,13 +219,13 @@ export function AttorneysList({ canManage }: { canManage: boolean }) {
                 <PageSelectBox selected={sel.selected} ids={ids} onToggle={sel.togglePage} />
               </Th>
             ) : null}
-            <Th>Адвокат</Th>
-            <Th>Статус</Th>
-            <Th>Уровень</Th>
-            <Th>Не хватает</Th>
-            <Th>Холды</Th>
-            <Th>Кто подтвердил</Th>
-            <Th>Жалоб</Th>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
+            <SortTh {...header('level')}>Уровень</SortTh>
+            <SortTh {...header('missing')}>Не хватает</SortTh>
+            <SortTh {...header('holds')}>Холды</SortTh>
+            <SortTh {...header('clearedBy')}>Кто подтвердил</SortTh>
+            <SortTh {...header('complaints')}>Жалоб</SortTh>
             {canManage ? <Th /> : null}
           </tr>
         </thead>

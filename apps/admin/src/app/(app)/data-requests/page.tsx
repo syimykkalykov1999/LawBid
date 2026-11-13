@@ -9,13 +9,17 @@ import { MoreButton } from '@/components/legacy/more-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select, Textarea } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { DATA_REQUEST_STATUS, DATA_REQUEST_TYPE, label, StatusPill } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 const TYPES = ['subpoena', 'court_order', 'search_warrant', 'preservation', 'emergency', 'civil', 'other'] as const;
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['number', 'type', 'agency', 'received', 'due', 'status', 'access'] as const;
 
 const EMPTY = {
   requestType: 'subpoena' as (typeof TYPES)[number],
@@ -43,7 +47,16 @@ export default function DataRequestsPage() {
     queryFn: async ({ pageParam }) => (await api.GET('/admin/data-requests', { params: { query: { cursor: pageParam } } })).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    number: (r) => r.referenceNumber,
+    type: (r) => DATA_REQUEST_TYPE[r.requestType] ?? r.requestType,
+    agency: (r) => r.agency,
+    received: (r) => r.receivedAt,
+    due: (r) => r.dueAt,
+    status: (r) => DATA_REQUEST_STATUS[r.status] ?? r.status,
+    access: (r) => r.accessCount,
+  });
   const create = useMutation({
     mutationFn: () =>
       api.POST('/admin/data-requests', {
@@ -156,13 +169,13 @@ export default function DataRequestsPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Номер</Th>
-            <Th>Тип</Th>
-            <Th>Орган</Th>
-            <Th>Получен</Th>
-            <Th>Срок</Th>
-            <Th>Статус</Th>
-            <Th>Выгрузок</Th>
+            <SortTh {...header('number')}>Номер</SortTh>
+            <SortTh {...header('type')}>Тип</SortTh>
+            <SortTh {...header('agency')}>Орган</SortTh>
+            <SortTh {...header('received')}>Получен</SortTh>
+            <SortTh {...header('due')}>Срок</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
+            <SortTh {...header('access')}>Выгрузок</SortTh>
           </tr>
         </thead>
         <tbody>

@@ -12,13 +12,14 @@ import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { US_STATES } from '@/lib/us-states';
 
 type Rule = components['schemas']['AdminDeadlineRuleDto'];
@@ -31,6 +32,10 @@ type View = 'rules' | 'holidays';
 
 const KIND: Record<Kind, string> = { court_deadline: 'Срок суда', statute_of_limitations: 'Давность' };
 const UNIT: Record<Unit, string> = { day: 'дн.', month: 'мес.', year: 'г.' };
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['rule', 'jurisdiction', 'kind', 'term', 'citation', 'status'] as const;
+/** «Срок» sorts by its length in days (a month ≈ 30, a year ≈ 365). */
+const UNIT_DAYS: Record<Unit, number> = { day: 1, month: 30, year: 365 };
 const JURISDICTIONS = [{ code: 'US', name: 'США (федеральные суды)' }, ...US_STATES.map((s) => ({ code: s.code, name: s.name }))];
 
 /** The panel: rules and court holidays, both edited here and counted by the app. */
@@ -63,7 +68,19 @@ function RulesView() {
     queryKey: ['admin-deadline-rules'],
     queryFn: async () => (await api.GET('/admin/deadlines/rules')).data!.data,
   });
-  const rows = (list.data ?? []).filter((r) => kind === 'all' || r.kind === kind);
+  const { sort, header } = useTableSort(SORT_KEYS, 'rulesSort');
+  const rows = sortRows(
+    (list.data ?? []).filter((r) => kind === 'all' || r.kind === kind),
+    sort,
+    {
+      rule: (r) => r.labels.ru ?? r.labels.en,
+      jurisdiction: (r) => r.jurisdiction,
+      kind: (r) => KIND[r.kind],
+      term: (r) => r.amount * UNIT_DAYS[r.unit],
+      citation: (r) => r.citation ?? null,
+      status: (r) => (r.verified ? 'проверено' : 'не проверено'),
+    },
+  );
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -85,12 +102,12 @@ function RulesView() {
         <Table>
           <thead>
             <tr>
-              <Th>Правило</Th>
-              <Th>Где</Th>
-              <Th>Вид</Th>
-              <Th>Срок</Th>
-              <Th>Источник</Th>
-              <Th>Статус</Th>
+              <SortTh {...header('rule')}>Правило</SortTh>
+              <SortTh {...header('jurisdiction')}>Где</SortTh>
+              <SortTh {...header('kind')}>Вид</SortTh>
+              <SortTh {...header('term')}>Срок</SortTh>
+              <SortTh {...header('citation')}>Источник</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
             </tr>
           </thead>
           <tbody>

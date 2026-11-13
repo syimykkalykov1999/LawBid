@@ -8,13 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['message', 'count', 'devices', 'fatal', 'versions', 'last'] as const;
 
 /** Owner 2026-10-15: the app's own crash reports (free, our database). */
 export function CrashesAdmin() {
@@ -26,7 +30,15 @@ export function CrashesAdmin() {
     queryKey: ['crashes', days],
     queryFn: async () => (await api.GET('/admin/crashes', { params: { query: { days: Number(days) } } })).data!.data,
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS, 'crashesSort');
+  const rows = sortRows(q.data ?? [], sort, {
+    message: (g) => g.message,
+    count: (g) => g.count,
+    devices: (g) => g.devices,
+    fatal: (g) => (g.fatal > 0 ? g.fatal : null),
+    versions: (g) => g.versions.join(', '),
+    last: (g) => g.lastAt,
+  });
   const people = rows.reduce((n, r) => n + r.devices, 0);
   return (
     <>
@@ -63,12 +75,16 @@ export function CrashesAdmin() {
         <Table>
           <thead>
             <tr>
-              <Th>Ошибка</Th>
-              <Th className="text-right">Случаев</Th>
-              <Th className="text-right">Телефонов</Th>
-              <Th>Закрыло приложение</Th>
-              <Th>Версии</Th>
-              <Th>Последний раз</Th>
+              <SortTh {...header('message')}>Ошибка</SortTh>
+              <SortTh {...header('count')} className="text-right">
+                Случаев
+              </SortTh>
+              <SortTh {...header('devices')} className="text-right">
+                Телефонов
+              </SortTh>
+              <SortTh {...header('fatal')}>Закрыло приложение</SortTh>
+              <SortTh {...header('versions')}>Версии</SortTh>
+              <SortTh {...header('last')}>Последний раз</SortTh>
             </tr>
           </thead>
           <tbody>

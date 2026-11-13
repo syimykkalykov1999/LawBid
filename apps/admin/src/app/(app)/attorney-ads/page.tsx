@@ -9,11 +9,12 @@ import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Settings = components['schemas']['AttorneyAdsSettingsDto'];
@@ -25,6 +26,9 @@ const MODES: Record<Mode, string> = {
   warn: 'Предупреждать (не мешать)',
   block: 'Не сохранять грубые нарушения',
 };
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const ARCHIVE_SORT = ['created', 'kind', 'states', 'version', 'findings', 'retain', 'content'] as const;
 
 /** Owner 2026-10-28: Реклама адвокатов. Per-state rules for what attorneys
  * write about themselves, the ad archive, flags for bid packs / referral
@@ -174,6 +178,16 @@ function Archive() {
     queryKey: ['attorney-ads-archive'],
     queryFn: async () => (await api.GET('/admin/attorney-ads/archive')).data!.data,
   });
+  const { sort, header } = useTableSort(ARCHIVE_SORT, 'archiveSort');
+  const rows = sortRows(q.data ?? [], sort, {
+    created: (r) => r.createdAt,
+    kind: (r) => r.kind,
+    states: (r) => r.stateCodes.join(', '),
+    version: (r) => r.version,
+    findings: (r) => r.findings.join(', ') || null,
+    retain: (r) => r.retainUntil,
+    content: (r) => r.content,
+  });
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -184,10 +198,18 @@ function Archive() {
       </div>
       <Table>
         <thead>
-          <tr><Th>Когда</Th><Th>Что</Th><Th>Штаты</Th><Th>Версия</Th><Th>Находки</Th><Th>Хранить до</Th><Th>Текст</Th></tr>
+          <tr>
+            <SortTh {...header('created')}>Когда</SortTh>
+            <SortTh {...header('kind')}>Что</SortTh>
+            <SortTh {...header('states')}>Штаты</SortTh>
+            <SortTh {...header('version')}>Версия</SortTh>
+            <SortTh {...header('findings')}>Находки</SortTh>
+            <SortTh {...header('retain')}>Хранить до</SortTh>
+            <SortTh {...header('content')}>Текст</SortTh>
+          </tr>
         </thead>
         <tbody>
-          {(q.data ?? []).map((r) => (
+          {rows.map((r) => (
             <tr key={r.id}>
               <Td>{formatDateTime(r.createdAt)}</Td>
               <Td>{r.kind}</Td>

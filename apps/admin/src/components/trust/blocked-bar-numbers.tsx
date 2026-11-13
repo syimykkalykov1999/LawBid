@@ -15,11 +15,12 @@ import { Badge } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/empty';
 import { Field, Input, Textarea } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { attorneyName, BLOCK_EVENT_RU, BLOCK_SOURCE_RU, staffName, TRUST_ACTOR_RU, type BlockSource } from '@/lib/trust-labels';
 import { cn, formatDateTime } from '@/lib/utils';
 
@@ -27,6 +28,8 @@ type Block = components['schemas']['BarNumberBlockDto'];
 type Status = 'active' | 'unblocked' | 'all';
 
 const LIMIT = 200;
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['number', 'reason', 'source', 'attorney', 'blockedBy', 'attempts', 'contacts'] as const;
 const STATUS_ITEMS: { value: Status; label: string }[] = [
   { value: 'active', label: 'Активные' },
   { value: 'unblocked', label: 'Разблокированные' },
@@ -65,7 +68,16 @@ export function BlockedBarNumbers({ canManage }: { canManage: boolean }) {
         })
       ).data!.data,
   });
-  const rows = q.data ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS, 'blockedSort');
+  const rows = sortRows(q.data ?? [], sort, {
+    number: (b) => `${b.stateCode} ${b.barNumber}`,
+    reason: (b) => b.reason,
+    source: (b) => BLOCK_SOURCE_RU[b.source as BlockSource]?.text ?? b.source,
+    attorney: (b) => (b.attorney ? attorneyName(b.attorney) : null),
+    blockedBy: (b) => (b.blockedBy ? staffName(b.blockedBy) : 'система'),
+    attempts: (b) => b.attempts,
+    contacts: (b) => (b.blockContacts ? '+ e-mail/телефон' : 'только номер'),
+  });
 
   const unblock = useMutation({
     mutationFn: async (b: Block) => {
@@ -124,13 +136,13 @@ export function BlockedBarNumbers({ canManage }: { canManage: boolean }) {
       <Table>
         <thead>
           <tr>
-            <Th>Номер</Th>
-            <Th>Причина</Th>
-            <Th>Источник</Th>
-            <Th>Адвокат</Th>
-            <Th>Кто заблокировал</Th>
-            <Th>Попыток</Th>
-            <Th>Контакты</Th>
+            <SortTh {...header('number')}>Номер</SortTh>
+            <SortTh {...header('reason')}>Причина</SortTh>
+            <SortTh {...header('source')}>Источник</SortTh>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('blockedBy')}>Кто заблокировал</SortTh>
+            <SortTh {...header('attempts')}>Попыток</SortTh>
+            <SortTh {...header('contacts')}>Контакты</SortTh>
             <Th>Реестр</Th>
             {canManage ? <Th /> : null}
           </tr>

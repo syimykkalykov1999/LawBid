@@ -13,12 +13,16 @@ import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { PLAN } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { cn, formatDateTime } from '@/lib/utils';
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['attorney', 'plan', 'seats', 'active', 'invited', 'requests', 'tasks'] as const;
 
 const DUTIES: [string, string][] = [
   ['calls', 'Звонки'],
@@ -59,6 +63,16 @@ export default function TeamsPage() {
     queryFn: async () =>
       (await api.GET('/admin/teams', { params: { query: { q: q || undefined } } })).data!.data,
   });
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data ?? [], sort, {
+    attorney: (t) => t.attorneyName,
+    plan: (t) => (t.plan ? PLAN[t.plan] ?? t.plan : null),
+    seats: (t) => t.seats,
+    active: (t) => t.active,
+    invited: (t) => t.invited,
+    requests: (t) => t.pendingRequests,
+    tasks: (t) => t.openTasks,
+  });
   return (
     <>
       <PageHeader
@@ -83,19 +97,19 @@ export default function TeamsPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Адвокат</Th>
-            <Th>План</Th>
-            <Th>Места</Th>
-            <Th>Работают</Th>
-            <Th>Ждут входа</Th>
-            <Th>Запросы</Th>
-            <Th>Открытые задачи</Th>
+            <SortTh {...header('attorney')}>Адвокат</SortTh>
+            <SortTh {...header('plan')}>План</SortTh>
+            <SortTh {...header('seats')}>Места</SortTh>
+            <SortTh {...header('active')}>Работают</SortTh>
+            <SortTh {...header('invited')}>Ждут входа</SortTh>
+            <SortTh {...header('requests')}>Запросы</SortTh>
+            <SortTh {...header('tasks')}>Открытые задачи</SortTh>
             <Th />
           </tr>
         </thead>
         <tbody>
           {list.isPending ? <TableEmpty colSpan={8} loading /> : null}
-          {(list.data ?? []).map((t, i) => (
+          {rows.map((t, i) => (
             <MotionRow
               key={t.attorneyId}
               i={i}
@@ -138,7 +152,7 @@ export default function TeamsPage() {
               </Td>
             </MotionRow>
           ))}
-          {!list.isPending && (list.data ?? []).length === 0 ? (
+          {!list.isPending && rows.length === 0 ? (
             <TableEmpty colSpan={8}>{q ? 'Ничего не найдено' : 'Команд пока нет'}</TableEmpty>
           ) : null}
         </tbody>

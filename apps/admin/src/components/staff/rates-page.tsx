@@ -8,15 +8,19 @@ import { Badge, Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { money } from '@/lib/payroll';
 import { isOwner, staffDelete, staffPost, staffPut, usePieceOverview, useRates, type PieceOverview, type Rate } from '@/lib/staff-data';
 import { dayLabel, PIECE_STATUS, periodNow, RATE_KIND, WORKSPACE_NAME } from '@/lib/staff-labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 
 const KINDS = Object.keys(RATE_KIND);
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const RATES_SORT = ['kind', 'workspace', 'price', 'boost', 'valid'] as const;
+const MONTH_SORT = ['name', 'workspace', 'units', 'amount'] as const;
 
 /** Dollars typed by the owner («0,35») → whole cents; null when not a price. */
 export function centsFromInput(raw: string): number | null {
@@ -84,7 +88,15 @@ function NewRate() {
   );
 }
 
-function RatesTable({ rates }: { rates: Rate[] }) {
+function RatesTable({ rates: loaded }: { rates: Rate[] }) {
+  const { sort, header } = useTableSort(RATES_SORT, 'ratesSort');
+  const rates = sortRows(loaded, sort, {
+    kind: (r) => RATE_KIND[r.kind] ?? r.kind,
+    workspace: (r) => WORKSPACE_NAME[r.workspace] ?? r.workspace,
+    price: (r) => r.amountCents,
+    boost: (r) => r.boostMult ?? null,
+    valid: (r) => r.validFrom,
+  });
   const qc = useQueryClient();
   const toast = useToast();
   const end = useMutation({
@@ -99,11 +111,11 @@ function RatesTable({ rates }: { rates: Rate[] }) {
     <Table>
       <thead>
         <tr>
-          <Th>За что</Th>
-          <Th>Пространство</Th>
-          <Th>Цена</Th>
-          <Th>Множитель</Th>
-          <Th>Действует</Th>
+          <SortTh {...header('kind')}>За что</SortTh>
+          <SortTh {...header('workspace')}>Пространство</SortTh>
+          <SortTh {...header('price')}>Цена</SortTh>
+          <SortTh {...header('boost')}>Множитель</SortTh>
+          <SortTh {...header('valid')}>Действует</SortTh>
           <Th />
         </tr>
       </thead>
@@ -172,6 +184,13 @@ function DayButtons({ adminId, day, status }: { adminId: string; day: string; st
 
 function Month({ d }: { d: PieceOverview }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const { sort, header } = useTableSort(MONTH_SORT, 'monthSort');
+  const people = sortRows(d.people, sort, {
+    name: (p) => p.name,
+    workspace: (p) => WORKSPACE_NAME[p.workspace] ?? p.workspace,
+    units: (p) => p.units,
+    amount: (p) => p.amountCents ?? null,
+  });
   return (
     <>
       <p className="mb-3 text-sm text-ink">
@@ -181,18 +200,18 @@ function Month({ d }: { d: PieceOverview }) {
       <Table>
         <thead>
           <tr>
-            <Th>Сотрудник</Th>
-            <Th>Пространство</Th>
-            <Th>Решений</Th>
-            <Th>Сумма</Th>
+            <SortTh {...header('name')}>Сотрудник</SortTh>
+            <SortTh {...header('workspace')}>Пространство</SortTh>
+            <SortTh {...header('units')}>Решений</SortTh>
+            <SortTh {...header('amount')}>Сумма</SortTh>
             <Th />
           </tr>
         </thead>
         <tbody>
-          {d.people.length === 0 ? (
+          {people.length === 0 ? (
             <TableEmpty colSpan={5}>За этот месяц начислений нет.</TableEmpty>
           ) : (
-            d.people.map((p) => (
+            people.map((p) => (
               <Fragment key={p.adminId}>
                 <tr>
                   <Td className="font-medium text-heading">{p.name}</Td>

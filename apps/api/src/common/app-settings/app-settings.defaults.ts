@@ -474,6 +474,20 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   // photo (the sign-up profile step already asks for it). Requests already
   // sent are never touched. Off = no photo check on submit.
   'verification.require_photo': true,
+  // Owner 2026-11-12 (row 52): automatic selfie ↔ ID photo comparison with
+  // Amazon Rekognition CompareFaces («Сравнение лица (Amazon)»). off
+  // (default) = no call, a person compares as before; on / auto = compared
+  // for every new pending request whose attorney gave the biometric
+  // consent, inside the daily `id_check` cost-guard cap (auto follows the
+  // moderation.image.enabled pattern: on inside the ceiling). The result
+  // only informs the verifier: it never approves or rejects by itself.
+  'verification.face_match.enabled': 'off',
+  /** Rekognition SimilarityThreshold, % (0–100): at or above = pass. */
+  'verification.face_match.similarity_threshold': 90,
+  /** Days the face comparison result is kept after the request is decided
+   * (approved / rejected), then deleted by privacy.retention. The legal
+   * texts state no period yet: 30 until the owner's lawyer sets one. */
+  'verification.face_match.retention_days': 30,
 } as const;
 
 // Owner 2026-11-12 (row 54, docs/dev/BAR_SOURCES_2026-11-12.md): paid

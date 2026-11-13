@@ -326,3 +326,52 @@ export const REGISTRY_LICENSE_STATUS_RU: Record<string, { text: string; tone: To
   active: { text: 'действующая', tone: 'success' },
   inactive: { text: 'недействующая', tone: 'danger' },
 };
+
+/** Two records of one action closer than this are one event (row 57). */
+export const TRUST_EVENT_MERGE_MS = 5 * 60_000;
+
+interface TrustEventLike {
+  id: string;
+  kind: string;
+  fromLevel: number | null;
+  toLevel: number | null;
+  actorId: string | null;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
+/**
+ * Owner 2026-11-12 (row 57): «Последние события» showed one action twice —
+ * `staff_cleared` written by the request approval and by the trust card a
+ * minute apart. Records of the same kind within TRUST_EVENT_MERGE_MS (and
+ * not by two different people) are shown once: the newest record stays,
+ * the older one's details fill what the newest lacks, the level change spans
+ * both. Input is newest first (the API's order); so is the output.
+ */
+export function dedupeTrustEvents<T extends TrustEventLike>(events: readonly T[]): T[] {
+  const out: T[] = [];
+  for (const e of events) {
+    const at = new Date(e.createdAt).getTime();
+    const i = out.findIndex(
+      (k) =>
+        k.kind === e.kind &&
+        Math.abs(new Date(k.createdAt).getTime() - at) <= TRUST_EVENT_MERGE_MS &&
+        !(k.actorId && e.actorId && k.actorId !== e.actorId),
+    );
+    if (i < 0) {
+      out.push(e);
+      continue;
+    }
+    const kept = out[i]!;
+    const details: Record<string, unknown> = { ...e.details };
+    for (const [key, v] of Object.entries(kept.details)) if (v != null && v !== '') details[key] = v;
+    out[i] = {
+      ...kept,
+      actorId: kept.actorId ?? e.actorId,
+      fromLevel: e.fromLevel ?? kept.fromLevel,
+      toLevel: kept.toLevel ?? e.toLevel,
+      details,
+    };
+  }
+  return out;
+}

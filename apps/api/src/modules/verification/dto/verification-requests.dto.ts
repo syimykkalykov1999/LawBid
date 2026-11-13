@@ -289,6 +289,18 @@ export class AttachDocumentDto {
   @Length(16, 64)
   @Matches(HANDOFF_TOKEN_PATTERN)
   handoffToken?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Selfie only, owner 2026-11-12 (row 52): the attorney ticked the ' +
+      'biometric consent (automatic comparison of this selfie with the ID ' +
+      'photo, version BIOMETRIC_CONSENT_VERSION). Stored with the time on ' +
+      'the request; a selfie attached without it clears an earlier consent, ' +
+      'and without consent no face comparison runs (a person compares).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  biometricConsent?: boolean;
 }
 
 /** R-146: «continue on your phone» — the request whose selfie the phone

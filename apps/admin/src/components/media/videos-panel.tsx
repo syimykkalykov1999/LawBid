@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
 import { Label, Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { growthError } from '@/components/growth/errors';
 import { api, errorText } from '@/lib/api/client';
@@ -20,6 +20,7 @@ import type { components } from '@/lib/api/schema';
 import { Reason } from '@/lib/reasons';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { CONTENT_STATUS, label, StatusPill, VIDEO_STATUS } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 import { formatBytes } from './media-utils';
@@ -47,6 +48,8 @@ type VideoStatus = components['schemas']['AdminVideoStatus'];
 /** The API also has `rejected`; the shared map has a UI-only `uploading`. */
 const VIDEO_LABEL: Record<string, string> = { ...VIDEO_STATUS, rejected: 'отклонено' };
 const STATUSES: VideoStatus[] = ['ready', 'processing', 'awaiting_upload', 'failed', 'rejected', 'deleted'];
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['owner', 'duration', 'size', 'status', 'post', 'created'] as const;
 
 function duration(sec: number | null | undefined): string {
   if (sec == null) return '—';
@@ -97,7 +100,15 @@ export function VideosPanel() {
         void qc.invalidateQueries({ queryKey: ['media-video-stats'] });
       },
     });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS, 'videosSort');
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    owner: (v) => v.ownerName || v.ownerId.slice(0, 8),
+    duration: (v) => v.durationSec ?? null,
+    size: (v) => v.sizeBytes ?? null,
+    status: (v) => VIDEO_LABEL[v.status] ?? v.status,
+    post: (v) => (v.postId ? label(CONTENT_STATUS, v.postStatus) : null),
+    created: (v) => v.createdAt,
+  });
   const count = (s: VideoStatus) => stats.data?.byStatus.find((x) => x.status === s)?.count ?? 0;
 
   const takedown = useMutation({
@@ -194,12 +205,16 @@ export function VideosPanel() {
                 </Th>
               ) : null}
               <Th>Видео</Th>
-              <Th>Автор</Th>
-              <Th className="text-right">Длина</Th>
-              <Th className="text-right">Размер</Th>
-              <Th>Статус</Th>
-              <Th>Пост</Th>
-              <Th>Загружено</Th>
+              <SortTh {...header('owner')}>Автор</SortTh>
+              <SortTh {...header('duration')} className="text-right">
+                Длина
+              </SortTh>
+              <SortTh {...header('size')} className="text-right">
+                Размер
+              </SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
+              <SortTh {...header('post')}>Пост</SortTh>
+              <SortTh {...header('created')}>Загружено</SortTh>
               {canWrite ? <Th /> : null}
             </tr>
           </thead>

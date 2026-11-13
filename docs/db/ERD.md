@@ -422,6 +422,8 @@ erDiagram
     DateTime attested_at "nullable"
     String attestation_ip "nullable"
     String attestation_version "nullable"
+    DateTime biometric_consent_at "nullable"
+    String biometric_consent_version "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -3874,6 +3876,8 @@ erDiagram
     String output
     Int confidence_min
     Int audit_pct
+    Boolean enabled
+    Boolean auto_send
     String created_by
     DateTime archived_at "nullable"
     DateTime created_at
@@ -3913,6 +3917,7 @@ erDiagram
     String owner_note "nullable"
     String reviewed_by "nullable"
     DateTime reviewed_at "nullable"
+    DateTime delivered_at "nullable"
     DateTime created_at
     DateTime updated_at
   }

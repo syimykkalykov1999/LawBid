@@ -44,7 +44,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/empty";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { SortTh, Table, TableEmpty, Td } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { growthError } from "@/components/growth/errors";
@@ -53,6 +53,7 @@ import { partnersExtApi } from "@/lib/api/demo";
 import type { components } from "@/lib/api/schema";
 import { useMe } from "@/lib/hooks";
 import { REASON_MIN, useReasonRequired } from "@/lib/reason-policy";
+import { sortRows, useTableSort } from "@/lib/table-sort";
 import {
   CLIENT_RULE,
   COMMISSION_STATUS,
@@ -70,6 +71,8 @@ const DemoTab = dynamic(() => import('@/components/partners/demo-tab').then((m) 
 type Settings = components["schemas"]["PartnerSettingsDto"];
 type Tab = "partners" | "commissions" | "demo" | "settings";
 type StatusTab = "all" | PartnerStatus;
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const PARTNER_SORT = ["name", "code", "rates", "referred", "money", "status"] as const;
 
 /** Partner program: who brings attorneys and clients, what they are paid. */
 export default function PartnersPage() {
@@ -236,7 +239,15 @@ function PartnersList({
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = (list.data?.pages.flatMap((p) => p.data) ?? []).map(extend);
+  const { sort, header } = useTableSort(PARTNER_SORT, "partnerSort");
+  const rows = sortRows((list.data?.pages.flatMap((p) => p.data) ?? []).map(extend), sort, {
+    name: (p) => partnerName(p),
+    code: (p) => p.code,
+    rates: (p) => p.rates.attorneyRateCents,
+    referred: (p) => p.totals.referredCount,
+    money: (p) => p.totals.approvedCents,
+    status: (p) => PARTNER_STATUS[p.status] ?? p.status,
+  });
   const cols = 6;
 
   return (
@@ -291,12 +302,12 @@ function PartnersList({
         <Table>
           <thead>
             <tr>
-              <Th>Партнёр</Th>
-              <Th>Код</Th>
-              <Th>Ставки</Th>
-              <Th>Привёл</Th>
-              <Th>Деньги</Th>
-              <Th>Статус</Th>
+              <SortTh {...header("name")}>Партнёр</SortTh>
+              <SortTh {...header("code")}>Код</SortTh>
+              <SortTh {...header("rates")}>Ставки</SortTh>
+              <SortTh {...header("referred")}>Привёл</SortTh>
+              <SortTh {...header("money")}>Деньги</SortTh>
+              <SortTh {...header("status")}>Статус</SortTh>
             </tr>
           </thead>
           <tbody>

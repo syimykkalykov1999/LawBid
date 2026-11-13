@@ -9,11 +9,12 @@ import { ErrorNote, PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
-import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { SortTh, Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { VirtualRows } from "@/components/ui/virtual-rows";
 import { api, errorText } from "@/lib/api/client";
 import { useMe } from "@/lib/hooks";
 import { AUDIT_TARGET, auditActionLabel } from "@/lib/labels";
+import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
 
 interface Filters {
@@ -24,6 +25,9 @@ interface Filters {
   from: string;
   to: string;
 }
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ["created", "admin", "action", "target", "reason", "ip"] as const;
 
 const EMPTY: Filters = {
   adminId: "",
@@ -67,7 +71,15 @@ export default function AuditLogPage() {
     },
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    created: (r) => r.createdAt,
+    admin: (r) => r.adminEmail ?? r.adminId,
+    action: (r) => auditActionLabel(r.action),
+    target: (r) => AUDIT_TARGET[r.targetType] ?? r.targetType,
+    reason: (r) => [r.reasonCode, r.justification].filter(Boolean).join(": ") || null,
+    ip: (r) => r.ip,
+  });
   const field = (k: keyof Filters, label: string) => (
     <div className="min-w-40 flex-1 space-y-1">
       <Label htmlFor={`f-${k}`} className="block whitespace-nowrap">
@@ -144,13 +156,13 @@ export default function AuditLogPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Когда</Th>
-            <Th>Кто</Th>
-            <Th>Действие</Th>
-            <Th>Объект</Th>
-            <Th>Причина</Th>
+            <SortTh {...header("created")}>Когда</SortTh>
+            <SortTh {...header("admin")}>Кто</SortTh>
+            <SortTh {...header("action")}>Действие</SortTh>
+            <SortTh {...header("target")}>Объект</SortTh>
+            <SortTh {...header("reason")}>Причина</SortTh>
             <Th>До / после</Th>
-            <Th>IP</Th>
+            <SortTh {...header("ip")}>IP</SortTh>
           </tr>
         </thead>
         <tbody>

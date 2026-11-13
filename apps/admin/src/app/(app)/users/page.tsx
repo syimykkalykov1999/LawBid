@@ -24,7 +24,7 @@ import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
@@ -33,6 +33,7 @@ import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { US_STATES } from '@/lib/us-states';
 import { ROLE_TEXT, STATUS_LABEL, StatusBadge, StatusPill, VERIFICATION_STATUS } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 /** The server's `role` filter enum (no `assistant` there yet). */
@@ -43,6 +44,8 @@ type BulkAction = components['schemas']['AdminUsersBulkAction'];
 /** Mirrors the server's BULK_PREVIEW_CAP (admin-users.service.ts). */
 const BULK_CAP = 500;
 const USERS: Noun = ['пользователь', 'пользователя', 'пользователей'];
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's, newest first). */
+const SORT_KEYS = ['name', 'role', 'status', 'verification', 'created'] as const;
 
 /** Owner 2026-10-04: bulk actions on users, same rights as the single ones. */
 const ACTION_TEXT: Record<BulkAction, { verb: string; done: string; describe: string; danger?: boolean }> = {
@@ -135,7 +138,14 @@ export default function UsersPage() {
     queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    name: (u) => [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email,
+    role: (u) => (u.role ? (ROLE_TEXT[u.role] ?? u.role) : null),
+    status: (u) => (u.status ? (STATUS_LABEL[u.status] ?? u.status) : null),
+    verification: (u) => (u.verificationStatus ? (VERIFICATION_STATUS[u.verificationStatus] ?? u.verificationStatus) : null),
+    created: (u) => u.createdAt,
+  });
 
   return (
     <>
@@ -239,11 +249,11 @@ export default function UsersPage() {
                 />
               </Th>
             ) : null}
-            <Th>Пользователь</Th>
-            <Th>Роль</Th>
-            <Th>Статус</Th>
-            <Th>Верификация</Th>
-            <Th>Создан</Th>
+            <SortTh {...header('name')}>Пользователь</SortTh>
+            <SortTh {...header('role')}>Роль</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
+            <SortTh {...header('verification')}>Верификация</SortTh>
+            <SortTh {...header('created')}>Создан</SortTh>
           </tr>
         </thead>
         <tbody>

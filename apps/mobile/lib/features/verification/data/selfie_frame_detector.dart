@@ -76,7 +76,14 @@ class MlKitSelfieFrameDetector implements SelfieFrameDetector {
     final upright = quarter
         ? Size(image.height.toDouble(), image.width.toDouble())
         : Size(image.width.toDouble(), image.height.toDouble());
-    final map = CoverMapping(image: upright, screen: screen);
+    // The front preview is shown mirrored (like a mirror); ML Kit reports
+    // the unmirrored picture. The guide follows the face, so its side
+    // must match what the attorney sees.
+    final map = CoverMapping(
+      image: upright,
+      screen: screen,
+      mirror: camera.lensDirection == CameraLensDirection.front,
+    );
     final faces = await _faces.processImage(input);
     final samples = [
       for (final f in faces)
@@ -180,16 +187,17 @@ class MlKitSelfieFrameDetector implements SelfieFrameDetector {
 }
 
 /// Maps a box in the upright camera image to the screen (BoxFit.cover),
-/// normalized to 0..1. Mirroring of the front preview is ignored: the
-/// checks that use it are symmetric (oval centre tolerance) or side-free
-/// (card text anywhere beside the face).
+/// normalized to 0..1. [mirror]: flip left/right like the front camera's
+/// preview (owner 2026-11-12, row 62: the guide is drawn around the face,
+/// so the side must match the screen).
 class CoverMapping {
-  CoverMapping({required Size image, required Size screen})
+  CoverMapping({required Size image, required Size screen, this.mirror = false})
       : _image = image,
         _screen = screen;
 
   final Size _image;
   final Size _screen;
+  final bool mirror;
 
   Rect normalize(Rect r) {
     final scale = math.max(
@@ -198,10 +206,12 @@ class CoverMapping {
     );
     final dx = (_screen.width - _image.width * scale) / 2;
     final dy = (_screen.height - _image.height * scale) / 2;
+    final left = (r.left * scale + dx) / _screen.width;
+    final right = (r.right * scale + dx) / _screen.width;
     return Rect.fromLTRB(
-      (r.left * scale + dx) / _screen.width,
+      mirror ? 1 - right : left,
       (r.top * scale + dy) / _screen.height,
-      (r.right * scale + dx) / _screen.width,
+      mirror ? 1 - left : right,
       (r.bottom * scale + dy) / _screen.height,
     );
   }

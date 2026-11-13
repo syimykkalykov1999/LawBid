@@ -8,11 +8,12 @@ import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { TARGET_TYPE } from '@/lib/labels';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Tab = 'pending' | 'review' | 'reporters' | 'strikes' | 'decided';
@@ -34,6 +35,11 @@ const KIND: Record<string, string> = {
 };
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
+
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const AUTO_SORT = ['kind', 'score', 'message'] as const;
+const REPORTER_SORT = ['name', 'reports', 'status'] as const;
+const STRIKE_SORT = ['user', 'points', 'restriction', 'expires'] as const;
 
 /**
  * Owner 2026-10-27: moderation without a person in the loop. Here a person
@@ -158,7 +164,25 @@ export default function ModerationAutoPage() {
     />
   );
   const m = metrics.data;
-  const autoRows = [...(actions.data ?? []), ...(tab === 'decided' ? (rejected.data ?? []) : [])];
+  const autoSort = useTableSort(AUTO_SORT, 'autoSort');
+  const autoRows = sortRows([...(actions.data ?? []), ...(tab === 'decided' ? (rejected.data ?? []) : [])], autoSort.sort, {
+    kind: (r) => KIND[r.kind] ?? r.kind,
+    score: (r) => r.score,
+    message: (r) => (tab === 'review' ? null : r.appealMessage),
+  });
+  const reporterSort = useTableSort(REPORTER_SORT, 'reporterSort');
+  const reporterRows = sortRows(reporters.data ?? [], reporterSort.sort, {
+    name: (r) => r.name ?? r.userId.slice(0, 8),
+    reports: (r) => r.total,
+    status: (r) => (r.suspendedUntil ? 'пауза' : r.warnings > 0 ? 'предупреждён' : null),
+  });
+  const strikeSort = useTableSort(STRIKE_SORT, 'strikeSort');
+  const strikeRows = sortRows(strikes.data ?? [], strikeSort.sort, {
+    user: (s) => s.userId.slice(0, 8),
+    points: (s) => s.points,
+    restriction: (s) => s.restriction,
+    expires: (s) => s.expiresAt,
+  });
 
   return (
     <>
@@ -208,9 +232,9 @@ export default function ModerationAutoPage() {
           <Table>
             <thead>
               <tr>
-                <Th>Решение системы</Th>
-                <Th>Оценка</Th>
-                <Th>{tab === 'review' ? 'Что делать' : 'Что пишет человек'}</Th>
+                <SortTh {...autoSort.header('kind')}>Решение системы</SortTh>
+                <SortTh {...autoSort.header('score')}>Оценка</SortTh>
+                {tab === 'review' ? <Th>Что делать</Th> : <SortTh {...autoSort.header('message')}>Что пишет человек</SortTh>}
                 <Th>{tab === 'decided' ? 'Итог' : 'Решение'}</Th>
               </tr>
             </thead>
@@ -291,15 +315,15 @@ export default function ModerationAutoPage() {
           <Table>
             <thead>
               <tr>
-                <Th>Жалобщик</Th>
-                <Th>Жалобы (приняты / отклонены / ждут)</Th>
-                <Th>Статус</Th>
+                <SortTh {...reporterSort.header('name')}>Жалобщик</SortTh>
+                <SortTh {...reporterSort.header('reports')}>Жалобы (приняты / отклонены / ждут)</SortTh>
+                <SortTh {...reporterSort.header('status')}>Статус</SortTh>
                 <Th>Действие</Th>
               </tr>
             </thead>
             <tbody>
               {reporters.isPending ? <TableEmpty colSpan={4} loading /> : null}
-              {(reporters.data ?? []).map((r) => (
+              {reporterRows.map((r) => (
                 <tr key={r.userId}>
                   <Td className="text-xs">
                     <Link href={`/users/${r.userId}`} className="font-medium text-heading hover:underline">
@@ -355,16 +379,16 @@ export default function ModerationAutoPage() {
           <Table>
             <thead>
               <tr>
-                <Th>Кому</Th>
-                <Th>Очки и причина</Th>
-                <Th>Ограничение</Th>
-                <Th>Срок</Th>
+                <SortTh {...strikeSort.header('user')}>Кому</SortTh>
+                <SortTh {...strikeSort.header('points')}>Очки и причина</SortTh>
+                <SortTh {...strikeSort.header('restriction')}>Ограничение</SortTh>
+                <SortTh {...strikeSort.header('expires')}>Срок</SortTh>
                 <Th>Действие</Th>
               </tr>
             </thead>
             <tbody>
               {strikes.isPending ? <TableEmpty colSpan={5} loading /> : null}
-              {(strikes.data ?? []).map((s) => (
+              {strikeRows.map((s) => (
                 <tr key={s.id}>
                   <Td className="text-xs">
                     <Link href={`/users/${s.userId}`} className="text-heading hover:underline">

@@ -10,13 +10,14 @@ import { Badge, type Tone } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Input, Label, Select } from '@/components/ui/input';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 
 type Ban = components['schemas']['AdminBanDto'];
@@ -35,6 +36,8 @@ const KIND_HINT: Record<string, string> = {
   email: 'Адрес почты',
   device: 'ID устройства (виден в сессиях пользователя)',
 };
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['who', 'reason', 'expires', 'created', 'status'] as const;
 const DURATIONS: { value: string; label: string }[] = [
   { value: '1', label: '1 день' },
   { value: '7', label: '7 дней' },
@@ -74,7 +77,14 @@ export default function SanctionsPage() {
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data?.pages.flatMap((p) => p.data) ?? [], sort, {
+    who: (b) => b.value,
+    reason: (b) => b.reason,
+    expires: (b) => b.expiresAt ?? null,
+    created: (b) => b.createdAt,
+    status: (b) => (b.active ? 'Действует' : b.liftedAt ? 'Снята' : 'Срок вышел'),
+  });
   const refresh = () => void qc.invalidateQueries({ queryKey: ['bans'] });
 
   const lift = useMutation({
@@ -140,11 +150,11 @@ export default function SanctionsPage() {
       <Table>
         <thead>
           <tr>
-            <Th>Кого</Th>
-            <Th>Причина</Th>
-            <Th>Срок</Th>
-            <Th>Создана</Th>
-            <Th>Статус</Th>
+            <SortTh {...header('who')}>Кого</SortTh>
+            <SortTh {...header('reason')}>Причина</SortTh>
+            <SortTh {...header('expires')}>Срок</SortTh>
+            <SortTh {...header('created')}>Создана</SortTh>
+            <SortTh {...header('status')}>Статус</SortTh>
             <Th />
           </tr>
         </thead>

@@ -13,18 +13,21 @@ import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { contractEnded, dateInput, dateToIso, GOAL_METRIC, PARTNER_STATUS } from '@/lib/country-partners';
 import { ROLE_LABEL, type AdminRole } from '@/lib/rbac';
+import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { Goals, MonthLine, Settlements } from '@/components/country-partners/shared';
 
 type Detail = components['schemas']['CountryPartnerDetailDto'];
 type Goal = components['schemas']['CountryPartnerGoalDto'];
 type Create = components['schemas']['CreateCountryPartnerDto'];
+/** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
+const SORT_KEYS = ['country', 'name', 'share', 'team', 'payouts', 'status'] as const;
 
 /**
  * Owner 2026-10-06 — Деньги → Партнёры стран. A partner abroad promotes
@@ -43,7 +46,15 @@ export default function CountryPartnersPage() {
     queryKey: ['country-partners'],
     queryFn: async () => (await api.GET('/admin/country-partners')).data!.data,
   });
-  const rows = list.data ?? [];
+  const { sort, header } = useTableSort(SORT_KEYS);
+  const rows = sortRows(list.data ?? [], sort, {
+    country: (r) => r.countryName,
+    name: (r) => r.name,
+    share: (r) => r.sharePercent,
+    team: (r) => r.teamSize,
+    payouts: (r) => (r.payoutsEnabled ? 'включены' : 'выключены'),
+    status: (r) => PARTNER_STATUS[r.status]?.label ?? r.status,
+  });
 
   return (
     <>
@@ -75,12 +86,12 @@ export default function CountryPartnersPage() {
         <Table>
           <thead>
             <tr>
-              <Th>Страна</Th>
-              <Th>Партнёр</Th>
-              <Th>Процент</Th>
-              <Th>Команда</Th>
-              <Th>Выплаты</Th>
-              <Th>Статус</Th>
+              <SortTh {...header('country')}>Страна</SortTh>
+              <SortTh {...header('name')}>Партнёр</SortTh>
+              <SortTh {...header('share')}>Процент</SortTh>
+              <SortTh {...header('team')}>Команда</SortTh>
+              <SortTh {...header('payouts')}>Выплаты</SortTh>
+              <SortTh {...header('status')}>Статус</SortTh>
             </tr>
           </thead>
           <tbody>
