@@ -1,6 +1,10 @@
-import type { CallHandler, ExecutionContext } from '@nestjs/common';
+import {
+  BadRequestException,
+  type CallHandler,
+  type ExecutionContext,
+} from '@nestjs/common';
 import { lastValueFrom, of } from 'rxjs';
-import { HttpValidationPipe } from '../app.setup';
+import { HttpValidationPipe, hasNulChar } from '../app.setup';
 import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
 import { AppVersionGuard } from '../modules/feature-flags/guards/app-version.guard';
 import { ImageFormatInterceptor } from '../modules/files/processing/image-format-context';
@@ -81,6 +85,24 @@ describe('global enhancers on WebSocket messages (Nest 12)', () => {
     await expect(
       pipe.transform(socket, { type: 0 as never, metatype: Socketish }),
     ).resolves.toBe(socket);
+  });
+
+  it('row 80: a NUL character in a query or body is a 400, not a database 500', async () => {
+    const pipe = new HttpValidationPipe({ transform: true });
+    await expect(
+      pipe.transform('\u0000x', { type: 'query', metatype: String, data: 'q' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      pipe.transform(
+        { q: 'ok', nested: { list: ['a', 'b\u0000'] } },
+        { type: 'body', metatype: Object },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      pipe.transform('plain', { type: 'query', metatype: String, data: 'q' }),
+    ).resolves.toBe('plain');
+    expect(hasNulChar(Buffer.from([0, 1, 2]))).toBe(false);
+    expect(hasNulChar({ ['k\u0000']: 1 })).toBe(true);
   });
 
   it('the validation pipe still validates HTTP bodies', async () => {

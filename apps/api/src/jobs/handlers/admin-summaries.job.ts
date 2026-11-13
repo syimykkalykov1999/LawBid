@@ -15,6 +15,7 @@ import { PromotionsRollupService } from '../../modules/promotions/promotions-rol
 import { BillingOverviewService } from '../../modules/admin-billing/billing-overview.service';
 import { AdminAccessReportService } from '../../modules/admin/admin-access-report.service';
 import { DashboardService } from '../../modules/admin/dashboard.service';
+import { AdminOverviewService } from '../../modules/admin-content/admin-overview.service';
 import {
   AttorneyTrustService,
   TRUST_SCAN_SUMMARY_KEY,
@@ -65,6 +66,8 @@ export class AdminSummariesJob {
     // R-369: the «Масштаб» / «Экономика» report (AWS reads) stays warm, so
     // opening the page reads Redis instead of waiting for AWS.
     @Optional() private readonly economy?: EconomyService,
+    // Row 78: GET /admin/overview reads only this daily snapshot.
+    @Optional() private readonly overview?: AdminOverviewService,
   ) {
     this.logger.setContext(AdminSummariesJob.name);
   }
@@ -109,6 +112,13 @@ export class AdminSummariesJob {
       // Owner 2026-10-25: the heavy analytics SQL runs once a day (04 UTC).
       ['analytics', () => this.analytics.refreshSnapshots()],
       ['billing-overview', () => this.billing.refreshOverview()],
+      // Row 78: the overview's 17 counts, once a day (04 UTC, dailyDue).
+      [
+        'admin-overview',
+        async () => {
+          await this.overview?.refreshDaily();
+        },
+      ],
       [
         'access-report',
         async () => {

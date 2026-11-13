@@ -14,6 +14,9 @@ export interface VerificationLossResult {
   promotionsCanceled: number;
 }
 
+/** Attorneys checked per set-based read of [VerificationLossBillingJob]. */
+const LOSS_CHECK_BATCH = 1000;
+
 /** The unused share of a paid amount: `cents * left / total`, never above
  * the amount and never negative. */
 export function unusedShare(
@@ -60,7 +63,9 @@ export class VerificationLossBillingJob {
       where: { verification_status: { in: ['rejected', 'suspended'] } },
       select: { user_id: true },
     });
-    for (const { user_id: userId } of lost) {
+    for (const userId of await this.withSomethingToStop(
+      lost.map((l) => l.user_id),
+    )) {
       try {
         const did = await this.handle(userId, out);
         if (did) out.attorneys += 1;
@@ -70,6 +75,48 @@ export class VerificationLossBillingJob {
     }
     if (out.attorneys > 0) {
       this.logger.info({ ...out }, 'verification-loss billing finished');
+    }
+    return out;
+  }
+
+  /**
+   * 13.11 (1B load test, owner list row 76 sweep): of [userIds], those
+   * [handle] would change anything for — a live Stripe subscription, a
+   * running / paused / pending boost, or unspent offer credits — read in
+   * three set-based queries per [LOSS_CHECK_BATCH]. The stand's 20 000
+   * suspended attorneys with none of these took 671 s per run (four reads
+   * each) on the one-at-a-time `cron` lane, every 10 minutes. Same
+   * conditions as [handle]; input order kept.
+   */
+  private async withSomethingToStop(userIds: string[]): Promise<string[]> {
+    const out: string[] = [];
+    for (let i = 0; i < userIds.length; i += LOSS_CHECK_BATCH) {
+      const ids = userIds.slice(i, i + LOSS_CHECK_BATCH);
+      const [subs, promos, credits] = await Promise.all([
+        this.prisma.subscription.findMany({
+          where: {
+            user_id: { in: ids },
+            stripe_subscription_id: { not: null },
+            status: { in: ['active', 'trialing', 'past_due'] },
+          },
+          select: { user_id: true },
+        }),
+        this.prisma.casePromotion.findMany({
+          where: {
+            user_id: { in: ids },
+            status: { in: ['active', 'paused', 'pending_review'] },
+          },
+          select: { user_id: true },
+        }),
+        this.prisma.bidCredit.findMany({
+          where: { user_id: { in: ids }, balance: { gt: 0 } },
+          select: { user_id: true },
+        }),
+      ]);
+      const due = new Set(
+        [...subs, ...promos, ...credits].map((r) => r.user_id),
+      );
+      for (const id of ids) if (due.has(id)) out.push(id);
     }
     return out;
   }

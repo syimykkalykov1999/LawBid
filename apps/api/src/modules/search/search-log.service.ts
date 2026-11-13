@@ -13,6 +13,8 @@ export type ClickTarget = 'case' | 'post' | 'attorney' | 'practice';
 /** Typing one query leaves one row: a person's own shorter prefixes of a
  * query sent within this window are dropped. */
 const TYPING_WINDOW_MS = 8_000;
+/** How many of a person's latest queries (per scope) the typing check keeps. */
+const TYPED_KEEP = 10;
 const KEEP_QUERY_LOG_DAYS = 30;
 const KEEP_CLICK_DAYS = 90;
 /** A topic is learned from a query when this share of the people who
@@ -63,14 +65,43 @@ export class SearchLogService {
     q: string,
     results: number,
   ): Promise<void> {
-    const since = new Date(Date.now() - TYPING_WINDOW_MS);
-    await this.prisma.$executeRaw`
-      DELETE FROM search_query_log
-      WHERE user_id = ${userId}::UUID AND scope = ${scope}
-        AND created_at > ${since} AND ${q} LIKE q || '%' AND q <> ${q}`;
+    if (await this.mayHaveTypedPrefix(userId, scope, q)) {
+      const since = new Date(Date.now() - TYPING_WINDOW_MS);
+      await this.prisma.$executeRaw`
+        DELETE FROM search_query_log
+        WHERE user_id = ${userId}::UUID AND scope = ${scope}
+          AND created_at > ${since} AND ${q} LIKE q || '%' AND q <> ${q}`;
+    }
     await this.prisma.searchQueryLog.create({
       data: { user_id: userId, q, scope, results },
     });
+  }
+
+  /**
+   * Row 80 (load test 13.11, search at 10M users): the typing clean-up
+   * DELETE ran on every search and almost never found a row (0 of 74 461
+   * in the saturated run), yet cost 5x the INSERT (pgss 0.41 vs 0.08 ms).
+   * The person's last few queries of this scope are kept in Redis for the
+   * typing window; the DELETE (unchanged, still the judge) runs only when
+   * one of them is a shorter prefix of this query. Redis away = run it.
+   */
+  private async mayHaveTypedPrefix(
+    userId: string,
+    scope: SearchScope,
+    q: string,
+  ): Promise<boolean> {
+    const key = `search:typed:${userId}:${scope}`;
+    try {
+      const recent = await this.redis.lrange(key, 0, TYPED_KEEP - 1);
+      void this.redis
+        .lpush(key, q)
+        .then(() => this.redis.ltrim(key, 0, TYPED_KEEP - 1))
+        .then(() => this.redis.pexpire(key, TYPING_WINDOW_MS))
+        .catch(() => undefined);
+      return recent.some((p) => p !== q && q.startsWith(p));
+    } catch {
+      return true;
+    }
   }
 
   /** The person opened a result of a query: one click per person, query

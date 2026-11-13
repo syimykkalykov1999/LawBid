@@ -34,8 +34,15 @@ export interface BidSubscriptionLapseResult {
  * Idempotent: withdrawActiveBidsForAttorney only touches bids still
  * `status = active`, so re-running (a retried job, or this sweep finding
  * the same attorney twice) does nothing on the second pass. Not gated by
- * an extra Redis lock: JobsRunner runs the `cron` queue with a single
- * worker at concurrency 1, so two sweeps never run at once.
+ * an extra Redis lock: the job runs on the `cron-heavy` lane at
+ * concurrency 1, so two sweeps never run at once.
+ *
+ * 13.11 (owner list row 76, 1B load test): ~900 000 attorneys with active
+ * bids on the 10M stand; one isActive() per attorney took ~21 minutes and
+ * held the one-at-a-time `cron` lane (partition.tick and 64 other jobs
+ * waited). Now each batch of [BID_SUBSCRIPTION_LAPSE_BATCH] is checked by
+ * SubscriptionAccessService.activeAmong (same rule, two reads), and the
+ * job sits on the heavy lane with the other long sweeps.
  */
 @Injectable()
 export class BidSubscriptionLapseJob {
@@ -67,12 +74,15 @@ export class BidSubscriptionLapseJob {
           orderBy: { attorney_id: 'asc' },
           take: BID_SUBSCRIPTION_LAPSE_BATCH,
         });
-        for (const row of rows) {
+        // 13.11 (owner list row 76): the whole batch is checked in two
+        // set-based reads instead of one isActive() per attorney.
+        const ids = rows.map((r) => r.attorney_id);
+        const active = await this.subscriptions.activeAmong(ids);
+        for (const attorneyId of ids) {
           result.attorneysChecked += 1;
-          if (await this.subscriptions.isActive(row.attorney_id)) continue;
-          const withdrawn = await this.bids.withdrawActiveBidsForAttorney(
-            row.attorney_id,
-          );
+          if (active.has(attorneyId)) continue;
+          const withdrawn =
+            await this.bids.withdrawActiveBidsForAttorney(attorneyId);
           result.bidsWithdrawn += withdrawn;
         }
         if (rows.length < BID_SUBSCRIPTION_LAPSE_BATCH) break;

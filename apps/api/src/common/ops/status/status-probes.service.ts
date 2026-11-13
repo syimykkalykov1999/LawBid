@@ -392,14 +392,26 @@ export class StatusProbesService implements OnModuleDestroy {
 
   private async queueStats(name: string, now: Date) {
     const q = this.queue(name);
-    const c = await withTimeout(q.getJobCounts('waiting', 'failed'));
-    const [oldest] = await withTimeout(q.getWaiting(0, 0));
+    // 13.11 (row 79, as ops-metrics in #988): a job with a `priority` (every
+    // push) waits in BullMQ's `prioritized` set, not in `wait` — counting
+    // `waiting` alone showed 0 while 180 000 pushes waited.
+    const c = await withTimeout(
+      q.getJobCounts('waiting', 'prioritized', 'failed'),
+    );
+    const [oldestWait] = await withTimeout(q.getWaiting(0, 0));
+    const [oldestPrio] =
+      (c.prioritized ?? 0) > 0 ? await withTimeout(q.getPrioritized(0, 0)) : [];
+    const heads = [oldestWait, oldestPrio].filter((j) => !!j);
+    const oldestTs = heads.length
+      ? Math.min(...heads.map((j) => j.timestamp))
+      : null;
     return {
-      waiting: c.waiting ?? 0,
+      waiting: (c.waiting ?? 0) + (c.prioritized ?? 0),
       failed: c.failed ?? 0,
-      oldestSec: oldest
-        ? Math.max(0, Math.floor((now.getTime() - oldest.timestamp) / 1000))
-        : 0,
+      oldestSec:
+        oldestTs !== null
+          ? Math.max(0, Math.floor((now.getTime() - oldestTs) / 1000))
+          : 0,
     };
   }
 

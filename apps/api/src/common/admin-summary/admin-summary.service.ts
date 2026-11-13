@@ -28,10 +28,14 @@ export const ADMIN_CHANGED_CHANNEL = 'adm:changed';
 const HARD_TTL_SECONDS = 24 * 3600;
 /** One refresher per key at a time, across every API / worker process. */
 const LOCK_SECONDS = 120;
-/** A request that finds nothing waits this long for the process that is
- * already computing, then computes by itself. */
+/** A request that finds nothing waits for the process that is already
+ * computing; after this long it starts checking whether that holder is
+ * still alive (its lock), and computes by itself only when it is not. */
 const WAIT_MS = 4000;
 const WAIT_STEP_MS = 150;
+/** After a failed count, its waiters fail with it for this long instead of
+ * counting again one after another. */
+const FAIL_SECONDS = 15;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -262,6 +266,7 @@ export class AdminSummaryService {
     waitForOther: boolean,
   ): Promise<Summary<T>> {
     const lockKey = `${PREFIX}lock:${key}`;
+    const failKey = `${PREFIX}fail:${key}`;
     let locked: boolean;
     try {
       locked =
@@ -271,20 +276,49 @@ export class AdminSummaryService {
     }
     if (!locked) {
       if (waitForOther) {
-        for (let waited = 0; waited < WAIT_MS; waited += WAIT_STEP_MS) {
+        // Row 78 (load test 13.11, 10M users): waiters used to give up after
+        // WAIT_MS and count by themselves while the holder was still
+        // counting (~25 s), so every request of a cold admin page ran the
+        // heavy count again (24 at once, p95 26 s). Now a waiter keeps
+        // waiting while the holder's lock is alive (at most LOCK_SECONDS);
+        // only when the lock is gone without a stored value (the holder
+        // died or failed) does it take the lock and count once itself.
+        const deadline = Date.now() + LOCK_SECONDS * 1000;
+        let waited = 0;
+        while (Date.now() < deadline) {
           await sleep(WAIT_STEP_MS);
+          waited += WAIT_STEP_MS;
           const hit = await this.peek<T>(key);
           if (hit) return hit;
+          if (waited >= WAIT_MS && !(await this.lockHeld(lockKey))) {
+            // The holder's count just failed (a timeout on a huge table):
+            // answer as it did instead of starting the same count again.
+            if (await this.lockHeld(failKey)) {
+              throw new Error(`admin summary ${key}: the running count failed`);
+            }
+            locked = await this.takeLock(lockKey);
+            if (locked) break;
+          }
         }
-        // The holder is slow or died: fall through and compute.
+        // The lock outlived LOCK_SECONDS or Redis is away: count here.
       } else {
         const hit = await this.peek<T>(key);
         if (hit) return hit;
       }
     }
     try {
+      let data: T;
+      try {
+        data = await compute();
+      } catch (e) {
+        // Tells the waiters of this count that it failed (see above).
+        await this.redis
+          .set(failKey, '1', 'EX', FAIL_SECONDS)
+          .catch(() => undefined);
+        throw e;
+      }
       const summary: Summary<T> = {
-        data: await compute(),
+        data,
         computedAt: new Date().toISOString(),
       };
       // The copy this one replaces: announced only when the DATA differs
@@ -311,6 +345,27 @@ export class AdminSummaryService {
       return summary;
     } finally {
       if (locked) await this.redis.del(lockKey).catch(() => undefined);
+    }
+  }
+
+  /** A waiter takes over a lock its holder left; Redis trouble = go ahead
+   * (the lock is only a courtesy). */
+  private async takeLock(lockKey: string): Promise<boolean> {
+    try {
+      return (
+        (await this.redis.set(lockKey, '1', 'EX', LOCK_SECONDS, 'NX')) === 'OK'
+      );
+    } catch {
+      return true;
+    }
+  }
+
+  /** Whether another process still holds [lockKey] (false when unsure). */
+  private async lockHeld(lockKey: string): Promise<boolean> {
+    try {
+      return (await this.redis.exists(lockKey)) === 1;
+    } catch {
+      return false;
     }
   }
 }
