@@ -83,7 +83,7 @@ import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { fileNameAad } from '../../common/secrets/field-aad';
 import { MessageSearchIndex } from '../../common/secrets/message-search-index';
 import { searchTokenRows, writeSearchTokenRows } from './chat-search-tokens';
-import { recordSentMessage } from './chat-send-bookkeeping';
+import { claimChatSendSlot } from './chat-send-bookkeeping';
 import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
 import { messagesByPairs } from './messages-by-pairs';
 import { expiresAtFor, notExpired } from './disappearing';
@@ -1357,31 +1357,37 @@ export class ChatService {
       message = await withTxRetry(
         this.prisma,
         async (tx) => {
-          // Serializes with the file-04 transactions that close the chat or
-          // unlock contacts.
-          // Row 69 (KE 123): shard_id is read here and given to the message
-          // insert, so the shard extension does not look the conversation up
-          // again (it would be a second query on this transaction).
-          const [locked] = await tx.$queryRaw<
-            {
-              status: string;
-              contacts_unlocked: boolean;
-              disappear_after_s: number | null;
-              shard_id: number;
-            }[]
-          >`SELECT status, contacts_unlocked, disappear_after_s, shard_id FROM conversations
-            WHERE id = ${id}::UUID FOR UPDATE`;
-          if (!locked || locked.status === 'closed') throw closed();
-          if (attachment && !locked.contacts_unlocked) {
+          // Row 82: the chat row lock is taken by ONE statement, the last
+          // one before the insert (claimChatSendSlot); what does not need it
+          // runs first. The blind search tokens (no foreign key) are written
+          // for the masking read before the transaction; the rare send whose
+          // locked row says otherwise rewrites them below.
+          await writeSearchTokenRows(tx, prepared.tokens);
+          // Numbers the message, moves the chat's last message and the
+          // sender's read marker, and locks the row (serializes with the
+          // file-04 transactions that close the chat or unlock contacts).
+          // Row 69 (KE 123): shard_id comes back here and is given to the
+          // insert, so the shard extension does not look the chat up again.
+          const slot = await claimChatSendSlot(
+            tx,
+            { conversationId: id, messageId },
+            user.sub,
+          );
+          if (!slot) throw closed();
+          if (attachment && !slot.contacts_unlocked) {
             throw new ForbiddenException({
               code: ErrorCode.CHAT_ATTACHMENTS_LOCKED,
               message: 'Files can be sent once the bid is accepted.',
             });
           }
-          const p =
-            prepared.unlocked === locked.contacts_unlocked
-              ? prepared
-              : prepare(locked.contacts_unlocked);
+          let p = prepared;
+          if (prepared.unlocked !== slot.contacts_unlocked) {
+            p = prepare(slot.contacts_unlocked);
+            await tx.messageSearchToken.deleteMany({
+              where: { conversation_id: id, message_id: messageId },
+            });
+            await writeSearchTokenRows(tx, p.tokens);
+          }
           const given = gift
             ? await this.stars.giveGift(tx, {
                 giftId: dto.giftId!,
@@ -1399,7 +1405,8 @@ export class ChatService {
             data: {
               id: messageId,
               conversation_id: id,
-              shard_id: locked.shard_id,
+              shard_id: slot.shard_id,
+              seq: slot.seq,
               sender_id: user.sub,
               sent_by_membership_id: user.assistant?.membershipId ?? null,
               sent_by_name: user.assistant?.name.slice(0, 80) ?? null,
@@ -1410,7 +1417,7 @@ export class ChatService {
               client_message_id: dto.clientMessageId,
               reply_to_id: replyToId,
               // Owner 2026-10-21: disappearing messages.
-              expires_at: expiresAtFor(locked.disappear_after_s),
+              expires_at: expiresAtFor(slot.disappear_after_s),
               forwarded: dto.forwarded === true,
               forwarded_from_name: dto.forwardedFromName ?? null,
               ...(voice
@@ -1431,14 +1438,6 @@ export class ChatService {
                       : {}),
             },
           });
-          // BUG-1: the blind tokens (prepared above) in the same transaction
-          // (a message is never searchable-less or vice versa).
-          await writeSearchTokenRows(tx, p.tokens);
-          await recordSentMessage(
-            tx,
-            { conversationId: id, messageId: m.id, createdAt: m.created_at },
-            user.sub,
-          );
           return m;
         },
         {

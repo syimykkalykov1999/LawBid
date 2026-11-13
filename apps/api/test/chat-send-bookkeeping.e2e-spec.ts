@@ -1,28 +1,58 @@
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { recordSentMessage } from '../src/modules/chat/chat-send-bookkeeping';
+import { claimChatSendSlot } from '../src/modules/chat/chat-send-bookkeeping';
 
 /**
- * The one-statement bookkeeping of a sent message (load test 2026-11-02):
- * same effect as the three Prisma calls it replaced, on real PostgreSQL.
+ * The one statement of a send that takes the chat row lock (row 82): it
+ * numbers the message, does the bookkeeping the three Prisma calls of
+ * 2026-11-02 did, and returns the locked row — on real PostgreSQL.
  */
 describe('chat send bookkeeping (e2e)', () => {
   jest.setTimeout(60_000);
   const prisma = new PrismaClient();
   afterAll(() => prisma.$disconnect());
 
-  async function chat() {
+  async function chat(status: 'active' | 'closed' = 'active') {
     const att = await prisma.user.create({ data: { role: 'attorney' } });
     const cli = await prisma.user.create({ data: { role: 'client' } });
     const conv = await prisma.conversation.create({
       data: {
         attorney_id: att.id,
         client_id: cli.id,
-        status: 'active',
+        status,
         participants: { create: [{ user_id: att.id }, { user_id: cli.id }] },
       },
     });
     return { conv, att, cli };
+  }
+
+  /** What ChatService.send does inside its transaction, in the same order. */
+  function send(conversationId: string, senderId: string, body: string) {
+    const id = randomUUID();
+    return prisma.$transaction(
+      async (tx) => {
+        const slot = await claimChatSendSlot(
+          tx,
+          { conversationId, messageId: id },
+          senderId,
+        );
+        if (!slot) return null;
+        return tx.message.create({
+          data: {
+            id,
+            conversation_id: conversationId,
+            shard_id: slot.shard_id,
+            seq: slot.seq,
+            sender_id: senderId,
+            type: 'text',
+            body_original: body,
+            body_display: body,
+            client_message_id: randomUUID(),
+          },
+        });
+      },
+      { isolationLevel: 'ReadCommitted' },
+    );
   }
 
   it('moves the last message, revives a removed chat for both, marks only the sender as read', async () => {
@@ -32,28 +62,14 @@ describe('chat send bookkeeping (e2e)', () => {
       where: { conversation_id: conv.id },
       data: { hidden_at: gone },
     });
-    const m = await prisma.message.create({
-      data: {
-        id: randomUUID(),
-        conversation_id: conv.id,
-        sender_id: cli.id,
-        type: 'text',
-        body_original: 'hi',
-        body_display: 'hi',
-        client_message_id: randomUUID(),
-      },
-    });
-    await prisma.$transaction((tx) =>
-      recordSentMessage(
-        tx,
-        { conversationId: conv.id, messageId: m.id, createdAt: m.created_at },
-        cli.id,
-      ),
-    );
+    const m = (await send(conv.id, cli.id, 'hi'))!;
+    expect(m.seq).toBe(1);
     const c = await prisma.conversation.findUniqueOrThrow({
       where: { id: conv.id },
     });
+    expect(c.last_seq).toBe(1);
     expect(c.last_message_id).toBe(m.id);
+    // Same now() of the same transaction as the created_at default.
     expect(c.last_message_at?.getTime()).toBe(m.created_at.getTime());
     const rows = await prisma.conversationParticipant.findMany({
       where: { conversation_id: conv.id },
@@ -71,17 +87,6 @@ describe('chat send bookkeeping (e2e)', () => {
   it("leaves a visible chat's other side untouched and never touches other chats", async () => {
     const a = await chat();
     const b = await chat();
-    const m = await prisma.message.create({
-      data: {
-        id: randomUUID(),
-        conversation_id: a.conv.id,
-        sender_id: a.att.id,
-        type: 'text',
-        body_original: 'x',
-        body_display: 'x',
-        client_message_id: randomUUID(),
-      },
-    });
     const before = await prisma.conversationParticipant.findUniqueOrThrow({
       where: {
         conversation_id_user_id: {
@@ -90,13 +95,7 @@ describe('chat send bookkeeping (e2e)', () => {
         },
       },
     });
-    await prisma.$transaction((tx) =>
-      recordSentMessage(
-        tx,
-        { conversationId: a.conv.id, messageId: m.id, createdAt: m.created_at },
-        a.att.id,
-      ),
-    );
+    await send(a.conv.id, a.att.id, 'x');
     const after = await prisma.conversationParticipant.findUniqueOrThrow({
       where: {
         conversation_id_user_id: {
@@ -110,30 +109,61 @@ describe('chat send bookkeeping (e2e)', () => {
       where: { id: b.conv.id },
     });
     expect(other.last_message_id).toBeNull();
+    expect(other.last_seq).toBe(0);
   });
 
   it('a sender who is not a participant aborts the send (nothing half-written)', async () => {
     const { conv } = await chat();
     const stranger = await prisma.user.create({ data: { role: 'client' } });
-    const m = await prisma.message.create({
+    await expect(send(conv.id, stranger.id, 'x')).rejects.toThrow(
+      'no participant row',
+    );
+    const c = await prisma.conversation.findUniqueOrThrow({
+      where: { id: conv.id },
+    });
+    expect(c.last_seq).toBe(0);
+    expect(c.last_message_id).toBeNull();
+    expect(
+      await prisma.message.count({ where: { conversation_id: conv.id } }),
+    ).toBe(0);
+  });
+
+  it('a closed chat gives no slot and changes nothing', async () => {
+    const { conv, cli } = await chat('closed');
+    expect(await send(conv.id, cli.id, 'x')).toBeNull();
+    const c = await prisma.conversation.findUniqueOrThrow({
+      where: { id: conv.id },
+    });
+    expect(c.last_seq).toBe(0);
+    expect(c.last_message_id).toBeNull();
+  });
+
+  it('concurrent sends in one chat get 1..N without holes, and the last message is the highest number', async () => {
+    const { conv, att, cli } = await chat();
+    const sent = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        send(conv.id, i % 2 ? att.id : cli.id, `m${i}`),
+      ),
+    );
+    const seqs = sent.map((m) => m!.seq).sort((a, b) => a! - b!);
+    expect(seqs).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
+    const c = await prisma.conversation.findUniqueOrThrow({
+      where: { id: conv.id },
+    });
+    expect(c.last_seq).toBe(20);
+    expect(c.last_message_id).toBe(sent.find((m) => m!.seq === 20)!.id);
+    // The trigger still numbers the other write paths after these.
+    const sys = await prisma.message.create({
       data: {
         id: randomUUID(),
         conversation_id: conv.id,
-        sender_id: stranger.id,
+        sender_id: null,
         type: 'text',
-        body_original: 'x',
-        body_display: 'x',
+        body_original: 'call',
+        body_display: 'call',
         client_message_id: randomUUID(),
       },
     });
-    await expect(
-      prisma.$transaction((tx) =>
-        recordSentMessage(
-          tx,
-          { conversationId: conv.id, messageId: m.id, createdAt: m.created_at },
-          stranger.id,
-        ),
-      ),
-    ).rejects.toThrow('no participant row');
+    expect(sys.seq).toBe(21);
   });
 });
