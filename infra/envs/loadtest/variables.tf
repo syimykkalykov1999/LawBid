@@ -93,7 +93,7 @@ variable "pgbouncer_image" {
 }
 variable "clamav_image" {
   type    = string
-  default = "clamav/clamav:1.4"
+  default = "clamav/clamav-debian:1.4" # 13.11 KE 126: multi-arch; clamav/clamav:1.4 is amd64 only
 }
 variable "cpu_architecture" {
   type    = string

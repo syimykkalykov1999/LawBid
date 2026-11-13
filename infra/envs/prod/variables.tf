@@ -323,7 +323,7 @@ variable "pgbouncer_client_tls_private_ca" {
 }
 variable "clamav_image" {
   type    = string
-  default = "clamav/clamav:1.4"
+  default = "clamav/clamav-debian:1.4" # 13.11 KE 126: multi-arch; clamav/clamav:1.4 is amd64 only
 }
 # Browser beta (owner 2026-10-07): the web app's origin, for direct S3
 # uploads (presigned POST) and signed GET reads. Origin only: no path.

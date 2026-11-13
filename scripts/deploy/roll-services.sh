@@ -27,6 +27,17 @@ ROLL_TIMEOUT_SECONDS="${ROLL_TIMEOUT_SECONDS:-1800}"
 ROLL_POLL_SECONDS="${ROLL_POLL_SECONDS:-10}"
 REVS=""
 REGISTRY="${ECR_REGISTRY:?ECR_REGISTRY is required}"
+# 13.11 (KE 126 audit): on ARM64 tasks an image without an arm64 build cannot
+# start (images before 22.10 are amd64 only — a rollback or a manual
+# image_tag). Checked for every service BEFORE any of them is touched.
+for SVC in $SERVICES; do
+  ARCH=$(aws ecs describe-task-definition --task-definition "${CLUSTER}-${SVC}" \
+    --query 'taskDefinition.runtimePlatform.cpuArchitecture' --output text 2>/dev/null || echo None)
+  if [ "$ARCH" = ARM64 ]; then
+    "$(dirname "$0")/../ops/arm64-check.sh" "lawbid-$( [ "$SVC" = admin ] && echo admin || echo api ):${TAG}" \
+      || { echo "::error::$SVC runs on ARM64 but lawbid-*:${TAG} has no arm64 build"; exit 1; }
+  fi
+done
 for SVC in $SERVICES; do
   FAMILY="${CLUSTER}-${SVC}"
   IMAGE="${REGISTRY}/lawbid-$( [ "$SVC" = admin ] && echo admin || echo api ):${TAG}"
@@ -40,12 +51,10 @@ for SVC in $SERVICES; do
       c.environment = (c.environment || []).filter((e) => e.name !== "APP_VERSION");
       c.environment.push({ name: "APP_VERSION", value: process.argv[2] });
     }
-    // 13.11 (KNOWN_ERRORS 126): lawbid-clamav:1.4 is amd64 only, so on ARM64
-    // the worker cannot start; :1.4-debian is the same ClamAV, multi-arch
+    // 13.11 (KNOWN_ERRORS 126): lawbid-clamav:1.4 is amd64 only (and expires
+    // under the ECR keep rule); :1.4-debian is the same ClamAV, multi-arch
     // (the same rule as infra/envs/prod/main.tf).
-    if ((td.runtimePlatform || {}).cpuArchitecture === "ARM64") {
-      for (const c of td.containerDefinitions) c.image = c.image.replace(/(\/lawbid-clamav:1\.4)$/, "$1-debian");
-    }
+    for (const c of td.containerDefinitions) c.image = c.image.replace(/(\/lawbid-clamav:1\.4)$/, "$1-debian");
     for (const k of ["taskDefinitionArn","revision","status","requiresAttributes","compatibilities","registeredAt","registeredBy","deregisteredAt"]) delete td[k];
     fs.writeFileSync("td.new.json", JSON.stringify(td));
   ' "$IMAGE" "$TAG" "$SVC"

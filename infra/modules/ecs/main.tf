@@ -111,7 +111,7 @@ variable "worker_memory" {
 }
 variable "clamav_image" {
   type        = string
-  default     = "clamav/clamav:1.4"
+  default     = "clamav/clamav-debian:1.4" # 13.11 KE 126: multi-arch; clamav/clamav:1.4 is amd64 only
   description = "Antivirus sidecar of the worker (uploads stay «pending» without it)."
 }
 variable "clamav_memory" {
@@ -748,7 +748,13 @@ resource "aws_ecs_task_definition" "admin" {
 # docs/06 §7.3): run by the pipeline with `aws ecs run-task` before the
 # prod rollout; never part of a long-running service.
 resource "aws_ecs_task_definition" "migrate" {
-  family                   = "${var.name}-migrate"
+  family = "${var.name}-migrate"
+  # 13.11 (KE 126 audit): same processor as the services (it ran on the
+  # X86_64 default; the api image is multi-arch).
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = var.cpu_architecture
+  }
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 512
