@@ -334,6 +334,8 @@ export const PURPOSE_PLACES: Partial<Record<FilePurpose, UploadPlace[]>> = {
   case_photo: ['case'],
   case_attachment: ['case'],
   chat_attachment: ['chat'],
+  // Owner 2026-11-12: the AI pictures use the chat photo limit (no cap of ours).
+  ai_attachment: ['chat'],
   support_attachment: ['support'],
   task_attachment: ['task'],
   verification_document: ['verification'],

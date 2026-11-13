@@ -1,0 +1,38 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+import 'ai_worker_model.dart';
+import 'ai_worker_queue_key.dart';
+
+part 'update_ai_role_dto.g.dart';
+
+@JsonSerializable()
+class UpdateAiRoleDto {
+  const UpdateAiRoleDto({
+    this.confidenceMin = 90,
+    this.auditPct = 10,
+    this.name,
+    this.instructions,
+    this.queue,
+    this.model,
+    this.imageFileIds,
+  });
+
+  factory UpdateAiRoleDto.fromJson(Map<String, Object?> json) =>
+      _$UpdateAiRoleDtoFromJson(json);
+
+  final String? name;
+  final String? instructions;
+  final AiWorkerQueueKey? queue;
+  final AiWorkerModel? model;
+  final num confidenceMin;
+  final num auditPct;
+
+  /// Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads); the exact set replaces the old one.
+  final List<String>? imageFileIds;
+
+  Map<String, Object?> toJson() => _$UpdateAiRoleDtoToJson(this);
+}

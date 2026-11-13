@@ -38,6 +38,8 @@ enum FilePurpose {
   documentTemplate('document_template'),
   @JsonValue('support_attachment')
   supportAttachment('support_attachment'),
+  @JsonValue('ai_attachment')
+  aiAttachment('ai_attachment'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

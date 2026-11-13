@@ -49,16 +49,44 @@ export interface AiSystemBlock {
   cacheTtl?: '5m' | '1h';
 }
 
+/**
+ * Owner 2026-11-12 (row 48): a picture for the user turn, sent as a base64
+ * `image` content block before the text (docs.claude.com «Vision»: JPEG,
+ * PNG, GIF, WebP; long edge ≤ 2576 px is what the API keeps anyway). The
+ * caller has already downscaled it and stripped its metadata. [cache] marks
+ * the end of a cached prefix (the role's example screenshots are the same
+ * for every item of a run).
+ */
+export interface AiImage {
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  /** Base64 of the bytes. */
+  data: string;
+  /** A short trusted label printed before the picture. */
+  label?: string;
+  cache?: boolean;
+}
+
+/** docs.claude.com «Vision» (2026-11-12): a picture costs
+ * ceil(w/28) x ceil(h/28) visual tokens, at most 4,784 on Claude 4.7 and
+ * later (the worst case reserved). */
+export const IMAGE_TOKENS_MAX = 4784;
+
 export interface AiMessageRequest<T> {
   feature: StaffAiFeature;
   model: StaffAiModel;
   system: AiSystemBlock[];
   /** Goes through the PII scrubber before it leaves. */
   user: string;
+  /** Pictures before the text of the user turn. */
+  images?: AiImage[];
   schema: AiSchema<T>;
   maxTokens: number;
   timeoutMs: number;
+  /** Thinking depth (default `low`: short, mechanical judgements). */
+  effort?: AiEffort;
 }
+
+export type AiEffort = 'low' | 'medium' | 'high';
 
 export interface AiMessageResult<T> {
   value: T;
@@ -73,9 +101,14 @@ export interface AiBatchItem {
   /** The (cached) rubric of this item's kind. */
   system: AiSystemBlock[];
   user: string;
+  /** Pictures before the text of the user turn. */
+  images?: AiImage[];
 }
 
 export interface AiBatchRequest<T> {
+  /** Whose switch and budget line (default `qa`, the nightly re-check). */
+  feature?: StaffAiFeature;
+  effort?: AiEffort;
   model: StaffAiModel;
   schema: AiSchema<T>;
   maxTokens: number;
@@ -151,9 +184,12 @@ export class StaffAiClient {
     user: string,
     maxTokens: number,
     batch: boolean,
+    images = 0,
   ): number {
     const tokens =
-      estimateTokens(system.map((b) => b.text).join('')) + estimateTokens(user);
+      estimateTokens(system.map((b) => b.text).join('')) +
+      estimateTokens(user) +
+      images * IMAGE_TOKENS_MAX;
     return estimateMillicents(model, tokens, maxTokens, batch);
   }
 
@@ -169,6 +205,8 @@ export class StaffAiClient {
       scrubPii(req.user),
       req.schema,
       req.maxTokens,
+      req.effort,
+      req.images,
     );
     const est = this.estimateItemMillicents(
       req.model,
@@ -176,6 +214,7 @@ export class StaffAiClient {
       req.user,
       req.maxTokens,
       false,
+      req.images?.length ?? 0,
     );
     const reservation = await this.budget.reserve(req.feature, est);
     let wire: WireMessage;
@@ -211,7 +250,8 @@ export class StaffAiClient {
   async submitBatch<T>(
     req: AiBatchRequest<T>,
   ): Promise<{ batchId: string; reservation: StaffAiReservation }> {
-    await this.assertEnabled('qa');
+    const feature = req.feature ?? 'qa';
+    await this.assertEnabled(feature);
     if (req.items.length === 0) throw new StaffAiApiError('empty batch');
     const apiKey = await this.apiKey();
     const est = req.items.reduce(
@@ -223,10 +263,11 @@ export class StaffAiClient {
           i.user,
           req.maxTokens,
           true,
+          i.images?.length ?? 0,
         ),
       0,
     );
-    const reservation = await this.budget.reserve('qa', est);
+    const reservation = await this.budget.reserve(feature, est);
     try {
       const body = {
         requests: req.items.map((i) => ({
@@ -237,6 +278,8 @@ export class StaffAiClient {
             scrubPii(i.user),
             req.schema,
             req.maxTokens,
+            req.effort,
+            i.images,
           ),
         })),
       };
@@ -257,8 +300,11 @@ export class StaffAiClient {
     }
   }
 
-  async batchStatus(id: string): Promise<AiBatchStatus> {
-    await this.assertEnabled('qa');
+  async batchStatus(
+    id: string,
+    feature: StaffAiFeature = 'qa',
+  ): Promise<AiBatchStatus> {
+    await this.assertEnabled(feature);
     const apiKey = await this.apiKey();
     const b = (await this.call(
       'GET',
@@ -289,8 +335,9 @@ export class StaffAiClient {
     id: string,
     model: StaffAiModel,
     schema: AiSchema<T>,
+    feature: StaffAiFeature = 'qa',
   ): Promise<{ results: AiBatchResult<T>[]; costMillicents: number }> {
-    await this.assertEnabled('qa');
+    await this.assertEnabled(feature);
     const apiKey = await this.apiKey();
     const text = (await this.call(
       'GET',
@@ -367,7 +414,31 @@ export class StaffAiClient {
     user: string,
     schema: AiSchema<T>,
     maxTokens: number,
+    effort: AiEffort = 'low',
+    images: readonly AiImage[] = [],
   ): Record<string, unknown> {
+    // Owner 2026-11-12: pictures go first in the user turn (Anthropic's
+    // advice: images before the text about them), each after its label.
+    const content =
+      images.length === 0
+        ? user
+        : [
+            ...images.flatMap((img) => [
+              ...(img.label ? [{ type: 'text', text: img.label }] : []),
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: img.mediaType,
+                  data: img.data,
+                },
+                ...(img.cache
+                  ? { cache_control: { type: 'ephemeral', ttl: '1h' } }
+                  : {}),
+              },
+            ]),
+            { type: 'text', text: user },
+          ];
     return {
       model,
       max_tokens: maxTokens,
@@ -378,10 +449,10 @@ export class StaffAiClient {
           ? { cache_control: { type: 'ephemeral', ttl: b.cacheTtl } }
           : {}),
       })),
-      messages: [{ role: 'user', content: user }],
-      // Short, mechanical judgement: no deep reasoning needed or paid for.
+      messages: [{ role: 'user', content }],
+      // Short, mechanical judgement by default: no deep reasoning paid for.
       output_config: {
-        effort: 'low',
+        effort,
         format: { type: 'json_schema', schema: schema.json },
       },
     };

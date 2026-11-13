@@ -166,6 +166,10 @@ enum FilePurpose {
   // Owner 2026-10-18 (OQ-055): photos, documents and videos in a support
   // ticket, both directions; private bucket.
   support_attachment
+  // Owner 2026-11-12: screenshots and photos the owner gives the AI
+  // technician / AI employee; private bucket, owner-only, deleted
+  // ai.retention_images_days after the task or item closes.
+  ai_attachment
 
   @@map("file_purpose")
 }
@@ -1086,6 +1090,7 @@ model File {
   sticker                Sticker?
   gift                   Gift?
   document_template      DocumentTemplate?
+  ai_attachments         AiAttachment[]
   expense_receipts       CaseExpense[]        @relation("ExpenseReceipt")
   support_message_files  SupportMessageFile[]
   stories                Story[]
@@ -9084,4 +9089,130 @@ model QuickReply {
 
   @@index([user_id, position, created_at])
   @@map("quick_replies")
+}
+
+/// Owner 2026-11-12 «ИИ-сотрудник» (admin only, owner only): a role the owner
+/// wrote once — what the AI does on one admin queue. The AI only PROPOSES;
+/// every result waits in the review queue for the owner.
+model AiRole {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String    @db.VarChar(120)
+  /// The owner's own words: what to check and how (trusted, owner-written).
+  instructions   String
+  /// Which admin queue it works on (ai-worker.queues.ts), e.g. attorney_verification.
+  queue          String    @db.VarChar(40)
+  /// Exact Claude model id (claude-opus-5-5 by default).
+  model          String    @default("claude-opus-5-5") @db.VarChar(40)
+  /// The output schema of the proposals (fixed per queue for now).
+  output         String    @default("verdict") @db.VarChar(40)
+  /// Routing (trust-and-safety pattern): a proposal at or above this
+  /// confidence with no red flag goes to the «bulk approve» list.
+  confidence_min Int       @default(90) @db.SmallInt
+  /// Random audit: this % of high-confidence proposals still goes to the
+  /// owner first (catches drift).
+  audit_pct      Int       @default(10) @db.SmallInt
+  created_by     String    @db.Uuid
+  archived_at    DateTime? @db.Timestamptz
+  created_at     DateTime  @default(now()) @db.Timestamptz
+  updated_at     DateTime  @updatedAt @db.Timestamptz
+
+  runs        AiRun[]
+  attachments AiAttachment[]
+
+  @@index([archived_at, created_at(sort: Desc)])
+  @@map("ai_roles")
+}
+
+/// One background mass run of a role: chunked (one Message Batch per chunk),
+/// resumable (state in the row), retried with backoff; cost in millicents.
+model AiRun {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role_id             String    @db.Uuid
+  role                AiRole    @relation(fields: [role_id], references: [id], onDelete: Restrict)
+  /// queued | running | done | failed | canceled
+  status              String    @default("queued") @db.VarChar(16)
+  model               String    @db.VarChar(40)
+  total               Int       @default(0)
+  proposed            Int       @default(0)
+  failed              Int       @default(0)
+  /// The Message Batch in flight (null between chunks).
+  batch_id            String?   @db.VarChar(80)
+  reserved_millicents Int       @default(0)
+  cost_millicents     Int       @default(0)
+  attempts            Int       @default(0)
+  next_attempt_at     DateTime? @db.Timestamptz
+  error               String?   @db.VarChar(300)
+  created_by          String    @db.Uuid
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @updatedAt @db.Timestamptz
+  finished_at         DateTime? @db.Timestamptz
+
+  items AiRunItem[]
+
+  @@index([status, next_attempt_at])
+  @@index([role_id, created_at(sort: Desc)])
+  @@map("ai_runs")
+}
+
+/// One queue item inside a run, and the AI's proposal for it. The owner
+/// approves or rejects it; the AI never acts on the item itself.
+model AiRunItem {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  run_id          String    @db.Uuid
+  run             AiRun     @relation(fields: [run_id], references: [id], onDelete: Cascade)
+  item_id         String    @db.Uuid
+  /// pending | sent | proposed | failed | approved | rejected
+  status          String    @default("pending") @db.VarChar(16)
+  proposal        Json?
+  decision        String?   @db.VarChar(32)
+  confidence      Int?      @db.SmallInt
+  /// bulk | priority | audit (set when the proposal arrives).
+  lane            String?   @db.VarChar(16)
+  /// Server-computed red flags of the item when it was sent.
+  flags           String[]  @default([])
+  error           String?   @db.VarChar(300)
+  cost_millicents Int       @default(0)
+  /// The owner's correction when he rejects (what is right) and why;
+  /// fed back to the role as examples.
+  owner_decision  String?   @db.VarChar(32)
+  owner_note      String?   @db.VarChar(1000)
+  reviewed_by     String?   @db.Uuid
+  reviewed_at     DateTime? @db.Timestamptz
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @updatedAt @db.Timestamptz
+
+  @@unique([run_id, item_id])
+  @@index([run_id, status])
+  @@index([status, lane, created_at])
+  @@index([reviewed_at])
+  @@map("ai_run_items")
+}
+
+/// Owner 2026-11-12: an image the owner attached for an AI (row 48). The
+/// bytes are a `files` row (purpose ai_attachment, private bucket); GitHub
+/// only ever sees this row's id. kind = task (AI technician issue
+/// [issue_number]), role (AI employee role [role_id]) or note (the owner's
+/// correction on AI employee item [run_item_id]). [closed_at] is when the
+/// task / item closed: the image and this row go
+/// `ai.retention_images_days` later (AiRetentionService).
+model AiAttachment {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  file_id      String    @db.Uuid
+  file         File      @relation(fields: [file_id], references: [id], onDelete: Cascade)
+  owner_id     String    @db.Uuid
+  kind         String    @db.VarChar(8)
+  issue_number Int?
+  role_id      String?   @db.Uuid
+  role         AiRole?   @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  run_item_id  String?   @db.Uuid
+  position     Int       @default(0) @db.SmallInt
+  closed_at    DateTime? @db.Timestamptz
+  created_at   DateTime  @default(now()) @db.Timestamptz
+
+  @@index([kind, issue_number])
+  @@index([role_id])
+  @@index([run_item_id])
+  @@index([closed_at])
+  @@index([file_id])
+  @@map("ai_attachments")
 }
