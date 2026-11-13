@@ -58,7 +58,11 @@ export interface AiMessageRequest<T> {
   schema: AiSchema<T>;
   maxTokens: number;
   timeoutMs: number;
+  /** Thinking depth (default `low`: short, mechanical judgements). */
+  effort?: AiEffort;
 }
+
+export type AiEffort = 'low' | 'medium' | 'high';
 
 export interface AiMessageResult<T> {
   value: T;
@@ -76,6 +80,9 @@ export interface AiBatchItem {
 }
 
 export interface AiBatchRequest<T> {
+  /** Whose switch and budget line (default `qa`, the nightly re-check). */
+  feature?: StaffAiFeature;
+  effort?: AiEffort;
   model: StaffAiModel;
   schema: AiSchema<T>;
   maxTokens: number;
@@ -169,6 +176,7 @@ export class StaffAiClient {
       scrubPii(req.user),
       req.schema,
       req.maxTokens,
+      req.effort,
     );
     const est = this.estimateItemMillicents(
       req.model,
@@ -211,7 +219,8 @@ export class StaffAiClient {
   async submitBatch<T>(
     req: AiBatchRequest<T>,
   ): Promise<{ batchId: string; reservation: StaffAiReservation }> {
-    await this.assertEnabled('qa');
+    const feature = req.feature ?? 'qa';
+    await this.assertEnabled(feature);
     if (req.items.length === 0) throw new StaffAiApiError('empty batch');
     const apiKey = await this.apiKey();
     const est = req.items.reduce(
@@ -226,7 +235,7 @@ export class StaffAiClient {
         ),
       0,
     );
-    const reservation = await this.budget.reserve('qa', est);
+    const reservation = await this.budget.reserve(feature, est);
     try {
       const body = {
         requests: req.items.map((i) => ({
@@ -237,6 +246,7 @@ export class StaffAiClient {
             scrubPii(i.user),
             req.schema,
             req.maxTokens,
+            req.effort,
           ),
         })),
       };
@@ -257,8 +267,11 @@ export class StaffAiClient {
     }
   }
 
-  async batchStatus(id: string): Promise<AiBatchStatus> {
-    await this.assertEnabled('qa');
+  async batchStatus(
+    id: string,
+    feature: StaffAiFeature = 'qa',
+  ): Promise<AiBatchStatus> {
+    await this.assertEnabled(feature);
     const apiKey = await this.apiKey();
     const b = (await this.call(
       'GET',
@@ -289,8 +302,9 @@ export class StaffAiClient {
     id: string,
     model: StaffAiModel,
     schema: AiSchema<T>,
+    feature: StaffAiFeature = 'qa',
   ): Promise<{ results: AiBatchResult<T>[]; costMillicents: number }> {
-    await this.assertEnabled('qa');
+    await this.assertEnabled(feature);
     const apiKey = await this.apiKey();
     const text = (await this.call(
       'GET',
@@ -367,6 +381,7 @@ export class StaffAiClient {
     user: string,
     schema: AiSchema<T>,
     maxTokens: number,
+    effort: AiEffort = 'low',
   ): Record<string, unknown> {
     return {
       model,
@@ -379,9 +394,9 @@ export class StaffAiClient {
           : {}),
       })),
       messages: [{ role: 'user', content: user }],
-      // Short, mechanical judgement: no deep reasoning needed or paid for.
+      // Short, mechanical judgement by default: no deep reasoning paid for.
       output_config: {
-        effort: 'low',
+        effort,
         format: { type: 'json_schema', schema: schema.json },
       },
     };

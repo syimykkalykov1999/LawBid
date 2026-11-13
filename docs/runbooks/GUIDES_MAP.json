@@ -13,6 +13,12 @@
         "age-sms-email"
       ]
     },
+    "AI_WORKER.md": {
+      "owner": true,
+      "guides": [
+        "ai-worker"
+      ]
+    },
     "APP_CHECK.md": {
       "owner": true,
       "guides": [

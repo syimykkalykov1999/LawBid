@@ -118,6 +118,7 @@ import { StaffHeadScoreJob } from './handlers/staff-head-score.job';
 import { StaffPieceworkJob } from './handlers/staff-piecework.job';
 import { StaffAnomaliesJob } from './handlers/staff-anomalies.job';
 import { StaffAiQaNightlyJob } from './handlers/staff-ai-qa-nightly.job';
+import { AiWorkerTickJob } from './handlers/ai-worker-tick.job';
 import { StaffRetaliationExpireJob } from './handlers/staff-retaliation-expire.job';
 import { StaffRetentionJob } from './handlers/staff-retention.job';
 import { StaffWeeklyDigestJob } from './handlers/staff-weekly-digest.job';
@@ -255,6 +256,7 @@ export class CronProcessor {
     @Optional() private readonly staffPiecework?: StaffPieceworkJob,
     @Optional() private readonly staffAnomalies?: StaffAnomaliesJob,
     @Optional() private readonly staffAiQaNightly?: StaffAiQaNightlyJob,
+    @Optional() private readonly aiWorkerTick?: AiWorkerTickJob,
     @Optional()
     private readonly staffRetaliationExpire?: StaffRetaliationExpireJob,
     @Optional() private readonly staffRetention?: StaffRetentionJob,
@@ -502,6 +504,8 @@ export class CronProcessor {
         return this.staffAnomalies?.run() ?? null;
       case CRON_JOBS.staffAiQaNightly:
         return this.staffAiQaNightly?.run() ?? null;
+      case CRON_JOBS.aiWorkerTick:
+        return this.aiWorkerTick?.run() ?? null;
       case CRON_JOBS.staffRetaliationExpire:
         return this.staffRetaliationExpire?.run() ?? null;
       case CRON_JOBS.staffRetention:

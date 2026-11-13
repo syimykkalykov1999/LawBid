@@ -14,6 +14,9 @@ export const MODEL_PRICES_CENTS_PER_MTOK: Readonly<
   // cacheRead = share of the input price (Sonnet 5.5 reads at 0.05 x, Haiku 5.5 at 0.1 x).
   'claude-haiku-5-5': { input: 10, output: 50, cacheRead: 0.1 },
   'claude-sonnet-5-5': { input: 200, output: 1000, cacheRead: 0.05 },
+  // Opus 5.5 $4 / $20 per MTok, cache reads $0.20 (0.05 x); checked
+  // 2026-11-12 (Claude API skill model table, cached 2026-10-06).
+  'claude-opus-5-5': { input: 400, output: 2000, cacheRead: 0.05 },
 };
 
 /** 1-hour cache write = 2 x input (5-minute write = 1.25 x). */

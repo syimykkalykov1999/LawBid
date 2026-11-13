@@ -4,21 +4,28 @@
  * 2026-10-27: «без ИИ по умолчанию; при выключенном ИИ ни одного ИИ-вызова»).
  */
 
-/** The three AI features, each behind its own sub-switch. */
-export type StaffAiFeature = 'qa' | 'hint' | 'summary';
+/** The AI features, each behind its own sub-switch. `worker` (owner
+ * 2026-11-12 «ИИ-сотрудник») has no sub-switch of its own: the owner's own
+ * «Запустить» with a fresh 2FA code is it, so it needs only the master. */
+export type StaffAiFeature = 'qa' | 'hint' | 'summary' | 'worker';
 
 export const FEATURE_SWITCH = {
   qa: 'staff.ai_qa_enabled',
   hint: 'staff.ai_hint_enabled',
   summary: 'staff.ai_summary_enabled',
+  worker: 'staff.ai_enabled',
 } as const satisfies Record<StaffAiFeature, string>;
 
 /** Models (exact ids, never date-suffixed). */
 export const STAFF_AI_MODELS = [
   'claude-haiku-5-5',
   'claude-sonnet-5-5',
+  // Owner 2026-11-12: the default of the «ИИ-сотрудник» roles.
+  'claude-opus-5-5',
 ] as const;
 export type StaffAiModel = (typeof STAFF_AI_MODELS)[number];
+export const isStaffAiModel = (m: string): m is StaffAiModel =>
+  (STAFF_AI_MODELS as readonly string[]).includes(m);
 
 /** `staff.ai.model_tier`: 0 = Haiku 5.5 (default), 1 = Sonnet 5.5. */
 export function modelForTier(tier: number): StaffAiModel {

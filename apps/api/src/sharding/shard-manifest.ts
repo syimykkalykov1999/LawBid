@@ -279,6 +279,10 @@ export const GLOBAL_MODELS: readonly string[] = [
   'StaffAnomaly',
   'AdminNavPin',
   'StaffDigest',
+  // Owner 2026-11-12 «ИИ-сотрудник» (owner-only admin AI worker).
+  'AiRole',
+  'AiRun',
+  'AiRunItem',
   'AccountBan',
   'AuditLog',
   // Merge union 2026-10-27: the audit hash-chain head (one row, #373).

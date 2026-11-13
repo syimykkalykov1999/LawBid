@@ -262,6 +262,7 @@
   "admin-shards": 2,
   "admin-users": 10,
   "ai-assistant": 5,
+  "ai-worker": 2,
   "analytics": 4,
   "assistants": 14,
   "attorney-ads": 3,
