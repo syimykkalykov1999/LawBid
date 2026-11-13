@@ -27,6 +27,8 @@ export const CONFIRM_ALL_USERS = 'DELETE-ALL-USERS';
 /** Admin panel history, staff work, demo registry and ops records: kept. */
 export const PURGE_ALSO_KEEP: Readonly<Record<string, string>> = {
   audit_log: 'admin actions trail (admin panel history)',
+  // Row 72: only admins have rows here; a purge must not sign them out.
+  admin_sessions: 'admin sign-in sessions (admin panel)',
   admin_approvals: 'admin approvals (admin panel)',
   admin_appeals: 'complaints against heads (staff)',
   admin_broadcasts: 'pushes the admins sent (admin panel)',

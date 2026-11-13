@@ -117,6 +117,8 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   // identity and sign-in
   user_identifiers: 'phones / e-mails / Apple / Google ids',
   sessions: 'sign-in sessions (admins sign in again)',
+  // Row 72: the admin sign-ins themselves (Redis copies go with Redis).
+  admin_sessions: 'admin sign-in sessions (admins sign in again)',
   auth_events: 'sign-in history',
   file_access_log: 'who opened a confidential file (journal)',
   user_consents: 'accepted terms per user',

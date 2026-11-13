@@ -3,6 +3,7 @@
   "run": [
     "admin-boards-cache",
     "admin-integrations",
+    "admin-session-durability",
     "app",
     "auth",
     "auth-hardening",

@@ -739,6 +739,11 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
 
   it('idle timeout: a session whose Redis key expired is refused', async () => {
     const s = await adminSession(baseUrl, prisma, 'support');
+    // Row 72: the session row in Postgres is the truth; idle there too.
+    await prisma.adminSession.updateMany({
+      where: { user_id: s.userId },
+      data: { last_seen_at: new Date(Date.now() - 31 * 60 * 1000) },
+    });
     const keys = await redis.keys('adm:sess:*');
     for (const k of keys) {
       if ((await redis.type(k)) !== 'string') continue;

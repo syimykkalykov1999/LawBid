@@ -87,6 +87,8 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   ConsultationTimeOff: ['attorney_id'],
   // global family (swept once, on the primary database)
   WebauthnCredential: ['user_id'],
+  // Row 72: the admin's own sign-ins (ip, device): swept like sessions.
+  AdminSession: ['user_id'],
   UserIdentifier: ['user_id'],
   UserPrivacySettings: ['user_id'],
   OnboardingState: ['user_id'],
