@@ -635,8 +635,11 @@ resource "aws_iam_role_policy" "plan" {
         Effect   = "Allow"
         Action   = ["kms:Decrypt"]
         Resource = "*"
+        # 13.11 (KNOWN_ERRORS 134): the prod secrets use the stack's CMK too;
+        # without secretsmanager here the drift plan could not refresh the 5
+        # secret versions (GetSecretValue alone is not enough) and never ran.
         Condition = {
-          StringEquals = { "kms:ViaService" = "s3.${var.region}.amazonaws.com" }
+          StringEquals = { "kms:ViaService" = ["s3.${var.region}.amazonaws.com", "secretsmanager.${var.region}.amazonaws.com"] }
         }
       },
       {
