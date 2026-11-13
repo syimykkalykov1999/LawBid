@@ -62,6 +62,8 @@ const ROLE = {
   reviewed: 10,
   agreed: 9,
   agreementPct: 90,
+  enabled: true,
+  autoSend: false,
   images: [],
   createdAt: '2026-11-12T10:00:00Z',
 };
@@ -100,6 +102,8 @@ const ITEM = {
   id: 'i1',
   runId: 'run1',
   roleName: 'Документы адвокатов',
+  queue: 'attorney_verification',
+  openPath: '/verification/req1',
   itemId: 'req1',
   status: 'proposed',
   decision: 'approve',
@@ -110,6 +114,10 @@ const ITEM = {
   evidence: [{ source: 'licence 1', note: 'verified' }],
   draftNote: '',
   injectionSuspected: true,
+  reply: '',
+  action: 'none',
+  deliveredAt: null,
+  registryLinks: [],
   error: null,
   costCents: 0.4,
   reviewedAt: null,
@@ -252,5 +260,60 @@ describe('AiWorkerPage: pictures, models and retention (owner 2026-11-12)', () =
         params: undefined,
       }),
     );
+  });
+});
+
+describe('AiWorkerPage: role switches, delete, support and complaints (owner 2026-11-12, rows 53 / 50 / 51)', () => {
+  it('«Выкл» switches a role off; a switched-off role cannot be started', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Выкл' }));
+    await waitFor(() => expect(posts).toContainEqual({ path: '/admin/ai-worker/roles/{id}', body: { enabled: false, confidenceMin: 90, auditPct: 10 } }));
+    cleanup();
+    status = { ...base, roles: [{ ...ROLE, enabled: false }] };
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Вкл' })).toBeTruthy();
+    expect((screen.getAllByRole('button', { name: 'Запустить' })[0] as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('«Удалить» asks first, then deletes (the server asks for the 2FA code)', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Удалить' }));
+    expect(await screen.findByText(/История предложений останется/)).toBeTruthy();
+    expect(posts).toHaveLength(0);
+    const buttons = screen.getAllByRole('button', { name: 'Удалить' });
+    fireEvent.click(buttons[buttons.length - 1]);
+    await waitFor(() => expect(posts[0]?.path).toBe('/admin/ai-worker/roles/{id}/archive'));
+    expect(posts[0].params).toEqual({ path: { id: 'r1' } });
+  });
+
+  it('a support role has «Отправлять уверенные ответы сам» (off by default)', async () => {
+    status = { ...base, roles: [{ ...ROLE, queue: 'support_reply' }] };
+    renderPage();
+    const box = (await screen.findByLabelText('Отправлять уверенные ответы сам')) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    await waitFor(() => expect(posts).toContainEqual({ path: '/admin/ai-worker/roles/{id}', body: { autoSend: true, confidenceMin: 90, auditPct: 10 } }));
+  });
+
+  it('a support draft shows the reply; «Верно, отправить» approves (and sends) it', async () => {
+    items = [{ ...ITEM, queue: 'support_reply', openPath: '/support/t1', reply: 'Здравствуйте! Откройте Профиль.', injectionSuspected: false }];
+    renderPage();
+    expect(await screen.findByText(/Ответ пользователю: Здравствуйте! Откройте Профиль./)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Открыть' }).getAttribute('href')).toBe('/support/t1');
+    fireEvent.click(screen.getByRole('button', { name: 'Верно, отправить' }));
+    await waitFor(() => expect(posts[0]).toMatchObject({ path: '/admin/ai-worker/items/review', body: { ids: ['i1'], verdict: 'approved' } }));
+  });
+
+  it('a complaint proposal names the step and says it does nothing by itself', async () => {
+    items = [{ ...ITEM, queue: 'complaint_triage', action: 'suspend' }];
+    renderPage();
+    expect(await screen.findByText(/Предлагает: заблокировать автора \(сам ничего не делает\)/)).toBeTruthy();
+  });
+
+  it('a state with no automatic registry gets its official link on the card', async () => {
+    items = [{ ...ITEM, registryLinks: [{ stateCode: 'AL', url: 'https://members.alabar.org/x' }] }];
+    renderPage();
+    const link = await screen.findByRole('link', { name: 'Проверить в реестре AL вручную' });
+    expect(link.getAttribute('href')).toBe('https://members.alabar.org/x');
   });
 });
