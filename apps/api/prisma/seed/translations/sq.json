@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Lëshoni skedarët këtu",
   "verification.attest.required": "Shëno betimin për të dërguar.",
   "verification.attest.text": "Betohem se jam avokati me licencën me numrin e futur më sipër dhe se licenca është aktive. Të dhënat e rreme sjellin bllokim dhe përgjegjësia është vetëm e imja.",
+  "verification.biometricConsent.required": "Shënoni pëlqimin për krahasimin e fytyrës për të bërë selfien.",
+  "verification.biometricConsent.text": "Pajtohem që LawBid ta krahasojë automatikisht selfien time me foton në dokumentin tim të identitetit (Amazon Rekognition) vetëm për të konfirmuar identitetin tim në këtë verifikim. Rezultati ruhet derisa të vendoset për kërkesën time dhe 30 ditë të tjera, pastaj fshihet.",
   "verification.camera.denied.body": "Lejoni qasjen e kamerës për LawBid te cilësimet e telefonit, pastaj provoni përsëri.",
   "verification.camera.denied.title": "Nuk ka qasje te kamera",
   "verification.camera.hint.card": "Vendoseni kartën brenda kornizës",

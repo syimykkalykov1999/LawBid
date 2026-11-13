@@ -22,10 +22,16 @@ import { withTimeout } from '../../../common/resilience/resilience';
 import { REGISTRY_CHECK_TIMEOUT_MS } from '../registry-check.queue';
 import { stateBarLookupUrl } from '../state-bar-links';
 import { VerificationProviderSelector } from '../providers/verification-provider.selector';
+import { FACE_MATCH_PROVIDER } from '../providers/rekognition-id-verification.provider';
 import type {
   BarLookupProvider,
   CheckOutcome,
 } from '../providers/verification-providers';
+
+/** One CompareFaces = two images analysed at AWS Rekognition Image Group 1
+ * list price $0.001 per image (first 1 M a month; aws.amazon.com/
+ * rekognition/pricing, checked 2026-11-12) = $0.002 = 200 millicents. */
+export const FACE_MATCH_MILLICENTS = 200;
 
 /**
  * Automatic checks of docs/03 §2.4. Every outcome is stored in
@@ -101,6 +107,7 @@ export class VerificationChecksService {
         attorney_id: true,
         provider: true,
         provider_ref: true,
+        biometric_consent_at: true,
         documents: { select: { doc_type: true } },
         attorney: {
           select: {
@@ -161,6 +168,15 @@ export class VerificationChecksService {
       IDENTITY_DOC_TYPES.some((t) => types.has(t)) && types.has('selfie');
     const { provider, impl } = await this.selector.idVerification();
     if (!hasIdentity || provider === 'manual') {
+      // Owner 2026-11-12 (row 52): the selfie ↔ ID photo comparison only
+      // informs the verifier; the request stays in the manual queue.
+      if (hasIdentity) {
+        await this.runFaceMatch(
+          request.id,
+          request.attorney_id,
+          request.biometric_consent_at,
+        );
+      }
       if (barPassed && !hasIdentity) await this.approve(request.id);
       return;
     }
@@ -187,6 +203,44 @@ export class VerificationChecksService {
     if (barPassed && idCheck.result === 'pass' && faceMatch.result === 'pass') {
       await this.approve(request.id);
     }
+  }
+
+  /**
+   * Owner 2026-11-12 (row 52): «Сравнение лица (Amazon)». Switch off → no
+   * call and no row (a person compares, as before). No biometric consent
+   * → no call, a `manual_review` row with reason `no_consent`. Otherwise one
+   * Rekognition CompareFaces inside the daily `id_check` cap (a refused
+   * budget or any error = `manual_review`), stored as the `face_match`
+   * check (similarity / threshold / reason in details, read by the admin
+   * card and the AI worker queue). Returns the stored outcome, or null when
+   * the switch is off.
+   */
+  async runFaceMatch(
+    requestId: string,
+    attorneyId: string,
+    consentAt: Date | null,
+  ): Promise<CheckOutcome | null> {
+    const impl = await this.selector.faceMatch();
+    if (!impl) return null;
+    const outcome: CheckOutcome = consentAt
+      ? await this.safe(async () => {
+          await this.costGuard?.consume('id_check', 1, {
+            userId: attorneyId,
+            millicents: FACE_MATCH_MILLICENTS,
+          });
+          return impl.matchFace({ requestId, attorneyId });
+        }, FACE_MATCH_PROVIDER)
+      : {
+          result: 'manual_review',
+          details: { provider: FACE_MATCH_PROVIDER, reason: 'no_consent' },
+        };
+    // verification_provider has no Rekognition value: the row says manual
+    // and details.provider names the service (as bar lookups do).
+    await this.record(requestId, 'face_match', 'manual', {
+      result: outcome.result,
+      details: { ...outcome.details, provider: FACE_MATCH_PROVIDER },
+    });
+    return outcome;
   }
 
   /**

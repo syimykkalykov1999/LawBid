@@ -29,6 +29,7 @@ import {
   ManualIdVerificationProvider,
 } from './providers/manual.providers';
 import { VerificationProviderSelector } from './providers/verification-provider.selector';
+import { RekognitionIdVerificationProvider } from './providers/rekognition-id-verification.provider';
 import { NyOpenDataAdapter } from './providers/bar-lookup/ny-open-data.adapter';
 import { PaidBarVendorService } from './providers/bar-lookup/paid-bar-vendors';
 import {
@@ -103,6 +104,8 @@ import {
     PaidBarVendorService,
     StateRegistryService,
     AutoBarLookupProvider,
+    // Owner 2026-11-12 (row 52): selfie ↔ ID photo, switch «Сравнение лица (Amazon)».
+    RekognitionIdVerificationProvider,
     VerificationProviderSelector,
     // Default (flag-off) implementations, kept for direct injection.
     { provide: BAR_LOOKUP_PROVIDER, useExisting: ManualBarLookupProvider },

@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Deixa anar els fitxers aquí",
   "verification.attest.required": "Marca la declaració jurada per enviar.",
   "verification.attest.text": "Jur que sóc l'advocat amb la llicència del número indicat i que la llicència està vigent. Les dades falses comporten el bloqueig i la responsabilitat és només meva.",
+  "verification.biometricConsent.required": "Marca el consentiment de comparació facial per fer-te el selfie.",
+  "verification.biometricConsent.text": "Accepto que LawBid compari automàticament el meu selfie amb la foto del meu document d'identitat (Amazon Rekognition) només per confirmar la meva identitat en aquesta verificació. El resultat es conserva fins que es resolgui la meva sol·licitud i 30 dies més, i després s'esborra.",
   "verification.camera.denied.body": "Permeteu que LawBid accedeixi a la càmera a la configuració del telèfon i torneu-ho a provar.",
   "verification.camera.denied.title": "Sense accés a la càmera",
   "verification.camera.hint.card": "Ajusteu la targeta dins del marc",

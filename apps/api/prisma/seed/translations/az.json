@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Faylları bura atın",
   "verification.attest.required": "Göndərmək üçün and bəyanatını qeyd edin.",
   "verification.attest.text": "Yuxarıda göstərilən nömrəli lisenziyası olan vəkil olduğuma və lisenziyanın qüvvədə olduğuna and içirəm. Yalan məlumat bloklanma deməkdir və bütün məsuliyyət yalnız mənə aiddir.",
+  "verification.biometricConsent.required": "Selfi çəkmək üçün üz müqayisəsinə razılığı işarələyin.",
+  "verification.biometricConsent.text": "LawBid-in yalnız bu yoxlamada şəxsiyyətimi təsdiqləmək üçün selfimi şəxsiyyət vəsiqəmdəki fotoşəkillə avtomatik müqayisə etməsinə (Amazon Rekognition) razıyam. Nəticə müraciətim üzrə qərar verilənə qədər və ondan sonra daha 30 gün saxlanılır, sonra silinir.",
   "verification.camera.denied.body": "Telefonunuzun ayarlarında LawBid üçün kameraya icazə verin, sonra yenidən cəhd edin.",
   "verification.camera.denied.title": "Kameraya çıxış yoxdur",
   "verification.camera.hint.card": "Vəsiqəni çərçivəyə yerləşdirin",

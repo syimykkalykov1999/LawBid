@@ -46,6 +46,10 @@ class _VerificationWizardScreenState
   String? _stepError;
   String? _blockMessage;
   bool _attested = false;
+
+  /// Owner 2026-11-12 (row 52): the biometric consent on the selfie step,
+  /// required before the camera opens and sent with the selfie.
+  bool _biometricConsent = false;
   bool _submitting = false;
 
   VerificationWizardController get _c =>
@@ -113,6 +117,12 @@ class _VerificationWizardScreenState
       case FileOrigin.cameraDocument:
         doc = await source.capture(context, CaptureGuide.document);
       case FileOrigin.cameraSelfie:
+        if (!_biometricConsent) {
+          setState(
+            () => _stepError = _t.t('verification.biometricConsent.required'),
+          );
+          return;
+        }
         // Owner 2026-10-28: the one-time capture token first, then the
         // guided live camera; the attach sends both back.
         final SelfieCaptureTicket? ticket;
@@ -134,6 +144,7 @@ class _VerificationWizardScreenState
               token: ticket.token,
               report: shot.selfieCapture,
               handoffToken: _liveHandoffToken(),
+              biometricConsent: _biometricConsent,
             ),
           );
         } on Object catch (e) {
@@ -438,6 +449,11 @@ class _VerificationWizardScreenState
           actions: actions,
           needsPhone: ref.watch(selfieNeedsPhoneProvider),
           handoffToken: widget.handoffToken,
+          biometricConsent: _biometricConsent,
+          onBiometricConsentChanged: (v) => setState(() {
+            _biometricConsent = v;
+            if (v) _stepError = null;
+          }),
         ),
       WizardStep.review => ReviewStep(
           t: t,

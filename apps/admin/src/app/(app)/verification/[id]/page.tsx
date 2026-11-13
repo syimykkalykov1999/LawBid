@@ -31,6 +31,7 @@ import {
   CHECK_RESULT,
   CHECK_TYPE,
   DOC_TYPE,
+  FACE_MATCH_REASON,
   label,
   LICENSE_EXPIRY_SOURCE,
   LICENSE_RENEWAL,
@@ -504,6 +505,14 @@ export default function VerificationCardPage() {
                 v={`${formatDateTime(r.attestedAt)} · IP ${r.attestationIp ?? '—'} · текст ${r.attestationVersion ?? '—'}`}
               />
             ) : null}
+            <Row
+              k="Согласие на сверку лица"
+              v={
+                r.biometricConsentAt
+                  ? `${formatDateTime(r.biometricConsentAt)} · текст ${r.biometricConsentVersion ?? '—'}`
+                  : 'нет'
+              }
+            />
             <Row k="Статус адвоката" v={<StatusPill map={VERIFICATION_STATUS} value={r.attorney.verificationStatus} />} />
             {r.applicantComment ? <Row k="Комментарий" v={r.applicantComment} /> : null}
             {r.infoRequestMessage ? <Row k="Запрос" v={r.infoRequestMessage} /> : null}
@@ -711,6 +720,7 @@ export default function VerificationCardPage() {
                     <StatusPill map={CHECK_RESULT} value={c.result} />
                   </div>
                   <div className="text-xs text-muted">{formatDateTime(c.checkedAt)}</div>
+                  {c.checkType === 'face_match' ? <FaceMatchLine details={c.details} /> : null}
                   <details className="text-xs">
                     <summary className="cursor-pointer text-muted">детали</summary>
                     <pre className="mt-1 max-h-40 overflow-auto">{JSON.stringify(c.details, null, 2)}</pre>
@@ -743,6 +753,23 @@ export default function VerificationCardPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+/** Owner 2026-11-12 (row 52): the Amazon face comparison in one line —
+ * similarity against the threshold, or why there is no answer. */
+function FaceMatchLine({ details }: { details: Record<string, unknown> }) {
+  if (details.provider !== 'aws_rekognition') return null;
+  const pct = (n: unknown) => (typeof n === 'number' ? `${n.toLocaleString('ru-RU')} %` : null);
+  const similarity = pct(details.similarity);
+  const threshold = pct(details.threshold);
+  const reason = typeof details.reason === 'string' ? label(FACE_MATCH_REASON, details.reason) : null;
+  return (
+    <div className="text-xs text-ink" data-testid="face-match-line">
+      Amazon: сходство {similarity ?? (details.reason === 'selfie_mismatch' ? `ниже порога` : '—')}
+      {threshold ? ` (порог ${threshold})` : ''}
+      {reason ? ` · ${reason}` : ''}
+    </div>
   );
 }
 

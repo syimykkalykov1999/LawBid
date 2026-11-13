@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Dateien hier ablegen",
   "verification.attest.required": "Setze den Haken bei der eidesstattlichen Erklärung, um zu senden.",
   "verification.attest.text": "Ich schwöre, dass ich der Anwalt mit der oben angegebenen Lizenznummer bin und die Lizenz gültig ist. Falsche Angaben führen zur Sperre, die Verantwortung trage allein ich.",
+  "verification.biometricConsent.required": "Setzen Sie das Häkchen bei der Einwilligung zum Gesichtsvergleich, um das Selfie aufzunehmen.",
+  "verification.biometricConsent.text": "Ich bin damit einverstanden, dass LawBid mein Selfie automatisch mit dem Foto auf meinem Ausweis vergleicht (Amazon Rekognition), nur um meine Identität für diese Verifizierung zu bestätigen. Das Ergebnis wird bis zur Entscheidung über meinen Antrag und weitere 30 Tage gespeichert und dann gelöscht.",
   "verification.camera.denied.body": "Erlauben Sie LawBid in den Einstellungen Ihres Telefons den Kamerazugriff und versuchen Sie es dann erneut.",
   "verification.camera.denied.title": "Kein Zugriff auf die Kamera",
   "verification.camera.hint.card": "Positionieren Sie die Karte im Rahmen",

@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Thả tệp vào đây",
   "verification.attest.required": "Hãy tích vào lời tuyên thệ để gửi.",
   "verification.attest.text": "Tôi xin thề rằng tôi là luật sư có giấy phép với số đã nhập ở trên và giấy phép còn hiệu lực. Thông tin sai sẽ bị khóa tài khoản và tôi hoàn toàn chịu trách nhiệm.",
+  "verification.biometricConsent.required": "Hãy đánh dấu đồng ý so sánh khuôn mặt để chụp ảnh selfie.",
+  "verification.biometricConsent.text": "Tôi đồng ý để LawBid tự động so sánh ảnh selfie của tôi với ảnh trên giấy tờ tùy thân (Amazon Rekognition) chỉ để xác nhận danh tính của tôi trong lần xác minh này. Kết quả được lưu đến khi yêu cầu của tôi được quyết định và thêm 30 ngày, sau đó bị xóa.",
   "verification.camera.denied.body": "Hãy cho phép LawBid truy cập camera trong cài đặt điện thoại, rồi thử lại.",
   "verification.camera.denied.title": "Không có quyền truy cập camera",
   "verification.camera.hint.card": "Đặt thẻ vừa trong khung",

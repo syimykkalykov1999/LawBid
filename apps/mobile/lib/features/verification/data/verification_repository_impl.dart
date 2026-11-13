@@ -109,6 +109,7 @@ class VerificationRepositoryImpl implements VerificationRepository {
             captureToken: selfie?.token,
             captureMeta: VerificationMapper.captureMeta(selfie?.report),
             handoffToken: selfie?.handoffToken,
+            biometricConsent: selfie?.biometricConsent,
           ),
           extras: _creates,
         ),

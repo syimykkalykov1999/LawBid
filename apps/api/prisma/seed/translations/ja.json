@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "ここにファイルをドロップ",
   "verification.attest.required": "送信するには宣誓にチェックしてください。",
   "verification.attest.text": "上記の番号の免許を持つ弁護士であり、免許が有効であることを誓います。虚偽の情報はアカウント停止となり、責任はすべて私にあります。",
+  "verification.biometricConsent.required": "セルフィーを撮るには、顔照合への同意にチェックを入れてください。",
+  "verification.biometricConsent.text": "LawBid が本人確認のためだけに、私のセルフィーと身分証明書の写真を自動で照合すること（Amazon Rekognition）に同意します。結果は申請の結論が出るまでと、その後 30 日間保存され、その後削除されます。",
   "verification.camera.denied.body": "端末の設定でLawBidにカメラへのアクセスを許可してから、もう一度お試しください。",
   "verification.camera.denied.title": "カメラへのアクセスがありません",
   "verification.camera.hint.card": "カードを枠内に収めてください",

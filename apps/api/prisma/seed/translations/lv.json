@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Nometiet failus šeit",
   "verification.attest.required": "Lai nosūtītu, atzīmējiet zvērestu.",
   "verification.attest.text": "Zvēru, ka esmu advokāts ar iepriekš norādītā numura licenci un licence ir derīga. Nepatiesi dati nozīmē bloķēšanu, un visa atbildība ir uz mani.",
+  "verification.biometricConsent.required": "Atzīmējiet piekrišanu sejas salīdzināšanai, lai uzņemtu pašbildi.",
+  "verification.biometricConsent.text": "Piekrītu, ka LawBid automātiski salīdzina manu pašbildi ar fotoattēlu manā personu apliecinošajā dokumentā (Amazon Rekognition) tikai, lai apstiprinātu manu identitāti šajā pārbaudē. Rezultāts tiek glabāts līdz lēmumam par manu pieteikumu un vēl 30 dienas, pēc tam tiek dzēsts.",
   "verification.camera.denied.body": "Tālruņa iestatījumos atļaujiet LawBid piekļuvi kamerai un mēģiniet vēlreiz.",
   "verification.camera.denied.title": "Nav piekļuves kamerai",
   "verification.camera.hint.card": "Ievietojiet karti rāmī",

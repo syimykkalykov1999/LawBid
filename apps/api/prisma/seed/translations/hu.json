@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Húzza ide a fájlokat",
   "verification.attest.required": "A küldéshez jelöld be az eskü alatti nyilatkozatot.",
   "verification.attest.text": "Esküszöm, hogy én vagyok a fenti számú engedéllyel rendelkező ügyvéd, és az engedély érvényes. A hamis adat tiltást von maga után, a felelősség egyedül engem terhel.",
+  "verification.biometricConsent.required": "Jelölje be az arc-összehasonlítási hozzájárulást a szelfi elkészítéséhez.",
+  "verification.biometricConsent.text": "Hozzájárulok, hogy a LawBid automatikusan összehasonlítsa a szelfimet a személyi igazolványom fényképével (Amazon Rekognition), kizárólag a személyazonosságom megerősítésére ennél az ellenőrzésnél. Az eredményt a kérelmem elbírálásáig és további 30 napig őrizzük, majd töröljük.",
   "verification.camera.denied.body": "Engedélyezze a LawBid kamerahozzáférését a telefon beállításaiban, majd próbálja újra.",
   "verification.camera.denied.title": "Nincs hozzáférés a kamerához",
   "verification.camera.hint.card": "Igazítsa a kártyát a keretbe",

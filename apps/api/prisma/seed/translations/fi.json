@@ -6367,6 +6367,8 @@
   "upload.drop.hint": "Pudota tiedostot tähän",
   "verification.attest.required": "Lähetä valitsemalla valaehtoinen vakuutus.",
   "verification.attest.text": "Vannon, että olen ilmoitetun numeron lisenssin haltijana oleva asianajaja ja että lisenssi on voimassa. Väärät tiedot johtavat porttikieltoon, ja vastuu on yksin minun.",
+  "verification.biometricConsent.required": "Rastita kasvojen vertailun suostumus ottaaksesi selfien.",
+  "verification.biometricConsent.text": "Hyväksyn, että LawBid vertaa selfietäni automaattisesti henkilöllisyystodistukseni kuvaan (Amazon Rekognition) vain henkilöllisyyteni vahvistamiseksi tässä tarkistuksessa. Tulos säilytetään, kunnes hakemuksestani on päätetty, ja sen jälkeen 30 päivää, minkä jälkeen se poistetaan.",
   "verification.camera.denied.body": "Salli LawBidin kameran käyttö puhelimen asetuksissa ja yritä uudelleen.",
   "verification.camera.denied.title": "Ei pääsyä kameraan",
   "verification.camera.hint.card": "Sovita kortti kehyksen sisään",
