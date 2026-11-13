@@ -1,11 +1,14 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsArray,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { STAFF_AI_MODELS } from '../staff-ai/staff-ai.types';
 
 export class AiTaskPullDto {
   @ApiProperty() number!: number;
@@ -57,6 +60,14 @@ export class AiAssistantStatusDto {
   @ApiProperty({ type: [AiTaskDto] }) tasks!: AiTaskDto[];
   @ApiProperty({ type: String, nullable: true }) tasksError!: string | null;
   @ApiProperty({ type: [AiRunDto] }) runs!: AiRunDto[];
+  @ApiProperty({
+    enum: STAFF_AI_MODELS,
+    enumName: 'AiWorkerModel',
+    description: 'ai.assistant_model: the Claude model of the runs.',
+  })
+  model!: string;
+  @ApiProperty({ type: [String], description: 'Models the owner may pick.' })
+  models!: string[];
 }
 
 export class CreateAiTaskDto {
@@ -71,6 +82,17 @@ export class CreateAiTaskDto {
   @MinLength(10)
   @MaxLength(5000)
   details!: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Owner 2026-11-12: confirmed ai_attachment uploads (POST admin/ai-attachments/uploads). The issue gets only opaque ids; the workflow fetches the pictures from the API.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  imageFileIds?: string[];
 }
 
 export class AiTaskCreatedDto {

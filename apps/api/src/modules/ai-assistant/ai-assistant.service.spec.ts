@@ -26,7 +26,12 @@ function aiPull(over: Record<string, unknown> = {}) {
 }
 
 function make(
-  o: { mode?: string; connected?: boolean; spent?: string | null } = {},
+  o: {
+    mode?: string;
+    connected?: boolean;
+    spent?: string | null;
+    settings?: unknown;
+  } = {},
 ) {
   const store = new Map<string, string>();
   if (o.spent !== undefined && o.spent !== null)
@@ -98,7 +103,25 @@ function make(
     closePull: jest.fn<Promise<void>, [number, string]>(() =>
       Promise.resolve(),
     ),
+    deleteBranch: jest.fn((ref: string) => Promise.resolve(ref.length > 0)),
     dispatchWorkflow: jest.fn(() => Promise.resolve({ repo: 'o/r' })),
+  };
+  // Owner 2026-11-12 (row 48): the owner's pictures (a fake of the service).
+  const attachments = {
+    prepareTask: jest.fn((_owner: string, files: string[]) =>
+      Promise.resolve(
+        files.map((_f, i) => `0000000${i}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`),
+      ),
+    ),
+    bindTask: jest.fn(() => Promise.resolve()),
+    close: jest.fn(() => Promise.resolve()),
+    closeTasks: jest.fn(() => Promise.resolve(1)),
+    taskImages: jest.fn(() =>
+      Promise.resolve({
+        images: [{ id: 'att-1', mediaType: 'image/png', data: 'iVBORw0KGgo=' }],
+        pending: 0,
+      }),
+    ),
   };
   const settings = {
     string: jest.fn(() => Promise.resolve(o.mode ?? 'on')),
@@ -143,13 +166,14 @@ function make(
   };
   const svc = new AiAssistantService(
     github as never,
-    settings as never,
+    (o.settings ?? settings) as never,
     prisma as never,
     audit as never,
     redis as never,
     sentry as never,
+    attachments as never,
   );
-  return { svc, github, audit, redis, store, prisma };
+  return { svc, github, audit, redis, store, prisma, attachments };
 }
 
 const NOW = new Date('2026-11-09T02:00:00Z');
@@ -368,6 +392,157 @@ describe('AiAssistantService', () => {
       reason: 'not_ai',
     });
     expect(other.github.closePull).not.toHaveBeenCalled();
+  });
+
+  // ------------------------------------------------- owner 2026-11-12 (48, 49, 55)
+
+  it('a task with pictures: the PUBLIC issue gets only opaque ids, no URL and no bytes', async () => {
+    const { svc, github, attachments, audit } = make();
+    const files = [
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+    ];
+    await svc.createTask(
+      { id: 'admin-uuid-1' },
+      { title: 'Fix it', details: 'See the screenshots', imageFileIds: files },
+    );
+    expect(attachments.prepareTask).toHaveBeenCalledWith('admin-uuid-1', files);
+    const body = (
+      github.createIssue.mock.calls[0] as unknown as [{ body: string }]
+    )[0].body;
+    expect(body).toContain(
+      'AI attachments: 00000000-aaaa-4aaa-8aaa-aaaaaaaaaaaa 00000001-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    );
+    // No link of any kind, no file id of the owner's upload, no base64.
+    expect(body).not.toMatch(/https?:\/\//);
+    expect(body).not.toContain(files[0]);
+    expect(body).not.toMatch(/[A-Za-z0-9+/]{80,}/);
+    expect(attachments.bindTask).toHaveBeenCalledWith(
+      [
+        '00000000-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        '00000001-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      ],
+      42,
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        after: expect.objectContaining({ images: 2 }),
+      }),
+    );
+  });
+
+  it('a task without pictures has no attachments line', async () => {
+    const { svc, github, attachments } = make();
+    await svc.createTask({ id: 'a' }, { title: 'Fix it', details: 'Plain' });
+    expect(attachments.prepareTask).not.toHaveBeenCalled();
+    const body = (
+      github.createIssue.mock.calls[0] as unknown as [{ body: string }]
+    )[0].body;
+    expect(body).not.toContain('AI attachments:');
+  });
+
+  it('the issue could not be opened: the prepared pictures are closed (cleanup takes them)', async () => {
+    const m = make();
+    m.github.createIssue.mockRejectedValueOnce(new Error('HTTP 500'));
+    await expect(
+      m.svc.createTask(
+        { id: 'a' },
+        {
+          title: 'Fix it',
+          details: 'x',
+          imageFileIds: ['11111111-1111-4111-8111-111111111111'],
+        },
+      ),
+    ).rejects.toThrow('HTTP 500');
+    expect(m.attachments.close).toHaveBeenCalledWith([
+      '00000000-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    ]);
+    expect(m.attachments.bindTask).not.toHaveBeenCalled();
+  });
+
+  it('the workflow gets the pictures as base64 with a safe extension', async () => {
+    const { svc, attachments } = make();
+    const r = await svc.taskImages(7, ['att-1']);
+    expect(attachments.taskImages).toHaveBeenCalledWith(7, ['att-1']);
+    expect(r).toEqual({
+      images: [
+        { id: 'att-1', mime: 'image/png', ext: 'png', base64: 'iVBORw0KGgo=' },
+      ],
+      pending: 0,
+    });
+  });
+
+  it('«Разрешить» also deletes the merged ai/ branch and closes the task pictures', async () => {
+    const { svc, github, attachments } = make();
+    await svc.approvePull({ id: 'admin-1' }, 9, SHA);
+    expect(github.deleteBranch).toHaveBeenCalledWith('ai/issue-7');
+    expect(attachments.closeTasks).toHaveBeenCalledWith([7]);
+  });
+
+  it('«Отклонить» closes the PR AND deletes its branch', async () => {
+    const { svc, github, attachments } = make();
+    await svc.rejectPull({ id: 'a' }, 9, 'no');
+    expect(github.closePull).toHaveBeenCalled();
+    expect(github.deleteBranch).toHaveBeenCalledWith('ai/issue-7');
+    expect(attachments.closeTasks).toHaveBeenCalledWith([7]);
+  });
+
+  it('a branch that cannot be deleted does not undo the merge', async () => {
+    const m = make();
+    m.github.deleteBranch.mockRejectedValueOnce(new Error('HTTP 403'));
+    await expect(m.svc.approvePull({ id: 'a' }, 9, SHA)).resolves.toEqual({
+      number: 9,
+      mergedSha: 'b'.repeat(40),
+    });
+  });
+
+  it('a closed task issue on the page closes its pictures', async () => {
+    const m = make();
+    m.github.issuesWithPulls.mockResolvedValueOnce([
+      {
+        number: 5,
+        title: 't',
+        state: 'closed',
+        url: 'u',
+        createdAt: 'x',
+        pulls: [],
+      },
+      {
+        number: 6,
+        title: 't',
+        state: 'open',
+        url: 'u',
+        createdAt: 'x',
+        pulls: [],
+      },
+    ] as never);
+    await m.svc.status(NOW);
+    expect(m.attachments.closeTasks).toHaveBeenCalledWith([5]);
+  });
+
+  it("model: Opus 5.5 by default; the owner's setting is used; an unknown id never reaches the workflow", async () => {
+    const def = make();
+    expect((await def.svc.gate(NOW, 'task')).model).toBe('claude-opus-5-5');
+    expect((await def.svc.status(NOW)).models).toEqual([
+      'claude-haiku-5-5',
+      'claude-sonnet-5-5',
+      'claude-opus-5-5',
+    ]);
+    const pick = (model: string) =>
+      make({
+        settings: {
+          string: jest.fn((k: string) =>
+            Promise.resolve(k === 'ai.assistant_model' ? model : 'on'),
+          ),
+          number: jest.fn(() => Promise.resolve(30)),
+        },
+      });
+    expect((await pick('claude-sonnet-5-5').svc.gate(NOW, 'task')).model).toBe(
+      'claude-sonnet-5-5',
+    );
+    expect(
+      (await pick('claude-opus-5-5; rm -rf /').svc.gate(NOW, 'task')).model,
+    ).toBe('claude-opus-5-5');
   });
 
   describe('trigger (12.11.2026: react at once to alarms and new errors)', () => {

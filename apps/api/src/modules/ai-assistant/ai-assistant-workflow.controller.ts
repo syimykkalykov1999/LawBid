@@ -9,10 +9,13 @@ import {
 } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -23,6 +26,7 @@ import {
   InfraGithubClient,
   type WorkflowCaller,
 } from '../admin-launch/infra-github';
+import { AI_FETCH_PAGE } from '../ai-attachments/ai-attachments.logic';
 import { AI_OIDC_AUDIENCE, AI_WORKFLOW_FILE } from './ai-assistant.logic';
 import { AiAssistantService } from './ai-assistant.service';
 
@@ -47,6 +51,20 @@ export class AiRunReportDto {
   @IsString()
   @MaxLength(200)
   prUrl?: string;
+}
+
+/** Owner 2026-11-12 (row 48): the pictures of one task issue. */
+export class AiTaskImagesDto {
+  @IsInt()
+  @Min(1)
+  issueNumber!: number;
+
+  /** One page of the ids the issue body lists (`AI attachments:` line);
+   * the workflow reads every page. */
+  @IsArray()
+  @ArrayMaxSize(AI_FETCH_PAGE)
+  @IsUUID('all', { each: true })
+  ids!: string[];
 }
 
 /** 12.11.2026: which run asks (Авто runs only the scheduled look). */
@@ -115,6 +133,23 @@ export class AiAssistantWorkflowController {
   async aiWorkflowDigest(@Headers('authorization') auth: string | undefined) {
     await this.caller(auth);
     return this.ai.digest();
+  }
+
+  /**
+   * Owner 2026-11-12 (row 48): the task's pictures, as base64, to the runner
+   * only (the workflow writes them to local files and lists the paths in
+   * Claude's prompt). Only rows of [issueNumber] among the listed ids; a
+   * picture still in the antivirus counts in `pending` (the step retries).
+   */
+  // flag: none CI-only route (GitHub OIDC), gated by ai.assistant_mode
+  @Post('attachments')
+  @HttpCode(HttpStatus.OK)
+  async aiWorkflowAttachments(
+    @Headers('authorization') auth: string | undefined,
+    @Body() dto: AiTaskImagesDto,
+  ) {
+    await this.caller(auth);
+    return this.ai.taskImages(dto.issueNumber, dto.ids);
   }
 
   /** A run's cost and result. */

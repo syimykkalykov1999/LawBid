@@ -117,7 +117,7 @@ export class StaffAiHintService {
     try {
       const res = await this.client.message({
         feature: 'hint',
-        model: modelForTier(s.numbers['staff.ai.model_tier']),
+        model: modelForTier(s.numbers['staff.ai.model_tier2']),
         system: hintSystem(kind),
         user: StaffAiContextService.prompt(itemId, ctx, false),
         schema: hintSchema(kind),

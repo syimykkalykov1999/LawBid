@@ -102,6 +102,8 @@ import { StaffPieceworkCoreModule } from '../modules/staff-piecework/staff-piece
 import { StaffHomeCoreModule } from '../modules/staff-home/staff-home.module';
 import { StaffSecurityCoreModule } from '../modules/staff-security/staff-security.module';
 import { StaffAiCoreModule } from '../modules/staff-ai/staff-ai.module';
+import { AiWorkerCoreModule } from '../modules/ai-worker/ai-worker.module';
+import { AiAttachmentsCoreModule } from '../modules/ai-attachments/ai-attachments.module';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { DemoCoreModule } from '../modules/demo/demo.module';
 
@@ -182,6 +184,10 @@ export class JobsModule {
         StaffHomeCoreModule,
         StaffSecurityCoreModule,
         StaffAiCoreModule,
+        // Owner 2026-11-12 «ИИ-сотрудник»: `ai-worker.tick`.
+        AiWorkerCoreModule,
+        // Owner 2026-11-12 (row 49): `ai.retention`.
+        AiAttachmentsCoreModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },

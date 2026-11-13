@@ -73,7 +73,7 @@ describe('Live attack pass 2026-11-08 (local stack)', () => {
         role,
         first_name: 'Live',
         last_name: role,
-        phone_e164: `+1202${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}`,
+        phone_e164: `+1202${2 + Math.floor(Math.random() * 8)}${String(Math.floor(Math.random() * 1e6)).padStart(6, '0')}`,
         phone_verified_at: new Date(),
         ...extra,
       },
@@ -205,7 +205,9 @@ describe('Live attack pass 2026-11-08 (local stack)', () => {
     }
     // 20 tries an hour per address, whatever the device says.
     expect(codes.filter((s) => s === 429).length).toBeGreaterThan(0);
-    const phone = `+1202${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}`;
+    // A real NANP number: the exchange (first of the 7 digits) is 2-9, so it
+    // never fails E.164 validation with 400 instead of reaching the limit (KE 116).
+    const phone = `+1202${2 + Math.floor(Math.random() * 8)}${String(Math.floor(Math.random() * 1e6)).padStart(6, '0')}`;
     const sms: number[] = [];
     for (let i = 0; i < 8; i++) {
       const res = await api()

@@ -2,12 +2,14 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ImageAttach, anyUploading, readyIds, type AttachedImage } from '@/components/ai/image-attach';
+import { AiRetentionPanel } from '@/components/ai/retention-panel';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
-import { Field, Input, Textarea } from '@/components/ui/input';
+import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import { taskLine } from '@/lib/ai-assistant';
@@ -39,15 +41,22 @@ export default function AiAssistantPage() {
   });
   const [title, setTitle] = useState('');
   const [details, setDetails] = useState('');
+  // Owner 2026-11-12 (row 48): screenshots for the task (ids only reach GitHub).
+  const [images, setImages] = useState<AttachedImage[]>([]);
   // What waits for a fresh 2FA code: the task, or a switch position.
   const [stepUp, setStepUp] = useState<null | { kind: 'task' } | { kind: 'mode'; mode: Mode }>(null);
 
   const create = useMutation({
     mutationFn: async () =>
-      (await api.POST('/admin/ai-assistant/tasks', { body: { title, details } })).data!.data,
+      (
+        await api.POST('/admin/ai-assistant/tasks', {
+          body: { title, details, ...(readyIds(images).length ? { imageFileIds: readyIds(images) } : {}) },
+        })
+      ).data!.data,
     onSuccess: (d) => {
       setTitle('');
       setDetails('');
+      setImages([]);
       void qc.invalidateQueries({ queryKey: ['ai-assistant'] });
       toast.success(`Задача #${d.number} создана`);
     },
@@ -69,6 +78,18 @@ export default function AiAssistantPage() {
       if (e instanceof ApiError && e.code === 'ADMIN_STEP_UP_REQUIRED') setStepUp({ kind: 'mode', mode });
       else toast.error(e);
     },
+  });
+
+  // Owner 2026-11-12 (row 55): the model of the runs (a fresh 2FA code; the
+  // panel's global prompt asks and the request repeats by itself).
+  const setModel = useMutation({
+    mutationFn: async (model: string) =>
+      api.PUT('/admin/config/{key}', { params: { path: { key: 'ai.assistant_model' } }, body: { value: model } as never }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['ai-assistant'] });
+      toast.success('Модель сохранена');
+    },
+    onError: (e) => toast.error(e),
   });
 
   // 12.11.2026: the AI's PRs wait here for «Разрешить» (2FA) or «Отклонить».
@@ -137,6 +158,22 @@ export default function AiAssistantPage() {
             <span className="text-muted">
               Расход за месяц: {usd(d.monthUsd)} из {usd(d.maxUsd)} (Настройки → ai.monthly_max_usd)
             </span>
+            <label className="flex items-center gap-2 text-xs text-muted" htmlFor="ai-model">
+              Модель:
+              <Select
+                id="ai-model"
+                value={d.model}
+                disabled={setModel.isPending}
+                onChange={(e) => setModel.mutate(e.target.value)}
+                className="w-auto"
+              >
+                {d.models.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </Select>
+            </label>
           </Card>
 
           <SectionTitle>Новая задача</SectionTitle>
@@ -144,9 +181,11 @@ export default function AiAssistantPage() {
             <Field label="Коротко: что не так" htmlFor="ai-title">
               <Input id="ai-title" maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
             </Field>
-            <Field label="Подробно: где, как повторить, что должно быть" htmlFor="ai-details">
-              <Textarea id="ai-details" maxLength={5000} value={details} onChange={(e) => setDetails(e.target.value)} />
-            </Field>
+            <ImageAttach value={images} onChange={setImages} label="Скриншоты">
+              <Field label="Подробно: где, как повторить, что должно быть" htmlFor="ai-details">
+                <Textarea id="ai-details" maxLength={5000} value={details} onChange={(e) => setDetails(e.target.value)} />
+              </Field>
+            </ImageAttach>
             <p className="text-xs text-muted">
               Репозиторий открытый: не пишите имена, телефоны, почту и тексты людей.
             </p>
@@ -154,7 +193,7 @@ export default function AiAssistantPage() {
             <div>
               <Button
                 loading={create.isPending}
-                disabled={!d.tasksAllowed || title.trim().length < 5 || details.trim().length < 10}
+                disabled={!d.tasksAllowed || title.trim().length < 5 || details.trim().length < 10 || anyUploading(images)}
                 onClick={() => create.mutate()}
               >
                 Отдать ИИ
@@ -243,6 +282,8 @@ export default function AiAssistantPage() {
               })
             )}
           </Card>
+
+          <AiRetentionPanel scope="technician" />
 
           <SectionTitle>Запуски</SectionTitle>
           <Card className="divide-y divide-line">

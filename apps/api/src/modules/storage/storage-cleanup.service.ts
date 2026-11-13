@@ -56,6 +56,9 @@ export const FILE_REFERENCES = [
   'deal_records.agreement_file_id',
   'client_reviews.photo_ids[]',
   'client_verifications.document_file_ids{}',
+  // Owner 2026-11-12: the AIs' images (purpose ai_attachment is also exempt:
+  // AiRetentionService removes them on their own clock).
+  'ai_attachments.file_id',
 ] as const;
 
 const BATCH = 500;
@@ -382,6 +385,7 @@ export class StorageCleanupService {
           WHERE cp.media_file_ids @> ARRAY[f.id] AND cp.deleted_at IS NULL)
         AND NOT EXISTS (SELECT 1 FROM document_templates d WHERE d.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM gifts g WHERE g.file_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM ai_attachments aa WHERE aa.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM attorney_tasks t WHERE t.file_ids @> ARRAY[f.id])
         AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.photo_ids @> ARRAY[f.id])
         AND NOT EXISTS (SELECT 1 FROM client_reviews cr WHERE cr.photo_ids @> ARRAY[f.id])
@@ -428,6 +432,7 @@ export class StorageCleanupService {
           AND NOT EXISTS (SELECT 1 FROM stickers s WHERE s.file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM document_templates d WHERE d.file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM gifts g WHERE g.file_id = f.id)
+          AND NOT EXISTS (SELECT 1 FROM ai_attachments aa WHERE aa.file_id = f.id)
           AND NOT EXISTS (
             SELECT 1 FROM client_verifications cv
             WHERE cv.document_file_ids @> jsonb_build_array(f.id::TEXT))

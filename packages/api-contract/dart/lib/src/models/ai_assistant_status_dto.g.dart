@@ -24,6 +24,8 @@ AiAssistantStatusDto _$AiAssistantStatusDtoFromJson(
   runs: (json['runs'] as List<dynamic>)
       .map((e) => AiRunDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  model: AiWorkerModel.fromJson(json['model'] as String),
+  models: (json['models'] as List<dynamic>).map((e) => e as String).toList(),
 );
 
 Map<String, dynamic> _$AiAssistantStatusDtoToJson(
@@ -40,4 +42,6 @@ Map<String, dynamic> _$AiAssistantStatusDtoToJson(
   'tasks': instance.tasks.map((e) => e.toJson()).toList(),
   'tasksError': ?instance.tasksError,
   'runs': instance.runs.map((e) => e.toJson()).toList(),
+  'model': instance.model.toJson(),
+  'models': instance.models,
 };

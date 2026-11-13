@@ -65,6 +65,8 @@ export const KEEP_TABLES: Readonly<Record<string, string>> = {
   integration_credentials: 'API keys entered in the admin (encrypted)',
   integration_custom_providers: 'custom services added in the admin',
   support_macros: 'ready support answers (admin)',
+  // Owner 2026-11-12 «ИИ-сотрудник»: the roles the owner wrote (config).
+  ai_roles: 'AI employee roles the owner wrote (config)',
   support_agents: 'support shift switches of admins',
   payroll_employees: 'staff on payroll (real people, not testers)',
   payroll_payouts: 'staff salary history',
@@ -98,6 +100,12 @@ export const FILTERED_TABLES: Readonly<Record<string, string>> = {
 
 /** Everything the testers created. TRUNCATE … CASCADE in one statement. */
 export const WIPE_TABLES: Readonly<Record<string, string>> = {
+  // «ИИ-сотрудник» runs and proposals made on test-period requests.
+  ai_runs: 'AI employee background runs (test period)',
+  ai_run_items: 'AI employee proposals on queue items (test period)',
+  // Owner 2026-11-12: links of the owner's AI pictures (their files rows go
+  // with the files wipe).
+  ai_attachments: 'AI pictures of tasks, roles and corrections (test period)',
   // #388 compliance: test-period records
   age_attestations: 'age confirmations given at sign-up (test accounts)',
   email_suppressions:

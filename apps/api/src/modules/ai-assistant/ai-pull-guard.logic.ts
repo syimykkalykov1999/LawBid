@@ -28,6 +28,8 @@ export const AI_FORBIDDEN_PATHS: readonly string[] = [
   '^AGENTS\\.md$',
   '^docs/dev/STRICT_RULES\\.md$',
   '^\\.claude/',
+  // Owner 2026-11-12: the owner's task pictures on the runner never go in.
+  '^\\.ai-attachments/',
 ];
 
 const FORBIDDEN = AI_FORBIDDEN_PATHS.map((p) => new RegExp(p));

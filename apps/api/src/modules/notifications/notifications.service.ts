@@ -232,6 +232,11 @@ export interface NotificationEmit {
   /** Identifiers and template params only (docs/05 §9.5: no sensitive
    * data — the text is a localized `notif.<type>` template). */
   payload: Prisma.InputJsonObject;
+  /** Row 63: the caller has just run assertNoBlock(actor, recipient) for
+   * this very pair (a like) on the same database, so the same user_blocks
+   * read is not repeated. Ignored when the row goes to another database
+   * (two databases). Never stored. */
+  actorBlockChecked?: boolean;
 }
 
 /**
@@ -411,7 +416,11 @@ export class NotificationsService {
       readsAreSplit(this.prisma) &&
       shardContext.current()?.shard !== hashShard(input.recipientId)
     ) {
-      return shardContext.runForUser(input.recipientId, () => this.emit(input));
+      // Another database: the caller's block check read a different
+      // user_blocks copy, so it is repeated there (row 63).
+      return shardContext.runForUser(input.recipientId, () =>
+        this.emit({ ...input, actorBlockChecked: false }),
+      );
     }
     const db = tx ?? this.prisma;
     // Owner 2026-10-22 (package E): the realtime `case:update` /
@@ -430,6 +439,7 @@ export class NotificationsService {
     const actorId = (input.payload as Record<string, unknown> | null)?.actorId;
     if (
       typeof actorId === 'string' &&
+      input.actorBlockChecked !== true &&
       (await blockedEitherWay(db, actorId, input.recipientId))
     ) {
       return null;
@@ -468,13 +478,17 @@ export class NotificationsService {
                       created_at = now(),
                       updated_at = now()
         RETURNING id::TEXT AS id, aggregate_count::INT8 AS n`;
-      await this.badges?.invalidateNotifications(input.recipientId);
-      await this.push?.enqueue(
-        row.id,
-        input.type,
-        Number(row.n),
-        input.recipientId,
-      );
+      // Row 63: both fail soft and do not depend on each other (the push
+      // job is delayed anyway): one round trip of waiting instead of two.
+      await Promise.all([
+        this.badges?.invalidateNotifications(input.recipientId),
+        this.push?.enqueue(
+          row.id,
+          input.type,
+          Number(row.n),
+          input.recipientId,
+        ),
+      ]);
       return { id: row.id };
     }
     const row = await db.notification.create({
