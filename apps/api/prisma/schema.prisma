@@ -962,6 +962,7 @@ model User {
   moderation_actions          ModerationAction[]             @relation("ModerationAdmin")
   admin_profile               AdminProfile?
   admin_credential            AdminCredential?
+  admin_sessions              AdminSession[]
   webauthn_credentials        WebauthnCredential[]
   data_export_jobs            DataExportJob[]
   audit_entries               AuditLog[]                     @relation("AuditAdmin")
@@ -4406,6 +4407,32 @@ model AdminCredential {
   updated_at           DateTime  @updatedAt @db.Timestamptz
 
   @@map("admin_credentials")
+}
+
+/// Row 72 (failover test 2026-11-13): the source of truth of an admin
+/// sign-in. Redis keeps the hot copy (adm:sess:*, idle TTL refreshed on
+/// every request); a lost Redis (node replaced, restart without data) no
+/// longer signs admins out: the guard finds the row here and puts the
+/// session back into Redis. Same split as the user sessions table and
+/// Django's cached_db session backend.
+model AdminSession {
+  /// The admin JWT's jti.
+  jti          String    @id @db.VarChar(64)
+  user_id      String    @db.Uuid
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  ip           String?   @db.VarChar(64)
+  device       String?   @db.VarChar(80)
+  /// Short hash of the User-Agent (device pin, staff package T11).
+  fp           String?   @db.VarChar(32)
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  /// Written at most once a minute per session (the idle window is 30 min).
+  last_seen_at DateTime  @default(now()) @db.Timestamptz
+  /// Absolute end (the JWT exp, 8 h).
+  expires_at   DateTime  @db.Timestamptz
+  revoked_at   DateTime? @db.Timestamptz
+
+  @@index([user_id])
+  @@map("admin_sessions")
 }
 
 /// Owner 2026-10-22 (systems checklist §1): WebAuthn passkeys. One row per

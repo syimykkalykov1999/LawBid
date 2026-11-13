@@ -293,6 +293,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   'DataAccessLog',
   'AdminApproval',
   'AdminCredential',
+  // Row 72: admin sign-ins (source of truth; Redis is the hot copy).
+  'AdminSession',
   'WebauthnCredential',
   'DataExportJob',
   'AssistantMembership',

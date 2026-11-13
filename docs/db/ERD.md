@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-306 tables.
+307 tables.
 
 ```mermaid
 erDiagram
@@ -1541,6 +1541,17 @@ erDiagram
     String security_answer_hash "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  admin_sessions {
+    String jti PK
+    String user_id FK
+    String ip "nullable"
+    String device "nullable"
+    String fp "nullable"
+    DateTime created_at
+    DateTime last_seen_at
+    DateTime expires_at
+    DateTime revoked_at "nullable"
   }
   webauthn_credentials {
     String id PK
@@ -4109,6 +4120,7 @@ erDiagram
   admin_approvals }o--o| users : "approved_by"
   admin_approvals }o--o| users : "rejected_by"
   admin_credentials |o--|| users : "user_id"
+  admin_sessions }o--|| users : "user_id"
   webauthn_credentials }o--|| users : "user_id"
   data_export_jobs }o--|| users : "user_id"
   data_export_jobs }o--o| files : "file_id"
