@@ -290,6 +290,23 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 4,
   };
+  // Owner 2026-11-12 (row 67): no upper bound, only the owner's number.
+  for (const kind of ['api', 'worker', 'api_admin', 'admin', 'pgbouncer']) {
+    out[`scale.max_tasks.${kind}`] = {
+      type: 'integer',
+      defaultValue: 100,
+      description: `Most copies autoscaling may run of the ${kind.replace('_', '-')} service (default 100, no upper bound).`,
+      min: 1,
+      max: Number.MAX_SAFE_INTEGER,
+    };
+  }
+  out['scale.spot_fallback.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Fargate Spot fallback: auto = no Spot capacity moves a service to regular Fargate and back after a quiet hold, on = hold every service on regular Fargate, off = hands off.',
+    pattern: /^(auto|on|off)$/,
+  };
   out['budget.sms.monthly_cents'] = {
     type: 'integer',
     defaultValue: null,

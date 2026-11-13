@@ -436,12 +436,14 @@ variable "redis_cluster_node_type" {
   description = "Empty = redis_node_type."
 }
 variable "api_max_tasks" {
-  type    = number
-  default = 20
+  type        = number
+  default     = 100
+  description = "Start ceiling of the api service (owner 2026-11-12: 100); the admin setting scale.max_tasks.api moves it after creation."
 }
 variable "worker_max_tasks" {
-  type    = number
-  default = 10
+  type        = number
+  default     = 100
+  description = "Start ceiling of the worker service (owner 2026-11-12: 100); admin setting scale.max_tasks.worker."
 }
 variable "worker_db_pool_size" {
   type        = number
@@ -481,6 +483,27 @@ variable "api_spot" {
   type        = bool
   default     = false
   description = "Extra API tasks (above the first) on Fargate Spot, up to 70 % cheaper."
+}
+variable "api_admin_spot" {
+  type    = bool
+  default = false
+}
+variable "admin_spot" {
+  type    = bool
+  default = false
+}
+variable "pgbouncer_spot" {
+  type    = bool
+  default = false
+}
+variable "spot_fallback_mode" {
+  type        = string
+  default     = "on"
+  description = "Start value of the Fargate Spot fallback Lambda switch: on | dry-run | off (later in SSM)."
+}
+variable "spot_fallback_tuning" {
+  type    = map(number)
+  default = {}
 }
 variable "night_scale_mode" {
   type        = string
@@ -1625,8 +1648,13 @@ variable "pgbouncer_min_tasks" {
 }
 variable "pgbouncer_max_tasks" {
   type        = number
-  default     = 4
-  description = "CPU autoscaling ceiling of the pooler. The database budget is split by this number, so a higher ceiling means smaller pools per task."
+  default     = 100
+  description = "Start CPU autoscaling ceiling of the pooler (owner 2026-11-12: 100; admin setting scale.max_tasks.pgbouncer after creation)."
+}
+variable "pgbouncer_pool_tasks" {
+  type        = number
+  default     = null
+  description = "Pooler copies the database connection budget is split between (each task gets budget / this). null = min(pgbouncer_max_tasks, 4): the same pools as before 12.11 whatever the ceiling. Copies above it share what the database still accepts; past max_connections the pooler queues (query_wait_timeout) and the database autoscaler sees db_connections."
 }
 variable "pgbouncer_cpu" {
   type    = number
@@ -1706,10 +1734,11 @@ locals {
   # reserve). The app-side Prisma pool is then cheap (it only holds
   # connections to the pooler), so it is 10 per task.
   db_pooler_budget         = floor(0.7 * local.db_max_connections)
-  pgb_server_per_task      = min(200, floor(local.db_pooler_budget / var.pgbouncer_max_tasks))
+  pgb_pool_tasks           = coalesce(var.pgbouncer_pool_tasks, min(var.pgbouncer_max_tasks, 4))
+  pgb_server_per_task      = min(200, floor(local.db_pooler_budget / local.pgb_pool_tasks))
   pgb_reserve              = var.pgbouncer_reserve_pool_size
   pgb_pool_size            = local.pgb_server_per_task - local.pgb_reserve
-  pgb_server_connections   = var.pgbouncer_max_tasks * (local.pgb_pool_size + local.pgb_reserve)
+  pgb_server_connections   = local.pgb_pool_tasks * (local.pgb_pool_size + local.pgb_reserve)
   db_pool_size             = var.db_pooler_enabled ? 10 : local.direct_pool_size
   pgb_max_clients_possible = local.db_peak_tasks * 10 # every app task fully busy, a deploy at the same time
   # The worker's own pool (direct connections only; 0 = same as the api).
@@ -1830,7 +1859,12 @@ locals {
     OPS_API_SPOT             = var.api_spot ? "on" : "off"
     OPS_CPU_ARCH             = var.cpu_architecture # the API applies the ARM / Spot price factors (S9-7)
     OPS_WORKER_SPOT          = var.worker_spot ? "on" : "off"
-    AWS_REGION               = data.aws_region.current.name
+    # Owner 2026-11-12 (row 67): the other services the economy job writes
+    # the owner's ceiling (scale.max_tasks.*) for. Empty = not in this stack.
+    OPS_API_ADMIN_SERVICE = "api-admin"
+    OPS_ADMIN_SERVICE     = "admin"
+    OPS_POOLER_SERVICE    = var.db_pooler_enabled ? "pgbouncer" : ""
+    AWS_REGION            = data.aws_region.current.name
     # Admin health: rotation dates per secret (empty list while rotation is off).
     ROTATION_STATUS_SECRETS   = jsonencode(local.rot_status_items)
     ROTATION_METRIC_NAMESPACE = "LawBid/${local.name}/SecretRotation"
@@ -2038,6 +2072,8 @@ module "pgbouncer" {
   memory                     = var.pgbouncer_memory
   min_tasks                  = var.pgbouncer_min_tasks
   max_tasks                  = var.pgbouncer_max_tasks
+  spot                       = var.pgbouncer_spot
+  spot_strategy              = local.spot_strategy
   pool_size                  = local.pgb_pool_size
   reserve_pool_size          = local.pgb_reserve
   max_client_conn            = var.db_pooler_max_client_conn
@@ -2145,6 +2181,9 @@ module "ecs" {
   container_insights                = var.container_insights
   worker_spot                       = var.worker_spot
   api_spot                          = var.api_spot
+  api_admin_spot                    = var.api_admin_spot
+  admin_spot                        = var.admin_spot
+  spot_strategy                     = local.spot_strategy
   night_scale_mode                  = var.night_scale_mode
   night_min_tasks                   = var.night_min_tasks
   tags                              = local.tags
@@ -2701,6 +2740,31 @@ module "endpoints_autoscale" {
   tuning            = var.endpoints_autoscale_tuning
   controls_bucket   = module.s3.documents_bucket
   tags              = local.tags
+}
+
+# Owner 2026-11-12 (row 67): Fargate Spot without capacity -> regular Fargate,
+# back to Spot after a quiet hold (ECS does not fall back by itself).
+locals {
+  spot_strategy = { base = 1, fargate_weight = 1, spot_weight = 4 }
+  spot_watch = merge(
+    module.ecs.spot_services,
+    var.pgbouncer_spot && var.db_pooler_enabled ? { pgbouncer = module.pgbouncer[0].service_arn } : {},
+  )
+}
+
+module "spot_fallback" {
+  count            = length(local.spot_watch) > 0 ? 1 : 0
+  source           = "../spot-fallback"
+  name             = local.name
+  cluster_name     = module.ecs.cluster_name
+  cluster_arn      = module.ecs.cluster_arn
+  services         = { for k, arn in local.spot_watch : k => { arn = arn, base = local.spot_strategy.base, fargate = local.spot_strategy.fargate_weight, spot = local.spot_strategy.spot_weight } }
+  alerts_topic_arn = module.monitoring.alerts_topic_arn
+  kms_key_arn      = module.kms.key_arn
+  mode             = var.spot_fallback_mode
+  tuning           = var.spot_fallback_tuning
+  controls_bucket  = module.s3.documents_bucket
+  tags             = local.tags
 }
 
 # Read replicas no longer pause the database autoscaler (KNOWN_ERRORS 109):
