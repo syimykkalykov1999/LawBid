@@ -76,6 +76,13 @@ Google ML Kit on the phone:
 - No ML Kit (web, unsupported frame format, plugin error) → manual mode: the
   overlay and shutter work at once, liveness "not checked".
 
+**Update 2026-11-12 (row 62):** the oval and the card frame now follow the
+face (sized from the face box, card on the side with room), with
+hysteresis, a 0.6 s grace for missed frames, 0.3 s hint dwell, a card check
+all along (green while seen in the last 1.8 s, soft gate 5 s), a new
+«Hold steady» hint and auto-capture after 0.7 s steady. Same single photo,
+same steps and API. Details: `docs/dev/SELFIE_ID_CAPTURE_RESEARCH_2026-11-12.md`.
+
 ## 4. Anti-tamper (raises the bar; nothing here is 100 %)
 
 - Selfie upload only from this flow: the app asks

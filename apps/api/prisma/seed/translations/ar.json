@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "مثال: شخص يحمل بطاقة هوية بجانب وجهه",
   "verification.idSelfie.hint.blink": "اغمض عينيك",
   "verification.idSelfie.hint.centerFace": "اجعل وجهك في منتصف الشكل البيضاوي",
+  "verification.idSelfie.hint.holdSteady": "ثبّت الهاتف",
   "verification.idSelfie.hint.holdStill": "ثبّت وضعك…",
   "verification.idSelfie.hint.moreLight": "نحتاج إلى مزيد من الإضاءة",
   "verification.idSelfie.hint.moveBack": "ابتعد قليلاً",

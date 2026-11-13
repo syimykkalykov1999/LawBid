@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Жишээ: нүүрнийхээ хажууд үнэмлэх барьж буй хүн",
   "verification.idSelfie.hint.blink": "Нүдээ цавчина уу",
   "verification.idSelfie.hint.centerFace": "Нүүрээ зуувангийн голд байрлуулна уу",
+  "verification.idSelfie.hint.holdSteady": "Тогтвортой барина уу",
   "verification.idSelfie.hint.holdStill": "Хөдлөхгүй байна уу…",
   "verification.idSelfie.hint.moreLight": "Илүү гэрэл хэрэгтэй",
   "verification.idSelfie.hint.moveBack": "Жаахан ухарна уу",

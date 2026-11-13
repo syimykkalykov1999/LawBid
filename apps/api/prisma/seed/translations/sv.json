@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Exempel: en person håller ett ID-kort bredvid ansiktet",
   "verification.idSelfie.hint.blink": "Blinka",
   "verification.idSelfie.hint.centerFace": "Centrera ansiktet i ovalen",
+  "verification.idSelfie.hint.holdSteady": "Håll stilla",
   "verification.idSelfie.hint.holdStill": "Håll dig still…",
   "verification.idSelfie.hint.moreLight": "Mer ljus, tack",
   "verification.idSelfie.hint.moveBack": "Backa lite",

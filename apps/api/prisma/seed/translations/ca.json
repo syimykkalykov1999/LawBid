@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Exemple: una persona sostenint un document d'identitat al costat de la cara",
   "verification.idSelfie.hint.blink": "Parpellegi",
   "verification.idSelfie.hint.centerFace": "Centri la cara a l'oval",
+  "verification.idSelfie.hint.holdSteady": "Mantingueu-lo ferm",
   "verification.idSelfie.hint.holdStill": "No es mogui…",
   "verification.idSelfie.hint.moreLight": "Més llum, si us plau",
   "verification.idSelfie.hint.moveBack": "Allunyi's una mica",

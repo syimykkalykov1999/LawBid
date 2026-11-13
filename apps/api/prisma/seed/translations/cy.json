@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Enghraifft: person yn dal cerdyn adnabod wrth ymyl ei wyneb",
   "verification.idSelfie.hint.blink": "Amrantwch",
   "verification.idSelfie.hint.centerFace": "Canolwch eich wyneb yn yr hirgrwn",
+  "verification.idSelfie.hint.holdSteady": "Daliwch yn llonydd",
   "verification.idSelfie.hint.holdStill": "Arhoswch yn llonydd…",
   "verification.idSelfie.hint.moreLight": "Mwy o olau, os gwelwch yn dda",
   "verification.idSelfie.hint.moveBack": "Camwch yn ôl ychydig",

@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "예시: 얼굴 옆에 신분증을 든 사람",
   "verification.idSelfie.hint.blink": "눈을 깜빡여 주세요",
   "verification.idSelfie.hint.centerFace": "얼굴을 타원 중앙에 맞춰 주세요",
+  "verification.idSelfie.hint.holdSteady": "흔들리지 않게 잡아 주세요",
   "verification.idSelfie.hint.holdStill": "움직이지 마세요…",
   "verification.idSelfie.hint.moreLight": "조명을 더 밝게 해 주세요",
   "verification.idSelfie.hint.moveBack": "조금 뒤로 물러나 주세요",

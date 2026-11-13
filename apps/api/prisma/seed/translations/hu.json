@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Példa: egy személy igazolványt tart az arca mellett",
   "verification.idSelfie.hint.blink": "Pislogjon",
   "verification.idSelfie.hint.centerFace": "Igazítsa arcát az ovális közepére",
+  "verification.idSelfie.hint.holdSteady": "Tartsa stabilan",
   "verification.idSelfie.hint.holdStill": "Ne mozduljon…",
   "verification.idSelfie.hint.moreLight": "Kérjük, több fényt",
   "verification.idSelfie.hint.moveBack": "Lépjen kicsit hátrébb",

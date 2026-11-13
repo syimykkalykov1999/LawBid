@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Näide: inimene hoiab isikut tõendavat dokumenti näo kõrval",
   "verification.idSelfie.hint.blink": "Pilgutage silmi",
   "verification.idSelfie.hint.centerFace": "Asetage nägu ovaali keskele",
+  "verification.idSelfie.hint.holdSteady": "Hoidke paigal",
   "verification.idSelfie.hint.holdStill": "Ärge liigutage…",
   "verification.idSelfie.hint.moreLight": "Vaja on rohkem valgust",
   "verification.idSelfie.hint.moveBack": "Astuge veidi tagasi",

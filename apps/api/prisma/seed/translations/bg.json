@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Пример: човек държи документ за самоличност до лицето си",
   "verification.idSelfie.hint.blink": "Мигнете",
   "verification.idSelfie.hint.centerFace": "Центрирайте лицето си в овала",
+  "verification.idSelfie.hint.holdSteady": "Дръжте стабилно",
   "verification.idSelfie.hint.holdStill": "Не мърдайте…",
   "verification.idSelfie.hint.moreLight": "Моля, повече светлина",
   "verification.idSelfie.hint.moveBack": "Отдалечете се малко",

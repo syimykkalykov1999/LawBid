@@ -6406,6 +6406,7 @@
   "verification.idSelfie.example": "Пример: особа држи личну карту поред лица",
   "verification.idSelfie.hint.blink": "Трепните",
   "verification.idSelfie.hint.centerFace": "Центрирајте лице у овалу",
+  "verification.idSelfie.hint.holdSteady": "Држите мирно",
   "verification.idSelfie.hint.holdStill": "Не померајте се…",
   "verification.idSelfie.hint.moreLight": "Потребно је више светла",
   "verification.idSelfie.hint.moveBack": "Одмакните се мало",

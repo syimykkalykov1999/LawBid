@@ -1,7 +1,10 @@
 import 'dart:math' as math;
-import 'dart:ui' show Offset, Rect, Size;
+import 'dart:ui' show Rect, Size;
 
 import 'package:flutter/foundation.dart' show immutable;
+import 'package:lawbid/features/verification/domain/selfie_guide.dart';
+
+export 'package:lawbid/features/verification/domain/selfie_guide.dart';
 
 /// Owner 2026-10-28 (docs/architecture/ID_SELFIE_CAPTURE_2026-10-28.md):
 /// the guided "selfie with your ID" camera. Pure logic, no camera and no
@@ -9,12 +12,13 @@ import 'package:flutter/foundation.dart' show immutable;
 /// frame and draws what it returns, so every rule is unit-tested with fake
 /// detector input.
 ///
-/// Forgiving on purpose (owner: attorneys must not fight the oval): the
-/// face may sit anywhere within ~25 % of the oval's centre and in a wide
-/// size range, the ID card is a soft hint (after [SelfieLivenessConfig.
-/// cardSoftGate] the shot is allowed without it), there is ONE random
-/// liveness prompt, auto-capture follows ~1 s after everything holds, and
-/// after [SelfieLivenessConfig.fallbackAfter] a "Take photo anyway" button
+/// Forgiving on purpose (owner: attorneys must not fight the oval): since
+/// 2026-11-12 (row 62) the oval and the card frame are placed around the
+/// face that is seen (any arm length works within a wide band), the ID
+/// card is a soft hint (after [SelfieLivenessConfig.cardSoftGate] the shot
+/// is allowed without it), there is ONE random liveness prompt,
+/// auto-capture follows ~0.7 s after everything holds steady, and after
+/// [SelfieLivenessConfig.fallbackAfter] a "Take photo anyway" button
 /// appears (still the live camera; flagged for the verifier).
 
 /// The one random liveness prompt of a session.
@@ -46,6 +50,7 @@ enum SelfieHint {
   turnLeft,
   turnRight,
   showId,
+  holdSteady,
   holdStill,
 }
 
@@ -109,90 +114,104 @@ class FrameSignals {
   final bool? cardText;
 }
 
-/// Where the face oval and the ID-card frame are drawn — one place for the
-/// painter and for the machine's tolerance checks. Portrait phone: the
-/// oval left of centre, the card frame beside it at chin height (the
-/// preview is mirrored, so a card in the right hand appears on the right).
+/// Where the guide rests before a face is seen, in screen pixels, plus the
+/// machine's config for this screen shape (one place for the painter and
+/// for the checks). Portrait phone: the oval left of centre, the card frame
+/// beside it at chin height (the preview is mirrored, so a card in the
+/// right hand appears on the right). Once a face is found, the guide moves
+/// to the face ([SelfieGuideGeometry.around]).
 @immutable
 class SelfieGuideLayout {
   const SelfieGuideLayout(this.screen);
 
   final Size screen;
 
-  static const double _ovalCenterX = 0.36;
-  static const double _ovalCenterY = 0.40;
-  static const double _ovalWidth = 0.50;
-  static const double _ovalAspect = 1.3;
-  static const double _cardRatio = 1.586; // ISO/IEC 7810 ID-1
-  static const double _gap = 0.03;
+  double get _aspect =>
+      screen.width <= 0 ? 844 / 390 : screen.height / screen.width;
 
-  Rect get oval {
-    final w = screen.width * _ovalWidth;
-    final h = math.min(w * _ovalAspect, screen.height * 0.42);
-    return Rect.fromCenter(
-      center: Offset(screen.width * _ovalCenterX, screen.height * _ovalCenterY),
-      width: w,
-      height: h,
-    );
-  }
+  SelfieGuideGeometry get geometry => SelfieGuideGeometry(aspect: _aspect);
 
-  Rect get card {
-    final o = oval;
-    final left = o.right + screen.width * _gap;
-    final w = screen.width * (1 - _gap) - left;
-    final h = w / _cardRatio;
-    return Rect.fromLTWH(left, o.center.dy + o.height * 0.12 - h / 2, w, h);
-  }
+  SelfieGuide get rest => geometry.rest();
 
-  /// [oval] normalized to 0..1 of the screen.
-  Rect get ovalNormalized => Rect.fromLTRB(
-        oval.left / screen.width,
-        oval.top / screen.height,
-        oval.right / screen.width,
-        oval.bottom / screen.height,
-      );
+  Rect get oval => rest.ovalOn(screen);
 
-  SelfieLivenessConfig config() {
-    final o = ovalNormalized;
-    return SelfieLivenessConfig(
-      ovalCenter: o.center,
-      ovalWidth: o.width,
-      ovalHeight: o.height,
-    );
-  }
+  Rect get card => rest.cardOn(screen);
+
+  SelfieLivenessConfig config() => SelfieLivenessConfig(geometry: geometry);
 }
 
 @immutable
 class SelfieLivenessConfig {
   const SelfieLivenessConfig({
-    this.ovalCenter = const Offset(0.36, 0.40),
-    this.ovalWidth = 0.50,
-    this.ovalHeight = 0.30,
-    this.centerTolerance = 0.25,
-    this.minFaceToOval = 0.40,
-    this.maxFaceToOval = 1.45,
+    this.geometry = const SelfieGuideGeometry(),
+    this.minFaceWidth = 0.22,
+    this.maxFaceWidth = 0.46,
+    this.sizeSlack = 0.03,
+    this.minCenterY = 0.20,
+    this.maxCenterY = 0.64,
+    this.minCenterX = 0.15,
+    this.maxCenterX = 0.85,
+    this.centerSlack = 0.03,
+    this.smoothing = 0.5,
+    this.faceGrace = const Duration(milliseconds: 600),
+    this.multipleFacesFrames = 2,
+    this.secondFaceRatio = 0.5,
+    this.steadyMove = 0.08,
+    this.guideDeadband = 0.012,
+    this.hintDwell = const Duration(milliseconds: 300),
     this.minBrightness = 55,
     this.eyeOpen = 0.6,
     this.eyeClosed = 0.4,
     this.turnDegrees = 18,
     this.backToCenterDegrees = 10,
-    this.cardSoftGate = const Duration(seconds: 4),
-    this.holdBeforeCapture = const Duration(milliseconds: 900),
+    this.cardGrace = const Duration(milliseconds: 1800),
+    this.cardSoftGate = const Duration(seconds: 5),
+    this.holdBeforeCapture = const Duration(milliseconds: 700),
     this.fallbackAfter = const Duration(seconds: 9),
   });
 
-  /// Oval in normalized screen coordinates (width/height as fractions of
-  /// the screen's width/height). Must match the painted overlay.
-  final Offset ovalCenter;
-  final double ovalWidth;
-  final double ovalHeight;
+  /// Where the guide goes for a face on this screen.
+  final SelfieGuideGeometry geometry;
 
-  /// Face centre may be this fraction of the oval's size off its centre.
-  final double centerTolerance;
+  /// Face box width as a fraction of the screen width: below = «move
+  /// closer», above = «move back» (the card must still fit beside it).
+  /// Once in place, each border gives [sizeSlack] more (hysteresis).
+  final double minFaceWidth;
+  final double maxFaceWidth;
+  final double sizeSlack;
 
-  /// Face box height / oval height accepted range.
-  final double minFaceToOval;
-  final double maxFaceToOval;
+  /// The face centre must stay in this band (normalized), else «center
+  /// your face»; [centerSlack] of hysteresis once in place.
+  final double minCenterY;
+  final double maxCenterY;
+  final double minCenterX;
+  final double maxCenterX;
+  final double centerSlack;
+
+  /// Weight of the newest face box in the running average (0..1).
+  final double smoothing;
+
+  /// A face missing for less than this still counts as there (ML Kit
+  /// misses single frames; the guide must not blink).
+  final Duration faceGrace;
+
+  /// «Only one face» needs this many frames in a row.
+  final int multipleFacesFrames;
+
+  /// A second face smaller than this × the main one is ignored (the photo
+  /// on the ID card the attorney holds).
+  final double secondFaceRatio;
+
+  /// Between two detections the face may move this fraction of its width
+  /// (or change size by it) and still count as steady.
+  final double steadyMove;
+
+  /// The drawn guide follows the face only when an edge moved more than
+  /// this (normalized), so it never trembles.
+  final double guideDeadband;
+
+  /// A new hint must be asked for this long before it is shown.
+  final Duration hintDwell;
   final double minBrightness;
 
   /// Average eye-open probability above which the eyes count as open,
@@ -203,11 +222,16 @@ class SelfieLivenessConfig {
   final double turnDegrees;
   final double backToCenterDegrees;
 
+  /// Card text seen this recently counts as «card in place» (text
+  /// recognition runs less often than face detection).
+  final Duration cardGrace;
+
   /// Without a card seen, the shot is allowed this long after the camera
   /// opened (the card check is a hint, not a gate).
   final Duration cardSoftGate;
 
-  /// Everything must hold this long before the auto-capture.
+  /// Everything must hold (and stay steady) this long before the
+  /// auto-capture.
   final Duration holdBeforeCapture;
 
   /// «Take photo anyway» appears after this.
@@ -227,6 +251,7 @@ class SelfieLivenessView {
     required this.canCapture,
     required this.showFallback,
     required this.holdProgress,
+    this.guide,
   });
 
   final SelfieHint hint;
@@ -234,9 +259,11 @@ class SelfieLivenessView {
   final LivenessChallenge challenge;
   final bool challengeDone;
   final bool faceInOval;
+
+  /// The card is beside the face right now (its frame turns green).
   final bool cardDetected;
 
-  /// The shutter is enabled (face in the oval + liveness done).
+  /// The shutter is enabled (face in place + liveness done).
   final bool canCapture;
 
   /// The «Take photo anyway» button is shown.
@@ -244,6 +271,10 @@ class SelfieLivenessView {
 
   /// 0..1 of [SelfieLivenessConfig.holdBeforeCapture]; 1 = capture now.
   final double holdProgress;
+
+  /// Where to draw the oval and the card frame (normalized); null = the
+  /// rest layout of the screen.
+  final SelfieGuide? guide;
 
   bool get autoCaptureDue => holdProgress >= 1;
 
@@ -258,7 +289,8 @@ class SelfieLivenessView {
       other.cardDetected == cardDetected &&
       other.canCapture == canCapture &&
       other.showFallback == showFallback &&
-      other.holdProgress == holdProgress;
+      other.holdProgress == holdProgress &&
+      other.guide == guide;
 
   @override
   int get hashCode => Object.hash(
@@ -271,16 +303,30 @@ class SelfieLivenessView {
         canCapture,
         showFallback,
         holdProgress,
+        guide,
       );
 }
 
 /// The state machine. Feed it [add] for each processed frame and [tick]
 /// from a timer (timers must advance even when no frame arrives).
+///
+/// Owner 2026-11-12 (row 62): stable and adaptive.
+/// - Face presence has a grace time ([SelfieLivenessConfig.faceGrace]):
+///   one missed frame never blanks the guide; «only one face» needs two
+///   frames and ignores the small face on the ID card.
+/// - The face box is averaged over frames; the guide follows it with a
+///   dead band, so it moves with the attorney instead of making them
+///   match a fixed spot, and never trembles.
+/// - Distance is judged by the face's width on screen, with hysteresis on
+///   every border, so the hint does not flip on a border.
+/// - Hints show only after [SelfieLivenessConfig.hintDwell].
+/// - Auto-capture needs face + prompt + card (or its grace time) AND a
+///   steady face for [SelfieLivenessConfig.holdBeforeCapture].
 class SelfieLivenessMachine {
   SelfieLivenessMachine({
     required this.challenge,
     this.config = const SelfieLivenessConfig(),
-  });
+  }) : _hint = Debounced(SelfieHint.starting, dwell: config.hintDwell);
 
   final LivenessChallenge challenge;
   final SelfieLivenessConfig config;
@@ -291,13 +337,31 @@ class SelfieLivenessMachine {
   bool _challengeDone = false;
   bool? _turnMatched;
   bool _cardDetected = false;
+  Duration? _cardSeenAt;
   bool _faceEverInOval = false;
-  bool _faceInOval = false;
-  SelfieHint _faceHint = SelfieHint.starting;
+
+  Rect? _smooth;
+  Rect? _lastRaw;
+  Duration? _faceSeenAt;
+  bool _dark = false;
+  int _multiFrames = 0;
+  bool _multi = false;
+  bool _inPlace = false;
+  bool _steady = false;
+  SelfieHint _placementHint = SelfieHint.noFace;
+  SelfieGuide? _guide;
+  bool _cardFits = true;
+
+  final Debounced<SelfieHint> _hint;
+
+  /// A frame was processed (until then: «getting the camera ready»).
+  bool _framed = false;
   Duration? _holdSince;
   Duration _now = Duration.zero;
 
   bool get challengeDone => _challengeDone;
+
+  /// A card was seen at least once (reported to the verifier).
   bool get cardDetected => _cardDetected;
   bool get faceDetected => _faceEverInOval;
 
@@ -307,28 +371,43 @@ class SelfieLivenessMachine {
 
   SelfieLivenessView get view => _view();
 
+  bool get _facePresent =>
+      _faceSeenAt != null && _now - _faceSeenAt! <= config.faceGrace;
+
+  bool get _cardInPlace =>
+      _cardSeenAt != null && _now - _cardSeenAt! <= config.cardGrace;
+
   SelfieLivenessView add(FrameSignals s, Duration now) {
     _now = now;
-    if (s.cardText ?? false) _cardDetected = true;
-    _faceInOval = false;
-    // Too dark is said only while no face is found (its likely cause); a
-    // face the detector sees is good enough.
-    final dark = s.brightness != null && s.brightness! < config.minBrightness;
+    _framed = true;
+    if (s.cardText ?? false) {
+      _cardDetected = true;
+      _cardSeenAt = now;
+    }
+    _dark = s.brightness != null && s.brightness! < config.minBrightness;
     if (s.faces.isEmpty) {
-      _faceHint = dark ? SelfieHint.moreLight : SelfieHint.noFace;
-    } else if (s.faces.length > 1) {
-      _faceHint = SelfieHint.multipleFaces;
-    } else {
-      final f = s.faces.single;
-      final placement = _placement(f.box);
-      if (placement != null) {
-        _faceHint = placement;
-      } else {
-        _faceInOval = true;
-        _faceEverInOval = true;
-        _faceHint = SelfieHint.holdStill;
-        _trackChallenge(f);
-      }
+      _multiFrames = 0;
+      _multi = false;
+      return _view();
+    }
+    final faces = [...s.faces]
+      ..sort((a, b) => b.box.width.compareTo(a.box.width));
+    final main = faces.first;
+    final others = faces
+        .skip(1)
+        .where((f) => f.box.width >= main.box.width * config.secondFaceRatio)
+        .length;
+    _multiFrames = others > 0 ? _multiFrames + 1 : 0;
+    _multi = _multiFrames >= config.multipleFacesFrames;
+    final fresh = !_facePresent;
+    _faceSeenAt = now;
+    _track(main.box, fresh: fresh);
+    if (_multi) return _view();
+    _placementHint = _placement() ?? SelfieHint.holdStill;
+    _inPlace = _placementHint == SelfieHint.holdStill;
+    if (_inPlace) {
+      _faceEverInOval = true;
+      _trackChallenge(main);
     }
     return _view();
   }
@@ -338,16 +417,65 @@ class SelfieLivenessMachine {
     return _view();
   }
 
-  /// null = in the oval; otherwise what to say.
-  SelfieHint? _placement(Rect box) {
+  /// Steadiness from the raw box, the running average for placement and
+  /// the guide. [fresh]: the face just (re)appeared — no average from an
+  /// old spot.
+  void _track(Rect raw, {required bool fresh}) {
+    final last = fresh ? null : _lastRaw;
+    if (last != null) {
+      final w = math.max(last.width, 1e-6);
+      final moved = (raw.center - last.center).distance / w;
+      final grew = (raw.width - last.width).abs() / w;
+      _steady = moved <= config.steadyMove && grew <= config.steadyMove;
+    } else {
+      _steady = false;
+    }
+    _lastRaw = raw;
+    final prev = _smooth;
+    final a = config.smoothing;
+    _smooth = prev == null || fresh
+        ? raw
+        : Rect.fromLTRB(
+            prev.left + (raw.left - prev.left) * a,
+            prev.top + (raw.top - prev.top) * a,
+            prev.right + (raw.right - prev.right) * a,
+            prev.bottom + (raw.bottom - prev.bottom) * a,
+          );
+    final placed = config.geometry.around(
+      _smooth!,
+      preferRight: _guide?.cardOnRight,
+    );
+    _cardFits = placed.cardFits;
+    final g = _guide;
+    if (g == null || !g.near(placed.guide, config.guideDeadband)) {
+      _guide = placed.guide;
+    }
+  }
+
+  /// null = in place; otherwise what to say. Every border has hysteresis:
+  /// once in place, it gives [SelfieLivenessConfig.sizeSlack] /
+  /// [SelfieLivenessConfig.centerSlack] more before saying anything.
+  SelfieHint? _placement() {
     final c = config;
-    final dx = (box.center.dx - c.ovalCenter.dx) / c.ovalWidth;
-    final dy = (box.center.dy - c.ovalCenter.dy) / c.ovalHeight;
-    final size = box.height / c.ovalHeight;
-    if (size < c.minFaceToOval) return SelfieHint.moveCloser;
-    if (size > c.maxFaceToOval) return SelfieHint.moveBack;
-    if (dx.abs() > c.centerTolerance || dy.abs() > c.centerTolerance) {
+    final b = _smooth!;
+    final size = _inPlace ? c.sizeSlack : 0.0;
+    final centre = _inPlace ? c.centerSlack : 0.0;
+    if (b.width < c.minFaceWidth - size) return SelfieHint.moveCloser;
+    if (b.width > c.maxFaceWidth + size) return SelfieHint.moveBack;
+    final cx = b.center.dx;
+    final cy = b.center.dy;
+    if (cx < c.minCenterX - centre ||
+        cx > c.maxCenterX + centre ||
+        cy < c.minCenterY - centre ||
+        cy > c.maxCenterY + centre) {
       return SelfieHint.centerFace;
+    }
+    // The card frame must fit beside the face: off to one side → centre
+    // it; big and centred (no room either side) → move back.
+    if (!_cardFits) {
+      return (cx - 0.5).abs() < 0.12
+          ? SelfieHint.moveBack
+          : SelfieHint.centerFace;
     }
     return null;
   }
@@ -388,45 +516,71 @@ class SelfieLivenessMachine {
 
   SelfieLivenessView _view() {
     final c = config;
-    final canCapture = _faceInOval && _challengeDone;
-    final cardOk = _cardDetected || _now >= c.cardSoftGate;
-    final ready = canCapture && cardOk && _faceHint == SelfieHint.holdStill;
-    if (ready) {
-      _holdSince ??= _now;
-    } else {
-      _holdSince = null;
+    final present = _facePresent;
+    if (!present) {
+      // Gone for longer than the grace time: start over from the rest
+      // layout (the next face is placed fresh).
+      _inPlace = false;
+      _steady = false;
+      _lastRaw = null;
+      _guide = null;
     }
-    final held = _holdSince == null ? Duration.zero : _now - _holdSince!;
-    final progress = ready
-        ? (held.inMicroseconds / c.holdBeforeCapture.inMicroseconds)
-            .clamp(0.0, 1.0)
-        : 0.0;
-    final SelfieHint hint;
-    if (!_faceInOval || _faceHint != SelfieHint.holdStill) {
-      hint = _faceHint;
+    final inPlace = present && !_multi && _inPlace;
+    final canCapture = inPlace && _challengeDone;
+    final cardOk = _cardInPlace || _now >= c.cardSoftGate;
+    final SelfieHint wanted;
+    if (!_framed) {
+      wanted = SelfieHint.starting;
+    } else if (!present) {
+      wanted = _dark ? SelfieHint.moreLight : SelfieHint.noFace;
+    } else if (_multi) {
+      wanted = SelfieHint.multipleFaces;
+    } else if (!inPlace) {
+      wanted = _placementHint;
     } else if (!_challengeDone) {
-      hint = switch (challenge) {
+      wanted = switch (challenge) {
         LivenessChallenge.blink => SelfieHint.blink,
         LivenessChallenge.turnLeft => SelfieHint.turnLeft,
         LivenessChallenge.turnRight => SelfieHint.turnRight,
       };
     } else if (!cardOk) {
-      hint = SelfieHint.showId;
+      wanted = SelfieHint.showId;
+    } else if (!_steady) {
+      wanted = SelfieHint.holdSteady;
     } else {
-      hint = SelfieHint.holdStill;
+      wanted = SelfieHint.holdStill;
     }
+    final ready = canCapture && cardOk && _steady;
+    if (ready) {
+      _holdSince ??= _now;
+    } else {
+      _holdSince = null;
+    }
+    // The first real hint replaces «starting» at once; the countdown hint
+    // shows at once when everything is ready (its own ring is the delay).
+    final hint = _hint.update(
+      wanted,
+      _now,
+      immediate: _hint.value == SelfieHint.starting || ready,
+    );
+    final held = _holdSince == null ? Duration.zero : _now - _holdSince!;
+    final progress = ready
+        ? (held.inMicroseconds / c.holdBeforeCapture.inMicroseconds)
+            .clamp(0.0, 1.0)
+        : 0.0;
     return SelfieLivenessView(
       hint: hint,
       tone: ready
           ? OvalTone.ready
-          : (_faceInOval ? OvalTone.active : OvalTone.neutral),
+          : (present && !_multi ? OvalTone.active : OvalTone.neutral),
       challenge: challenge,
       challengeDone: _challengeDone,
-      faceInOval: _faceInOval,
-      cardDetected: _cardDetected,
+      faceInOval: inPlace,
+      cardDetected: _cardInPlace,
       canCapture: canCapture,
       showFallback: _now >= c.fallbackAfter,
       holdProgress: progress,
+      guide: present ? _guide : null,
     );
   }
 }
