@@ -325,7 +325,22 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
         name,
       );
       let steps = 0;
-      if (recovering) {
+      if (statements.length === 1) {
+        // 13.11 (owner row 83 e2e): `prisma migrate deploy` sends the file as
+        // ONE query, and a single statement is not inside a transaction
+        // block — which `CREATE INDEX CONCURRENTLY` requires (ten migrations
+        // are exactly that). Wrapped in $transaction, a fresh demo database
+        // stopped at «CREATE INDEX CONCURRENTLY cannot run inside a
+        // transaction block» (migration 71 of 208).
+        try {
+          await demo.$executeRawUnsafe(statements[0]);
+        } catch (e) {
+          if (!recovering || !ALREADY_EXISTS_CODES.has(pgErrorCode(e))) {
+            throw e;
+          }
+        }
+        steps = 1;
+      } else if (recovering) {
         // A half-applied replay skips «already exists» one statement at a
         // time. 13.11: inside ONE transaction with a SAVEPOINT per statement
         // (the PostgreSQL way to survive one failed statement): statement by

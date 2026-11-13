@@ -97,13 +97,13 @@ describe('demo world: a half-applied migration (prod 2026-11-08)', () => {
       meta: { code: '42710' },
     });
 
-  function harness(half: string[]) {
+  function harness(
+    half: string[],
+    sql = 'CREATE TYPE "x" AS ENUM (\'a\');\nCREATE TABLE "t" ("id" INT);\n',
+  ) {
     const dir = mkdtempSync(join(tmpdir(), 'demo-mig-'));
     mkdirSync(join(dir, '20260101_a'));
-    writeFileSync(
-      join(dir, '20260101_a', 'migration.sql'),
-      'CREATE TYPE "x" AS ENUM (\'a\');\nCREATE TABLE "t" ("id" INT);\n',
-    );
+    writeFileSync(join(dir, '20260101_a', 'migration.sql'), sql);
     const ran: string[] = [];
     const demo = {
       $queryRawUnsafe: jest.fn((sql: string) =>
@@ -162,6 +162,17 @@ describe('demo world: a half-applied migration (prod 2026-11-08)', () => {
     expect(h.demo.$transaction).toHaveBeenCalledTimes(1);
     expect(h.ran).toContain('ROLLBACK TO SAVEPOINT demo_stmt');
     expect(h.ran.filter((s) => s === 'SAVEPOINT demo_stmt')).toHaveLength(2);
+  });
+
+  it('a one-statement migration runs outside a transaction, like prisma migrate deploy (CREATE INDEX CONCURRENTLY needs it)', async () => {
+    const sql = 'CREATE INDEX CONCURRENTLY IF NOT EXISTS i ON public.t (id);\n';
+    const h = harness([], sql);
+    await h.apply();
+    expect(h.demo.$transaction).not.toHaveBeenCalled();
+    expect(h.ran.some((s) => s.startsWith('CREATE INDEX CONCURRENTLY'))).toBe(
+      true,
+    );
+    expect(h.ran.some((s) => s.includes('SET finished_at = now()'))).toBe(true);
   });
 
   it('a migration left half-applied is replayed past «already exists» and finished', async () => {

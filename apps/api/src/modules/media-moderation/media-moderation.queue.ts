@@ -14,6 +14,7 @@ import {
   isModeratedPurpose,
 } from './media-moderation.constants';
 import { bullOptions } from '../../redis/redis-connection';
+import { demoContext } from '../../common/demo/demo-context';
 
 export type MediaCheckJobData =
   | { kind: 'file'; fileId: string }
@@ -91,7 +92,11 @@ export class MediaModerationQueue
     jobId: string,
     delay?: number,
   ): Promise<void> {
-    if (!this.queue) return;
+    // Owner row 83: jobs now run in the demo world of their request
+    // (demo-job-context.ts); the paid/outbound checks (PhotoDNA,
+    // Rekognition) never run for demo media — before, the demo check
+    // looked in the main database and did nothing, same outcome.
+    if (!this.queue || demoContext.isDemo()) return;
     try {
       await this.queue.add(name, data, {
         ...JOB_OPTS,
