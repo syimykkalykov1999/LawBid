@@ -124,3 +124,19 @@ class Tick(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LaunchType(unittest.TestCase):
+    """13.11 row 67: a watched service still on launch type FARGATE (no
+    capacity provider strategy) is moved to the wanted Spot strategy."""
+
+    def test_launch_type_service_is_moved_to_spot(self):
+        a = d.on_tick(live(strategy=[]), WANT, d.SvcState(), CFG, NOW)
+        self.assertEqual(a.action, "restore")
+
+    def test_owner_hold_and_off_leave_it(self):
+        self.assertEqual(d.on_tick(live(strategy=[]), WANT, d.SvcState(), CFG, NOW, control="on").action, "none")
+        self.assertEqual(d.on_tick(live(strategy=[]), WANT, d.SvcState(), CFG, NOW, control="off").action, "none")
+
+    def test_failure_event_on_launch_type_does_nothing(self):
+        self.assertEqual(d.on_failure(live(strategy=[]), d.SvcState(), CFG, NOW).action, "none")

@@ -131,8 +131,22 @@ def on_failure(live, st, cfg, now, control="auto"):
 
 def on_tick(live, want, st, cfg, now, control="auto"):
     """The 5-minute look at one service."""
-    if control == "off" or not on_capacity_providers(live):
-        return Action("none", "hands off" if control == "off" else "not on capacity providers", st)
+    if control == "off":
+        return Action("none", "hands off", st)
+    if not on_capacity_providers(live):
+        # 13.11 (owner row 67): admin, api-admin and pgbouncer were created on
+        # launch type FARGATE and the services ignore the strategy in
+        # Terraform (so a fallback survives an apply) — the apply could not
+        # move them. UpdateService may switch a launch type to a capacity
+        # provider strategy with a forced deployment (AWS UpdateService docs);
+        # apply() sends exactly that. Owner «on» (hold on regular) leaves them.
+        if control == "on":
+            return Action("none", "held on regular Fargate by the owner", st)
+        return Action(
+            "restore",
+            "on launch type FARGATE: moving to the wanted Spot strategy",
+            replace(st, restored_at=now.isoformat()),
+        )
     if control == "on":
         if is_fallback(live):
             return Action("none", "held on regular Fargate by the owner", st)
