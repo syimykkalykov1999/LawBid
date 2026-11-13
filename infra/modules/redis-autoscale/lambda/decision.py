@@ -178,14 +178,24 @@ def up_triggers(cfg, cur, m):
     return hit
 
 
-def _guard_reason(cfg, inst, g):
+def _guard_reason(cfg, inst, g, mode="tick"):
     if inst.status != "available":
         return "not_available"
     if inst.pending:
         return "pending_modification"
     if inst.cluster_mode:
         return "cluster_mode"
-    if cfg.require_failover and (not inst.auto_failover or inst.replicas < 1):
+    # 13.11 (owner row 66): «Авто» removed the standby (12.11) to save money,
+    # and this guard then blocked every resize (312 «no_failover» in 26 h,
+    # cache.r7g.large at 0 % memory). Like the DB (12.11): growing under load
+    # in the day still needs the standby; shrinking runs only in the night
+    # window, where ElastiCache's online vertical scaling copies the data to
+    # the new node and keeps serving (AWS docs «Online vertical scaling»).
+    if (
+        mode != "night"
+        and cfg.require_failover
+        and (not inst.auto_failover or inst.replicas < 1)
+    ):
         return "no_failover"
     if g.ecs_unknown:
         return "ecs_unknown"
@@ -201,7 +211,7 @@ def decide(cfg, mode, inst, guards, state, metrics, now):
     cur = cfg.spec(inst.cls)
     if cur is None:
         return Decision("none", "unknown_class")
-    bad = _guard_reason(cfg, inst, guards)
+    bad = _guard_reason(cfg, inst, guards, mode)
     if bad:
         return Decision("none", bad)
     if mode == "tick":
