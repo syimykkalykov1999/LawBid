@@ -8,10 +8,19 @@ jest.mock('bullmq', () => ({
     getJobCounts: jest.fn(() =>
       Promise.resolve({
         waiting: name === 'stripe-webhooks-dlq' ? 2 : 0,
+        prioritized:
+          name === 'push'
+            ? ((globalThis as { __prio?: number }).__prio ?? 0)
+            : 0,
         failed: 0,
       }),
     ),
     getWaiting: jest.fn(() => Promise.resolve([])),
+    getPrioritized: jest.fn(() =>
+      Promise.resolve([
+        { timestamp: (globalThis as { __prioTs?: number }).__prioTs ?? 0 },
+      ]),
+    ),
     isPaused: jest.fn(() => Promise.resolve(false)),
     close: jest.fn(),
   })),
@@ -163,6 +172,21 @@ describe('SystemHealthService', () => {
     });
     expect(r.overall).toBe('yellow');
     expect(r.actions).toEqual({ onAws: false, budget: false });
+  });
+
+  it('counts prioritized jobs (every push) as waiting, with their age (row 79)', async () => {
+    const { svc, now } = build();
+    const g = globalThis as { __prio?: number; __prioTs?: number };
+    g.__prio = 1500;
+    g.__prioTs = now.getTime() - 400_000;
+    try {
+      const q = (await svc.report(now)).items.find((i) => i.key === 'queues');
+      expect(q?.status).toBe('red');
+      expect(q?.detail).toMatchObject({ waiting: 1500, oldestSec: 400 });
+    } finally {
+      delete g.__prio;
+      delete g.__prioTs;
+    }
   });
 
   it('database turns yellow when the nightly bloat check names a big table', async () => {
