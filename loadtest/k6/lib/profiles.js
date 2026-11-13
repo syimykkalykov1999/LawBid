@@ -7,6 +7,10 @@ export const LIMITS = all.limits;
 export const GATES = all.gates;
 export const P = all.profiles[PROFILE];
 if (!P) throw new Error(`unknown PROFILE ${PROFILE}`);
+// A profile may make the abort error rate stricter (combat: 1 %, owner row 59);
+// scripts/check-profiles.mjs refuses a looser one. scripts/run-generator.sh
+// passes the same number to scripts/guard.py.
+export const ABORT_ERROR_RATE = P.abort && P.abort.error_rate !== undefined ? P.abort.error_rate : all.limits.abort_error_rate;
 
 const share = (n) => Math.max(1, Math.ceil(n / SHARDS));
 
@@ -45,12 +49,12 @@ export function realtimeScenarios() {
   const out = {};
   const T = totalSeconds();
   if (P.ws_hold > 0) {
-    // ramp to the held-connection count in 20 % of the run (max 2 min), hold for ws_duration
+    // ramp to the held-connection count in 20 % of the run (max 2 min; ws_ramp_s overrides), hold for ws_duration
     out.sockets = {
       executor: 'ramping-vus',
       startVUs: 0,
       stages: [
-        { duration: secs(Math.min(120, T * 0.2)), target: share(P.ws_hold) },
+        { duration: secs(P.ws_ramp_s || Math.min(120, T * 0.2)), target: share(P.ws_hold) },
         { duration: P.ws_duration, target: share(P.ws_hold) },
       ],
       gracefulRampDown: '20s',

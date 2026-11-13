@@ -26,10 +26,10 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: "smoke (~$1, 10 min) | m1 (1M daily users) | m10 (10M daily users) | u1k / u10k / u100k (owner order 11: 1 000 / 10 000 / 100 000 people online, 15 min each, docs/dev/LOAD_TEST_PLAN_2026-11-09.md) | calls-smoke | calls-full. Local runs on the Mac, not here."
+        description: "smoke (~$1, 10 min) | m1 (1M daily users) | m10 (10M daily users) | u1k / u10k / u100k (owner order 11: 1 000 / 10 000 / 100 000 people online, 15 min each, docs/dev/LOAD_TEST_PLAN_2026-11-09.md) | calls-smoke | calls-full | combat (owner row 59: prod's automation up AND down on ARM64 + Spot, about $4, docs/dev/AWS_COMBAT_TEST_PLAN_2026-11-13.md). Local runs on the Mac, not here."
         type: choice
         required: true
-        options: [smoke, m1, m10, u1k, u10k, u100k, calls-smoke, calls-full]
+        options: [smoke, m1, m10, u1k, u10k, u100k, calls-smoke, calls-full, combat]
       confirm_cost:
         description: "The most you accept to pay for this run, in US dollars (whole number). The run stops before creating anything if the estimate's upper bound is higher."
         type: string
@@ -39,7 +39,7 @@ on:
         type: string
         required: false
       gameday:
-        description: "GameDay (AWS FIS, docs/runbooks/GAMEDAY.md): break something DURING the load. none | ecs (stop half of the API tasks) | redis (Redis failover) | rds (database failover, makes the DB Multi-AZ = about double DB price) | all. Only smoke and m1."
+        description: "GameDay (AWS FIS, docs/runbooks/GAMEDAY.md): break something DURING the load. none | ecs (stop half of the API tasks) | redis (Redis failover) | rds (database failover, makes the DB Multi-AZ = about double DB price) | all. Only smoke, m1 and combat (combat: use ecs = the Spot-interruption drill)."
         type: choice
         required: false
         default: none
@@ -77,12 +77,12 @@ jobs:
           node-version: "26.12.1"
       - name: Profile is allowed on AWS and caps are consistent
         run: |
-          case "$PROFILE" in smoke|m1|m10|u1k|u10k|u100k|calls-smoke|calls-full) ;; *) echo "::error::profile $PROFILE cannot run here (local = loadtest/run-local.sh on the Mac)"; exit 1;; esac
+          case "$PROFILE" in smoke|m1|m10|u1k|u10k|u100k|calls-smoke|calls-full|combat) ;; *) echo "::error::profile $PROFILE cannot run here (local = loadtest/run-local.sh on the Mac)"; exit 1;; esac
           node loadtest/scripts/check-profiles.mjs
           case "$GAMEDAY" in none) ;; ecs|redis|rds|all)
             [ "$PROFILE" = smoke ] && [ "$GAMEDAY" = all ] && { echo "::error::smoke is too short for gameday=all (one experiment at a time on smoke; use m1 for all)"; exit 1; }
-            case "$PROFILE" in smoke|m1) echo "GameDay \`$GAMEDAY\` on $PROFILE: the database is Multi-AZ for this run (about double the DB price, included in the upper bound below as +30 %)." | tee -a "$GITHUB_STEP_SUMMARY";;
-              *) echo "::error::GameDay runs only on smoke or m1"; exit 1;; esac;;
+            case "$PROFILE" in smoke|m1|combat) echo "GameDay \`$GAMEDAY\` on $PROFILE: the database is Multi-AZ for this run (about double the DB price, included in the upper bound below as +30 %)." | tee -a "$GITHUB_STEP_SUMMARY";;
+              *) echo "::error::GameDay runs only on smoke, m1 or combat"; exit 1;; esac;;
             *) echo "::error::unknown gameday $GAMEDAY"; exit 1;; esac
           for f in loadtest/scripts/*.sh loadtest/scripts/box/*.sh; do bash -n "$f"; done
       - name: Estimated cost
@@ -106,7 +106,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           need=""
-          case "$PROFILE" in m1|m10|u1k) need="smoke";; u10k) need="u1k";; u100k) need="u10k";; calls-full) need="calls-smoke";; esac
+          case "$PROFILE" in m1|m10|u1k|combat) need="smoke";; u10k) need="u1k";; u100k) need="u10k";; calls-full) need="calls-smoke";; esac
           [ -z "$need" ] && { echo "no gate for $PROFILE"; exit 0; }
           since="$(date -u -d '3 days ago' +%FT%TZ)"
           n="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow load-test.yml --status success --limit 50 --json displayTitle,createdAt \
@@ -196,7 +196,9 @@ jobs:
           # The test stack is x86_64, so the older amd64-only copy
           # (scripts/deploy/prod-images.sh pushes it as 1.4) also works.
           rc=0; scripts/ci/require-ecr.sh --probe "lawbid-clamav:$CLAMAV_TAG" >/dev/null 2>&1 || rc=$?
-          if [ "$rc" = 1 ]; then CLAMAV_TAG=1.4; fi
+          # an ARM64 profile (combat, like prod) cannot use the amd64-only copy (KNOWN_ERRORS 126)
+          arch="$(sed -nE 's/^cpu_architecture *= *"([A-Z0-9_]+)".*/\1/p' "infra/envs/loadtest/profiles/$PROFILE.tfvars")"
+          if [ "$rc" = 1 ] && [ "$arch" != ARM64 ]; then CLAMAV_TAG=1.4; fi
           scripts/ci/require-ecr.sh "lawbid-api:$tag" "lawbid-admin:$tag" "lawbid-clamav:$CLAMAV_TAG" "lawbid-pgbouncer:$PGBOUNCER_TAG"
           echo "api_image=$ECR_REGISTRY/lawbid-api:$tag" >>"$GITHUB_OUTPUT"
           echo "admin_image=$ECR_REGISTRY/lawbid-admin:$tag" >>"$GITHUB_OUTPUT"
@@ -372,6 +374,19 @@ jobs:
             node loadtest/scripts/discover.mjs "$RUNNER_TEMP/fixtures.json" 3000 "$assets"
           aws s3 cp "$RUNNER_TEMP/fixtures.json" "s3://$DOCS/loadtest/$RUN_ID/fixtures.json" --only-show-errors
 
+      - name: COMBAT WATCH (background, profile combat) - timeline + hard stops (5xx > 1 %, data tier destroyed)
+        if: env.PROFILE == 'combat'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/results/combat"
+          nohup python3 loadtest/scripts/combat-watch.py "$RUNNER_TEMP/stack.json" "$RUNNER_TEMP/results/combat" >"$RUNNER_TEMP/combat-watch.log" 2>&1 &
+          echo $! >"$RUNNER_TEMP/combat-watch.pid"
+          sleep 5
+          kill -0 "$(cat "$RUNNER_TEMP/combat-watch.pid")" || { echo "::error::the combat watcher died at start:"; cat "$RUNNER_TEMP/combat-watch.log"; exit 1; }
+          echo "combat watcher started (docs/dev/AWS_COMBAT_TEST_PLAN_2026-11-13.md)" | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: LOAD (generators on EC2 Spot; the guard stops them on error rate > 5 % or p95 > 2 s for 60 s)
         id: load
         timeout-minutes: 120
@@ -401,8 +416,14 @@ jobs:
           # GameDay: AWS FIS experiments in the middle of the load (loadtest/scripts/gameday.sh)
           if [ "$GAMEDAY" != none ] && [ "$(cat "$RUNNER_TEMP/gameday-templates.json")" != null ]; then
             mkdir -p "$RUNNER_TEMP/results"
-            ( ALB="$ALB" HOST_HEADER=api.lawbid-loadtest.invalid DELAY_SECONDS="$([ "$PROFILE" = smoke ] && echo 90 || echo 900)" GAP_SECONDS="$([ "$PROFILE" = smoke ] && echo 90 || echo 300)" \
+            ( ALB="$ALB" HOST_HEADER=api.lawbid-loadtest.invalid DELAY_SECONDS="$(case "$PROFILE" in smoke) echo 90;; combat) echo 1440;; *) echo 900;; esac)" GAP_SECONDS="$([ "$PROFILE" = smoke ] && echo 90 || echo 300)" \
                 loadtest/scripts/gameday.sh "$GAMEDAY" "$RUNNER_TEMP/gameday-templates.json" "$RUNNER_TEMP/results" >"$RUNNER_TEMP/logs/gameday.log" 2>&1 ) &
+            pids+=($!)
+          fi
+          # combat (row 59): Redis grow, synthetic Spot shortage, DB grow at fixed minutes (loadtest/scripts/combat-drill.sh)
+          if [ "$PROFILE" = combat ]; then
+            mkdir -p "$RUNNER_TEMP/results/combat"
+            ( loadtest/scripts/combat-drill.sh "$RUNNER_TEMP/stack.json" "$RUNNER_TEMP/results/combat" >"$RUNNER_TEMP/logs/combat-drill.log" 2>&1 ) &
             pids+=($!)
           fi
           for i in "${!G[@]}"; do
@@ -430,6 +451,14 @@ jobs:
           echo "load_rc=$rc_all" >>"$GITHUB_OUTPUT"
           exit 0
 
+      - name: Stop the combat watcher (always) - writes the up/down summary
+        if: always() && env.PROFILE == 'combat'
+        run: |
+          pid="$(cat "$RUNNER_TEMP/combat-watch.pid" 2>/dev/null || true)"
+          [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null || true
+          for _ in $(seq 1 30); do [ -f "$RUNNER_TEMP/results/combat/combat.md" ] && break; sleep 1; done
+          { echo '### Combat watcher log (tail)'; echo '```'; tail -n 20 "$RUNNER_TEMP/combat-watch.log" 2>/dev/null; echo '```'; } >>"$GITHUB_STEP_SUMMARY"
+
       - name: Collect results and write the report
         id: report
         if: always() && env.TF_INITIALIZED == '1'
@@ -446,6 +475,7 @@ jobs:
           node loadtest/scripts/estimate-cost.mjs "$PROFILE" --json >"$RUNNER_TEMP/results/cost.json" 2>/dev/null
           cp -r "$RUNNER_TEMP/logs" "$RUNNER_TEMP/results/ssm-logs" 2>/dev/null
           node loadtest/scripts/report.mjs --profile "$PROFILE" --dir "$RUNNER_TEMP/results" >"$RUNNER_TEMP/results/report.md"
+          [ -f "$RUNNER_TEMP/results/combat/combat.md" ] && cat "$RUNNER_TEMP/results/combat/combat.md" >>"$RUNNER_TEMP/results/report.md"
           cat "$RUNNER_TEMP/results/report.md" >>"$GITHUB_STEP_SUMMARY"
           # budget gates: one red annotation per missed budget (loadtest/profiles.json "gates")
           grep -E '^\| .* \| FAIL \|$' "$RUNNER_TEMP/results/report.md" | while IFS='|' read -r _ gate budget got _; do

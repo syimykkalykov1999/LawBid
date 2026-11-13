@@ -630,6 +630,57 @@ data "aws_iam_policy_document" "fis" {
 
 # Belt and braces: whatever the allow statements say, nothing tagged
 # Project=lawbid (production, staging) can be touched by these roles.
+# ------------------------- 8. Lambdas + their schedules (owner row 59) ----
+# The stack under test creates Lambda functions and EventBridge rules /
+# schedules (spot-fallback since 12.11, endpoints-autoscale, and with the
+# combat profile db-autoscale + redis-autoscale). Without these rights the
+# create step stops with AccessDenied. Same pattern as above: by name
+# lawbid-loadtest-*, prod / staging denied below. A separate policy: each
+# managed policy has a size limit (and a role takes at most 10).
+data "aws_iam_policy_document" "lambdas" {
+  statement {
+    sid       = "LambdaByName"
+    actions   = ["lambda:*"]
+    resources = ["arn:aws:lambda:*:${local.acct}:function:${local.lt}-*", "arn:aws:lambda:*:${local.acct}:function:${local.lt}-*:*"]
+  }
+  # Wide on purpose: list / account calls take no resource name.
+  statement {
+    sid       = "LambdaReadOnly"
+    actions   = ["lambda:ListFunctions", "lambda:GetAccountSettings", "lambda:ListEventSourceMappings", "lambda:ListLayers", "lambda:ListTags"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "EventRulesByName"
+    actions   = ["events:*"]
+    resources = ["arn:aws:events:*:${local.acct}:rule/${local.lt}-*"]
+  }
+  statement {
+    sid       = "EventsReadOnly"
+    actions   = ["events:DescribeRule", "events:ListRules", "events:ListTargetsByRule", "events:ListTagsForResource"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "SchedulesByName"
+    actions   = ["scheduler:*"]
+    resources = ["arn:aws:scheduler:*:${local.acct}:schedule/*/${local.lt}-*", "arn:aws:scheduler:*:${local.acct}:schedule-group/${local.lt}-*"]
+  }
+  statement {
+    sid       = "SchedulerReadOnly"
+    actions   = ["scheduler:GetSchedule", "scheduler:ListSchedules", "scheduler:GetScheduleGroup", "scheduler:ListScheduleGroups", "scheduler:ListTagsForResource"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "PassRolesToLambdaAndScheduler"
+    actions   = ["iam:PassRole"]
+    resources = ["arn:aws:iam::${local.acct}:role/${local.lt}-*"]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["lambda.amazonaws.com", "scheduler.amazonaws.com", "events.amazonaws.com"]
+    }
+  }
+}
+
 data "aws_iam_policy_document" "deny_prod" {
   statement {
     sid       = "NeverTouchProdAlarms"
@@ -651,7 +702,7 @@ data "aws_iam_policy_document" "deny_prod" {
   statement {
     sid       = "NeverTouchProductionOrStaging"
     effect    = "Deny"
-    actions   = ["ec2:*", "ecs:*", "rds:*", "elasticache:*", "elasticloadbalancing:*", "kms:*", "secretsmanager:*", "cloudfront:*", "wafv2:*", "sns:*", "s3:*", "logs:*", "ssm:*", "servicediscovery:*"]
+    actions   = ["ec2:*", "ecs:*", "rds:*", "elasticache:*", "elasticloadbalancing:*", "kms:*", "secretsmanager:*", "cloudfront:*", "wafv2:*", "sns:*", "s3:*", "logs:*", "ssm:*", "servicediscovery:*", "lambda:*", "events:*", "scheduler:*"]
     resources = ["*"]
     condition {
       test     = "StringEquals"
@@ -670,6 +721,7 @@ locals {
     edge    = data.aws_iam_policy_document.edge.json
     fis     = data.aws_iam_policy_document.fis.json
     dns     = data.aws_iam_policy_document.dns.json
+    lambdas = data.aws_iam_policy_document.lambdas.json
     deny    = data.aws_iam_policy_document.deny_prod.json
   }
   roles = { github = aws_iam_role.github.name, watchdog = aws_iam_role.watchdog.name }

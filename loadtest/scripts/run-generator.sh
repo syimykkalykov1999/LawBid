@@ -48,7 +48,9 @@ max_s=$(( total_s + 600 )); [ "$max_s" -gt "$limit_s" ] && max_s="$limit_s"
 export PROFILE API_URL WS_URL TOKENS_FILE FIXTURES_FILE HOST_HEADER CDN_URL SHARD SHARDS ALLOW_LOCAL PROD_HOSTS
 echo "[generator] profile=$PROFILE shard=${SHARD:-0}/${SHARDS:-1} target=$host max=${max_s}s out=$OUT"
 
-MAX_SECONDS="$max_s" python3 "$here/guard.py" "$OUT" >"$OUT/guard.log" 2>&1 &
+# a profile may make the abort error rate stricter (combat: 1 %, owner row 59)
+abort_err="$(python3 -c "import json;a=json.load(open('$root/profiles.json'));p=a['profiles']['$PROFILE'];print((p.get('abort') or {}).get('error_rate', a['limits']['abort_error_rate']))")"
+ABORT_ERROR_RATE="$abort_err" MAX_SECONDS="$max_s" python3 "$here/guard.py" "$OUT" >"$OUT/guard.log" 2>&1 &
 guard_pid=$!
 
 TO="$(command -v timeout || command -v gtimeout || true)"
