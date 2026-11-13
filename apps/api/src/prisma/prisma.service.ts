@@ -16,7 +16,13 @@ import {
 } from './slow-query.extension';
 import { softDeleteExtension } from './soft-delete.extension';
 import { transientRetryExtension } from './transient-retry.extension';
-import { parentShardLookup, shardExtension } from '../sharding/shard.extension';
+import {
+  parentShardLookup,
+  shardExtension,
+  txAwareLookup,
+  txParentShardLookup,
+  withTxShardLookup,
+} from '../sharding/shard.extension';
 import { shardContext } from '../sharding/shard-context';
 import {
   ShardDatabaseNotConfiguredError,
@@ -108,7 +114,9 @@ function shardMapTtlMs(
 export function extend(client: PrismaClient, primary?: () => unknown) {
   const base = client
     .$extends(softDeleteExtension())
-    .$extends(shardExtension(parentShardLookup(client)))
+    // Row 69: inside `$transaction(fn)` the parent lookup runs on the
+    // transaction's own connection (see the `$transaction` wrapper below).
+    .$extends(shardExtension(txAwareLookup(parentShardLookup(client))))
     .$extends(
       slowQueryExtension(
         slowQueryThresholdMs(),
@@ -492,20 +500,32 @@ export class PrismaService
         // Shard-ready step 7: a transaction on a NON-primary database gets a
         // `tx` whose global-family delegates answer from the primary
         // database (see tx-global-facade.ts). One database: unchanged.
+        // Row 69 (KE 123): every interactive transaction runs its callback
+        // with the shard extension's parent lookup on ITS OWN connection, so
+        // a create of a child of a legacy (v4 id) parent never waits for a
+        // second pool connection while holding the first.
+        const facade =
+          prop === '$transaction' &&
+          (client as unknown) !== (real as unknown) &&
+          !demoContext.isDemo();
         if (
           prop === '$transaction' &&
           typeof value === 'function' &&
-          (client as unknown) !== (real as unknown) &&
-          !demoContext.isDemo()
+          // A Jest spy on the primary client stays the spy (see below).
+          (facade || !(value as { _isMockFunction?: boolean })._isMockFunction)
         ) {
           return (arg: unknown, ...rest: unknown[]) =>
             typeof arg === 'function'
               ? (value as (...a: unknown[]) => unknown).call(
                   client,
                   (tx: object) =>
-                    (arg as (t: object) => unknown)(
-                      withGlobalFacade(tx, real, (model, op) =>
-                        shardStats.globalWriteInShardTx(model, op),
+                    withTxShardLookup(txParentShardLookup(tx), () =>
+                      (arg as (t: object) => unknown)(
+                        facade
+                          ? withGlobalFacade(tx, real, (model, op) =>
+                              shardStats.globalWriteInShardTx(model, op),
+                            )
+                          : tx,
                       ),
                     ),
                   ...rest,

@@ -398,10 +398,12 @@ export class CaseWorkspaceService {
       });
     }
     for (const id of ids) {
-      const file = await this.files.assertAttachable(userId, id, [
-        'case_photo',
-        'case_attachment',
-      ]);
+      const file = await this.files.assertAttachable(
+        userId,
+        id,
+        ['case_photo', 'case_attachment'],
+        tx,
+      );
       await this.files.assertFitsPlace('case', file);
     }
     const last = await tx.casePhoto.aggregate({

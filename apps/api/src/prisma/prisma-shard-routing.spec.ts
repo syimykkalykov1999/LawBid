@@ -3,6 +3,7 @@ import { newShardedId } from '../sharding/shard-id';
 import { shardContext } from '../sharding/shard-context';
 import { ShardMapRow } from '../sharding/shard-router';
 import { shardStats } from '../sharding/shard-stats';
+import { txAwareLookup } from '../sharding/shard.extension';
 import { PrismaService, routingOf } from './prisma.service';
 
 /** Which physical client a property access lands on, via `$extends`-free
@@ -66,6 +67,31 @@ describe('PrismaService shard routing (shard-ready steps 3-4)', () => {
 
     it('an unknown physical key is a clear error, not a silent primary', () => {
       expect(() => routingOf(svc).clientFor('db9')).toThrow(/db9/);
+    });
+
+    it('row 69: inside $transaction(fn) the parent-shard lookup uses the transaction', async () => {
+      const real = routingOf(svc).realClient() as unknown as object;
+      const findFirst = jest.fn(() => Promise.resolve({ shard_id: 9 }));
+      const fakeTx = { case: { findFirst } };
+      Object.defineProperty(real, '$transaction', {
+        configurable: true,
+        writable: true,
+        value: (fn: (tx: unknown) => unknown) => fn(fakeTx),
+      });
+      try {
+        const root = jest.fn(() => Promise.resolve(1));
+        const got = await svc.$transaction(async (tx) => {
+          expect(tx).toBe(fakeTx);
+          return txAwareLookup(root)('Case', 'c1');
+        });
+        expect(got).toBe(9);
+        expect(root).not.toHaveBeenCalled();
+        expect(findFirst).toHaveBeenCalledTimes(1);
+        // Outside the transaction: the raw-client lookup, as before.
+        expect(await txAwareLookup(root)('Case', 'c1')).toBe(1);
+      } finally {
+        delete (real as Record<string, unknown>).$transaction;
+      }
     });
   });
 

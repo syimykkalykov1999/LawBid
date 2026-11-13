@@ -1,4 +1,6 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { Prisma, PrismaClient } from '@prisma/client';
+import { SOFT_DELETE_META, withDeleted } from '../prisma/soft-delete.extension';
 import { hashShard, isShardedId, newShardedId, shardOf } from './shard-id';
 import { SHARDED_MODELS, ShardKey } from './shard-manifest';
 import { shardStats } from './shard-stats';
@@ -54,6 +56,67 @@ export function parentShardLookup(client: PrismaClient): ParentShardLookup {
       select: { shard_id: true },
     });
     return row?.shard_id ?? null;
+  };
+}
+
+/**
+ * Row 69 (KE 123): the same parent read, but on a transaction's OWN
+ * connection. Inside an interactive transaction the raw-client lookup above
+ * needs a SECOND pool connection while the transaction holds its first:
+ * with DB_POOL_SIZE concurrent transactions every connection is held and
+ * each waits for one more until the 5 s timeout (P2028, KE 122). `deleted_at:
+ * {}` keeps the raw lookup's "no soft-delete filter" (soft-delete.extension).
+ */
+export function txParentShardLookup(tx: object): ParentShardLookup {
+  return async (model, id) => {
+    const delegate = (
+      tx as Record<
+        string,
+        { findFirst(a: unknown): Promise<{ shard_id: number } | null> }
+      >
+    )[model[0].toLowerCase() + model.slice(1)];
+    const row = await delegate.findFirst({
+      where: SOFT_DELETE_META.models.has(model) ? withDeleted({ id }) : { id },
+      select: { shard_id: true },
+    });
+    return row?.shard_id ?? null;
+  };
+}
+
+interface TxLookupScope {
+  readonly lookup: ParentShardLookup;
+  open: boolean;
+}
+
+/** The transaction whose callback is running in this async context. */
+const txScope = new AsyncLocalStorage<TxLookupScope>();
+
+/**
+ * Runs an interactive transaction's callback with [lookup] (its own
+ * connection) as the parent-shard lookup of every create made meanwhile.
+ * Work the callback leaves running after it returns (fire-and-forget) sees
+ * the scope closed and uses the root lookup again: the transaction is gone.
+ * PrismaService wraps every `$transaction(fn)` with it.
+ */
+export async function withTxShardLookup<T>(
+  lookup: ParentShardLookup,
+  fn: () => T | Promise<T>,
+): Promise<T> {
+  const scope: TxLookupScope = { lookup, open: true };
+  try {
+    return await txScope.run(scope, fn);
+  } finally {
+    scope.open = false;
+  }
+}
+
+/** [root] outside a transaction, the running transaction's lookup inside
+ * (a transaction already closed by its timeout: the root lookup, as before). */
+export function txAwareLookup(root: ParentShardLookup): ParentShardLookup {
+  return (model, id) => {
+    const scope = txScope.getStore();
+    if (!scope?.open) return root(model, id);
+    return scope.lookup(model, id).catch(() => root(model, id));
   };
 }
 

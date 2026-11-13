@@ -1,4 +1,4 @@
-import { AppConfigService } from './app-config.service';
+import { AppConfigService, clearAppConfigMemo } from './app-config.service';
 
 function buildFakeRedis(store: Map<string, string> = new Map()) {
   return {
@@ -93,5 +93,88 @@ describe('AppConfigService.getMinAppVersion', () => {
     const service = new AppConfigService(prisma as never, redis as never);
 
     expect(await service.getMinAppVersion('ios')).toBeUndefined();
+  });
+});
+
+describe('AppConfigService.getConfig: expired memo (row 69, KE 123)', () => {
+  const env = process.env.NODE_ENV;
+  afterEach(() => {
+    process.env.NODE_ENV = env;
+    clearAppConfigMemo();
+    jest.restoreAllMocks();
+  });
+  const flush = async () => {
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+  };
+
+  it('answers the expired value at once and refreshes once in the background', async () => {
+    process.env.NODE_ENV = 'production'; // the memo is off under jest
+    clearAppConfigMemo();
+    let rows = [{ key: 'k', value: 'v1' }];
+    let release!: () => void;
+    let gate: Promise<void> = Promise.resolve();
+    const findMany = jest.fn(async () => {
+      await gate;
+      return rows;
+    });
+    const service = new AppConfigService(
+      { appConfig: { findMany } } as never,
+      buildFakeRedis() as never,
+    );
+    let now = 1_000_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    expect(await service.getConfig()).toEqual({ k: 'v1' }); // cold: awaited
+    expect(findMany).toHaveBeenCalledTimes(1);
+
+    // The memo expires; the table read now hangs (pool busy, Redis miss).
+    now += 60_000;
+    rows = [{ key: 'k', value: 'v2' }];
+    gate = new Promise<void>((r) => (release = r));
+    const other = new AppConfigService(
+      { appConfig: { findMany } } as never,
+      buildFakeRedis() as never,
+    );
+    // Neither caller waits for the table: both get the expired value.
+    expect(await other.getConfig()).toEqual({ k: 'v1' });
+    expect(await other.getConfig()).toEqual({ k: 'v1' });
+    await flush();
+    expect(findMany).toHaveBeenCalledTimes(2); // one background refresh
+    expect(await other.getConfig()).toEqual({ k: 'v1' }); // still hanging
+    release();
+    await flush();
+    expect(await other.getConfig()).toEqual({ k: 'v2' });
+  });
+
+  it('a refresh started before an admin write never brings the old value back', async () => {
+    process.env.NODE_ENV = 'production';
+    clearAppConfigMemo();
+    let release!: () => void;
+    let gate: Promise<void> = Promise.resolve();
+    let rows = [{ key: 'k', value: 'old' }];
+    const findMany = jest.fn(async () => {
+      await gate;
+      return rows;
+    });
+    // dropAppConfigCache also deletes the Redis copy: a Redis that misses.
+    const missing = {
+      get: jest.fn(() => Promise.resolve(null)),
+      set: jest.fn(() => Promise.resolve('OK')),
+    };
+    const service = new AppConfigService(
+      { appConfig: { findMany } } as never,
+      missing as never,
+    );
+    let now = 2_000_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    await service.getConfig();
+    now += 60_000;
+    gate = new Promise<void>((r) => (release = r));
+    await service.getConfig(); // starts the background refresh ('old')
+    clearAppConfigMemo(); // admin write
+    rows = [{ key: 'k', value: 'new' }];
+    release();
+    await flush();
+    gate = Promise.resolve();
+    expect(await service.getConfig()).toEqual({ k: 'new' });
   });
 });

@@ -24,9 +24,14 @@ export const APP_CONFIG_CACHE_KEY = 'config:app_config';
  * specs reset the Redis key directly and expect an immediate re-read. */
 const APP_CONFIG_MEMO_TTL_MS = 5_000;
 let appConfigMemo: { at: number; value: Record<string, unknown> } | null = null;
+/** Row 69: the one background refresh of a stale memo, and a counter that
+ * makes a refresh started before clearAppConfigMemo() drop its result. */
+let appConfigRefresh: Promise<void> | null = null;
+let appConfigGeneration = 0;
 
 export function clearAppConfigMemo(): void {
   appConfigMemo = null;
+  appConfigGeneration += 1;
 }
 
 /** Admin write paths: drop the in-process memo and the Redis copy. */
@@ -74,11 +79,30 @@ export class AppConfigService {
 
   async getConfig(): Promise<Record<string, unknown>> {
     const memoOn = process.env.NODE_ENV !== 'test';
-    if (
-      memoOn &&
-      appConfigMemo &&
-      Date.now() - appConfigMemo.at < APP_CONFIG_MEMO_TTL_MS
-    ) {
+    if (memoOn && appConfigMemo) {
+      if (Date.now() - appConfigMemo.at < APP_CONFIG_MEMO_TTL_MS) {
+        return appConfigMemo.value;
+      }
+      // Row 69 (KE 123): stale-while-revalidate (RFC 5861). Settings are
+      // read inside many interactive transactions (case create, bid accept,
+      // moderation ...). Awaiting the reload there meant, on a Redis miss, a
+      // table read on a SECOND pool connection while the transaction held
+      // its first; with the pool full of such transactions nobody could get
+      // one until the 5 s timeout. The expired value (at most one refresh
+      // older) is answered at once and one refresh runs in the background.
+      if (!appConfigRefresh) {
+        const generation = appConfigGeneration;
+        appConfigRefresh = this.loadConfig()
+          .then((value) => {
+            if (generation === appConfigGeneration) {
+              appConfigMemo = { at: Date.now(), value };
+            }
+          })
+          .catch(() => undefined)
+          .finally(() => {
+            appConfigRefresh = null;
+          });
+      }
       return appConfigMemo.value;
     }
     const value = await this.loadConfig();

@@ -134,20 +134,22 @@ export class StarsService {
 
   // ── switch, packs, settings ───────────────────────────────────────────
 
-  async enabled(): Promise<boolean> {
-    const f = await this.prisma.featureFlag.findUnique({
+  // Row 69 (KE 123): [db] = the caller's transaction when called inside
+  // one, so the read does not take a second pool connection.
+  async enabled(db: Db = this.prisma): Promise<boolean> {
+    const f = await db.featureFlag.findUnique({
       where: { key: STARS_FLAG },
       select: { enabled: true },
     });
     return f?.enabled ?? false;
   }
 
-  async assertEnabled(): Promise<void> {
-    if (!(await this.enabled())) throw featureOff();
+  async assertEnabled(db: Db = this.prisma): Promise<void> {
+    if (!(await this.enabled(db))) throw featureOff();
   }
 
-  private async cfg() {
-    const row = await this.prisma.appConfig.findUnique({
+  private async cfg(db: Db = this.prisma) {
+    const row = await db.appConfig.findUnique({
       where: { key: STARS_SETTINGS_KEY },
     });
     return parseStarsConfig(row?.value);
@@ -221,9 +223,12 @@ export class StarsService {
   }
 
   /** The price of [cents] in stars, or null while stars are off / free. */
-  async starsForCents(cents: number): Promise<number | null> {
-    if (cents <= 0 || !(await this.enabled())) return null;
-    return starsForCents(cents, (await this.cfg()).starCents);
+  async starsForCents(
+    cents: number,
+    db: Db = this.prisma,
+  ): Promise<number | null> {
+    if (cents <= 0 || !(await this.enabled(db))) return null;
+    return starsForCents(cents, (await this.cfg(db)).starCents);
   }
 
   /**
@@ -353,9 +358,9 @@ export class StarsService {
     messageId: string,
     emoji: string,
   ): Promise<number> {
-    const cfg = await this.cfg();
+    const cfg = await this.cfg(tx);
     if (!cfg.premiumReactions.includes(emoji)) return 0;
-    if (!(await this.enabled())) throw featureOff();
+    if (!(await this.enabled(tx))) throw featureOff();
     const ok = await this.debit(
       tx,
       userId,
@@ -1027,7 +1032,7 @@ export class StarsService {
     pack: { id: string; title: string; price_stars: number },
   ): Promise<void> {
     if (pack.price_stars <= 0) return;
-    await this.assertEnabled();
+    await this.assertEnabled(tx);
     await this.debit(
       tx,
       userId,

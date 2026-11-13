@@ -132,6 +132,27 @@ describe('SubscriptionSyncService seats', () => {
     ],
   });
 
+  it('row 69 (KE 123): the seat price ids are read before the transaction, not inside it', async () => {
+    const { svc, prisma } = setup();
+    const order: string[] = [];
+    const pricing = (
+      svc as unknown as { pricing: { allSeatPriceIds: jest.Mock } }
+    ).pricing;
+    pricing.allSeatPriceIds.mockImplementation(() => {
+      order.push('seatPriceIds');
+      return Promise.resolve(['price_seat']);
+    });
+    const run = prisma.$transaction.getMockImplementation()!;
+    prisma.$transaction.mockImplementation(((fn: never) => {
+      order.push('transaction');
+      return run(fn);
+    }) as never);
+    await svc.apply(remote(4));
+    expect(order[0]).toBe('seatPriceIds');
+    expect(order.filter((o) => o === 'seatPriceIds')).toHaveLength(1);
+    expect(order).toContain('transaction');
+  });
+
   it('reads the seat quantity from Stripe (a purchase applied after 3DS)', async () => {
     const { svc, updates } = setup();
     await svc.apply(remote(4));

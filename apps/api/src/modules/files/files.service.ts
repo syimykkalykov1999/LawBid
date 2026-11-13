@@ -896,8 +896,11 @@ export class FilesService {
     userId: string,
     fileId: string,
     purposes: readonly FilePurpose[],
+    // Row 69 (KE 123): a caller inside a transaction passes it, so this read
+    // does not take a second pool connection while the transaction holds one.
+    db: Pick<Prisma.TransactionClient, 'file'> = this.prisma,
   ): Promise<File> {
-    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+    const file = await db.file.findUnique({ where: { id: fileId } });
     if (!file || file.owner_user_id !== userId) {
       throw new NotFoundException({
         code: ErrorCode.NOT_FOUND,
