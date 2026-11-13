@@ -789,7 +789,7 @@ variable "create_anomaly_monitor" {
 }
 variable "clamav_image" {
   type        = string
-  default     = "clamav/clamav:1.4"
+  default     = "clamav/clamav-debian:1.4" # 13.11 KE 126: multi-arch; clamav/clamav:1.4 is amd64 only
   description = "Antivirus sidecar image; prod uses the ECR copy (scripts/deploy/prod-images.sh)."
 }
 variable "documents_cdn_public_key_pem" {

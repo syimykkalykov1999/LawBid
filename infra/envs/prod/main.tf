@@ -97,8 +97,9 @@ module "stack" {
   # 13.11 (KNOWN_ERRORS 126): on ARM64 the worker could not start — the ECR
   # mirror `lawbid-clamav:1.4` is amd64 only. `:1.4-debian` is the SAME ClamAV
   # 1.4 published multi-arch (amd64 + arm64), mirrored by «Mirror ClamAV».
+  # On either processor: the old `:1.4` expires under the ECR keep rule.
   clamav_image = (
-    var.cpu_architecture == "ARM64" && can(regex(":1\\.4$", var.clamav_image))
+    can(regex("/lawbid-clamav:1\\.4$", var.clamav_image))
     ? "${var.clamav_image}-debian"
     : var.clamav_image
   )
