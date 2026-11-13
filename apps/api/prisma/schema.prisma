@@ -4470,6 +4470,23 @@ model AdminSession {
   @@map("admin_sessions")
 }
 
+/// Row 78 (1B messages): exact counters kept by triggers in the same
+/// transaction as the write (migration 20261128110000_stat_counters, the
+/// PostgreSQL wiki «Slow counting» pattern). metric 'messages' = live
+/// messages per UTC hour of created_at; 'users.live.<role>' = live users by
+/// role (bucket = epoch). slot = backend pid % 64 (no hot row); a reader
+/// sums the slots. Exists on every physical database (messages can live on
+/// a shard database). Written only by the triggers.
+model StatCounter {
+  metric String   @db.VarChar(64)
+  bucket DateTime @db.Timestamptz(6)
+  slot   Int      @db.SmallInt
+  n      BigInt   @default(0)
+
+  @@id([metric, bucket, slot])
+  @@map("stat_counters")
+}
+
 /// Owner 2026-10-22 (systems checklist §1): WebAuthn passkeys. One row per
 /// authenticator; `scope` says which sign-in it serves — the app (`user`:
 /// sign-in option and step-up) or the admin panel (`admin`: second factor

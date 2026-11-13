@@ -2,6 +2,7 @@ import { AdminSummaryService } from '../../common/admin-summary/admin-summary.se
 import {
   ADMIN_OVERVIEW_KEY,
   AdminOverviewService,
+  hourFloor,
 } from './admin-overview.service';
 
 /** In-memory stand-in for the ioredis calls AdminSummaryService makes. */
@@ -20,9 +21,17 @@ function fakeRedis() {
   };
 }
 
-/** A Prisma stand-in answering every count of the overview with [n]. */
+/** A Prisma stand-in answering every count of the overview with [n] and
+ * the trigger-kept counters (stat_counters, row 78) with [n] too. */
 function fakePrisma(n: number) {
   const count = jest.fn(() => Promise.resolve(n));
+  const queryRaw = jest.fn(() =>
+    Promise.resolve([
+      { metric: 'users.live.client', n: BigInt(n) },
+      { metric: 'users.live.attorney', n: BigInt(n) },
+      { metric: 'messages', n: BigInt(n) },
+    ]),
+  );
   const model = {
     count,
     aggregate: jest.fn(() =>
@@ -30,13 +39,18 @@ function fakePrisma(n: number) {
     ),
     findMany: jest.fn(() => Promise.resolve([])),
   };
-  const prisma = new Proxy<Record<string, unknown>>(
+  const prisma = new Proxy<Record<string | symbol, unknown>>(
     {},
     {
-      get: () => model,
+      get: (_t, prop) =>
+        prop === '$queryRaw'
+          ? queryRaw
+          : typeof prop === 'symbol'
+            ? undefined
+            : model,
     },
   );
-  return { prisma, count };
+  return { prisma, count, queryRaw };
 }
 
 const stored = (redis: ReturnType<typeof fakeRedis>, ageMs: number) =>
@@ -64,7 +78,7 @@ describe('AdminOverviewService (row 78: the overview is a daily snapshot)', () =
 
   it('nothing stored: concurrent first readers share ONE count', async () => {
     const redis = fakeRedis();
-    const { prisma, count } = fakePrisma(3);
+    const { prisma, count, queryRaw } = fakePrisma(3);
     const svc = new AdminOverviewService(
       prisma as never,
       undefined,
@@ -73,8 +87,11 @@ describe('AdminOverviewService (row 78: the overview is a daily snapshot)', () =
     const all = await Promise.all([svc.overview(), svc.overview()]);
     expect(all[0].clients).toBe(3);
     expect(all[1].clients).toBe(3);
-    // 15 counts in one computation (17 numbers, 2 of them aggregates).
-    expect(count).toHaveBeenCalledTimes(15);
+    expect(all[0].messages7d).toBe(3);
+    // One computation: 12 counts + one read of the counters (17 numbers:
+    // 2 aggregates, clients / attorneys / messages from stat_counters).
+    expect(count).toHaveBeenCalledTimes(12);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('the daily job recounts only when the snapshot is due', async () => {
@@ -90,7 +107,18 @@ describe('AdminOverviewService (row 78: the overview is a daily snapshot)', () =
     expect(count).not.toHaveBeenCalled();
     stored(redis, 27 * 3600_000);
     await svc.refreshDaily();
-    expect(count).toHaveBeenCalledTimes(15);
+    expect(count).toHaveBeenCalledTimes(12);
     expect((await svc.overview()).clients).toBe(2);
+  });
+});
+
+describe('hourFloor (row 78: the counters are kept per UTC hour)', () => {
+  it('drops minutes, seconds and milliseconds in UTC', () => {
+    expect(hourFloor(new Date('2026-11-06T04:37:12.345Z')).toISOString()).toBe(
+      '2026-11-06T04:00:00.000Z',
+    );
+    expect(hourFloor(new Date('2026-11-06T04:00:00.000Z')).toISOString()).toBe(
+      '2026-11-06T04:00:00.000Z',
+    );
   });
 });
