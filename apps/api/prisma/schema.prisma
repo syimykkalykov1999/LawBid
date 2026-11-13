@@ -5283,6 +5283,9 @@ model AttorneyTrust {
   @@index([level])
   @@index([payments_hold])
   @@index([bids_hold])
+  // Row 37: the staff queue's firm-link and name-check facts.
+  @@index([firm_link_status])
+  @@index([name_check])
   @@map("attorney_trust")
 }
 
