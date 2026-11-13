@@ -1,10 +1,16 @@
 'use client';
 
-import { animate, useInView, useMotionValue, useTransform } from 'motion/react';
+import { animate, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import * as m from 'motion/react-m';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
-/** Counts up to `value` when it scrolls into view (and on change). */
+/**
+ * A number that shows its real value at once and tweens only when the value
+ * changes afterwards (owner row 88, 2026-11-13: it used to count up from 0 on
+ * every visit). With «reduce motion» on it just jumps to the new value: an
+ * imperative `animate()` on a number does not follow `MotionConfig
+ * reducedMotion`, so `useReducedMotion` is checked here (motion docs).
+ */
 export function AnimatedNumber({
   value,
   format = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n)),
@@ -12,14 +18,17 @@ export function AnimatedNumber({
   value: number;
   format?: (n: number) => string;
 }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true });
-  const mv = useMotionValue(0);
+  const reduce = useReducedMotion();
+  const mv = useMotionValue(value);
   const text = useTransform(mv, (v) => format(v));
   useEffect(() => {
-    if (!inView) return;
-    const c = animate(mv, value, { duration: 1.1, ease: [0.16, 1, 0.3, 1] });
+    if (mv.get() === value) return;
+    if (reduce) {
+      mv.jump(value);
+      return;
+    }
+    const c = animate(mv, value, { duration: 0.6, ease: [0.16, 1, 0.3, 1] });
     return () => c.stop();
-  }, [inView, value, mv]);
-  return <m.span ref={ref}>{text}</m.span>;
+  }, [value, mv, reduce]);
+  return <m.span>{text}</m.span>;
 }

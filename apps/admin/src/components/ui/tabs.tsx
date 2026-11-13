@@ -20,7 +20,11 @@ export function Tabs<T extends string>({
 }) {
   const id = useId();
   return (
-    <div
+    // Owner row 88 (2026-11-13): the strip scrolls sideways on phones, so it is
+    // a motion `layoutScroll` box: the pill measures with the scroll offset
+    // and no longer jumps or flies in from the wrong place (motion docs).
+    <m.div
+      layoutScroll
       role="tablist"
       className={cn('inline-flex max-w-full items-center gap-1 overflow-x-auto sm:flex-wrap rounded-[14px] border border-line bg-surface-2 p-1', className)}
     >
@@ -57,6 +61,6 @@ export function Tabs<T extends string>({
           </button>
         );
       })}
-    </div>
+    </m.div>
   );
 }

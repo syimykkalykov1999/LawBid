@@ -11,7 +11,7 @@ import { CategoryBadge, initials, PriorityBadge, relativeTime, SlaBadge, type Ti
 export function TicketRowItem({ t, i, showStatus }: { t: TicketRow; i: number; showStatus?: boolean }) {
   return (
     <m.li
-      initial={{ opacity: 0, y: 10 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(i, 12) * 0.03, ease: [0.16, 1, 0.3, 1] }}
     >
