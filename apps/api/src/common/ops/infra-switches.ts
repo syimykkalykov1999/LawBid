@@ -436,12 +436,10 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     id: 'aws.graviton_spot',
     values: {
       off: { cpu_architecture: 'X86_64', api_spot: false, worker_spot: false },
-      // 12.11 (KNOWN_ERRORS 119): Spot is NOT part of this switch. Turning
-      // api_spot/worker_spot on changes launch_type, which the AWS provider
-      // can only do by DESTROYING and recreating the api/worker services
-      // (minutes of downtime; force_new_deployment does not help). ARM alone
-      // is a new task definition and a normal rolling deploy.
-      on: { cpu_architecture: 'ARM64', api_spot: false, worker_spot: false },
+      // 12.11 (KNOWN_ERRORS 119): turning Spot on changes launch_type, so the
+      // AWS provider recreates the api/worker services (minutes of downtime).
+      // The owner chose to take that once now, before launch, with no users.
+      on: { cpu_architecture: 'ARM64', api_spot: true, worker_spot: true },
     },
     impact:
       'Серверы перезапускаются по очереди. Нужен образ для ARM (выкат делает его сам).',
