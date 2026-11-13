@@ -243,8 +243,15 @@ export class PasskeyService {
     };
     if ((expect.bind ?? null) !== stored.bind)
       throw passkeyInvalid('Wrong challenge.');
+    // The DTO only guarantees `response` is an object (@IsObject), so a
+    // malformed assertion like `{}` leaves `response.id` undefined. Passing
+    // that to findUnique raises PrismaClientValidationError (a 500) on an
+    // unauthenticated endpoint — reject it as a bad assertion (401) instead.
+    const credentialId = (response as { id?: unknown }).id;
+    if (typeof credentialId !== 'string' || credentialId.length === 0)
+      throw passkeyInvalid('Unknown passkey.');
     const cred = await this.prisma.webauthnCredential.findUnique({
-      where: { credential_id: response.id },
+      where: { credential_id: credentialId },
     });
     if (!cred || cred.scope !== scope) throw passkeyInvalid('Unknown passkey.');
     const pinned = expect.userId ?? stored.userId;

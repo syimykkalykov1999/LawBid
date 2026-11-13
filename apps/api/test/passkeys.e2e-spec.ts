@@ -254,6 +254,25 @@ describe('passkeys (e2e)', () => {
     expect(code(noKey)).toBe('PASSKEY_NOT_FOUND');
   });
 
+  // Security loop (owner row 13, 2026-11-13): a malformed assertion must be
+  // a clean 401, never a 500. schemathesis fuzzed `/auth/passkeys/login`
+  // with `response: {}` against a LIVE challenge and got a 500 —
+  // `response.id` was undefined and reached prisma.findUnique, which threw
+  // PrismaClientValidationError on this unauthenticated endpoint.
+  it('app: a malformed login assertion is rejected (401), not a 500', async () => {
+    for (const response of [{}, { id: '' }, { id: 123 }, { foo: 'bar' }]) {
+      const opts = await api()
+        .post('/api/v1/auth/passkeys/login/options')
+        .send({})
+        .expect(200);
+      const res = await api()
+        .post('/api/v1/auth/passkeys/login')
+        .send({ challengeId: data(opts).challengeId, response })
+        .expect(401);
+      expect(code(res)).toBe('PASSKEY_INVALID');
+    }
+  });
+
   it('app: the passkey_login flag refuses sign-ins (enrolled keys stay for reauth)', async () => {
     const flags = app.get(FeatureFlagsService);
     await prisma.featureFlag.upsert({
