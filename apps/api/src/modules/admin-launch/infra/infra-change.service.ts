@@ -197,17 +197,63 @@ export class InfraChangeService {
    * / terraform.tfvars decides, the page shows the registry default).
    */
   async liveStates(): Promise<Map<string, InfraTarget>> {
-    const rows = await this.prisma.infraChangeRequest.findMany({
-      where: { status: 'done' },
-      orderBy: { finished_at: 'desc' },
-      distinct: ['item_id'],
-      select: { item_id: true, to_state: true },
-    });
     const out = new Map<string, InfraTarget>();
+    for (const [id, s] of await this.settled()) out.set(id, s.to);
+    return out;
+  }
+
+  /**
+   * Rows 8 / 9 (13.11): the items whose settled position (the same rule as
+   * liveStates) was set by an automatic switch-on. «Авто» may switch these
+   * off again by itself. Counting only «done» here missed the search domain
+   * (all its automatic «Вкл» failed on Redis after it was created), so the
+   * automation never treated it as its own and never switched it off.
+   */
+  async autoOwned(): Promise<Set<string>> {
+    const out = new Set<string>();
+    for (const [id, s] of await this.settled()) {
+      if (s.to === 'on' && s.by === SYSTEM_ACTOR_ID) out.add(id);
+    }
+    return out;
+  }
+
+  /** The last finished request per item that proves the item's position. */
+  private async settled(): Promise<
+    Map<string, { to: InfraTarget; by: string }>
+  > {
+    // Row 9 (13.11): a failed request whose own plan touched nothing of the
+    // item (failureSettled) proves the cloud already holds its target. The
+    // search domain was created by an apply that then failed on Redis, so
+    // no request for it is «done»; without this «Авто» thought it was off
+    // and could never switch it off.
+    const rows = await this.prisma.infraChangeRequest.findMany({
+      where: { status: { in: ['done', 'failed'] }, finished_at: { not: null } },
+      orderBy: { finished_at: 'desc' },
+      take: 1000,
+      select: {
+        item_id: true,
+        to_state: true,
+        status: true,
+        plan_summary: true,
+        requested_by: true,
+      },
+    });
+    const out = new Map<string, { to: InfraTarget; by: string }>();
     for (const r of rows) {
-      if (r.to_state === 'on' || r.to_state === 'off') {
-        out.set(r.item_id, r.to_state);
-      }
+      if (out.has(r.item_id)) continue;
+      if (r.to_state !== 'on' && r.to_state !== 'off') continue;
+      const known =
+        r.status === 'done' ||
+        failureSettled(
+          {
+            status: r.status,
+            toState: r.to_state,
+            plan: (r.plan_summary as InfraRequestView['plan']) ?? null,
+          },
+          COST_REGISTRY.find((e) => e.id === r.item_id)?.awsTypes,
+          undefined,
+        );
+      if (known) out.set(r.item_id, { to: r.to_state, by: r.requested_by });
     }
     return out;
   }

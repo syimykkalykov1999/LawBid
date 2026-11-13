@@ -15,14 +15,40 @@ const Ctx = createContext<{
   toggle: () => void;
 } | null>(null);
 
+/**
+ * Turns every CSS transition off for one frame while the theme class flips, so
+ * the switch costs one restyle instead of thousands of colour transitions on a
+ * big table (owner row 88, 2026-11-13). Copied from next-themes
+ * `disableAnimation` (MIT, Copyright (c) 2022 Paco Coursey; see
+ * THIRD_PARTY_NOTICES.md), the code behind its `disableTransitionOnChange`.
+ */
+export const disableAnimation = () => {
+  const css = document.createElement('style');
+  css.appendChild(
+    document.createTextNode(
+      `*,*::before,*::after{-webkit-transition:none!important;-moz-transition:none!important;-o-transition:none!important;-ms-transition:none!important;transition:none!important}`,
+    ),
+  );
+  document.head.appendChild(css);
+
+  return () => {
+    // Force restyle
+    (() => window.getComputedStyle(document.body))();
+
+    // Wait for next tick before removing
+    setTimeout(() => {
+      document.head.removeChild(css);
+    }, 1);
+  };
+};
+
 function apply(pref: ThemePref): 'light' | 'dark' {
   const dark =
     pref === 'dark' ||
     (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  const root = document.documentElement;
-  root.classList.add('theme-switching');
-  root.classList.toggle('dark', dark);
-  window.setTimeout(() => root.classList.remove('theme-switching'), 400);
+  const enable = disableAnimation();
+  document.documentElement.classList.toggle('dark', dark);
+  enable();
   return dark ? 'dark' : 'light';
 }
 
