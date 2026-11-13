@@ -1,4 +1,5 @@
 import { FeedRecoJob, RECO_TOP_N, exploreScores } from './feed-reco.job';
+import { recoAuthorsKey } from './feed.service';
 
 /** Algo audit 2026-10-27 (CONTENT H-5): exploration slots in the snapshot. */
 function setup(opts: {
@@ -14,8 +15,10 @@ function setup(opts: {
     return Promise.resolve(opts.ranked);
   });
   const zadd = jest.fn();
+  const hset = jest.fn();
   const multi = {
     zadd,
+    hset,
     expire: jest.fn(),
     set: jest.fn(),
     exec: jest.fn().mockResolvedValue([]),
@@ -49,11 +52,28 @@ function setup(opts: {
     }
     return out;
   };
-  return { job, queryRaw, written };
+  return { job, queryRaw, written, hset };
 }
 
 const ranked = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ id: `r${i}`, score: 1000 - i }));
+
+describe('FeedRecoJob author hash (row 64)', () => {
+  it('writes each post author next to the snapshot, same version', async () => {
+    const { job, hset } = setup({
+      ranked: [
+        { id: 'r0', author: 'a0', score: 2 },
+        { id: 'r1', author: 'a1', score: 1 },
+      ] as never,
+      fresh: [{ id: 'new1', author: 'a9' }] as never,
+    });
+    const res = await job.run(new Date('2026-10-28T12:00:00Z'));
+    expect(hset).toHaveBeenCalledWith(
+      recoAuthorsKey(res.version),
+      expect.objectContaining({ r0: 'a0', r1: 'a1', new1: 'a9' }),
+    );
+  });
+});
 
 describe('FeedRecoJob exploration (CONTENT H-5)', () => {
   it('a full ranking keeps slots for fresh posts with no reactions', async () => {

@@ -13,6 +13,8 @@ AiAssistantStatusDto _$AiAssistantStatusDtoFromJson(
   connected: json['connected'] as bool,
   allowed: json['allowed'] as bool,
   reason: json['reason'] as String?,
+  tasksAllowed: json['tasksAllowed'] as bool,
+  tasksReason: json['tasksReason'] as String?,
   monthUsd: json['monthUsd'] as num,
   maxUsd: json['maxUsd'] as num,
   tasks: (json['tasks'] as List<dynamic>)
@@ -22,6 +24,8 @@ AiAssistantStatusDto _$AiAssistantStatusDtoFromJson(
   runs: (json['runs'] as List<dynamic>)
       .map((e) => AiRunDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  model: AiWorkerModel.fromJson(json['model'] as String),
+  models: (json['models'] as List<dynamic>).map((e) => e as String).toList(),
 );
 
 Map<String, dynamic> _$AiAssistantStatusDtoToJson(
@@ -31,9 +35,13 @@ Map<String, dynamic> _$AiAssistantStatusDtoToJson(
   'connected': instance.connected,
   'allowed': instance.allowed,
   'reason': ?instance.reason,
+  'tasksAllowed': instance.tasksAllowed,
+  'tasksReason': ?instance.tasksReason,
   'monthUsd': instance.monthUsd,
   'maxUsd': instance.maxUsd,
   'tasks': instance.tasks.map((e) => e.toJson()).toList(),
   'tasksError': ?instance.tasksError,
   'runs': instance.runs.map((e) => e.toJson()).toList(),
+  'model': instance.model.toJson(),
+  'models': instance.models,
 };

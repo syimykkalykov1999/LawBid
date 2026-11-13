@@ -17,7 +17,9 @@ function fakeTx(clientId: string | null = 'client-1') {
   const rows: CaseJournal[] = [];
   const tx = {
     $queryRaw: jest.fn((strings: TemplateStringsArray) => {
-      expect(strings.join('?')).toMatch(/FROM cases WHERE id = .* FOR UPDATE/s);
+      expect(strings.join('?')).toMatch(
+        /FROM cases WHERE id = .* FOR NO KEY UPDATE/s,
+      );
       return Promise.resolve(clientId ? [{ client_id: clientId }] : []);
     }),
     caseJournal: {

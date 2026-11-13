@@ -7,11 +7,13 @@
 #
 #   scripts/ai-assistant/api.sh gate|digest            -> prints the JSON body
 #   scripts/ai-assistant/api.sh report @body.json      -> books the run
+#   scripts/ai-assistant/api.sh attachments '{"issueNumber":N,"ids":[…]}'
+#                         -> the task's pictures (base64; runner only, 12.11)
 set -euo pipefail
-WHAT=${1:?gate|digest|report}
+WHAT=${1:?gate|digest|report|attachments}
 BODY=${2:-'{}'}
 API=${LAWBID_API_URL:?LAWBID_API_URL}
-[[ "$WHAT" =~ ^(gate|digest|report)$ ]] || { echo "api.sh: bad call" >&2; exit 1; }
+[[ "$WHAT" =~ ^(gate|digest|report|attachments)$ ]] || { echo "api.sh: bad call" >&2; exit 1; }
 : "${ACTIONS_ID_TOKEN_REQUEST_URL:?the job needs permissions: id-token: write}"
 TOKEN=$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
   "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=lawbid-ai-assistant" | jq -r '.value')

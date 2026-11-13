@@ -436,6 +436,9 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     id: 'aws.graviton_spot',
     values: {
       off: { cpu_architecture: 'X86_64', api_spot: false, worker_spot: false },
+      // 12.11 (KNOWN_ERRORS 119): turning Spot on changes launch_type, so the
+      // AWS provider recreates the api/worker services (minutes of downtime).
+      // The owner chose to take that once now, before launch, with no users.
       on: { cpu_architecture: 'ARM64', api_spot: true, worker_spot: true },
     },
     impact:

@@ -1,11 +1,25 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AuditLogService } from '../admin-access/audit-log.service';
-import { InfraGithubClient } from '../admin-launch/infra-github';
+import {
+  extensionOf,
+  issueAttachmentsLine,
+} from '../ai-attachments/ai-attachments.logic';
+import { AiAttachmentsService } from '../ai-attachments/ai-attachments.service';
+import {
+  GithubMergeError,
+  InfraGithubClient,
+} from '../admin-launch/infra-github';
 import { SentryIssuesClient } from '../staff-home/sentry-issues.client';
+import {
+  STAFF_AI_MODELS,
+  isStaffAiModel,
+  type StaffAiModel,
+} from '../staff-ai/staff-ai.types';
 import {
   AI_REFUSAL_TEXT,
   AI_TASK_LABEL,
@@ -22,6 +36,40 @@ import {
   type AiRunKind,
   type AiTriggerReason,
 } from './ai-assistant.logic';
+import {
+  AI_BRANCH_PREFIX,
+  AI_PULL_REFUSAL_TEXT,
+  checksState,
+  pullGuard,
+  pullRefusal,
+  pullSummary,
+  type AiPullRefusal,
+  type ChecksState,
+} from './ai-pull-guard.logic';
+
+/** One AI merge at a time across all API processes (SET NX PX + token). */
+const MERGE_LOCK_KEY = 'ai:merge:lock';
+const MERGE_LOCK_TTL_MS = 120_000;
+const RELEASE_LOCK = `
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0`;
+
+export interface AiPullRow {
+  number: number;
+  title: string;
+  url: string;
+  summary: string;
+  headSha: string;
+  branch: string;
+  createdAt: string;
+  checks: ChecksState | 'unknown';
+  costUsd: number | null;
+}
+
+/** Owner 2026-11-12 (row 55): every AI starts on Opus 5.5. */
+export const DEFAULT_AI_MODEL: StaffAiModel = 'claude-opus-5-5';
 
 /** Last runs kept for the admin page (Redis list, newest first). */
 const RUNS_KEY = 'ai:runs';
@@ -44,6 +92,8 @@ export interface AiStatus {
   connected: boolean;
   allowed: boolean;
   reason: string | null;
+  tasksAllowed: boolean;
+  tasksReason: string | null;
   monthUsd: number;
   maxUsd: number;
   tasks: {
@@ -56,6 +106,8 @@ export interface AiStatus {
   }[];
   tasksError: string | null;
   runs: AiRunRecord[];
+  model: StaffAiModel;
+  models: StaffAiModel[];
 }
 
 /**
@@ -75,6 +127,7 @@ export class AiAssistantService {
     private readonly audit: AuditLogService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Optional() private readonly sentry?: SentryIssuesClient,
+    @Optional() private readonly attachments?: AiAttachmentsService,
   ) {}
 
   private async mode(): Promise<string> {
@@ -82,6 +135,18 @@ export class AiAssistantService {
       (await this.settings.string('ai.assistant_mode').catch(() => 'off')) ??
       'off'
     );
+  }
+
+  /**
+   * Owner 2026-11-12 (row 55): the model of the runs (`ai.assistant_model`,
+   * Opus 5.5 by default). Only a known model id ever leaves here: anything
+   * else falls back to the default, and the workflow re-checks the list.
+   */
+  async model(): Promise<StaffAiModel> {
+    const m = await this.settings
+      .string('ai.assistant_model')
+      .catch(() => DEFAULT_AI_MODEL);
+    return isStaffAiModel(m) ? m : DEFAULT_AI_MODEL;
   }
 
   private async maxUsd(): Promise<number> {
@@ -96,17 +161,20 @@ export class AiAssistantService {
     return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
   }
 
-  async gate(now: Date = new Date()) {
-    const [mode, connected, monthUsd, maxUsd] = await Promise.all([
+  /** [kind]: the scheduled look or an owner task (Авто runs only the first). */
+  async gate(now: Date = new Date(), kind: AiRunKind = 'schedule') {
+    const [mode, connected, monthUsd, maxUsd, model] = await Promise.all([
       this.mode(),
       this.github.configured(),
       this.monthUsd(now),
       this.maxUsd(),
+      this.model(),
     ]);
-    const g = aiGate({ mode, connected, monthUsd, maxUsd });
+    const g = aiGate({ mode, connected, monthUsd, maxUsd, kind });
     return {
       ...g,
       reasonText: g.reason ? AI_REFUSAL_TEXT[g.reason] : null,
+      model,
       mode,
       connected,
       monthUsd,
@@ -121,14 +189,47 @@ export class AiAssistantService {
     if (g.connected) {
       try {
         tasks = await this.github.issuesWithPulls(AI_TASK_LABEL, 20);
+        // Owner 2026-11-12 (row 49): a closed task's pictures start their
+        // ai.retention_images_days clock.
+        await this.attachments
+          ?.closeTasks(
+            tasks.filter((t) => t.state === 'closed').map((t) => t.number),
+          )
+          .catch(() => 0);
       } catch (e) {
         tasksError = (e as Error).message.slice(0, 200);
       }
     }
+    const runs = await this.runs();
+    const t = aiGate({
+      mode: g.mode,
+      connected: g.connected,
+      monthUsd: g.monthUsd,
+      maxUsd: g.maxUsd,
+      kind: 'task',
+    });
+    return {
+      mode: g.mode,
+      connected: g.connected,
+      allowed: g.allowed,
+      reason: g.reasonText,
+      tasksAllowed: t.allowed,
+      tasksReason: t.reason ? AI_REFUSAL_TEXT[t.reason] : null,
+      monthUsd: g.monthUsd,
+      maxUsd: g.maxUsd,
+      tasks,
+      tasksError,
+      runs,
+      model: g.model,
+      models: [...STAFF_AI_MODELS],
+    };
+  }
+
+  private async runs(): Promise<AiRunRecord[]> {
     const raw = await this.redis
       .lrange(RUNS_KEY, 0, RUNS_KEEP - 1)
       .catch(() => []);
-    const runs = raw
+    return raw
       .map((r) => {
         try {
           return JSON.parse(r) as AiRunRecord;
@@ -137,42 +238,250 @@ export class AiAssistantService {
         }
       })
       .filter((r): r is AiRunRecord => r !== null);
-    return {
-      mode: g.mode,
-      connected: g.connected,
-      allowed: g.allowed,
-      reason: g.reasonText,
-      monthUsd: g.monthUsd,
-      maxUsd: g.maxUsd,
-      tasks,
-      tasksError,
-      runs,
-    };
+  }
+
+  /**
+   * 12.11.2026: the AI's open PRs (branches ai/… of this repository) with
+   * their CI state, what/why from the PR body and the run cost when the
+   * workflow reported one. Nothing here merges.
+   */
+  async pulls(): Promise<{ pulls: AiPullRow[]; error: string | null }> {
+    if (!(await this.github.configured())) {
+      return { pulls: [], error: AI_PULL_REFUSAL_TEXT.not_connected };
+    }
+    try {
+      const [{ pulls }, runs] = await Promise.all([
+        this.github.openPullsByPrefix(AI_BRANCH_PREFIX),
+        this.runs(),
+      ]);
+      const rows = await Promise.all(
+        pulls.slice(0, 20).map(async (p): Promise<AiPullRow> => {
+          const checks = await this.github
+            .commitChecks(p.headSha)
+            .then((c) => checksState(c.runs, c.statuses))
+            .catch((): 'unknown' => 'unknown');
+          const mine = runs.filter((r) => r.prUrl === p.url);
+          return {
+            number: p.number,
+            title: p.title,
+            url: p.url,
+            summary: pullSummary(p.body),
+            headSha: p.headSha,
+            branch: p.headRef,
+            createdAt: p.createdAt,
+            checks,
+            costUsd: mine.length
+              ? Math.round(mine.reduce((s, r) => s + r.costUsd, 0) * 100) / 100
+              : null,
+          };
+        }),
+      );
+      return { pulls: rows, error: null };
+    } catch (e) {
+      return { pulls: [], error: (e as Error).message.slice(0, 200) };
+    }
+  }
+
+  /**
+   * «Разрешить» (the controller has already checked the owner's fresh 2FA
+   * code). Everything is read fresh from GitHub, under one Redis lock:
+   * an open ai/ PR of this repository into main, its head still the commit
+   * the owner saw, CI green on exactly that commit, and the path guard clean
+   * on its changed files. Then a squash merge pinned to that sha (GitHub
+   * refuses if the branch moved in between).
+   */
+  async approvePull(
+    admin: { id: string; ip?: string | null },
+    n: number,
+    seenSha: string,
+  ): Promise<{ number: number; mergedSha: string }> {
+    if (!(await this.github.configured())) {
+      throw new AiPullError('not_connected');
+    }
+    const token = randomUUID();
+    const locked = await this.redis.set(
+      MERGE_LOCK_KEY,
+      token,
+      'PX',
+      MERGE_LOCK_TTL_MS,
+      'NX',
+    );
+    if (locked !== 'OK') throw new AiPullError('busy');
+    try {
+      const { repo, pull } = await this.github.pull(n);
+      if (!pull) throw new AiPullError('not_found');
+      const refusal = pullRefusal(pull, repo, seenSha);
+      if (refusal) throw new AiPullError(refusal);
+      const c = await this.github.commitChecks(pull.headSha);
+      const state = checksState(c.runs, c.statuses);
+      if (state !== 'success') throw new AiPullError('checks', state);
+      const f = await this.github.pullFiles(n);
+      const bad = pullGuard(f.files, f.complete);
+      if (bad.length > 0) {
+        throw new AiPullError('guard', bad.slice(0, 5).join(', '));
+      }
+      let merged: { sha: string };
+      try {
+        merged = await this.github.mergePull(n, pull.headSha, pull.title);
+      } catch (e) {
+        if (e instanceof GithubMergeError) {
+          throw new AiPullError(
+            e.status === 409 ? 'stale_sha' : 'merge_failed',
+            e.message,
+          );
+        }
+        throw e;
+      }
+      await this.audit.record({
+        adminId: admin.id,
+        action: 'ai.pull_merge',
+        targetType: 'system',
+        targetId: null,
+        before: { pr: n, headSha: pull.headSha, checks: state },
+        after: { pr: n, mergedSha: merged.sha, url: pull.url },
+        ip: admin.ip ?? null,
+      });
+      this.log.log(`ai PR #${n} merged by the owner (${merged.sha})`);
+      await this.afterPull(pull.headRef);
+      return { number: n, mergedSha: merged.sha };
+    } finally {
+      await this.redis
+        .eval(RELEASE_LOCK, 1, MERGE_LOCK_KEY, token)
+        .catch(() => undefined);
+    }
+  }
+
+  /** «Отклонить»: the AI's PR is closed with a comment (nothing merges). */
+  async rejectPull(
+    admin: { id: string; ip?: string | null },
+    n: number,
+    reason?: string,
+  ): Promise<{ number: number }> {
+    if (!(await this.github.configured())) {
+      throw new AiPullError('not_connected');
+    }
+    const { repo, pull } = await this.github.pull(n);
+    if (!pull) throw new AiPullError('not_found');
+    const refusal = pullRefusal(pull, repo, pull.headSha);
+    if (refusal === 'not_ai') throw new AiPullError('not_ai');
+    if (pull.state !== 'open' || pull.merged) {
+      throw new AiPullError('not_open');
+    }
+    const why = reason?.trim() ? scrub(reason, 500) : '';
+    await this.github.closePull(
+      n,
+      [
+        'Отклонено владельцем в админке («Задача для ИИ»).',
+        why ? `Причина: ${why}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+    );
+    await this.afterPull(pull.headRef);
+    await this.audit.record({
+      adminId: admin.id,
+      action: 'ai.pull_reject',
+      targetType: 'system',
+      targetId: null,
+      before: { pr: n, headSha: pull.headSha },
+      after: { pr: n, state: 'closed', url: pull.url },
+      ip: admin.ip ?? null,
+    });
+    return { number: n };
   }
 
   /** The owner's task becomes an `ai-task` issue (the workflow picks it up). */
   async createTask(
     admin: { id: string; ip?: string | null },
-    input: { title: string; details: string },
+    input: { title: string; details: string; imageFileIds?: string[] },
   ): Promise<{ number: number; url: string }> {
-    const g = await this.gate();
+    // Owner 12.11: the admin's tasks run only in Вкл (Авто = by itself only).
+    const g = await this.gate(new Date(), 'task');
+    if (g.reason === 'off' || g.reason === 'tasks_need_on') {
+      throw new AiAssistantError(g.reason);
+    }
     if (!g.connected) throw new AiAssistantError('not_connected');
-    if (g.reason === 'off') throw new AiAssistantError('off');
-    const issue = await this.github.createIssue({
-      title: input.title.trim().slice(0, 200),
-      body: taskIssueBody(input.details, `admin ${admin.id.slice(0, 8)}`),
-      labels: [AI_TASK_LABEL],
-    });
+    // Owner 2026-11-12 (row 48): the pictures stay in our private storage;
+    // the PUBLIC issue gets only their opaque ids (never a URL or bytes).
+    const attachmentIds =
+      input.imageFileIds?.length && this.attachments
+        ? await this.attachments.prepareTask(admin.id, input.imageFileIds)
+        : [];
+    let issue: { number: number; url: string };
+    try {
+      issue = await this.github.createIssue({
+        title: input.title.trim().slice(0, 200),
+        body: [
+          taskIssueBody(input.details, `admin ${admin.id.slice(0, 8)}`),
+          issueAttachmentsLine(attachmentIds),
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+        labels: [AI_TASK_LABEL],
+      });
+    } catch (e) {
+      await this.attachments?.close(attachmentIds);
+      throw e;
+    }
+    await this.attachments?.bindTask(attachmentIds, issue.number);
     await this.audit.record({
       adminId: admin.id,
       action: 'ai.task_create',
       targetType: 'system',
       targetId: null,
       before: null,
-      after: { issue: issue.number, url: issue.url },
+      after: {
+        issue: issue.number,
+        url: issue.url,
+        images: attachmentIds.length,
+      },
       ip: admin.ip ?? null,
     });
     return { number: issue.number, url: issue.url };
+  }
+
+  /**
+   * Owner 2026-11-12 (row 49): a merged or rejected AI branch is deleted
+   * (the repository keeps head branches: delete_branch_on_merge is false)
+   * and the task's pictures start their retention clock. A failure here is
+   * logged only: the merge / close already happened.
+   */
+  private async afterPull(headRef: string): Promise<void> {
+    if (!headRef.startsWith(AI_BRANCH_PREFIX)) return;
+    await this.github
+      .deleteBranch(headRef)
+      .catch((e: Error) =>
+        this.log.warn(`branch ${headRef} not deleted: ${e.message}`),
+      );
+    const issue = /^ai\/issue-(\d+)$/.exec(headRef);
+    if (issue) {
+      await this.attachments
+        ?.closeTasks([Number(issue[1])])
+        .catch(() => undefined);
+    }
+  }
+
+  /**
+   * The workflow's pictures for issue [issueNumber] (OIDC-checked caller):
+   * only the open rows of that issue among the ids its body lists, each at
+   * most 1568 px with no metadata. The bytes go to the runner only, never
+   * into GitHub.
+   */
+  async taskImages(issueNumber: number, ids: string[]) {
+    if (!this.attachments) return { images: [], pending: 0 };
+    const { images, pending } = await this.attachments.taskImages(
+      issueNumber,
+      ids,
+    );
+    return {
+      images: images.map((i) => ({
+        id: i.id,
+        mime: i.mediaType,
+        ext: extensionOf(i.mediaType),
+        base64: i.data,
+      })),
+      pending,
+    };
   }
 
   /**
@@ -314,5 +623,19 @@ export class AiAssistantService {
 export class AiAssistantError extends Error {
   constructor(readonly reason: AiRefusal) {
     super(AI_REFUSAL_TEXT[reason]);
+  }
+}
+
+/** Why «Разрешить» / «Отклонить» was refused, in the owner's words. */
+export class AiPullError extends Error {
+  constructor(
+    readonly reason: AiPullRefusal,
+    readonly detail?: string,
+  ) {
+    super(
+      detail
+        ? `${AI_PULL_REFUSAL_TEXT[reason]} (${detail})`
+        : AI_PULL_REFUSAL_TEXT[reason],
+    );
   }
 }
