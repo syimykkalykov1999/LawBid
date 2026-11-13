@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-302 tables.
+306 tables.
 
 ```mermaid
 erDiagram
@@ -3867,6 +3867,69 @@ erDiagram
     DateTime updated_at
     Int shard_id
   }
+  ai_roles {
+    String id PK
+    String name
+    String instructions
+    String queue
+    String model
+    String output
+    Int confidence_min
+    Int audit_pct
+    String created_by
+    DateTime archived_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  ai_runs {
+    String id PK
+    String role_id FK
+    String status
+    String model
+    Int total
+    Int proposed
+    Int failed
+    String batch_id "nullable"
+    Int reserved_millicents
+    Int cost_millicents
+    Int attempts
+    DateTime next_attempt_at "nullable"
+    String error "nullable"
+    String created_by
+    DateTime created_at
+    DateTime updated_at
+    DateTime finished_at "nullable"
+  }
+  ai_run_items {
+    String id PK
+    String run_id FK
+    String item_id
+    String status
+    Json proposal "nullable"
+    String decision "nullable"
+    Int confidence "nullable"
+    String lane "nullable"
+    String error "nullable"
+    Int cost_millicents
+    String owner_decision "nullable"
+    String owner_note "nullable"
+    String reviewed_by "nullable"
+    DateTime reviewed_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  ai_attachments {
+    String id PK
+    String file_id FK
+    String owner_id
+    String kind
+    Int issue_number "nullable"
+    String role_id FK "nullable"
+    String run_item_id "nullable"
+    Int position
+    DateTime closed_at "nullable"
+    DateTime created_at
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -4180,4 +4243,8 @@ erDiagram
   experiment_exposures }o--|| experiments : "experiment_id"
   experiment_results }o--|| experiments : "experiment_id"
   quick_replies }o--|| users : "user_id"
+  ai_runs }o--|| ai_roles : "role_id"
+  ai_run_items }o--|| ai_runs : "run_id"
+  ai_attachments }o--|| files : "file_id"
+  ai_attachments }o--o| ai_roles : "role_id"
 ```

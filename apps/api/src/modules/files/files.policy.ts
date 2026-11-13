@@ -191,6 +191,15 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
     sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },
+  // Owner 2026-11-12 (row 48): screenshots and photos the owner gives the
+  // AI technician / AI employee. The formats Claude reads (JPEG, PNG, GIF,
+  // WebP); private bucket, owner-only (modules/ai-attachments). The scan
+  // job re-encodes the picture (no EXIF / GPS is kept). Size: the chat
+  // photo limit of «Загрузки и файлы» (upload-limits PURPOSE_PLACES).
+  ai_attachment: {
+    mimes: [FILE_MIME.jpeg, FILE_MIME.png, FILE_MIME.gif, FILE_MIME.webp],
+    bucket: 'documents',
+  },
   verification_document: {
     mimes: [...IMAGES, FILE_MIME.pdf],
     bucket: 'documents',
@@ -414,4 +423,8 @@ export const CLEANUP_EXEMPT_PURPOSES: readonly FilePurpose[] = [
   'verification_selfie',
   'data_export',
   'post_video',
+  // Owner 2026-11-12: the AI images have their own clock (AiRetentionService:
+  // ai.retention_images_days after the task / item closes, never-attached
+  // uploads after a day).
+  'ai_attachment',
 ];

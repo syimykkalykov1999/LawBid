@@ -192,7 +192,8 @@ describe('StaffAiQaService: submit (night 1)', () => {
       `report_${B}`,
       `support_ticket_${A}`,
     ]);
-    expect(reqs[0].params.model).toBe('claude-haiku-5-5');
+    // Owner 2026-11-12 (row 55): the re-check is complex work, tier 1 = Opus.
+    expect(reqs[0].params.model).toBe('claude-opus-5-5');
     expect(reqs[0].params.system[0].cache_control.ttl).toBe('1h');
     // hashed reference, not the id
     expect(reqs[0].params.messages[0].content).toContain('<case ref="');
@@ -210,9 +211,21 @@ describe('StaffAiQaService: submit (night 1)', () => {
     expect(await t.kit.budget.spent(NOW)).toBeGreaterThan(0);
   });
 
-  it('sonnet is selectable (model tier 1)', async () => {
+  it('the owner can pick another model for tier 1 (here Haiku, code 0)', async () => {
     const t = setup(
-      { 'staff.ai.model_tier': 1 },
+      { 'staff.ai.model_tier1': 0 },
+      { samples: [sample('report', B)] },
+      () => ({ id: 'b' }),
+    );
+    await t.svc.runNightly(NOW);
+    expect(t.kit.calls[0].body.requests[0].params.model).toBe(
+      'claude-haiku-5-5',
+    );
+  });
+
+  it('sonnet is selectable (model code 1)', async () => {
+    const t = setup(
+      { 'staff.ai.model_tier1': 1 },
       { samples: [sample('report', B)] },
       () => ({ id: 'b' }),
     );
@@ -304,7 +317,8 @@ describe('StaffAiQaService: collect (night 2)', () => {
 
   function collectKit(rows: string[]) {
     return setup(
-      {},
+      // The budget sums below are Haiku prices (the batch in flight is Haiku).
+      { 'staff.ai.model_tier1': 0 },
       {
         samples: [
           sample('report', A, ADMIN1),

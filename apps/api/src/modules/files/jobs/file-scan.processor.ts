@@ -164,7 +164,10 @@ export class FileScanProcessor {
           file.purpose === 'case_attachment' ||
           // OQ-047: chat photos get previews; documents pass through.
           file.purpose === 'chat_attachment' ||
-          file.purpose === 'support_attachment',
+          file.purpose === 'support_attachment' ||
+          // Owner 2026-11-12: AI images are re-encoded too, so no EXIF /
+          // GPS of the owner's photo is ever stored or sent to the AI.
+          file.purpose === 'ai_attachment',
         format: await this.imageFormat(),
         quality: await imageQuality(this.settings),
       });

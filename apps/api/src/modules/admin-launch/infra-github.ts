@@ -4,7 +4,10 @@
  * 09.11.2026: the AI assistant opens its task issues through the same App.
  */
 export {
+  GithubMergeError,
   InfraAuthError,
   InfraGithubClient,
+  type GithubPull,
+  type GithubPullFile,
   type WorkflowCaller,
 } from './infra/infra-github.client';
