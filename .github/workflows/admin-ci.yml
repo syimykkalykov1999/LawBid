@@ -43,7 +43,7 @@ permissions:
 jobs:
   build:
     name: Admin CI
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -107,6 +107,9 @@ jobs:
   # measurement. The Lighthouse step itself blocks on the TBT budget (error).
   lighthouse:
     name: Admin Lighthouse (3 heavy pages, CPU x4, with API)
+    # Stays on x86 (2026-11-13): it measures the admin in the user's browser
+    # (system Chrome, TBT budget calibrated on this runner), not the server's
+    # CPU. The admin build/tests/lint run on ARM64 in the `build` job above.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:

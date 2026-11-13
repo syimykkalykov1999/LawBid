@@ -19,7 +19,7 @@
 # workflow run on the merge queue's temporary branch.
 #
 # Service containers mirror docker-compose.yml's dev infra (PostgreSQL 16, Redis 7,
-# Mailhog), all pinned by image digest. MinIO is built from source at a pinned
+# Mailpit, the multi-arch MailHog successor), all pinned by image digest. MinIO is built from source at a pinned
 # release (no image is published any more) and started on the runner for the
 # file suites.
 
@@ -109,7 +109,7 @@ env:
 jobs:
   static:
     name: API static (lint, types, unit, migrations, contract)
-    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-24.04-arm' }}
     # Two full PostgreSQL migration runs (clean DB + upgrade from the
     # previous release) at ~10 min each, plus the e2e database.
     timeout-minutes: 60
@@ -380,7 +380,7 @@ jobs:
 
   e2e:
     name: API e2e (${{ matrix.shard }}/3)
-    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-24.04-arm' }}
     timeout-minutes: 60 # p99 of the shard on a loaded self-hosted runner, not the median (KNOWN_ERRORS 34)
     strategy:
       fail-fast: false
@@ -413,9 +413,10 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # Mailhog: ready for the email-OTP path of future suites (cheap; no log dump).
-      mailhog:
-        image: mailhog/mailhog@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
+      # Mailpit (MIT, multi-arch incl. arm64): same SMTP 1025 / HTTP 8025 as MailHog,
+      # whose image is amd64-only. Tests only dial SMTP (MockEmailProvider).
+      mailpit:
+        image: axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
         ports:
           - 1025
           - 8025
@@ -427,7 +428,7 @@ jobs:
         env:
           PG_PORT: ${{ job.services.postgres.ports['5432'] }}
           REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
-          SMTP_MAPPED_PORT: ${{ job.services.mailhog.ports['1025'] }}
+          SMTP_MAPPED_PORT: ${{ job.services.mailpit.ports['1025'] }}
         run: scripts/ci/service-env.sh
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -508,7 +509,7 @@ jobs:
 
   two-db:
     name: API e2e (two databases)
-    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-24.04-arm' }}
     timeout-minutes: 60
     services:
       # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
@@ -537,9 +538,10 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # Mailhog: ready for the email-OTP path of future suites (cheap; no log dump).
-      mailhog:
-        image: mailhog/mailhog@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
+      # Mailpit (MIT, multi-arch incl. arm64): same SMTP 1025 / HTTP 8025 as MailHog,
+      # whose image is amd64-only. Tests only dial SMTP (MockEmailProvider).
+      mailpit:
+        image: axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
         ports:
           - 1025
           - 8025
@@ -551,7 +553,7 @@ jobs:
         env:
           PG_PORT: ${{ job.services.postgres.ports['5432'] }}
           REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
-          SMTP_MAPPED_PORT: ${{ job.services.mailhog.ports['1025'] }}
+          SMTP_MAPPED_PORT: ${{ job.services.mailpit.ports['1025'] }}
         run: scripts/ci/service-env.sh
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -620,7 +622,7 @@ jobs:
 
   n1:
     name: API N-1 (previous release's suites on the new schema)
-    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-24.04-arm' }}
     timeout-minutes: 60
     services:
       # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
@@ -774,7 +776,7 @@ jobs:
     # (require-green.sh '^API ') does not wait longer for it; the 100 000-
     # people run with real timings is the local one in that doc.
     name: API perf guard (user endpoints at 10M/100M rows)
-    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-24.04-arm' }}
     timeout-minutes: 40 # ~13 min: npm ci 1 + migrate 0.1 + seed ~7 + suite ~4 (API CI ~17)
     services:
       postgres:
@@ -870,7 +872,7 @@ jobs:
     # job fails when any admin endpoint's p95 is over 300 ms. The single-
     # endpoint table (cold / warm / bytes) is printed and uploaded too.
     name: API perf guard (admin endpoints, p95 < 300 ms)
-    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-24.04-arm' }}
     timeout-minutes: 40 # ~15 min: npm ci 1 + migrate 0.1 + seed ~8 + pages ~4 + endpoints ~1
     services:
       postgres:
@@ -970,7 +972,7 @@ jobs:
     name: API CI
     if: ${{ always() }}
     needs: [static, e2e, two-db, n1, perf-user, perf-admin]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     steps:
       - name: All API jobs passed
