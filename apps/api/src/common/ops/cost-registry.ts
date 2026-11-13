@@ -1967,7 +1967,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     id: 'aws.graviton_spot',
     name: 'Дешёвые серверы (Graviton ARM и Spot)',
     purpose:
-      'Те же серверы дешевле: ARM −20 %, Spot до −70 % на добавленных копиях.',
+      'Те же серверы дешевле: ARM −20 %, Spot до −70 % на добавленных копиях. Первое включение Spot пересоздаёт серверы API и фоновых задач (несколько минут простоя, KNOWN_ERRORS 119) — делать без пользователей.',
     kind: 'aws',
     control: tf(['cpu_architecture', 'api_spot', 'worker_spot'], {
       off: 'cpu_architecture = "X86_64"\napi_spot = false\nworker_spot = false',
