@@ -24,17 +24,32 @@
 // users.avatar_file_id -> files FK and the `files` table itself were
 // added in stage 2.2 (docs/02_DATABASE.md §8).
 generator client {
-  provider      = "prisma-client-js"
-  // DB-ops S5-13: the engine files for the exact targets we run on, so a
-  // build on one CPU never ships a runtime that downloads (or lacks) its
-  // engine. The image is Alpine (musl) on Fargate X86_64 or ARM64; the
-  // glibc arm64 target covers a Graviton build on a Debian runner.
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
+  // Prisma 7 (official upgrade guide, prisma.io/docs/guides/upgrade-prisma-orm/v7):
+  // the Rust-free `prisma-client` generator writes plain TypeScript into
+  // src/generated/prisma (git-ignored, compiled by `nest build` like any
+  // other source). No engine binaries any more, so the same build runs on
+  // Fargate X86_64 and ARM64 (Alpine/musl) alike. The API is CommonJS.
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+  runtime      = "nodejs"
+  // Bare relative imports inside the generated files (documented value ""):
+  // CommonJS resolves them in `nest build` output, and ts-jest / ts-node
+  // find the .ts files (a `.js` suffix would not resolve under Jest).
+  importFileExtension = ""
 }
 
+// `Prisma.dmmf` is gone from the Prisma 7 client; this writes the same data
+// model to src/generated/prisma-dmmf.ts (sharding, soft delete, specs).
+generator dmmf {
+  provider = "node prisma/dmmf-generator.cjs"
+  output   = "../src/generated"
+}
+
+// The connection URL lives in prisma.config.ts (Prisma 7); the app passes
+// it to the pg driver adapter (src/prisma/pg-adapter.ts).
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // -----------------------------------------------------------------------

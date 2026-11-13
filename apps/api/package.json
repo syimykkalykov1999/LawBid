@@ -86,7 +86,8 @@
     "@opentelemetry/sdk-node": "^0.301.0",
     "@opentelemetry/sdk-trace": "^3.0.0",
     "@opentelemetry/semantic-conventions": "^1.44.0",
-    "@prisma/client": "6.19.3",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
     "@sentry/nestjs": "^11.11.0",
     "@simplewebauthn/server": "^14.0.3",
     "@smithy/signature-v4": "^5.7.4",
@@ -100,6 +101,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "compression": "^1.8.2",
+    "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "firebase-admin": "^14.5.0",
     "google-auth-library": "^11.3.3",
@@ -113,8 +115,9 @@
     "nodemailer": "^10.3.1",
     "pdf-lib": "^1.17.1",
     "pdfkit": "^0.20.2",
+    "pg": "^8.23.1",
     "pino-http": "^11.0.0",
-    "prisma": "6.19.3",
+    "prisma": "7.10.1",
     "qrcode": "1.5.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -132,6 +135,7 @@
     "@nestjs/cli": "^12.0.0",
     "@nestjs/schematics": "^12.0.0",
     "@nestjs/testing": "^12.0.0",
+    "@prisma/generator-helper": "7.10.1",
     "@types/archiver": "^5.3.4",
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.0",
@@ -141,6 +145,7 @@
     "@types/node": "^24.0.0",
     "@types/nodemailer": "^8.0.2",
     "@types/pdfkit": "^0.17.7",
+    "@types/pg": "^8.23.1",
     "@types/qrcode": "1.5.6",
     "@types/supertest": "^7.0.0",
     "autocannon": "^8.0.0",
@@ -174,7 +179,8 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!generated/**"
     ],
     "coverageDirectory": "../coverage",
     "coverageReporters": [
@@ -192,9 +198,6 @@
     },
     "testEnvironment": "node",
     "workerIdleMemoryLimit": "1GB"
-  },
-  "prisma": {
-    "seed": "ts-node --transpile-only prisma/seed.ts"
   },
   "engines": {
     "node": ">=26.12.1 <27"
