@@ -114,8 +114,11 @@ export class CaseJournalService {
     // row; FOR UPDATE conflicts with another bid's KEY SHARE and two bids on
     // one case deadlocked. NO KEY UPDATE still lets one journal writer per
     // case at a time (it conflicts with itself) and never with KEY SHARE.
-    const owner = await tx.$queryRaw<{ client_id: string }[]>`
-      SELECT client_id FROM cases WHERE id = ${input.caseId}::UUID FOR NO KEY UPDATE`;
+    // Row 68: shard_id is read here, on this transaction's own connection,
+    // and passed to the insert below, so the shard extension does not look the
+    // case up through a second pool connection while this lock is held.
+    const owner = await tx.$queryRaw<{ client_id: string; shard_id: number }[]>`
+      SELECT client_id, shard_id FROM cases WHERE id = ${input.caseId}::UUID FOR NO KEY UPDATE`;
     if (owner.length === 0) throw caseNotFound();
     if (owner[0].client_id !== input.clientId) {
       throw new Error('case_journal: clientId does not own the case');
@@ -153,6 +156,7 @@ export class CaseJournalService {
     return tx.caseJournal.create({
       data: {
         ...row,
+        shard_id: owner[0].shard_id,
         payload: payload as Prisma.InputJsonObject,
         row_hash: computeRowHash(row),
       },

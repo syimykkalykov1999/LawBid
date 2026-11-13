@@ -115,6 +115,21 @@ describe('shard extension: ids and shard_id on create', () => {
     expect(shardOf(sent.data.id)).toBe(123);
   });
 
+  it('legacy v4 parent with the shard passed by the caller: no lookup (row 68)', async () => {
+    // The lookup needs a second pool connection; inside a transaction holding
+    // a hot row lock it starved behind that lock's own waiters.
+    const { run, lookup } = setup({ lookup: () => 123 });
+    const id = randomUUID();
+    const sent = await run({
+      model: 'CaseJournal',
+      operation: 'create',
+      args: { data: { id, case_id: randomUUID(), shard_id: 7 } },
+    });
+    expect(lookup).not.toHaveBeenCalled();
+    expect(sent.data.shard_id).toBe(7);
+    expect(sent.data.id).toBe(id);
+  });
+
   it('legacy v4 parent not found: falls back to hashShard(parent id)', async () => {
     const { run } = setup({ lookup: () => null });
     const legacyCase = randomUUID();

@@ -145,7 +145,15 @@ async function stamp(
 ): Promise<Row> {
   const meta = metaFor(model);
   if (!meta) return data;
-  const shard = await resolveShard(meta, data, lookup);
+  // Row 68 (load test 12.11): a caller that already knows the shard (it read
+  // the parent row in its own transaction) passes `shard_id`, and no lookup
+  // runs. The lookup goes through the raw client, i.e. a SECOND pool
+  // connection: inside a transaction that holds a hot row lock it waited for
+  // a connection the lock's own waiters held, until the 5 s timeout (P2028).
+  const shard =
+    typeof data.shard_id === 'number'
+      ? data.shard_id
+      : await resolveShard(meta, data, lookup);
   const out: Row = { ...data };
   if (shard !== null && out.shard_id === undefined) out.shard_id = shard;
   if (meta.generateId && out.id === undefined) {
