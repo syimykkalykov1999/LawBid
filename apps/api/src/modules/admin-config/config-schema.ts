@@ -746,6 +746,43 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 1095,
   };
+  // Owner 2026-11-12 (row 60): «Автоматическое решение по адвокатам».
+  out['verification.auto_decision.enabled'] = {
+    ...out['verification.auto_decision.enabled'],
+    description:
+      'Owner only, a fresh 2FA code to change. Off (default): every attorney request waits for a person. On: all checks matched (state registry number + full name + active, face match at or above the threshold, liveness, the AI employee confident) = approved; a clear failure (number not in the registry, not active, faces far apart) = rejected with an appeal; anything else stays in the queue. Never for an owner or staff account, never without the biometric consent.',
+  };
+  out['verification.auto_decision.face_reject_below'] = {
+    ...out['verification.auto_decision.face_reject_below'],
+    description:
+      'Face similarity, % (default 50), under which the faces are clearly different: an automatic rejection with an appeal. Between it and the face match threshold a person decides.',
+    min: 0,
+    max: 89,
+  };
+  out['verification.auto_decision.audit_pct'] = {
+    ...out['verification.auto_decision.audit_pct'],
+    description:
+      '% of the automatic decisions (default 10) that still go to the owner first, until his agreement with them is proven.',
+    min: 0,
+    max: 100,
+  };
+  out['verification.auto_decision.audit_pct_min'] = {
+    ...out['verification.auto_decision.audit_pct_min'],
+    description:
+      'The floor the audit sample drops to by itself once the owner agreed with the automatic decisions (default 2; 2-5 recommended).',
+    min: 0,
+    max: 100,
+  };
+  out['verification.auto_decision.persona_document_enabled'] = {
+    ...out['verification.auto_decision.persona_document_enabled'],
+    description:
+      'Off (default). On: an automatic approval also needs a passing Persona document check of the request (Persona key in «Ключи и сервисы»); without it the request waits for a person.',
+  };
+  out['verification.auto_decision.ai_request_info_enabled'] = {
+    ...out['verification.auto_decision.ai_request_info_enabled'],
+    description:
+      'Off (default). On: a blurry photo, a missing side of the ID or the AI employee confidently asking for more makes the system ask the attorney to upload again (the «Запросить информацию» message) instead of waiting for a person.',
+  };
   out['billing.cancel_on_verification_loss'] = {
     ...out['billing.cancel_on_verification_loss'],
     description:

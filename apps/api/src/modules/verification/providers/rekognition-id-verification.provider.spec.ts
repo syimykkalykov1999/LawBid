@@ -101,6 +101,40 @@ describe('mapCompareFaces (row 52)', () => {
     });
   });
 
+  it('row 60: a face below the threshold keeps its measured similarity', () => {
+    const r = mapCompareFaces(
+      out({ FaceMatches: [{ Similarity: 41.26, Face: face() }] }),
+      90,
+    );
+    expect(r).toEqual({
+      result: 'fail',
+      details: {
+        provider: 'aws_rekognition',
+        reason: 'selfie_mismatch',
+        threshold: 90,
+        similarity: 41.3,
+        targetFaces: 1,
+      },
+    });
+  });
+
+  it('row 60: a ghost image below the threshold next to a match = several_faces', () => {
+    expect(
+      mapCompareFaces(
+        out({
+          FaceMatches: [
+            { Similarity: 97, Face: face() },
+            { Similarity: 30, Face: face() },
+          ],
+        }),
+        90,
+      ),
+    ).toMatchObject({
+      result: 'manual_review',
+      details: { reason: 'several_faces', similarity: 97 },
+    });
+  });
+
   it('a dark or blurry face is manual low_quality, not a mismatch', () => {
     expect(
       mapCompareFaces(out({ UnmatchedFaces: [face(5, 80)] }), 90),
@@ -188,7 +222,8 @@ describe('RekognitionIdVerificationProvider (fake Rekognition client)', () => {
           Name: 'verification_document/p1',
         },
       },
-      SimilarityThreshold: 92,
+      // Row 60: measured from 0 %, the admin threshold applied on our side.
+      SimilarityThreshold: 0,
       QualityFilter: 'AUTO',
     });
     expect(read).not.toHaveBeenCalled();
