@@ -89,6 +89,58 @@ describe('AdminSummaryService', () => {
     const r = await svc.get('k', () => Promise.resolve(7), 60);
     expect(r.data).toBe(7);
   });
+
+  describe('row 78: a cold key is counted once across processes', () => {
+    // Two API processes = two services on one Redis (the in-process promise
+    // cannot help across them; only the lock does).
+    it('a waiter keeps waiting while the holder still counts (no second count after 4 s)', async () => {
+      jest.useFakeTimers();
+      try {
+        const redis = fakeRedis();
+        const holder = new AdminSummaryService(redis as never);
+        const waiter = new AdminSummaryService(redis as never);
+        let release!: (v: number) => void;
+        const slow = jest.fn(() => new Promise<number>((r) => (release = r)));
+        const other = jest.fn(() => Promise.resolve(-1));
+        const first = holder.get('k', slow, 60);
+        await jest.advanceTimersByTimeAsync(0);
+        const second = waiter.get('k', other, 60);
+        // 25 s of counting at 10M users: far past the old 4 s give-up.
+        await jest.advanceTimersByTimeAsync(25_000);
+        expect(other).not.toHaveBeenCalled();
+        release(42);
+        await jest.advanceTimersByTimeAsync(300);
+        expect((await first).data).toBe(42);
+        expect((await second).data).toBe(42);
+        expect(slow).toHaveBeenCalledTimes(1);
+        expect(other).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('a waiter counts by itself once the holder died (lock gone, nothing stored)', async () => {
+      jest.useFakeTimers();
+      try {
+        const redis = fakeRedis();
+        // A holder that crashed mid-count: its lock is there, then expires.
+        redis.store.set('adm:sum:lock:k', '1');
+        const svc = new AdminSummaryService(redis as never);
+        const compute = jest.fn(() => Promise.resolve(5));
+        const got = svc.get('k', compute, 60);
+        await jest.advanceTimersByTimeAsync(10_000);
+        expect(compute).not.toHaveBeenCalled();
+        redis.store.delete('adm:sum:lock:k');
+        await jest.advanceTimersByTimeAsync(5_000);
+        expect((await got).data).toBe(5);
+        expect(compute).toHaveBeenCalledTimes(1);
+        // …and its own lock is released afterwards.
+        expect(redis.store.has('adm:sum:lock:k')).toBe(false);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
 });
 
 describe('AdminSummaryService.keepWarm (R-370)', () => {

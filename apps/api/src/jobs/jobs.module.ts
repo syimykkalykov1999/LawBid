@@ -76,6 +76,7 @@ import { AnalyticsService } from '../modules/analytics/analytics.service';
 import { AppEventsService } from '../modules/analytics/app-events.service';
 import { SearchReindexService } from '../modules/search/search-reindex.service';
 import { DashboardService } from '../modules/admin/dashboard.service';
+import { AdminOverviewService } from '../modules/admin-content/admin-overview.service';
 import { BillingOverviewService } from '../modules/admin-billing/billing-overview.service';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
@@ -251,6 +252,8 @@ export class JobsModule {
         SearchDocsLoader,
         OPENSEARCH_CLIENT_PROVIDER,
         DashboardService,
+        // Row 78: the admin overview snapshot, recounted daily.
+        AdminOverviewService,
         AnalyticsService,
         AppEventsService,
         BillingOverviewService,

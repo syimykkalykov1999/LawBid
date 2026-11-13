@@ -28,8 +28,9 @@ export const ADMIN_CHANGED_CHANNEL = 'adm:changed';
 const HARD_TTL_SECONDS = 24 * 3600;
 /** One refresher per key at a time, across every API / worker process. */
 const LOCK_SECONDS = 120;
-/** A request that finds nothing waits this long for the process that is
- * already computing, then computes by itself. */
+/** A request that finds nothing waits for the process that is already
+ * computing; after this long it starts checking whether that holder is
+ * still alive (its lock), and computes by itself only when it is not. */
 const WAIT_MS = 4000;
 const WAIT_STEP_MS = 150;
 
@@ -271,12 +272,26 @@ export class AdminSummaryService {
     }
     if (!locked) {
       if (waitForOther) {
-        for (let waited = 0; waited < WAIT_MS; waited += WAIT_STEP_MS) {
+        // Row 78 (load test 13.11, 10M users): waiters used to give up after
+        // WAIT_MS and count by themselves while the holder was still
+        // counting (~25 s), so every request of a cold admin page ran the
+        // heavy count again (24 at once, p95 26 s). Now a waiter keeps
+        // waiting while the holder's lock is alive (at most LOCK_SECONDS);
+        // only when the lock is gone without a stored value (the holder
+        // died or failed) does it take the lock and count once itself.
+        const deadline = Date.now() + LOCK_SECONDS * 1000;
+        let waited = 0;
+        while (Date.now() < deadline) {
           await sleep(WAIT_STEP_MS);
+          waited += WAIT_STEP_MS;
           const hit = await this.peek<T>(key);
           if (hit) return hit;
+          if (waited >= WAIT_MS && !(await this.lockHeld(lockKey))) {
+            locked = await this.takeLock(lockKey);
+            if (locked) break;
+          }
         }
-        // The holder is slow or died: fall through and compute.
+        // The lock outlived LOCK_SECONDS or Redis is away: count here.
       } else {
         const hit = await this.peek<T>(key);
         if (hit) return hit;
@@ -311,6 +326,27 @@ export class AdminSummaryService {
       return summary;
     } finally {
       if (locked) await this.redis.del(lockKey).catch(() => undefined);
+    }
+  }
+
+  /** A waiter takes over a lock its holder left; Redis trouble = go ahead
+   * (the lock is only a courtesy). */
+  private async takeLock(lockKey: string): Promise<boolean> {
+    try {
+      return (
+        (await this.redis.set(lockKey, '1', 'EX', LOCK_SECONDS, 'NX')) === 'OK'
+      );
+    } catch {
+      return true;
+    }
+  }
+
+  /** Whether another process still holds [lockKey] (false when unsure). */
+  private async lockHeld(lockKey: string): Promise<boolean> {
+    try {
+      return (await this.redis.exists(lockKey)) === 1;
+    } catch {
+      return false;
     }
   }
 }

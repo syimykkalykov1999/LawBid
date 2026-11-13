@@ -43,3 +43,34 @@ describe('SearchLogService.recordClick', () => {
     expect(create).not.toHaveBeenCalled();
   });
 });
+
+describe('SearchLogService.logQuery (row 80: one statement per search)', () => {
+  it('drops the typing prefixes and writes the row in ONE statement', async () => {
+    const executeRaw = jest.fn().mockResolvedValue(1);
+    const create = jest.fn();
+    const logger = { setContext: jest.fn(), warn: jest.fn() };
+    const prisma = {
+      $executeRaw: executeRaw,
+      searchQueryLog: { create },
+    } as unknown as PrismaService;
+    const svc = new SearchLogService(
+      prisma,
+      {} as never,
+      logger as unknown as PinoLogger,
+    );
+    svc.logQuery('u1', 'people', 'Divorce', 3);
+    await new Promise((r) => setImmediate(r));
+    expect(executeRaw).toHaveBeenCalledTimes(1);
+    expect(create).not.toHaveBeenCalled();
+    const [strings, ...values] = executeRaw.mock.calls[0] as [
+      TemplateStringsArray,
+      ...unknown[],
+    ];
+    const sql = strings.join('?');
+    expect(sql).toMatch(/WITH typed AS \(\s*DELETE FROM "search_query_log"/);
+    expect(sql).toMatch(/INSERT INTO "search_query_log"/);
+    expect(values).toEqual(
+      expect.arrayContaining(['u1', 'people', 'divorce', 3]),
+    );
+  });
+});

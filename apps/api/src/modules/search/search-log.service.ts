@@ -64,13 +64,18 @@ export class SearchLogService {
     results: number,
   ): Promise<void> {
     const since = new Date(Date.now() - TYPING_WINDOW_MS);
+    // Row 80 (load test 13.11, search at 10M users): the typing clean-up
+    // and the new row used to be two statements per search (74 461 DELETEs
+    // that removed nothing, 65 s of database time in one saturated run);
+    // one statement now does both, with the same rows as before.
     await this.prisma.$executeRaw`
-      DELETE FROM search_query_log
-      WHERE user_id = ${userId}::UUID AND scope = ${scope}
-        AND created_at > ${since} AND ${q} LIKE q || '%' AND q <> ${q}`;
-    await this.prisma.searchQueryLog.create({
-      data: { user_id: userId, q, scope, results },
-    });
+      WITH typed AS (
+        DELETE FROM "search_query_log"
+        WHERE user_id = ${userId}::UUID AND scope = ${scope}
+          AND created_at > ${since} AND ${q} LIKE q || '%' AND q <> ${q}
+      )
+      INSERT INTO "search_query_log" (user_id, q, scope, results)
+      VALUES (${userId}::UUID, ${q}, ${scope}, ${results}::INT)`;
   }
 
   /** The person opened a result of a query: one click per person, query

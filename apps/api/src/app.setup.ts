@@ -1,4 +1,8 @@
-import { type ArgumentMetadata, ValidationPipe } from '@nestjs/common';
+import {
+  type ArgumentMetadata,
+  BadRequestException,
+  ValidationPipe,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule } from '@nestjs/swagger';
@@ -263,8 +267,33 @@ export function configureApp(
 export class HttpValidationPipe extends ValidationPipe {
   override transform(value: unknown, metadata: ArgumentMetadata) {
     if (typeof metadata.type !== 'string') return Promise.resolve(value);
+    // Row 80 (security pass 13.11): PostgreSQL text never holds a NUL
+    // character (22021 «invalid byte sequence for encoding UTF8: 0x00»), so
+    // GET /search/people?q=%00x was a 500. Any NUL in a query, route
+    // parameter or body string is bad input: the usual 400 VALIDATION_ERROR.
+    if (metadata.type !== 'custom' && hasNulChar(value)) {
+      return Promise.reject(
+        new BadRequestException([
+          `${metadata.data ?? metadata.type} must not contain a NUL character`,
+        ]),
+      );
+    }
     return super.transform(value, metadata);
   }
+}
+
+/** True when a string anywhere in [value] (an HTTP query, parameter or
+ * parsed JSON body) contains U+0000. Exported for its unit test. */
+export function hasNulChar(value: unknown, depth = 0): boolean {
+  if (typeof value === 'string') return value.includes('\u0000');
+  if (depth > 32 || value === null || typeof value !== 'object') return false;
+  // A raw body (Buffer) is bytes, not text: not ours to judge here.
+  if (ArrayBuffer.isView(value)) return false;
+  if (Array.isArray(value)) return value.some((v) => hasNulChar(v, depth + 1));
+  for (const [k, v] of Object.entries(value)) {
+    if (k.includes('\u0000') || hasNulChar(v, depth + 1)) return true;
+  }
+  return false;
 }
 
 /** Drops request bodies/headers/cookies/user data and any PII-named field
