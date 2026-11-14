@@ -35,9 +35,54 @@ import flutter_callkit_incoming
     // app is open too.
     UNUserNotificationCenter.current().delegate = self
     registerChatCategory()
+    AppDelegate.excludeAppDataFromBackup()
     let launched = super.application(application, didFinishLaunchingWithOptions: launchOptions)
     paintWindowBackground()
     return launched
+  }
+
+  // MARK: - Backup exclusion
+
+  /// D1-43: no account data in an iCloud / Finder backup, as on Android
+  /// (`allowBackup=false` + data_extraction_rules.xml: the whole app data
+  /// is excluded). The Drift stores (chats, HTTP cache, cases) live in
+  /// Documents; case files and the upload queue in Application Support; the
+  /// account-scoped prefs (contacts book, drafts) in Preferences. Apple's
+  /// documented way (File System Programming Guide, «iCloud backup»;
+  /// `URLResourceValues.isExcludedFromBackup`): the flag on a directory
+  /// excludes the directory and everything in it, files created later
+  /// included. Caches and tmp are never backed up. Runs at every launch, so
+  /// a folder created since (or a restore that dropped the flag) is marked
+  /// again; a fresh install signs in again and re-syncs from the server.
+  static func excludeAppDataFromBackup() {
+    let fm = FileManager.default
+    var dirs: [URL] = []
+    dirs += fm.urls(for: .documentDirectory, in: .userDomainMask)
+    if let library = fm.urls(for: .libraryDirectory, in: .userDomainMask).first {
+      let support = library.appendingPathComponent("Application Support", isDirectory: true)
+      let prefs = library.appendingPathComponent("Preferences", isDirectory: true)
+      for dir in [support, prefs] {
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+      }
+      // Every other Library folder too (WebKit, Cookies, …), except Caches.
+      let children =
+        (try? fm.contentsOfDirectory(
+          at: library, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
+      for child in children where child.lastPathComponent != "Caches" {
+        if (try? child.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
+          dirs.append(child)
+        }
+      }
+    }
+    for var dir in dirs {
+      var values = URLResourceValues()
+      values.isExcludedFromBackup = true
+      do {
+        try dir.setResourceValues(values)
+      } catch {
+        NSLog("lawbid backup exclusion \(dir.lastPathComponent): \(error)")
+      }
+    }
   }
 
   /// R-112 (owner 28.10): the window behind Flutter is the chosen theme's

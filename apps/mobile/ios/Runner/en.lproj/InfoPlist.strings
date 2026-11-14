@@ -4,3 +4,5 @@
 "NSPhotoLibraryUsageDescription" = "LawBid uses your photo library so you can choose a profile photo, add photos and videos to posts, cases and chats, and upload license and ID document images.";
 "NSFaceIDUsageDescription" = "LawBid uses Face ID to confirm it's you before deleting your account or other sensitive actions.";
 "NSMicrophoneUsageDescription" = "LawBid uses the microphone to record voice messages and for calls in the app.";
+/* D1-45: true to what is sent (SHA-256 of the number) and kept (keyed hashes). */
+"NSContactsUsageDescription" = "LawBid compares your contacts with registered people to suggest people you know. Phone numbers are sent as hashes, never with names, and are kept on the server only as keyed hashes. You can turn it off and delete them at any time.";

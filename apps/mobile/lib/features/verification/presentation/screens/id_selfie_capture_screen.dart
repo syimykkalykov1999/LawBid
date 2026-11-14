@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/camera_shots.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -277,7 +278,8 @@ class _IdSelfieCaptureScreenState extends ConsumerState<IdSelfieCaptureScreen>
       var frames = 0;
       for (var i = 0; i < _framesPerCapture; i++) {
         try {
-          final bytes = await (await c.takePicture()).readAsBytes();
+          // D1-44: every frame's temp file goes, the discarded ones too.
+          final bytes = await readAndDeleteCameraShot(await c.takePicture());
           frames++;
           if (best == null || bytes.length > best.length) best = bytes;
         } on CameraException {
