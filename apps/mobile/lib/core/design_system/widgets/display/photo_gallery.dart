@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -12,6 +14,7 @@ import 'package:lawbid/core/design_system/widgets/feedback/app_snackbar.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/media/media_share.dart';
 import 'package:lawbid/core/media/photo_saver.dart';
 import 'package:lawbid/core/text/bidi.dart';
 
@@ -306,6 +309,12 @@ class _GalleryState extends State<_Gallery>
                           ),
                         ),
                       ),
+                    // Row 110 (WhatsApp / Telegram viewer): «Поделиться».
+                    if (canShareMedia)
+                      MediaShareButton(
+                        url: widget.urls[_page],
+                        mime: 'image/jpeg',
+                      ),
                     _SavePhotoButton(url: widget.urls[_page]),
                   ],
                 ),
@@ -314,6 +323,64 @@ class _GalleryState extends State<_Gallery>
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Row 110 (WhatsApp / Telegram viewer «Share»): the system share sheet
+/// with the shown photo or video; a white icon for the dark viewers.
+class MediaShareButton extends ConsumerStatefulWidget {
+  const MediaShareButton({
+    required this.url,
+    required this.mime,
+    this.file,
+    super.key,
+  });
+
+  final String url;
+  final String mime;
+
+  /// Your own file still on the phone (nothing is fetched).
+  final File? file;
+
+  @override
+  ConsumerState<MediaShareButton> createState() => _MediaShareButtonState();
+}
+
+class _MediaShareButtonState extends ConsumerState<MediaShareButton> {
+  bool _busy = false;
+
+  Future<void> _share() async {
+    final t = ref.read(translatorProvider);
+    final box = context.findRenderObject() as RenderBox?;
+    setState(() => _busy = true);
+    final ok = await shareMedia(
+      url: widget.url,
+      mime: widget.mime,
+      file: widget.file,
+      origin: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (!ok) showAppSnackBar(context, t.t('gallery.shareFailed'));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    return IconButton(
+      key: const ValueKey('gallery-share'),
+      tooltip: t.t('post.share'),
+      onPressed: _busy ? null : _share,
+      icon: _busy
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const AppIcon(AppIcons.iosShareRounded, color: Colors.white),
     );
   }
 }

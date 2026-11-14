@@ -2331,6 +2331,7 @@
   "form.disabled.required": "Vispirms aizpildiet obligātos laukus.",
   "gallery.accessDenied": "Nav piekļuves fotoattēliem. Atļaujiet to tālruņa iestatījumos.",
   "gallery.saveFailed": "Neizdevās saglabāt fotoattēlu. Mēģiniet vēlreiz.",
+  "gallery.shareFailed": "Neizdevās kopīgot. Mēģiniet vēlreiz.",
   "gate.verify.cases": "Lietas kļūst pieejamas, kad LawBid apstiprina Jūsu licenci. Parasti tas aizņem 1–2 darbadienas.",
   "gate.verify.cta": "Pabeigt verifikāciju",
   "gate.verify.post": "Ziņu plūsmā var ievietot ierakstus tikai verificēti advokāti, lai klienti vienmēr zinātu, ko viņi lasa.",

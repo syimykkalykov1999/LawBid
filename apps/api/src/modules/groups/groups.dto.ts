@@ -399,6 +399,21 @@ export class GroupPageQueryDto {
   limit?: number;
 }
 
+/** Row 110 (Telegram «Search members», WhatsApp 🔍 over participants):
+ * the members page, optionally only the people whose name or @username
+ * matches [q] (any alphabet, like every name search). */
+export class GroupMembersQueryDto extends GroupPageQueryDto {
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description:
+      'Only members whose name or @username matches (one page, no cursor).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+}
+
 export class GroupsQueryDto {
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()

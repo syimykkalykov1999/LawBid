@@ -95,6 +95,57 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     ];
   }
 
+  // Row 110 (Telegram «Search members», WhatsApp 🔍 over participants).
+  bool _memberSearch = false;
+  final _memberQuery = TextEditingController();
+  List<api.GroupMemberDto>? _memberHits;
+  Timer? _memberWait;
+  int _memberRun = 0;
+
+  /// The typed name: every member is on the phone → filtered here; a big
+  /// group (more pages on the server) → the server finds them.
+  void _searchMembers(api.GroupDetailDto d, String q) {
+    _memberWait?.cancel();
+    final run = ++_memberRun;
+    final text = q.trim().toLowerCase().replaceFirst(RegExp('^@+'), '');
+    if (text.isEmpty) {
+      setState(() => _memberHits = null);
+      return;
+    }
+    if (d.membersNextCursor == null) {
+      setState(() {
+        _memberHits = [
+          for (final m in _members(d))
+            if ((m.displayName ?? '').toLowerCase().contains(text) ||
+                (m.username ?? '').toLowerCase().startsWith(text))
+              m,
+        ];
+      });
+      return;
+    }
+    _memberWait = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final hits =
+            await ref.read(groupRepositoryProvider).searchMembers(_id, q);
+        if (!mounted || run != _memberRun) return;
+        setState(() => _memberHits = hits);
+      } on Object {
+        if (!mounted || run != _memberRun) return;
+        setState(() => _memberHits = const []);
+      }
+    });
+  }
+
+  void _closeMemberSearch() {
+    _memberWait?.cancel();
+    _memberRun++;
+    _memberQuery.clear();
+    setState(() {
+      _memberSearch = false;
+      _memberHits = null;
+    });
+  }
+
   void _loadMoreMembers() {
     final cursor = _moreCursor;
     if (cursor == null || _moreLoading) return;
@@ -139,6 +190,8 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
   @override
   void dispose() {
     unawaited(_events?.cancel());
+    _memberWait?.cancel();
+    _memberQuery.dispose();
     super.dispose();
   }
 
@@ -1011,24 +1064,87 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               AppSpacing.screenSide,
               AppSpacing.sm,
             ),
-            child: Text(
-              t.plural(
-                'group.info.members',
-                d.membersNextCursor == null
-                    ? members.length
-                    : d.memberCount.toInt(),
-              ),
-              key: const ValueKey('group-members-title'),
-              style: Theme.of(context)
-                  .extension<AppTypographyTokens>()!
-                  .bodySmall
-                  .copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w600,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    t.plural(
+                      'group.info.members',
+                      d.membersNextCursor == null
+                          ? members.length
+                          : d.memberCount.toInt(),
+                    ),
+                    key: const ValueKey('group-members-title'),
+                    style: Theme.of(context)
+                        .extension<AppTypographyTokens>()!
+                        .bodySmall
+                        .copyWith(
+                          color: colors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
+                ),
+                // Row 110 (WhatsApp 🔍 next to «N участников»).
+                AppIconButton(
+                  key: const ValueKey('group-members-search'),
+                  compact: true,
+                  icon: AppIcon(
+                    _memberSearch
+                        ? AppIcons.closeRounded
+                        : AppIcons.searchRounded,
+                    size: AppSizes.iconSm,
+                    color: colors.textSecondary,
+                  ),
+                  semanticLabel: t.t(
+                    _memberSearch ? 'common.close' : 'group.picker.search',
+                  ),
+                  onPressed: _memberSearch
+                      ? _closeMemberSearch
+                      : () => setState(() => _memberSearch = true),
+                ),
+              ],
             ),
           ),
         ),
+        if (_memberSearch)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                0,
+                AppSpacing.screenSide,
+                AppSpacing.sm,
+              ),
+              child: AppTextField(
+                key: const ValueKey('group-members-query'),
+                controller: _memberQuery,
+                autofocus: true,
+                hintText: t.t('group.picker.search'),
+                semanticLabel: t.t('group.picker.search'),
+                leading: AppIcon(
+                  AppIcons.searchRounded,
+                  size: AppSizes.iconSm,
+                  color: colors.textSecondary,
+                ),
+                onChanged: (v) => _searchMembers(d, v),
+              ),
+            ),
+          ),
+        if (_memberSearch && (_memberHits?.isEmpty ?? false))
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Text(
+                t.t('chat.search.empty.title'),
+                key: const ValueKey('group-members-none'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .extension<AppTypographyTokens>()!
+                    .body
+                    .copyWith(color: colors.textSecondary),
+              ),
+            ),
+          ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.screenSide,
@@ -1040,11 +1156,14 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               border: Border.all(color: colors.border),
             ),
             sliver: SliverList.builder(
-              itemCount: members.length,
+              itemCount: (_memberHits ?? members).length,
               itemBuilder: (context, i) {
+                final shown = _memberHits ?? members;
                 // Sweep B-c1: near the end, the next page of members.
-                if (i >= members.length - 15) _loadMoreMembers();
-                final m = members[i];
+                if (_memberHits == null && i >= members.length - 15) {
+                  _loadMoreMembers();
+                }
+                final m = shown[i];
                 final manage = _canManage(d, m, me);
                 return GroupInfoMemberTile(
                   key: ValueKey('member-${m.userId}'),

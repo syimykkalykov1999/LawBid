@@ -2331,6 +2331,7 @@
   "form.disabled.required": "Najpierw wypełnij wymagane pola.",
   "gallery.accessDenied": "Brak dostępu do zdjęć. Zezwól na niego w ustawieniach telefonu.",
   "gallery.saveFailed": "Nie udało się zapisać zdjęcia. Spróbuj ponownie.",
+  "gallery.shareFailed": "Nie udało się udostępnić. Spróbuj ponownie.",
   "gate.verify.cases": "Sprawy będą dostępne po potwierdzeniu licencji przez LawBid. Zwykle trwa to 1–2 dni robocze.",
   "gate.verify.cta": "Dokończ weryfikację",
   "gate.verify.post": "Tylko zweryfikowani prawnicy mogą publikować w aktualnościach, dzięki czemu klienci zawsze wiedzą, kogo czytają.",

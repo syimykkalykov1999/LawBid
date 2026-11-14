@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/shell/desktop_input.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
@@ -887,50 +888,56 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                           showFrom: 1,
                           end: AppSpacing.lg,
                           bottom: 5,
-                          child: TextField(
-                            onTapOutside: hideKeyboardOnTapOutside,
+                          // Row 110 (desktop web): Enter sends,
+                          // Shift+Enter is a new line.
+                          child: DesktopSendOnEnter(
+                            onSend: () => unawaited(_send()),
                             controller: _text,
-                            focusNode: widget.focusNode,
-                            minLines: 1,
-                            maxLines: 4,
-                            maxLength: kCommentMaxChars,
-                            buildCounter: noFieldCounter,
-                            textCapitalization: TextCapitalization.sentences,
-                            style: type.body.copyWith(color: colors.text),
-                            decoration: InputDecoration(
-                              // Owner 2026-10-15: under a case: «Ask a
-                              // question…».
-                              hintText: _isCase
-                                  ? t.t('cases.comments.ask')
-                                  : t.t('comment.hint'),
-                              isDense: true,
-                              // M3 dense outline padding + room for the counter
-                              // once there is text.
-                              contentPadding: EdgeInsetsDirectional.fromSTEB(
-                                12,
-                                16,
-                                12,
-                                8 +
-                                    (_text.text.isEmpty
-                                        ? 0
-                                        : kInsideCounterRoom),
-                              ),
-                              filled: true,
-                              fillColor: colors.bg,
-                              border: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadii.pill),
-                                borderSide: BorderSide(color: colors.border),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadii.pill),
-                                borderSide: BorderSide(color: colors.border),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadii.pill),
-                                borderSide: BorderSide(color: colors.gold),
+                            child: TextField(
+                              onTapOutside: hideKeyboardOnTapOutside,
+                              controller: _text,
+                              focusNode: widget.focusNode,
+                              minLines: 1,
+                              maxLines: 4,
+                              maxLength: kCommentMaxChars,
+                              buildCounter: noFieldCounter,
+                              textCapitalization: TextCapitalization.sentences,
+                              style: type.body.copyWith(color: colors.text),
+                              decoration: InputDecoration(
+                                // Owner 2026-10-15: under a case: «Ask a
+                                // question…».
+                                hintText: _isCase
+                                    ? t.t('cases.comments.ask')
+                                    : t.t('comment.hint'),
+                                isDense: true,
+                                // M3 dense outline padding + room for the
+                                // counter once there is text.
+                                contentPadding: EdgeInsetsDirectional.fromSTEB(
+                                  12,
+                                  16,
+                                  12,
+                                  8 +
+                                      (_text.text.isEmpty
+                                          ? 0
+                                          : kInsideCounterRoom),
+                                ),
+                                filled: true,
+                                fillColor: colors.bg,
+                                border: OutlineInputBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.pill),
+                                  borderSide: BorderSide(color: colors.border),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.pill),
+                                  borderSide: BorderSide(color: colors.border),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.pill),
+                                  borderSide: BorderSide(color: colors.gold),
+                                ),
                               ),
                             ),
                           ),

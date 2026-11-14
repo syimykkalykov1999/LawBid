@@ -2331,6 +2331,7 @@
   "form.disabled.required": "Plotëso së pari fushat e detyrueshme.",
   "gallery.accessDenied": "Nuk ka qasje te fotot tuaja. Lejojeni te cilësimet e telefonit.",
   "gallery.saveFailed": "Fotoja nuk u ruajt dot. Provoni përsëri.",
+  "gallery.shareFailed": "Ndarja dështoi. Provo përsëri.",
   "gate.verify.cases": "Çështjet hapen pasi LawBid ta konfirmojë licencën tuaj. Zakonisht zgjat 1–2 ditë pune.",
   "gate.verify.cta": "Përfundo verifikimin",
   "gate.verify.post": "Vetëm avokatët e verifikuar mund të postojnë në rrjedhë, që klientët të dinë gjithmonë kë po lexojnë.",

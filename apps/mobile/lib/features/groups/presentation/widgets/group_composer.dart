@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/navigation/shell/desktop_input.dart';
 import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_mention_picker.dart';
@@ -249,37 +250,52 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
           controller: _text,
           max: maxChars,
           showFrom: counterFrom,
-          child: TextField(
+          // Row 110 (desktop web, like the direct chat): Enter sends,
+          // Shift+Enter is a new line, Esc closes the reply / edit bar.
+          child: DesktopSendOnEnter(
+            onSend: _submit,
             controller: _text,
-            focusNode: _focus,
-            onTapOutside: hideKeyboardOnTapOutside,
-            minLines: 1,
-            maxLines: 5,
-            maxLength: maxChars,
-            buildCounter: noFieldCounter,
-            textCapitalization: TextCapitalization.sentences,
-            style: type.body.copyWith(color: colors.text),
-            decoration: InputDecoration(
-              hintText: t.t('chat.hint'),
-              filled: true,
-              fillColor: colors.bg,
-              contentPadding: EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md + (near ? kInsideCounterRoom : 0),
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide(color: colors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide(color: colors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide(color: colors.gold),
+            onEscape: () {
+              final close = widget.editing != null
+                  ? widget.onCancelEdit
+                  : widget.replyTo != null
+                      ? widget.onCancelReply
+                      : null;
+              close?.call();
+              return close != null;
+            },
+            child: TextField(
+              controller: _text,
+              focusNode: _focus,
+              onTapOutside: hideKeyboardOnTapOutside,
+              minLines: 1,
+              maxLines: 5,
+              maxLength: maxChars,
+              buildCounter: noFieldCounter,
+              textCapitalization: TextCapitalization.sentences,
+              style: type.body.copyWith(color: colors.text),
+              decoration: InputDecoration(
+                hintText: t.t('chat.hint'),
+                filled: true,
+                fillColor: colors.bg,
+                contentPadding: EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md + (near ? kInsideCounterRoom : 0),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: colors.gold),
+                ),
               ),
             ),
           ),

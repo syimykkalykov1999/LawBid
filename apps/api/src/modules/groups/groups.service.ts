@@ -58,6 +58,7 @@ import {
   decodeMemberCursor,
   encodeMemberCursor,
   memberPage,
+  memberSearch,
 } from './group-members.page';
 import {
   GroupFanoutQueue,
@@ -414,8 +415,16 @@ export class GroupsService {
     id: string,
     cursor?: string,
     limit = MEMBERS_PAGE_DEFAULT,
+    q?: string,
   ): Promise<GroupMemberPage> {
     await this.requireMember(user.sub, id);
+    if (q?.trim()) {
+      const rows = await memberSearch(this.prisma, id, q, limit);
+      return {
+        items: await this.presenter.members(rows, { keepOrder: true }),
+        nextCursor: null,
+      };
+    }
     const after = cursor ? decodeMemberCursor(cursor) : null;
     const page = await memberPage(this.prisma, id, limit, after);
     return {

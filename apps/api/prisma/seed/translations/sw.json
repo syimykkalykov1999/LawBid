@@ -2331,6 +2331,7 @@
   "form.disabled.required": "Jaza kwanza sehemu zinazohitajika.",
   "gallery.accessDenied": "Hakuna ufikiaji wa picha zako. Ruhusu katika mipangilio ya simu.",
   "gallery.saveFailed": "Imeshindwa kuhifadhi picha. Tafadhali jaribu tena.",
+  "gallery.shareFailed": "Imeshindwa kushiriki. Jaribu tena.",
   "gate.verify.cases": "Kesi hufunguka baada ya LawBid kuthibitisha leseni yako. Kwa kawaida huchukua siku 1–2 za kazi.",
   "gate.verify.cta": "Kamilisha uthibitishaji",
   "gate.verify.post": "Mawakili waliothibitishwa pekee ndio wanaweza kuchapisha kwenye mlisho, ili wateja wajue daima wanamsoma nani.",

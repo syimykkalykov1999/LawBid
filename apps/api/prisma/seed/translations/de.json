@@ -2331,6 +2331,7 @@
   "form.disabled.required": "Fülle zuerst die Pflichtfelder aus.",
   "gallery.accessDenied": "Kein Zugriff auf deine Fotos. Erlaube ihn in den Telefoneinstellungen.",
   "gallery.saveFailed": "Das Foto konnte nicht gespeichert werden. Bitte versuche es erneut.",
+  "gallery.shareFailed": "Teilen fehlgeschlagen. Bitte erneut versuchen.",
   "gate.verify.cases": "Fälle werden freigeschaltet, sobald LawBid Ihre Zulassung bestätigt hat. Das dauert in der Regel 1–2 Werktage.",
   "gate.verify.cta": "Verifizierung abschließen",
   "gate.verify.post": "Nur verifizierte Anwälte können im Feed veröffentlichen, damit Mandanten immer wissen, wessen Beiträge sie lesen.",

@@ -2331,6 +2331,7 @@
   "form.disabled.required": "Isi dulu kolom wajib.",
   "gallery.accessDenied": "Tidak ada akses ke foto Anda. Izinkan di pengaturan ponsel.",
   "gallery.saveFailed": "Tidak dapat menyimpan foto. Silakan coba lagi.",
+  "gallery.shareFailed": "Tidak dapat membagikan. Coba lagi.",
   "gate.verify.cases": "Kasus terbuka setelah LawBid mengonfirmasi lisensi Anda. Biasanya memakan waktu 1–2 hari kerja.",
   "gate.verify.cta": "Selesaikan verifikasi",
   "gate.verify.post": "Hanya pengacara terverifikasi yang dapat memposting ke beranda, sehingga klien selalu tahu siapa yang mereka baca.",
