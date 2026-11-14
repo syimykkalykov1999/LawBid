@@ -14,7 +14,7 @@ import { totpCode } from './totp.util';
 const KEY = 'k'.repeat(40);
 const cipher = new SecretCipher(KEY);
 
-function build(opts: { enabled?: boolean } = {}) {
+function build(opts: { enabled?: boolean; stepUpTtl?: number } = {}) {
   const cred: {
     user_id: string;
     totp_secret_enc: string;
@@ -36,6 +36,8 @@ function build(opts: { enabled?: boolean } = {}) {
       return Promise.resolve('OK');
     }),
     exists: jest.fn((k: string) => Promise.resolve(store.has(k) ? 1 : 0)),
+    get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
+    ttl: jest.fn((k: string) => Promise.resolve(store.has(k) ? 1 : -2)),
     del: jest.fn((k: string) => Promise.resolve(store.delete(k) ? 1 : 0)),
     incr: jest.fn((k: string) => {
       const n = Number(store.get(k) ?? '0') + 1;
@@ -106,6 +108,15 @@ function build(opts: { enabled?: boolean } = {}) {
     rateLimit as never,
     audit as never,
     config as never,
+    opts.stepUpTtl === undefined
+      ? undefined
+      : ({
+          number: jest.fn((k: string) =>
+            Promise.resolve(
+              k === 'admin.step_up_ttl_seconds' ? opts.stepUpTtl : 0,
+            ),
+          ),
+        } as never),
   );
   // A live ticket, as loginPassword leaves it.
   store.set('adm:ticket:j1', '0');
@@ -245,5 +256,38 @@ describe('step-up (authenticator code only, audited)', () => {
     await expect(svc.stepUp('u1', 'sess-1', '123456')).rejects.toMatchObject({
       response: { code: 'ADMIN_TOTP_SETUP_REQUIRED' },
     });
+  });
+});
+
+describe('owner 14.11 (row 179, B8): the step-up window is an owner setting', () => {
+  it('admin.step_up_ttl_seconds sets how long a code covers money actions', async () => {
+    const { svc, redis } = build({ enabled: true, stepUpTtl: 900 });
+    const r = await svc.stepUp('u1', 'sess-1', totpCode('JBSWY3DPEHPK3PXP'));
+    expect(r.validForSeconds).toBe(900);
+    expect(redis.set).toHaveBeenCalledWith(
+      stepUpKey('sess-1'),
+      expect.any(String),
+      'EX',
+      900,
+    );
+  });
+
+  it('a fresh-step-up check counts the age of the code, whatever the window', async () => {
+    const { svc, store } = build({ enabled: true, stepUpTtl: 900 });
+    store.set(stepUpKey('old'), String(Date.now() - 200_000));
+    store.set(stepUpKey('new'), String(Date.now() - 60_000));
+    await expect(svc.assertFreshStepUp('old', 120)).rejects.toMatchObject({
+      response: { code: 'ADMIN_STEP_UP_REQUIRED' },
+    });
+    await expect(svc.assertFreshStepUp('new', 120)).resolves.toBeUndefined();
+    await expect(svc.assertFreshStepUp('none', 120)).rejects.toMatchObject({
+      response: { code: 'ADMIN_STEP_UP_REQUIRED' },
+    });
+  });
+
+  it('without the settings service the window stays 5 minutes', async () => {
+    const { svc } = build({ enabled: true });
+    const r = await svc.stepUp('u1', 'sess-1', totpCode('JBSWY3DPEHPK3PXP'));
+    expect(r.validForSeconds).toBe(300);
   });
 });

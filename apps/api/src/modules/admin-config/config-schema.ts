@@ -1616,6 +1616,25 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 30,
     max: 300,
   };
+  out['admin.step_up_ttl_seconds'] = {
+    ...out['admin.step_up_ttl_seconds'],
+    description:
+      'How long one 2FA code covers money and other protected actions in the same session, seconds (owner only, needs a fresh 2FA code).',
+    min: 30,
+    max: 86_400,
+  };
+  out['admin.bulk_select_cap'] = {
+    ...out['admin.bulk_select_cap'],
+    description:
+      'Most rows a staff «select all by filter» collects (0 = no cap). The owner never has a cap.',
+    min: 0,
+  };
+  out['admin.report_timezone'] = {
+    ...out['admin.report_timezone'],
+    description:
+      'Time zone the admin days are cut in (today, with-deadline, staff KPI days): an IANA name such as America/Los_Angeles or Europe/Moscow.',
+    pattern: /^(UTC|[A-Z][A-Za-z_]+(\/[A-Za-z0-9_+-]+){1,2})$/,
+  };
   out['admin.audit_export_enabled'] = {
     ...out['admin.audit_export_enabled'],
     description:

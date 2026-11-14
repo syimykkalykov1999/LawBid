@@ -48,7 +48,9 @@ describe('staff.daily-stats', () => {
         { drainQueue, issueGolden } as unknown as StaffSamplingService,
         { detect } as unknown as StaffAnomalyService,
       );
-    const now = new Date('2026-10-27T01:10:00Z');
+    // Owner 14.11 (row 180): the job runs at 09:10 UTC = 02:10 in Nevada
+    // (PDT) and computes the last complete local day.
+    const now = new Date('2026-10-27T09:10:00Z');
     await expect(
       make({ 'staff.rating_enabled': true }).run(now),
     ).resolves.toEqual({
@@ -71,6 +73,23 @@ describe('staff.daily-stats', () => {
       anomalies: 2,
     });
     expect(detect).toHaveBeenCalledWith('2026-10-26', expect.any(Array), []);
+  });
+
+  it('owner 14.11 (row 180): at 5 pm in Nevada (01:10 UTC) the local yesterday, not the UTC one', async () => {
+    const computeDay = jest.fn(() =>
+      Promise.resolve({ rows: [], counters: [] }),
+    );
+    const job = new StaffDailyStatsJob(
+      settingsOf({ 'staff.rating_enabled': true }),
+      { computeDay } as unknown as StaffDailyStatsService,
+      {
+        drainQueue: jest.fn(() => Promise.resolve(0)),
+        issueGolden: jest.fn(() => Promise.resolve(0)),
+      } as unknown as StaffSamplingService,
+      {} as StaffAnomalyService,
+    );
+    await job.run(new Date('2026-11-14T01:10:00Z')); // 13.11 17:10 PST
+    expect(computeDay).toHaveBeenCalledWith('2026-11-12');
   });
 });
 

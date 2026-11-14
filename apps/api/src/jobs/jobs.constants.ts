@@ -434,8 +434,10 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.staffLeaseSweep, pattern: '* * * * *' },
   { name: CRON_JOBS.staffCountersFlush, pattern: '9 * * * *' },
   { name: CRON_JOBS.staffToday, pattern: '*/2 * * * *' },
-  { name: CRON_JOBS.staffDailyStats, pattern: '10 1 * * *' },
-  { name: CRON_JOBS.staffRatingNightly, pattern: '40 1 * * *' },
+  // Owner 14.11 (row 180): just after midnight in Nevada, so «yesterday» of
+  // the report time zone is complete.
+  { name: CRON_JOBS.staffDailyStats, pattern: '10 9 * * *' },
+  { name: CRON_JOBS.staffRatingNightly, pattern: '40 9 * * *' },
   { name: CRON_JOBS.staffHeadScore, pattern: '55 1 * * *' },
   { name: CRON_JOBS.staffPiecework, pattern: '15 2 * * *' },
   { name: CRON_JOBS.staffAnomalies, pattern: '25 2 * * *' },
