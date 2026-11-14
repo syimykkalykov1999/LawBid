@@ -27,8 +27,25 @@ export interface AutoSignals extends SuggestionSignals {
    * (prod 08.11: 3 per task made the admin slow). The cure is the pooler.
    */
   poolSmall?: boolean;
+  /**
+   * 13.11 outage (KNOWN_ERRORS 144): the live services reach the database
+   * through the pooler (DB_POOLER_HOST is set in this task). poolSmall is
+   * false whenever the pooler runs (its own effect removes the signal), so
+   * without this the pooler looked unneeded and was switched off under the
+   * running tasks.
+   */
+  poolerLive?: boolean;
+  /** 13.11: reads are forced onto the read copy (DB_REPLICA_HOST or
+   * DATABASE_REPLICA_URL set and `db.replica_reads` = Вкл). With Авто the
+   * read path drains a gone copy by itself (the 5 s lag sample fails, reads
+   * go to the primary; prisma-read.service.ts); with Вкл it does not. */
+  replicaReadsForced?: boolean;
   /** G4: `events.sink` wants the Kinesis stream and this stand has none. */
   eventsStreamWanted?: boolean;
+  /** 13.11: the stream exists and `events.sink` writes to it (stream, or
+   * auto turned to stream). eventsStreamWanted is false once the stream
+   * exists, so it alone cannot keep the stream on. */
+  eventsStreamInUse?: boolean;
   /** G5: `cache.redis_mode` (off / on / auto) and whether a cache node runs. */
   cacheRedisMode?: string;
   cacheNodeLive?: boolean;
@@ -131,16 +148,26 @@ export interface AutoWant {
  * login stays on: once a table is converted the runner keeps its months.
  */
 const KEEP_ON: Readonly<Record<string, (s: AutoSignals) => boolean>> = {
+  // 13.11 outage: a dependency the running services point at is never
+  // removed by itself (drain first, like an ALB deregistration or Aurora
+  // taking a reader out of the endpoint before deleting it). The pooler
+  // removes its own signal (poolSmall is false while it runs), the same
+  // flap the cache node below avoids, and nothing drains it: every query
+  // of the tasks goes through it.
   'aws.pgbouncer': (s) =>
-    s.pressures.includes('db_connections') || s.poolSmall === true,
-  'aws.rds_replicas': (s) => s.pressures.includes('db_cpu'),
+    s.pressures.includes('db_connections') ||
+    s.poolSmall === true ||
+    s.poolerLive === true,
+  'aws.rds_replicas': (s) =>
+    s.pressures.includes('db_cpu') || s.replicaReadsForced === true,
   'aws.opensearch': (s) =>
     s.searchEngine === 'shadow' ||
     s.searchEngine === 'engine' ||
     (s.people ?? 0) >= searchOffPeople(s),
   // G4: the stream goes when the event volume fell back under the ceiling
   // for the whole cool-down (events.sink auto turns back to the table).
-  'aws.events_stream': (s) => s.eventsStreamWanted === true,
+  'aws.events_stream': (s) =>
+    s.eventsStreamWanted === true || s.eventsStreamInUse === true,
   // G5: the cache node is NOT here on purpose: its own effect removes the
   // signal (main Redis memory drops once the cache moved), so switching it
   // off by that signal would flap. Once on by itself, it stays.
@@ -533,17 +560,37 @@ export function autoRefusal(p: {
 }
 
 /**
+ * 13.11 outage (KNOWN_ERRORS 144): items every query of the running
+ * services goes through, with no fallback. Their switch-off plan removes
+ * the server while the api / worker task definitions still point at it:
+ * Terraform deletes the old dependency without waiting for the ECS rolling
+ * deploy (UpdateService returns at once), and a failed step elsewhere skips
+ * the task definition update altogether. An automatic request for these is
+ * planned but never applied without the owner's 2FA. (The read copies are
+ * not here: the read path falls back to the primary by itself, and owner
+ * rows 8 / 85 want them removed by «Авто».)
+ */
+export const OWNER_CONFIRM_OFF: ReadonlySet<string> = new Set([
+  'aws.pgbouncer',
+]);
+
+/**
  * The plan of an automatic request is applied without a tap only when a
  * switch-on removes nothing but replaced task definitions (a new revision
- * is how ECS rolls a service), and a switch-off creates nothing but those.
+ * is how ECS rolls a service), and a switch-off creates nothing but those
+ * and does not remove something live services use (OWNER_CONFIRM_OFF).
  * Protected data (database, buckets, keys, backups) is refused earlier for
  * every request by forbiddenDestroys. Pure.
  */
 export function autoApplyOk(
   to: InfraTarget,
   resources: readonly { address: string; action: string }[],
+  itemId?: string,
 ): boolean {
   const rolling = (a: string) => /(^|\.)aws_ecs_task_definition\./.test(a);
+  if (to === 'off' && (itemId === undefined || OWNER_CONFIRM_OFF.has(itemId))) {
+    return false;
+  }
   if (to === 'on') {
     return resources.every(
       (r) => !r.action.includes('delete') || rolling(r.address),

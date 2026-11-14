@@ -569,7 +569,7 @@ export class InfraChangeService {
       !r.dry_run &&
       r.requested_by === SYSTEM_ACTOR_ID &&
       (r.to_state === 'on' || r.to_state === 'off') &&
-      autoApplyOk(r.to_state, plan.resources)
+      autoApplyOk(r.to_state, plan.resources, r.item_id)
     ) {
       row = await this.move(row, 'confirm', {
         confirmed_by: SYSTEM_ACTOR_ID,

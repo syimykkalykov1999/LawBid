@@ -246,6 +246,53 @@ describe('InfraChangeService', () => {
     expect(planned.status).toBe('planned');
   });
 
+  it('13.11 replay: the automatic pooler switch-off plan is NOT applied without the owner', async () => {
+    // Request f758b39f (13.11 21:33 UTC): «Авто» aws.pgbouncer on -> off. Its
+    // plan deletes only the pooler and replaces the api / worker task
+    // definitions, so the old rule confirmed it by itself and the apply took
+    // the pooler away under the running tasks (outage 21:58-22:53 UTC).
+    const { svc } = make();
+    const r = await svc.create(
+      SYSTEM_ACTOR_ID,
+      null,
+      'aws.pgbouncer',
+      'off',
+      null,
+      { auto: true },
+    );
+    await svc.jobStart(r.id, RUN);
+    const pgb = 'module.stack.module.pgbouncer[0]';
+    const planned = await svc.planReady(r.id, RUN, {
+      add: 2,
+      change: 3,
+      destroy: 6,
+      resources: [
+        { address: `${pgb}.aws_ecs_service.this`, action: 'delete' },
+        { address: `${pgb}.aws_ecs_task_definition.this`, action: 'delete' },
+        { address: `${pgb}.aws_security_group.svc`, action: 'delete' },
+        {
+          address: `${pgb}.aws_service_discovery_service.this`,
+          action: 'delete',
+        },
+        {
+          address: 'module.stack.module.ecs.aws_ecs_task_definition.api',
+          action: 'create-delete',
+        },
+        {
+          address: 'module.stack.module.ecs.aws_ecs_task_definition.worker',
+          action: 'create-delete',
+        },
+        {
+          address: 'module.stack.module.ecs.aws_ecs_service.api',
+          action: 'update',
+        },
+      ],
+      fileBefore: { db_pooler_enabled: true },
+    });
+    expect(planned.status).toBe('planned');
+    expect((await svc.decision(r.id, RUN)).decision).toBe('wait');
+  });
+
   it('the auto flag of an admin is ignored (only the system acts without 2FA)', async () => {
     const { svc } = make({ dryRun: true });
     const r = await svc.create('admin-1', null, 'aws.opensearch', 'on', null, {
