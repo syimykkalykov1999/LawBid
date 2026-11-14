@@ -161,49 +161,56 @@ class _OfferBubble extends StatelessWidget {
 
     return Semantics(
       label: '$author, $round, $amount, $status',
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: AppSpacing.xl,
-              child: Column(
-                children: [
-                  Container(
-                    width: AppSpacing.md,
-                    height: AppSpacing.md,
-                    margin: const EdgeInsets.only(top: AppSpacing.lg),
-                    decoration: BoxDecoration(
-                      color: pending ? colors.gold : colors.surface,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: colors.gold, width: 2),
+      // Owner row 128: the line is a positioned layer under the dot (was
+      // IntrinsicHeight + stretch: a second, speculative layout pass per
+      // offer). Same pixels.
+      child: Stack(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: AppSpacing.xl,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: AppSpacing.md,
+                      height: AppSpacing.md,
+                      margin: const EdgeInsets.only(top: AppSpacing.lg),
+                      decoration: BoxDecoration(
+                        color: pending ? colors.gold : colors.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: colors.gold, width: 2),
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      color: isLast
-                          ? Colors.transparent
-                          : colors.gold.withValues(alpha: 0.35),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: Align(
-                  alignment: mine
-                      ? AlignmentDirectional.centerEnd
-                      : AlignmentDirectional.centerStart,
-                  child: FractionallySizedBox(widthFactor: 0.92, child: bubble),
+                  ],
                 ),
               ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: Align(
+                    alignment: mine
+                        ? AlignmentDirectional.centerEnd
+                        : AlignmentDirectional.centerStart,
+                    child:
+                        FractionallySizedBox(widthFactor: 0.92, child: bubble),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (!isLast)
+            PositionedDirectional(
+              start: (AppSpacing.xl - 2) / 2,
+              width: 2,
+              top: AppSpacing.lg + AppSpacing.md,
+              bottom: 0,
+              child: ColoredBox(color: colors.gold.withValues(alpha: 0.35)),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

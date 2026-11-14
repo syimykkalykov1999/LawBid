@@ -106,7 +106,7 @@ abstract final class AppTheme {
         floatingLabelStyle: typography.bodySmall
             .copyWith(color: colors.textSecondary, fontSize: 13),
         helperStyle: typography.caption.copyWith(color: colors.textSecondary),
-        errorStyle: typography.caption.copyWith(color: colors.danger),
+        errorStyle: typography.caption.copyWith(color: colors.dangerText),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.field),
           borderSide: BorderSide(color: colors.border),
