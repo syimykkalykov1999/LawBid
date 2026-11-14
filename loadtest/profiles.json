@@ -112,6 +112,20 @@
       "db": "db.r7g.4xlarge", "redis": "cache.r7g.xlarge", "redis_nodes": 2, "turn_nodes": 2,
       "avg_api_tasks": 40, "avg_worker_tasks": 8, "alb_lcu": 250, "cdn_gb": 40, "xfer_gb": 90
     },
+    "combat": {
+      "_comment": "Owner row 59 (2026-11-13): short real test of prod's AUTOMATION, max $50 (docs/dev/AWS_COMBAT_TEST_PLAN_2026-11-13.md). Phases (minutes): 0-6 sockets ramp to 9 000 at 20 req/s; 6-14 sockets only (socket policy 2 500/task); 14-22 ramp to 450 req/s (request policy 3 000/min/task = 50 req/s, CPU 60 %); 22-37 hold (queue, Spot drills, Redis grow); 37-39 drop; 39-66 tail at 10 req/s = the way DOWN (scale-in cooldowns 10-15 min, Spot restore, Redis shrink). Abort at 1 % errors (owner), not 5 %.",
+      "budgets": { "api_p95_ms": 800, "api_error_rate": 0.005 },
+      "abort": { "error_rate": 0.01 },
+      "kind": "http", "where": "ec2", "peak_rps": 450, "generators": 2,
+      "stages": [["6m", 20], ["8m", 20], ["8m", 450], ["15m", 450], ["2m", 10], ["27m", 10]],
+      "ws_hold": 9000, "ws_ramp_s": 300, "ws_storm_per_s": 0, "ws_duration": "32m",
+      "calls_per_s": 0, "tokens": { "clients": 9000, "attorneys": 1500 }, "assets": true,
+      "stack_hours": 2.0, "api_max_tasks": 10, "worker_max_tasks": 4,
+      "db": "db.t4g.medium", "db_multi_az": true, "db_grow_to": "db.t4g.large",
+      "redis": "cache.t4g.small", "redis_grow_to": "cache.t4g.medium", "redis_nodes": 2, "turn_nodes": 0,
+      "avg_api_tasks": 6, "avg_worker_tasks": 2, "avg_pgbouncer_tasks": 3, "lambdas": 4,
+      "alb_lcu": 12, "cdn_gb": 3, "xfer_gb": 6
+    },
     "calls-smoke": {
       "budgets": { "api_p95_ms": 1000 },
       "kind": "calls", "where": "ec2", "generators": 1,

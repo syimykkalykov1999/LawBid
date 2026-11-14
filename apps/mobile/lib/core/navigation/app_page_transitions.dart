@@ -77,24 +77,16 @@ abstract final class AppPageTransitions {
         fullscreenDialog: true,
       );
     }
-    if (_cupertino) {
-      return CupertinoPage<void>(
-        key: state.pageKey,
-        name: state.name,
-        fullscreenDialog: true,
-        child: WebPageFrame(location: state.matchedLocation, child: child),
-      );
-    }
-    return CustomTransitionPage<void>(
+    // Owner row 88 (2026-11-13): Android too rises as the full iPhone
+    // screen (Flutter's CupertinoPage, BSD-3) — it used to pop in opaque
+    // and travel only 12 %. The page colour sits under it as under pushes.
+    return CupertinoPage<void>(
       key: state.pageKey,
       name: state.name,
+      fullscreenDialog: true,
       child: PageBackground(
         child: WebPageFrame(location: state.matchedLocation, child: child),
       ),
-      fullscreenDialog: true,
-      transitionDuration: AppMotion.pageEnter,
-      reverseTransitionDuration: AppMotion.pageExit,
-      transitionsBuilder: _modalY,
     );
   }
 
@@ -173,27 +165,6 @@ abstract final class AppPageTransitions {
         ).animate(behind),
         child: child,
       ),
-    );
-  }
-
-  static Widget _modalY(
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-    Widget child,
-  ) {
-    if (context.reduceMotion) return child;
-    final enter = CurvedAnimation(
-      parent: animation,
-      curve: AppMotion.enterCurve,
-      reverseCurve: AppMotion.exitCurve,
-    );
-    return SlideTransition(
-      position: Tween<Offset>(
-        begin: const Offset(0, AppMotion.modalSlideFraction),
-        end: Offset.zero,
-      ).animate(enter),
-      child: child,
     );
   }
 }

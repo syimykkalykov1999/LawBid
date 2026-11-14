@@ -8,7 +8,10 @@
   "fargate_vcpu_hour": 0.04048,
   "fargate_gb_hour": 0.004445,
   "rds": {
+    "db.t4g.micro": 0.016,
+    "db.t4g.small": 0.032,
     "db.t4g.medium": 0.065,
+    "db.t4g.large": 0.129,
     "db.r7g.large": 0.276,
     "db.r7g.2xlarge": 1.104,
     "db.r7g.4xlarge": 2.208,
@@ -17,7 +20,9 @@
   },
   "rds_storage_gb_month": 0.115,
   "redis": {
+    "cache.t4g.micro": 0.016,
     "cache.t4g.small": 0.032,
+    "cache.t4g.medium": 0.065,
     "cache.r7g.large": 0.219,
     "cache.r7g.xlarge": 0.437
   },

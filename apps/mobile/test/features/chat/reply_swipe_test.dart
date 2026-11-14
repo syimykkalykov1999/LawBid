@@ -125,4 +125,60 @@ void main() {
     expect(find.text('message 0'), findsOneWidget);
     expect(log, [0]);
   });
+
+  // Owner row 90 (2026-11-13): swipe a message → the reply bar opens → ✕
+  // → a plain tap on a message opened «reply» again.
+  testWidgets('a tap after a swipe reply never quotes again (row 90)',
+      (tester) async {
+    final log = <int>[];
+    await _open(tester, log);
+    await _drag(tester, const Offset(300, 30), -150);
+    expect(log, [0]);
+    // ✕ on the reply bar clears the quote; the bubble is a plain bubble.
+    log.clear();
+    await tester.tap(find.text('message 0'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('message 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('message 0'));
+    await tester.pumpAndSettle();
+    expect(log, isEmpty);
+  });
+
+  // Owner row 89: pulled past the line and back under it, letting go does
+  // not quote; the bubble glides back to its place.
+  testWidgets('pulled back under the line: no quote, bubble back home',
+      (tester) async {
+    var replies = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: SwipeToReply(
+            onReply: () => replies++,
+            child: const SizedBox(height: 60, child: Text('hello')),
+          ),
+        ),
+      ),
+    );
+    final home = tester.getTopLeft(find.text('hello'));
+    final g = await tester.startGesture(tester.getCenter(find.text('hello')));
+    for (var i = 0; i < 10; i++) {
+      await g.moveBy(const Offset(-12, 0.5));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(tester.getTopLeft(find.text('hello')).dx, lessThan(home.dx - 40));
+    for (var i = 0; i < 10; i++) {
+      await g.moveBy(const Offset(10, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await g.up();
+    await tester.pump(const Duration(milliseconds: 16));
+    // Still on its way back on the next frame (a glide, not a jump) …
+    expect(tester.getTopLeft(find.text('hello')).dx, lessThan(home.dx));
+    await tester.pumpAndSettle();
+    // … and home once settled.
+    expect(tester.getTopLeft(find.text('hello')), home);
+    expect(replies, 0);
+  });
 }

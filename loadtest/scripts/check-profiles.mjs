@@ -52,7 +52,11 @@ for (const [name, p] of Object.entries(all.profiles)) {
   for (const k of Object.keys(p.budgets || {})) if (budgets[k] === undefined) fail(`${name}: budget "${k}" is not a known budget`);
   // a budget must be tighter than the abort rule, otherwise it could never be the thing that fails
   for (const k of ['api_p95_ms', 'cdn_p95_ms']) if (b[k] > lim.abort_p95_ms) fail(`${name}: ${k} ${b[k]} is above the abort p95 ${lim.abort_p95_ms} ms`);
-  if (b.api_error_rate > lim.abort_error_rate) fail(`${name}: api_error_rate ${b.api_error_rate} is above the abort error rate ${lim.abort_error_rate}`);
+  // a profile may make the abort rule STRICTER (combat: 1 %, owner row 59), never looser
+  const abortErr = p.abort && p.abort.error_rate !== undefined ? p.abort.error_rate : lim.abort_error_rate;
+  if (abortErr > lim.abort_error_rate) fail(`${name}: abort.error_rate ${abortErr} is looser than limits.abort_error_rate ${lim.abort_error_rate}`);
+  for (const k of Object.keys(p.abort || {})) if (k !== 'error_rate') fail(`${name}: abort.${k} is not supported (only error_rate)`);
+  if (b.api_error_rate > abortErr) fail(`${name}: api_error_rate ${b.api_error_rate} is above the abort error rate ${abortErr}`);
 }
 if (bad) process.exit(1);
 console.log('profiles.json and the tfvars agree; budgets and gates are consistent');

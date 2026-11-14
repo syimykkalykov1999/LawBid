@@ -193,3 +193,55 @@ variable "gameday_enabled" {
   type    = bool
   default = false
 }
+
+# --- combat profile (owner row 59, docs/dev/AWS_COMBAT_TEST_PLAN_2026-11-13.md) ---------
+# The "combat" run checks the AUTOMATION of prod (Graviton + Spot, autoscaling up
+# and down, the db / redis autoscale Lambdas, the Spot fallback) on a small
+# stack, not a size. Defaults keep every other profile exactly as before.
+variable "database_multi_az" {
+  type        = bool
+  default     = false
+  description = "Multi-AZ database without GameDay. The db-autoscale Lambda grows a database in the day only when it is Multi-AZ (require_multi_az), so the combat profile needs it."
+}
+variable "db_autoscale_mode" {
+  type    = string
+  default = "dry-run"
+}
+variable "db_autoscale_initial_ceiling_class" {
+  type    = string
+  default = "db.t4g.medium"
+}
+variable "db_autoscale_tuning" {
+  type    = map(number)
+  default = {}
+}
+variable "redis_autoscale_initial_ceiling_class" {
+  type    = string
+  default = "cache.t4g.small"
+}
+variable "redis_autoscale_tuning" {
+  type    = map(number)
+  default = {}
+}
+variable "spot_fallback_tuning" {
+  type        = map(number)
+  default     = {}
+  description = "e.g. { restore_after_min = 10 }: the way back to Spot inside one short run (prod: 30 min)."
+}
+variable "pgbouncer_spot" {
+  type    = bool
+  default = false
+}
+variable "pgbouncer_max_tasks" {
+  type    = number
+  default = 100
+  validation {
+    condition     = var.pgbouncer_max_tasks >= 2 && var.pgbouncer_max_tasks <= 100
+    error_message = "pgbouncer_max_tasks 2..100."
+  }
+}
+variable "worker_jobs_per_task" {
+  type        = number
+  default     = 50
+  description = "Worker queue policy target (prod 50). The combat profile lowers it so a short run can prove the queue -> more workers -> fewer workers loop."
+}

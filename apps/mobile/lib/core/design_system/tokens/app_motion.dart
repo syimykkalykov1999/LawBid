@@ -2,6 +2,7 @@
 // Motion durations/curves used across the design system (file 07 §4, §5.2, §7.3).
 // Plain const class — durations/curves don't vary by theme.
 import 'package:flutter/animation.dart';
+import 'package:flutter/material.dart' show Durations, Easing;
 
 abstract final class AppMotion {
   /// AppButton / RoleCard press-scale (file 07 §4: "Нажатие: масштаб 0.98 за 120 мс").
@@ -79,4 +80,21 @@ abstract final class AppMotion {
 
   /// Cross-fade between pagination footer states (loading / error / end).
   static const Duration footerSwitch = Duration(milliseconds: 200);
+
+  // --- Owner row 88 (2026-11-13): smoother motion, look unchanged --------
+
+  /// Bottom sheets: Material 3 tokens from Flutter's `material/motion.dart`
+  /// (BSD-3) — emphasized decelerate in (medium3, 350 ms), emphasized
+  /// accelerate out (medium1, 250 ms) instead of Flutter's legacy 250/200.
+  static const Duration sheetEnter = Durations.medium3;
+  static const Duration sheetExit = Durations.medium1;
+  static const Curve sheetEnterCurve = Easing.emphasizedDecelerate;
+  static const Curve sheetExitCurve = Easing.emphasizedAccelerate;
+
+  /// Something let go of glides back (a photo dragged down, a quoted
+  /// bubble): the Material 3 standard "fast spatial" spring, stiffness 1400
+  /// with damping ratio 0.9 (no bounce, as above), built with Flutter's
+  /// `SpringDescription.withDampingRatio` (BSD-3).
+  static final SpringDescription snapBackSpring =
+      SpringDescription.withDampingRatio(mass: 1, stiffness: 1400, ratio: 0.9);
 }

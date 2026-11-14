@@ -2,11 +2,17 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
-import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+import 'package:flutter/cupertino.dart'
+    show
+        CupertinoPageTransition,
+        CupertinoPageTransitionsBuilder,
+        CupertinoRouteTransitionMixin;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart'
+    show isDesktopWindow;
 import 'package:swipeable_page_route/swipeable_page_route.dart';
 
 /// Owner 2026-10-22: «back» by a swipe that starts anywhere, not only at the
@@ -155,6 +161,20 @@ class PageBackground extends StatelessWidget {
 class AppBackSwipeTransitionsBuilder extends PageTransitionsBuilder {
   const AppBackSwipeTransitionsBuilder();
 
+  // Owner row 88 (2026-11-13): the same two getters as Flutter's own
+  // `CupertinoPageTransitionsBuilder` (cupertino/route.dart, BSD-3). Without
+  // them every push and pop ran the iPhone curves squeezed into the
+  // builder default of 300 ms, and the screen underneath (the tab shell,
+  // a full-screen modal) stood still instead of sliding a third to the
+  // left.
+  @override
+  Duration get transitionDuration =>
+      CupertinoRouteTransitionMixin.kTransitionDuration;
+
+  @override
+  DelegatedTransitionBuilder? get delegatedTransition =>
+      CupertinoPageTransition.delegatedTransition;
+
   @override
   Widget buildTransitions<T>(
     PageRoute<T> route,
@@ -197,14 +217,109 @@ class AppBackSwipeTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
-/// The page transitions every platform of the app uses.
+/// The page transitions every platform of the app uses. Web audit W3
+/// (2026-11-13): Windows and Linux browsers too — without them they fell
+/// back to Flutter's Material zoom, so the site moved differently there.
 const PageTransitionsTheme kBackSwipeTransitions = PageTransitionsTheme(
   builders: {
     TargetPlatform.android: AppBackSwipeTransitionsBuilder(),
     TargetPlatform.iOS: AppBackSwipeTransitionsBuilder(),
     TargetPlatform.macOS: AppBackSwipeTransitionsBuilder(),
+    TargetPlatform.windows: AppBackSwipeTransitionsBuilder(),
+    TargetPlatform.linux: AppBackSwipeTransitionsBuilder(),
   },
 );
+
+/// Web in a desktop window (1024 wide and more): pages swap in place.
+const PageTransitionsTheme kWebDesktopTransitions = PageTransitionsTheme(
+  builders: {
+    TargetPlatform.android: WebDesktopPageTransitionsBuilder(),
+    TargetPlatform.iOS: WebDesktopPageTransitionsBuilder(),
+    TargetPlatform.macOS: WebDesktopPageTransitionsBuilder(),
+    TargetPlatform.windows: WebDesktopPageTransitionsBuilder(),
+    TargetPlatform.linux: WebDesktopPageTransitionsBuilder(),
+  },
+);
+
+/// Web audit W1 / #18 (2026-11-13): on a desktop browser window the iPhone
+/// slide crossed the whole wide window; Telegram Web and Instagram on a
+/// computer swap the page in place. This is Flutter's own
+/// `FadeForwardsPageTransitionsBuilder` (material/page_transitions_theme
+/// .dart, BSD-3) — same duration, same fade intervals, same background
+/// under the fading page — with its sideways slide left out: the old page
+/// fades out over the first quarter, the new one in over three quarters.
+class WebDesktopPageTransitionsBuilder extends PageTransitionsBuilder {
+  const WebDesktopPageTransitionsBuilder();
+
+  static final Animatable<double> _fadeIn = Tween<double>(
+    begin: 0,
+    end: 1,
+  ).chain(CurveTween(curve: const Interval(0, 0.75)));
+
+  static final Animatable<double> _fadeOut = Tween<double>(
+    begin: 1,
+    end: 0,
+  ).chain(CurveTween(curve: const Interval(0, 0.25)));
+
+  static const int _ms =
+      FadeForwardsPageTransitionsBuilder.kTransitionMilliseconds;
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: _ms);
+
+  @override
+  DelegatedTransitionBuilder? get delegatedTransition =>
+      (context, animation, secondaryAnimation, allowSnapshotting, child) =>
+          _behind(context, secondaryAnimation, child);
+
+  static Widget _behind(
+    BuildContext context,
+    Animation<double> secondaryAnimation,
+    Widget? child,
+  ) {
+    final Widget faded = DualTransitionBuilder(
+      animation: ReverseAnimation(secondaryAnimation),
+      forwardBuilder: (context, animation, child) =>
+          FadeTransition(opacity: _fadeIn.animate(animation), child: child),
+      reverseBuilder: (context, animation, child) =>
+          FadeTransition(opacity: _fadeOut.animate(animation), child: child),
+      child: child,
+    );
+    if (!(ModalRoute.opaqueOf(context) ?? true)) return faded;
+    final page = Theme.of(context).scaffoldBackgroundColor;
+    return ColoredBox(
+      // Same widget either way (the page below keeps its state).
+      color: secondaryAnimation.isAnimating ? page : page.withValues(alpha: 0),
+      child: faded,
+    );
+  }
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) =>
+      DualTransitionBuilder(
+        animation: animation,
+        forwardBuilder: (context, animation, child) =>
+            FadeTransition(opacity: _fadeIn.animate(animation), child: child),
+        reverseBuilder: (context, animation, child) => IgnorePointer(
+          ignoring: animation.status == AnimationStatus.forward,
+          child: FadeTransition(
+            opacity: _fadeOut.animate(animation),
+            child: child,
+          ),
+        ),
+        child: _behind(
+          context,
+          secondaryAnimation,
+          PageBackground(child: child),
+        ),
+      );
+}
 
 class _BackSwipeUnderlay<T> extends StatefulWidget {
   const _BackSwipeUnderlay({required this.route, required this.child});
@@ -409,7 +524,9 @@ class BackSwipeTheme extends StatelessWidget {
     if (context.reduceMotion) return child;
     return Theme(
       data: Theme.of(context).copyWith(
-        pageTransitionsTheme: kBackSwipeTransitions,
+        pageTransitionsTheme: kIsWeb && isDesktopWindow(context)
+            ? kWebDesktopTransitions
+            : kBackSwipeTransitions,
       ),
       child: child,
     );

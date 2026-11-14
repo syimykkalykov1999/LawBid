@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart' show SpringSimulation;
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 
@@ -37,10 +38,15 @@ class _SwipeToReplyState extends State<SwipeToReply>
   static const _max = SwipeToReply.trigger * 1.4;
   double _dx = 0; // always >= 0, toward the start
   bool _fired = false;
-  late final AnimationController _back = AnimationController(
+
+  // Owner rows 88/89 (2026-11-13): let go, the bubble springs back from
+  // where it is with the finger's speed — Flutter's SpringSimulation
+  // (physics/spring_simulation.dart, BSD-3) with AppMotion.snapBackSpring,
+  // the same at 60 and 120 Hz. (It used to multiply the offset down on
+  // every tick: gone in 3-4 frames, faster on a 120 Hz screen.)
+  late final AnimationController _back = AnimationController.unbounded(
     vsync: this,
-    duration: const Duration(milliseconds: 160),
-  )..addListener(() => setState(() => _dx *= 1 - _back.value));
+  )..addListener(() => setState(() => _dx = _back.value.clamp(0.0, _max)));
 
   @override
   void dispose() {
@@ -48,11 +54,28 @@ class _SwipeToReplyState extends State<SwipeToReply>
     super.dispose();
   }
 
-  void _release() {
-    if (_fired) widget.onReply();
+  /// Owner row 90 (2026-11-13): a plain tap ends as the drag recogniser's
+  /// `onCancel`; with [_fired] still true from the last swipe it quoted the
+  /// message again. Only a finished drag ([replied]) quotes, and the flag is
+  /// cleared every time.
+  void _release({bool replied = false, double velocity = 0}) {
+    final fire = replied && _fired;
+    _fired = false;
+    if (fire) widget.onReply();
+    if (_dx == 0) return;
+    if (context.reduceMotion) {
+      setState(() => _dx = 0);
+      return;
+    }
+    _back.value = _dx;
     _back
-      ..reset()
-      ..forward();
+        .animateWith(
+      SpringSimulation(AppMotion.snapBackSpring, _dx, 0, velocity),
+    )
+        // The spring stops within its tolerance: land exactly home.
+        .whenCompleteOrCancel(() {
+      if (mounted && !_back.isAnimating) setState(() => _dx = 0);
+    });
   }
 
   @override
@@ -82,10 +105,15 @@ class _SwipeToReplyState extends State<SwipeToReply>
                 if (!_fired && next >= SwipeToReply.trigger) {
                   _fired = true;
                   AppHaptics.selection();
+                } else if (_fired && next < SwipeToReply.trigger) {
+                  // Pulled back under the line: letting go now does not
+                  // quote (Telegram, WhatsApp); crossing again taps again.
+                  _fired = false;
                 }
               }
-              ..onEnd = (_) {
-                _release();
+              ..onEnd = (d) {
+                final v = d.velocity.pixelsPerSecond.dx;
+                _release(replied: true, velocity: rtl ? v : -v);
               }
               ..onCancel = _release;
           },

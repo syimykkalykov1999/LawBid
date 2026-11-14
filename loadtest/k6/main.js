@@ -2,7 +2,7 @@
 //   k6 run -e PROFILE=smoke -e API_URL=... -e WS_URL=... loadtest/k6/main.js
 // Normally started by scripts/run-generator.sh (guard + results folder).
 import { assertSafeTarget, PROFILE, SHARD, SHARDS } from './lib/env.js';
-import { P, LIMITS, AVG_REQS_PER_ITER, httpScenario, realtimeScenarios, callScenario, gateThresholds } from './lib/profiles.js';
+import { P, LIMITS, ABORT_ERROR_RATE, AVG_REQS_PER_ITER, httpScenario, realtimeScenarios, callScenario, gateThresholds } from './lib/profiles.js';
 import { runOne, avgReqs } from './lib/mix.js';
 import { counts } from './lib/data.js';
 import { holdSocket, stormSocket, callFlow } from './lib/realtime.js';
@@ -27,7 +27,7 @@ const abort = (threshold) => (__ENV.NO_K6_ABORT === '1' ? [threshold] : [{ thres
 
 function abortThresholds() {
   return {
-    http_req_failed: abort(`rate<${LIMITS.abort_error_rate}`),
+    http_req_failed: abort(`rate<${ABORT_ERROR_RATE}`),
     http_req_duration: abort(`p(95)<${LIMITS.abort_p95_ms}`),
     slow_req: abort('rate<0.05'),
   };
