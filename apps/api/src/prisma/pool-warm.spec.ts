@@ -7,7 +7,8 @@ describe('pool warm-up (Prisma 7 driver adapter)', () => {
     let open = 0;
     let peak = 0;
     const client = {
-      $queryRawUnsafe: jest.fn(async (sql: string) => {
+      $queryRaw: jest.fn(async (q: TemplateStringsArray) => {
+        const sql = q.join('');
         expect(sql).toBe('SELECT 1');
         open += 1;
         peak = Math.max(peak, open);
@@ -17,14 +18,14 @@ describe('pool warm-up (Prisma 7 driver adapter)', () => {
       }),
     };
     const r = await warmPool(client, 7);
-    expect(client.$queryRawUnsafe).toHaveBeenCalledTimes(7);
+    expect(client.$queryRaw).toHaveBeenCalledTimes(7);
     expect(peak).toBe(7);
     expect(r).toMatchObject({ opened: 7, failed: 0 });
   });
 
   it('never throws when the database is down; counts the failures', async () => {
     const client = {
-      $queryRawUnsafe: jest.fn(() =>
+      $queryRaw: jest.fn(() =>
         Promise.reject(Object.assign(new Error(''), { code: 'ECONNREFUSED' })),
       ),
     };
@@ -35,10 +36,10 @@ describe('pool warm-up (Prisma 7 driver adapter)', () => {
   });
 
   it('size 0 or nonsense = nothing to do', async () => {
-    const client = { $queryRawUnsafe: jest.fn() };
+    const client = { $queryRaw: jest.fn() };
     await warmPool(client, 0);
     await warmPool(client, Number.NaN);
-    expect(client.$queryRawUnsafe).not.toHaveBeenCalled();
+    expect(client.$queryRaw).not.toHaveBeenCalled();
   });
 
   it('the size is the existing pool setting (DB_POOL_SIZE → connection_limit → max)', () => {

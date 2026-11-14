@@ -168,7 +168,10 @@ export function poolMaxOf(url: string | undefined): number {
 
 /** What {@link warmPool} needs: a client that runs one raw statement. */
 export interface RawQueryClient {
-  $queryRawUnsafe(sql: string): Promise<unknown>;
+  $queryRaw(
+    query: TemplateStringsArray,
+    ...values: unknown[]
+  ): Promise<unknown>;
 }
 
 /**
@@ -193,7 +196,7 @@ export async function warmPool(
   const t0 = Date.now();
   const n = Number.isInteger(size) && size > 0 ? size : 0;
   const results = await Promise.allSettled(
-    Array.from({ length: n }, () => client.$queryRawUnsafe('SELECT 1')),
+    Array.from({ length: n }, () => client.$queryRaw`SELECT 1`),
   );
   const failed = results.filter((r) => r.status === 'rejected').length;
   return { opened: n - failed, failed, ms: Date.now() - t0 };
