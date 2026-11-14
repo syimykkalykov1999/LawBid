@@ -18,6 +18,12 @@ import { buildOpenApiDocument } from './openapi/openapi.config';
 import { ADMIN_BULK_BODY_LIMIT } from './common/admin-bulk/admin-bulk';
 
 export const GLOBAL_PREFIX = 'api/v1';
+/** Every route, for `MiddlewareConsumer.forRoutes` (14.11 prod F9). NestJS 12
+ * (path-to-regexp v8) rejects the unnamed `'*'` and logs
+ * `LegacyRouteConverter Unsupported route path "/api/v1/*"` on every boot;
+ * the migration guide's named wildcard in braces also matches the bare
+ * prefix, so it covers exactly what the auto-converted `'*'` covered. */
+export const ALL_ROUTES = '{*splat}';
 /** POST /contacts/sync: the whole phone book in one body (configureApp). */
 export const CONTACTS_SYNC_PATH = `/${GLOBAL_PREFIX}/contacts/sync`;
 export const CONTACTS_BODY_LIMIT = '1mb';
