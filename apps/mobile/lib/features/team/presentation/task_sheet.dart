@@ -620,6 +620,10 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.75,
+      // Row 95 (motion catalog N10, iOS `.medium` / `.large` detents):
+      // the sheet rests at its first height or full, never in between.
+      snap: true,
+      snapSizes: const [0.75],
       maxChildSize: 0.95,
       minChildSize: 0.4,
       builder: (context, scroll) => ListView(

@@ -54,14 +54,36 @@ class ChatTicks extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final chat = ChatColors.of(context);
     final failed = delivery == DeliveryState.failed;
-    return AppIcon(
-      iconFor(delivery, seen: seen, delivered: delivered),
-      size: size,
-      color: failed
-          ? colors.danger
-          : seen && delivery == DeliveryState.sent
-              ? chat.tickRead
-              : color,
+    final icon = iconFor(delivery, seen: seen, delivered: delivered);
+    final target = failed
+        ? colors.danger
+        : seen && delivery == DeliveryState.sent
+            ? chat.tickRead
+            : color;
+    // Row 95 (motion catalog M3, Telegram / WhatsApp): the second check
+    // pops in (fade + scale 0.8 → 1, 150 ms) and grey turns blue over
+    // 200 ms, instead of swapping at once. Flutter `AnimatedSwitcher` and
+    // `TweenAnimationBuilder` (BSD-3). The first build never moves.
+    final still = context.reduceMotion;
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: target),
+      duration: still ? Duration.zero : AppMotion.tickColor,
+      builder: (context, c, _) => AnimatedSwitcher(
+        duration: still ? Duration.zero : AppMotion.tickSwitch,
+        transitionBuilder: (child, a) => FadeTransition(
+          opacity: a,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.8, end: 1).animate(a),
+            child: child,
+          ),
+        ),
+        child: AppIcon(
+          icon,
+          key: ValueKey(icon),
+          size: size,
+          color: c ?? target,
+        ),
+      ),
     );
   }
 }

@@ -235,6 +235,11 @@ void main() {
 
       await tester.tap(find.text('open'));
       await settle();
+      // Row 95: the reactions bar above the bubble opens further (the
+      // chevron at its end, Telegram) to the premium emojis.
+      expect(find.byKey(const ValueKey('msg-premium-reactions')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('msg-react-more')));
+      await settle();
       expect(
         find.byKey(const ValueKey('msg-premium-reactions')),
         findsOneWidget,
@@ -324,6 +329,111 @@ void main() {
       },
     );
   }
+
+  // Row 95 (owner «Конечно»): a double tap puts ❤️ on the message with a
+  // pop; a second double tap never takes it away (Instagram).
+  testWidgets('double tap: the quick ❤️ reaction, with a pop', (tester) async {
+    await tester.runAsync(initializeDateFormatting);
+    final chat = _Chat([_msg('a', sender: 'them')]);
+    final s = _setup(
+      chat,
+      extra: [
+        translatorProvider.overrideWithValue(const StaticTranslatorEn()),
+      ],
+    );
+    final c = s.c;
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await tester.runAsync(_settle);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: c,
+        child: MaterialApp(
+          theme: AppTheme.of(AppThemeId.values.first),
+          home: Consumer(
+            builder: (context, ref, _) => TextButton(
+              onPressed: () => quickReactToMessage(
+                context,
+                ref,
+                'c1',
+                c.read(chatThreadProvider('c1')).messages.single,
+                at: const Offset(100, 100),
+              ),
+              child: const Text('twice'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('twice'));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('quick-reaction-pop')), findsOneWidget);
+    await tester.runAsync(_settle);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('quick-reaction-pop')), findsNothing);
+    final m = c.read(chatThreadProvider('c1')).messages.single;
+    expect(m.reactions.single.emoji, kDoubleTapReaction);
+    expect(m.reactions.single.mine, isTrue);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  // Row 95 (owner «Конечно»): the long press is an in-place menu — the
+  // reactions bar above, every action of the old sheet below.
+  testWidgets('long press: reactions bar + all actions, outside closes',
+      (tester) async {
+    await tester.runAsync(initializeDateFormatting);
+    final chat = _Chat([_msg('a')]);
+    final s = _setup(
+      chat,
+      extra: [
+        translatorProvider.overrideWithValue(const StaticTranslatorEn()),
+        l10nFormatsProvider
+            .overrideWithValue(L10nFormats(AppLanguage.fromCode('en'))),
+      ],
+    );
+    final c = s.c;
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await tester.runAsync(_settle);
+    final msg = c.read(chatThreadProvider('c1')).messages.single;
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: c,
+        child: MaterialApp(
+          theme: AppTheme.of(AppThemeId.values.first),
+          home: Consumer(
+            builder: (context, ref, _) => TextButton(
+              onPressed: () => showMessageMenu(context, ref, 'c1', msg),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(_settle);
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+    expect(find.byKey(const ValueKey('msg-reaction-bar')), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
+    for (final k in ['reply', 'copy', 'pin', 'select', 'delete']) {
+      expect(find.byKey(ValueKey('msg-act-$k')), findsOneWidget, reason: k);
+    }
+    await tester.tap(find.text('❤️'));
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(_settle);
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+    expect(find.byKey(const ValueKey('msg-reaction-bar')), findsNothing);
+    expect(
+      c.read(chatThreadProvider('c1')).messages.single.reactions.single.emoji,
+      '❤️',
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 5));
+  });
 
   test('edit is allowed only for my text inside the server window', () async {
     final chat = _Chat([

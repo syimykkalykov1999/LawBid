@@ -509,6 +509,10 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
         controller: _sheet,
         expand: false,
         initialChildSize: 0.62,
+        // Row 95 (motion catalog N10, iOS `.medium` / `.large` detents):
+        // the sheet rests at its first height or full, never in between.
+        snap: true,
+        snapSizes: const [0.62],
         minChildSize: 0.4,
         builder: (context, scroll) => Column(
           children: [

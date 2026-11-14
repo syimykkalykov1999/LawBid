@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
+import 'package:lawbid/features/stories/presentation/story_hero.dart';
 import 'package:lawbid/features/stories/presentation/story_navigation.dart';
 import 'package:lawbid/features/stories/presentation/story_ring.dart';
 
@@ -46,11 +47,14 @@ class StoryAvatarRing extends ConsumerWidget {
     final photo = photoUrl;
     final unseen = live && stories.any((s) => !s.viewedByMe);
     final body = IgnorePointer(child: child);
+    // Row 95 (catalog ME5): the story zooms out of this ring.
+    final hero = StoryHero.tagFor(context, userId);
     return GestureDetector(
       key: const ValueKey('profile-story-ring'),
       behavior: HitTestBehavior.opaque,
-      onTap: () =>
-          live ? openStories(context, userId) : openStoryCreator(context),
+      onTap: () => live
+          ? openStories(context, userId, heroTag: hero)
+          : openStoryCreator(context),
       onLongPress: photo == null || photo.isEmpty
           ? null
           : () => showPhotoGallery(
@@ -63,10 +67,13 @@ class StoryAvatarRing extends ConsumerWidget {
       // The photo's own tap (its full-screen picture) must not win over the
       // story: the whole ring opens it.
       child: live
-          ? StoryRing(
-              state: unseen ? StoryRingState.unseen : StoryRingState.seen,
-              size: size,
-              child: body,
+          ? StoryHero(
+              tag: hero,
+              child: StoryRing(
+                state: unseen ? StoryRingState.unseen : StoryRingState.seen,
+                size: size,
+                child: body,
+              ),
             )
           : body,
     );

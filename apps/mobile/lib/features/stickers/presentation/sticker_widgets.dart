@@ -513,6 +513,10 @@ class _StickerHub extends ConsumerWidget {
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.7,
+      // Row 95 (motion catalog N10, iOS `.medium` / `.large` detents):
+      // the sheet rests at its first height or full, never in between.
+      snap: true,
+      snapSizes: const [0.7],
       maxChildSize: 0.95,
       builder: (_, scroll) => ListView(
         controller: scroll,
@@ -671,8 +675,9 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
       await ref
           .read(stickersRepositoryProvider)
           .add(pack.id, bytes, mime, emoji: emoji);
+      // Row 95 (catalog F4): a sticker added is a success.
       // ignore: unawaited_futures
-      AppHaptics.medium();
+      AppHaptics.success();
       if (mounted) showAppSnackBar(context, t.t('stickers.added'));
     });
   }
@@ -725,6 +730,10 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.6,
+      // Row 95 (motion catalog N10, iOS `.medium` / `.large` detents):
+      // the sheet rests at its first height or full, never in between.
+      snap: true,
+      snapSizes: const [0.6],
       maxChildSize: 0.95,
       builder: (_, scroll) => async.when(
         loading: () =>
