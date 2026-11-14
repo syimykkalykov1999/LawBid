@@ -423,7 +423,12 @@ describe('Auth hardening (e2e)', () => {
 
   // -------------------------------------------------------------------
   describe('Google id_token nonce (docs/01 §10.2 G)', () => {
-    const raw = 'e2e-raw-nonce-0123456789abcdef';
+    // R2B-9 (14.11): a nonce works once, like a real client's fresh nonce
+    // per sign-in, so every request here gets its own.
+    let raw = '';
+    beforeEach(() => {
+      raw = `e2e-raw-nonce-${randomUUID()}`;
+    });
     const socialBody = (deviceId: string) => ({
       provider: 'google',
       idToken: 'header.payload.sig',
@@ -460,9 +465,13 @@ describe('Auth hardening (e2e)', () => {
     });
 
     it.each([
-      ['raw', raw],
-      ['sha256(raw)', createHash('sha256').update(raw).digest('hex')],
-    ])('accepts a nonce claim equal to the %s nonce', async (_, claim) => {
+      ['raw', (r: string) => r],
+      [
+        'sha256(raw)',
+        (r: string) => createHash('sha256').update(r).digest('hex'),
+      ],
+    ])('accepts a nonce claim equal to the %s nonce', async (_, toClaim) => {
+      const claim = toClaim(raw);
       googlePayload = {
         sub: `google-e2e-ok-${claim.length}`,
         nonce: claim,
@@ -487,6 +496,9 @@ describe('Auth hardening (e2e)', () => {
         .post('/api/v1/auth/social')
         .send(socialBody('g-two-a'));
       expect(first.status).toBe(201);
+      // The second phone signs in with its own token and nonce.
+      raw = `e2e-raw-nonce-${randomUUID()}`;
+      googlePayload = { ...googlePayload, nonce: raw };
       const second = await api()
         .post('/api/v1/auth/social')
         .send(socialBody('g-two-b'));
@@ -862,7 +874,7 @@ describe('Auth hardening (e2e)', () => {
     });
 
     it('S14-5: social sign-in honours the ban list (device and e-mail)', async () => {
-      const raw = 'e2e-raw-nonce-0123456789abcdef';
+      let raw = `e2e-raw-nonce-${randomUUID()}`;
       const device = `ban-dev-${randomUUID()}`;
       await prisma.accountBan.create({
         data: {
@@ -898,6 +910,7 @@ describe('Auth hardening (e2e)', () => {
       ).toBe(0);
 
       const bannedMail = `banned-${randomUUID()}@example.com`;
+      raw = `e2e-raw-nonce-${randomUUID()}`; // R2B-9: a nonce works once
       await prisma.accountBan.create({
         data: {
           kind: 'email',
@@ -925,7 +938,7 @@ describe('Auth hardening (e2e)', () => {
     });
 
     it('S14-6: a first Google sign-in with a disposable e-mail opens no account', async () => {
-      const raw = 'e2e-raw-nonce-0123456789abcdef';
+      const raw = `e2e-raw-nonce-${randomUUID()}`;
       googlePayload = {
         sub: 'google-disposable-1',
         nonce: raw,

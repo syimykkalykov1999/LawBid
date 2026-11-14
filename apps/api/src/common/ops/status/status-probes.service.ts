@@ -47,7 +47,8 @@ import {
   USAGE_SNAPSHOT_KEY,
   type UsageSnapshot,
 } from '../../../jobs/handlers/usage-poll.job';
-import { CRON_LANES } from '../../../jobs/jobs.constants';
+import { CRON_LANES, CRON_SCHEDULES } from '../../../jobs/jobs.constants';
+import { CronRunStats, staleJobs } from '../../../jobs/cron-run';
 
 export type ProbeStatus = 'green' | 'yellow' | 'red' | 'grey';
 
@@ -430,10 +431,46 @@ export class StatusProbesService implements OnModuleDestroy {
     const oldestSec = Math.max(0, ...all.map((l) => l.oldestSec));
     const waiting = all.reduce((s, l) => s + l.waiting, 0);
     const failed = all.reduce((s, l) => s + l.failed, 0);
+    const jobs = await this.cronJobs(now);
+    const status: ProbeStatus =
+      oldestSec > 300 || jobs.staleJobs.length > 0
+        ? 'red'
+        : oldestSec > 60
+          ? 'yellow'
+          : 'green';
     return {
-      status: oldestSec > 300 ? 'red' : oldestSec > 60 ? 'yellow' : 'green',
-      detail: { waiting, failed, oldestSec, lanes },
+      status,
+      detail: { waiting, failed, oldestSec, lanes, ...jobs },
     };
+  }
+
+  /**
+   * Batch D (14.11): the last good run of every cron job (written by
+   * CronProcessor into `ops:cron:runs`) and the jobs that had none for
+   * `ops.cron_stale_periods` of their periods — a job that fails or is
+   * skipped tick after tick used to be invisible here while its lane looked
+   * healthy. A read error leaves the lane check as it was.
+   */
+  private async cronJobs(now: Date): Promise<{
+    staleJobs: ReturnType<typeof staleJobs>;
+    lastSuccess: Record<string, string | null>;
+  }> {
+    try {
+      const records = await withTimeout(new CronRunStats(this.redis).all());
+      const periods = await this.settings.number('ops.cron_stale_periods');
+      const lastSuccess: Record<string, string | null> = {};
+      for (const [job, r] of Object.entries(records)) {
+        lastSuccess[job] = r.lastOkAt
+          ? new Date(r.lastOkAt).toISOString()
+          : null;
+      }
+      return {
+        staleJobs: staleJobs(records, CRON_SCHEDULES, now.getTime(), periods),
+        lastSuccess,
+      };
+    } catch {
+      return { staleJobs: [], lastSuccess: {} };
+    }
   }
 
   private async stripeWebhooks(): Promise<Omit<ProbeResult, 'key'>> {
