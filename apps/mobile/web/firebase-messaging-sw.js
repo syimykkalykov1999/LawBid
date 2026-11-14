@@ -52,9 +52,14 @@ function showFor(payload) {
   });
 }
 
+// D1-23: the same Firebase JS SDK as the page (Firebase's rule for the
+// messaging worker): firebase_core_web's `supportedFirebaseJsSdkVersion` in
+// pubspec.lock. scripts/ci/web-assets-match-lock.sh fails when they differ.
+const FIREBASE_JS_VERSION = '13.1.0';
+
 if (!config.apiKey.startsWith('__')) {
-  importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
-  importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
+  importScripts(`https://www.gstatic.com/firebasejs/${FIREBASE_JS_VERSION}/firebase-app-compat.js`);
+  importScripts(`https://www.gstatic.com/firebasejs/${FIREBASE_JS_VERSION}/firebase-messaging-compat.js`);
   firebase.initializeApp(config);
   const messaging = firebase.messaging();
 

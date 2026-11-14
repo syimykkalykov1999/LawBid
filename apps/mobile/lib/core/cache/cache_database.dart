@@ -317,6 +317,10 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
 
   Future<void> clearHttp() => delete(httpCache).go();
 
+  /// D1-47: one answer out (the server said 403 / 404 / 410 for it).
+  Future<void> removeHttpEntry(String key) =>
+      (delete(httpCache)..where((r) => r.key.equals(key))).go();
+
   // --- sync state -------------------------------------------------------
 
   @override

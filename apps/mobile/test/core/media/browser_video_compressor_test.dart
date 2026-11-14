@@ -13,16 +13,19 @@ class _Encoder implements BrowserVideoEncoder {
   final bool fails;
   int calls = 0;
   ({int maxShortSide, int frameRate})? asked;
+  int? askedKbps;
 
   @override
   Future<XFile?> encode(
     XFile source, {
     required int maxShortSide,
     required int frameRate,
+    required int bitrateKbps,
     void Function(double progress)? onProgress,
   }) async {
     calls++;
     asked = (maxShortSide: maxShortSide, frameRate: frameRate);
+    askedKbps = bitrateKbps;
     if (fails) throw StateError('encoder broke');
     return result;
   }
@@ -41,8 +44,8 @@ void main() {
 
   test('no WebCodecs in this browser: the original is uploaded', () async {
     final e = _Encoder(supported: false, result: _video(10));
-    final out = await BrowserVideoCompressor(e)
-        .compress(_video(1000), limits: limits);
+    final out =
+        await BrowserVideoCompressor(e).compress(_video(1000), limits: limits);
     expect(out, isNull);
     expect(e.calls, 0);
   });
@@ -64,10 +67,22 @@ void main() {
   test("the admin's size and frame rate are used, a smaller file is kept",
       () async {
     final e = _Encoder(result: _video(300));
-    final out = await BrowserVideoCompressor(e)
-        .compress(_video(1000), limits: limits);
+    final out =
+        await BrowserVideoCompressor(e).compress(_video(1000), limits: limits);
     expect(await out!.length(), 300);
     expect(e.asked, (maxShortSide: 720, frameRate: 30));
+    // Owner rows 101/102: the admin's 720p rung (default 2000 kbit/s).
+    expect(e.askedKbps, 2000);
+  });
+
+  test("owner rows 101/102: the admin's bitrate ladder reaches the browser",
+      () async {
+    final e = _Encoder(result: _video(300));
+    await BrowserVideoCompressor(
+      e,
+      ladder: () => (kbps1080: 6000, kbps720: 2500, kbps540: 1500),
+    ).compress(_video(1000), limits: (maxHeight: 1080, frameRate: 30));
+    expect(e.askedKbps, 6000);
   });
 
   test('the admin turned re-encoding off (0): nothing is done', () async {

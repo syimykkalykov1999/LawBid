@@ -187,13 +187,15 @@ class StoryPublishJob extends Notifier<StoryPublishState> {
   ) async {
     final file = d.video!;
     final size = d.videoSize;
-    final limits = videoLimitsOf(ref.read(featureFlagsControllerProvider));
+    final flags = ref.read(featureFlagsControllerProvider);
+    final limits = videoLimitsOf(flags);
     final need = size != null &&
         needsVideoCompression(
           shortSide: math.min(size.width, size.height),
           bytes: await file.length(),
           durationMs: d.videoDurationMs,
           limits: limits,
+          reencodeAboveKbps: videoReencodeAboveKbpsOf(flags),
         );
     if (!need) return file;
     final compressor = ref.read(videoCompressorProvider);

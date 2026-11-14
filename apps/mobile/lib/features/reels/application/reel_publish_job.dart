@@ -239,12 +239,14 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
   }) async {
     // Owner 2026-11-08: the browser re-encodes too (WebCodecs), or keeps the
     // original when it cannot.
-    final limits = videoLimitsOf(ref.read(featureFlagsControllerProvider));
+    final flags = ref.read(featureFlagsControllerProvider);
+    final limits = videoLimitsOf(flags);
     final need = needsVideoCompression(
       shortSide: math.min(previewSize.width, previewSize.height).round(),
       bytes: await file.length(),
       durationMs: cut.totalMs,
       limits: limits,
+      reencodeAboveKbps: videoReencodeAboveKbpsOf(flags),
     );
     if (!need) return null;
     final compressor = ref.read(videoCompressorProvider);

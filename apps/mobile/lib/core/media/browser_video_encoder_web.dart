@@ -14,6 +14,7 @@ extension type _Module._(JSObject _) implements JSObject {
     JSString url,
     JSNumber maxShortSide,
     JSNumber frameRate,
+    JSNumber bitrateKbps,
     JSFunction onProgress,
   );
   external JSPromise<JSAny?> cancel();
@@ -32,6 +33,7 @@ class _JsEncoder implements BrowserVideoEncoder {
     XFile source, {
     required int maxShortSide,
     required int frameRate,
+    required int bitrateKbps,
     void Function(double progress)? onProgress,
   }) async {
     final module =
@@ -41,8 +43,8 @@ class _JsEncoder implements BrowserVideoEncoder {
           source.path.toJS,
           maxShortSide.toJS,
           frameRate.toJS,
-          ((JSNumber p) => onProgress?.call(p.toDartDouble.clamp(0, 1)))
-              .toJS,
+          bitrateKbps.toJS,
+          ((JSNumber p) => onProgress?.call(p.toDartDouble.clamp(0, 1))).toJS,
         )
         .toDart;
     if (blob == null) return null;

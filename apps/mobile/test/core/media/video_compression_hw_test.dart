@@ -138,12 +138,40 @@ void main() {
     expect(fellBack, isFalse);
   });
 
-  test('iOS: Media3 is never asked, the plugin path runs', () async {
-    final source = file('in.mp4', 1000);
-    var asked = false;
+  // Owner rows 101/102: the iPhone answers the same channel with
+  // AVAssetWriter (ios/Runner/VideoEncoder.swift).
+  test("iOS: AVAssetWriter gets the admin's numbers, its smaller file is used",
+      () async {
+    final source = file('in.mov', 1000);
+    final encoded = file('out.mp4', 300);
+    MethodCall? sent;
     messenger.setMockMethodCallHandler(channel, (call) async {
-      asked = true;
-      return null;
+      sent = call;
+      return encoded.path;
+    });
+    var fellBack = false;
+    final out = await PluginVideoCompressor(
+      platform: TargetPlatform.iOS,
+      fallback: (_, __) async {
+        fellBack = true;
+        return null;
+      },
+      ladder: () => (kbps1080: 5000, kbps720: 2500, kbps540: 1500),
+    ).compress(source, limits: (maxHeight: 1080, frameRate: 30));
+    final args = (sent?.arguments as Map).cast<String, Object?>();
+    expect(sent?.method, 'compress');
+    expect(args['path'], source.path);
+    expect(args['maxShortSide'], 1080);
+    expect(args['frameRate'], 30);
+    expect(args['bitrateKbps'], 5000);
+    expect(out?.path, encoded.path);
+    expect(fellBack, isFalse);
+  });
+
+  test('iOS: an encoder failure falls back to the old preset path', () async {
+    final source = file('in.mov', 1000);
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      throw PlatformException(code: 'failed');
     });
     var fellBack = false;
     await PluginVideoCompressor(
@@ -153,8 +181,40 @@ void main() {
         return null;
       },
     ).compress(source, limits: limits);
-    expect(asked, isFalse);
     expect(fellBack, isTrue);
+  });
+
+  test('iOS: already light (null from the encoder) keeps the original',
+      () async {
+    final source = file('in.mp4', 1000);
+    messenger.setMockMethodCallHandler(channel, (call) async => null);
+    var fellBack = false;
+    final out = await PluginVideoCompressor(
+      platform: TargetPlatform.iOS,
+      fallback: (_, __) async {
+        fellBack = true;
+        return null;
+      },
+    ).compress(source, limits: limits);
+    expect(out, isNull);
+    expect(fellBack, isFalse);
+  });
+
+  test('the admin turned re-encoding off (0): no encoder runs', () async {
+    final source = file('in.mp4', 1000);
+    var asked = false;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      asked = true;
+      return null;
+    });
+    for (final p in [TargetPlatform.iOS, TargetPlatform.android]) {
+      final out = await PluginVideoCompressor(
+        platform: p,
+        fallback: (_, __) async => fail('no fallback either'),
+      ).compress(source, limits: (maxHeight: 0, frameRate: 30));
+      expect(out, isNull);
+    }
+    expect(asked, isFalse);
   });
 
   test('Android: cancel reaches the Media3 encoder for its own video',
