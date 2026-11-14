@@ -44,8 +44,28 @@ const _phoneOnlyZoneKey = #lawbidReadFromPhoneOnly;
 /// provider built inside would keep the zone for every timer it starts).
 /// The result is `Future<T?>` (awaited here) so it fits a nullable
 /// `cachedFirstPage`; a miss throws, it is never a quiet null.
-Future<T?> readFromPhoneOnly<T>(Future<T> Function() read) async =>
-    await runZoned(read, zoneValues: {_phoneOnlyZoneKey: true});
+///
+/// [asUser]: whose copy to read when no bearer token says it yet — the
+/// cached cold start, before the token refresh (perf batch 4, row 127).
+Future<T?> readFromPhoneOnly<T>(
+  Future<T> Function() read, {
+  String? asUser,
+}) async =>
+    await runZoned(
+      read,
+      zoneValues: {
+        _phoneOnlyZoneKey: true,
+        if (asUser != null) _phoneOnlyUserZoneKey: asUser,
+      },
+    );
+
+const _phoneOnlyUserZoneKey = #lawbidReadFromPhoneOnlyAsUser;
+
+/// Request extra (perf batch 4, row 127): whose copy a [readFromPhoneOnly]
+/// GET reads when it carries no bearer token — the session opened from the
+/// phone's copy before its token refresh (AuthInterceptor sets it). Only
+/// phone-only reads use it: nothing sent to the server is keyed by it.
+const kCacheSubjectExtra = 'cacheSubject';
 
 /// Whether the code running now is inside [readFromPhoneOnly] (a test
 /// double with no HTTP copy answers it like a miss).
@@ -507,7 +527,16 @@ class HttpCacheInterceptor extends Interceptor {
         options.headers['Authorization'] ?? options.headers['authorization'];
     final lang = options.headers['Accept-Language'] ??
         options.headers['accept-language'];
-    return '${bearerSubject(auth)}|$lang|${options.uri}';
+    return '${_subject(options, auth)}|$lang|${options.uri}';
+  }
+
+  static String _subject(RequestOptions options, Object? auth) {
+    if (readingFromPhoneOnly) {
+      final who = options.extra[kCacheSubjectExtra] ??
+          Zone.current[_phoneOnlyUserZoneKey];
+      if (who is String && who.isNotEmpty) return who;
+    }
+    return bearerSubject(auth);
   }
 }
 
