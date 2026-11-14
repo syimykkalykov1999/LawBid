@@ -359,8 +359,9 @@ class _GroupConversationScreenState
             path: f.path,
             name: f.name,
             mime: f.mime,
-            caption:
-                i == files.length - 1 && caption.isNotEmpty ? caption : null,
+            caption: i == files.length - 1 && caption.isNotEmpty
+                ? caption
+                : null,
             replyToId: i == 0 ? reply?.id : null,
           );
         }
@@ -371,7 +372,8 @@ class _GroupConversationScreenState
       // the flag off, one after another as before.
       await thread.uploadAndSend(
         items: files,
-        atOnce: ref
+        atOnce:
+            ref
                 .read(featureFlagsControllerProvider)
                 .isEnabled('chat_upload_parallel')
             ? ClientTuning.uploadsAtOnce
@@ -434,15 +436,16 @@ class _GroupConversationScreenState
 
   /// A protected group shares its link instead of its messages.
   Future<void> _shareLink(api.GroupDetailDto detail) => forwardWithSheet(
-        context,
-        ref,
-        [ForwardSource(ForwardSourceKind.groupLink, detail.id)],
-      );
+    context,
+    ref,
+    [ForwardSource(ForwardSourceKind.groupLink, detail.id)],
+  );
 
   PreferredSizeWidget _selectionBar(api.GroupDetailDto detail) {
     final picked = _picked();
     final protected = detail.isProtected;
-    final canCopy = !protected &&
+    final canCopy =
+        !protected &&
         picked.any((m) => !m.deleted && !m.isPoll && m.body.trim().isNotEmpty);
     final canForward =
         !protected && picked.isNotEmpty && picked.every((m) => m.canForward);
@@ -594,7 +597,9 @@ class _GroupConversationScreenState
   }) async {
     final t = ref.read(translatorProvider);
     try {
-      final updated = await ref.read(groupRepositoryProvider).updateMine(
+      final updated = await ref
+          .read(groupRepositoryProvider)
+          .updateMine(
             detail.id,
             api.UpdateGroupMeDto(
               // The client cannot send an explicit null, so «unmute» is a
@@ -654,14 +659,14 @@ class _GroupConversationScreenState
   }
 
   Widget _plain(Translator t, Widget body) => Scaffold(
-        appBar: AppTopBar(
-          leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: _back,
-          ),
-        ),
-        body: body,
-      );
+    appBar: AppTopBar(
+      leading: AppBackButton(
+        semanticLabel: t.t('common.back'),
+        onPressed: _back,
+      ),
+    ),
+    body: body,
+  );
 
   bool _isGone(Object? e) =>
       e is ApiException &&
@@ -758,8 +763,9 @@ class _GroupConversationScreenState
                       icon: AppIcon(
                         AppIcons.callOutlined,
                         size: 22,
-                        color:
-                            Theme.of(context).extension<AppColorTokens>()!.text,
+                        color: Theme.of(context)
+                            .extension<AppColorTokens>()!
+                            .text,
                       ),
                       semanticLabel: t.t('call.button'),
                       onPressed: () => _startCall(detail, video: false),
@@ -768,8 +774,9 @@ class _GroupConversationScreenState
                   AppIconButton(
                     icon: AppIcon(
                       AppIcons.moreVertRounded,
-                      color:
-                          Theme.of(context).extension<AppColorTokens>()!.text,
+                      color: Theme.of(context)
+                          .extension<AppColorTokens>()!
+                          .text,
                     ),
                     semanticLabel: t.t('chat.menu'),
                     onPressed: () => _headerMenu(detail),
@@ -808,7 +815,8 @@ class _GroupConversationScreenState
     final closed = topic?.closed ?? false;
     final canWrite = detail.canPost && (!closed || detail.isAdmin);
     final pinned = detail.pinnedMessage;
-    final showPin = pinned != null &&
+    final showPin =
+        pinned != null &&
         !pinned.deleted &&
         (widget.topicId == null ||
             pinned.topicId == null ||
@@ -940,9 +948,9 @@ class _Header extends ConsumerWidget {
     final typerName = typer == null
         ? null
         : detail.members
-            .where((m) => m.userId == typer.userId)
-            .map((m) => m.displayName?.trim() ?? '')
-            .firstOrNull;
+              .where((m) => m.userId == typer.userId)
+              .map((m) => m.displayName?.trim() ?? '')
+              .firstOrNull;
     final String subtitle;
     if (typer != null) {
       final name = (typerName == null || typerName.isEmpty)
@@ -1140,6 +1148,10 @@ class _DownButton extends StatelessWidget {
   }
 }
 
+/// Row 38: groups whose older page is already queued for the next frame
+/// (one request per frame however many rows near the top get built).
+final _olderQueued = <String>{};
+
 /// The messages, newest at the bottom; unsent ones below them; the day
 /// separators, the runs of one sender and the older pages.
 class _MessageList extends ConsumerWidget {
@@ -1256,17 +1268,22 @@ class _MessageList extends ConsumerWidget {
               }
               // Row 38 (Telegram): the older page is asked for a few rows
               // before the oldest one (`client.load_ahead_rows`), not when
-              // the spinner shows. One request at a time: the thread's
-              // loadMore shares a running request.
+              // the spinner shows; once per frame, like the 1:1 chat.
               if (k >= messages.length - LoadAhead.rows &&
                   state.hasMore &&
-                  !state.loadingMore) {
-                WidgetsBinding.instance.addPostFrameCallback((_) => onMore());
+                  !state.loadingMore &&
+                  state.error == null &&
+                  _olderQueued.add(detail.id)) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _olderQueued.remove(detail.id);
+                  onMore();
+                });
               }
               final m = messages[k];
               final older = k + 1 < messages.length ? messages[k + 1] : null;
               final newer = k > 0 ? messages[k - 1] : null;
-              final newDay = older == null ||
+              final newDay =
+                  older == null ||
                   !DateUtils.isSameDay(
                     older.createdAt.toLocal(),
                     m.createdAt.toLocal(),
