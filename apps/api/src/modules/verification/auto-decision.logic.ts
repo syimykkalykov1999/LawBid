@@ -11,18 +11,29 @@ import type { RejectionCode } from './verification.constants';
  * «approve / decline / mark for review», Stripe Identity «verified /
  * requires_input + resubmit», Onfido/Entrust Studio «clear / consider»,
  * Uber Real-Time ID Check «a mismatch goes to people, every removal can be
- * appealed»): every fact must agree for an automatic approval; only a
- * fact the platform itself measured and that clearly fails rejects; the
- * rest waits for a person. The model's own «reject» never rejects.
+ * appealed»): every fact must agree for an automatic approval; the rest
+ * waits for a person. The model's own «reject» never rejects.
+ *
+ * Owner 2026-11-13 (row 60, «Ок»): a registry miss, a registry error or
+ * timeout and a face non-match are UNCERTAIN (a scraper miss looks like
+ * «not found», a bad photo like «another person»), so they go to the
+ * human queue with the reason, never to an automatic rejection (Uber: a
+ * face non-match goes to human reviewers; Stripe Identity: uncertain
+ * matches are held for manual review). The only automatic rejection is
+ * the registry's own record that the licence is disbarred, suspended or
+ * revoked.
  */
 export type AutoProposal = 'approve' | 'reject' | 'request_info' | 'queue';
 
 /** One licence of the request against its state registry lookup (the
- * newest `bar_lookup` check of this request). */
+ * newest `bar_lookup` check of this request). `disciplined` = the registry
+ * record itself says disbarred / suspended / revoked; `not_active` = any
+ * other status that is not active (inactive, retired, …). */
 export type RegistryVerdict =
   | 'pass'
   | 'not_found'
   | 'not_active'
+  | 'disciplined'
   | 'name_mismatch'
   | 'unavailable'
   | 'none';
@@ -52,7 +63,8 @@ export interface AutoDecisionInput {
     similarity: number | null;
     reason: string | null;
   };
-  /** `verification.auto_decision.face_reject_below`. */
+  /** `verification.auto_decision.face_reject_below`: under it the faces
+   * are marked «far apart» for the reviewer (never a rejection). */
   faceRejectBelow: number;
   /** The selfie came from the app camera with a valid one-time token and
    * the liveness challenge passed. */
@@ -99,21 +111,25 @@ export function decideAutomatically(i: AutoDecisionInput): AutoVerdict | null {
   if (!i.consent) return queue('no_biometric_consent');
   if (i.licenses.length === 0) return queue('no_license');
 
-  // Clear failures, measured by the platform itself (never the model).
+  // The only automatic rejection: the registry's own record says the
+  // licence is disbarred / suspended / revoked (never the model).
   const reject = (reason: RejectionCode): AutoVerdict => ({
     proposal: 'reject',
     reason,
   });
-  if (i.licenses.some((l) => l.registry === 'not_found'))
-    return reject('license_not_found');
-  if (i.licenses.some((l) => l.registry === 'not_active'))
+  if (i.licenses.some((l) => l.registry === 'disciplined'))
     return reject('license_inactive');
+
+  // Uncertain: a person decides, with the reason (never a rejection, and
+  // never the «upload again» lever below).
+  for (const v of ['not_found', 'not_active', 'unavailable'] as const)
+    if (i.licenses.some((l) => l.registry === v)) return queue(`registry_${v}`);
   if (
     i.face.result === 'fail' &&
     i.face.similarity !== null &&
     i.face.similarity < i.faceRejectBelow
   )
-    return reject('selfie_mismatch');
+    return queue('face_far_apart');
 
   // Optional lever: ask the attorney to upload again.
   if (i.requestInfoEnabled) {
