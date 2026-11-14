@@ -11,15 +11,24 @@ const _maxConnectionsPerHost = 6;
 
 bool get _isMobile => Platform.isIOS || Platform.isAndroid;
 
+/// D1-18 (13.11): ONE Cronet engine for the whole app on Android. Every
+/// CronetEngine has its own network thread, DNS cache, HTTP/2 + QUIC
+/// sessions and TLS session cache, so separate engines for the API, the
+/// picture caches, HLS prefetch and downloads never reused each other's warm
+/// connections to the same hosts. Built lazily on first use and never
+/// closed: every client takes it with `closeEngine: false` (the
+/// cronet_http / native_dio_adapter API as is). Our own ETag cache
+/// (core/cache) already stores answers: no second HTTP cache inside Cronet.
+CronetEngine? _sharedEngine;
+CronetEngine _cronetEngine() =>
+    _sharedEngine ??= CronetEngine.build(cacheMode: CacheMode.disabled);
+
 void applyAdapter(Dio dio, {required bool native}) {
   if (native && _isMobile) {
     try {
-      dio.httpClientAdapter = NativeAdapter(
-        // Our own ETag cache (core/cache) already stores answers: no second
-        // HTTP cache inside Cronet.
-        createCronetEngine: () =>
-            CronetEngine.build(cacheMode: CacheMode.disabled),
-      );
+      dio.httpClientAdapter = Platform.isAndroid
+          ? CronetAdapter(_cronetEngine(), closeEngine: false)
+          : NativeAdapter();
       return;
     } catch (_) {
       // No Play Services / engine failure: fall through to dart:io.
@@ -40,10 +49,8 @@ http.Client? createNativeClient() {
     return CupertinoClient.defaultSessionConfiguration();
   }
   if (Platform.isAndroid) {
-    return CronetClient.fromCronetEngine(
-      CronetEngine.build(cacheMode: CacheMode.disabled),
-      closeEngine: true,
-    );
+    // Not closed with the client (closeEngine defaults to false).
+    return CronetClient.fromCronetEngine(_cronetEngine());
   }
   return null;
 }

@@ -210,6 +210,29 @@ Dependency from pub.dev (not copied): opens a downloaded document in the system
 viewer (`lib/core/files/open_local_file_native.dart`), version 5.0.0,
 https://github.com/javaherisaber/open_filex. Copyright 2018 crazecoder.
 
+## firebase_messaging (FlutterFire) — BSD-3-Clause
+
+`android/.../FlutterPushReceiver.kt` subclasses the plugin's
+`FlutterFirebaseMessagingReceiver` and copies its package-private
+`FlutterFirebaseMessagingUtils.isApplicationForeground` as is
+(firebase_messaging 17.0.1, https://github.com/firebase/flutterfire,
+`packages/firebase_messaging/firebase_messaging/android`). Copyright 2017 The
+Chromium Authors. All rights reserved. BSD-3-Clause license (the package's
+LICENSE file): redistribution in source and binary forms, with or without
+modification, is permitted provided the copyright notice, this list of
+conditions and the disclaimer are retained, and neither the name of Google
+Inc. nor the names of its contributors are used to endorse derived products
+without permission. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES ARE DISCLAIMED.
+
+## Android developer guide «Loading large bitmaps efficiently» — Apache-2.0
+
+`calculateInSampleSize` in `android/.../ChatNotifications.kt` (the two-pass
+`inJustDecodeBounds` decode of a push avatar) is the guide's Kotlin sample as
+is (https://developer.android.com/topic/performance/graphics/load-bitmap,
+read 2026-11-13). Code samples on that site are licensed under the Apache
+License, Version 2.0, as for livekit_client above.
+
 ## tus-js-client — MIT
 
 The parallel reel upload in `lib/features/reels/data/reels_repository.dart`

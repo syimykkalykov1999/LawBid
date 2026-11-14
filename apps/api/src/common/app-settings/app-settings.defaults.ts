@@ -1180,6 +1180,11 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * many seconds unless somebody joins (0 = at once). Owner 2026-10-26: 3 s
    * («when one person is left it must end by itself», like WhatsApp). */
   'calls.solo_end_seconds': 3,
+  /** D1-19 (13.11): «does this call still ring?» asks per minute from ONE
+   * rung phone (counted per call and person by the ring push's ticket, not
+   * per address: many phones share a carrier / office address). A phone
+   * asks about 8 times a minute. 0 = no limit. */
+  'calls.ring_status_rate_limit_per_minute': 60,
   /** Owner 2026-10-22: guest browsing (reading with no account). Kill
    * switch and the per-IP budgets of token-less reads. */
   'guest.browsing_enabled': true,

@@ -17,6 +17,7 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.media.AudioAttributes
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -32,6 +33,10 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
 
 /**
  * Owner 2026-10-22 (message pushes like WhatsApp / Telegram): one
@@ -81,6 +86,23 @@ object ChatNotifications {
     /** A reply written from the shade. */
     const val ME = "me"
 
+    /** D1-17 (13.11): how long a new message waits for a missing photo
+     * before it is shown with the letters avatar, and how much longer a
+     * late photo may still arrive (then the same notification is redrawn
+     * quietly). Together well inside the ~10 s Android gives a goAsync()
+     * broadcast (BroadcastReceiver.goAsync docs); before, two serial
+     * downloads with a full-picture retry could take 20–40 s. */
+    const val AVATAR_WAIT_MS = 2_500L
+    private const val AVATAR_LATE_MS = 5_000L
+
+    /** Photo downloads run side by side (sender + group photo), one per
+     * photo even when two pushes ask for it at once. */
+    private val downloads = Executors.newCachedThreadPool()
+    private val inFlight = ConcurrentHashMap<String, Future<*>>()
+
+    /** The chat stacks (history + meta) change one push at a time. */
+    private val stackLock = Any()
+
     fun show(context: Context, data: Map<String, String>) {
         val conversation = data["conversationId"]?.takeIf { it.isNotEmpty() } ?: return
         val group = data["isGroup"] == "1"
@@ -102,12 +124,49 @@ object ChatNotifications {
             else -> messageId
         }
         val senderKey = avatarKey(data["senderAvatarKey"], data["senderAvatar"])
-        // Downloaded once per photo; older lines reuse the cached file.
-        cacheAvatar(context, senderKey, data["senderAvatar"])
         val chatKey = avatarKey(data["chatAvatarKey"], data["chatAvatar"])
-        if (group) cacheAvatar(context, chatKey, data["chatAvatar"])
+        // Downloaded once per photo (older lines reuse the cached file), the
+        // two side by side and within AVATAR_WAIT_MS (D1-17).
+        val photos = fetchAvatars(
+            context,
+            listOfNotNull(
+                senderKey to data["senderAvatar"],
+                if (group) chatKey to data["chatAvatar"] else null,
+            ),
+        )
+        awaitAll(photos, AVATAR_WAIT_MS)
+        synchronized(stackLock) {
+            addLine(context, conversation, data, group, name, text, lineId, senderKey, chatKey, noBadge, messageId)
+        }
+        // A photo that came late: the same notification, quietly redrawn
+        // (not when it was swiped away meanwhile).
+        if (photos.any { !it.isDone }) {
+            awaitAll(photos, AVATAR_LATE_MS)
+            val arrived = listOfNotNull(senderKey, if (group) chatKey else null)
+                .any { avatarFile(context, it).exists() }
+            if (arrived) {
+                synchronized(stackLock) {
+                    if (isShown(context, conversation)) render(context, conversation, alert = false)
+                }
+            }
+        }
+    }
 
-        val lines = history(context, conversation, shown = isShown(context, conversation))
+    private fun addLine(
+        context: Context,
+        conversation: String,
+        data: Map<String, String>,
+        group: Boolean,
+        name: String,
+        text: String,
+        lineId: String,
+        senderKey: String?,
+        chatKey: String?,
+        noBadge: Boolean,
+        messageId: String,
+    ) {
+        val senderId = data["senderId"].orEmpty()
+        var lines = history(context, conversation, shown = isShown(context, conversation))
         val line = JSONObject()
             .put("id", lineId)
             .put("senderId", senderId)
@@ -119,6 +178,11 @@ object ChatNotifications {
             lines.getJSONObject(it).optString("id") == lineId
         }
         if (existing != null) lines.put(existing, line) else lines.put(line)
+        // Pushes are drawn a few at a time (D1-17): keep the lines in the
+        // order they were sent.
+        val sorted = (0 until lines.length()).map { lines.getJSONObject(it) }
+            .sortedBy { it.optLong("at") }
+        lines = JSONArray(sorted)
         while (lines.length() > MAX_LINES) lines.remove(0)
         saveHistory(context, conversation, lines)
 
@@ -135,7 +199,10 @@ object ChatNotifications {
 
     /** A reply sent from the notification: it joins the stack as «Вы: …»
      * (quietly — no second sound); [failed] says it did not go. */
-    fun addOwnReply(context: Context, conversation: String, text: String, failed: Boolean) {
+    fun addOwnReply(context: Context, conversation: String, text: String, failed: Boolean) =
+        synchronized(stackLock) { addOwnReplyLocked(context, conversation, text, failed) }
+
+    private fun addOwnReplyLocked(context: Context, conversation: String, text: String, failed: Boolean) {
         val lines = history(context, conversation, shown = true)
         val shown = if (failed) "$text\n${context.getString(R.string.chat_reply_failed)}" else text
         lines.put(
@@ -362,12 +429,25 @@ object ChatNotifications {
         }
     }
 
-    /** userId → the name saved in the phone book (LawBid contacts only). */
+    /** userId → the name saved in the phone book (LawBid contacts only).
+     * D1-21: an unchanged map is not written again. */
     fun setContactNames(context: Context, names: Map<String, String>) {
         val json = JSONObject()
         for ((id, name) in names) if (name.isNotBlank()) json.put(id, name)
-        prefs(context).edit().putString(NAMES, json.toString()).apply()
+        val raw = json.toString()
+        val p = prefs(context)
+        if (p.getString(NAMES, null) == raw) return
+        p.edit().putString(NAMES, raw).apply()
+        synchronized(namesLock) {
+            namesRaw = raw
+            namesJson = json
+        }
     }
+
+    /** D1-21: the names map parsed once per change, not once per line. */
+    private val namesLock = Any()
+    private var namesRaw: String? = null
+    private var namesJson: JSONObject? = null
 
     /** Owner 2026-10-26: the server (`…/api/v1`) and this device's push
      * token the notification buttons answer with. */
@@ -450,11 +530,18 @@ object ChatNotifications {
     private fun contactName(context: Context, userId: String): String? {
         if (userId.isEmpty()) return null
         val raw = prefs(context).getString(NAMES, null) ?: return null
-        return try {
-            JSONObject(raw).optString(userId).takeIf { it.isNotBlank() }
-        } catch (e: Exception) {
-            null
-        }
+        val json = synchronized(namesLock) {
+            if (raw != namesRaw) {
+                namesJson = try {
+                    JSONObject(raw)
+                } catch (e: Exception) {
+                    null
+                }
+                namesRaw = raw
+            }
+            namesJson
+        } ?: return null
+        return json.optString(userId).takeIf { it.isNotBlank() }
     }
 
     private fun isShown(context: Context, conversation: String): Boolean {
@@ -520,6 +607,43 @@ object ChatNotifications {
     private fun avatarFile(context: Context, key: String): File =
         File(File(context.cacheDir, "chat_avatars").apply { mkdirs() }, "$key.png")
 
+    /** D1-17: starts the downloads of the photos not cached yet, side by
+     * side; one download per photo even when two pushes need it. */
+    fun fetchAvatars(context: Context, photos: List<Pair<String?, String?>>): List<Future<*>> {
+        val out = ArrayList<Future<*>>()
+        for ((key, url) in photos) {
+            if (key == null || url.isNullOrEmpty()) continue
+            if (avatarFile(context, key).exists()) continue
+            val f = inFlight.computeIfAbsent(key) {
+                downloads.submit(
+                    Runnable {
+                        try {
+                            cacheAvatar(context, key, url)
+                        } finally {
+                            inFlight.remove(key)
+                        }
+                    },
+                )
+            }
+            out.add(f)
+        }
+        return out
+    }
+
+    /** Waits for [futures] at most [ms] in all. */
+    fun awaitAll(futures: List<Future<*>>, ms: Long) {
+        val end = SystemClock.uptimeMillis() + ms
+        for (f in futures) {
+            val left = end - SystemClock.uptimeMillis()
+            if (left <= 0) return
+            try {
+                f.get(left, TimeUnit.MILLISECONDS)
+            } catch (e: Exception) {
+                // Late or failed: the letters avatar for now.
+            }
+        }
+    }
+
     /** Downloads and keeps the round photo; a missing 256 px preview
      * (`…_w256` 404) falls back to the full picture of a public link. */
     fun cacheAvatar(context: Context, key: String?, url: String?) {
@@ -529,14 +653,51 @@ object ChatNotifications {
         if (!url.startsWith("https://") && !url.startsWith("http://")) return
         val bytes = download(url) ?: fullPictureOf(url)?.let { download(it) } ?: return
         try {
-            val source = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return
+            // D1-20: decoded at about the circle's size, not the full photo.
+            val source = decodeSampled(bytes, AVATAR_PX) ?: return
             val round = circle(source)
-            val tmp = File(file.parentFile, "${file.name}.tmp")
+            val tmp = File(file.parentFile, "${file.name}.${Thread.currentThread().id}.tmp")
             FileOutputStream(tmp).use { round.compress(Bitmap.CompressFormat.PNG, 100, it) }
             tmp.renameTo(file)
         } catch (e: Exception) {
             // No photo this time: the letters avatar.
+        } catch (e: OutOfMemoryError) {
+            // D1-20: a low-RAM phone — the letters avatar, never a crash.
         }
+    }
+
+    /** D1-20 (13.11): a picture decoded in two passes — the size first, then
+     * a power-of-two subsample that keeps both sides at least [reqPx].
+     * Copied from the Android developer guide «Loading large bitmaps
+     * efficiently» (`calculateInSampleSize`, Apache-2.0). */
+    private fun decodeSampled(bytes: ByteArray, reqPx: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = calculateInSampleSize(bounds, reqPx, reqPx)
+        }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+    }
+
+    fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+        // Raw height and width of image
+        val (height: Int, width: Int) = options.run { outHeight to outWidth }
+        var inSampleSize = 1
+
+        if (height > reqHeight || width > reqWidth) {
+
+            val halfHeight: Int = height / 2
+            val halfWidth: Int = width / 2
+
+            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+            // height and width larger than the requested height and width.
+            while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+
+        return inSampleSize
     }
 
     private fun download(url: String): ByteArray? {

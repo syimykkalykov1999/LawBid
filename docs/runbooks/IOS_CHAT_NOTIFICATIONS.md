@@ -46,10 +46,15 @@
 2. **If you switch to `fastlane match`:** add the three extension ids to
    `app_identifier` and enable Communication Notifications on all six App IDs
    in Apple Developer → Identifiers, then regenerate the profiles.
-3. **Optional — phone-book names on the iPhone banner:** create App Groups
-   `group.com.lawbid.lawbid` (+ `.dev`, `.staging`), add the App Groups
-   capability with that group to both targets. Until then the banner shows
-   the LawBid name / @username (Android already shows the saved name).
+3. **Phone-book names on the iPhone banner (D1-31, 13.11):** both
+   entitlements files now list the App Group (`group.$(PRODUCT_BUNDLE_IDENTIFIER)`
+   on Runner, `$(LAWBID_APP_GROUP)` from `NotificationService.xcconfig` on the
+   extension). With automatic signing Xcode registers the groups on the next
+   build to a phone; otherwise in Apple Developer → Identifiers → App Groups
+   create `group.com.lawbid.lawbid`, `group.com.lawbid.lawbid.dev`,
+   `group.com.lawbid.lawbid.staging`, tick App Groups on all six App IDs (app +
+   `.NotificationService`) with the matching group, and regenerate the
+   profiles. Until then signing reports the missing App Group.
 
 Build numbers: the extension's «Auto build number» phase writes the number,
 the app's phase reuses it, so both always match (App Store requires that).

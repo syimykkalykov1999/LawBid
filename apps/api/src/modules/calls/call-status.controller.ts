@@ -10,6 +10,10 @@ import {
 import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
+import {
+  ringTicketTracker,
+  ThrottleSetting,
+} from '../../throttler/throttle-setting';
 import { CallIdParamDto, CallStatusQueryDto } from './calls.dto';
 import { CallsService } from './calls.service';
 
@@ -26,8 +30,13 @@ export class CallStatusController {
   constructor(private readonly calls: CallsService) {}
 
   @Public()
-  // A ring is ~60 s, asked every few seconds by each rung phone.
-  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  // A ring is ~60 s, asked every few seconds by each rung phone. D1-19
+  // (13.11): counted per call and person by the ticket (not per address:
+  // many phones share a carrier NAT), and the limit is the admin setting.
+  @Throttle({
+    default: { limit: 60, ttl: 60_000, getTracker: ringTicketTracker },
+  })
+  @ThrottleSetting('calls.ring_status_rate_limit_per_minute')
   @Get('calls/:id/status')
   @ApiExcludeEndpoint()
   status(

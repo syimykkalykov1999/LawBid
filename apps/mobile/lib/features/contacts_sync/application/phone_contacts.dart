@@ -166,6 +166,7 @@ PhoneContacts _view(
   Iterable<ContactPerson> people, {
   bool limited = false,
   bool matchFailed = false,
+  bool namesForPush = true,
 }) {
   final seen = <String>{};
   final onLawBid = <LawBidContact>[];
@@ -186,14 +187,17 @@ PhoneContacts _view(
   );
   // Owner 2026-10-22 (WhatsApp): a message push from a contact shows the
   // name saved in the phone book. Kept on the phone only (the system's
-  // notification code reads it); never uploaded.
-  unawaited(
-    chatNotificationsChannel.setContactNames(
-      contactNamesForPush([
-        for (final c in onLawBid) (userId: c.userId, phoneName: c.phoneName),
-      ]),
-    ),
-  );
+  // notification code reads it); never uploaded. D1-21: not on every
+  // step of a big upload ([namesForPush] false), only for a finished list.
+  if (namesForPush) {
+    unawaited(
+      chatNotificationsChannel.setContactNames(
+        contactNamesForPush([
+          for (final c in onLawBid) (userId: c.userId, phoneName: c.phoneName),
+        ]),
+      ),
+    );
+  }
   final invite = <InvitableContact>[
     for (var i = 0; i < entries.length; i++)
       if (entries[i].name.isNotEmpty && !matchedEntries.contains(i))
@@ -230,7 +234,7 @@ final phoneContactsProvider = FutureProvider<PhoneContacts>((ref) async {
   }
   final actions = ref.read(contactsSyncActionsProvider);
   final bookSync = ref.read(contactsBookSyncProvider);
-  final saved = bookSync.saved;
+  final saved = await bookSync.loadSaved();
   ContactsSyncStatus? status;
   try {
     status = await ref.read(contactsSyncStatusProvider.future);
@@ -265,7 +269,8 @@ final phoneContactsProvider = FutureProvider<PhoneContacts>((ref) async {
     res = await bookSync.sync(
       byHash.keys.toSet(),
       region: region,
-      onProgress: (soFar) => live.show(_view(entries, byHash, soFar)),
+      onProgress: (soFar) =>
+          live.show(_view(entries, byHash, soFar, namesForPush: false)),
     );
   } on ApiException {
     // The book stays on screen with the people known before; the request

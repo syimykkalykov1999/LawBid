@@ -38,7 +38,12 @@ object ActorNotifications {
         val title = data["title"].orEmpty().ifEmpty { name }
         val body = data["body"].orEmpty()
         val key = ChatNotifications.avatarKey(data["actorAvatarKey"], data["actorAvatar"])
-        ChatNotifications.cacheAvatar(context, key, data["actorAvatar"])
+        // D1-17: the photo within the same short wait as a chat message;
+        // a late one is kept for the next notification.
+        ChatNotifications.awaitAll(
+            ChatNotifications.fetchAvatars(context, listOf(key to data["actorAvatar"])),
+            ChatNotifications.AVATAR_WAIT_MS,
+        )
         val photo = ChatNotifications.avatarBitmap(context, key)
             ?: ChatNotifications.initialsBitmap(name)
 

@@ -1,8 +1,11 @@
 /* Permission prompts (docs/03 stage 3.8); keep in sync with the
    translation keys permission.camera.ios / permission.photos.ios. */
-"NSCameraUsageDescription" = "LawBid uses the camera to take your profile photo, photograph your license and ID document, take a verification selfie, record reels and for video calls in the app.";
+"NSCameraUsageDescription" = "LawBid uses the camera to take your profile photo, photograph your license and ID document, take a verification selfie, record reels, scan QR codes and for video calls in the app.";
 "NSPhotoLibraryUsageDescription" = "LawBid uses your photo library so you can choose a profile photo, add photos and videos to posts, cases and chats, and upload license and ID document images.";
 "NSFaceIDUsageDescription" = "LawBid uses Face ID to confirm it's you before deleting your account or other sensitive actions.";
 "NSMicrophoneUsageDescription" = "LawBid uses the microphone to record voice messages and for calls in the app.";
 /* D1-45: true to what is sent (SHA-256 of the number) and kept (keyed hashes). */
 "NSContactsUsageDescription" = "LawBid compares your contacts with registered people to suggest people you know. Phone numbers are sent as hashes, never with names, and are kept on the server only as keyed hashes. You can turn it off and delete them at any time.";
+/* D1-33 (13.11): the other prompts of Info.plist in this language too. */
+"NSLocationWhenInUseUsageDescription" = "LawBid uses your location only when you tap “My location” in a chat, to send it to the person you are talking to. It is never collected in the background.";
+"NSPhotoLibraryAddUsageDescription" = "LawBid saves a picture to your photo library when you tap Save or Download on it, such as your QR code or a photo you opened.";

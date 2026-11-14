@@ -10,6 +10,7 @@ import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/cache/voice_web_cache.dart';
 import 'package:lawbid/core/cache/web_storage.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/persistence/large_value_store.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/startup_idle_queue.dart';
@@ -138,6 +139,12 @@ final accountFilesGuardProvider = Provider<void>((ref) {
     await part(
       () => kv.removeWhere((k) => isForeignAccountKey(k, keepOwner)),
     );
+    // D1-16: the big values (contact-book hashes) live in their own store.
+    await part(
+      () => ref
+          .read(largeValueStoreProvider)
+          .removeWhere((k) => isForeignAccountKey(k, keepOwner)),
+    );
     final cleared = await ref
         .read(cacheMaintenanceProvider)
         .clearAccountData(keepOwner: keepOwner);
@@ -149,6 +156,9 @@ final accountFilesGuardProvider = Provider<void>((ref) {
     await forgetWork(owner);
     await ref
         .read(localKvStoreProvider)
+        .removeWhere((k) => isOtherAccountKey(k, owner));
+    await ref
+        .read(largeValueStoreProvider)
         .removeWhere((k) => isOtherAccountKey(k, owner));
   }
 

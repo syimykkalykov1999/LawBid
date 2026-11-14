@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
-import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/persistence/large_value_store.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_book.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
@@ -57,15 +57,17 @@ class ContactsBookSync {
     return me == null ? 'contacts_book_v1' : 'contacts_book_v1.$me';
   }
 
-  /// What the device knows (for the screen before the answer).
-  ContactsBookState? get saved =>
-      ContactsBookState.decode(_ref.read(localKvStoreProvider).getString(_key));
+  /// What the device knows (for the screen before the answer). D1-16: in
+  /// its own store, not the small-settings file read at every start.
+  Future<ContactsBookState?> loadSaved() async => ContactsBookState.decode(
+        await _ref.read(largeValueStoreProvider).getString(_key),
+      );
 
   Future<void> _save(ContactsBookState s) =>
-      _ref.read(localKvStoreProvider).setString(_key, s.encode());
+      _ref.read(largeValueStoreProvider).setString(_key, s.encode());
 
   /// Forgets the device's copy (the sync was turned off).
-  Future<void> forget() => _ref.read(localKvStoreProvider).remove(_key);
+  Future<void> forget() => _ref.read(largeValueStoreProvider).remove(_key);
 
   /// Syncs [phoneBook] (SHA-256 hashes of E.164 numbers hashed with [region]).
   /// Throws ApiException except 429, which is [ContactsBookSyncResult.limited].
@@ -77,7 +79,7 @@ class ContactsBookSync {
   }) async {
     final at = now ?? DateTime.now();
     final book = capBook(phoneBook);
-    var state = saved;
+    var state = await loadSaved();
     if (state != null && state.region != region) state = null;
     final repo = _ref.read(contactsSyncRepositoryProvider);
     try {
@@ -140,7 +142,7 @@ class ContactsBookSync {
     } on ApiException catch (e) {
       if (e.statusCode != 429) rethrow;
       return ContactsBookSyncResult(
-        people: saved?.people ?? state?.people ?? const [],
+        people: (await loadSaved())?.people ?? state?.people ?? const [],
         limited: true,
       );
     }

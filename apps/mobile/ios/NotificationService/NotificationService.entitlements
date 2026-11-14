@@ -3,10 +3,16 @@
 <plist version="1.0">
 <dict>
 	<!-- Owner 2026-10-26: the sender's photo on a chat banner
-	     (Communication Notifications). The App Group for phone-book names
-	     (group.<app bundle id>) is added together with its registration in
-	     Apple Developer — docs/runbooks/IOS_CHAT_NOTIFICATIONS.md. -->
+	     (Communication Notifications). -->
 	<key>com.apple.developer.usernotifications.communication</key>
 	<true/>
+	<!-- D1-31 (13.11): the app's App Group (group.<app bundle id>), where
+	     the app keeps the phone-book names of LawBid contacts.
+	     LAWBID_APP_GROUP is set per flavor in NotificationService.xcconfig
+	     (this target's own bundle id ends in .NotificationService). -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>$(LAWBID_APP_GROUP)</string>
+	</array>
 </dict>
 </plist>

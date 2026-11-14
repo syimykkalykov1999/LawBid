@@ -164,6 +164,20 @@
         <receiver
             android:name=".CallHangupReceiver"
             android:exported="false" />
+        <!-- Row 136 (13.11): firebase_messaging's receiver with a filter —
+             a chat / person push drawn natively no longer starts a
+             background Flutter engine (FlutterPushReceiver.kt). -->
+        <receiver
+            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingReceiver"
+            tools:node="remove" />
+        <receiver
+            android:name=".FlutterPushReceiver"
+            android:exported="true"
+            android:permission="com.google.android.c2dm.permission.SEND">
+            <intent-filter>
+                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+            </intent-filter>
+        </receiver>
         <!-- Owner 2026-10-22 (WhatsApp): a data-only chat push is drawn by the
              app (sender's photo, one notification per chat). Same FCM
              broadcast and permission as firebase_messaging's own receiver. -->

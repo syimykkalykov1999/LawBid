@@ -11,12 +11,14 @@ import {
 } from '@nestjs/throttler';
 import { Reflector } from '@nestjs/core';
 import { AppSettingsService } from '../common/app-settings/app-settings.service';
+import type { AppSettingKey } from '../common/app-settings/app-settings.defaults';
 import { TokenService } from '../modules/auth/services/token.service';
 import {
   ADMIN_BLOCK_MS,
   ADMIN_THROTTLE_DEFAULT,
   adminThrottleLimit,
 } from './throttle-limits';
+import { THROTTLE_SETTING } from './throttle-setting';
 
 /** @nestjs/throttler's metadata key for a route's @Throttle limit (not exported). */
 const THROTTLER_LIMIT = 'THROTTLER:LIMIT';
@@ -64,6 +66,15 @@ export class UserThrottlerGuard extends ThrottlerGuard {
     const req = props.context
       .switchToHttp()
       .getRequest<Record<string, unknown>>();
+    // Owner 13.11: a route whose limit is an admin setting, read live.
+    const settingKey = this.reflector.getAllAndOverride<
+      AppSettingKey | undefined
+    >(THROTTLE_SETTING, [props.context.getHandler(), props.context.getClass()]);
+    if (settingKey !== undefined) {
+      const limit = await this.routeSettingLimit(settingKey, props.limit);
+      if (limit <= 0) return true;
+      return super.handleRequest({ ...props, limit });
+    }
     const routeLimit = this.reflector.getAllAndOverride<unknown>(
       THROTTLER_LIMIT + props.throttler.name,
       [props.context.getHandler(), props.context.getClass()],
@@ -132,6 +143,20 @@ export class UserThrottlerGuard extends ThrottlerGuard {
         'security.anonymous_rate_limit_per_minute',
       );
       return Number.isFinite(v) && v >= fallback ? Math.round(v) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  /** A route's limit from its admin setting (0 = no limit); the written
+   * @Throttle number when the setting is unreadable or not a number. */
+  private async routeSettingLimit(
+    key: AppSettingKey,
+    fallback: number,
+  ): Promise<number> {
+    try {
+      const v = await this.settings.number(key);
+      return Number.isFinite(v) && v >= 0 ? Math.round(v) : fallback;
     } catch {
       return fallback;
     }
