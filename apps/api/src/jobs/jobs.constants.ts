@@ -267,6 +267,9 @@ export const CRON_JOBS = {
   aiWorkerTick: 'ai-worker.tick',
   /** Owner 2026-11-12 (row 49): what the AIs made goes after the owner's days. */
   aiRetention: 'ai.retention',
+  /** Owner 2026-11-13 (row 52): selfies and ID pictures of decided,
+   * abandoned or leaving attorneys' requests are deleted. */
+  verificationMediaPurge: 'verification.media-purge',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -438,6 +441,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.staffWeeklyDigest, pattern: '0 13 * * 1' },
   { name: CRON_JOBS.aiWorkerTick, pattern: '*/5 * * * *' },
   { name: CRON_JOBS.aiRetention, pattern: '40 3 * * *' },
+  { name: CRON_JOBS.verificationMediaPurge, pattern: '23 * * * *' },
 ];
 
 export const FAST_JOBS: readonly CronJobName[] = [

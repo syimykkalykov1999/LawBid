@@ -252,6 +252,48 @@ body {
   }
 }
 
+/* Owner row 88 (2026-11-13): page swap from a menu link is a crossfade of the
+   page area only (React <ViewTransition name="admin-page">, app-shell.tsx).
+   Curve and the asymmetric out / in from the Next.js guide «Designing view
+   transitions» (2026-10-15), kept to the 150 ms of the wrapper fade it
+   replaces: the old page leaves in 120 ms, the new one fades in over 150 ms
+   at the same time (no gap with an empty area). The group does not morph
+   between the two page heights.
+   The rest of the screen (menu, top bar) does not animate, and clicks pass
+   through while it runs. Reduced motion: an instant swap. */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(.admin-page) {
+  animation-duration: 0s;
+}
+::view-transition-old(.admin-page) {
+  animation: 120ms ease-out both vt-fade reverse;
+}
+::view-transition-new(.admin-page) {
+  animation: 150ms ease-out both vt-fade;
+}
+@keyframes vt-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
 /* Phone: nothing pushes the page sideways; wide content scrolls in its own box. */
 html,
 body {
