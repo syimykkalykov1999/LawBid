@@ -335,7 +335,8 @@ jobs:
           DEST: s3://${{ secrets.WEB_BUCKET }}/releases/${{ env.RELEASE_SHA }}
         run: |
           # App screens read spa.html (marked noindex), the home page index.html.
-          cp index.html spa.html
+          # R2 row 174: a noindex screen must not name / as its canonical.
+          sed '/rel="canonical"/d' index.html > spa.html
           # The page-level files: the browser asks again every time (a 304
           # when nothing changed); CloudFront keeps them for good, its cache
           # key is the release path.
