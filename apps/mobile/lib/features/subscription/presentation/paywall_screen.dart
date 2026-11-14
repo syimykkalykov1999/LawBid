@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/presentation/subscription_offer.dart';
 
@@ -39,7 +40,9 @@ class PaywallScreen extends ConsumerStatefulWidget {
 }
 
 class _PaywallScreenState extends ConsumerState<PaywallScreen> {
-  void _close() => Navigator.of(context).maybePop();
+  // Detective R2 item 2: a paywall opened by its URL (alone) closes to
+  // Feed instead of staying forever.
+  void _close() => context.safeBack();
 
   @override
   Widget build(BuildContext context) {

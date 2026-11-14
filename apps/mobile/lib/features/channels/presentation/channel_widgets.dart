@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
@@ -330,8 +331,16 @@ class _ChannelLinkedTextState extends ConsumerState<ChannelLinkedText> {
     return spans;
   }
 
+  // Owner row 111: a channel post follows the phone's font size in full
+  // (past the app shell's 1.3x cap), like a chat message and a post; the
+  // «more» cut is measured under the same scale.
   @override
-  Widget build(BuildContext context) {
+  // Owner row 113: on the website the text can be selected and copied.
+  Widget build(BuildContext context) => FullTextScale(
+        child: WebSelectableText(child: Builder(builder: _build)),
+      );
+
+  Widget _build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;

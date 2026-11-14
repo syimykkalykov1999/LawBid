@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
@@ -63,169 +64,178 @@ class GroupChatTile extends ConsumerWidget {
     final title = g.title.trim().isEmpty ? '?' : g.title.trim();
     // Inbox 20e (Telegram): a running call takes the last message's place.
     final call = OngoingCallSummary.fromDto(g.ongoingCall);
-    final row = AppPressable(
-      key: ValueKey('group-tile-${g.id}'),
-      onTap: picking != null
-          ? () => ref.read(chatSelectionProvider.notifier).toggle(g.id)
-          : () => context.push(GroupRoutes.group(g.id)),
-      onLongPress: canOrganize ? organize : null,
-      child: Semantics(
-        customSemanticsActions: canOrganize
-            ? {CustomSemanticsAction(label: t.t('group.menu.title')): organize}
-            : const {},
-        child: Container(
-          color: picked ? colors.chip : null,
-          padding:
-              const EdgeInsetsDirectional.only(start: AppSpacing.screenSide),
-          child: Row(
-            children: [
-              if (picking != null) ...[
-                Semantics(
-                  checked: picked,
-                  label: title,
-                  excludeSemantics: true,
-                  child: AppIcon(
-                    picked
-                        ? AppIcons.checkCircleRounded
-                        : AppIcons.radioButtonUncheckedRounded,
-                    key: ValueKey('group-pick-${g.id}'),
-                    color: picked ? colors.iconTint : colors.textSecondary,
+    // Owner row 113: the right-click (website) opens the same menu as the
+    // long press (Telegram Web / WhatsApp Web).
+    final row = WebRightClickMenu(
+      onMenu: canOrganize ? organize : null,
+      child: AppPressable(
+        key: ValueKey('group-tile-${g.id}'),
+        onTap: picking != null
+            ? () => ref.read(chatSelectionProvider.notifier).toggle(g.id)
+            : () => context.push(GroupRoutes.group(g.id)),
+        onLongPress: canOrganize ? organize : null,
+        child: Semantics(
+          customSemanticsActions: canOrganize
+              ? {
+                  CustomSemanticsAction(label: t.t('group.menu.title')):
+                      organize,
+                }
+              : const {},
+          child: Container(
+            color: picked ? colors.chip : null,
+            padding:
+                const EdgeInsetsDirectional.only(start: AppSpacing.screenSide),
+            child: Row(
+              children: [
+                if (picking != null) ...[
+                  Semantics(
+                    checked: picked,
+                    label: title,
+                    excludeSemantics: true,
+                    child: AppIcon(
+                      picked
+                          ? AppIcons.checkCircleRounded
+                          : AppIcons.radioButtonUncheckedRounded,
+                      key: ValueKey('group-pick-${g.id}'),
+                      color: picked ? colors.iconTint : colors.textSecondary,
+                    ),
                   ),
+                  const SizedBox(width: AppSpacing.md),
+                ],
+                GoldRingAvatar(
+                  url: g.avatarUrl,
+                  initials: title.characters.first.toUpperCase(),
+                  size: _avatar,
                 ),
                 const SizedBox(width: AppSpacing.md),
-              ],
-              GoldRingAvatar(
-                url: g.avatarUrl,
-                initials: title.characters.first.toUpperCase(),
-                size: _avatar,
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: colors.border)),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsetsDirectional.only(
-                      top: AppSpacing.sm + 2,
-                      bottom: AppSpacing.sm + 2,
-                      end: AppSpacing.screenSide,
+                Expanded(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border(bottom: BorderSide(color: colors.border)),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  Flexible(
-                                    child: Text.rich(
-                                      _bold(g.title, highlight, type, colors),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        top: AppSpacing.sm + 2,
+                        bottom: AppSpacing.sm + 2,
+                        end: AppSpacing.screenSide,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text.rich(
+                                        _bold(g.title, highlight, type, colors),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (at != null) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              ConstrainedBox(
-                                constraints:
-                                    const BoxConstraints(maxWidth: 110),
-                                child: Text(
-                                  SocialFormat.ago(t, f, at),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: type.caption.copyWith(
-                                    color: hot
-                                        ? colors.goldAccent
-                                        : colors.textSecondary,
-                                  ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: call != null
-                                  ? OngoingCallLine(call: call)
-                                  : Text(
-                                      last == null
-                                          ? t.t('group.empty.preview')
-                                          : groupMessagePreview(
-                                              t,
-                                              last,
-                                              withSender: true,
-                                            ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: unread > 0
-                                          ? secondary.copyWith(
-                                              color: colors.text,
-                                            )
-                                          : secondary,
+                              if (at != null) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 110),
+                                  child: Text(
+                                    SocialFormat.ago(t, f, at),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: type.caption.copyWith(
+                                      color: hot
+                                          ? colors.goldAccent
+                                          : colors.textSecondary,
                                     ),
-                            ),
-                            if (muted) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              AppIcon(
-                                AppIcons.notificationsOffOutlined,
-                                size: 16,
-                                color: colors.textSecondary,
-                              ),
+                                  ),
+                                ),
+                              ],
                             ],
-                            if (g.pinned) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              AppIcon(
-                                AppIcons.pushPin,
-                                size: 16,
-                                color: colors.textSecondary,
-                              ),
-                            ],
-                            if (mentions > 0) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              _Badge(
-                                key: ValueKey('group-mention-${g.id}'),
-                                text: '@',
-                                muted: false,
-                              ),
-                            ],
-                            // Row 95 (catalog C7, Telegram): the unread
-                            // badge pops in when it appears or changes.
-                            AnimatedSwitcher(
-                              duration: context.reduceMotion
-                                  ? Duration.zero
-                                  : AppMotion.popIn,
-                              transitionBuilder: AppMotionBits.pop,
-                              child: unread > 0
-                                  ? Padding(
-                                      key: ValueKey('group-unread-n$unread'),
-                                      padding: const EdgeInsetsDirectional.only(
-                                        start: AppSpacing.sm,
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: call != null
+                                    ? OngoingCallLine(call: call)
+                                    : Text(
+                                        last == null
+                                            ? t.t('group.empty.preview')
+                                            : groupMessagePreview(
+                                                t,
+                                                last,
+                                                withSender: true,
+                                              ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: unread > 0
+                                            ? secondary.copyWith(
+                                                color: colors.text,
+                                              )
+                                            : secondary,
                                       ),
-                                      child: _Badge(
-                                        key: ValueKey('group-unread-${g.id}'),
-                                        text: unread > 99 ? '99+' : '$unread',
-                                        muted: muted,
+                              ),
+                              if (muted) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                AppIcon(
+                                  AppIcons.notificationsOffOutlined,
+                                  size: 16,
+                                  color: colors.textSecondary,
+                                ),
+                              ],
+                              if (g.pinned) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                AppIcon(
+                                  AppIcons.pushPin,
+                                  size: 16,
+                                  color: colors.textSecondary,
+                                ),
+                              ],
+                              if (mentions > 0) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                _Badge(
+                                  key: ValueKey('group-mention-${g.id}'),
+                                  text: '@',
+                                  muted: false,
+                                ),
+                              ],
+                              // Row 95 (catalog C7, Telegram): the unread
+                              // badge pops in when it appears or changes.
+                              AnimatedSwitcher(
+                                duration: context.reduceMotion
+                                    ? Duration.zero
+                                    : AppMotion.popIn,
+                                transitionBuilder: AppMotionBits.pop,
+                                child: unread > 0
+                                    ? Padding(
+                                        key: ValueKey('group-unread-n$unread'),
+                                        padding:
+                                            const EdgeInsetsDirectional.only(
+                                          start: AppSpacing.sm,
+                                        ),
+                                        child: _Badge(
+                                          key: ValueKey('group-unread-${g.id}'),
+                                          text: unread > 99 ? '99+' : '$unread',
+                                          muted: muted,
+                                        ),
+                                      )
+                                    : const SizedBox.shrink(
+                                        key: ValueKey('group-unread-none'),
                                       ),
-                                    )
-                                  : const SizedBox.shrink(
-                                      key: ValueKey('group-unread-none'),
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

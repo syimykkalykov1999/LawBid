@@ -167,20 +167,23 @@ class _SuspendedScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          minimumSize: const Size.fromHeight(36),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        onPressed: () async {
-                          await ref
-                              .read(sessionControllerProvider.notifier)
-                              .clear();
-                          ref.read(suspensionProvider.notifier).clear();
-                        },
-                        child: Text(
-                          t.t('account.suspended.leave'),
-                          style: type.button.copyWith(color: colors.text),
+                      // Owner row 111: 48 pt touch area, same look.
+                      AppTapTarget(
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size.fromHeight(36),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: () async {
+                            await ref
+                                .read(sessionControllerProvider.notifier)
+                                .clear();
+                            ref.read(suspensionProvider.notifier).clear();
+                          },
+                          child: Text(
+                            t.t('account.suspended.leave'),
+                            style: type.button.copyWith(color: colors.text),
+                          ),
                         ),
                       ),
                     ],

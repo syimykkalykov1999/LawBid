@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
@@ -27,7 +28,11 @@ import 'package:lawbid/features/subscription/presentation/subscription_screen.da
 /// «Оформить» that opens Stripe's page and applies the paid session on
 /// return — the same flow as the attorney's checkout.
 class ClientPlanScreen extends ConsumerStatefulWidget {
-  const ClientPlanScreen({super.key});
+  const ClientPlanScreen({this.checkoutSessionId, super.key});
+
+  /// Detective R2 item 1 (14.11): Stripe's return link
+  /// `/plan/success?session_id=…` — the paid session is confirmed on open.
+  final String? checkoutSessionId;
 
   @override
   ConsumerState<ClientPlanScreen> createState() => _ClientPlanScreenState();
@@ -38,10 +43,38 @@ class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
   String? _selectedCode;
   bool _portalBusy = false;
 
+  /// Detective R2 item 20: Resume / Cancel show progress and take one tap.
+  bool _actionBusy = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final id = widget.checkoutSessionId;
+    if (id != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_completeReturn(id));
+      });
+    }
+  }
+
+  /// Back from Stripe by the return link: confirm the session, as the
+  /// Stripe success page does with `{CHECKOUT_SESSION_ID}`
+  /// (stripe-samples/checkout-single-subscription, MIT).
+  Future<void> _completeReturn(String sessionId) async {
+    final outcome = await ref
+        .read(clientCheckoutControllerProvider.notifier)
+        .completeReturn(sessionId);
+    if (!mounted) return;
+    switch (outcome) {
+      case ClientCheckoutOutcome.trialStarted:
+        showAppSnackBar(context, _t.t('plan.client.done.trial'));
+      case ClientCheckoutOutcome.activated:
+        showAppSnackBar(context, _t.t('plan.client.done.active'));
+      case ClientCheckoutOutcome.cancelled:
+      case ClientCheckoutOutcome.failed:
+        unawaited(_refreshQuietly());
+    }
   }
 
   @override
@@ -150,21 +183,28 @@ class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
           : _t.t('plan.client.cancel.body', {'date': formats.date(end)}),
       action: _t.t('plan.client.cancel'),
     );
-    if (!ok) return;
+    if (!ok || _actionBusy) return;
+    setState(() => _actionBusy = true);
     try {
       await ref.read(clientPlanProvider.notifier).cancel();
       if (mounted) showAppSnackBar(context, _t.t('plan.client.cancel.done'));
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(_t, e));
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
     }
   }
 
   Future<void> _resume() async {
+    if (_actionBusy) return;
+    setState(() => _actionBusy = true);
     try {
       await ref.read(clientPlanProvider.notifier).resume();
       if (mounted) showAppSnackBar(context, _t.t('plan.client.resume.done'));
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(_t, e));
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
     }
   }
 
@@ -180,7 +220,7 @@ class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('plan.client.title')),
       ),
@@ -232,6 +272,7 @@ class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
             onCancel: () => _cancel(s),
             onResume: _resume,
             portalBusy: _portalBusy,
+            actionBusy: _actionBusy,
             onUpdateCard: _openPortal,
           ),
         ),
@@ -299,6 +340,7 @@ class ClientPlanStatusCard extends StatelessWidget {
     required this.onResume,
     this.onUpdateCard,
     this.portalBusy = false,
+    this.actionBusy = false,
     super.key,
   });
 
@@ -312,6 +354,9 @@ class ClientPlanStatusCard extends StatelessWidget {
   /// invoices). Hidden once the subscription has ended.
   final VoidCallback? onUpdateCard;
   final bool portalBusy;
+
+  /// A cancel or resume request is on its way.
+  final bool actionBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -353,6 +398,7 @@ class ClientPlanStatusCard extends StatelessWidget {
               label: t.t('plan.client.cancel'),
               variant: AppButtonVariant.secondary,
               height: AppSizes.touchTarget,
+              isLoading: actionBusy,
               onPressed: onCancel,
             ),
           ],
@@ -363,6 +409,7 @@ class ClientPlanStatusCard extends StatelessWidget {
               label: t.t('plan.client.resume'),
               icon: AppIcons.replayRounded,
               height: AppSizes.touchTarget,
+              isLoading: actionBusy,
               onPressed: onResume,
             ),
           ],

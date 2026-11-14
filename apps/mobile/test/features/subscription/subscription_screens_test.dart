@@ -343,6 +343,52 @@ void main() {
       expect(find.byKey(const ValueKey('subscription-cancel')), findsOneWidget);
     });
 
+    // Detective R2 item 20 (14.11): a double tap sent two requests.
+    testWidgets('resume shows progress and takes one tap', (tester) async {
+      repo.current = makeOverview(
+        subscription: makeInfo(
+          status: SubscriptionStatus.active,
+          cancelAtPeriodEnd: true,
+        ),
+        trialEligible: false,
+      );
+      final hold = Completer<void>();
+      repo.holdResume = hold.future;
+      await pump(tester, const SubscriptionScreen());
+      final resume = find.byKey(const ValueKey('subscription-resume'));
+      await tester.ensureVisible(resume);
+      await tester.tap(resume);
+      await tester.pump();
+      await tester.tap(resume, warnIfMissed: false);
+      await tester.pump();
+      expect(repo.calls.where((c) => c == 'resume'), hasLength(1));
+      expect(tester.widget<AppButton>(resume).isLoading, isTrue);
+      hold.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(const ValueKey('subscription-cancel')), findsOneWidget);
+    });
+
+    // Detective R2 item 1 (14.11): Stripe's return link carries the paid
+    // session; the screen confirms it on open.
+    testWidgets('opened by the return link: the session is confirmed',
+        (tester) async {
+      repo
+        ..current = makeOverview()
+        ..onComplete = () => makeOverview(
+              subscription: makeInfo(status: SubscriptionStatus.active),
+              trialEligible: false,
+            );
+      await pump(
+        tester,
+        const SubscriptionScreen(checkoutSessionId: 'cs_test_ret'),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(repo.calls, contains('complete:cs_test_ret'));
+      expect(find.byKey(const ValueKey('subscription-manage')), findsOneWidget);
+    });
+
     testWidgets('ended subscription: "Subscribe again" without the trial line',
         (tester) async {
       repo.current = makeOverview(

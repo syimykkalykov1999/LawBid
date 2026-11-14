@@ -22,6 +22,7 @@ import 'package:lawbid/core/navigation/system_back.dart';
 import 'package:lawbid/core/permissions/permission_primer_host.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_safe_area.dart';
+import 'package:lawbid/core/platform/web_tab_title.dart';
 import 'package:lawbid/core/theme/preferences_sync.dart';
 import 'package:lawbid/features/calls/presentation/call_host.dart';
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
@@ -105,60 +106,65 @@ class LawBidApp extends ConsumerWidget {
       // Owner 2026-10-22 (audit #12, WCAG 1.4.4): the phone's font size counts
       // up to 1.3x in the app shell (was 1.1x); chat messages and post texts
       // follow it in full (FullTextScale, design_system/widgets/text).
-      builder: (context, child) => ReduceMotionScope(
-        child: DeviceTextScale.shell(
-          context,
-          // Owner 2026-10-18: the iPhone's notch and home indicator in the
-          // browser too (core/platform/web_safe_area.dart).
-          child: WebSafeArea(
-            child: Directionality(
-              textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-              // Owner 2026-10-05: nothing ever sits under the Android system
-              // navigation bar (core/design_system/widgets/bars/system_nav_band.dart).
-              child: TextWarmUp(
-                child: WebConsentNotice(
-                  onOpenPrivacy: () =>
-                      router.push(AppRoutes.legalDoc('privacy')),
-                  child: SystemNavBand(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: dropKeyboard,
-                      // Owner 2026-10-22 (audit #13): the explanation before
-                      // the phone's notification / microphone dialogs.
-                      child: PermissionPrimerHost(
-                        child: AccountSuspendedGate(
-                          child: AppUpdateGate(
-                            child: child == null
-                                ? null
-                                // OQ-041: the call screen pops over any
-                                // route.
-                                : CallHost(
-                                    router: router,
-                                    // Owner 2026-10-21: no «connection lost»
-                                    // banner for users, ever (screens keep
-                                    // their cache and retry quietly).
-                                    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
-                                    child: AccountRestrictedHost(
+      // Owner row 113: «(3) LawBid» in the browser tab (Telegram Web).
+      builder: (context, child) => WebTabTitle(
+        appName: ref.watch(appEnvironmentProvider).appName,
+        color: Theme.of(context).primaryColor,
+        child: ReduceMotionScope(
+          child: DeviceTextScale.shell(
+            context,
+            // Owner 2026-10-18: the iPhone's notch and home indicator in the
+            // browser too (core/platform/web_safe_area.dart).
+            child: WebSafeArea(
+              child: Directionality(
+                textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+                // Owner 2026-10-05: nothing ever sits under the Android system
+                // navigation bar (core/design_system/widgets/bars/system_nav_band.dart).
+                child: TextWarmUp(
+                  child: WebConsentNotice(
+                    onOpenPrivacy: () =>
+                        router.push(AppRoutes.legalDoc('privacy')),
+                    child: SystemNavBand(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: dropKeyboard,
+                        // Owner 2026-10-22 (audit #13): the explanation before
+                        // the phone's notification / microphone dialogs.
+                        child: PermissionPrimerHost(
+                          child: AccountSuspendedGate(
+                            child: AppUpdateGate(
+                              child: child == null
+                                  ? null
+                                  // OQ-041: the call screen pops over any
+                                  // route.
+                                  : CallHost(
                                       router: router,
-                                      // Owner 2026-10-22: system back never
-                                      // closes the app from a deep screen.
-                                      child: SystemBackGuard(
+                                      // Owner 2026-10-21: no «connection lost»
+                                      // banner for users, ever (screens keep
+                                      // their cache and retry quietly).
+                                      // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
+                                      child: AccountRestrictedHost(
                                         router: router,
-                                        rootNavigatorKey: appRootNavigatorKey,
-                                        exitHint: () => ref
-                                            .read(translatorProvider)
-                                            .t('nav.backAgainToExit'),
-                                        // Desktop web plan 2026-10-28:
-                                        // Ctrl/⌘+K, Esc, Alt+↑/↓ on a
-                                        // desktop window (off elsewhere).
-                                        child: DesktopShortcuts(
-                                          onSearch: () =>
-                                              router.go(AppRoutes.search),
-                                          child: BackSwipeTheme(child: child),
+                                        // Owner 2026-10-22: system back never
+                                        // closes the app from a deep screen.
+                                        child: SystemBackGuard(
+                                          router: router,
+                                          rootNavigatorKey: appRootNavigatorKey,
+                                          exitHint: () => ref
+                                              .read(translatorProvider)
+                                              .t('nav.backAgainToExit'),
+                                          // Desktop web plan 2026-10-28:
+                                          // Ctrl/⌘+K, Esc, Alt+↑/↓ on a
+                                          // desktop window (off elsewhere).
+                                          child: DesktopShortcuts(
+                                            onSearch: () =>
+                                                router.go(AppRoutes.search),
+                                            child: BackSwipeTheme(child: child),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
+                            ),
                           ),
                         ),
                       ),
