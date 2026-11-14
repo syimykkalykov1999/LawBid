@@ -6,7 +6,7 @@ import { RegistryGuardError } from '../providers/bar-lookup/registry-guard';
  * must not silently turn into «not found». Data-feed monitoring as payment /
  * background-check companies run it for their upstream sources: per source
  * (state) success / not-found / error counts in hourly buckets, the current
- * window compared with the source's own 7-day baseline, a «degraded» mark on
+ * window compared with the source's own baseline (admin: baseline_days), a «degraded» mark on
  * a jump, an alert to the owner on the change, and back to normal by itself.
  *
  * Pure functions only; RegistryHealthService does the Redis and the logging.
@@ -16,13 +16,31 @@ export type HealthKind = 'ok' | 'not_found' | 'error';
 
 export const HEALTH_KINDS: readonly HealthKind[] = ['ok', 'not_found', 'error'];
 
-/** Hours of history kept: the window plus the 7-day baseline, plus slack. */
-export const BASELINE_HOURS = 7 * 24;
-export const KEEP_HOURS = BASELINE_HOURS + 48;
+/** Owner 13.11: no fixed limits — every number below comes from the admin
+ * (verification.registry_health.*); these are only the shipped defaults. */
+export const DEFAULT_BASELINE_DAYS = 7;
+
+/** Hours of history kept for [cfg]: the window plus the baseline, plus a
+ * day of slack. */
+export function keepHours(
+  cfg: Pick<HealthConfig, 'windowHours' | 'baselineDays'>,
+): number {
+  return windowOf(cfg) + baselineOf(cfg) + 24;
+}
+
+function windowOf(cfg: Pick<HealthConfig, 'windowHours'>): number {
+  return Math.max(1, Math.floor(cfg.windowHours));
+}
+
+function baselineOf(cfg: Pick<HealthConfig, 'baselineDays'>): number {
+  return Math.max(1, Math.floor(cfg.baselineDays * 24));
+}
 
 export interface HealthConfig {
   /** Hours of the current window (default 24). */
   windowHours: number;
+  /** Days before the window that make the state's normal (default 7). */
+  baselineDays: number;
   /** Fewer checks than this in the window decide nothing (default 5). */
   minChecks: number;
   /** Percentage points the window's rate must exceed the baseline's by
@@ -100,16 +118,17 @@ function rates(c: Counts) {
 export function staleFields(
   hash: Record<string, string>,
   nowHour: number,
+  keep: number,
 ): string[] {
   return Object.keys(hash).filter((f) => {
     const h = Number(f.split(':')[0]);
-    return !Number.isFinite(h) || h <= nowHour - KEEP_HOURS;
+    return !Number.isFinite(h) || h <= nowHour - keep;
   });
 }
 
 /**
  * The window is the last `windowHours` hours (current hour included); the
- * baseline the 7 days before it. A rate «jumps» when it is at least
+ * baseline the `baselineDays` days before it. A rate «jumps» when it is at least
  * `jumpPoints` percentage points above the baseline's rate. Degraded when
  * the error rate, the not-found rate or both together jump; healthy when
  * the window has enough checks and nothing jumps.
@@ -125,7 +144,8 @@ export function evaluateHealth(
   cfg: HealthConfig,
   degradedSinceHour: number | null = null,
 ): HealthVerdict {
-  const windowHours = Math.max(1, Math.floor(cfg.windowHours));
+  const windowHours = windowOf(cfg);
+  const baselineHours = baselineOf(cfg);
   const window = zero();
   const baseline = zero();
   for (const [f, v] of Object.entries(hash)) {
@@ -138,7 +158,7 @@ export function evaluateHealth(
     if (age < 0) continue;
     if (age < windowHours) window[kind as HealthKind] += n;
     else if (
-      age < windowHours + BASELINE_HOURS &&
+      age < windowHours + baselineHours &&
       (degradedSinceHour === null || hour < degradedSinceHour)
     )
       baseline[kind as HealthKind] += n;

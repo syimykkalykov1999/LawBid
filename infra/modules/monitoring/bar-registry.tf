@@ -3,7 +3,7 @@
 # turn silently into «not found». The API / worker count every lookup per
 # state (apps/api/src/modules/verification/services/registry-health.service.ts)
 # and log ONE line when a state's error or not-found rate jumps above its own
-# 7-day rate:
+# baseline (verification.registry_health.baseline_days, default 7 days):
 #
 #   {alert:"bar_registry_degraded", state, kind, window, windowRate, baselineRate}
 #
@@ -32,7 +32,7 @@ resource "aws_cloudwatch_log_metric_filter" "bar_registry_degraded" {
 
 resource "aws_cloudwatch_metric_alarm" "bar_registry_degraded" {
   alarm_name          = "${var.name}-bar-registry-degraded"
-  alarm_description   = "LawBid: Реестр адвокатов одного из штатов перестал нормально отвечать (много ошибок или «не найден» против обычных 7 дней). Проверки этого штата сами идут человеку, никто не получает отказ из-за сбоя сайта. Что делать: админка → Ключи и сервисы → «Реестры адвокатов по штатам» → штат из письма → «Проверить»; если сайт штата поменялся, напишите Claude «реестр штата сломался». Инструкция: ${var.runbook_base_url}/bar-registry-health.md (EN: a state bar registry's error / not-found rate jumped above its 7-day baseline.)"
+  alarm_description   = "LawBid: Реестр адвокатов одного из штатов перестал нормально отвечать (много ошибок или «не найден» против обычных дней штата). Проверки этого штата сами идут человеку, никто не получает отказ из-за сбоя сайта. Что делать: админка → Ключи и сервисы → «Реестры адвокатов по штатам» → штат из письма → «Проверить»; если сайт штата поменялся, напишите Claude «реестр штата сломался». Инструкция: ${var.runbook_base_url}/bar-registry-health.md (EN: a state bar registry's error / not-found rate jumped above its baseline.)"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600

@@ -773,7 +773,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['verification.registry_health.enabled'] = {
     ...out['verification.registry_health.enabled'],
     description:
-      "On (default): every state bar registry lookup is counted per state; when the error or not-found rate jumps above the state's own 7-day rate the registry is marked degraded, the owner gets an alert and that state's checks go to a person. Off: no counting, no mark.",
+      "On (default): every state bar registry lookup is counted per state; when the error or not-found rate jumps above the state's own baseline (baseline_days, default 7) the registry is marked degraded, the owner gets an alert and that state's checks go to a person. Off: no counting, no mark.",
   };
   out['verification.registry_health.window_hours'] = {
     ...out['verification.registry_health.window_hours'],
@@ -781,6 +781,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Hours of the window (default 24) compared with the previous 7 days.',
     min: 1,
     max: 168,
+  };
+  out['verification.registry_health.baseline_days'] = {
+    ...out['verification.registry_health.baseline_days'],
+    description:
+      "Days before the window (default 7) that make the state's normal error / not-found rate (its baseline).",
+    min: 1,
+    max: 90,
   };
   out['verification.registry_health.min_checks'] = {
     ...out['verification.registry_health.min_checks'],

@@ -535,10 +535,12 @@ export const REGISTRY_HEALTH_SETTINGS = {
   'verification.registry_health.enabled': true,
   /** Hours of the window compared with the state's previous 7 days. */
   'verification.registry_health.window_hours': 24,
+  /** Days before the window that make the state's normal (its baseline). */
+  'verification.registry_health.baseline_days': 7,
   /** Fewer checks than this in the window decide nothing. */
   'verification.registry_health.min_checks': 5,
   /** Percentage points the error / not-found rate must rise above the
-   * state's own 7-day rate to mark the registry degraded. */
+   * state's own baseline rate to mark the registry degraded. */
   'verification.registry_health.jump_points': 50,
 } as const;
 

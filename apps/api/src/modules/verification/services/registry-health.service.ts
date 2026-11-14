@@ -10,14 +10,13 @@ import {
   evaluateHealth,
   field,
   hourOf,
-  KEEP_HOURS,
+  keepHours,
+  type HealthConfig,
   staleFields,
   type HealthKind,
   type HealthVerdict,
 } from './registry-health.logic';
 
-/** The degraded mark lapses by itself when no check refreshes it. */
-const MARK_TTL_SEC = 8 * 86_400;
 /** A state is re-evaluated at most this often per process. */
 const EVAL_EVERY_MS = 60_000;
 /** registryDegraded() answers from memory this long. */
@@ -152,9 +151,10 @@ export class RegistryHealthService {
       if (!(await this.enabled())) return;
       const key = RegistryHealthService.countsKey(code);
       const hour = hourOf(this.now());
+      const cfg = await this.config();
       await this.redis.hincrby(key, field(hour, kind), 1);
-      await this.redis.expire(key, (KEEP_HOURS + 24) * 3600);
-      await this.evaluate(code, hour);
+      await this.redis.expire(key, keepHours(cfg) * 3600);
+      await this.evaluate(code, hour, cfg);
     } catch (err) {
       this.logger?.warn({ err, state: code }, 'registry health write failed');
     }
@@ -163,18 +163,14 @@ export class RegistryHealthService {
   /** At most once a minute per state and process: compare the window with
    * the baseline and set or clear the mark. The alert line is logged only
    * by the process whose SET NX / DEL changed the mark (one e-mail). */
-  private async evaluate(state: string, hour: number): Promise<void> {
-    const now = this.now();
-    const last = this.lastEval.get(state);
-    if (last !== undefined && now - last < EVAL_EVERY_MS) return;
-    this.lastEval.set(state, now);
-    const key = RegistryHealthService.countsKey(state);
-    const hash = (await this.redis.hgetall(key)) ?? {};
-    const stale = staleFields(hash, hour);
-    if (stale.length > 0) await this.redis.hdel(key, ...stale);
-    const cfg = {
+  /** The admin's numbers, read on every call (no restart needed). */
+  private async config(): Promise<HealthConfig> {
+    return {
       windowHours: await this.settings.number(
         'verification.registry_health.window_hours',
+      ),
+      baselineDays: await this.settings.number(
+        'verification.registry_health.baseline_days',
       ),
       minChecks: await this.settings.number(
         'verification.registry_health.min_checks',
@@ -183,6 +179,27 @@ export class RegistryHealthService {
         'verification.registry_health.jump_points',
       ),
     };
+  }
+
+  /** The mark lapses by itself when no check refreshes it: one day past
+   * the history the admin keeps. */
+  private markTtlSec(cfg: HealthConfig): number {
+    return keepHours(cfg) * 3600;
+  }
+
+  private async evaluate(
+    state: string,
+    hour: number,
+    cfg: HealthConfig,
+  ): Promise<void> {
+    const now = this.now();
+    const last = this.lastEval.get(state);
+    if (last !== undefined && now - last < EVAL_EVERY_MS) return;
+    this.lastEval.set(state, now);
+    const key = RegistryHealthService.countsKey(state);
+    const hash = (await this.redis.hgetall(key)) ?? {};
+    const stale = staleFields(hash, hour, keepHours(cfg));
+    if (stale.length > 0) await this.redis.hdel(key, ...stale);
     const markKey = RegistryHealthService.markKey(state);
     const current = await this.redis.get(markKey);
     const since = current
@@ -206,7 +223,7 @@ export class RegistryHealthService {
         markKey,
         JSON.stringify(mark),
         'EX',
-        MARK_TTL_SEC,
+        this.markTtlSec(cfg),
         'NX',
       );
       if (set === 'OK') {
@@ -225,7 +242,7 @@ export class RegistryHealthService {
         );
       } else {
         // Still degraded: keep the mark alive while checks keep coming.
-        await this.redis.expire(markKey, MARK_TTL_SEC);
+        await this.redis.expire(markKey, this.markTtlSec(cfg));
       }
     } else if (v.degraded === false) {
       const removed = await this.redis.del(markKey);

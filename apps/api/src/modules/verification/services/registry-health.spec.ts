@@ -10,7 +10,7 @@ import {
   evaluateHealth,
   field,
   hourOf,
-  KEEP_HOURS,
+  keepHours,
   staleFields,
 } from './registry-health.logic';
 import {
@@ -21,7 +21,8 @@ import {
 
 /** Owner row 50 (13.11): health watch of the state bar registries. */
 
-const CFG = { windowHours: 24, minChecks: 5, jumpPoints: 50 };
+const CFG = { windowHours: 24, baselineDays: 7, minChecks: 5, jumpPoints: 50 };
+const KEEP = keepHours(CFG);
 const NOW_H = 500_000;
 
 function hash(entries: Array<[number, string, number]>) {
@@ -149,15 +150,31 @@ describe('registry health logic', () => {
     expect(evaluateHealth(h, NOW_H, CFG, NOW_H - 80).degraded).toBe(true);
   });
 
+  it("the baseline length is the admin's number, not a constant", () => {
+    // Normal 3 days ago, broken 2 days ago and now.
+    const h = hash([
+      [72, 'ok', 40],
+      [48, 'not_found', 60],
+      [1, 'not_found', 6],
+    ]);
+    // 7 days: the broken day is in the baseline, the jump is too small.
+    expect(evaluateHealth(h, NOW_H, CFG).degraded).toBe(false);
+    // 1 day of baseline (hours 24-47): no data there → baseline 0 → degraded.
+    expect(evaluateHealth(h, NOW_H, { ...CFG, baselineDays: 1 }).degraded).toBe(
+      true,
+    );
+    expect(keepHours({ windowHours: 24, baselineDays: 1 })).toBe(72);
+  });
+
   it('old fields are pruned, garbage ignored', () => {
     const h = {
-      [field(NOW_H - KEEP_HOURS, 'ok')]: '3',
+      [field(NOW_H - KEEP, 'ok')]: '3',
       [field(NOW_H - 1, 'ok')]: '3',
       'junk:ok': '1',
       [`${NOW_H - 1}:weird`]: '9',
     };
-    expect(staleFields(h, NOW_H).sort()).toEqual(
-      [field(NOW_H - KEEP_HOURS, 'ok'), 'junk:ok'].sort(),
+    expect(staleFields(h, NOW_H, KEEP).sort()).toEqual(
+      [field(NOW_H - KEEP, 'ok'), 'junk:ok'].sort(),
     );
     expect(evaluateHealth(h, NOW_H, { ...CFG, minChecks: 1 }).window).toEqual({
       ok: 3,
@@ -232,7 +249,7 @@ function setup(stored: Record<string, unknown> = {}) {
       [field(hourOf(t) - 48, 'not_found')]: '4',
     });
   };
-  return { svc, redis, logger, tick, normalWeek };
+  return { svc, redis, logger, tick, normalWeek, values };
 }
 
 const alerts = (logger: {
@@ -243,6 +260,42 @@ const alerts = (logger: {
   );
 
 describe('RegistryHealthService', () => {
+  it('owner 13.11: each number is read live from the admin and changes the decision', async () => {
+    const s = setup();
+    const values = s.values;
+    s.normalWeek();
+    // 3 not-found: below the default minimum of 5 → nothing.
+    for (let i = 0; i < 3; i++) {
+      await s.svc.observe('CA', Promise.resolve(notFound));
+      s.tick(61_000);
+    }
+    expect(await s.svc.registryDegraded('CA')).toBe(false);
+    // The owner lowers the minimum to 3: the next lookup marks it.
+    values['verification.registry_health.min_checks'] = 3;
+    await s.svc.observe('CA', Promise.resolve(notFound));
+    s.tick(61_000);
+    expect(await s.svc.registryDegraded('CA')).toBe(true);
+    // The owner raises the jump to 100 points: 100 % vs 9 % is only 91 →
+    // healthy again at the next lookup (no restart).
+    values['verification.registry_health.jump_points'] = 100;
+    await s.svc.observe('CA', Promise.resolve(notFound));
+    s.tick(61_000);
+    expect(await s.svc.registryDegraded('CA')).toBe(false);
+    // Jump back to 50, but a 1-day baseline: the normal week (48 h ago)
+    // is out of it and the window's own rate counts from 0 → degraded.
+    values['verification.registry_health.jump_points'] = 50;
+    values['verification.registry_health.baseline_days'] = 1;
+    values['verification.registry_health.window_hours'] = 12;
+    await s.svc.observe('CA', Promise.resolve(notFound));
+    s.tick(61_000);
+    expect(await s.svc.registryDegraded('CA')).toBe(true);
+    // The kept history follows the admin too (12 h + 1 day + 1 day).
+    expect(s.redis.expire).toHaveBeenLastCalledWith(
+      RegistryHealthService.countsKey('CA'),
+      keepHours({ windowHours: 12, baselineDays: 1 }) * 3600,
+    );
+  });
+
   it('marks a state degraded once, alerts once, and sends its «fail» to a person', async () => {
     const s = setup();
     s.normalWeek();
