@@ -12,11 +12,25 @@ import 'package:lawbid/features/onboarding/presentation/screens/consents_step_sc
 import 'package:lawbid/features/onboarding/presentation/screens/contacts_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/profile_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 import '../../helpers/email_flows_overrides.dart';
 import '../../helpers/fixtures.dart';
 import '../../helpers/onboarding_harness.dart';
+import '../profile/profile_fakes.dart' show FakeAttorneyRepo;
+
+/// The @username check fails (no network).
+class _FailingCheckRepo extends FakeAttorneyRepo {
+  @override
+  Future<UsernameCheck> checkUsername(
+    String username, {
+    String? firstName,
+    String? lastName,
+  }) async =>
+      throw Exception('offline');
+}
 
 Future<void> _settle(WidgetTester tester) async {
   await tester.pumpAndSettle();
@@ -280,6 +294,53 @@ void main() {
         'contactNote': 'Evenings',
         'email': 'ann@example.com',
       });
+      await _tearDownDrift(tester);
+    });
+
+    testWidgets(
+        'Detective R2-A #19: a failed @username check keeps the typed handle '
+        '(the server decides on save)', (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final me = withProfile(
+        clientPhoneOnly,
+        client: const ClientProfile(
+          stateCode: 'NY',
+          languages: ['en'],
+          contactMethod: 'in_app_chat',
+        ),
+      );
+      final repo = FakeOnboardingRepository(me);
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: me,
+        repo: repo,
+        extra: [
+          attorneyProfileRepositoryProvider.overrideWithValue(
+            _FailingCheckRepo(),
+          ),
+        ],
+      );
+      await tester.pumpWidget(wrap(const ProfileStepScreen()));
+      await _settle(tester);
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(const ValueKey('onboarding-username')),
+          matching: find.byType(TextField),
+        ),
+        'ann_typed',
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      await _settle(tester);
+      expect(
+        find.text("Couldn't check availability. We'll check when you save."),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+      final sent = repo.lastProfile! as ClientProfileInput;
+      expect(sent.toJson()['username'], 'ann_typed');
       await _tearDownDrift(tester);
     });
 

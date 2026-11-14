@@ -188,3 +188,11 @@ class CallCamerasOff extends Notifier<Set<String>> {
 
 final callCamerasOffProvider =
     NotifierProvider<CallCamerasOff, Set<String>>(CallCamerasOff.new);
+
+/// Row 166 (WhatsApp «X muted», FaceTime mic-off): people in a call of two
+/// whose microphone is off — they said so over the call's signalling
+/// ({'type':'mute'}). `set(id, on: false)` = their mic is off.
+class CallMicsOff extends CallCamerasOff {}
+
+final callMicsOffProvider =
+    NotifierProvider<CallMicsOff, Set<String>>(CallMicsOff.new);

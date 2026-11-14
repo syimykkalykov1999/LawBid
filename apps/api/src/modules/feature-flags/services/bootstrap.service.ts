@@ -170,8 +170,8 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // D1-53 (13.11): the biometric consent the attorney ticks names how long
   // the face-comparison result is kept; the app fills `{days}` from this.
   'verification.face_match.retention_days',
-  // R2-A #18 (14.11): «Resend in 0:59» on the phone/email change counts
-  // the admin's own SMS cooldown, not a number written into the app.
+  // Detective R2-A #17 (14.11): the app counts «Resend in 0:59» down from
+  // the same SMS wait the server enforces (code screen, «Forgot password»).
   'sms.resend_cooldown_seconds',
 ] as const;
 
@@ -567,7 +567,7 @@ export class BootstrapService {
         // D1-53: always present, so the consent never shows a stale number.
         'verification.face_match.retention_days':
           APP_SETTINGS['verification.face_match.retention_days'],
-        // R2-A #18: always present, so the resend countdown is never a guess.
+        // R2-A #17: always present, so «Resend in …» matches the server.
         'sms.resend_cooldown_seconds':
           APP_SETTINGS['sms.resend_cooldown_seconds'],
         ...Object.fromEntries(

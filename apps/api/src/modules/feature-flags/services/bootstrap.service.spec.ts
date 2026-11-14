@@ -340,7 +340,7 @@ describe('BootstrapService.build', () => {
       'client.guest_browse_web_enabled': true,
       // D1-53: the days the biometric consent text names, always sent.
       'verification.face_match.retention_days': 30,
-      // R2-A #18: the SMS resend cooldown the app counts down, always sent.
+      // R2-A #17: the SMS wait the app counts down, always sent.
       'sms.resend_cooldown_seconds': 60,
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
       'client.video_prefetch_ahead': 3,
