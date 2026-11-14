@@ -47,6 +47,7 @@ import type {
   TeamDto,
   UpdateAssistantDto,
 } from './assistants.dto';
+import { checkedPayload } from './assistant-request-payload';
 import {
   formatJoinCode,
   hashJoinCode,
@@ -646,6 +647,8 @@ export class AssistantsService {
       });
     }
     validatePayload(dto);
+    // R2B-2: the same DTO rules as the attorney's own request.
+    await checkedPayload(dto.kind, dto.payload);
     const r = await this.prisma.assistantRequest.create({
       data: {
         attorney_id: user.sub,
@@ -712,9 +715,53 @@ export class AssistantsService {
     note?: string,
   ): Promise<AssistantRequestDto> {
     const r = await this.pendingRequest(user, id);
+    // R2B-2: re-checked now (rules or the stored row may have changed); a
+    // bad payload stays pending for the attorney to reject.
+    const checked = await checkedPayload(r.kind, r.payload);
     const p = r.payload as Record<string, unknown>;
+    // R2B-11: claim the row first — of two approvals at once only one
+    // moves it off `pending`, so the content is published once.
+    const claimed = await this.prisma.assistantRequest.updateMany({
+      where: { id, attorney_id: user.sub, status: 'pending' },
+      data: { status: 'approved', note: note ?? null, decided_at: new Date() },
+    });
+    if (claimed.count !== 1) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Request not found.',
+      });
+    }
     let resultId: string | null;
-    if (r.kind === 'post') {
+    try {
+      resultId = await this.applyRequest(user, r.kind, p, checked);
+    } catch (e) {
+      // Nothing was published: back to pending, so it can be tried again.
+      await this.prisma.assistantRequest.updateMany({
+        where: { id, status: 'approved', result_id: null },
+        data: { status: 'pending', note: null, decided_at: null },
+      });
+      throw e;
+    }
+    await this.prisma.assistantRequest.update({
+      where: { id },
+      data: { result_id: resultId },
+    });
+    await this.tellAssistant(r.membership_id, {
+      requestId: id,
+      decision: 'approved',
+    });
+    return (await this.presentRequests([id]))[0];
+  }
+
+  /** Publishes / applies an approved request as the attorney. */
+  private async applyRequest(
+    user: RequestUser,
+    kind: string,
+    p: Record<string, unknown>,
+    checked: object,
+  ): Promise<string | null> {
+    let resultId: string | null;
+    if (kind === 'post') {
       // Owner 2026-10-18: the title and the text may be left out.
       const dto: CreatePostDto = {
         ...(p as unknown as CreatePostDto),
@@ -723,7 +770,7 @@ export class AssistantsService {
       };
       const post = await this.posts.create(user, dto);
       resultId = post.id;
-    } else if (r.kind === 'comment') {
+    } else if (kind === 'comment') {
       const c = await this.comments.create(
         user.sub,
         String(p.postId),
@@ -731,7 +778,7 @@ export class AssistantsService {
         typeof p.parentId === 'string' ? p.parentId : undefined,
       );
       resultId = c.id;
-    } else if (r.kind === 'case_comment') {
+    } else if (kind === 'case_comment') {
       const c = await this.caseComments.create(
         user,
         String(p.caseId),
@@ -740,23 +787,11 @@ export class AssistantsService {
       );
       resultId = c.id;
     } else {
-      await this.profiles.updateOwn(user.sub, p);
+      // Only the checked profile fields (no @username), R2B-2.
+      await this.profiles.updateOwn(user.sub, checked);
       resultId = user.sub;
     }
-    await this.prisma.assistantRequest.update({
-      where: { id },
-      data: {
-        status: 'approved',
-        result_id: resultId,
-        note: note ?? null,
-        decided_at: new Date(),
-      },
-    });
-    await this.tellAssistant(r.membership_id, {
-      requestId: id,
-      decision: 'approved',
-    });
-    return (await this.presentRequests([id]))[0];
+    return resultId;
   }
 
   /** OQ-048: the assistant hears back (push + their Results section). */
@@ -783,10 +818,18 @@ export class AssistantsService {
     note?: string,
   ): Promise<AssistantRequestDto> {
     const r = await this.pendingRequest(user, id);
-    await this.prisma.assistantRequest.update({
-      where: { id },
+    // R2B-11: only a still-pending request is rejected (not one that an
+    // approval at the same moment has already published).
+    const claimed = await this.prisma.assistantRequest.updateMany({
+      where: { id, attorney_id: user.sub, status: 'pending' },
       data: { status: 'rejected', note: note ?? null, decided_at: new Date() },
     });
+    if (claimed.count !== 1) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Request not found.',
+      });
+    }
     await this.tellAssistant(r.membership_id, {
       requestId: id,
       decision: 'rejected',

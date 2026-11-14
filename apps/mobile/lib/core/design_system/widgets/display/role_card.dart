@@ -197,7 +197,7 @@ class _ProBadge extends StatelessWidget {
         label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: style.copyWith(color: colors.gold),
+        style: style.copyWith(color: colors.goldText),
       ),
     );
   }

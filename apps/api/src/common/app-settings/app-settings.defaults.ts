@@ -78,6 +78,14 @@ export const FILE_03_SETTINGS = {
   'profile.username_similar_min_audience': 1000,
   'review.edit_window_days': 14,
   'review.reminder_after_days': 7,
+  // Owner row 112 (Airbnb «Typically responds within an hour»): the line
+  // under an attorney's name, from the nightly `profiles.reply-time` job.
+  // Off = the line is gone from every profile at the next run.
+  'profile.reply_time_enabled': true,
+  // Chats with a message in the last this-many days count.
+  'profile.reply_time_window_days': 90,
+  // Fewer answered chats than this = no line (too little to say).
+  'profile.reply_time_min_chats': 3,
   // Voice messages and other files outside «Загрузки и файлы» (bug 17).
   'files.max_size_mb': 10,
 } as const;
@@ -1548,6 +1556,11 @@ export const OWNER_OPS_SETTINGS = {
   // waits a random 0..jitter seconds first.
   'ops.db_lost_exit_min': 10,
   'ops.db_lost_exit_jitter_sec': 60,
+  // 14.11 (detective F3): a server whose event loop stood still for at
+  // least this many ms in one second writes one «event loop stall» line
+  // naming the garbage collections and the open requests / jobs of that
+  // second (common/ops/loop-stall.ts). 0 = off.
+  'ops.loop_stall_log_ms': 500,
   // Owner 2026-10-27 («Сегодня» as the owner's desk): the Sentry line on
   // «Сегодня» (one Sentry request per 5 minutes, needs the `sentry` keys in
   // «Ключи и сервисы») and the guided «Разделить базу» card on «Масштаб».

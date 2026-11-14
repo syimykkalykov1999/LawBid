@@ -109,6 +109,23 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 100,
     max: 5000,
   };
+  // Owner row 112: «Обычно отвечает за …» (nightly profiles.reply-time).
+  out['profile.reply_time_window_days'] = {
+    type: 'integer',
+    defaultValue: 90,
+    description:
+      'Response time on attorney profiles: chats with a message in the last this-many days count.',
+    min: 1,
+    max: 3650,
+  };
+  out['profile.reply_time_min_chats'] = {
+    type: 'integer',
+    defaultValue: 3,
+    description:
+      'Response time on attorney profiles: shown only after at least this many answered chats.',
+    min: 1,
+    max: 1000,
+  };
   out['search.engine_request_timeout_ms'] = {
     type: 'integer',
     defaultValue: 5000,
@@ -1181,6 +1198,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'How many recent translation bundles (language + version) each server keeps in memory. 0 = none.',
     min: 0,
     max: 200,
+  };
+  out['ops.loop_stall_log_ms'] = {
+    ...out['ops.loop_stall_log_ms'],
+    description:
+      'A server whose event loop stood still at least this many ms writes one log line naming the garbage collections and open requests/jobs of that moment. 0 = off.',
+    min: 0,
+    max: 60_000,
   };
   out['ops.bootstrap_cache_sec'] = {
     ...out['ops.bootstrap_cache_sec'],

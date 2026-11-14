@@ -26,7 +26,9 @@ List<RouteBase> subscriptionRoutes(
           state,
           (sectionPage ?? _plain)(
             state.matchedLocation,
-            const SubscriptionScreen(),
+            SubscriptionScreen(
+              checkoutSessionId: state.uri.queryParameters['session_id'],
+            ),
           ),
         ),
       ),

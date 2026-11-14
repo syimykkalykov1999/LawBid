@@ -821,7 +821,7 @@ class ReplyQuote extends ConsumerWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: type.caption.copyWith(
-                              color: colors.gold,
+                              color: colors.goldText,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -897,7 +897,7 @@ class EditBar extends ConsumerWidget {
                 Text(
                   t.t('chat.edit.title'),
                   style: type.caption.copyWith(
-                    color: colors.gold,
+                    color: colors.goldText,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1063,7 +1063,7 @@ class PinnedBanner extends ConsumerWidget {
                             )
                           : t.t('chat.pinned.title'),
                       style: type.caption.copyWith(
-                        color: colors.gold,
+                        color: colors.goldText,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

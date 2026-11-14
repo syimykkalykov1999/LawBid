@@ -270,7 +270,7 @@ class _AppTextFieldState extends State<AppTextField> {
             const SizedBox(height: AppSpacing.xs),
             Text(
               widget.errorText!,
-              style: typography.caption.copyWith(color: colors.danger),
+              style: typography.caption.copyWith(color: colors.dangerText),
             ),
           ] else if (widget.helperText != null) ...[
             const SizedBox(height: AppSpacing.xs),

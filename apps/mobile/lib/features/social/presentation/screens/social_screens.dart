@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -288,7 +289,7 @@ class PracticePostsScreen extends ConsumerWidget {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(practices.practiceLabel(ref, practice)),
       ),
@@ -575,7 +576,7 @@ class _TagScreenState extends ConsumerState<TagScreen> {
         appBar: AppTopBar(
           leading: AppBackButton(
             semanticLabel: t.t('common.back'),
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: () => context.safeBack(),
           ),
           title: Text(practice_options.practiceLabel(ref, category)),
           actions: [_viewToggle(t, colors, grid)],
@@ -592,7 +593,7 @@ class _TagScreenState extends ConsumerState<TagScreen> {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text('#${widget.tag}'),
         actions: [_viewToggle(t, colors, grid)],
@@ -748,7 +749,7 @@ class _FollowListScreenState extends ConsumerState<FollowListScreen> {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(
           t.t(
@@ -813,7 +814,7 @@ class LikersScreen extends ConsumerWidget {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('post.stats.likes')),
       ),
@@ -851,7 +852,7 @@ class RepostersScreen extends ConsumerWidget {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('post.reposters.title')),
       ),

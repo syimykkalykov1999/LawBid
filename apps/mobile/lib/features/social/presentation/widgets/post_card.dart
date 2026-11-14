@@ -22,6 +22,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
+import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
@@ -310,17 +311,22 @@ class PostCard extends ConsumerWidget {
     // text post as Threads' column (640 px).
     return WebMediaWidth(
       maxWidth: isThreadsStyle(p) ? kWebBriefMaxWidth : kWebPostMaxWidth,
-      child: _cardBody(
-        context,
-        ref,
-        p,
-        t,
-        colors,
-        actions,
-        run,
-        insta,
-        edge,
-        flat,
+      // Owner row 113: a right-click on the website opens the post's «…»
+      // menu (Telegram Web / WhatsApp Web).
+      child: WebRightClickMenu(
+        onMenu: () => showPostMenu(context, ref, p),
+        child: _cardBody(
+          context,
+          ref,
+          p,
+          t,
+          colors,
+          actions,
+          run,
+          insta,
+          edge,
+          flat,
+        ),
       ),
     );
   }
@@ -2280,8 +2286,10 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
   // size in full, past the app shell's 1.3x cap (the «more» cut is measured
   // with the same scale).
   @override
-  Widget build(BuildContext context) =>
-      FullTextScale(child: Builder(builder: _build));
+  // Owner row 113: on the website the text can be selected and copied.
+  Widget build(BuildContext context) => FullTextScale(
+        child: WebSelectableText(child: Builder(builder: _build)),
+      );
 
   Widget _build(BuildContext context) {
     final t = ref.watch(translatorProvider);
