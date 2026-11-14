@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Maka isifungo ukuze uthumele.",
   "verification.attest.text": "Ngifunga ukuthi ngingummeli onelayisense enombolo efakwe ngenhla nokuthi ilayisense isebenza. Ulwazi olungamanga lusho ukuvinjelwa futhi uxanduva lonke lungelami.",
   "verification.biometricConsent.required": "Maka imvume yokuqhathanisa ubuso ukuze uthathe i-selfie.",
-  "verification.biometricConsent.text": "Ngiyavuma ukuthi i-LawBid iqhathanise ngokuzenzakalelayo isithombe sami se-selfie nesithombe esikumazisi wami (Amazon Rekognition) kuphela ukuqinisekisa ukuthi ngingubani kulokhu kuqinisekisa. Umphumela ugcinwa kuze kuthathwe isinqumo ngesicelo sami nezinsuku ezingama-30, bese ususwa.",
+  "verification.biometricConsent.text": "Ngiyavuma ukuthi i-LawBid iqhathanise ngokuzenzakalelayo isithombe sami se-selfie nesithombe esikumazisi wami (Amazon Rekognition) kuphela ukuqinisekisa ukuthi ngingubani kulokhu kuqinisekisa. Umphumela ugcinwa kuze kuthathwe isinqumo ngesicelo sami nezinsuku ezingama-{days}, bese ususwa.",
   "verification.camera.denied.body": "Vumela i-LawBid ukufinyelela ikhamera ezilungiselelweni zefoni yakho, bese uzama futhi.",
   "verification.camera.denied.title": "Akukho ukufinyelela ekhameni",
   "verification.camera.hint.card": "Faka ikhadi ngaphakathi kohlaka",

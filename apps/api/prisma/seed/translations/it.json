@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Spunta la dichiarazione giurata per inviare.",
   "verification.attest.text": "Giuro di essere l'avvocato titolare della licenza con il numero indicato e che la licenza è attiva. Dati falsi comportano il blocco e ne sono l'unico responsabile.",
   "verification.biometricConsent.required": "Spunta il consenso al confronto del volto per scattare il selfie.",
-  "verification.biometricConsent.text": "Accetto che LawBid confronti automaticamente il mio selfie con la foto del mio documento d'identità (Amazon Rekognition) solo per confermare la mia identità in questa verifica. Il risultato viene conservato fino alla decisione sulla mia richiesta e per altri 30 giorni, poi viene eliminato.",
+  "verification.biometricConsent.text": "Accetto che LawBid confronti automaticamente il mio selfie con la foto del mio documento d'identità (Amazon Rekognition) solo per confermare la mia identità in questa verifica. Il risultato viene conservato fino alla decisione sulla mia richiesta e per altri {days} giorni, poi viene eliminato.",
   "verification.camera.denied.body": "Consenta a LawBid l'accesso alla fotocamera nelle impostazioni del telefono, poi riprovi.",
   "verification.camera.denied.title": "Nessun accesso alla fotocamera",
   "verification.camera.hint.card": "Inquadri la tessera nel riquadro",

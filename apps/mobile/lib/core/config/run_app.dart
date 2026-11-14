@@ -25,6 +25,7 @@ import 'package:lawbid/core/platform/spotlight_index.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_gate.dart';
 import 'package:lawbid/core/platform/web_lifecycle.dart';
+import 'package:lawbid/core/platform/web_semantics.dart';
 import 'package:lawbid/core/security/app_check.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/core/startup/startup_idle_queue.dart';
@@ -108,6 +109,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // Owner 2026-10-22 (audit #4 §5): the web notice's answer first — the
   // events start only after a yes.
   applyWebNoticeChoice(prefs);
+  // D1-49 (13.11): screen readers on the website get the semantics tree
+  // from the first frame (admin switch client.web_semantics_enabled).
+  WebSemantics.start(prefs);
   AppEvents.install(prefs, AppEnvironment.current);
   // Security research #5 (2026-10-22), B1: Firebase App Check starts now so
   // the first code request already carries its token; a build without the

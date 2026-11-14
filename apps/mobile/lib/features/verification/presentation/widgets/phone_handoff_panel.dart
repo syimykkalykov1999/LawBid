@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/verification/application/verification_wizard_controller.dart';
@@ -30,6 +31,22 @@ final selfieCameraAvailableProvider = FutureProvider<bool>((ref) async {
 /// run — the web (Flutter web has no on-device ML Kit, so no liveness
 /// check) or a device without a camera: the selfie step shows «continue on
 /// the phone» instead. Overridden in tests.
+/// D1-53 (13.11): how many days after the decision the face-comparison
+/// result is kept (admin `verification.face_match.retention_days`, sent in
+/// `GET /config/bootstrap`); the biometric consent text names this number.
+/// Before the first bootstrap answer: the server's own default.
+final biometricRetentionDaysProvider = Provider<int>((ref) {
+  final raw = ref
+      .watch(featureFlagsControllerProvider)
+      .appConfig['verification.face_match.retention_days'];
+  final days = num.tryParse(raw ?? '')?.toInt();
+  return days != null && days > 0 ? days : kBiometricRetentionDefaultDays;
+});
+
+/// The API's default for `verification.face_match.retention_days`
+/// (app-settings.defaults.ts), used only until the bootstrap answers.
+const kBiometricRetentionDefaultDays = 30;
+
 final selfieNeedsPhoneProvider = Provider<bool>(
   (ref) => kIsWeb || ref.watch(selfieCameraAvailableProvider).value == false,
 );

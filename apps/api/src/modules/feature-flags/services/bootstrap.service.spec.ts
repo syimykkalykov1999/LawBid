@@ -338,6 +338,8 @@ describe('BootstrapService.build', () => {
       // always sent.
       'client.guest_browse_app_enabled': false,
       'client.guest_browse_web_enabled': true,
+      // D1-53: the days the biometric consent text names, always sent.
+      'verification.face_match.retention_days': 30,
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
       'client.video_prefetch_ahead': 3,
       'client.video_prefetch_cellular': 3,

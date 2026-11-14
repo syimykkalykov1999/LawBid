@@ -7,7 +7,7 @@ import {
   LEGAL_DOC_TYPE_LIST,
   LEGAL_LOCALES,
 } from './legal-documents.constants';
-import { nextVersion } from './legal-documents.logic';
+import { biometricSection, nextVersion } from './legal-documents.logic';
 
 /** The documents the sign-up consent screen links to: they must never be
  * the one-line placeholder, or a new user is asked to accept nothing. */
@@ -17,6 +17,11 @@ const CONSENT_DOC_TYPES = ['terms', 'privacy', 'disclaimer'] as const;
  * (docs/legal/drafts of the legal register). Tag written into the
  * change_note of the draft that carries them, so each is created once. */
 export const REVISION_TAG = '[legal-texts-2026-10]';
+/** D1-50 (13.11, BIPA 740 ILCS 14/15(a)): tag in the change_note of the
+ * privacy version that added the public biometric retention policy, so it is
+ * added once per language and never again after the owner edits it. */
+export const BIOMETRIC_TAG = '[biometric-policy-2026-11]';
+
 export const REVISION_TYPES = [
   'terms',
   'privacy',
@@ -107,7 +112,76 @@ export class LegalDocumentsSeed implements OnModuleInit {
     if (created > 0) this.log.log(`legal document drafts seeded: ${created}`);
     await this.publishOverPlaceholders();
     created += await this.seedRevisions();
+    await this.publishBiometricSection();
     return created;
+  }
+
+  /**
+   * D1-50 (13.11): Illinois BIPA asks for a PUBLIC written retention and
+   * destruction schedule before any biometric data is collected. Where the
+   * CURRENT published privacy text of a language has no "Biometric
+   * information" section, prepare it once as a DRAFT of the next version:
+   * the owner's text unchanged, with the shipped section (apps/api/assets/
+   * legal/privacy.<locale>.md) appended. Nothing is published by itself
+   * (public legal text, owner review and a US attorney first): the owner
+   * publishes the draft in admin → Legal. The current text stays current, a
+   * language with no published text is left to the owner, and the tag stops
+   * any second run (also after the owner edits or deletes the draft). Lines in [brackets] (facts the
+   * owner still has to confirm) are left out. The periods stay `{{…}}` and
+   * are filled from the admin settings on every read.
+   */
+  async publishBiometricSection(): Promise<number> {
+    const dir = seedDir();
+    if (!dir) return 0;
+    let published = 0;
+    for (const locale of ['en', 'ru'] as const) {
+      const file = join(dir, `privacy.${locale}.md`);
+      if (!existsSync(file)) continue;
+      const section = biometricSection(readFileSync(file, 'utf8'));
+      if (!section) continue;
+      const rows = await this.prisma.legalDocument.findMany({
+        where: { doc_type: 'privacy', locale },
+        select: {
+          id: true,
+          version: true,
+          status: true,
+          is_current: true,
+          content_md: true,
+          change_note: true,
+        },
+      });
+      if (rows.some((r) => r.change_note?.includes(BIOMETRIC_TAG))) continue;
+      const current = rows.find(
+        (r) => r.is_current && r.status === 'published',
+      );
+      if (!current || isPlaceholder(current.content_md)) continue;
+      if (biometricSection(current.content_md ?? '')) continue;
+      const addition = section
+        .split('\n')
+        .map((l) => l.replace(/\s*\[[^\]]*\]/g, ''))
+        .join('\n');
+      const now = new Date();
+      await this.prisma.legalDocument.create({
+        data: {
+          doc_type: 'privacy',
+          locale,
+          version: nextVersion(
+            now,
+            rows.map((r) => r.version),
+          ),
+          content_md: `${(current.content_md ?? '').trimEnd()}\n\n${addition}\n`,
+          status: 'draft',
+          is_current: false,
+          requires_reacceptance: false,
+          change_note: `${BIOMETRIC_TAG} Черновик: раздел о биометрических данных (BIPA 740 ILCS 14/15(a)); сроки берутся из настроек админки; проверить юристом США и опубликовать в админке`,
+        },
+      });
+      published += 1;
+    }
+    if (published > 0) {
+      this.log.log(`privacy: biometric section drafted (${published})`);
+    }
+    return published;
   }
 
   /**

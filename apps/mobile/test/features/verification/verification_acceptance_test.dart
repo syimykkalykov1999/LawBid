@@ -123,6 +123,13 @@ void main() {
       find.text('Tick the face comparison consent to take the selfie.'),
       findsOneWidget,
     );
+    // D1-53: the period comes from the admin setting (bootstrap), never a
+    // fixed number in the text; with no bootstrap answer, the API default.
+    expect(
+      find.textContaining('decided plus 30 days, then deleted'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('{days}'), findsNothing);
     final consent = find.byKey(
       const ValueKey('verification-biometric-consent'),
     );

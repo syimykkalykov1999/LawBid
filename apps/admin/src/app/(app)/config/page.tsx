@@ -1020,6 +1020,8 @@ const KEY_TEXT: Record<string, string> = {
     "Просмотр без входа в приложениях iOS и Android (ссылка «Посмотреть без входа» на первом экране и лента без аккаунта). По умолчанию выключено. Работает только пока включён главный выключатель «guest.browsing_enabled». Ключ: client.guest_browse_app_enabled.",
   "client.guest_browse_web_enabled":
     "То же для сайта: посетитель может осмотреться до входа. По умолчанию включено. Работает только пока включён главный выключатель «guest.browsing_enabled». Ключ: client.guest_browse_web_enabled.",
+  "client.web_semantics_enabled":
+    "Сайт: программы чтения с экрана (VoiceOver, NVDA, TalkBack) видят кнопки и подписи сразу, с первого кадра. По умолчанию включено. Выключение чуть ускоряет отрисовку, но незрячему посетителю придётся сначала найти скрытую кнопку «Enable accessibility». Ключ: client.web_semantics_enabled.",
   "client.resume_refresh_min_away_s":
     "После скольких секунд в фоне приложение перечитывает экраны при возврате. Ключ: client.resume_refresh_min_away_s.",
   "media.chat_photo_max_px":

@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Yuborish uchun qasamni belgilang.",
   "verification.attest.text": "Yuqorida kiritilgan raqamli litsenziyaga ega advokat ekanligimga va litsenziya amalda ekanligiga qasam ichaman. Yolg‘on ma’lumot akkauntning bloklanishiga olib keladi, barcha javobgarlik menda.",
   "verification.biometricConsent.required": "Selfi olish uchun yuzni solishtirishga rozilikni belgilang.",
-  "verification.biometricConsent.text": "LawBid ushbu tekshiruvda faqat shaxsimni tasdiqlash uchun selfimni guvohnomamdagi surat bilan avtomatik solishtirishiga (Amazon Rekognition) roziman. Natija arizam bo‘yicha qaror chiqquncha va undan keyin yana 30 kun saqlanadi, so‘ng o‘chiriladi.",
+  "verification.biometricConsent.text": "LawBid ushbu tekshiruvda faqat shaxsimni tasdiqlash uchun selfimni guvohnomamdagi surat bilan avtomatik solishtirishiga (Amazon Rekognition) roziman. Natija arizam bo‘yicha qaror chiqquncha va undan keyin yana {days} kun saqlanadi, so‘ng o‘chiriladi.",
   "verification.camera.denied.body": "Telefon sozlamalarida LawBid uchun kameraga ruxsat bering, so‘ng qayta urinib ko‘ring.",
   "verification.camera.denied.title": "Kameraga ruxsat yo‘q",
   "verification.camera.hint.card": "Kartani ramka ichiga joylashtiring",

@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Marca la declaración jurada para enviar.",
   "verification.attest.text": "Juro que soy el abogado con licencia con el número indicado y que la licencia está vigente. Los datos falsos suponen la suspensión y la responsabilidad es solo mía.",
   "verification.biometricConsent.required": "Marca el consentimiento de comparación facial para hacerte el selfi.",
-  "verification.biometricConsent.text": "Acepto que LawBid compare automáticamente mi selfi con la foto de mi documento de identidad (Amazon Rekognition) solo para confirmar mi identidad en esta verificación. El resultado se guarda hasta que se resuelva mi solicitud y 30 días más, y luego se elimina.",
+  "verification.biometricConsent.text": "Acepto que LawBid compare automáticamente mi selfi con la foto de mi documento de identidad (Amazon Rekognition) solo para confirmar mi identidad en esta verificación. El resultado se guarda hasta que se resuelva mi solicitud y {days} días más, y luego se elimina.",
   "verification.camera.denied.body": "Permita que LawBid acceda a la cámara en los ajustes de su teléfono e inténtelo de nuevo.",
   "verification.camera.denied.title": "Sin acceso a la cámara",
   "verification.camera.hint.card": "Encaje la tarjeta dentro del marco",

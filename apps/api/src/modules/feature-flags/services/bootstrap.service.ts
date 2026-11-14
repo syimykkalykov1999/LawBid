@@ -167,6 +167,9 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // it, so an admin change was enforced by the server only.
   'stories.max_video_sec',
   'channels.max_post_media',
+  // D1-53 (13.11): the biometric consent the attorney ticks names how long
+  // the face-comparison result is kept; the app fills `{days}` from this.
+  'verification.face_match.retention_days',
 ] as const;
 
 @Injectable()
@@ -558,6 +561,9 @@ export class BootstrapService {
           CLIENT_TUNING_DEFS['client.guest_browse_app_enabled'].default,
         'client.guest_browse_web_enabled':
           CLIENT_TUNING_DEFS['client.guest_browse_web_enabled'].default,
+        // D1-53: always present, so the consent never shows a stale number.
+        'verification.face_match.retention_days':
+          APP_SETTINGS['verification.face_match.retention_days'],
         ...Object.fromEntries(
           Object.entries(appConfig).filter(([k]) =>
             PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),

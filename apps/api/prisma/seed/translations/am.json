@@ -6368,7 +6368,7 @@
   "verification.attest.required": "ለመላክ መሐላውን ምልክት ያድርጉ።",
   "verification.attest.text": "ከላይ በገባው ቁጥር ፈቃድ ያለኝ ጠበቃ እንደሆንኩና ፈቃዱ ንቁ እንደሆነ እምላለሁ። የሐሰት መረጃ መታገድን ያስከትላል፤ ኃላፊነቱ በሙሉ የእኔ ነው።",
   "verification.biometricConsent.required": "የራስ ፎቶ ለማንሳት የፊት ማነጻጸሪያ ፈቃዱን ምልክት ያድርጉ።",
-  "verification.biometricConsent.text": "LawBid በዚህ ማረጋገጫ ውስጥ ማንነቴን ለማረጋገጥ ብቻ የራስ ፎቶዬን ከመታወቂያዬ ፎቶ ጋር በራስ-ሰር እንዲያነጻጽር (Amazon Rekognition) እስማማለሁ። ውጤቱ በጥያቄዬ ላይ ውሳኔ እስኪሰጥ ድረስ እና ከዚያ በኋላ 30 ቀናት ይቀመጣል፣ ከዚያም ይሰረዛል።",
+  "verification.biometricConsent.text": "LawBid በዚህ ማረጋገጫ ውስጥ ማንነቴን ለማረጋገጥ ብቻ የራስ ፎቶዬን ከመታወቂያዬ ፎቶ ጋር በራስ-ሰር እንዲያነጻጽር (Amazon Rekognition) እስማማለሁ። ውጤቱ በጥያቄዬ ላይ ውሳኔ እስኪሰጥ ድረስ እና ከዚያ በኋላ {days} ቀናት ይቀመጣል፣ ከዚያም ይሰረዛል።",
   "verification.camera.denied.body": "በስልክ ቅንብሮችዎ ውስጥ ለLawBid የካሜራ መዳረሻ ይፍቀዱና እንደገና ይሞክሩ።",
   "verification.camera.denied.title": "ካሜራ መድረስ አይቻልም",
   "verification.camera.hint.card": "ካርዱን በክፈፉ ውስጥ ያስገቡ",

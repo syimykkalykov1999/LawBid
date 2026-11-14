@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Merk die beëdigde verklaring om te stuur.",
   "verification.attest.text": "Ek sweer dat ek die prokureur is met die lisensie met die nommer hierbo en dat die lisensie geldig is. Valse inligting beteken 'n verbod en die verantwoordelikheid is net myne.",
   "verification.biometricConsent.required": "Merk die toestemming vir gesigvergelyking om die selfie te neem.",
-  "verification.biometricConsent.text": "Ek stem in dat LawBid my selfie outomaties met die foto op my identiteitsdokument vergelyk (Amazon Rekognition) slegs om my identiteit vir hierdie verifikasie te bevestig. Die resultaat word gehou totdat daar oor my aansoek besluit is plus 30 dae, en dan uitgevee.",
+  "verification.biometricConsent.text": "Ek stem in dat LawBid my selfie outomaties met die foto op my identiteitsdokument vergelyk (Amazon Rekognition) slegs om my identiteit vir hierdie verifikasie te bevestig. Die resultaat word gehou totdat daar oor my aansoek besluit is plus {days} dae, en dan uitgevee.",
   "verification.camera.denied.body": "Laat kameratoegang vir LawBid in jou foon se instellings toe en probeer dan weer.",
   "verification.camera.denied.title": "Geen toegang tot die kamera nie",
   "verification.camera.hint.card": "Pas die kaart binne die raam",

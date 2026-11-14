@@ -566,6 +566,7 @@ class SelfieStep extends StatelessWidget {
     this.handoffToken,
     this.biometricConsent = false,
     this.onBiometricConsentChanged,
+    this.biometricRetentionDays = kBiometricRetentionDefaultDays,
     super.key,
   });
 
@@ -577,6 +578,9 @@ class SelfieStep extends StatelessWidget {
   /// selfie ↔ ID photo comparison), ticked before the camera opens.
   final bool biometricConsent;
   final ValueChanged<bool>? onBiometricConsentChanged;
+
+  /// D1-53: the `{days}` of the consent text (admin retention setting).
+  final int biometricRetentionDays;
 
   /// Owner 2026-10-28 + R-146: no guided camera here (web, or no camera at
   /// all): «continue on the phone» instead of «Open camera».
@@ -651,6 +655,7 @@ class SelfieStep extends StatelessWidget {
             t: t,
             checkKey: const ValueKey('verification-biometric-consent'),
             textKey: 'verification.biometricConsent.text',
+            params: {'days': '$biometricRetentionDays'},
             value: biometricConsent,
             onChanged: onChanged,
           ),
@@ -847,11 +852,15 @@ class _ConsentCheck extends StatelessWidget {
     required this.textKey,
     required this.value,
     required this.onChanged,
+    this.params,
   });
 
   final Translator t;
   final Key checkKey;
   final String textKey;
+
+  /// Placeholders of the text (`{days}` of the biometric consent).
+  final Map<String, String>? params;
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -875,7 +884,7 @@ class _ConsentCheck extends StatelessWidget {
           value: value,
           onChanged: (v) => onChanged(v ?? false),
           title: Text(
-            t.t(textKey),
+            t.t(textKey, params),
             style: typography.bodySmall.copyWith(color: colors.text),
           ),
         ),

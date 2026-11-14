@@ -213,6 +213,15 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'The same for the website. On = a visitor can look around before signing in (while `guest.browsing_enabled` is on).',
   },
+  // D1-49 (13.11): Flutter web builds its screen-reader tree only after a
+  // hidden «Enable accessibility» button; on = the website holds it on from
+  // the first frame (SemanticsBinding.ensureSemantics, apps/mobile
+  // core/platform/web_semantics.dart). It costs some frame time, hence the switch.
+  'client.web_semantics_enabled': {
+    default: true,
+    description:
+      'Website: screen readers (VoiceOver, NVDA, TalkBack) get the page structure from the first frame. On by default; off saves a little drawing time, but blind visitors then have to find the hidden «Enable accessibility» button first.',
+  },
 } as const satisfies Record<string, ClientTuningDef>;
 
 export type ClientTuningKey = keyof typeof CLIENT_TUNING_DEFS;

@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Ibermek üçin ant beýanatyny belläň.",
   "verification.attest.text": "Ýokarda görkezilen belgili ygtyýarnamasy bolan aklawçy bolandygyma we ygtyýarnamanyň güýçdedigine ant içýärin. Ýalan maglumat petiklemegi aňladýar we ähli jogapkärçilik meniňkidir.",
   "verification.biometricConsent.required": "Selfi düşürmek üçin ýüzi deňeşdirmäge razylygy belläň.",
-  "verification.biometricConsent.text": "LawBid-iň diňe şu barlagda şahsyýetimi tassyklamak üçin selfimi şahsyýetnamamdaky surat bilen awtomatik deňeşdirmegine (Amazon Rekognition) razy. Netije arzam boýunça karar çykýança we ondan soň ýene 30 gün saklanýar, soňra pozulýar.",
+  "verification.biometricConsent.text": "LawBid-iň diňe şu barlagda şahsyýetimi tassyklamak üçin selfimi şahsyýetnamamdaky surat bilen awtomatik deňeşdirmegine (Amazon Rekognition) razy. Netije arzam boýunça karar çykýança we ondan soň ýene {days} gün saklanýar, soňra pozulýar.",
   "verification.camera.denied.body": "Telefon sazlamalarynda LawBid üçin kamera girelgesine rugsat beriň, soň gaýtadan synanyşyň.",
   "verification.camera.denied.title": "Kamera girelgesi ýok",
   "verification.camera.hint.card": "Kartany çarçuwanyň içine sygdyryň",

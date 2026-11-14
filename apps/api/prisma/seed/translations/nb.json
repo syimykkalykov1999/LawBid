@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Kryss av for den edsvorne erklæringen for å sende.",
   "verification.attest.text": "Jeg sverger at jeg er advokaten med lisensen med oppgitt nummer, og at lisensen er gyldig. Falske opplysninger fører til utestengelse, og ansvaret er alene mitt.",
   "verification.biometricConsent.required": "Huk av for samtykket til ansiktssammenligning for å ta selfien.",
-  "verification.biometricConsent.text": "Jeg godtar at LawBid automatisk sammenligner selfien min med bildet på ID-en min (Amazon Rekognition) bare for å bekrefte identiteten min ved denne verifiseringen. Resultatet lagres til søknaden min er avgjort pluss 30 dager, og slettes deretter.",
+  "verification.biometricConsent.text": "Jeg godtar at LawBid automatisk sammenligner selfien min med bildet på ID-en min (Amazon Rekognition) bare for å bekrefte identiteten min ved denne verifiseringen. Resultatet lagres til søknaden min er avgjort pluss {days} dager, og slettes deretter.",
   "verification.camera.denied.body": "Gi LawBid tilgang til kameraet i telefoninnstillingene, og prøv igjen.",
   "verification.camera.denied.title": "Ingen tilgang til kameraet",
   "verification.camera.hint.card": "Plasser kortet innenfor rammen",

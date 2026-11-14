@@ -17,6 +17,7 @@ import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/web_semantics.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'feature_flags_providers.g.dart';
@@ -122,6 +123,8 @@ class FeatureFlagsController extends _$FeatureFlagsController {
       TextLimits.apply(state.appConfig);
       // Scale audit 2026-10-23: retries, reconnects, polling - server-tunable.
       ClientTuning.apply(state.appConfig);
+      // D1-49: the website's screen-reader tree follows the admin switch.
+      WebSemantics.apply(state.appConfig);
       LowPowerMonitor.instance.setEnabled(
         enabled: state.isEnabled('low_power_mode'),
       );

@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Calaamadee dhaaritaanka si aad u dirto.",
   "verification.attest.text": "Waxaan dhaaranayaa inaan ahay qareenka haysta shatiga lambarkiisu kor ku qoran yahay iyo inuu shatigu shaqaynayo. Macluumaad been ah waxay keenaysaa xanibaad, mas'uuliyaddana anigaa qaadaya.",
   "verification.biometricConsent.required": "Calaamadee oggolaanshaha isbarbardhigga wejiga si aad u qaadato selfie-ga.",
-  "verification.biometricConsent.text": "Waan ogolahay in LawBid ay si toos ah u barbar dhigto sawirkayga selfie-ga iyo sawirka kaarka aqoonsigayga (Amazon Rekognition) kaliya si loo xaqiijiyo aqoonsigayga xaqiijintan. Natiijada waa la kaydiyaa ilaa laga go'aamiyo codsigayga iyo 30 maalmood kale, kadibna waa la tirtiraa.",
+  "verification.biometricConsent.text": "Waan ogolahay in LawBid ay si toos ah u barbar dhigto sawirkayga selfie-ga iyo sawirka kaarka aqoonsigayga (Amazon Rekognition) kaliya si loo xaqiijiyo aqoonsigayga xaqiijintan. Natiijada waa la kaydiyaa ilaa laga go'aamiyo codsigayga iyo {days} maalmood kale, kadibna waa la tirtiraa.",
   "verification.camera.denied.body": "Oggolow marinka kamarada ee LawBid dejinta taleefankaaga, kadibna mar kale isku day.",
   "verification.camera.denied.title": "Marin kamarada ma jiro",
   "verification.camera.hint.card": "Kaarka ku dhex rid labajibbaaran",
