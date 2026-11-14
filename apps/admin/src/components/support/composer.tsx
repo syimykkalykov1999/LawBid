@@ -6,8 +6,10 @@ import { formatBytes } from '@/components/media/media-utils';
 import { Button } from '@/components/ui/button';
 import { Select, Textarea } from '@/components/ui/input';
 import { Tabs } from '@/components/ui/tabs';
+import { useDraft } from '@/lib/draft';
 import { TICKET_STATUS } from '@/lib/labels';
 import { cn } from '@/lib/utils';
+import { useNavigationGuard } from '@/lib/vendor/navigation-guard';
 import { STATUSES, type SupportMacro, type TicketStatus } from './support-labels';
 import { SUPPORT_ACCEPT, uploadSupportFile } from './upload';
 
@@ -42,6 +44,12 @@ export interface ComposerSubmit {
  * «Готовый ответ» drops a saved answer (in the user's language) into the
  * box to edit before sending; `{name}` and `{ticket}` are filled by the
  * server. The paperclip attaches photos, videos and documents.
+ *
+ * Detective D1-7 / D1-8 (13.11): the typed text is kept per ticket
+ * ([draftKey], lib/draft.ts) until it is sent, and a reload or tab close
+ * with text in the box asks first; a screenshot pasted (Ctrl/⌘+V) into the
+ * box or a file dropped on it is attached like the paperclip — the same
+ * paste / drop handling as the AI image attach (components/ai/image-attach).
  */
 export function Composer({
   onSubmit,
@@ -50,7 +58,10 @@ export function Composer({
   hideReplyButton = false,
   sendRef,
   onReadyChange,
+  draftKey,
 }: {
+  /** Where the unsent text is kept (e.g. `support:<ticketId>`); none = memory only. */
+  draftKey?: string;
   onSubmit: (v: ComposerSubmit) => Promise<boolean>;
   busy: boolean;
   macros?: SupportMacro[];
@@ -62,7 +73,8 @@ export function Composer({
   onReadyChange?: (ready: boolean) => void;
 }) {
   const [mode, setMode] = useState<ComposerMode>('reply');
-  const [body, setBody] = useState('');
+  const [body, setBody, clearBody] = useDraft(draftKey);
+  const [over, setOver] = useState(false);
   const [macroId, setMacroId] = useState('');
   const [status, setStatus] = useState<TicketStatus>('waiting_user');
   const [files, setFiles] = useState<Picked[]>([]);
@@ -73,6 +85,8 @@ export function Composer({
   const ready =
     (body.trim().length > 0 || sendable.length > 0) && body.length <= 5000 && !busy && !uploading;
 
+  useNavigationGuard({ enabled: body.trim().length > 0, links: !draftKey });
+
   const canReply = ready && !note;
   useEffect(() => onReadyChange?.(canReply), [canReply, onReadyChange]);
 
@@ -80,7 +94,7 @@ export function Composer({
     setFiles((cur) => cur.map((f) => (f.key === key ? { ...f, ...p } : f)));
   }
 
-  function pick(list: FileList | null) {
+  function pick(list: FileList | readonly File[] | null) {
     const chosen = Array.from(list ?? []);
     if (input.current) input.current.value = '';
     for (const file of chosen.slice(0, Math.max(0, MAX_FILES - files.length))) {
@@ -103,7 +117,7 @@ export function Composer({
       attachments: sendable.flatMap((f) => (f.fileId ? [{ fileId: f.fileId, name: f.name }] : [])),
     });
     if (ok) {
-      setBody('');
+      clearBody();
       setMacroId('');
       setStatus('waiting_user');
       setFiles([]);
@@ -117,10 +131,25 @@ export function Composer({
 
   return (
     <div
+      onDragOver={(e) => {
+        if (busy || files.length >= MAX_FILES || !Array.from(e.dataTransfer.types).includes('Files')) return;
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        setOver(false);
+        const dropped = Array.from(e.dataTransfer.files ?? []);
+        if (dropped.length === 0 || busy) return;
+        e.preventDefault();
+        pick(dropped);
+      }}
       className={cn(
         'border-t p-3 transition-colors sm:p-4',
         note ? 'border-dashed border-warning/60 bg-warning-soft/40' : 'border-line bg-surface',
+        over && 'ring-2 ring-inset ring-gold-500/60',
       )}
+      data-testid="support-composer"
     >
       <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
         <Tabs<ComposerMode>
@@ -154,6 +183,13 @@ export function Composer({
         value={body}
         maxLength={5000}
         onChange={(e) => setBody(e.target.value)}
+        onPaste={(e) => {
+          // A copied screenshot / file arrives as files; plain text pastes as usual.
+          const pasted = Array.from(e.clipboardData?.files ?? []);
+          if (pasted.length === 0 || busy) return;
+          e.preventDefault();
+          pick(pasted);
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
@@ -256,7 +292,7 @@ export function Composer({
             </Select>
           </label>
         ) : null}
-        <span className="ml-auto hidden text-[11px] text-faint sm:inline">Ctrl/⌘ + Enter — отправить</span>
+        <span className="ml-auto hidden text-[11px] text-faint sm:inline">Ctrl/⌘ + Enter — отправить · скриншот можно вставить или перетащить</span>
         {note || !hideReplyButton ? (
           <Button variant={note ? 'soft' : 'gold'} size="sm" loading={busy} disabled={!ready} onClick={() => void send()}>
             {!busy ? note ? <NotePencil size={15} weight="light" /> : <PaperPlaneRight size={15} weight="light" /> : null}

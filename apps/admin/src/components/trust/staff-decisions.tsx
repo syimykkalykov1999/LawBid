@@ -100,7 +100,7 @@ export function StaffDecisions() {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={10} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={10}>Решений сотрудников ещё не было.</TableEmpty>
           ) : (
             rows.map((r, i) => {
@@ -200,7 +200,7 @@ function ClearedBy({ admin, bounds }: { admin: Stats; bounds: Bounds }) {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={6} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={6}>Этот сотрудник никого не подтверждал.</TableEmpty>
           ) : (
             rows.map((r, i) => (

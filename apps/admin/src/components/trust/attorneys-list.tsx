@@ -232,7 +232,7 @@ export function AttorneysList({ canManage }: { canManage: boolean }) {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={cols} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={cols}>{status || search ? 'Никого не нашли — измените статус или поиск.' : 'Адвокатов пока нет.'}</TableEmpty>
           ) : (
             rows.map((r, i) => {
@@ -241,7 +241,7 @@ export function AttorneysList({ canManage }: { canManage: boolean }) {
                 <MotionRow key={r.attorney.id} i={i}>
                   {canManage ? (
                     <Td>
-                      <RowSelectBox selected={sel.selected} id={r.attorney.id} onToggle={sel.toggle} />
+                      <RowSelectBox selected={sel.selected} id={r.attorney.id} onToggle={sel.toggle} order={() => ids} />
                     </Td>
                   ) : null}
                   <Td>

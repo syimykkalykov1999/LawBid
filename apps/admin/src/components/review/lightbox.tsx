@@ -24,6 +24,49 @@ const STEP = 1.25;
 
 const clamp = (v: number) => Math.min(MAX, Math.max(MIN, v));
 
+/*
+ * Detective D1-9 (13.11): gesture maths copied from two MIT libraries.
+ * react-zoom-pan-pinch 4.2.0 (Copyright (c) 2019 prc5; THIRD_PARTY_NOTICES):
+ *  - wheel: `targetScale = scale + delta * step`, with `step * |deltaY|` in
+ *    its default `smooth` mode, `delta = deltaY < 0 ? 1 : -1`, step 0.015,
+ *    and a wheel with deltaY 0 is no zoom (core/wheel/wheel.utils.ts,
+ *    wheel.logic.ts, constants/state.constants.ts) — a trackpad scroll that
+ *    sends dozens of small events now zooms gradually, not straight to 600 %;
+ *  - pinch: `rawScale = currentDistance / startDistance * startScale`
+ *    (core/pinch/pinch.utils.ts, default step = DEFAULT_PINCH_STEP, so the
+ *    proportion is used as is), zoom about the point under the cursor /
+ *    between the fingers (core/zoom/zoom.utils.ts handleCalculateZoomPositions,
+ *    rewritten for our centre transform origin).
+ * PhotoSwipe 5.4.4 (Copyright (c) 2014-2022 Dmitry Semenov; THIRD_PARTY_NOTICES),
+ * gestures/drag-handler.js: a swipe goes to the next / previous picture when
+ * its speed is over MIN_NEXT_SLIDE_SPEED (0.5 px/ms) in that direction, or
+ * when it moved over half the width and has nearly stopped (< 0.1 px/ms).
+ */
+const WHEEL_STEP = 0.015;
+const MIN_NEXT_SLIDE_SPEED = 0.5;
+
+/** The pan that keeps the screen point [s] still when the zoom goes z → n (centre origin). */
+export function panAbout(s: { x: number; y: number }, c: { x: number; y: number }, pan: { x: number; y: number }, z: number, n: number) {
+  const k = n / z;
+  return { x: s.x - c.x - k * (s.x - c.x - pan.x), y: s.y - c.y - k * (s.y - c.y - pan.y) };
+}
+
+/** The wheel zoom of react-zoom-pan-pinch (smooth mode), clamped to our range. */
+export function wheelZoom(z: number, deltaY: number): number {
+  if (deltaY === 0) return z;
+  const delta = deltaY < 0 ? 1 : -1;
+  return clamp(z + delta * WHEEL_STEP * Math.abs(deltaY));
+}
+
+/** PhotoSwipe's next-slide rule: +1 next, −1 previous, 0 stay. */
+export function swipeStep(dx: number, ms: number, width: number): -1 | 0 | 1 {
+  const velocity = ms > 0 ? dx / ms : 0;
+  const ratio = width > 0 ? dx / width : 0;
+  if ((velocity < -MIN_NEXT_SLIDE_SPEED && ratio < 0) || (velocity < 0.1 && ratio < -0.5)) return 1;
+  if ((velocity > MIN_NEXT_SLIDE_SPEED && ratio > 0) || (velocity > -0.1 && ratio > 0.5)) return -1;
+  return 0;
+}
+
 /**
  * Owner 2026-10-28: a picture of the review screen opened full-screen.
  * The image fits any monitor (object-contain inside the viewport); zoom by
@@ -51,6 +94,15 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [rotate, setRotate] = useState(0);
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  // D1-9: the fingers on the stage, a pinch in progress and a swipe in progress.
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ dist: number; zoom: number; pan: { x: number; y: number } } | null>(null);
+  const swipe = useRef<{ x: number; t: number; dx: number } | null>(null);
+  const [swipeX, setSwipeX] = useState(0);
+  const stage = useRef<HTMLDivElement>(null);
+  // The latest zoom / pan for the native wheel listener.
+  const view = useRef({ zoom: 1, pan: { x: 0, y: 0 } });
+  view.current = { zoom, pan };
   const root = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const count = images.length;
@@ -107,6 +159,36 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
     return () => window.removeEventListener('keydown', onKey, true);
   }, [go, onClose, pdf, reset, zoomBy]);
 
+  // D1-9: zoom to a point (the cursor, the middle between two fingers).
+  const zoomAt = useCallback((n: number, sx: number, sy: number) => {
+    const el = stage.current;
+    const { zoom: z, pan: p } = view.current;
+    const next = clamp(n);
+    if (next === z) return;
+    if (next === 1 || !el) {
+      setZoom(next);
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    setZoom(next);
+    setPan(panAbout({ x: sx, y: sy }, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, p, z, next));
+  }, []);
+
+  // The wheel listener is native and not passive: Ctrl+wheel (a trackpad
+  // pinch on a Mac) must zoom the picture, not the whole page.
+  useEffect(() => {
+    const el = stage.current;
+    if (!el || pdf) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      zoomAt(wheelZoom(view.current.zoom, e.deltaY), e.clientX, e.clientY);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [pdf, zoomAt]);
+
   // Scroll lock and focus: set once while open, given back on close.
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -154,22 +236,67 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
         </IconButton>
       </div>
       <div
+        ref={stage}
         className="relative min-h-0 flex-1 touch-none overflow-hidden select-none"
         onClick={(e) => {
           if (e.target === e.currentTarget && zoom === 1) onClose();
         }}
-        onWheel={(e) => (pdf ? undefined : zoomBy(e.deltaY < 0 ? STEP : 1 / STEP))}
         onPointerDown={(e) => {
-          if (pdf || zoom === 1) return;
-          drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+          if (pdf) return;
+          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
           (e.target as Element).setPointerCapture?.(e.pointerId);
+          const pts = [...pointers.current.values()];
+          if (pts.length === 2) {
+            // Two fingers: a pinch, no drag or swipe.
+            const [a, b] = pts as [{ x: number; y: number }, { x: number; y: number }];
+            pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom, pan };
+            drag.current = null;
+            swipe.current = null;
+            setSwipeX(0);
+            return;
+          }
+          if (zoom > 1) drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+          else if (e.pointerType !== 'mouse' && count > 1) swipe.current = { x: e.clientX, t: e.timeStamp, dx: 0 };
         }}
         onPointerMove={(e) => {
+          if (!pointers.current.has(e.pointerId)) return;
+          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          const pz = pinch.current;
+          if (pz && pointers.current.size === 2) {
+            const [a, b] = [...pointers.current.values()] as [{ x: number; y: number }, { x: number; y: number }];
+            const dist = Math.hypot(a.x - b.x, a.y - b.y);
+            if (pz.dist > 0) {
+              view.current = { zoom: pz.zoom, pan: pz.pan };
+              zoomAt((dist / pz.dist) * pz.zoom, (a.x + b.x) / 2, (a.y + b.y) / 2);
+            }
+            return;
+          }
           const d = drag.current;
           if (d) setPan({ x: d.px + e.clientX - d.x, y: d.py + e.clientY - d.y });
+          const sw = swipe.current;
+          if (sw) {
+            sw.dx = e.clientX - sw.x;
+            setSwipeX(sw.dx);
+          }
         }}
-        onPointerUp={() => {
+        onPointerUp={(e) => {
+          pointers.current.delete(e.pointerId);
+          if (pointers.current.size < 2) pinch.current = null;
           drag.current = null;
+          const sw = swipe.current;
+          swipe.current = null;
+          setSwipeX(0);
+          if (sw) {
+            const step = swipeStep(sw.dx, e.timeStamp - sw.t, e.currentTarget.clientWidth);
+            if (step) go(step);
+          }
+        }}
+        onPointerCancel={(e) => {
+          pointers.current.delete(e.pointerId);
+          pinch.current = null;
+          drag.current = null;
+          swipe.current = null;
+          setSwipeX(0);
         }}
       >
         {pdf ? (
@@ -185,7 +312,7 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
             onDoubleClick={() => (zoom === 1 ? setZoom(2.5) : reset())}
             className="absolute inset-0 m-auto max-h-full max-w-full object-contain p-2 transition-transform duration-75"
             data-rotate={((rotate % 360) + 360) % 360}
-            style={{ transform: `translate(${pan.x}px, ${pan.y}px) rotate(${rotate}deg) scale(${zoom})`, cursor: zoom > 1 ? 'grab' : 'zoom-in' }}
+            style={{ transform: `translate(${pan.x + swipeX}px, ${pan.y}px) rotate(${rotate}deg) scale(${zoom})`, cursor: zoom > 1 ? 'grab' : 'zoom-in' }}
           />
         )}
         {count > 1 ? (
@@ -215,7 +342,7 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
         </div>
       ) : null}
       <p className="shrink-0 pb-2 text-center text-xs text-white/70">
-        {pdf ? '' : 'Колесо или +/− — масштаб · R — повернуть · перетаскивание — сдвиг · '}← → — листать · Esc — закрыть
+        {pdf ? '' : 'Колесо, щипок или +/− — масштаб · R — повернуть · перетаскивание — сдвиг · '}← → или свайп — листать · Esc — закрыть
       </p>
     </div>,
     document.body,
