@@ -196,7 +196,8 @@ resource "aws_db_instance" "replica" {
 
   depends_on = [aws_iam_role_policy_attachment.replica_monitoring]
 
-  # The admin («Экономика» → «Увеличить») may move it one tier up.
+  # db-autoscale keeps it on the primary's class (owner row 6, 13.11:
+  # docs/architecture/DB_AUTOSCALE.md), so Terraform must not undo that.
   lifecycle {
     ignore_changes = [instance_class]
   }
