@@ -787,6 +787,12 @@ export const envSchema = z
       'CLAMAV_HOST must be a host name or IP address',
     ),
     CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
+    // Media batch A (R1): clamd's StreamMaxLength / MaxFileSize in MB, set by
+    // Terraform from the same variable as the clamd sidecar
+    // (infra/modules/ecs `clamav_max_file_mb`). A file over it is not sent
+    // to clamd: it is kept and set aside as «not scanned: too large».
+    // 0 (default) = unknown, every file is sent and clamd's answer decides.
+    CLAMAV_MAX_MB: z.coerce.number().int().min(0).max(4000).default(0),
     // Comma-separated ISO-3166 alpha-2 codes; fallback for app_config
     // `sms.allowed_country_codes`. US-only product → 'US' (+1 NANP minus
     // Canada/Caribbean territories, which libphonenumber maps to their

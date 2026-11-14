@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
+import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/media/photo_jpeg.dart';
 
 /// Owner 2026-10-22 (WhatsApp): rotate / crop a photo before sending it.
 ///
@@ -83,24 +85,31 @@ Future<Uint8List> applyImageEdit(Uint8List bytes, ImageEdit edit) async {
   );
   final picture = rec.endRecording();
   final out = await picture.toImage(outW, outH);
-  final data = await out.toByteData();
+  final data = await out.toByteData(format: ui.ImageByteFormat.rawStraightRgba);
   src.dispose();
   out.dispose();
   picture.dispose();
   if (data == null) return bytes;
   final rgba = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-  return compute(_encodeJpeg, (rgba, outW, outH));
+  // Media audit 13.11 (D9): the browser's own encoder on the website (an
+  // isolate there runs on the page's thread and froze the tab), a
+  // background isolate on a phone; the admin's chat photo quality.
+  final quality = ClientTuning.chatPhotoQuality;
+  return await encodeRgbaJpeg(rgba, outW, outH, quality: quality) ??
+      // A see-through picture: JPEG anyway (a chat photo is JPEG).
+      await compute(_encodeJpeg, (rgba, outW, outH, quality));
 }
 
-Uint8List _encodeJpeg((Uint8List, int, int) a) {
+Uint8List _encodeJpeg((Uint8List, int, int, int) a) {
   final image = img.Image.fromBytes(
     width: a.$2,
     height: a.$3,
     bytes: a.$1.buffer,
+    bytesOffset: a.$1.offsetInBytes,
     numChannels: 4,
     order: img.ChannelOrder.rgba,
   );
-  return Uint8List.fromList(img.encodeJpg(image, quality: 85));
+  return Uint8List.fromList(img.encodeJpg(image, quality: a.$4));
 }
 
 /// The name of an edited picture: same stem, `.jpg`.

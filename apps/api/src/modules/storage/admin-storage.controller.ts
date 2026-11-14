@@ -94,6 +94,8 @@ export class AdminStorageController {
       dedupSavedBytes: Math.max(0, usage.filesBytes - usage.storedBytes),
       pendingRemovalCount: usage.pendingRemovalCount,
       pendingRemovalBytes: usage.pendingRemovalBytes,
+      scanSkippedCount: usage.scanSkippedCount,
+      scanSkippedBytes: usage.scanSkippedBytes,
       byPurpose: usage.byPurpose,
       tables,
       topUsers,

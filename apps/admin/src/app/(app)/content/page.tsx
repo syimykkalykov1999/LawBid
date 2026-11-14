@@ -334,7 +334,7 @@ function Posts({ ask }: { ask: Ask }) {
             <MotionRow key={p.id} i={i}>
               {canWrite ? (
                 <Td>
-                  <RowSelectBox selected={sel.selected} id={p.id} onToggle={sel.toggle} />
+                  <RowSelectBox selected={sel.selected} id={p.id} onToggle={sel.toggle} order={() => rows.map((x) => x.id)} />
                 </Td>
               ) : null}
               <Td className="max-w-md">
@@ -503,7 +503,7 @@ function Comments({ ask }: { ask: Ask }) {
             <MotionRow key={c.id} i={i}>
               {canWrite ? (
                 <Td>
-                  <RowSelectBox selected={sel.selected} id={c.id} onToggle={sel.toggle} />
+                  <RowSelectBox selected={sel.selected} id={c.id} onToggle={sel.toggle} order={() => rows.map((x) => x.id)} />
                 </Td>
               ) : null}
               <Td className="max-w-md text-sm">{c.body}</Td>
@@ -662,7 +662,7 @@ function Reviews({ ask }: { ask: Ask }) {
             <MotionRow key={r.id} i={i}>
               {canWrite ? (
                 <Td>
-                  <RowSelectBox selected={sel.selected} id={r.id} onToggle={sel.toggle} />
+                  <RowSelectBox selected={sel.selected} id={r.id} onToggle={sel.toggle} order={() => rows.map((x) => x.id)} />
                 </Td>
               ) : null}
               <Td className="max-w-md">

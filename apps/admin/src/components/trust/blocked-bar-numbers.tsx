@@ -150,7 +150,7 @@ export function BlockedBarNumbers({ canManage }: { canManage: boolean }) {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={cols} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={cols}>
               {search ? 'Ничего не нашли — измените поиск или статус.' : status === 'active' ? 'Заблокированных номеров нет.' : 'Записей нет.'}
             </TableEmpty>

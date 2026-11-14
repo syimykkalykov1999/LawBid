@@ -23,7 +23,13 @@ import {
   AwsBudgetsAdminService,
   PagerDutySnsService,
 } from '../../common/ops/launch/aws-launch.service';
-import { LaunchChecksService } from '../../common/ops/launch/launch-checks.service';
+import {
+  CHECKS_TTL_MS,
+  LaunchChecksService,
+  type LaunchReport,
+} from '../../common/ops/launch/launch-checks.service';
+import type { PagingStatus } from '../../common/ops/launch/aws-launch.service';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   AdminEndpoint,
@@ -46,6 +52,27 @@ import {
 const E = ErrorCode;
 
 /**
+ * Perf batch 2 (13.11, row 125; prod 12-13.11: GET /admin/launch p50 2.97 s,
+ * /admin/launch/pagerduty p50 3.07 s): both boards are read through the
+ * shared stale-while-revalidate copy (AdminSummaryService.board, the same
+ * as «Масштаб», the cost registry and the cloud switches). Before, each API
+ * task kept its own copy and, once it expired, rebuilt it INSIDE the
+ * request (AWS budgets, cost tags, SNS, DNS, ~30 probes). Now a request
+ * answers from Redis at once; a copy older than its freshness is rebuilt
+ * once in the background across all tasks (lock), and only a board never
+ * built (or older than a day) makes the request wait.
+ * What it could break and how it is guarded: an action that changes what
+ * the board shows (a tick, the restore drill, «Проверить сейчас», a budget
+ * change, PagerDuty sync / test) stores its own fresh answer at once
+ * (`put`) or rebuilds in the background, so the next open never shows the
+ * state from before the owner's own click.
+ */
+export const LAUNCH_BOARD_KEY = 'launch:report';
+export const PAGING_BOARD_KEY = 'launch:pagerduty';
+/** SNS is asked at most once a minute (the old in-process copy). */
+export const PAGING_FRESH_MS = 60_000;
+
+/**
  * Owner 2026-10-24: «Запуск» (the launch checklist), the PagerDuty
  * subscription and the AWS budgets on «Масштаб». super_admin only. Reads are
  * cached in the services; every change needs a fresh 2FA code and is
@@ -62,7 +89,28 @@ export class AdminLaunchController {
     private readonly budgets: AwsBudgetsAdminService,
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
+    private readonly summary: AdminSummaryService,
   ) {}
+
+  /** A full re-check (the board's background refresh). */
+  private buildReport(): Promise<LaunchReport> {
+    return this.checks.report(new Date(), true);
+  }
+
+  /** The board changed by the owner's own action: re-check in the
+   * background (the open page polls and sees it a moment later). */
+  private refreshReport(): void {
+    this.checks.invalidate();
+    void this.summary
+      .refresh(LAUNCH_BOARD_KEY, () => this.buildReport())
+      .catch(() => undefined);
+  }
+
+  /** Stores [report] as the board (computed by an action just now). */
+  private async keep(report: LaunchReport): Promise<LaunchReport> {
+    await this.summary.put(LAUNCH_BOARD_KEY, report);
+    return report;
+  }
 
   private async applyLimit(who: AdminActor, p: BudgetLimitRequestDto) {
     await this.budgets.setLimit(p.name, p.limitUsd);
@@ -70,14 +118,14 @@ export class AdminLaunchController {
       name: p.name,
       limitUsd: p.limitUsd,
     });
-    this.checks.invalidate();
+    this.refreshReport();
     return { name: p.name, limitUsd: p.limitUsd };
   }
 
   private async applyDelete(who: AdminActor, p: BudgetDeleteRequestDto) {
     await this.budgets.remove(p.name);
     await this.log(who, 'ops.budget_delete', { name: p.name });
-    this.checks.invalidate();
+    this.refreshReport();
     return { name: p.name };
   }
 
@@ -89,7 +137,12 @@ export class AdminLaunchController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<LaunchReportDto | undefined> {
     // 12.11: generatedAt is "now" on every request (cheap-etag boardEtag).
-    const report = await this.checks.report();
+    const report = await this.summary.board(
+      LAUNCH_BOARD_KEY,
+      () => this.buildReport(),
+      CHECKS_TTL_MS,
+      (d) => Array.isArray(d?.items),
+    );
     if (notModified(req, res, boardEtag(report))) return undefined;
     return report;
   }
@@ -98,9 +151,9 @@ export class AdminLaunchController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Check everything again now (at most 6 a minute)' })
   @ApiEnvelopeResponse(LaunchReportDto)
-  refreshLaunch(): Promise<LaunchReportDto> {
+  async refreshLaunch(): Promise<LaunchReportDto> {
     // Owner 2026-11-12: no per-minute cap on his own button.
-    return this.checks.report(new Date(), true);
+    return this.keep(await this.buildReport());
   }
 
   @Post('ticks/:id')
@@ -114,7 +167,7 @@ export class AdminLaunchController {
   ): Promise<LaunchReportDto> {
     await this.checks.setTick(p.id, dto.done);
     await this.log(admin, 'ops.launch_tick', { id: p.id, done: dto.done });
-    return this.checks.report();
+    return this.keep(await this.checks.report());
   }
 
   @Post('restore-drill')
@@ -131,7 +184,7 @@ export class AdminLaunchController {
     await this.auth.assertStepUp(admin.sessionId);
     await this.checks.recordDrill(dto.note?.trim() || null);
     await this.log(admin, 'ops.restore_drill', { note: dto.note ?? null });
-    return this.checks.report();
+    return this.keep(await this.checks.report());
   }
 
   // --- PagerDuty ---------------------------------------------------------
@@ -144,8 +197,19 @@ export class AdminLaunchController {
   getPagingStatus(): Promise<PagingStatusDto> {
     // R-370: the 1-minute copy (prod 7 d: 2.6-2.8 s for every open, an SNS
     // ListSubscriptionsByTopic each time). «Синхронизировать» still asks
-    // SNS at once and replaces the copy.
-    return this.paging.status();
+    // SNS at once and replaces the copy. Perf batch 2: shared across tasks
+    // and refreshed in the background (see LAUNCH_BOARD_KEY).
+    return this.summary.board(
+      PAGING_BOARD_KEY,
+      () => this.paging.status(true),
+      PAGING_FRESH_MS,
+      (d) => typeof d?.state === 'string',
+    );
+  }
+
+  private async keepPaging(s: PagingStatus): Promise<PagingStatus> {
+    await this.summary.put(PAGING_BOARD_KEY, s);
+    return s;
   }
 
   @Post('pagerduty/sync')
@@ -162,9 +226,9 @@ export class AdminLaunchController {
     await this.auth.assertStepUp(admin.sessionId);
     this.requireTopic();
     const s = await this.paging.sync();
-    this.checks.invalidate();
+    this.refreshReport();
     await this.log(admin, 'ops.pagerduty_sync', { state: s.state });
-    return s;
+    return this.keepPaging(s);
   }
 
   @Post('pagerduty/test')
@@ -184,7 +248,7 @@ export class AdminLaunchController {
     // is the only guard (owner 2026-11-12: no hourly cap).
     await this.paging.publishTest();
     await this.log(admin, 'ops.pagerduty_test', null);
-    return this.paging.status(true);
+    return this.keepPaging(await this.paging.status(true));
   }
 
   // --- AWS Budgets ---------------------------------------------------------

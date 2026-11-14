@@ -29,6 +29,10 @@ export interface StorageUsage {
   /** Set aside by the cleanup, removed after storage.purge_after_days. */
   pendingRemovalCount: number;
   pendingRemovalBytes: number;
+  /** Media batch A (R1): kept but not scanned by the antivirus (too large),
+   * waiting for a person (files.scan_skipped). */
+  scanSkippedCount: number;
+  scanSkippedBytes: number;
 }
 
 /** Owner 2026-10-24: what the Cloudflare R2 bucket (public media) holds,
@@ -141,7 +145,7 @@ export class StorageStatsService {
   }
 
   async usage(): Promise<StorageUsage> {
-    const [byPurpose, stored, pending] = await Promise.all([
+    const [byPurpose, stored, pending, skipped] = await Promise.all([
       this.prisma.global().$queryRaw<
         { purpose: string; n: bigint; bytes: bigint }[]
       >`
@@ -158,6 +162,11 @@ export class StorageStatsService {
         _count: { _all: true },
         _sum: { size_bytes: true },
       }),
+      this.prisma.file.aggregate({
+        where: { scan_skipped: { not: null }, deleted_at: null },
+        _count: { _all: true },
+        _sum: { size_bytes: true },
+      }),
     ]);
     const rows = byPurpose.map((r) => ({
       purpose: r.purpose,
@@ -171,6 +180,8 @@ export class StorageStatsService {
       byPurpose: rows,
       pendingRemovalCount: pending._count._all,
       pendingRemovalBytes: Number(pending._sum.size_bytes ?? 0n),
+      scanSkippedCount: skipped._count._all,
+      scanSkippedBytes: Number(skipped._sum.size_bytes ?? 0n),
     };
   }
 

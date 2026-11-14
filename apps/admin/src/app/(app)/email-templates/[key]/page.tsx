@@ -29,6 +29,7 @@ import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { cn, formatDateTime } from '@/lib/utils';
+import { useNavigationGuard } from '@/lib/vendor/navigation-guard';
 
 /** Code emails whose senders don't pass a locale yet (ru override unused). */
 const NO_LOCALE_YET: EmailKey[] = ['login_otp', 'admin_login_code', 'contact_otp'];
@@ -79,6 +80,14 @@ export default function EmailTemplateEditorPage() {
   const form = forms[locale] ?? EMPTY_FORM;
   const baseline = saved[locale] ?? EMPTY_FORM;
   const dirty = !!forms[locale] && !same(form, baseline);
+  // Detective D1-7 (13.11): an unsaved edit in either language asks before
+  // a link or a reload throws it away (lib/vendor/navigation-guard.ts).
+  const anyDirty = (Object.keys(forms) as EmailLocale[]).some((l) => {
+    const f = forms[l];
+    const b = saved[l];
+    return !!f && !!b && !same(f, b);
+  });
+  useNavigationGuard({ enabled: anyDirty });
   const filled = form.subject.trim() !== '' && form.textBody.trim() !== '';
   const set = (patch: Partial<EmailForm>) => {
     setForms((f) => ({ ...f, [locale]: { ...(f[locale] ?? EMPTY_FORM), ...patch } }));

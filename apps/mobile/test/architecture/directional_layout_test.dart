@@ -17,6 +17,8 @@ const _geometryFiles = {
   'lib/core/design_system/widgets/performance/text_warm_up.dart',
   'lib/features/calls/presentation/call_pip_window.dart',
   'lib/features/chat/presentation/chat_album.dart',
+  // Row 95: the long-press menu lays out from the bubble's on-screen rect.
+  'lib/features/chat/presentation/message_context_menu.dart',
   'lib/features/cases/presentation/widgets/case_cover.dart',
   'lib/features/reels/presentation/video_editor_screen.dart',
   'lib/features/stories/presentation/story_frame.dart',

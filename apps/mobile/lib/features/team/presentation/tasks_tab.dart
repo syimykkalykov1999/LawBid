@@ -300,6 +300,8 @@ class _TasksTabState extends ConsumerState<TasksTab> {
       await ref
           .read(tasksProvider(_key).notifier)
           .setStatus(task, done ? TaskStatus.done : TaskStatus.open);
+      // Row 95 (catalog F6, Apple HIG): a finished task is a success.
+      if (done) unawaited(AppHaptics.success());
       if (!mounted) return;
       showAppSnackBar(
         context,
@@ -328,6 +330,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
       await ref
           .read(caseWorkspaceActionsProvider)
           .setTaskDone(task.caseId!, b.taskId, done: done);
+      if (done) unawaited(AppHaptics.success());
       syncAllTasks(ref, board: true);
       if (!mounted) return;
       showAppSnackBar(
@@ -1072,70 +1075,76 @@ class _TaskList extends ConsumerWidget {
                 ),
               for (final (i, task) in s.items.indexed)
                 AppEntrance(
+                  key: ValueKey('task-row-${task.id}'),
                   index: i,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: _SwipeRow(
-                      key: ValueKey('swipe-${task.id}'),
-                      t: t,
-                      task: task,
-                      enabled: !choosing,
-                      onRight: archive
-                          ? (task.canComplete &&
-                                  task.status != TaskStatus.cancelled
-                              ? () => onReopen(task)
-                              : null)
-                          : (task.canComplete ? () => onCheck(task) : null),
-                      rightLabel: archive
-                          ? t.t('tasks.reopen')
-                          : task.steps.isEmpty || task.boardTask != null
-                              ? t.t('tasks.done')
-                              : t.t('tasks.swipe.nextStep'),
-                      onLeft: !archive && task.canEdit
-                          ? () => onTomorrow(task)
-                          : null,
-                      child: TaskRingCard(
-                        key: ValueKey('task-${task.id}'),
-                        task: task,
+                  // Row 95 (catalog C4): a task just made grows in.
+                  child: AppInsertMotion(
+                    animate: AppInsertMotion.fresh(task.createdAt),
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: _SwipeRow(
+                        key: ValueKey('swipe-${task.id}'),
                         t: t,
-                        formats: formats,
-                        now: now,
-                        viewerIsAttorney: attorneySide,
-                        expanded: expanded.contains(task.id),
-                        onToggleSteps: () => onToggleSteps(task.id),
-                        selected: picked?.contains(task.id),
-                        onDoubleTap:
-                            choosing || !task.canComplete || !task.status.active
-                                ? null
-                                : () => onCheck(task),
-                        onLongPress: choosing || task.boardTask != null
-                            ? null
-                            : () => onPick(task),
-                        onTap: choosing
-                            ? (task.boardTask != null
-                                ? () {}
-                                : () => onPick(task))
-                            : task.boardTask != null
-                                ? () => onOpenCase(task)
-                                : task.consultationId != null
-                                    ? () => context.push(
-                                          ConsultationsRoutes.detail(
-                                            task.consultationId!,
+                        task: task,
+                        enabled: !choosing,
+                        onRight: archive
+                            ? (task.canComplete &&
+                                    task.status != TaskStatus.cancelled
+                                ? () => onReopen(task)
+                                : null)
+                            : (task.canComplete ? () => onCheck(task) : null),
+                        rightLabel: archive
+                            ? t.t('tasks.reopen')
+                            : task.steps.isEmpty || task.boardTask != null
+                                ? t.t('tasks.done')
+                                : t.t('tasks.swipe.nextStep'),
+                        onLeft: !archive && task.canEdit
+                            ? () => onTomorrow(task)
+                            : null,
+                        child: TaskRingCard(
+                          key: ValueKey('task-${task.id}'),
+                          task: task,
+                          t: t,
+                          formats: formats,
+                          now: now,
+                          viewerIsAttorney: attorneySide,
+                          expanded: expanded.contains(task.id),
+                          onToggleSteps: () => onToggleSteps(task.id),
+                          selected: picked?.contains(task.id),
+                          onDoubleTap: choosing ||
+                                  !task.canComplete ||
+                                  !task.status.active
+                              ? null
+                              : () => onCheck(task),
+                          onLongPress: choosing || task.boardTask != null
+                              ? null
+                              : () => onPick(task),
+                          onTap: choosing
+                              ? (task.boardTask != null
+                                  ? () {}
+                                  : () => onPick(task))
+                              : task.boardTask != null
+                                  ? () => onOpenCase(task)
+                                  : task.consultationId != null
+                                      ? () => context.push(
+                                            ConsultationsRoutes.detail(
+                                              task.consultationId!,
+                                            ),
+                                          )
+                                      : () => showTaskSheet(
+                                            context,
+                                            task: task,
+                                            listKey: listKey,
                                           ),
-                                        )
-                                    : () => showTaskSheet(
-                                          context,
-                                          task: task,
-                                          listKey: listKey,
-                                        ),
-                        onMarkTap: choosing ||
-                                !task.canComplete ||
-                                task.status == TaskStatus.cancelled
-                            ? null
-                            : () => onMarkTap(task),
-                        onStepCheck: choosing || !task.canComplete
-                            ? null
-                            : (step) => onStepCheck(task, step),
+                          onMarkTap: choosing ||
+                                  !task.canComplete ||
+                                  task.status == TaskStatus.cancelled
+                              ? null
+                              : () => onMarkTap(task),
+                          onStepCheck: choosing || !task.canComplete
+                              ? null
+                              : (step) => onStepCheck(task, step),
+                        ),
                       ),
                     ),
                   ),

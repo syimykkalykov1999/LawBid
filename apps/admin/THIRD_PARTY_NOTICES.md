@@ -84,3 +84,49 @@ Same permission notice as above.
 Same permission notice as above. Idea only (GPL-3.0, no code copied): the
 side-menu axis lock (the first clear axis wins) follows Telegram Web A
 `src/util/captureEvents.ts` (github.com/Ajaxy/telegram-tt).
+
+## Admin UX D1 (owner row 135, 2026-11-13)
+
+### use-stick-to-bottom 1.1.6 — MIT (package)
+
+The support conversation follows new messages only while the agent is at the
+bottom (`src/components/support/thread-scroller.tsx`).
+https://github.com/stackblitz-labs/use-stick-to-bottom
+
+MIT License — Copyright (c) 2024 - present StackBlitz. Same permission notice as above.
+
+### linkify-it 6.1.0, uc.micro 3.0.0 — MIT (packages)
+
+Clickable links in support messages (`src/components/support/linkified-text.tsx`).
+https://github.com/markdown-it/linkify-it · https://github.com/markdown-it/uc.micro
+
+MIT License — linkify-it: Copyright (c) 2015 Vitaly Puzrin; uc.micro: Copyright Mathias Bynens. Same permission notice as above.
+
+### next-navigation-guard 0.2.0 — MIT (code copied, no package added)
+
+The unload and link-click interceptors of the unsaved-changes guard
+(`src/lib/vendor/navigation-guard.ts`; changes marked «LawBid:»).
+https://github.com/LayerXcom/next-navigation-guard
+
+MIT License — Copyright (c) 2024 LayerX Inc. Same permission notice as above.
+
+### react-zoom-pan-pinch 4.2.0 — MIT (formulas copied, no package added)
+
+Wheel step, pinch scale and zoom-about-a-point of the document viewer
+(`src/components/review/lightbox.tsx`). https://github.com/BetterTyped/react-zoom-pan-pinch
+
+MIT License — Copyright (c) 2019 prc5. Same permission notice as above.
+
+### PhotoSwipe 5.4.4 — MIT (rule copied, no package added)
+
+The swipe-to-next-picture rule of the document viewer (`src/components/review/lightbox.tsx`).
+https://github.com/dimsemenov/PhotoSwipe
+
+MIT License — Copyright (c) 2014-2022 Dmitry Semenov. Same permission notice as above.
+
+### cmdk 1.1.1 — MIT (pattern copied, no package added)
+
+The highlighted row scrolled into view and IME-safe keys of the command palette
+(`src/components/shell/command-palette.tsx`). https://github.com/pacocoursey/cmdk
+
+MIT License — Copyright (c) 2022 Paco Coursey. Same permission notice as above.

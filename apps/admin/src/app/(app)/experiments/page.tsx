@@ -85,7 +85,7 @@ export default function ExperimentsPage() {
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       {q.isPending ? (
         <Skeleton className="h-48 rounded-[var(--radius-lg)]" />
-      ) : list.length === 0 ? (
+      ) : list.length === 0 && !q.isError ? (
         <Card className="p-6 text-sm text-muted">
           Тестов пока нет. Нажмите «Новый тест». Пока тест не запущен, у людей ничего не меняется.
         </Card>

@@ -86,6 +86,28 @@ export class PostVideosController {
     return this.videos.getOwn(user.sub, p.id);
   }
 
+  // Media batch A (R10): the TUS signature lives `video.upload_ttl_min`;
+  // a long or resumed upload asks for a fresh one for the same video.
+  @AttorneyOnly('publish')
+  @Post('videos/:id/upload-signature')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Fresh TUS credentials to resume an upload already started',
+  })
+  @ApiEnvelopeResponse(VideoUploadDto)
+  @ApiErrors({
+    403: [E.VIDEO_UNAVAILABLE],
+    404: [E.NOT_FOUND],
+    409: [E.VIDEO_NOT_READY],
+    503: [E.VIDEO_UNAVAILABLE],
+  })
+  renewVideoUpload(
+    @CurrentUser() user: RequestUser,
+    @Param() p: VideoIdParamDto,
+  ): Promise<VideoUploadDto> {
+    return this.videos.renewUpload(user.sub, p.id);
+  }
+
   @AttorneyOnly('publish')
   @Delete('videos/:id')
   @HttpCode(HttpStatus.NO_CONTENT)

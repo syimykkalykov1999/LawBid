@@ -1181,8 +1181,10 @@ class _ThreadsPost extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        SocialFormat.count(f, count),
+                      // Row 95 (catalog C6): the changed digits roll.
+                      AppCounterRoll(
+                        text: SocialFormat.count(f, count),
+                        value: count,
                         // The same number look as the post bar's (_Count).
                         style: type.bodySmall.copyWith(
                           color: colors.text,
@@ -2905,9 +2907,11 @@ class _Count extends ConsumerWidget {
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final number = Text(
-      SocialFormat.count(f, value),
-      maxLines: 1,
+    // Row 95 (motion catalog C6, iOS 17 `.numericText()` / Telegram): a
+    // like or a view rolls the changed digits instead of swapping them.
+    final number = AppCounterRoll(
+      text: SocialFormat.count(f, value),
+      value: value,
       style: type.bodySmall.copyWith(
         color: colors.text,
         fontWeight: FontWeight.w500,

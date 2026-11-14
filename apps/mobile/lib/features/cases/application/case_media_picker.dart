@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
@@ -52,12 +53,14 @@ Future<List<CasePickedFile>> pickCaseMedia(
           maxHeight: photo.maxPx,
           imageQuality: photo.quality,
           limit: left > 1 ? left : null,
+          requestFullMetadata: false,
         )
       : await ImagePicker().pickMultiImage(
           maxWidth: photo.maxPx,
           maxHeight: photo.maxPx,
           imageQuality: photo.quality,
           limit: left > 1 ? left : null,
+          requestFullMetadata: false,
         );
   final out = <CasePickedFile>[];
   for (final f in picked.take(left)) {
@@ -78,7 +81,7 @@ Future<List<CasePickedFile>> pickCaseMedia(
         );
       }
     } else {
-      out.add((bytes: await f.readAsBytes(), name: null, path: null));
+      out.add((bytes: await readPickedPhoto(f), name: null, path: null));
     }
   }
   return out;

@@ -29,6 +29,7 @@ import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { REASON_MIN, useReasonRequired } from '@/lib/reason-policy';
 import { useUrlState } from '@/lib/url-state';
+import { useNavigationGuard } from '@/lib/vendor/navigation-guard';
 
 type Promotion = components['schemas']['AdminPromotionRowDto'];
 type PromotionStatus = components['schemas']['CasePromotionStatus'];
@@ -716,6 +717,8 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const dirty =
     body != null &&
     (Object.keys(body) as (keyof typeof body)[]).some((k) => JSON.stringify(body[k]) !== JSON.stringify(initial[k]));
+  // Detective D1-7 (13.11): unsaved edits ask before a link or a reload drops them.
+  useNavigationGuard({ enabled: dirty });
 
   // "For $X a day × 7 days we show it to about N people" — like Instagram.
   const example = body

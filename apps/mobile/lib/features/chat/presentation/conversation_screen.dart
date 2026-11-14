@@ -1144,6 +1144,10 @@ class _MessageListState extends ConsumerState<_MessageList> {
           key: _listKey,
           controller: _c.scroll,
           reverse: true,
+          // Row 95 (motion catalog K2, Messages / Telegram / WhatsApp):
+          // dragging the chat hides the keyboard (Flutter's `onDrag`; the
+          // finger-tracking iOS keyboard needs native code).
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           scrollCacheExtent: const ScrollCacheExtent.viewport(1),
           semanticChildCount: entries.length,
           slivers: [
@@ -1285,8 +1289,8 @@ class _MessageListState extends ConsumerState<_MessageList> {
                     key: _c.keyFor(m.id),
                     child: ChatInsertMotion(
                       // A photo joining an album keeps the album still.
-                      animate: _insertIds.remove(m.id) &&
-                          entry.messages.length == 1,
+                      animate:
+                          _insertIds.remove(m.id) && entry.messages.length == 1,
                       mine: m.senderId == me,
                       child: ChatHighlight(
                         controller: _c,
@@ -1861,7 +1865,41 @@ class _Bubble extends ConsumerWidget {
           );
 
     final interactive = m.kind != MessageKind.system;
-    void menu() => unawaited(showMessageMenu(context, ref, threadId, m));
+    // Row 95: the menu lifts this very bubble (a snapshot of its
+    // RepaintBoundary) over the blurred chat.
+    BuildContext? bubbleContext;
+    final lifted = RepaintBoundary(
+      child: Builder(
+        builder: (c) {
+          bubbleContext = c;
+          return bubble;
+        },
+      ),
+    );
+    void menu() => unawaited(
+          showMessageMenu(
+            context,
+            ref,
+            threadId,
+            m,
+            bubble: bubbleContext,
+          ),
+        );
+    // Row 95 (owner «Конечно», Instagram / Telegram): a double tap puts the
+    // quick reaction ❤️ on the message (the app has no per-user default
+    // reaction), with a pop over the bubble.
+    final quickReact = interactive && !m.isLocal && !m.revoked && !selecting
+        ? (TapDownDetails? at) => unawaited(
+              quickReactToMessage(
+                context,
+                ref,
+                threadId,
+                m,
+                at: at?.globalPosition,
+                bubble: bubbleContext,
+              ),
+            )
+        : null;
     final shown = AppEntrance(
       child: Semantics(
         label: [
@@ -1893,11 +1931,14 @@ class _Bubble extends ConsumerWidget {
             m.kind != MessageKind.place &&
             m.kind != MessageKind.post,
         onLongPress: interactive && !selecting ? menu : null,
-        child: bubble,
+        child: lifted,
       ),
     );
+    TapDownDetails? doubleAt;
     final actionable = interactive && !m.isLocal
         ? GestureDetector(
+            onDoubleTapDown: quickReact == null ? null : (d) => doubleAt = d,
+            onDoubleTap: quickReact == null ? null : () => quickReact(doubleAt),
             onLongPress: selecting
                 ? () => ref
                     .read(chatMsgSelectionProvider(threadId).notifier)

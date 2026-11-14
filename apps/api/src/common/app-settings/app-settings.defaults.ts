@@ -432,6 +432,12 @@ export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-19 (Instagram): 1080 p again — 720 p looked soft.
   'media.video_max_height': 1080,
   'media.video_frame_rate': 30,
+  // Owner row 42 (13.11): the target bitrate (kbit/s at 30 fps) of the
+  // phone's re-encode by height (Android Media3; never above the source).
+  // Telegram-like: Full HD ≈ half of the old encoder's ≈ 8.7 Mbit/s.
+  'media.video_bitrate_1080_kbps': 4500,
+  'media.video_bitrate_720_kbps': 2000,
+  'media.video_bitrate_540_kbps': 1200,
   // Owner 2026-10-05: document templates the admin uploads (PDF, Word).
   'files.document_template_max_size_mb': 10,
 } as const;
@@ -1203,6 +1209,13 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'chat.link_preview_enabled': 'auto',
   'chat.link_preview_per_user_per_day': 1000,
   'chat.link_preview_denylist': [] as string[],
+  /** Media batch A (R7): the card's picture is fetched by the server and
+   * re-hosted as our own WebP (the reader never contacts the site). Off =
+   * cards without pictures. Caps of that one download and its size. */
+  'chat.link_preview_images': true,
+  'chat.link_preview_image_max_kb': 5120,
+  'chat.link_preview_image_timeout_ms': 5000,
+  'chat.link_preview_image_px': 600,
   /** BUG-1 (package N-12b): chat text search through the blind index.
    * prefix_tokens: also index 3..12-letter word beginnings («докум» finds
    * «документ»); ~4× the index rows, so off by default; only new / edited
@@ -1499,6 +1512,20 @@ export const OWNER_OPS_SETTINGS = {
   // S20-8: ceiling of the message re-encryption pass, rows per minute
   // (0 = paused; the pass keeps its place).
   'ops.reencrypt_rows_per_min': 800,
+  // Perf batch 2 (13.11, row 125): the built translation bundle is kept in
+  // the shared cache Redis this many seconds (0 = this task's memory only)
+  // and in each task's memory for this many recent (language, version)
+  // answers (0 = not kept, every answer is read again).
+  'ops.i18n_bundle_cache_ttl_sec': 86_400,
+  'ops.i18n_bundle_cache_langs': 8,
+  // The assembled GET /config/bootstrap body is reused this many seconds
+  // for the same config version (0 = built on every request as before).
+  'ops.bootstrap_cache_sec': 30,
+  // A task that cannot reach the database for this many minutes while
+  // another task can exits so ECS starts a fresh one (0 = never); the exit
+  // waits a random 0..jitter seconds first.
+  'ops.db_lost_exit_min': 10,
+  'ops.db_lost_exit_jitter_sec': 60,
   // Owner 2026-10-27 («Сегодня» as the owner's desk): the Sentry line on
   // «Сегодня» (one Sentry request per 5 minutes, needs the `sentry` keys in
   // «Ключи и сервисы») and the guided «Разделить базу» card on «Масштаб».

@@ -207,7 +207,7 @@ function FraudQueue() {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={8} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={8}>{status === 'queue' ? 'Очередь пуста — никого проверять не нужно.' : 'Никого не найдено.'}</TableEmpty>
           ) : (
             rows.map((r, i) => {
@@ -578,7 +578,7 @@ function FraudEvents() {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={6} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={6}>Решений ещё не было.</TableEmpty>
           ) : (
             rows.map((e, i) => (

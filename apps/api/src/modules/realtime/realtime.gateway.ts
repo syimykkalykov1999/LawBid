@@ -142,7 +142,9 @@ interface SocketState {
   expiresAtMs?: number;
   /** Presence heartbeat and the assistant's duty re-check. */
   heartbeatTimer?: NodeJS.Timeout;
-  lastTypingAt?: number;
+  /** D1-3: the last `typing:start` per conversation (not per socket), so
+   * typing in chat B right after chat A is not swallowed. */
+  lastTypingAt?: Map<string, number>;
   /** Security research #5 (2026-10-22), A5: the per-socket packet
    * budget. */
   bucket: SocketEventBucket;
@@ -1320,21 +1322,34 @@ export class RealtimeGateway
     const s = state(socket);
     if (!id || !s.viewing.has(id)) return;
     const now = Date.now();
-    if (typing && s.lastTypingAt && now - s.lastTypingAt < TYPING_MIN_GAP_MS) {
-      return;
+    const last = s.lastTypingAt?.get(id);
+    if (typing && last && now - last < TYPING_MIN_GAP_MS) return;
+    if (typing) {
+      const map = (s.lastTypingAt ??= new Map<string, number>());
+      map.delete(id);
+      // Same cap as `viewing`: the oldest entry goes first.
+      if (map.size >= MAX_VIEWING_PER_SOCKET) {
+        map.delete(map.keys().next().value!);
+      }
+      map.set(id, now);
     }
-    if (typing) s.lastTypingAt = now;
     // The open chat and the other members' chat lists (one delivery per
     // socket even when it is in both rooms).
     const peers = s.peers?.get(id) ?? [];
     if (!this.typingAllowed(id, s.user.sub, now)) return;
     socket
       .to([conversationRoom(id), ...peers.map(userRoom)])
+      // D1-1: never to the typer's own other devices (Telegram, WhatsApp,
+      // iMessage); every socket of a user is in its userRoom.
+      .except(userRoom(s.user.sub))
       // S1-9: typing is only worth showing now — never queued for a slow
       // client.
       .volatile // Owner 2026-10-20: `kind` tells «typing…» from «recording a voice…».
       .emit('typing', {
         conversationId: id,
+        // D1-2: who types, so a group can say «Анна печатает…» and one
+        // typer's stop does not clear the others.
+        userId: s.user.sub,
         typing,
         kind: body?.kind === 'voice' ? 'voice' : 'text',
       });

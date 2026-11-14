@@ -25,6 +25,7 @@ export function filesCoreProviders(options: FilesJobsOptions): Provider[] {
           nodeEnv: config.get<string>('NODE_ENV'),
           clamavHost: config.get<string>('CLAMAV_HOST'),
           clamavPort: config.get<number>('CLAMAV_PORT'),
+          clamavMaxMb: config.get<number>('CLAMAV_MAX_MB'),
         }),
     },
     S3StorageService,

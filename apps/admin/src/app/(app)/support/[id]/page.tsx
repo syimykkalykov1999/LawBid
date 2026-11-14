@@ -5,10 +5,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence } from 'motion/react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { ErrorNote } from '@/components/page-header';
 import { Composer, type ComposerSubmit } from '@/components/support/composer';
 import { MessageBubble } from '@/components/support/message-bubble';
+import { ThreadScroller } from '@/components/support/thread-scroller';
 import {
   canWriteSupport, CategoryBadge, PRIORITIES, PriorityBadge, SlaBadge, STATUSES, type TicketPriority, type TicketStatus,
 } from '@/components/support/support-labels';
@@ -68,6 +69,9 @@ export default function SupportTicketPage() {
     void qc.invalidateQueries({ queryKey: ['support-stats'] });
   };
 
+  // D1-6: the thread follows new messages only at the bottom; a sent reply
+  // brings it down (components/support/thread-scroller.tsx).
+  const [sent, setSent] = useState(0);
   const reply = useMutation({
     mutationFn: async (v: ComposerSubmit) => {
       const r = await api.POST('/admin/support/tickets/{id}/messages', {
@@ -83,6 +87,7 @@ export default function SupportTicketPage() {
       return r.data!.data;
     },
     onSuccess: (_m, v) => {
+      setSent((n) => n + 1);
       toast.success(v.internal ? 'Заметка сохранена' : `Ответ отправлен · ${TICKET_STATUS[v.status ?? 'waiting_user']}`);
       invalidate();
       if (v.macroId) void qc.invalidateQueries({ queryKey: ['support-macros'] });
@@ -124,16 +129,6 @@ export default function SupportTicketPage() {
     onError: (e) => toast.error(e),
   });
 
-  // Scroll the conversation to the newest message.
-  const scroller = useRef<HTMLDivElement>(null);
-  const count = tq.data?.messages.length ?? 0;
-  const first = useRef(true);
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el || count === 0) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: first.current ? 'auto' : 'smooth' });
-    first.current = false;
-  }, [count]);
 
   const t = tq.data;
 
@@ -206,7 +201,7 @@ export default function SupportTicketPage() {
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         {/* Conversation */}
         <Card className="flex flex-col overflow-hidden lg:sticky lg:top-4 lg:h-[calc(100vh-8rem)]">
-          <div ref={scroller} className="max-h-[65vh] min-h-72 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6 lg:max-h-none">
+          <ThreadScroller followKey={sent} className="max-h-[65vh] min-h-72 flex-1 p-4 sm:p-6 lg:max-h-none">
             {t.messages.length === 0 ? (
               <EmptyState icon={ChatsCircle} title="Сообщений пока нет" className="border-none" />
             ) : (
@@ -219,9 +214,9 @@ export default function SupportTicketPage() {
             {t.unreadByUser ? (
               <div className="text-right text-[11px] text-faint">Пользователь ещё не прочитал ответ</div>
             ) : null}
-          </div>
+          </ThreadScroller>
           {canWrite && t.status !== 'closed' ? (
-            <Composer busy={reply.isPending} macros={macros.data ?? []} onSubmit={(v) => reply.mutateAsync(v).then(() => true, () => false)} />
+            <Composer draftKey={`support:${id}`} busy={reply.isPending} macros={macros.data ?? []} onSubmit={(v) => reply.mutateAsync(v).then(() => true, () => false)} />
           ) : (
             <div className="flex items-center gap-2 border-t border-line bg-surface-2 px-5 py-3 text-xs text-muted">
               <LockSimple size={14} weight="light" />

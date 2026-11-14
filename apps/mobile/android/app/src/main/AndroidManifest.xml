@@ -28,6 +28,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Owner row 42: the app stays alive while a video is re-encoded
+         (VideoEncodeService): mediaProcessing on Android 15+, dataSync before. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <!-- Incoming call over the lock screen (Android 14+ asks for it). -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
@@ -204,6 +208,10 @@
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
+        <service
+            android:name=".VideoEncodeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync|mediaProcessing" />
         <service
             android:name="com.hiennv.flutter_callkit_incoming.CallkitNotificationService"
             android:foregroundServiceType="phoneCall|microphone"

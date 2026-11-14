@@ -201,7 +201,7 @@ export default function SubscriptionsPage() {
         <tbody>
           {list.isPending ? (
             <TableEmpty colSpan={7} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !list.isError ? (
             <TableEmpty colSpan={7}>{q ? `Ничего не найдено по «${q}»` : 'Подписок с такими условиями нет'}</TableEmpty>
           ) : (
             rows.map((s) => (
@@ -498,7 +498,7 @@ function SeatChanges() {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={6} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={6}>Мест пока не покупали</TableEmpty>
           ) : (
             rows.map((c) => (

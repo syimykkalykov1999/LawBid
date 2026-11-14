@@ -233,7 +233,7 @@ export default function ClientBadgesPage() {
         <tbody>
           {list.isPending ? (
             <TableEmpty colSpan={6} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !list.isError ? (
             <TableEmpty colSpan={6}>Заявок нет.</TableEmpty>
           ) : (
             rows.map((r) => {

@@ -33,6 +33,7 @@ import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/chat_note_sheet.dart';
+import 'package:lawbid/features/chat/presentation/chat_peek.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/chat/presentation/chats_filter_row.dart';
@@ -838,6 +839,8 @@ class ConversationsView extends ConsumerWidget {
         edgeToEdge: true,
         prefetch: _prefetchEntry,
         itemBuilder: (context, e, _) => _entryRow(e),
+        // Row 95 (catalog C3): a chat with a new message slides to the top.
+        animateChanges: true,
         // Owner 2026-10-20 (Telegram): «Archive (N)» leads the list.
         header: archived > 0 ? _ArchiveRow(count: archived) : null,
         empty: AppEmptyState(
@@ -859,6 +862,7 @@ class ConversationsView extends ConsumerWidget {
         itemKey: (c) => c.id,
         edgeToEdge: true,
         prefetch: prefetchChatAvatar,
+        animateChanges: true,
         itemBuilder: (context, c, _) => ConversationRow(
           conversation: c,
           showAwaiting: folder == ChatListFolder.cases,
@@ -1239,6 +1243,20 @@ class ConversationRow extends ConsumerWidget {
           inArchive: inArchive,
           noReplyMessageId: awaits ? c.lastMessage?.id : null,
         );
+    // Row 95 (owner «Конечно», iOS context-menu preview / Telegram): a long
+    // press lifts a peek of the chat with its quick actions; the screen
+    // reader's custom action keeps the full sheet.
+    void peek() => unawaited(
+          showChatPreviewMenu(
+            context,
+            ref,
+            c,
+            row: context,
+            inArchive: inArchive,
+            noReplyMessageId: awaits ? c.lastMessage?.id : null,
+            onOpen: () => openChat(context, c.id),
+          ),
+        );
     final read = last != null && c.counterpartLastReadId == last.id;
     final secondary = type.bodySmall.copyWith(color: colors.textSecondary);
     // Owner 2026-10-18: no @username under the chat (WhatsApp/Telegram);
@@ -1300,7 +1318,7 @@ class ConversationRow extends ConsumerWidget {
               // Desktop web plan 2026-10-28: on a desktop window the chat
               // opens next to the list (pushed as before on a phone).
               : () => openChat(context, c.id),
-      onLongPress: canOrganize ? organize : null,
+      onLongPress: canOrganize ? peek : null,
       child: Semantics(
         customSemanticsActions: canOrganize
             ? {
@@ -1543,10 +1561,25 @@ class ConversationRow extends ConsumerWidget {
                                 color: colors.textSecondary,
                               ),
                             ],
-                            if (unread) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              CountPill(count: c.unreadCount),
-                            ],
+                            // Row 95 (catalog C7, Telegram): the unread pill
+                            // pops in when it appears or its number changes.
+                            AnimatedSwitcher(
+                              duration: context.reduceMotion
+                                  ? Duration.zero
+                                  : AppMotion.popIn,
+                              transitionBuilder: AppMotionBits.pop,
+                              child: unread
+                                  ? Padding(
+                                      key: ValueKey('unread-${c.unreadCount}'),
+                                      padding: const EdgeInsetsDirectional.only(
+                                        start: AppSpacing.sm,
+                                      ),
+                                      child: CountPill(count: c.unreadCount),
+                                    )
+                                  : const SizedBox.shrink(
+                                      key: ValueKey('unread-none'),
+                                    ),
+                            ),
                           ],
                         ),
                         ...metas,

@@ -3,9 +3,14 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/features/stories/stories_routes.dart';
 
 /// Plays [userId]'s live stories full screen (the tray, an avatar with a
-/// ring).
-Future<void> openStories(BuildContext context, String userId) =>
-    context.push<void>(StoriesRoutes.view(userId));
+/// ring). Row 95: with [heroTag] (the ring's `StoryHero`) the story zooms
+/// out of that ring.
+Future<void> openStories(
+  BuildContext context,
+  String userId, {
+  String? heroTag,
+}) =>
+    context.push<void>(StoriesRoutes.view(userId), extra: heroTag);
 
 /// The story creator (photo, video or text). Owner 2026-10-21 (Instagram
 /// «Добавить в историю»): with [postId] it opens with that post as a

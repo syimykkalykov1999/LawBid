@@ -918,7 +918,7 @@ function HistoryTab() {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={5} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={5} />
           ) : (
             rows.map((i) => (

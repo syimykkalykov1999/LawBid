@@ -40,6 +40,10 @@ class ChatSyncLedger {
   /// The chat's screen is open: it follows its own events.
   void opened(String id) => _open.add(id);
 
+  /// Row 95: the chat's screen is on screen now (its in-app banner is
+  /// never shown).
+  bool isOpen(String id) => _open.contains(id);
+
   /// The chat's screen closed. [epoch] is the connection it was last in
   /// step with (null: not in step, nothing is kept); [pins] its pinned
   /// messages and rules as shown.

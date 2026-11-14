@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/files/file_types.dart';
+import 'package:lawbid/core/files/pick_files.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/screens/camera_capture_screen.dart';
 import 'package:lawbid/features/verification/presentation/screens/id_selfie_capture_screen.dart';
@@ -50,10 +52,10 @@ class DeviceDocumentSource implements DocumentSource {
 
   @override
   Future<PickedDocument?> pickFile({required bool allowPdf}) async {
-    final result = await FilePicker.pickFiles(
-      // Web: a big file from iCloud or a HEIC to convert arrives after the
-      // window gets focus back; don't drop it.
-      cancelUploadOnWindowBlur: false,
+    // Audit D8 / C7: read from disk on a phone (no withData); a picture
+    // becomes a JPEG of at most the verification size (a HEIC from an
+    // iPhone included) without its location.
+    final result = await pickFilesRead(
       type: allowPdf ? FileType.custom : FileType.image,
       allowedExtensions:
           // Owner 2026-10-19: WebP too (saved web pictures).
@@ -69,11 +71,12 @@ class DeviceDocumentSource implements DocumentSource {
                   'pdf',
                 ]
               : null,
-      withData: true,
+      maxCount: 1,
+      photos: verificationPhotoLimits(),
     );
-    final file = result?.files.singleOrNull;
-    final bytes = file?.bytes;
-    if (file == null || bytes == null) return null;
+    final file = result.files.singleOrNull;
+    if (file == null) return null;
+    final bytes = file.bytes;
     // Owner 2026-10-19: the real type from the first bytes (a WebP / PNG
     // picture named or labelled as JPEG was refused by the server's byte
     // check); the name only for a PDF; JPEG as the last guess.

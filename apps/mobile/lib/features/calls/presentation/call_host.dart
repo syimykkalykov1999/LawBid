@@ -15,6 +15,7 @@ import 'package:lawbid/features/calls/presentation/call_screen.dart'
     show callStatusText;
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/chat/presentation/in_app_message_banner.dart';
 
 /// OQ-041: opens the call screen over whatever is on screen when a call
 /// starts here or rings in (the screen closes itself when it is over).
@@ -121,13 +122,14 @@ class CallHost extends ConsumerWidget {
       builder: (context, _) {
         final onScreen = _onCallScreen(ref);
         final Widget? top;
-        if (s.phase == CallPhase.incoming &&
+        // Row 95 (motion catalog CA2, WhatsApp / Telegram / the iOS 14
+        // compact call banner): the incoming call slides down OVER the
+        // screen instead of being a row that pushes everything down.
+        final ringing = s.phase == CallPhase.incoming &&
             !onScreen &&
-            ref.watch(systemRingingCallProvider) != s.call?.id) {
-          top = _IncomingBanner(
-            session: s,
-            onOpen: () => unawaited(router.push<void>(ChatRoutes.call)),
-          );
+            ref.watch(systemRingingCallProvider) != s.call?.id;
+        if (ringing) {
+          top = null;
         } else if (s.busy && s.phase != CallPhase.incoming && !onScreen) {
           // Owner 2026-10-26 (exactly like WhatsApp): a call that runs while
           // the person is elsewhere in the app — the green bar on top.
@@ -167,6 +169,26 @@ class CallHost extends ConsumerWidget {
                 ),
               ],
             ),
+            // Row 95 (owner «Конечно»): a message from another chat.
+            if (!ringing)
+              InAppMessageBannerLayer(router: router)
+            else
+              const SizedBox.shrink(),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: AppTopBannerSwitcher(
+                child: ringing
+                    ? _IncomingBanner(
+                        key: ValueKey('incoming-${s.call?.id}'),
+                        session: s,
+                        onOpen: () =>
+                            unawaited(router.push<void>(ChatRoutes.call)),
+                      )
+                    : null,
+              ),
+            ),
             // Owner 2026-10-26 (WhatsApp): a video call minimised inside
             // the app floats as a small picture; a tap opens the call.
             if (floating)
@@ -200,7 +222,11 @@ class CallHost extends ConsumerWidget {
 /// An incoming call while the app is open: one compact row at the top
 /// (name, Decline, Accept); a tap on the name opens the full call screen.
 class _IncomingBanner extends ConsumerWidget {
-  const _IncomingBanner({required this.session, required this.onOpen});
+  const _IncomingBanner({
+    required this.session,
+    required this.onOpen,
+    super.key,
+  });
 
   final CallSession session;
   final VoidCallback onOpen;

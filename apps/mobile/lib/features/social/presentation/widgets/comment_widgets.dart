@@ -617,12 +617,15 @@ class _Replies extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (final r in page.items)
-            CommentTile(
+            AppInsertMotion(
               key: ValueKey(r.id),
-              comment: r,
-              isReply: true,
-              threads: threads,
-              onReply: onReply,
+              animate: AppInsertMotion.fresh(r.createdAt),
+              child: CommentTile(
+                comment: r,
+                isReply: true,
+                threads: threads,
+                onReply: onReply,
+              ),
             ),
           if (page.canLoadMore)
             TextButton(

@@ -242,7 +242,20 @@ class AppPaginatedListView<T> extends StatefulWidget {
     this.loadMoreExtent = 320,
     this.controller,
     this.scrollCacheExtent,
+    this.animateChanges = false,
   });
+
+  /// Owner row 95 (motion catalog C3 / C4, Telegram / WhatsApp chat list,
+  /// `UITableView` row animations): a row that comes in grows in, a row
+  /// that goes collapses, and a row that jumps up the list (a chat with a
+  /// new message) collapses where it was and grows in where it lands, so
+  /// the rows between slide instead of jumping. `AnimatedList`'s 300 ms
+  /// insert/remove (`widgets/animated_scroll_view.dart`, BSD-3); the moved
+  /// rows are the ones off the longest increasing run of old positions
+  /// (the diff of flutter_chat_ui / Android `DiffUtil`, Apache-2.0).
+  /// The first page, a page loaded at the end and big reloads never move.
+  /// Needs [itemKey]. Reduce motion: no motion.
+  final bool animateChanges;
 
   /// Owner 2026-10-19 (smooth scroll): how far past the screen rows are
   /// built ahead (null: Flutter's 250 px). A feed of screen-tall cards
@@ -274,7 +287,27 @@ class AppPaginatedListView<T> extends StatefulWidget {
       _AppPaginatedListViewState<T>();
 }
 
-class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
+/// One row on screen: an item, or the ghost of one that left (collapsing).
+class _Row<T> {
+  _Row(this.item, this.key, {this.ghost = false});
+
+  final T item;
+  final Object key;
+  final bool ghost;
+}
+
+class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>>
+    with TickerProviderStateMixin {
+  /// Rows in motion: entering (forward) and ghosts (reverse), by key.
+  final Map<Object, AnimationController> _entering = {};
+  final Map<Object, AnimationController> _leaving = {};
+
+  /// What is drawn while something moves (null: [AppPaginatedListView.items]).
+  List<_Row<T>>? _rows;
+
+  /// At most this many rows move in one change; more is a reload.
+  static const int _maxMoving = 6;
+
   ScrollController? _ownController;
   ScrollController get _controller =>
       widget.controller ?? (_ownController ??= ScrollController());
@@ -292,12 +325,172 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
         oldWidget.status != widget.status) {
       _scheduleFillCheck();
     }
+    if (widget.animateChanges &&
+        widget.itemKey != null &&
+        !identical(oldWidget.items, widget.items)) {
+      _diff(oldWidget.items, widget.items);
+    }
   }
 
   @override
   void dispose() {
+    for (final c in [..._entering.values, ..._leaving.values]) {
+      c.dispose();
+    }
     _ownController?.dispose();
     super.dispose();
+  }
+
+  void _diff(List<T> before, List<T> after) {
+    final keyOf = widget.itemKey!;
+    if (before.isEmpty || context.reduceMotion) {
+      _settleAll();
+      return;
+    }
+    final oldKeys = [for (final x in before) keyOf(x)];
+    final oldIndex = {for (var i = 0; i < oldKeys.length; i++) oldKeys[i]: i};
+    final newKeys = [for (final x in after) keyOf(x)];
+    final newSet = newKeys.toSet();
+    // Kept rows in their new order, by their old index; the ones off the
+    // longest increasing run moved.
+    final kept = [
+      for (final k in newKeys)
+        if (oldIndex.containsKey(k)) k,
+    ];
+    final steady = _longestRun([for (final k in kept) oldIndex[k]!])
+        .map((i) => kept[i])
+        .toSet();
+    final moved = {
+      for (final k in kept)
+        if (!steady.contains(k)) k,
+    };
+    final lastOld = oldKeys.last;
+    final lastOldAt = newKeys.indexOf(lastOld);
+    final inserted = <Object>{
+      for (var i = 0; i < newKeys.length; i++)
+        // A page loaded at the end is not «new»: only rows before the old
+        // last row grow in.
+        if (!oldIndex.containsKey(newKeys[i]) &&
+            (lastOldAt < 0 || i < lastOldAt))
+          newKeys[i],
+    };
+    final removed = [
+      for (final k in oldKeys)
+        if (!newSet.contains(k)) k,
+    ];
+    final changes = inserted.length + moved.length + removed.length;
+    if (changes == 0 && _rows == null) return;
+    if (changes > _maxMoving) {
+      _settleAll();
+      return;
+    }
+    // The rows to draw: the new list, with ghosts at the old places of the
+    // removed and the moved ones (each right after its old neighbour).
+    final ghosts = <Object, T>{
+      for (final k in [...removed, ...moved]) k: before[oldIndex[k]!],
+    };
+    final rows = <_Row<T>>[
+      for (var i = 0; i < after.length; i++) _Row(after[i], newKeys[i]),
+    ];
+    for (final k in ghosts.keys) {
+      final at = oldIndex[k]!;
+      // Find the nearest old row above it that is still on screen.
+      var insertAt = 0;
+      for (var j = at - 1; j >= 0; j--) {
+        final above = oldKeys[j];
+        final pos = rows.indexWhere((r) => !r.ghost && r.key == above);
+        if (pos >= 0 && !moved.contains(above)) {
+          insertAt = pos + 1;
+          break;
+        }
+      }
+      rows.insert(insertAt, _Row(ghosts[k] as T, _GhostKey(k), ghost: true));
+    }
+    for (final k in [...inserted, ...moved]) {
+      _leaving.remove(_GhostKey(k))?.dispose();
+      final c = _entering.remove(k) ??
+          AnimationController(
+            vsync: this,
+            duration: AppMotion.listChange,
+          );
+      _entering[k] = c;
+      c.forward(from: 0).whenComplete(() => _done(k, entering: true));
+    }
+    for (final k in ghosts.keys) {
+      final g = _GhostKey(k);
+      _leaving.remove(g)?.dispose();
+      final c = AnimationController(
+        vsync: this,
+        duration: AppMotion.listChange,
+        value: 1,
+      );
+      _leaving[g] = c;
+      c.reverse().whenComplete(() => _done(g, entering: false));
+    }
+    _rows = rows;
+  }
+
+  void _done(Object key, {required bool entering}) {
+    if (!mounted) return;
+    final c = (entering ? _entering : _leaving)[key];
+    if (c == null || c.isAnimating) return;
+    (entering ? _entering : _leaving).remove(key)?.dispose();
+    if (_entering.isEmpty && _leaving.isEmpty) {
+      setState(() => _rows = null);
+    } else if (!entering) {
+      setState(() => _rows?.removeWhere((r) => r.key == key));
+    }
+  }
+
+  void _settleAll() {
+    for (final c in [..._entering.values, ..._leaving.values]) {
+      c.dispose();
+    }
+    _entering.clear();
+    _leaving.clear();
+    _rows = null;
+  }
+
+  /// Indexes (into [xs]) of one longest strictly increasing run
+  /// (patience sorting, O(n log n)).
+  static List<int> _longestRun(List<int> xs) {
+    if (xs.isEmpty) return const [];
+    final tails = <int>[];
+    final prev = List<int>.filled(xs.length, -1);
+    for (var i = 0; i < xs.length; i++) {
+      var lo = 0;
+      var hi = tails.length;
+      while (lo < hi) {
+        final mid = (lo + hi) >> 1;
+        if (xs[tails[mid]] < xs[i]) {
+          lo = mid + 1;
+        } else {
+          hi = mid;
+        }
+      }
+      if (lo > 0) prev[i] = tails[lo - 1];
+      if (lo == tails.length) {
+        tails.add(i);
+      } else {
+        tails[lo] = i;
+      }
+    }
+    final out = <int>[];
+    for (var i = tails.last; i >= 0; i = prev[i]) {
+      out.add(i);
+    }
+    return out.reversed.toList();
+  }
+
+  Widget _moving(Object key, Widget child) {
+    final c = _entering[key] ?? _leaving[key];
+    if (c == null) return child;
+    final curved = CurvedAnimation(parent: c, curve: Curves.easeInOut);
+    return SizeTransition(
+      sizeFactor: curved,
+      alignment: Alignment.topCenter,
+      child: FadeTransition(opacity: c, child: child),
+    );
   }
 
   /// After layout: if the list is already near its end (short first page),
@@ -329,8 +522,10 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
     final hasHeader = widget.header != null;
     final hasFooter = widget.footer != null;
     final offset = hasHeader ? 1 : 0;
+    final rows = _rows;
+    final length = rows?.length ?? widget.items.length;
     // header? + items + pagination footer + extra footer?
-    final count = offset + widget.items.length + 1 + (hasFooter ? 1 : 0);
+    final count = offset + length + 1 + (hasFooter ? 1 : 0);
 
     Widget list = ListView.builder(
       controller: _controller,
@@ -341,6 +536,21 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
       itemBuilder: (context, index) {
         if (hasHeader && index == 0) return widget.header;
         final itemIndex = index - offset;
+        if (rows != null && itemIndex < rows.length) {
+          final row = rows[itemIndex];
+          final real = row.ghost ? -1 : widget.items.indexOf(row.item);
+          final built = Padding(
+            padding: EdgeInsets.only(bottom: widget.itemSpacing),
+            child: widget.itemBuilder(context, row.item, real < 0 ? 0 : real),
+          );
+          return KeyedSubtree(
+            key: ValueKey<Object>(row.key),
+            child: _moving(
+              row.key,
+              row.ghost ? IgnorePointer(child: built) : built,
+            ),
+          );
+        }
         if (itemIndex < widget.items.length) {
           final item = widget.items[itemIndex];
           return Padding(
@@ -351,7 +561,7 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
             child: widget.itemBuilder(context, item, itemIndex),
           );
         }
-        if (itemIndex == widget.items.length) {
+        if (itemIndex == length) {
           // Nothing paginated here (e.g. a profile's posts tab): no empty
           // footer gap between the header and the extra footer.
           if (widget.items.isEmpty &&
@@ -382,4 +592,18 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
       child: list,
     );
   }
+}
+
+/// The key of a row's collapsing ghost (never equal to a live row's key).
+@immutable
+class _GhostKey {
+  const _GhostKey(this.of);
+
+  final Object of;
+
+  @override
+  bool operator ==(Object other) => other is _GhostKey && other.of == of;
+
+  @override
+  int get hashCode => Object.hash(_GhostKey, of);
 }

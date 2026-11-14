@@ -5,7 +5,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/photo_jpeg.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 
 /// How one photo sits in its frame: the zoom over «fills the frame» (1 =
 /// just covers it) and the shift of the photo's centre, as a share of the
@@ -168,7 +171,10 @@ class _PhotoCropScreenState extends ConsumerState<PhotoCropScreen> {
     );
   }
 
-  /// Cuts photo [i] to its frame: at most 1080 px wide (Instagram), PNG.
+  /// Cuts photo [i] to its frame. Media audit 13.11 (R12, C5): at most the
+  /// admin's long side (`media.photo_max_px`) as a JPEG at the admin's
+  /// quality, written in a background isolate (was PNG at 1080 px: 3-6x the
+  /// bytes and softer). A see-through picture stays PNG.
   Future<Uint8List> _render(int i) async {
     final img = _images[i];
     if (img == null) return widget.photos[i];
@@ -187,8 +193,8 @@ class _PhotoCropScreenState extends ConsumerState<PhotoCropScreen> {
       box.width / scale,
       box.height / scale,
     );
-    final outW = math.min(1080, src.width.round()).toDouble();
-    final out = Size(outW, (outW / aspect).roundToDouble());
+    final limits = photoLimitsOf(ref.read(featureFlagsControllerProvider));
+    final out = cropOutputSize(src.size, aspect, limits.maxPx);
     final rec = ui.PictureRecorder();
     Canvas(rec).drawImageRect(
       img,
@@ -199,9 +205,14 @@ class _PhotoCropScreenState extends ConsumerState<PhotoCropScreen> {
     final picture = rec.endRecording();
     final cut = await picture.toImage(out.width.toInt(), out.height.toInt());
     picture.dispose();
-    final data = await cut.toByteData(format: ui.ImageByteFormat.png);
-    cut.dispose();
-    return data == null ? widget.photos[i] : data.buffer.asUint8List();
+    try {
+      final jpeg = await encodeImageJpeg(cut, quality: limits.quality);
+      if (jpeg != null) return jpeg;
+      final data = await cut.toByteData(format: ui.ImageByteFormat.png);
+      return data == null ? widget.photos[i] : data.buffer.asUint8List();
+    } finally {
+      cut.dispose();
+    }
   }
 
   Future<void> _done() async {
@@ -482,4 +493,14 @@ class _ThirdsPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ThirdsPainter old) => false;
+}
+
+/// The size a framed photo is written at: the frame's own pixels in the
+/// photo ([src]) at most [maxPx] on the long side, in the set's [aspect].
+@visibleForTesting
+Size cropOutputSize(Size src, double aspect, double maxPx) {
+  final longSide = math.max(src.width, src.height);
+  final scale = longSide > maxPx && longSide > 0 ? maxPx / longSide : 1.0;
+  final w = math.max(1, (src.width * scale).round()).toDouble();
+  return Size(w, math.max(1, (w / aspect).round()).toDouble());
 }

@@ -45,14 +45,37 @@ function make(stepUpOk = true) {
     report: jest.fn().mockResolvedValue({ items: [] }),
     recordDrill: jest.fn(),
   };
+  const summary = fakeSummary();
   const c = new AdminLaunchController(
     checks as never,
     paging as never,
     budgets as never,
     audit as never,
     auth as never,
+    summary.service as never,
   );
-  return { c, budgets, audit, auth, paging, checks };
+  return { c, budgets, audit, auth, paging, checks, summary };
+}
+
+/** AdminSummaryService over a Map: board = stored copy or one compute. */
+function fakeSummary() {
+  const store = new Map<string, unknown>();
+  const service = {
+    board: jest.fn(async (key: string, compute: () => Promise<unknown>) => {
+      if (!store.has(key)) store.set(key, await compute());
+      return store.get(key);
+    }),
+    put: jest.fn((key: string, data: unknown) => {
+      store.set(key, data);
+      return Promise.resolve();
+    }),
+    refresh: jest.fn(async (key: string, compute: () => Promise<unknown>) => {
+      const data = await compute();
+      store.set(key, data);
+      return { data, computedAt: new Date().toISOString() };
+    }),
+  };
+  return { service, store };
 }
 
 describe('AdminLaunchController budgets (2FA only, no second admin)', () => {
@@ -180,5 +203,73 @@ describe('PagerDuty link format', () => {
         'https://evil.io/events.pagerduty.com/integration/AAAA1111BBBB2222CCCC3333DDDD4444/enqueue',
       ),
     ).toBe(false);
+  });
+});
+
+describe('AdminLaunchController boards through the shared copy (perf batch 2, row 125)', () => {
+  const req = { headers: {} } as never;
+  const res = () =>
+    ({ setHeader: jest.fn(), status: jest.fn() }) as unknown as never;
+
+  it('a second open answers from the shared copy without re-checking', async () => {
+    const { c, checks, summary } = make();
+    await c.launchReport(req, res());
+    await c.launchReport(req, res());
+    expect(checks.report).toHaveBeenCalledTimes(1);
+    // the board's own refresh is a full re-check, not the 5-minute copy
+    expect(checks.report).toHaveBeenCalledWith(expect.any(Date), true);
+    expect(summary.service.board).toHaveBeenCalledWith(
+      'launch:report',
+      expect.any(Function),
+      5 * 60_000,
+      expect.any(Function),
+    );
+  });
+
+  it('a tick, the drill and «Проверить сейчас» store their fresh answer at once', async () => {
+    const { c, checks, summary } = make();
+    checks.report.mockResolvedValue({ items: [{ id: 'x', ticked: true }] });
+    (checks as unknown as { setTick: jest.Mock }).setTick = jest.fn();
+    await c.tickLaunchItem(admin, { id: 'x' }, { done: true });
+    expect(summary.store.get('launch:report')).toEqual({
+      items: [{ id: 'x', ticked: true }],
+    });
+    checks.report.mockResolvedValue({ items: [{ id: 'y' }] });
+    await c.refreshLaunch();
+    expect(summary.store.get('launch:report')).toEqual({
+      items: [{ id: 'y' }],
+    });
+    await c.recordRestoreDrill(admin, { note: 'n' });
+    expect(summary.service.put).toHaveBeenCalledTimes(3);
+  });
+
+  it('a budget change re-checks the board in the background', async () => {
+    const { c, checks, summary } = make();
+    await c.setAwsBudgetLimit(admin, {
+      name: 'lawbid-prod-monthly',
+      limitUsd: 300,
+    });
+    expect(checks.invalidate).toHaveBeenCalled();
+    expect(summary.service.refresh).toHaveBeenCalledWith(
+      'launch:report',
+      expect.any(Function),
+    );
+  });
+
+  it('PagerDuty: one SNS read for many opens; sync and test replace the copy', async () => {
+    const { c, paging, summary } = make();
+    paging.status.mockResolvedValue({ state: 'none' });
+    await c.getPagingStatus();
+    await c.getPagingStatus();
+    expect(paging.status).toHaveBeenCalledTimes(1);
+    expect(paging.status).toHaveBeenCalledWith(true);
+    paging.sync.mockResolvedValue({ state: 'pending' });
+    await c.syncPaging(admin);
+    expect(summary.store.get('launch:pagerduty')).toEqual({ state: 'pending' });
+    paging.status.mockResolvedValue({ state: 'confirmed' });
+    await c.testPaging(admin);
+    expect(summary.store.get('launch:pagerduty')).toEqual({
+      state: 'confirmed',
+    });
   });
 });

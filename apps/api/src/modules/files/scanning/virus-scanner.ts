@@ -10,6 +10,11 @@ export type ScanVerdict =
  */
 export interface VirusScanner {
   readonly name: string;
+  /** Media batch A (R1): the largest file this scanner accepts (clamd's
+   * StreamMaxLength, set by Terraform from the same number as the worker's
+   * CLAMAV_MAX_MB). 0 / absent = unknown: everything is sent and clamd's own
+   * «size limit exceeded» answer is the signal. */
+  readonly maxBytes?: number;
   scan(data: Buffer): Promise<ScanVerdict>;
 }
 
@@ -53,6 +58,7 @@ export class ClamdScanner implements VirusScanner {
     private readonly host: string,
     private readonly port: number,
     private readonly timeoutMs = 60_000,
+    readonly maxBytes = 0,
   ) {}
 
   scan(data: Buffer): Promise<ScanVerdict> {
@@ -132,9 +138,16 @@ export function selectVirusScanner(env: {
   nodeEnv?: string;
   clamavHost?: string;
   clamavPort?: number;
+  /** clamd's StreamMaxLength in MB (CLAMAV_MAX_MB); 0 = unknown. */
+  clamavMaxMb?: number;
 }): VirusScanner | null {
   if (env.clamavHost) {
-    return new ClamdScanner(env.clamavHost, env.clamavPort ?? 3310);
+    return new ClamdScanner(
+      env.clamavHost,
+      env.clamavPort ?? 3310,
+      60_000,
+      Math.max(0, env.clamavMaxMb ?? 0) * 1024 * 1024,
+    );
   }
   if (env.nodeEnv === 'development' || env.nodeEnv === 'test') {
     return new DevEicarScanner();

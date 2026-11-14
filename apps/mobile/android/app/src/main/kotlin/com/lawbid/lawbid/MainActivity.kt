@@ -75,6 +75,8 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         createChannels()
+        // Owner row 42: Android video re-encode on Media3 Transformer.
+        VideoEncoder(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         // Owner 2026-10-20: a video call goes to a floating window when the
         // person leaves the app (Home / another app), like WhatsApp.
         // S16-12: the first feed content is on the glass — tells Android
