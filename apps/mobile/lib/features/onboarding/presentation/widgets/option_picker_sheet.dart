@@ -831,7 +831,7 @@ class PickerField extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             Text(
               errorText!,
-              style: typography.caption.copyWith(color: colors.danger),
+              style: typography.caption.copyWith(color: colors.dangerText),
             ),
           ],
         ],

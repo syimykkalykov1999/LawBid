@@ -19,6 +19,8 @@ class ProgressivePhoto extends StatelessWidget {
     this.decodeWidth = 1080,
     this.fadeIn,
     this.blurhash,
+    this.semanticLabel,
+    this.excludeFromSemantics = false,
     super.key,
   });
 
@@ -32,12 +34,31 @@ class ProgressivePhoto extends StatelessWidget {
   /// The API's BlurHash of the picture; drawn first, before the 320 px copy.
   final String? blurhash;
 
+  /// Owner row 111 (like Image.semanticLabel): what a screen reader says
+  /// for this photo. Null: the photo is not announced on its own.
+  final String? semanticLabel;
+
+  /// Owner row 111 (like Image.excludeFromSemantics): a decorative photo
+  /// (the row beside it already says what it is) is hidden from readers.
+  final bool excludeFromSemantics;
+
   /// The widget key of the soft stand-in (tests look for it).
   static const previewKey = ValueKey('progressive-photo-preview');
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final photo = _photo(context, colors);
+    if (excludeFromSemantics) return ExcludeSemantics(child: photo);
+    if (semanticLabel == null) return photo;
+    return Semantics(
+      image: true,
+      label: semanticLabel,
+      child: ExcludeSemantics(child: photo),
+    );
+  }
+
+  Widget _photo(BuildContext context, AppColorTokens colors) {
     return CachedNetworkImage(
       imageUrl: url,
       cacheKey: '$fileId:$decodeWidth',

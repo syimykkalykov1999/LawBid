@@ -224,6 +224,17 @@ jobs:
               || { echo "::error::$f was not tree-shaken (the web app would ship the whole icon font)"; exit 1; }
           done
 
+      # Owner row 128 (2026-11-14): the web copies of Inter / Source Serif 4
+      # get the optical-size axis pinned at its default (the web engine never
+      # moves it, so the pixels stay the same): brotli 546 -> ~300 KB before
+      # the first frame. Phones keep the full files from assets/.
+      - name: Web text fonts without the optical-size axis
+        working-directory: apps/mobile
+        run: |
+          python3 -m venv "$RUNNER_TEMP/fonttools"
+          "$RUNNER_TEMP/fonttools/bin/pip" install -q fonttools==4.68.0
+          "$RUNNER_TEMP/fonttools/bin/python" tool/slim_fonts.py web build/web/assets/assets/fonts
+
       # The push worker needs the same keys (it cannot read the build's).
       - name: Fill the push worker's keys
         working-directory: apps/mobile/build/web

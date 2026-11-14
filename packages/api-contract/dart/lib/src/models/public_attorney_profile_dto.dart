@@ -43,6 +43,7 @@ class PublicAttorneyProfileDto {
     required this.hasBlockedMe,
     this.sponsored,
     this.advertisingDisclaimer,
+    this.replyMinutesMedian,
   });
 
   factory PublicAttorneyProfileDto.fromJson(Map<String, Object?> json) =>
@@ -100,6 +101,7 @@ class PublicAttorneyProfileDto {
 
   /// Owner 2026-10-20: the attorney takes consultation bookings now.
   final bool consultationEnabled;
+  final num? replyMinutesMedian;
 
   /// OQ-028: the viewer blocked this user.
   final bool isBlocked;

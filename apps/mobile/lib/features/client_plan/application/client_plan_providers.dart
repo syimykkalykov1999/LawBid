@@ -157,6 +157,39 @@ class ClientCheckoutController extends Notifier<ClientCheckoutState> {
   /// webhook and shows on the next refresh).
   void stopWaiting() => _stopWaiting = true;
 
+  /// Detective R2 item 1 (14.11): back from Stripe by the return link
+  /// (`session_id` kept by the deep link). On the web the payment page
+  /// opened in this tab, so the poll of [subscribe] is gone. Confirm the
+  /// session (`checkout/complete` is idempotent) until it is active, a
+  /// bounded number of times. A poll that is still running takes the id.
+  Future<ClientCheckoutOutcome> completeReturn(String sessionId) async {
+    if (state.busy) {
+      _sessionId ??= sessionId;
+      return ClientCheckoutOutcome.cancelled;
+    }
+    _sessionId = sessionId;
+    final repo = ref.read(clientPlanRepositoryProvider);
+    final interval = ref.read(checkoutPollIntervalProvider);
+    _phase(ClientCheckoutPhase.awaitingPayment);
+    for (var i = 0; i < _returnChecks && ref.mounted; i++) {
+      final overview = await _check(repo);
+      if (overview != null && overview.isActive) {
+        if (!ref.mounted) return ClientCheckoutOutcome.activated;
+        ref.read(clientPlanProvider.notifier).apply(overview);
+        _phase(ClientCheckoutPhase.idle);
+        return (overview.subscription?.inTrial ?? false)
+            ? ClientCheckoutOutcome.trialStarted
+            : ClientCheckoutOutcome.activated;
+      }
+      await Future<void>.delayed(interval);
+    }
+    _phase(ClientCheckoutPhase.idle);
+    return ClientCheckoutOutcome.cancelled;
+  }
+
+  /// As many checks as the attorney's settle poll (`SubscribeController`).
+  static const _returnChecks = 15;
+
   /// Back in the app: one more check of the open session.
   Future<void> checkNow() async {
     final overview = await _check(ref.read(clientPlanRepositoryProvider));

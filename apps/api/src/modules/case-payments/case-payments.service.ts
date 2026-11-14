@@ -121,6 +121,15 @@ function notFound(): NotFoundException {
   });
 }
 
+/** The request changed between the read and the write (paid, canceled or
+ * answered by the other side at the same moment). */
+function requestChanged(): ConflictException {
+  return new ConflictException({
+    code: ErrorCode.PAYMENT_INVALID_STATE,
+    message: 'This request has just changed; reload it.',
+  });
+}
+
 function requestNotFound(): NotFoundException {
   return new NotFoundException({
     code: ErrorCode.NOT_FOUND,
@@ -891,15 +900,6 @@ export class CasePaymentsService {
         message: 'Only a successful payment can be refunded.',
       });
     }
-    const left = row.client_total_cents - row.refunded_cents;
-    const amount = dto.amountCents ?? left;
-    if (amount <= 0 || amount > left) {
-      throw new ConflictException({
-        code: ErrorCode.REFUND_AMOUNT_EXCEEDED,
-        message: `Up to ${(left / 100).toFixed(2)} USD can still be refunded.`,
-        details: { leftCents: left },
-      });
-    }
     if (
       !this.provider?.refundConnected ||
       !row.stripe_account_id ||
@@ -907,16 +907,51 @@ export class CasePaymentsService {
     ) {
       throw notConfigured();
     }
-    const refund = await this.prisma.casePaymentRefund.create({
-      data: {
-        payment_id: row.id,
-        amount_cents: amount,
-        reason: dto.reason,
-        initiated_by_type: by.type,
-        initiated_by: by.id,
-        status: 'pending',
-      },
-    });
+    // Detective R2B-4 / R3A-2 (14.11): reserve under the payment row lock.
+    // What is left is re-read inside the transaction (the caller's row may
+    // be stale) and counts refunds still in flight, so two refunds at once
+    // (admin + attorney, two tabs) can never pass the same `left`; the
+    // `charge.refunded` webhook takes the same lock (`syncCharge`). Same
+    // reserve-then-call pattern as admin-billing/refunds.service.ts.
+    const { refund, amount } = await shardContext.runForCase(row.case_id, () =>
+      withTxRetry(
+        this.prisma,
+        async (tx) => {
+          const locked = await this.lockPayment(tx, row.id);
+          if (!locked || !isPaid(locked.status)) {
+            throw new ConflictException({
+              code: ErrorCode.PAYMENT_INVALID_STATE,
+              message: 'This payment is already refunded in full.',
+            });
+          }
+          const used = Math.max(
+            locked.refunded_cents,
+            await this.liveRefundedCents(tx, row.id),
+          );
+          const left = locked.client_total_cents - used;
+          const want = dto.amountCents ?? left;
+          if (want <= 0 || want > left) {
+            throw new ConflictException({
+              code: ErrorCode.REFUND_AMOUNT_EXCEEDED,
+              message: `Up to ${(left / 100).toFixed(2)} USD can still be refunded.`,
+              details: { leftCents: left },
+            });
+          }
+          const created = await tx.casePaymentRefund.create({
+            data: {
+              payment_id: row.id,
+              amount_cents: want,
+              reason: dto.reason,
+              initiated_by_type: by.type,
+              initiated_by: by.id,
+              status: 'pending',
+            },
+          });
+          return { refund: created, amount: want };
+        },
+        { isolation: 'readCommitted', op: 'case_payment.refund_reserve' },
+      ),
+    );
     let result: { id: string; status: string; failureReason: string | null };
     try {
       result = await this.provider.refundConnected({
@@ -951,36 +986,41 @@ export class CasePaymentsService {
         message: result.failureReason ?? 'The refund failed.',
       });
     }
-    const refunded = row.refunded_cents + amount;
-    // The refund row, the payment totals and the ledger entry commit together.
+    // The refund row, the payment totals and the ledger entry commit
+    // together, under the row lock; the total only ever grows by this
+    // refund (`increment`), never by a value read before Stripe was called.
     const updated = await shardContext.runForCase(row.case_id, () =>
-      this.prisma.$transaction(async (tx) => {
-        await tx.casePaymentRefund.update({
-          where: { id: refund.id },
-          data: {
-            status: result.status,
-            stripe_refund_id: result.id,
-            failure_reason: result.failureReason,
-          },
-        });
-        const next = await tx.casePayment.update({
-          where: { id: row.id },
-          data: {
-            refunded_cents: refunded,
-            status:
-              refunded >= row.client_total_cents
-                ? 'refunded'
-                : 'partially_refunded',
-          },
-        });
-        // A failed refund threw above; pending and succeeded both move money.
-        await this.ledger?.casePaymentRefunded(tx, next, {
-          refundId: refund.id,
-          cents: amount,
-          refundApplicationFee: true,
-        });
-        return next;
-      }),
+      withTxRetry(
+        this.prisma,
+        async (tx) => {
+          const locked = await this.lockPayment(tx, row.id);
+          const total = locked?.client_total_cents ?? row.client_total_cents;
+          const refunded = (locked?.refunded_cents ?? 0) + amount;
+          await tx.casePaymentRefund.update({
+            where: { id: refund.id },
+            data: {
+              status: result.status,
+              stripe_refund_id: result.id,
+              failure_reason: result.failureReason,
+            },
+          });
+          const next = await tx.casePayment.update({
+            where: { id: row.id },
+            data: {
+              refunded_cents: { increment: amount },
+              status: refunded >= total ? 'refunded' : 'partially_refunded',
+            },
+          });
+          // A failed refund threw above; pending and succeeded both move money.
+          await this.ledger?.casePaymentRefunded(tx, next, {
+            refundId: refund.id,
+            cents: amount,
+            refundApplicationFee: true,
+          });
+          return next;
+        },
+        { isolation: 'readCommitted', op: 'case_payment.refund_commit' },
+      ),
     );
     await this.notify(row.client_id, 'case_payment_refunded', {
       caseId: row.case_id,
@@ -1191,6 +1231,8 @@ export class CasePaymentsService {
     // The status change, the chargeback refund row and the ledger entry commit together.
     await shardContext.runForCase(row.case_id, () =>
       this.prisma.$transaction(async (tx) => {
+        // R2B-4 / R3A-2: fresh totals under the row lock, never a stale read.
+        const cur = (await this.lockPayment(tx, row.id)) ?? row;
         const next = await tx.casePayment.update({
           where: { id: row.id },
           data: {
@@ -1206,15 +1248,15 @@ export class CasePaymentsService {
             status: lost
               ? 'refunded'
               : won
-                ? row.refunded_cents > 0
+                ? cur.refunded_cents > 0
                   ? 'partially_refunded'
                   : 'succeeded'
                 : 'disputed',
-            ...(lost ? { refunded_cents: row.client_total_cents } : {}),
+            ...(lost ? { refunded_cents: cur.client_total_cents } : {}),
           },
         });
-        if (lost && row.refunded_cents < row.client_total_cents) {
-          const lostCents = row.client_total_cents - row.refunded_cents;
+        if (lost && cur.refunded_cents < cur.client_total_cents) {
+          const lostCents = cur.client_total_cents - cur.refunded_cents;
           const cb = await tx.casePaymentRefund.create({
             data: {
               payment_id: row.id,
@@ -1272,6 +1314,8 @@ export class CasePaymentsService {
     }
     await shardContext.runForCase(row.case_id, () =>
       this.prisma.$transaction(async (tx) => {
+        // R2B-4 / R3A-2: fresh totals under the row lock, never a stale read.
+        const cur = (await this.lockPayment(tx, row.id)) ?? row;
         const cb = await tx.casePaymentRefund.findFirst({
           where: {
             payment_id: row.id,
@@ -1280,7 +1324,7 @@ export class CasePaymentsService {
             status: 'succeeded',
           },
         });
-        let refunded = row.refunded_cents;
+        let refunded = cur.refunded_cents;
         if (cb) {
           await this.ledger?.reverseCaseEntry(tx, {
             originalSourceType: 'case_payment_refund',
@@ -1295,7 +1339,7 @@ export class CasePaymentsService {
               failure_reason: 'Dispute won: funds reinstated',
             },
           });
-          refunded = Math.max(0, row.refunded_cents - cb.amount_cents);
+          refunded = Math.max(0, cur.refunded_cents - cb.amount_cents);
         }
         await tx.casePayment.update({
           where: { id: row.id },
@@ -1383,22 +1427,26 @@ export class CasePaymentsService {
       where: { id: refund.payment_id },
     });
     if (!pay) return;
-    await shardContext.runForCase(pay.case_id, () =>
+    const undone = await shardContext.runForCase(pay.case_id, () =>
       this.prisma.$transaction(async (tx) => {
-        await tx.casePaymentRefund.update({
-          where: { id: refund.id },
+        // R2B-4 / R3A-2: fresh totals under the row lock, never a stale read.
+        const cur = (await this.lockPayment(tx, pay.id)) ?? pay;
+        // Two `failed` webhooks (or the sweep) at once undo the totals once.
+        const claimed = await tx.casePaymentRefund.updateMany({
+          where: { id: refund.id, status: { not: 'failed' } },
           data: {
             status: 'failed',
             failure_reason: reason?.slice(0, 500) ?? null,
           },
         });
+        if (claimed.count === 0) return false;
         // Only a refund that counted (pending or succeeded) is taken back.
-        const refunded = Math.max(0, pay.refunded_cents - refund.amount_cents);
+        const refunded = Math.max(0, cur.refunded_cents - refund.amount_cents);
         await tx.casePayment.update({
           where: { id: pay.id },
           data: {
             refunded_cents: refunded,
-            ...(pay.status === 'refunded' || pay.status === 'partially_refunded'
+            ...(cur.status === 'refunded' || cur.status === 'partially_refunded'
               ? { status: refunded > 0 ? 'partially_refunded' : 'succeeded' }
               : {}),
           },
@@ -1410,8 +1458,10 @@ export class CasePaymentsService {
           partyUserId: pay.attorney_id,
           stripeRef: stripeRefundId,
         });
+        return true;
       }),
     );
+    if (!undone) return;
     await this.review?.open({
       kind: 'refund_failed',
       stripeRef: stripeRefundId,
@@ -1602,44 +1652,91 @@ export class CasePaymentsService {
     return typeof row?.value === 'number' ? row.value : 0;
   }
 
+  /** `SELECT … FOR UPDATE` on the payment row, then its fresh values.
+   * Every writer of `refunded_cents` (refund, webhook) takes it first. */
+  private async lockPayment(
+    tx: Prisma.TransactionClient,
+    id: string,
+  ): Promise<CasePayment | null> {
+    await tx.$queryRaw`SELECT 1 FROM case_payments WHERE id = ${id}::uuid FOR UPDATE`;
+    return tx.casePayment.findUnique({ where: { id } });
+  }
+
+  /** Refund rows that moved or are moving money (pending incl. a call to
+   * Stripe still in flight, and succeeded). */
+  private async liveRefundedCents(
+    tx: Prisma.TransactionClient,
+    paymentId: string,
+  ): Promise<number> {
+    const sum = await tx.casePaymentRefund.aggregate({
+      where: {
+        payment_id: paymentId,
+        status: { in: ['pending', 'succeeded'] },
+      },
+      _sum: { amount_cents: true },
+    });
+    return sum._sum.amount_cents ?? 0;
+  }
+
   private async syncCharge(accountId: string, chargeId: string): Promise<void> {
     const row = await this.prisma.casePayment.findFirst({
       where: { stripe_charge_id: chargeId, stripe_account_id: accountId },
     });
     if (!row || !this.provider?.retrieveConnectedCharge) return;
     const ch = await this.provider.retrieveConnectedCharge(accountId, chargeId);
-    if (!ch || ch.amountRefundedCents <= row.refunded_cents) return;
-    const refunded = Math.min(ch.amountRefundedCents, row.client_total_cents);
-    const delta = refunded - row.refunded_cents;
-    await shardContext.runForCase(row.case_id, () =>
-      this.prisma.$transaction(async (tx) => {
-        const dash = await tx.casePaymentRefund.create({
-          data: {
-            payment_id: row.id,
-            amount_cents: delta,
-            reason: 'Refunded in the Stripe dashboard',
-            initiated_by_type: 'stripe',
-            status: 'succeeded',
-          },
-        });
-        const next = await tx.casePayment.update({
-          where: { id: row.id },
-          data: {
-            refunded_cents: refunded,
-            status:
-              refunded >= row.client_total_cents
-                ? 'refunded'
-                : 'partially_refunded',
-            receipt_url: row.receipt_url ?? ch.receiptUrl,
-          },
-        });
-        await this.ledger?.casePaymentRefunded(tx, next, {
-          refundId: dash.id,
-          cents: delta,
-          refundApplicationFee: false,
-        });
-      }),
+    if (!ch) return;
+    // Detective R2B-4 (14.11): Stripe's `amount_refunded` is compared, under
+    // the row lock, with every refund we already know of — including one
+    // whose Stripe call has not returned yet — so our own refund arriving
+    // as a webhook first is not booked a second time as a dashboard refund.
+    const delta = await shardContext.runForCase(row.case_id, () =>
+      withTxRetry(
+        this.prisma,
+        async (tx) => {
+          const locked = await this.lockPayment(tx, row.id);
+          if (!locked) return 0;
+          const known = Math.max(
+            locked.refunded_cents,
+            await this.liveRefundedCents(tx, row.id),
+          );
+          const target = Math.min(
+            ch.amountRefundedCents,
+            locked.client_total_cents,
+          );
+          const d = target - known;
+          if (d <= 0) return 0;
+          const dash = await tx.casePaymentRefund.create({
+            data: {
+              payment_id: row.id,
+              amount_cents: d,
+              reason: 'Refunded in the Stripe dashboard',
+              initiated_by_type: 'stripe',
+              status: 'succeeded',
+            },
+          });
+          const refunded = locked.refunded_cents + d;
+          const next = await tx.casePayment.update({
+            where: { id: row.id },
+            data: {
+              refunded_cents: { increment: d },
+              status:
+                refunded >= locked.client_total_cents
+                  ? 'refunded'
+                  : 'partially_refunded',
+              receipt_url: locked.receipt_url ?? ch.receiptUrl,
+            },
+          });
+          await this.ledger?.casePaymentRefunded(tx, next, {
+            refundId: dash.id,
+            cents: d,
+            refundApplicationFee: false,
+          });
+          return d;
+        },
+        { isolation: 'readCommitted', op: 'case_payment.sync_charge' },
+      ),
     );
+    if (delta <= 0) return;
     await this.notify(row.client_id, 'case_payment_refunded', {
       caseId: row.case_id,
       paymentId: row.id,
@@ -1853,10 +1950,14 @@ export class CasePaymentsService {
     }
     const updated = await shardContext.runForCase(row.case_id, () =>
       withTxRetry(this.prisma, async (tx) => {
-        const u = await tx.paymentRequest.update({
-          where: { id },
+        // Detective R2B-10 (14.11): only a request that is still open or
+        // expired; the checkout webhook may have marked it paid meanwhile.
+        const claimed = await tx.paymentRequest.updateMany({
+          where: { id, status: { in: ['open', 'expired'] } },
           data: { status: 'canceled', canceled_at: new Date() },
         });
+        if (claimed.count === 0) throw requestChanged();
+        const u = await tx.paymentRequest.findUniqueOrThrow({ where: { id } });
         const changes = await this.chatSystem?.post(
           tx,
           { case_id: row.case_id },
@@ -1954,7 +2055,7 @@ export class CasePaymentsService {
         "It is the other side's turn to answer your proposal.",
       );
     const other = me === 'attorney' ? row.client_id : row.attorney_id;
-    let data: Prisma.PaymentRequestUpdateInput;
+    let data: Prisma.PaymentRequestUpdateManyMutationInput;
     let key: 'payment_fee_agreed' | 'payment_fee_countered';
     let payer = row.processing_fee_payer;
     if (dto.action === 'accept') {
@@ -1989,7 +2090,24 @@ export class CasePaymentsService {
     }
     const updated = await shardContext.runForCase(row.case_id, () =>
       withTxRetry(this.prisma, async (tx) => {
-        const u = await tx.paymentRequest.update({ where: { id }, data });
+        // Detective R2B-10 (14.11): the checks above ran on a read outside
+        // this transaction; the write repeats them as its condition so a
+        // parallel answer, payment or cancel cannot slip past the turn or
+        // the rounds cap.
+        const claimed = await tx.paymentRequest.updateMany({
+          where: {
+            id,
+            status: { in: ['open', 'expired'] },
+            fee_payer_status: { not: 'agreed' },
+            fee_payer_by: { not: me },
+            ...(dto.action === 'accept'
+              ? {}
+              : { fee_payer_rounds: { lt: s.feePayerMaxRounds } }),
+          },
+          data,
+        });
+        if (claimed.count === 0) throw requestChanged();
+        const u = await tx.paymentRequest.findUniqueOrThrow({ where: { id } });
         const changes = await this.chatSystem?.post(
           tx,
           { case_id: row.case_id },

@@ -328,7 +328,7 @@ class CaseUrgencyPicker extends ConsumerWidget {
             const SizedBox(height: AppSpacing.xs),
             Text(
               t.t('cases.deadline.required'),
-              style: typography.caption.copyWith(color: colors.danger),
+              style: typography.caption.copyWith(color: colors.dangerText),
             ),
           ],
           const SizedBox(height: AppSpacing.md),
@@ -489,7 +489,8 @@ class _UrgencySheetState extends ConsumerState<_UrgencySheet> {
                 const SizedBox(height: AppSpacing.md),
                 Text(
                   _error!,
-                  style: typography.bodySmall.copyWith(color: colors.danger),
+                  style:
+                      typography.bodySmall.copyWith(color: colors.dangerText),
                 ),
               ],
               const SizedBox(height: AppSpacing.xl),
