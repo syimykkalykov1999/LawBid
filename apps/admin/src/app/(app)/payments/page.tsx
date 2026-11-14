@@ -15,6 +15,7 @@ import {
   userName,
 } from '@/components/billing/shared';
 import { CsvButton } from '@/components/csv-button';
+import { useConfirm } from '@/components/legacy/confirm';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { DateField } from '@/components/date-field';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { PAYMENT_STATUS, StatusPill, usd } from '@/lib/labels';
+import { REASON_MIN } from '@/lib/reason-policy';
 import { Reason } from '@/lib/reasons';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
@@ -406,13 +408,31 @@ function DisputeRefunds() {
       (await api.GET('/admin/billing/dispute-refunds', { params: { query: { cursor: pageParam } } })).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const done = () => queryClient.invalidateQueries({ queryKey: ['billing-dispute-refunds'] });
+  // R3A-4 (14.11): the money lists and the overview cards change with a
+  // refund, so all of them refresh (as refund-dialog.tsx does).
   const approve = useMutation({
     mutationFn: async (id: string) =>
       (await api.POST('/admin/billing/dispute-refunds/{id}/approve', { params: { path: { id } } })).data!,
-    onSuccess: done,
+    onSuccess: () => {
+      toast.success('Деньги возвращены');
+      void queryClient.invalidateQueries({ queryKey: ['billing-payments'] });
+      void queryClient.invalidateQueries({ queryKey: ['billing-refunds'] });
+      void queryClient.invalidateQueries({ queryKey: ['billing-overview'] });
+      return done();
+    },
     onError: (e) => toast.error(errorText(e)),
   });
+  // Stripe «Refund payment»: the amount and the person before money moves.
+  const askApprove = async (id: string, amountCents: number, who: string) => {
+    const ok = await confirm({
+      title: `Вернуть ${usd(amountCents, 2)}?`,
+      description: `Деньги уйдут на карту: ${who}. Отменить возврат нельзя.`,
+      confirm: 'Вернуть деньги',
+    });
+    if (ok) approve.mutate(id);
+  };
   const reject = useMutation({
     mutationFn: async (id: string) =>
       (
@@ -478,7 +498,12 @@ function DisputeRefunds() {
                   <Td className="whitespace-nowrap text-right">
                     {r.status === 'review' && canWrite ? (
                       <span className="flex justify-end gap-2">
-                        <Button size="sm" loading={approve.isPending} onClick={() => approve.mutate(r.id)}>
+                        <Button
+                          size="sm"
+                          loading={approve.isPending && approve.variables === r.id}
+                          disabled={approve.isPending}
+                          onClick={() => void askApprove(r.id, r.amountCents, userName(r.user, r.userId))}
+                        >
                           Вернуть деньги
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => setRejecting(r.id)}>
@@ -494,6 +519,7 @@ function DisputeRefunds() {
         </Table>
       )}
       <LoadMore q={list} />
+      {confirmDialog}
       <Dialog
         open={!!rejecting}
         onClose={() => setRejecting(null)}
@@ -505,7 +531,7 @@ function DisputeRefunds() {
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (rejecting && note.trim().length >= 3) reject.mutate(rejecting);
+            if (rejecting && note.trim().length >= REASON_MIN) reject.mutate(rejecting);
           }}
         >
           <Field label="Почему" htmlFor="dr-note" hint="Попадёт в журнал аудита.">
@@ -515,7 +541,7 @@ function DisputeRefunds() {
             <Button type="button" variant="ghost" onClick={() => setRejecting(null)}>
               Отмена
             </Button>
-            <Button type="submit" loading={reject.isPending} disabled={note.trim().length < 3 || reject.isPending}>
+            <Button type="submit" loading={reject.isPending} disabled={note.trim().length < REASON_MIN || reject.isPending}>
               Подтвердить
             </Button>
           </div>
