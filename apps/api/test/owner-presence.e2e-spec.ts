@@ -205,17 +205,34 @@ describe('Online / last seen (e2e, owner 2026-10-01)', () => {
       if (!joined) await new Promise((r) => setTimeout(r, 150));
     }
     expect(joined).toBe(true);
+    // D1-1: the typer's own second device (same chat open) never sees it.
+    const ownSecond = await connect(c.client.token);
+    let ownSaw = 0;
+    ownSecond.on('typing', () => ownSaw++);
+    for (let i = 0; i < 10; i++) {
+      const ok = (
+        (await ownSecond.emitWithAck('conversation:join', {
+          conversationId: c.id,
+        })) as { ok: boolean }
+      ).ok;
+      if (ok) break;
+      await new Promise((r) => setTimeout(r, 150));
+    }
     const typing = new Promise<{
       conversationId: string;
+      userId: string;
       typing: boolean;
       kind: string;
     }>((resolve) => attorneySock.once('typing', resolve));
     clientSock.emit('typing:start', { conversationId: c.id });
     expect(await typing).toEqual({
       conversationId: c.id,
+      userId: c.client.id,
       typing: true,
       kind: 'text',
     });
+    await new Promise((r) => setTimeout(r, 300));
+    expect(ownSaw).toBe(0);
     // Owner 2026-10-20: a voice recording says so.
     await new Promise((r) => setTimeout(r, 1100));
     const voice = new Promise<{ kind: string }>((resolve) =>
