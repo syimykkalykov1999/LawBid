@@ -279,6 +279,8 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       engine,
       partitionNeedsRunner,
       eventsStreamWanted,
+      eventsStreamInUse,
+      replicaReads,
       cacheMode,
       replicaProvision,
       people,
@@ -290,6 +292,9 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       this.registry.searchEngine(),
       this.partitionNeedsRunner().catch(() => false),
       this.eventsStreamWanted().catch(() => false),
+      // 13.11: on a failed read keep it on (never remove what may be used).
+      this.eventsStreamInUse().catch(() => true),
+      this.settings.string('db.replica_reads').catch(() => 'auto'),
       this.settings.string('cache.redis_mode').catch(() => 'auto'),
       this.settings.string('db.replica_provision').catch(() => 'auto'),
       this.people().catch(() => undefined),
@@ -326,7 +331,13 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       partitionNeedsRunner,
       poolSmall:
         !pooler && Number.isFinite(pool) && pool > 0 && pool < POOL_FLOOR,
+      poolerLive: pooler,
+      replicaReadsForced:
+        (!!this.config.get<string>('DB_REPLICA_HOST')?.trim() ||
+          !!this.config.get<string>('DATABASE_REPLICA_URL')?.trim()) &&
+        (replicaReads ?? 'auto').trim().toLowerCase() === 'on',
       eventsStreamWanted,
+      eventsStreamInUse,
       cacheRedisMode: cacheMode ?? 'auto',
       cacheNodeLive: !!this.config.get<string>('REDIS_CACHE_URL'),
       replicaProvision: replicaProvision ?? 'auto',
@@ -370,6 +381,18 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       strict: false,
     });
     return partitions ? (await partitions.shardSignal()).status : undefined;
+  }
+
+  /**
+   * 13.11: the stream exists and the app writes to it (`events.sink` =
+   * stream, or auto turned to stream). Keeps «Авто» from removing it.
+   */
+  async eventsStreamInUse(): Promise<boolean> {
+    if (!this.config.get<string>('EVENTS_STREAM_NAME')) return false;
+    const sink = (await this.settings.string('events.sink')) ?? 'db';
+    if (sink === 'stream') return true;
+    if (sink !== 'auto' || !this.redis) return false;
+    return (await this.redis.get(AUTO_SINK_KEY)) === 'stream';
   }
 
   /**
