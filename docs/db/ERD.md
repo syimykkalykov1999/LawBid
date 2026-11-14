@@ -378,6 +378,8 @@ erDiagram
     Int assistant_seat_limit "nullable"
     Int trust_level
     Boolean trust_badge
+    Int reply_minutes_median "nullable"
+    DateTime reply_stats_at "nullable"
   }
   attorney_licenses {
     String id PK

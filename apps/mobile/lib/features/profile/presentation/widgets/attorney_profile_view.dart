@@ -30,6 +30,7 @@ import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_quiet_button.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_trust_widgets.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
     show followerCountsProvider;
@@ -150,6 +151,23 @@ Future<void> showAttorneyMoreSheet(
 
 class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
   late AttorneyProfileTab _picked = widget.initialTab;
+
+  /// Row 112 (Airbnb «Reserve», Thumbtack «Request estimate» bars): the
+  /// header's Message button; once it scrolls out of sight a bar with
+  /// «Message» and «Book» stays at the bottom.
+  final _actionsKey = GlobalKey();
+  bool _stickyCta = false;
+
+  bool _onScroll(ScrollNotification n) {
+    if (n.metrics.axis != Axis.vertical) return false;
+    final box = _actionsKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached) return false;
+    final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
+    final top = MediaQuery.paddingOf(context).top + kToolbarHeight;
+    final show = bottom < top;
+    if (show != _stickyCta) setState(() => _stickyCta = show);
+    return false;
+  }
 
   /// Owner 2026-10-18: the briefs live in the Reposts tab (no Threads tab).
   /// Owner 2026-10-24 (R-104): at most 4 tabs in one row — Posts, Reels,
@@ -358,6 +376,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           _ChipRows(profile: p),
           // Owner 2026-10-21: the gifts moved to an icon in the top bar.
           const SizedBox(height: AppSpacing.sm),
+          // Row 112 (LinkedIn «Profile strength», Upwork % complete): the
+          // attorney's own profile shows what is still missing.
+          if (p.isSelf) ProfileCompletenessCard(profile: p),
           // Instagram order: buttons right above the tabs — Follow |
           // Message | share icon (owner request).
           if (!p.isSelf && (p.isBlocked || p.hasBlockedMe)) ...[
@@ -367,6 +388,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
             const SizedBox(height: AppSpacing.sm),
           ],
           _Actions(
+            key: _actionsKey,
             isSelf: p.isSelf,
             attorneyId: p.id,
             isFollowing: p.isFollowing,
@@ -620,6 +642,53 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           child: child,
         );
 
+    final canMessage = !p.isSelf &&
+        !(p.isBlocked || p.hasBlockedMe) &&
+        (!ref.watch(actsAsAttorneyProvider) ||
+            ref.watch(canDoProvider(AssistantDuty.chats)));
+    final canBook = !p.isSelf &&
+        !(p.isBlocked || p.hasBlockedMe) &&
+        p.consultationEnabled &&
+        ref.watch(consultationsFlagProvider) &&
+        ref.watch(currentUserRoleProvider) == UserRole.client;
+    final pages = _pages(t, tabs, header, reviewsPage, minPage, page);
+    if (!canMessage && !canBook) return pages;
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: Stack(
+        children: [
+          pages,
+          PositionedDirectional(
+            start: 0,
+            end: 0,
+            bottom: 0,
+            child: ProfileStickyCta(
+              visible: _stickyCta,
+              messageLabel: canMessage ? t.t('profile.action.message') : null,
+              onMessage: () => openDirectChat(context, ref, p.id),
+              bookLabel: canBook ? t.t('consult.book') : null,
+              onBook: () => showConsultationBooking(
+                context,
+                attorneyId: p.id,
+                attorneyName: p.fullName.trim().isEmpty
+                    ? atHandle(p.username)
+                    : p.fullName,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pages(
+    Translator t,
+    List<AttorneyProfileTab> tabs,
+    Widget header,
+    Widget reviewsPage,
+    double minPage,
+    Widget Function(Widget child) page,
+  ) {
     return ProfileTabPages(
       initialPage: tabs.indexOf(_tab).clamp(0, tabs.length - 1),
       onPage: (i) => setState(() => _picked = tabs[i]),
@@ -961,6 +1030,8 @@ class _AboutSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Row 112 (Airbnb): «Обычно отвечает в течение часа».
+        ProfileReplyTimeLine(minutes: profile.replyMinutesMedian),
         // Owner 2026-09-30: the "★ — · New" line is gone; ratings live on
         // the Reviews tab.
         // Owner 2026-10-22 (audit #4 §5): «Attorney Advertising» where the
@@ -1289,6 +1360,7 @@ class _Actions extends ConsumerWidget {
     required this.onShare,
     this.blocked = false,
     this.canMessage = true,
+    super.key,
   });
 
   /// OQ-043: direct chats are attorney ↔ client.

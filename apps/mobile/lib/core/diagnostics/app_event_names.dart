@@ -28,6 +28,9 @@ abstract final class AppEventNames {
   /// Owner 2026-10-22 (checklist §27): the in-app review prompt was shown.
   static const reviewPrompted = 'review_prompted';
 
+  /// Owner row 112: «Not interested» on someone else's post.
+  static const postNotInterested = 'post_not_interested';
+
   /// Every name the app can send (the document must list each one).
   static const all = <String>{
     appOpen,
@@ -45,5 +48,6 @@ abstract final class AppEventNames {
     accountDeletionRequested,
     appUpdatePrompted,
     reviewPrompted,
+    postNotInterested,
   };
 }
