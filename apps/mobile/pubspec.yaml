@@ -23,7 +23,13 @@ dependencies:
   # Navigation — StatefulShellRoute.indexedStack (file 01 §5.1 names "go_router с ShellRoute";
   # this is the modern variant that preserves each tab's own Navigator stack, chosen per
   # stage 1.5 architecture review — see docs/CHANGELOG.md stage 1.5 entry)
-  go_router: ^14.6.2
+  # D1-24 (13.11): 14 -> 17.5 (migration guides 15-17: case-sensitive URLs,
+  # GoRouteData unused here, shell observers kept off in app_router.dart).
+  # 18.x moved its pages onto package:material_ui: with this app's
+  # flutter/material MaterialApp it falls back to NoTransitionPage and a plain
+  # HeroController (no swipe-back on `builder:` routes, other hero flights),
+  # so 18 waits for the app-wide material_ui move.
+  go_router: ^17.5.0
 
   # Models (stage 1.5 doesn't define any yet; locked in now so stage 1.7+ doesn't fight
   # version skew across the monorepo)

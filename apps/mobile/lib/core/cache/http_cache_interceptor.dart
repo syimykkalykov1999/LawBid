@@ -80,6 +80,9 @@ abstract interface class HttpCacheStore {
   Future<HttpCacheEntry?> read(String key);
   Future<void> write(String key, HttpCacheEntry entry, String json);
   Future<void> touch(String key, DateTime now, {required bool confirmed});
+
+  /// D1-47: forgets one answer (the server said it is gone or forbidden).
+  Future<void> remove(String key);
   Future<void> clear();
 }
 
@@ -390,6 +393,15 @@ class HttpCacheInterceptor extends Interceptor {
       return;
     }
     if (res != null) _usage?.request(bytes: _roughSize(res.data));
+    // D1-47 (RFC 9111 §4.4): 403 / 404 / 410 say the copy is no longer
+    // ours to show (access withdrawn, item deleted): it leaves memory and
+    // disk, so no later read — the `cacheFor` window or a phone-only first
+    // screen — brings it back.
+    final code = res?.statusCode;
+    final key = err.requestOptions.extra[_keyExtra] as String?;
+    if (key != null && (code == 403 || code == 404 || code == 410)) {
+      _evict(key);
+    }
     _finish(err.requestOptions, null);
     handler.next(err);
   }
@@ -457,6 +469,16 @@ class HttpCacheInterceptor extends Interceptor {
     disk
         .write(key, entry, json)
         .catchError((Object e) => debugPrint('http cache write: $e'));
+  }
+
+  void _evict(String key) {
+    final old = _entries.remove(key);
+    if (old != null) _bytes -= old.bytes;
+    final disk = _disk;
+    if (disk == null) return;
+    disk
+        .remove(key)
+        .catchError((Object e) => debugPrint('http cache remove: $e'));
   }
 
   void _touchDisk(String key, {required bool confirmed}) {

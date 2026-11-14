@@ -9,7 +9,7 @@ const file07Ru = <String, String>{
   'phoneContacts.inviteTo': '{name}, присоединяйтесь ко мне в LawBid: {link}',
   'phoneContacts.consentTitle': 'Найти людей из контактов?',
   'phoneContacts.consentBody':
-      'LawBid сверяет номера из вашей телефонной книги с пользователями, чтобы показать, кто уже здесь. Отправляются только зашифрованные хэши номеров, но не сами номера и не имена. Это можно отключить в любой момент.',
+      'LawBid сверяет номера из вашей телефонной книги со своими пользователями, чтобы показать, кто уже здесь. Номера отправляются в виде хешей, без имён, а сервер хранит их только как хеши с секретным ключом. Это можно отключить в любой момент.',
   'phoneContacts.consentYes': 'Найти людей',
   'phoneContacts.openSettings': 'Открыть настройки',
   'phoneContacts.limited':
@@ -18,7 +18,7 @@ const file07Ru = <String, String>{
   'phoneContacts.findByPhoneHint':
       'Люди, у которых сохранён ваш номер, увидят вас в LawBid. Профили адвокатов открыты.',
   'phoneContacts.syncNote':
-      'Контакты сверяются по хэшам номеров. Сами номера не хранятся.',
+      'Контакты сопоставляются по хешам номеров. Сервер хранит вашу телефонную книгу только как хеши с секретным ключом.',
   'phoneContacts.add': 'Добавить ({count})',
   'phoneContacts.title': 'Контакты',
   'calls.title': 'Звонки',
@@ -651,7 +651,7 @@ const file07En = <String, String>{
   'phoneContacts.inviteTo': '{name}, join me on LawBid: {link}',
   'phoneContacts.consentTitle': 'Find people from your contacts?',
   'phoneContacts.consentBody':
-      'LawBid compares the numbers in your phone book with its users to show who is already here. Only scrambled hashes of the numbers are sent, never the numbers or names. You can turn it off at any time.',
+      'LawBid compares the numbers in your phone book with its users to show who is already here. The numbers are sent as hashes, without names, and the server keeps them only as keyed hashes. You can turn it off at any time.',
   'phoneContacts.consentYes': 'Find people',
   'phoneContacts.openSettings': 'Open settings',
   'phoneContacts.limited':
@@ -660,7 +660,7 @@ const file07En = <String, String>{
   'phoneContacts.findByPhoneHint':
       'People who have your number saved can see you on LawBid. Attorney profiles are public.',
   'phoneContacts.syncNote':
-      'Contacts are matched by number hashes. The numbers themselves are not stored.',
+      'Contacts are matched by hashed numbers. Your phone book is kept on the server only as keyed hashes.',
   'phoneContacts.add': 'Add ({count})',
   'phoneContacts.title': 'Contacts',
   'calls.title': 'Calls',

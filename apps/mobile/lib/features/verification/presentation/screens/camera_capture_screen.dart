@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/camera_shots.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/platform/secure_screen.dart';
@@ -117,8 +118,8 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
     if (c == null || _busy || !c.value.isInitialized) return;
     setState(() => _busy = true);
     try {
-      final file = await c.takePicture();
-      final bytes = await file.readAsBytes();
+      // D1-44: the ID photo does not stay behind as a camera temp file.
+      final bytes = await readAndDeleteCameraShot(await c.takePicture());
       if (mounted) setState(() => _shot = bytes);
     } on CameraException {
       if (mounted) setState(() => _error = _CameraError.unavailable);

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_maintenance.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
+import 'package:lawbid/core/cache/camera_shots.dart';
 import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/cache/voice_web_cache.dart';
 import 'package:lawbid/core/cache/web_storage.dart';
@@ -180,6 +181,9 @@ final cacheReportProvider =
 final cacheEnforcerProvider = Provider<void>((ref) {
   final maintenance = ref.watch(cacheMaintenanceProvider);
   unawaited(maintenance.enforce());
+  // D1-44: camera temp shots an app kill left behind (ID photos, selfies);
+  // a day old, so a shot another screen still holds is not touched.
+  unawaited(sweepCameraShots(olderThan: const Duration(days: 1)));
   final timer = Timer.periodic(
     const Duration(hours: 24),
     (_) => unawaited(maintenance.enforce()),
