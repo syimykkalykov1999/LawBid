@@ -45,8 +45,19 @@ const apiTask = 0.5 * PRICE.fargate_vcpu_hour + 1 * PRICE.fargate_gb_hour;
 const workerTask = 0.5 * PRICE.fargate_vcpu_hour + 4 * PRICE.fargate_gb_hour;
 add('API tasks (Fargate, on-demand price)', h * p.avg_api_tasks * apiTask, `${h} h x avg ${p.avg_api_tasks} tasks x $${apiTask.toFixed(4)} (0.5 vCPU, 1 GB; Spot would be ~70 % less)`);
 add('Worker + admin tasks', h * (p.avg_worker_tasks * workerTask + apiTask), `${h} h x (${p.avg_worker_tasks} x $${workerTask.toFixed(4)} + 1 x $${apiTask.toFixed(4)})`);
-add(`Database ${p.db}`, h * PRICE.rds[p.db] + (50 * PRICE.rds_storage_gb_month * h) / HOURS_MONTH, `${h} h x $${PRICE.rds[p.db]} + 50 GB gp3 for ${h} h`);
-add(`Redis ${p.redis} x ${p.redis_nodes}`, h * PRICE.redis[p.redis] * p.redis_nodes, `${h} h x $${PRICE.redis[p.redis]} x ${p.redis_nodes} nodes`);
+// combat profile (row 59): the db / redis autoscale Lambdas may grow the size
+// during the run (db_grow_to / redis_grow_to) - priced at the GROWN size for
+// the whole stack life, so the estimate never undercounts; Multi-AZ = 2 copies.
+const dbClass = p.db_grow_to || p.db;
+const dbCopies = p.db_multi_az ? 2 : 1;
+add(`Database ${p.db}${p.db_grow_to ? ` (may grow to ${p.db_grow_to})` : ''}${p.db_multi_az ? ' Multi-AZ' : ''}`, h * PRICE.rds[dbClass] * dbCopies + (50 * dbCopies * PRICE.rds_storage_gb_month * h) / HOURS_MONTH, `${h} h x $${PRICE.rds[dbClass]} x ${dbCopies} + 50 GB gp3 x ${dbCopies} for ${h} h`);
+const redisType = p.redis_grow_to || p.redis;
+add(`Redis ${p.redis}${p.redis_grow_to ? ` (may grow to ${p.redis_grow_to})` : ''} x ${p.redis_nodes}`, h * PRICE.redis[redisType] * p.redis_nodes, `${h} h x $${PRICE.redis[redisType]} x ${p.redis_nodes} nodes`);
+if (p.avg_pgbouncer_tasks) {
+  const pgbTask = 0.5 * PRICE.fargate_vcpu_hour + 1 * PRICE.fargate_gb_hour;
+  add('PgBouncer tasks', h * p.avg_pgbouncer_tasks * pgbTask, `${h} h x avg ${p.avg_pgbouncer_tasks} tasks x $${pgbTask.toFixed(4)}`);
+}
+if (p.lambdas) add('Autoscale Lambdas + schedules', p.lambdas * 0.01, `${p.lambdas} small functions, a few hundred calls: about $0.01 each`);
 add(`TURN servers (t4g.nano x ${p.turn_nodes})`, h * PRICE.ec2['t4g.nano'] * p.turn_nodes, `${h} h x $${PRICE.ec2['t4g.nano']} x ${p.turn_nodes}`);
 if (p.livekit) add('LiveKit server (c7g.medium)', h * PRICE.ec2['c7g.medium'], `${h} h x $${PRICE.ec2['c7g.medium']}`);
 add(`Generators (c7g.xlarge Spot x ${p.generators})`, hGen * PRICE.ec2['c7g.xlarge'] * PRICE.spot_factor * p.generators, `${hGen.toFixed(2)} h x $${PRICE.ec2['c7g.xlarge']} x ${PRICE.spot_factor} (Spot) x ${p.generators}`);

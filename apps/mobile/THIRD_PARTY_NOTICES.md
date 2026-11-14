@@ -160,6 +160,27 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+## Flutter SDK motion code (framework 3.47.5) — BSD-3-Clause
+
+Owner row 88 (2026-11-13), copied or adapted from the Flutter framework,
+https://github.com/flutter/flutter (`packages/flutter/lib/src`):
+`CupertinoPageTransitionsBuilder` duration and delegated transition
+(`cupertino/route.dart`) in `lib/core/navigation/back_swipe.dart`;
+`FadeForwardsPageTransitionsBuilder` fades without its slide
+(`material/page_transitions_theme.dart`) in the same file; `BottomSheet`
+drag and `CupertinoSheetRoute` release logic (`material/bottom_sheet.dart`,
+`cupertino/sheet.dart`) and the top edge of `ClampingScrollPhysics`
+(`widgets/scroll_physics.dart`) in
+`lib/core/design_system/widgets/bars/app_sheet_handle.dart`; the shimmer of
+the Flutter cookbook "Create a shimmer loading effect" (docs.flutter.dev) in
+`lib/core/design_system/widgets/feedback/app_skeleton.dart`;
+`SpringSimulation` springs in `reply_swipe.dart` and `photo_gallery.dart`.
+
+Copyright 2014 The Flutter Authors. All rights reserved.
+Licensed under the BSD 3-Clause license; full text as in the battery_plus
+entry above (the same licence, with "The Flutter Authors" as copyright
+holder): https://github.com/flutter/flutter/blob/master/LICENSE
+
 ## open_filex — BSD-3-Clause
 
 Dependency from pub.dev (not copied): opens a downloaded document in the system

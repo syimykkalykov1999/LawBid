@@ -1,12 +1,15 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart' show SpringSimulation;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
+import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/widgets/bars/system_nav_band.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_snackbar.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/photo_saver.dart';
@@ -37,8 +40,18 @@ Future<void> showPhotoGallery(
           initial: initial,
           closeLabel: closeLabel,
         ),
-        transitionsBuilder: (_, a, __, child) =>
-            FadeTransition(opacity: a, child: child),
+        // Owner row 88 (2026-11-13): the app's page timing and curves
+        // instead of Flutter's default 300 ms straight-line fade.
+        transitionDuration: AppMotion.pageEnter,
+        reverseTransitionDuration: AppMotion.pageExit,
+        transitionsBuilder: (_, a, __, child) => FadeTransition(
+          opacity: CurvedAnimation(
+            parent: a,
+            curve: AppMotion.enterCurve,
+            reverseCurve: AppMotion.exitCurve,
+          ),
+          child: child,
+        ),
       ),
     );
 
@@ -63,8 +76,17 @@ class _Gallery extends StatefulWidget {
   State<_Gallery> createState() => _GalleryState();
 }
 
-class _GalleryState extends State<_Gallery> {
+class _GalleryState extends State<_Gallery>
+    with SingleTickerProviderStateMixin {
   late final _controller = PageController(initialPage: widget.initial);
+
+  /// Owner row 88: let go above the line, the photo springs back (Flutter
+  /// SpringSimulation, BSD-3; AppMotion.snapBackSpring) instead of jumping.
+  late final AnimationController _snap = AnimationController.unbounded(
+    vsync: this,
+  )..addListener(
+      () => setState(() => _drag = _snap.value.clamp(0.0, 2000.0)),
+    );
   late int _page = widget.initial;
 
   /// The shown photo is zoomed in: no page swipes, no swipe-down close.
@@ -76,15 +98,26 @@ class _GalleryState extends State<_Gallery> {
 
   @override
   void dispose() {
+    _snap.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   void _dragEnd(DragEndDetails d) {
-    if (_drag > 120 || (d.primaryVelocity ?? 0) > 700) {
+    final velocity = d.primaryVelocity ?? 0;
+    if (_drag > 120 || velocity > 700) {
       Navigator.of(context).pop();
-    } else {
+    } else if (context.reduceMotion || _drag == 0) {
       setState(() => _drag = 0);
+    } else {
+      _snap.value = _drag;
+      _snap
+          .animateWith(
+        SpringSimulation(AppMotion.snapBackSpring, _drag, 0, velocity),
+      )
+          .whenCompleteOrCancel(() {
+        if (mounted && !_snap.isAnimating) setState(() => _drag = 0);
+      });
     }
   }
 
@@ -98,6 +131,7 @@ class _GalleryState extends State<_Gallery> {
         body: Stack(
           children: [
             GestureDetector(
+              onVerticalDragStart: _zoomed ? null : (_) => _snap.stop(),
               onVerticalDragUpdate: _zoomed
                   ? null
                   : (d) => setState(
