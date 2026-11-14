@@ -539,6 +539,22 @@ export const PAID_BAR_VENDOR_SETTINGS = {
   'verification.bar_vendor_surepass_enabled': false,
 } as const;
 
+// Owner row 50 (13.11): health watch of each state's bar registry
+// (services/registry-health.*): a site that changed or blocks us must not
+// turn silently into «not found». ON by default (watching costs nothing).
+export const REGISTRY_HEALTH_SETTINGS = {
+  'verification.registry_health.enabled': true,
+  /** Hours of the window compared with the state's previous 7 days. */
+  'verification.registry_health.window_hours': 24,
+  /** Days before the window that make the state's normal (its baseline). */
+  'verification.registry_health.baseline_days': 7,
+  /** Fewer checks than this in the window decide nothing. */
+  'verification.registry_health.min_checks': 5,
+  /** Percentage points the error / not-found rate must rise above the
+   * state's own baseline rate to mark the registry degraded. */
+  'verification.registry_health.jump_points': 50,
+} as const;
+
 // Owner 2026-10-05: the planner's archive — finished tasks are kept this
 // many days (files with them), then removed automatically unless kept
 // forever; notices go out 30 and 7 days before. Off = never removed.
@@ -2128,6 +2144,7 @@ export const APP_SETTINGS = {
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
   ...PAID_BAR_VENDOR_SETTINGS,
+  ...REGISTRY_HEALTH_SETTINGS,
   ...OWNER_TASKS_SETTINGS,
   ...OWNER_WEB_SETTINGS,
   ...OWNER_SMS_SETTINGS,
