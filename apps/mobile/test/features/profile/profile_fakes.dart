@@ -284,6 +284,9 @@ class FakeReviewsRepo implements ReviewsRepository {
   /// Pages served in order; the cursor is the page index.
   List<List<Review>> pages;
   ReviewSummary summaryValue;
+
+  /// When set, [summary] throws it (Detective R2-A #23).
+  Object? summaryError;
   final listCursors = <String?>[];
   final created = <(String, int, String?)>[];
   final updated = <(String, int, String?)>[];
@@ -329,7 +332,11 @@ class FakeReviewsRepo implements ReviewsRepository {
   }
 
   @override
-  Future<ReviewSummary> summary(String attorneyId) async => summaryValue;
+  Future<ReviewSummary> summary(String attorneyId) async {
+    // ignore: only_throw_errors
+    if (summaryError != null) throw summaryError!;
+    return summaryValue;
+  }
 
   @override
   Future<Review> create(

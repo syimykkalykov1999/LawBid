@@ -256,6 +256,17 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     }.contains(_usernameStatus)) {
       return;
     }
+    // Detective R2-A #7 (iOS Contacts / LinkedIn): a firm typed but not
+    // «added» is committed on Save, not silently dropped; a duplicate of
+    // one already listed is just cleared.
+    if (_firm.text.trim().isNotEmpty) {
+      final pending = _firm.text.trim().toLowerCase();
+      if (_firms.any((f) => f.toLowerCase() == pending)) {
+        _firm.clear();
+      } else {
+        _addFirm();
+      }
+    }
     final languagesChanged = _languages.length != p.languages.length ||
         !_languages.containsAll(p.languages);
     final patch = AttorneyProfilePatch(
@@ -296,13 +307,22 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
       }
       return;
     }
+    // Detective R2-A #25 (as Audit C17 on the client editor): the cached
+    // profile is refreshed from the container even when the screen was
+    // left while the save was still running.
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await ref.read(attorneyProfileRepositoryProvider).updateOwn(patch);
-      if (!mounted) return;
-      ref
+      container
         ..invalidate(ownAttorneyProfileProvider)
         ..invalidate(publicAttorneyProfileProvider(p.username));
-      await ref.read(currentUserControllerProvider.notifier).load();
+      final reload =
+          container.read(currentUserControllerProvider.notifier).load();
+      if (!mounted) {
+        unawaited(reload);
+        return;
+      }
+      await reload;
       if (!mounted) return;
       showAppSnackBar(context, t.t('profile.edit.saved'));
       Navigator.of(context).maybePop();
@@ -320,6 +340,11 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final now = ref.watch(clockProvider)();
+    // Detective R2-A #8: the public @username is the attorney's identity —
+    // an assistant cannot change it (the API refuses it in an edit request,
+    // `assistant-request-payload.ts`), so the field is read-only for them
+    // instead of being silently dropped from the request.
+    final assistant = ref.watch(isAssistantProvider);
     final usernameLocked = p.usernameLocked(now);
 
     String? required(TextEditingController c) =>
@@ -330,12 +355,14 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     final (String? usernameHelper, String? usernameError) =
         switch (_usernameStatus) {
       UsernameStatus.unchanged => (
-          usernameLocked
-              ? t.t(
-                  'profile.username.cooldown',
-                  {'date': formats.date(p.usernameNextChangeAt!)},
-                )
-              : t.t('profile.username.hint'),
+          assistant
+              ? null
+              : usernameLocked
+                  ? t.t(
+                      'profile.username.cooldown',
+                      {'date': formats.date(p.usernameNextChangeAt!)},
+                    )
+                  : t.t('profile.username.hint'),
           null,
         ),
       UsernameStatus.checking => (t.t('profile.username.checking'), null),
@@ -387,7 +414,7 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
             key: const ValueKey('username-field'),
             controller: _username,
             label: t.t('profile.username.label'),
-            enabled: !usernameLocked,
+            enabled: !usernameLocked && !assistant,
             leading: Text(
               '@',
               style: typography.body.copyWith(color: colors.textSecondary),

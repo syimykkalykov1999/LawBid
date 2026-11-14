@@ -458,7 +458,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         title: t.t(offline ? 'offline.title' : 'error.default.title'),
         message: t.t(offline ? 'offline.message' : 'reviews.error'),
         actionLabel: t.t('error.retry'),
-        onAction: () => ref.invalidate(reviewsListProvider(_reviewsKey)),
+        onAction: () => ref
+          ..invalidate(reviewsListProvider(_reviewsKey))
+          ..invalidate(reviewSummaryProvider(p.id)),
       );
     } else if (state != null && state.items.isEmpty) {
       reviewsState = _stars != null
@@ -532,7 +534,23 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
               borderRadius: AppRadii.card,
             ),
           ),
-          error: (_, __) => const SizedBox.shrink(),
+          // Detective R2-A #23: a failed summary says so, with a Retry —
+          // unless the whole tab already shows its own error with Retry.
+          error: (_, __) => reviews.hasError && state == null
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    0,
+                    AppSpacing.screenSide,
+                    AppSpacing.md,
+                  ),
+                  child: _InlineRetry(
+                    message: t.t('reviews.error'),
+                    retryLabel: t.t('error.retry'),
+                    onRetry: () => ref.invalidate(reviewSummaryProvider(p.id)),
+                  ),
+                ),
           // No reviews: the tab's "New — no reviews" state says it all.
           data: (s) => s.isNew
               ? const SizedBox.shrink()
@@ -756,10 +774,12 @@ class _HeaderCard extends ConsumerWidget {
             size: _avatar,
             url: profile.avatarUrl,
             // Owner 2026-11-08: my photo just picked, at once (see
-            // AvatarUploadController).
+            // AvatarUploadController); a failed upload goes back to the
+            // old photo (Detective R2-A #6).
             preview: profile.isSelf
                 ? ref.watch(
-                    avatarUploadControllerProvider.select((s) => s.preview),
+                    avatarUploadControllerProvider
+                        .select((s) => s.shownPreview),
                   )
                 : null,
             initials: initialsOf(
@@ -1488,6 +1508,52 @@ class _Tabs extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// One line «couldn't load» with a Retry, for a part of a page that
+/// failed while the rest loaded (Detective R2-A #23).
+class _InlineRetry extends StatelessWidget {
+  const _InlineRetry({
+    required this.message,
+    required this.retryLabel,
+    required this.onRetry,
+  });
+
+  final String message;
+  final String retryLabel;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Row(
+      children: [
+        Icon(
+          AppIcons.errorOutlineRounded,
+          size: AppSizes.iconSm,
+          color: colors.dangerText,
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Semantics(
+            liveRegion: true,
+            child: Text(
+              message,
+              style: typography.bodySmall.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+        TextButton(
+          key: const ValueKey('reviews-summary-retry'),
+          onPressed: onRetry,
+          child: Text(retryLabel),
+        ),
+      ],
     );
   }
 }
