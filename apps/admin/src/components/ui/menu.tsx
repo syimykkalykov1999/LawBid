@@ -4,6 +4,8 @@ import { DotsThreeVertical } from '@phosphor-icons/react';
 import { AnimatePresence } from 'motion/react';
 import * as m from 'motion/react-m';
 import { useEffect, useRef, useState } from 'react';
+import { useEscapeLayer } from '@/lib/layers';
+import * as MOTION from '@/lib/motion-tokens';
 import { cn } from '@/lib/utils';
 
 export interface MenuItem {
@@ -29,16 +31,12 @@ export function RowMenu({ items, label = 'Действия', text, className }: 
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
     window.addEventListener('mousedown', onDown);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('mousedown', onDown);
-      window.removeEventListener('keydown', onKey);
-    };
+    return () => window.removeEventListener('mousedown', onDown);
   }, [open]);
+  // Owner row 88 (2026-11-13): Esc closes only the top layer, so a menu
+  // inside a dialog closes alone (lib/layers.ts, Radix DismissableLayer rule).
+  useEscapeLayer(open, () => setOpen(false));
 
   if (items.length === 0) return null;
   return (
@@ -66,7 +64,7 @@ export function RowMenu({ items, label = 'Действия', text, className }: 
             initial={{ opacity: 0, y: -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ duration: 0.12 }}
+            transition={MOTION.menu}
             className="absolute top-9 right-0 z-30 max-w-[calc(100vw-2rem)] min-w-44 overflow-hidden rounded-[var(--radius-md)] border border-line bg-surface p-1 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.45)]"
           >
             {items.map((it) => (

@@ -1,4 +1,5 @@
 import { BarAttemptsService } from './services/bar-attempts.service';
+import { RegistryHealthService } from './services/registry-health.service';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
@@ -43,6 +44,7 @@ import { StateRegistryService } from './services/state-registry.service';
 import { VerificationRequestsService } from './services/verification-requests.service';
 import { SelfieCaptureTokensService } from './services/selfie-capture-tokens.service';
 import { VerificationHandoffService } from './services/verification-handoff.service';
+import { VerificationMediaPurgeService } from './services/verification-media-purge.service';
 import {
   RegistryCheckQueue,
   RegistryCheckWorker,
@@ -74,6 +76,7 @@ import {
   ],
   providers: [
     BarAttemptsService,
+    RegistryHealthService,
     ManualBarLookupProvider,
     ManualIdVerificationProvider,
     // Owner 2026-10-05: the ways a state registry can be asked. Which one a
@@ -129,6 +132,8 @@ import {
     RegistryCheckQueue,
     RegistryCheckWorker,
     VerificationAdminService,
+    // Owner 2026-11-13 (row 52): selfies and ID pictures go after the decision.
+    VerificationMediaPurgeService,
   ],
   exports: [
     // docs/06 §3.4: user suspension applies the §2.5 attorney effects.
@@ -143,6 +148,11 @@ import {
     // Owner 2026-11-12 (row 50): «ИИ-сотрудник» asks the registries the
     // same way a submission does.
     AutoBarLookupProvider,
+    // Owner row 50 (13.11): registryDegraded(state) for the automatic
+    // decision (row 60) and anything else that must know.
+    RegistryHealthService,
+    // Row 52: the hourly `verification.media-purge` sweep (JobsModule).
+    VerificationMediaPurgeService,
   ],
 })
 export class VerificationModule {}

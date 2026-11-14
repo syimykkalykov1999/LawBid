@@ -47,6 +47,7 @@ import {
   PAID_BAR_VENDORS,
   PaidBarVendorService,
 } from '../providers/bar-lookup/paid-bar-vendors';
+import { RegistryHealthService } from './registry-health.service';
 
 /** Runtime settings are re-read at most this often per process. */
 const CACHE_MS = 30_000;
@@ -107,6 +108,7 @@ export class StateRegistryService {
     private readonly adapters: readonly StateBarAdapter[],
     private readonly guard: RegistryGuard = new RegistryGuard(),
     @Optional() private readonly vendors?: PaidBarVendorService,
+    @Optional() private readonly health?: RegistryHealthService,
   ) {
     const keys = readKey('SECRETS_MASTER_KEYS', () =>
       config.get<string>('SECRETS_MASTER_KEYS'),
@@ -198,11 +200,27 @@ export class StateRegistryService {
    * third-party APIs go through the per-state guard (owner 2026-10-28:
    * 24 h cache, rate limit, circuit breaker); [fresh] (the admin's
    * «Проверить») skips the cache and an open breaker.
+   *
+   * Owner row 50: every real (not fresh) lookup is counted per state by
+   * RegistryHealthService; while the state's registry is marked degraded a
+   * «fail» comes back as `manual_review` / `registry_degraded`, so neither
+   * a sign-up nor the monthly re-check acts on a broken site's «not found».
+   * The admin's «Проверить» always gets the raw answer.
    */
   lookup(
     input: BarLookupInput,
     registry: ResolvedRegistry,
     opts: { fresh?: boolean } = {},
+  ): Promise<CheckOutcome> {
+    const raw = this.lookupRaw(input, registry, opts);
+    if (!this.health || opts.fresh) return raw;
+    return this.health.observe(registry.stateCode, raw);
+  }
+
+  private lookupRaw(
+    input: BarLookupInput,
+    registry: ResolvedRegistry,
+    opts: { fresh?: boolean },
   ): Promise<CheckOutcome> {
     const adapter = this.adapters.find((a) => a.type === registry.adapter);
     if (!adapter) {

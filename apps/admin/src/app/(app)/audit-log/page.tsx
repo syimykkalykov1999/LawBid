@@ -1,7 +1,7 @@
 "use client";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DateField } from "@/components/date-field";
 import { MotionRow } from "@/components/legacy/fade-in";
 import { MoreButton } from "@/components/legacy/more-button";
@@ -16,6 +16,7 @@ import { useMe } from "@/lib/hooks";
 import { AUDIT_TARGET, auditActionLabel } from "@/lib/labels";
 import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
+import { replaceSearch, useSearch } from "@/lib/url-state";
 
 interface Filters {
   adminId: string;
@@ -38,12 +39,28 @@ const EMPTY: Filters = {
   to: "",
 };
 
+const FILTER_KEYS = Object.keys(EMPTY) as (keyof Filters)[];
+
+/** The applied filters from the query string (missing = empty). */
+function filtersFrom(search: string): Filters {
+  const p = new URLSearchParams(search);
+  return Object.fromEntries(FILTER_KEYS.map((k) => [k, p.get(k) ?? ""])) as unknown as Filters;
+}
+
 /** docs/06 §2.3 item 12: filters by admin, action, object, dates; every
  * role but super_admin sees only its own rows (enforced server-side). */
 export default function AuditLogPage() {
   const { data: me } = useMe();
-  const [draft, setDraft] = useState<Filters>(EMPTY);
-  const [filters, setFilters] = useState<Filters>(EMPTY);
+  // Scout 13.11 (row 96): the applied filters live in the address
+  // (`/audit-log?targetId=<id>` is a link to one object's history); the
+  // boxes are a draft until «Применить».
+  const search = useSearch();
+  const filters = useMemo(() => filtersFrom(search), [search]);
+  const [draft, setDraft] = useState<Filters>(filters);
+  const filtersKey = JSON.stringify(filters);
+  useEffect(() => setDraft(JSON.parse(filtersKey) as Filters), [filtersKey]);
+  const setFilters = (f: Filters) =>
+    replaceSearch(Object.fromEntries(FILTER_KEYS.map((k) => [k, f[k].trim() || null])));
 
   const q = useInfiniteQuery({
     queryKey: ["audit-log", filters],

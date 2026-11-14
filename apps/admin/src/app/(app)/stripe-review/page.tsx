@@ -19,6 +19,7 @@ import type { components } from '@/lib/api/schema';
 import { usd } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useUrlState } from '@/lib/url-state';
 
 type Item = components['schemas']['StripeReviewItemDto'];
 
@@ -48,7 +49,8 @@ const SORT_KEYS = ['kind', 'summary', 'amount', 'due', 'sla'] as const;
 export default function StripeReviewPage() {
   const qc = useQueryClient();
   const toast = useToast();
-  const [kind, setKind] = useState<string>('all');
+  // Scout 13.11 (row 96): the filter lives in the address (lib/url-state.ts).
+  const [kind, setKind] = useUrlState<string>('kind', 'all');
   const [closing, setClosing] = useState<{ item: Item; mode: 'resolve' | 'dismiss' } | null>(null);
   const [evidence, setEvidence] = useState<Item | null>(null);
 

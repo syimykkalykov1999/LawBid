@@ -7,6 +7,7 @@ import { AnimatePresence } from 'motion/react';
 import * as m from 'motion/react-m';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import * as MOTION from '@/lib/motion-tokens';
 import { clearPersistedQueries } from '@/lib/persist';
 import type { Me } from '@/lib/hooks';
 import { ROLE_LABEL, WORKSPACE_HEAD_LABEL, WORKSPACE_LABEL, groupFor, navModeFor, sectionFor } from '@/lib/rbac';
@@ -123,7 +124,7 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
               initial={{ opacity: 0, y: -6, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.98 }}
-              transition={{ duration: 0.16 }}
+              transition={MOTION.menu}
               className="absolute right-0 mt-2 w-[min(16rem,calc(100vw-1.5rem))] origin-top-right rounded-2xl border border-line bg-elevated p-2 shadow-pop"
             >
               <div className="px-3 py-2">

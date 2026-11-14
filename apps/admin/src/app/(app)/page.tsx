@@ -67,7 +67,7 @@ export default function DashboardPage() {
         { href: '/verification', label: 'Верификация', value: d.verification.queueSize, hint: d.verification.oldestAgeSeconds ? `старейшая ждёт ${formatDuration(d.verification.oldestAgeSeconds)}` : undefined, icon: SealCheck },
         { href: '/moderation', label: 'Жалобы', value: d.openReports, icon: Flag },
         { href: '/cases?tab=disputes', label: 'Споры по кейсам', value: d.openDisputes, icon: Gavel },
-        { href: '/cases?tab=contact', label: '«Не могу связаться»', value: d.openContactIssues, icon: Phone },
+        { href: '/cases?tab=contact-issues', label: '«Не могу связаться»', value: d.openContactIssues, icon: Phone },
         // Owner 2026-10-05: clients sent to the fraud queue + sign-ins refused / accounts blocked.
         { href: '/verification/trust?tab=clients', label: 'Мошенники: в очереди', value: d.fraudQueue, hint: `отказано/заблокировано за 7 дней: ${d.fraudBlocked7d}`, icon: ShieldWarning },
         { href: '/prices', label: 'Заявки на лимит помощников', value: d.seatLimitRequests, icon: UsersThree },

@@ -1303,7 +1303,7 @@ function TemplatesCard({
                 <Button size="sm" variant="ghost" onClick={() => onEdit(t)}>
                   Изменить
                 </Button>
-                <Button size="sm" variant="danger-soft" loading={remove.isPending} onClick={() => remove.mutate(t)}>
+                <Button size="sm" variant="danger-soft" aria-label={`Удалить шаблон «${t.name}»`} title="Удалить шаблон" loading={remove.isPending} onClick={() => remove.mutate(t)}>
                   <Trash size={14} />
                 </Button>
               </div>
