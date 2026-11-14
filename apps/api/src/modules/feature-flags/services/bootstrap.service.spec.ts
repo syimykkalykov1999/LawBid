@@ -360,6 +360,8 @@ describe('BootstrapService.build', () => {
       'verification.face_match.retention_days': 30,
       // Row 173: the website's cross-origin isolation, always sent (off).
       'web.cross_origin_isolation': false,
+      // R2-A #17: the SMS wait the app counts down, always sent.
+      'sms.resend_cooldown_seconds': 60,
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
       'client.video_prefetch_ahead': 3,
       'client.video_prefetch_cellular': 3,

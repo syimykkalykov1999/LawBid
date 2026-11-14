@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -63,6 +64,8 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
       return;
     }
     if (result.isSuccess) {
+      // Detective R2-A #14: save the new password with the phone number.
+      TextInput.finishAutofillContext();
       // Back to Settings first, then the reloaded user (no password
       // needed any more); opened from a link, the guard moves on.
       final users = ref.read(currentUserControllerProvider.notifier);
@@ -139,6 +142,16 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
     });
   }
 
+  /// What the new password is saved under in the password manager: the
+  /// phone number, else the e-mail (Detective R2-A #14).
+  String? get _accountName {
+    final user = ref.watch(currentUserControllerProvider).user;
+    final phone = user?.phone?.trim() ?? '';
+    if (phone.isNotEmpty) return phone;
+    final email = user?.email?.trim() ?? '';
+    return email.isEmpty ? null : email;
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -152,6 +165,8 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
         title: t.t('auth.setPassword.title'),
         subtitle: t.t('auth.setPassword.body'),
         fields: [
+          if (_accountName case final name?)
+            AutofillUsernameField(username: name),
           PasswordField(
             controller: _password,
             hintText: t.t('auth.setPassword.hint'),

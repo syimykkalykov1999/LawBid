@@ -173,6 +173,9 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // Owner row 173 (2026-11-14): the website's cross-origin isolation switch
   // (apps/mobile core/platform/web_isolation.dart keeps it for boot_head.js).
   'web.cross_origin_isolation',
+  // Detective R2-A #17 (14.11): the app counts «Resend in 0:59» down from
+  // the same SMS wait the server enforces (code screen, «Forgot password»).
+  'sms.resend_cooldown_seconds',
 ] as const;
 
 @Injectable()
@@ -571,6 +574,9 @@ export class BootstrapService {
         // on hears "off" after a fresh database too.
         'web.cross_origin_isolation':
           APP_SETTINGS['web.cross_origin_isolation'],
+        // R2-A #17: always present, so «Resend in …» matches the server.
+        'sms.resend_cooldown_seconds':
+          APP_SETTINGS['sms.resend_cooldown_seconds'],
         ...Object.fromEntries(
           Object.entries(appConfig).filter(([k]) =>
             PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
