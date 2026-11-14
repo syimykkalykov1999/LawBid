@@ -11,7 +11,10 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
-import { LicenseStatus, VerificationStatus } from '@prisma/client';
+import {
+  LicenseStatus,
+  VerificationStatus,
+} from '../../../generated/prisma/client';
 import { ISO_639_1_CODES } from '../../users/iso-639-1';
 import { MAX_LANGUAGES } from '../../users/dto/onboarding-profile.dto';
 import { USERNAME_PATTERN } from '../../users/services/username.util';

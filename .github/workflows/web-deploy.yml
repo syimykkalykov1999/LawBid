@@ -184,6 +184,10 @@ jobs:
         working-directory: apps/mobile
         run: flutter pub get
 
+      # D1-22/23 (13.11): the web worker files match pubspec.lock.
+      - name: Web worker files match pubspec.lock
+        run: scripts/ci/check-web-assets-lock.sh
+
       - name: Generate code (freezed/riverpod/json_serializable/drift)
         working-directory: apps/mobile
         run: dart run build_runner build --delete-conflicting-outputs

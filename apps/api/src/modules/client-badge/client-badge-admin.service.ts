@@ -10,7 +10,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { ClientVerification, User } from '@prisma/client';
+import type { ClientVerification, User } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/require-await -- fakes */
 import { randomUUID } from 'node:crypto';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { PrismaService, routingOf } from '../src/prisma/prisma.service';
 import { MoveDbPool } from '../src/sharding/move/move-db';
 import { ID_ROUTED, PgMoveOps } from '../src/sharding/move/pg-move-ops';
@@ -11,6 +11,7 @@ import { OrphanChecker } from '../src/sharding/orphan-checker';
 import { remainingCrossFamilyForeignKeys } from '../src/sharding/move/cross-family-fks';
 import { ShardMoveRunner } from '../src/sharding/move/shard-move.runner';
 import { MemoryMoveLease } from '../src/sharding/move/move-lease';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * Shard-ready step 10 on real PostgreSQL: moves ONE logical shard between
@@ -139,7 +140,7 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
                   string
                 >
               )[k];
-        raw[k] = new PrismaClient({ datasourceUrl: url });
+        raw[k] = new PrismaClient({ adapter: pgAdapter(url) });
       }
       mapBefore = await raw.primary.shardMap.findMany({
         select: { logical_shard: true, physical_db: true, state: true },

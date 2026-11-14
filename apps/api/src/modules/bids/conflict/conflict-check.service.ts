@@ -7,7 +7,7 @@ import {
 import { privateDetailsAad } from '../../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { matchesIn, type MatchBy, type Person } from './conflict.logic';
 import { CaseAccessPolicy, caseNotFound } from '../../cases/cases.public';

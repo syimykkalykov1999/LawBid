@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -7,12 +6,13 @@ import {
   postMediaRetentionDays,
 } from './storage-cleanup.service';
 import { growth } from './storage-stats.service';
+import { datamodel as prismaDatamodel } from '../../generated/prisma-dmmf';
 
 /** Every column that keeps a file id, read from schema.prisma (DMMF):
  * foreign keys to File, uuid arrays named `*_ids` and JSON `*file_ids`. */
 function fileColumnsInSchema(): string[] {
   const out: string[] = [];
-  for (const model of Prisma.dmmf.datamodel.models) {
+  for (const model of prismaDatamodel.models) {
     const table = model.dbName ?? model.name;
     const column = (name: string) =>
       model.fields.find((f) => f.name === name)?.dbName ?? name;

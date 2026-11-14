@@ -8,7 +8,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type Review } from '@prisma/client';
+import { Prisma, type Review } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ModerationService } from '../moderation/moderation.service';
 import { AutoHoldService } from '../moderation/auto-hold.service';

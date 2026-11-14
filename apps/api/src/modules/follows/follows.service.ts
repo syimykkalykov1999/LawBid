@@ -1,4 +1,4 @@
-import { Prisma, type UserRole } from '@prisma/client';
+import { Prisma, type UserRole } from '../../generated/prisma/client';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import {
   escapeLike,

@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { Prisma, type ChatGroupMember } from '@prisma/client';
+import { Prisma, type ChatGroupMember } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
 

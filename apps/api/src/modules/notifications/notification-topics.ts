@@ -1,4 +1,7 @@
-import type { NotificationCategory, NotificationType } from '@prisma/client';
+import type {
+  NotificationCategory,
+  NotificationType,
+} from '../../generated/prisma/client';
 
 /**
  * Owner 2026-10-21 (inbox 30, like Instagram / Telegram): every kind of

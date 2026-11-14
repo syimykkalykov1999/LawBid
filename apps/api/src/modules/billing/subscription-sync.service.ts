@@ -1,7 +1,11 @@
 import { ClientBadgeService } from '../client-badge/client-badge.service';
 import { ClientPlansService } from '../plans/client-plans.service';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import type { Prisma, Subscription, SubscriptionStatus } from '@prisma/client';
+import type {
+  Prisma,
+  Subscription,
+  SubscriptionStatus,
+} from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { SloMetricsService } from '../../common/ops/slo-metrics.service';
 import { LedgerPostingService } from '../ledger/ledger.public';

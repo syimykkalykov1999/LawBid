@@ -11,7 +11,11 @@ import {
   unreadTicketsWhere,
 } from '../../common/admin-queues/admin-queues';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
-import type { Prisma, SupportMessage, SupportTicket } from '@prisma/client';
+import type {
+  Prisma,
+  SupportMessage,
+  SupportTicket,
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LEASE_PORT, type LeasePort } from '../staff-core/lease.port';

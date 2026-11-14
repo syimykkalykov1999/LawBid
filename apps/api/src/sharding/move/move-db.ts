@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma/client';
 import { PRIMARY_DB } from '../shard-router';
 import { shardDatabaseUrlsFromEnv } from '../shard-databases';
+import { pgAdapter } from '../../prisma/pg-adapter';
 
 /**
  * Shard-ready step 10: a minimal raw-SQL handle on ONE physical database,
@@ -90,7 +91,7 @@ export class MoveDbPool {
     ) =>
       new PrismaMoveDb(
         key,
-        new PrismaClient({ datasourceUrl: withPool(url, 4) }),
+        new PrismaClient({ adapter: pgAdapter(withPool(url, 4)) }),
         true,
       ),
   ) {}

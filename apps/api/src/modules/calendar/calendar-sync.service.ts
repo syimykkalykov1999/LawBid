@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import type { CalendarConnection, Consultation } from '@prisma/client';
+import type {
+  CalendarConnection,
+  Consultation,
+} from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CalendarConfig } from './calendar-config.service';

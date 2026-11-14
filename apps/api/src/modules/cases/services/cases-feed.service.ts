@@ -8,7 +8,11 @@ import { AppSettingsService } from '../../../common/app-settings/app-settings.se
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import { privateDetailsAad } from '../../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
-import { Prisma, type Case, type PracticeArea } from '@prisma/client';
+import {
+  Prisma,
+  type Case,
+  type PracticeArea,
+} from '../../../generated/prisma/client';
 import {
   decodeCursor,
   encodeCursor,

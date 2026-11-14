@@ -7,7 +7,7 @@ import {
   postPracticeSql,
 } from '../posts/hidden-tags';
 import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { forEachDatabase } from '../../sharding/for-each-database';

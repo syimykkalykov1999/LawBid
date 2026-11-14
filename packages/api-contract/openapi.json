@@ -155119,8 +155119,8 @@
           "contactMethod": {
             "nullable": true,
             "enum": [
-              "call",
               "email",
+              "call",
               "sms",
               "in_app_chat"
             ],
@@ -155142,8 +155142,8 @@
           "contactMethod": {
             "nullable": true,
             "enum": [
-              "call",
               "email",
+              "call",
               "sms",
               "in_app_chat"
             ],
@@ -156057,8 +156057,8 @@
             "type": "string",
             "nullable": true,
             "enum": [
-              "call",
               "email",
+              "call",
               "sms",
               "in_app_chat"
             ]

@@ -9,7 +9,7 @@ import {
   IsUUID,
   ValidateNested,
 } from 'class-validator';
-import { ConsentType } from '@prisma/client';
+import { ConsentType } from '../../../generated/prisma/client';
 
 /** The schema order, spelled out: the swagger plugin's enum read from the
  * Prisma client came out in a different order on different machines, so

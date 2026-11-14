@@ -4,7 +4,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { AiRun, Prisma } from '@prisma/client';
+import type { AiRun, Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   AI_FEEDBACK_KEEP,

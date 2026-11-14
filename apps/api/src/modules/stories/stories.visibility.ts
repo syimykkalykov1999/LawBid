@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 
 /**
  * Owner 2026-10-20: which of someone else's stories [viewerId] may see

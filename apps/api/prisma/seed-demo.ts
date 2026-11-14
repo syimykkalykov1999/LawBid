@@ -10,7 +10,7 @@
 // Idempotent. Needs DATABASE_URL (and S3_* for pictures). Reads apps/api/.env.
 // Set DEMO_SEED_VIDEO_STUBS=1 to add reel posts (they only play when a
 // Bunny library is configured).
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { seedDemoWorld } from '../src/modules/demo/demo-seed';
 import { seedDemoContent } from './seed-demo/content';
 import { seedActiveExamples } from './seed-demo/active-examples';
@@ -18,6 +18,7 @@ import { seedMineExamples } from './seed-demo/mine-examples';
 import { seedTaskExamples } from './seed-demo/task-examples';
 import { seedCaseWorkspace } from './seed-demo/workspace';
 import { PasswordService } from '../src/modules/auth/services/password.service';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 for (const file of ['.env', 'apps/api/.env']) {
   try {
@@ -34,7 +35,9 @@ async function main(): Promise<void> {
       'seed:demo refuses to run against a production-looking DATABASE_URL',
     );
   }
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   try {
     const world = await seedDemoWorld(prisma);
     console.log('world  :', world);

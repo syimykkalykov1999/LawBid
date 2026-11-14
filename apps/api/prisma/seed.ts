@@ -24,7 +24,7 @@
 // Cost-guard addition (owner decision 2026-09-27, docs/OPEN_QUESTIONS.md):
 // seedAppConfig() also seeds budget.<provider>.* caps and
 // sms.allowed_country_codes.
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '../src/generated/prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildParsedWorkbook } from '../src/modules/i18n/xlsx/i18n-workbook.util';
@@ -42,8 +42,11 @@ import {
   FILE_05_SETTINGS,
   FILE_06_SETTINGS,
 } from '../src/common/app-settings/app-settings.defaults';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  adapter: pgAdapter(process.env.DATABASE_URL),
+});
 
 // docs/02_DATABASE.md §3.1 (stage 2.1): 50 states + DC, upsert by code.
 async function seedStates(): Promise<void> {

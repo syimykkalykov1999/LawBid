@@ -45,7 +45,7 @@ export interface CaseSearchParams {
   /** Practices the text names in another language, provider-internal. */
   textPractices?: string[];
   /** Extra `AND …` SQL (the typo fallback), provider-internal. */
-  extraSql?: import('@prisma/client').Prisma.Sql;
+  extraSql?: import('../../generated/prisma/client').Prisma.Sql;
 }
 
 /** OQ-036 Posts filters. */

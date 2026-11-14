@@ -1,5 +1,6 @@
 import 'dart:convert' show jsonDecode;
 import 'dart:io' show File, Platform;
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -34,8 +35,10 @@ VideoLimits videoLimitsOf(FeatureFlagsState flags) {
 /// (Система → Настройки: `media.video_bitrate_1080_kbps` 4500,
 /// `media.video_bitrate_720_kbps` 2000, `media.video_bitrate_540_kbps`
 /// 1200), Telegram-like: a Full HD reel ≈ half of what the old encoder
-/// wrote (≈ 8.7 Mbit/s), no visible loss on a phone. Android (Media3) only;
-/// the encoder never goes above the source's own bitrate.
+/// wrote (≈ 8.7 Mbit/s), no visible loss on a phone. Android (Media3),
+/// iPhone (AVAssetWriter, owner rows 101/102) and the browser (Mediabunny)
+/// all get the same number; the encoder never goes above the source's own
+/// bitrate.
 typedef VideoBitrateLadder = ({int kbps1080, int kbps720, int kbps540});
 
 VideoBitrateLadder videoBitrateLadderOf(FeatureFlagsState flags) => (
@@ -64,22 +67,49 @@ int videoBitrateKbpsFor(VideoLimits limits, VideoBitrateLadder ladder) {
   return (base * fps).round();
 }
 
-/// Above this a video is re-encoded even at a small size (~8 Mbit/s; a
-/// phone's 1080p recording is 12–20).
-const kVideoMaxBytesPerSecond = 1000 * 1000;
+/// Owner rows 101/102 (13.11, «проверить каждое сжатие»): a reel, story
+/// or channel video no taller than the admin's limit is re-encoded only
+/// above this bitrate, kbit/s (Система → Настройки:
+/// `media.video_reencode_above_kbps`, 8000 = the old built-in ~8 Mbit/s;
+/// a phone's 1080p recording is 12–20). Below it the original goes up as
+/// it is: a second encode of an already light file only loses quality.
+int videoReencodeAboveKbpsOf(FeatureFlagsState flags) =>
+    flags.configInt('media.video_reencode_above_kbps', 8000).clamp(300, 200000);
+
+/// Owner rows 101/102: a chat, case or support video is re-encoded to at
+/// most this height (`media.chat_video_max_height`, 720 = WhatsApp's, the
+/// old built-in number; 0 = sent as recorded), and never above the reel
+/// limit.
+VideoLimits chatVideoLimitsOf(FeatureFlagsState flags) {
+  final reel = videoLimitsOf(flags);
+  final h = flags.configInt('media.chat_video_max_height', 720);
+  final chat = h <= 0 ? 0 : h.clamp(240, 2160);
+  return (
+    maxHeight: chat <= 0
+        ? 0
+        : reel.maxHeight <= 0
+            ? chat
+            : math.min(chat, reel.maxHeight),
+    frameRate: reel.frameRate,
+  );
+}
 
 /// Whether a video of [shortSide] px (the smaller of width / height),
-/// [bytes] and [durationMs] is worth re-encoding under [limits].
+/// [bytes] and [durationMs] is worth re-encoding under [limits]; at or
+/// under [reencodeAboveKbps] (the admin's [videoReencodeAboveKbpsOf]) it
+/// is kept.
 bool needsVideoCompression({
   required int shortSide,
   required int bytes,
   required int durationMs,
   required VideoLimits limits,
+  int reencodeAboveKbps = 8000,
 }) {
   if (limits.maxHeight <= 0) return false;
   if (shortSide > limits.maxHeight) return true;
   if (durationMs <= 0) return false;
-  return bytes * 1000 / durationMs > kVideoMaxBytesPerSecond;
+  // bytes per ms × 8 = kbit/s.
+  return bytes * 8 / durationMs > reencodeAboveKbps;
 }
 
 /// The plugin preset for a target short side.
@@ -116,12 +146,15 @@ bool keepOriginalForPower({required bool lowPower, required int bytes}) =>
 /// Owner row 42 (13.11, «медленно, качество ниже»): on Android the re-encode
 /// runs on AndroidX Media3 Transformer (`lawbid/video_encoder`,
 /// android/.../VideoEncoder.kt): H.264 High profile where the phone has it,
-/// HDR tone-mapped to normal colours, AAC audio copied as it is. When that
-/// path fails (an old phone, an odd file) the `video_compress` plugin
-/// (Transcoder / MediaCodec) runs as before. iOS keeps `video_compress`'s
-/// AVAssetExportSession (Apple's hardware encoder, HDR → SDR in its H.264
-/// presets). Same output as before: H.264 + AAC MP4, at most the admin's
-/// height and frame rate.
+/// HDR tone-mapped to normal colours, AAC audio copied as it is. Owner rows
+/// 101/102: the iPhone answers the same channel with AVAssetWriter
+/// (ios/Runner/VideoEncoder.swift, NextLevelSessionExporter, MIT): the
+/// admin's bitrate instead of the export preset's own, H.264 High, moov
+/// first, HDR → SDR, and an already light H.264 file is kept as it is.
+/// When that path fails (an old phone, an odd file) the `video_compress`
+/// plugin (Transcoder / MediaCodec on Android, the AVAssetExportSession
+/// preset on iOS) runs as before. Same output as before: H.264 + AAC MP4,
+/// at most the admin's height and frame rate.
 class PluginVideoCompressor implements VideoCompressor {
   PluginVideoCompressor({
     MethodChannel hardwareChannel = const MethodChannel('lawbid/video_encoder'),
@@ -147,6 +180,8 @@ class PluginVideoCompressor implements VideoCompressor {
   bool get _android =>
       (_platform ?? defaultTargetPlatform) == TargetPlatform.android;
 
+  bool get _ios => (_platform ?? defaultTargetPlatform) == TargetPlatform.iOS;
+
   @override
   Future<XFile?> compress(
     XFile source, {
@@ -154,14 +189,14 @@ class PluginVideoCompressor implements VideoCompressor {
     void Function(double progress)? onProgress,
   }) async {
     // The browser uses [BrowserVideoCompressor] (see the provider).
-    if (kIsWeb) return null;
+    if (kIsWeb || limits.maxHeight <= 0) return null;
     if (keepOriginalForPower(
       lowPower: ClientTuning.lowPower,
       bytes: await source.length(),
     )) {
       return null;
     }
-    if (_android) {
+    if (_android || _ios) {
       final id = '${identityHashCode(this)}-${_seq++}';
       final r = await _compressMedia3(id, source, limits, onProgress);
       final cancelled = _cancelledIds.remove(id);
@@ -173,8 +208,9 @@ class PluginVideoCompressor implements VideoCompressor {
     return _compressPlugin(source, limits, onProgress);
   }
 
-  /// Media3 Transformer. `ran` false = it failed (then the plugin runs);
-  /// `file` null = keep the original (cancelled, not smaller, black).
+  /// Media3 Transformer (Android) / AVAssetWriter (iOS). `ran` false = it
+  /// failed (then the plugin runs); `file` null = keep the original
+  /// (cancelled, already light, not smaller, black).
   Future<({bool ran, XFile? file})> _compressMedia3(
     String id,
     XFile source,
@@ -213,7 +249,7 @@ class PluginVideoCompressor implements VideoCompressor {
     if (p is num) _progress[a['id']]?.call(p.toDouble().clamp(0, 1));
   }
 
-  /// The `video_compress` plugin (iOS, and Android's fallback).
+  /// The `video_compress` plugin (the fallback on both phones).
   Future<XFile?> _compressPlugin(
     XFile source,
     VideoLimits limits,
@@ -269,12 +305,12 @@ class PluginVideoCompressor implements VideoCompressor {
     // This compressor's videos only (queued or running).
     final ids = _progress.keys.toList();
     _cancelledIds.addAll(ids);
-    if (_android) {
+    if (_android || _ios) {
       for (final id in ids) {
         try {
           await _hw.invokeMethod<void>('cancel', {'id': id});
         } on Object {
-          // no Media3 encoder on this build: only the plugin can be running
+          // no hardware encoder on this build: only the plugin can be running
         }
       }
     }
@@ -340,7 +376,11 @@ class PluginVideoCompressor implements VideoCompressor {
 /// 2026-11-08), the original when the browser cannot.
 final videoCompressorProvider = Provider<VideoCompressor>(
   (ref) => kIsWeb
-      ? BrowserVideoCompressor(createBrowserVideoEncoder())
+      ? BrowserVideoCompressor(
+          createBrowserVideoEncoder(),
+          ladder: () =>
+              videoBitrateLadderOf(ref.read(featureFlagsControllerProvider)),
+        )
       : PluginVideoCompressor(
           ladder: () =>
               videoBitrateLadderOf(ref.read(featureFlagsControllerProvider)),

@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, Optional } from '@nestjs/common';
-import type { Plan, Prisma } from '@prisma/client';
+import type { Plan, Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';

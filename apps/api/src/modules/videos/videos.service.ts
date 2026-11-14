@@ -12,7 +12,11 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { Prisma, VideoAsset, VideoAssetStatus } from '@prisma/client';
+import type {
+  Prisma,
+  VideoAsset,
+  VideoAssetStatus,
+} from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { EntitlementsService } from '../plans/entitlements.service';

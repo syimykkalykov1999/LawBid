@@ -4,7 +4,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { parseUpdatedSince, syncedAt } from '../../../common/sync/sync.util';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';

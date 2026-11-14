@@ -1,8 +1,8 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import type {
   ReportTargetType,
   VerificationRequestStatus,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 import {
   type CountryScope,
   userInScope,

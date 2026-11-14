@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import * as softDeleteModule from './soft-delete.extension';
 import {
   SOFT_DELETE_META,
@@ -10,13 +9,14 @@ import {
   withDeleted,
 } from './soft-delete.extension';
 import { PrismaService } from './prisma.service';
+import { datamodel as prismaDatamodel } from '../generated/prisma-dmmf';
 
 const meta = SOFT_DELETE_META;
 
 describe('soft-delete extension (docs/02_DATABASE.md §1.4)', () => {
   describe('model list derived from the DMMF', () => {
     it('contains exactly the models whose schema has a deleted_at column', () => {
-      const expected = Prisma.dmmf.datamodel.models
+      const expected = prismaDatamodel.models
         .filter((m) => m.fields.some((f) => f.name === 'deleted_at'))
         .map((m) => m.name)
         .sort();

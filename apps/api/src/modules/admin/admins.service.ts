@@ -6,8 +6,8 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { AdminWorkspace, Prisma } from '@prisma/client';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import type { AdminWorkspace, Prisma } from '../../generated/prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';

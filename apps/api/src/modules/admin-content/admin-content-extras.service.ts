@@ -6,7 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import type Redis from 'ioredis';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,

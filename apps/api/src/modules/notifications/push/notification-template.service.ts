@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { NotificationType } from '@prisma/client';
+import type { NotificationType } from '../../../generated/prisma/client';
 import { localIsoDate, safeTimeZone } from '../../../common/utils/zoned-time';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {

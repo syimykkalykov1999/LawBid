@@ -7,10 +7,13 @@
 //
 // Safe to repeat. Env: DATABASE_URL. Prints counts only. The same repair
 // runs by itself every night (setting counters.drift_sweep, default auto).
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 const APPLY = process.argv.includes('--apply');
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  adapter: pgAdapter(process.env.DATABASE_URL),
+});
 
 async function run(table: 'attorney_profiles' | 'client_profiles') {
   const wrong = await prisma.$queryRawUnsafe<{ n: bigint }[]>(`

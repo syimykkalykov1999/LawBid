@@ -22,11 +22,12 @@
 //   OTP_DEV_FIXED_CODE=true, API_URL overrides http://127.0.0.1:3000/api/v1);
 //   the rest of the profile is filled directly in the database.
 // - Refuses to run against a production-looking DATABASE_URL.
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, symlinkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 for (const file of ['.env', 'apps/api/.env']) {
   try {
@@ -124,7 +125,9 @@ async function main(): Promise<void> {
       'seed:perf refuses to run against a production-looking DATABASE_URL',
     );
   }
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   try {
     let user = await prisma.user.findUnique({
       where: { phone_e164: PHONE },

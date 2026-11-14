@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { PrismaService, routingOf } from '../src/prisma/prisma.service';
 import { shardContext } from '../src/sharding/shard-context';
 import {
@@ -9,6 +9,7 @@ import {
   backoffSeconds,
 } from '../src/sharding/outbox/cross-family-outbox';
 import { EFFECTS } from '../src/sharding/outbox/outbox-effects';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * Shard-ready step 7 on real PostgreSQL. One database: the effect runs
@@ -21,12 +22,14 @@ describe('cross-family outbox (real PostgreSQL)', () => {
   const twoDb = !!process.env.DATABASE_URL_SHARDS;
   const prisma = new PrismaService();
   const outbox = new CrossFamilyOutbox(prisma);
-  const primaryRaw = new PrismaClient();
+  const primaryRaw = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   const shardsUrl = twoDb
     ? (JSON.parse(process.env.DATABASE_URL_SHARDS!) as Record<string, string>)
     : {};
   const db1Raw = twoDb
-    ? new PrismaClient({ datasourceUrl: shardsUrl.db1 })
+    ? new PrismaClient({ adapter: pgAdapter(shardsUrl.db1) })
     : primaryRaw;
   let userId: string;
   const effects = EFFECTS as Record<string, unknown>;

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CaseStatus, FeeType } from '@prisma/client';
+import { CaseStatus, FeeType } from '../../../generated/prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsInt,

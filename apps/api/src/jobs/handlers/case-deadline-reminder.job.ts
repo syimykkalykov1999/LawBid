@@ -1,6 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { forEachDatabase } from '../../sharding/for-each-database';
-import { Prisma, type NotificationType } from '@prisma/client';
+import { Prisma, type NotificationType } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';

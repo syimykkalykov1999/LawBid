@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { heldIds, heldSql, heldSqlFor, isAnyHeld, isHeld } from './legal-hold';
 
 describe('legal hold helper (privacy round 13, S13-6)', () => {

@@ -1,5 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import type { CaseStatus, Prisma } from '@prisma/client';
+import type { CaseStatus, Prisma } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   AUTO_CLOSE_AFTER_MS,

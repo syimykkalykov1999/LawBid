@@ -17,7 +17,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
-import { Prisma, type File, type FilePurpose } from '@prisma/client';
+import {
+  Prisma,
+  type File,
+  type FilePurpose,
+} from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { createHash, randomUUID } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';

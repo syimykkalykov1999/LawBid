@@ -5,7 +5,7 @@ import {
   OfferStatus,
   PartyRole,
   StartAvailability,
-} from '@prisma/client';
+} from '../../../generated/prisma/client';
 import { RatingDto } from '../../profiles/dto/attorney-profile.dto';
 import { PaymentTermsDto } from './bid-requests.dto';
 

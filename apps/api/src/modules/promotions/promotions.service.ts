@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import type { CasePromotion, Prisma } from '@prisma/client';
+import type { CasePromotion, Prisma } from '../../generated/prisma/client';
 import {
   decodeCursor,
   encodeCursor,

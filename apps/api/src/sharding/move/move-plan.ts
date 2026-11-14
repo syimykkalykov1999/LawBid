@@ -1,5 +1,6 @@
-import { Prisma } from '@prisma/client';
+import type { DMMF } from '@prisma/client/runtime/client';
 import { SHARDED_MODELS, familyOf } from '../shard-manifest';
+import { datamodel as prismaDatamodel } from '../../generated/prisma-dmmf';
 
 /**
  * Shard-ready step 10: what the move tool copies and in which order, derived
@@ -33,10 +34,10 @@ export interface CrossFamilyEdge {
 }
 
 interface Dmmf {
-  models: readonly Prisma.DMMF.Model[];
+  models: readonly DMMF.Model[];
 }
 
-function dmmfModels(dmmf: Dmmf = Prisma.dmmf.datamodel): Dmmf {
+function dmmfModels(dmmf: Dmmf = prismaDatamodel): Dmmf {
   return dmmf;
 }
 

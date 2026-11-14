@@ -17,7 +17,7 @@
  * makes the world look the same after every reset.
  */
 import { randomUUID } from 'node:crypto';
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '../../generated/prisma/client';
 import { ASSISTANT_DUTIES } from '../assistants/assistant-duties';
 import {
   ASSISTANT_TASKS,

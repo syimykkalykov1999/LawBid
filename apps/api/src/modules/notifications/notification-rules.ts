@@ -1,4 +1,7 @@
-import type { NotificationCategory, NotificationType } from '@prisma/client';
+import type {
+  NotificationCategory,
+  NotificationType,
+} from '../../generated/prisma/client';
 
 /** docs/05 §9.4: one row per recipient, object and hour. */
 export const AGGREGATED_TYPES: ReadonlySet<NotificationType> = new Set([

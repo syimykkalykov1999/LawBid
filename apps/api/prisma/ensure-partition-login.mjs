@@ -52,8 +52,8 @@ export async function ensurePartitionLogin({ prisma, password, log = console.log
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const { PrismaClient } = await import('@prisma/client');
-  const prisma = new PrismaClient();
+  const { rawClient } = await import('./pg-client.mjs');
+  const prisma = rawClient(process.env.DATABASE_URL);
   try {
     await ensurePartitionLogin({ prisma, password: process.env.PARTITION_DB_PASSWORD });
   } catch (e) {

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import type { File } from '@prisma/client';
+import type { File } from '../../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';

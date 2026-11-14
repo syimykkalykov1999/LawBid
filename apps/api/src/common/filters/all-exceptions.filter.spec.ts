@@ -4,7 +4,7 @@ import {
   HttpException,
   type ArgumentsHost,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import type { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../errors/error-code.enum';
 import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';

@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import { recordSentMessage } from '../src/modules/chat/chat-send-bookkeeping';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * The one-statement bookkeeping of a sent message (load test 2026-11-02):
@@ -8,7 +9,9 @@ import { recordSentMessage } from '../src/modules/chat/chat-send-bookkeeping';
  */
 describe('chat send bookkeeping (e2e)', () => {
   jest.setTimeout(60_000);
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   afterAll(() => prisma.$disconnect());
 
   async function chat() {

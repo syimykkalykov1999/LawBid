@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { FeeType, StartAvailability } from '@prisma/client';
+import { FeeType, StartAvailability } from '../../../generated/prisma/client';
 import { PERCENT_BPS_MAX, PERCENT_BPS_MIN } from '../../cases/cases.public';
 import { Transform, Type } from 'class-transformer';
 import {

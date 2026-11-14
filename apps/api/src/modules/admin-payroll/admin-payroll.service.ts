@@ -10,7 +10,7 @@ import type {
   PayrollAccrual,
   PayrollEmployee,
   PayrollPayout,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { LedgerPostingService } from '../ledger/ledger.public';
 import { PrismaService } from '../../prisma/prisma.service';

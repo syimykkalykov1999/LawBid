@@ -1,6 +1,6 @@
 import { NotFoundException, type ExecutionContext } from '@nestjs/common';
 import type { Reflector } from '@nestjs/core';
-import type { AdminRole, AdminWorkspace } from '@prisma/client';
+import type { AdminRole, AdminWorkspace } from '../../generated/prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { AuditLogService } from '../admin-access/audit-log.service';

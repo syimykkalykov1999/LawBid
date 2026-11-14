@@ -85,4 +85,56 @@ void main() {
     expect(videoQualityFor(720), VideoQuality.Res1280x720Quality);
     expect(videoQualityFor(540), VideoQuality.Res960x540Quality);
   });
+
+  // Owner rows 101/102: the numbers that were built into the app are the
+  // admin's now, with the old values as defaults.
+  test('chat/case/support height: 720 by default, the admin value, 0 = off',
+      () {
+    expect(chatVideoLimitsOf(flags(const {})), (maxHeight: 720, frameRate: 30));
+    expect(
+      chatVideoLimitsOf(flags(const {'media.chat_video_max_height': '1080'})),
+      (maxHeight: 1080, frameRate: 30),
+    );
+    // Never above the reel limit.
+    expect(
+      chatVideoLimitsOf(
+        flags(const {
+          'media.chat_video_max_height': '1080',
+          'media.video_max_height': '720',
+        }),
+      ).maxHeight,
+      720,
+    );
+    // Reels as recorded: chat still uses its own height (as before).
+    expect(
+      chatVideoLimitsOf(flags(const {'media.video_max_height': '0'})).maxHeight,
+      720,
+    );
+    expect(
+      chatVideoLimitsOf(flags(const {'media.chat_video_max_height': '0'}))
+          .maxHeight,
+      0,
+    );
+  });
+
+  test('re-encode threshold: 8000 kbit/s by default, the admin value', () {
+    expect(videoReencodeAboveKbpsOf(flags(const {})), 8000);
+    expect(
+      videoReencodeAboveKbpsOf(
+        flags(const {'media.video_reencode_above_kbps': '5000'}),
+      ),
+      5000,
+    );
+    const limits = (maxHeight: 1080, frameRate: 30);
+    // 1080p at 6 Mbit/s: kept at the default, re-encoded at 5000.
+    bool need(int kbps) => needsVideoCompression(
+          shortSide: 1080,
+          bytes: 6000 * 1000 ~/ 8 * 30,
+          durationMs: 30000,
+          limits: limits,
+          reencodeAboveKbps: kbps,
+        );
+    expect(need(8000), isFalse);
+    expect(need(5000), isTrue);
+  });
 }

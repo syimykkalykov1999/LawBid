@@ -7,7 +7,11 @@ import {
   Optional,
 } from '@nestjs/common';
 import { readSwitchMode } from '../../common/app-settings/switch-mode';
-import type { MediaModerationCheck, Prisma, VideoAsset } from '@prisma/client';
+import type {
+  MediaModerationCheck,
+  Prisma,
+  VideoAsset,
+} from '../../generated/prisma/client';
 import { createHash } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
 import sharp from 'sharp';

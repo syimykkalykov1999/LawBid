@@ -8,7 +8,10 @@ import {
 } from '@nestjs/common';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import type { PlanPrice, SubscriptionStatus } from '@prisma/client';
+import type {
+  PlanPrice,
+  SubscriptionStatus,
+} from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';

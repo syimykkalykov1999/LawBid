@@ -1,4 +1,4 @@
-import { ThemePref } from '@prisma/client';
+import { ThemePref } from '../../../generated/prisma/client';
 import { normalizeThemePref } from './theme-pref.util';
 
 describe('normalizeThemePref', () => {

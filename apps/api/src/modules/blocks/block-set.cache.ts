@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { cached } from '../../common/cache/cached';
 import { delSafe } from '../../redis/redis-cluster-safe';

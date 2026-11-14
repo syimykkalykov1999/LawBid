@@ -253,8 +253,9 @@ describe('PartnersService.onQualifyingEvent', () => {
 
   it('a second event for the same person is a no-op (unique event_ref), and errors never escape', async () => {
     const { svc, prisma } = setup();
-    const { Prisma } =
-      jest.requireActual<typeof import('@prisma/client')>('@prisma/client');
+    const { Prisma } = jest.requireActual<
+      typeof import('../../generated/prisma/client')
+    >('../../generated/prisma/client');
     prisma.partnerCommission.create.mockRejectedValueOnce(
       new Prisma.PrismaClientKnownRequestError('dup', {
         code: 'P2002',
