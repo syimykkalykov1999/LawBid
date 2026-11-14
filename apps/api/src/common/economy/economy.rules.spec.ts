@@ -226,6 +226,7 @@ describe('S9 rules', () => {
         payments: 10,
       }),
     ).toBeCloseTo((100_000 - 5_000 - 3_480 - 300) / 100, 5);
+    // R3A-1 (14.11): fees bigger than sales are a loss, never clamped to 0.
     expect(
       netRevenueUsd({
         subtotalCents: 100,
@@ -233,7 +234,19 @@ describe('S9 rules', () => {
         refundedCents: 0,
         payments: 5,
       }),
-    ).toBe(0);
+    ).toBeCloseTo((100 - 2.9 - 150) / 100, 5);
+    // R3A-9: the fee is the admin setting when one is passed.
+    expect(
+      netRevenueUsd(
+        {
+          subtotalCents: 10_000,
+          grossCents: 10_000,
+          refundedCents: 0,
+          payments: 1,
+        },
+        { percent: 2, fixedCents: 0 },
+      ),
+    ).toBe(98);
   });
 
   it('dailyBrakeCents scales with the allowance (never 0)', () => {
