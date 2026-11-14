@@ -134,6 +134,14 @@ export default function StoragePage() {
         }
       />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
+      {/* Media batch A (R1): shown only while such files exist. */}
+      <ErrorNote
+        text={
+          d && d.scanSkippedCount > 0
+            ? `Не проверены антивирусом: ${d.scanSkippedCount} файлов (${formatBytes(d.scanSkippedBytes)}) больше его лимита. Они сохранены, но никому не открываются и сами не удаляются.`
+            : null
+        }
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat

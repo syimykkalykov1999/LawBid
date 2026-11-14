@@ -86,6 +86,8 @@ Another Claude account may pick this up. Read ALL of this before doing anything.
 5. Delete the manual $50 budget "LawBid Monthly" in the console.
 6. Run the restore drill when asked.
 7. At the end: the Apple account transfer to SiMA LLC, the Stripe live key.
+8. Media batch A (13.11, row 97, docs/dev/MEDIA_PIPELINE_AUDIT_2026-11-13.md): `terraform apply` on prod — the antivirus sidecar now scans up to `clamav_max_file_mb` (110 MB, was 55 MB) and the worker gets `CLAMAV_MAX_MB`. Until the apply the worker sends every file to clamd as before, and a file over 55 MB is kept and set aside instead of deleted.
+9. Cloudflare (R9): a cache rule on `media.lawbid.dev` so a 404 (any 4xx) is not cached at the edge, or for 10 s at most — today a missing key is cached 4 h, so a picture variant asked for before it exists stays broken for 4 h. Optional: an R2 lifecycle rule that removes `link-preview/` objects after 90 days (link-card pictures, re-made on the next card).
 
 ## 6. VERY LAST TASK (the owner's "everything is done" signal)
 ONLY after every item above is finished: the verified checkmark badges (attorney green, client badge) look greyish in some themes. Fix ONLY their colors per theme (Day, Night, Blue, Green) so each is clearly visible; keep the icon shape and size. If anything else is unfinished, do NOT do this, because the owner uses it to know all work is complete.

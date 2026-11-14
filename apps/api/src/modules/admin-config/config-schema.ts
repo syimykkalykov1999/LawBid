@@ -722,6 +722,31 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 100000,
   };
+  // Media batch A (R7): link-card pictures re-hosted by the server.
+  out['chat.link_preview_images'] = {
+    ...out['chat.link_preview_images'],
+    description:
+      'On (default): the link card picture is downloaded by the server once and shown from our storage as a WebP (the reader never contacts the site). Off: cards without pictures.',
+  };
+  out['chat.link_preview_image_max_kb'] = {
+    ...out['chat.link_preview_image_max_kb'],
+    description: 'Largest link-card picture the server downloads, KB.',
+    min: 50,
+    max: 51200,
+  };
+  out['chat.link_preview_image_timeout_ms'] = {
+    ...out['chat.link_preview_image_timeout_ms'],
+    description: 'Time for downloading one link-card picture, ms.',
+    min: 500,
+    max: 30000,
+  };
+  out['chat.link_preview_image_px'] = {
+    ...out['chat.link_preview_image_px'],
+    description:
+      'Long side of the stored link-card picture, px (never enlarged).',
+    min: 100,
+    max: 2048,
+  };
   out['security.seal_case_metadata'] = {
     ...out['security.seal_case_metadata'],
     description:

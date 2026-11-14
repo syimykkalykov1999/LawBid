@@ -214,6 +214,33 @@ export class BunnyStreamClient {
     return (await res.json()) as BunnyVideo;
   }
 
+  /**
+   * Media batch A (R11): the MP4 fallback renditions Bunny really stored
+   * for [guid] («Video resolutions info»,
+   * `GET /library/{libraryId}/videos/{videoId}/resolutions` →
+   * `data.mp4Resolutions[].resolution`, e.g. ["360p", "720p"]). Empty when
+   * the library has no MP4 fallback or encoding has not written them yet.
+   */
+  async getMp4Resolutions(guid: string): Promise<string[]> {
+    const k = await this.required();
+    const res = await this.call(
+      k,
+      'GET',
+      `/library/${k.libraryId}/videos/${guid}/resolutions`,
+      undefined,
+      true,
+    );
+    if (res.status === 404) return [];
+    const body = (await res.json()) as {
+      data?: { mp4Resolutions?: { resolution?: string | null }[] | null };
+      mp4Resolutions?: { resolution?: string | null }[] | null;
+    };
+    const list = body.data?.mp4Resolutions ?? body.mp4Resolutions ?? [];
+    return list
+      .map((r) => r?.resolution)
+      .filter((r): r is string => typeof r === 'string' && r.length > 0);
+  }
+
   /** Where Bunny should call us: the public API base (the same
    * CALENDAR_API_BASE_URL the calendar links use) + the token path, which
    * also accepts the signed form. null outside production / the dev fake,
