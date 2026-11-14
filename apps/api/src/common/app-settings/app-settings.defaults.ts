@@ -1399,6 +1399,26 @@ export const OWNER_STORAGE_SETTINGS = {
   // dedupe table (inbox) are cleaned like any log. 0 = keep for ever.
   'storage.retention_outbox_done_days': 7,
   'storage.retention_inbox_days': 30,
+  // DB scale batch B: the nightly retention's pace, every number editable.
+  // Most rows one run removes per table (notifications included); the next
+  // night continues. 0 = no cap (the run goes until the backlog is gone).
+  'storage.retention_max_rows_per_table': 1_000_000,
+  // Rows per DELETE (small transactions, short locks) and the pause between
+  // two DELETEs so a big backlog never hogs the database.
+  'storage.retention_batch_rows': 5000,
+  'storage.retention_pause_ms': 200,
+  // Monthly tables (post_view_events; auth_events through the retention
+  // role): a month whose whole range is past the table's retention is dropped
+  // as one partition instead of row by row (no month with a legal-hold row,
+  // none while an online conversion is not finished). Only does something
+  // once the table is partitioned. Off = row by row, as before.
+  'storage.retention_partition_drop_enabled': true,
+  // lock_timeout of one partition drop (it locks the table for a moment);
+  // a busy table makes it give up and try again the next night.
+  'storage.retention_partition_lock_timeout_ms': 5000,
+  // DB scale batch C: keys of applied counter flush batches (they make a
+  // re-applied batch after a hard kill a no-op). 0 = keep for ever.
+  'storage.retention_counter_flush_days': 7,
   // DB-ops hardening: the daily db.health report goes yellow at this table
   // size (GB) / share of dead rows (%). 0 = no signal.
   // Three-state controls «Выкл / Вкл / Авто» (owner rule 2026-10-25).

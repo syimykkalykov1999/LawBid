@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-309 tables.
+310 tables.
 
 ```mermaid
 erDiagram
@@ -649,6 +649,7 @@ erDiagram
     Int save_count
     Int share_count
     Int view_count
+    Int view_count_base
     Int pin_slot "nullable"
     String pin_group "nullable"
     DateTime edited_at "nullable"
@@ -1574,6 +1575,10 @@ erDiagram
     DateTime bucket PK
     Int slot PK
     BigInt n
+  }
+  counter_flush_batches {
+    String token PK
+    DateTime applied_at
   }
   webauthn_credentials {
     String id PK

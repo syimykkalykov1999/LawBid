@@ -87,12 +87,7 @@
   {
     "file": "modules/counters/counter-aggregator.service.ts",
     "kind": "lua-multi-key",
-    "reason": "BUMP keys (pending hash, touched set) of an entity are both ck(entity, ...): one slot."
-  },
-  {
-    "file": "modules/counters/counter-aggregator.service.ts",
-    "kind": "multi",
-    "reason": "Restores HINCRBY on the single pending hash."
+    "reason": "BUMP keys (pending hash, touched set, dirty set) and the DRAIN / BATCH_DONE keys (pending hash, batch hash, batch list) of an entity are all ck(entity, ...): one slot."
   },
   {
     "file": "modules/experiments/ranking-events.service.ts",

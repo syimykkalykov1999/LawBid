@@ -1,17 +1,23 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, PrismaClient } from '../../generated/prisma/client';
-import { heldSqlFor } from '../../common/privacy/legal-hold';
+import { allHeldIds, heldSqlFor } from '../../common/privacy/legal-hold';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { pgAdapter } from '../../prisma/pg-adapter';
+import {
+  dropExpiredMonths,
+  type MonthRetentionDb,
+  type MonthRetentionTable,
+} from '../../partitioning/partition-retention';
+import {
+  deleteInBatches,
+  retentionPace,
+  type RetentionPace,
+} from './retention-batches';
 
-/** Rows per DELETE: small transactions, no long locks. */
-const BATCH = 5000;
-/** A run stops after this many rows per table; the next night continues. */
-const MAX_PER_TABLE = 1_000_000;
 const DAY_MS = 24 * 3600 * 1000;
 
 export interface RetentionResult {
@@ -30,6 +36,12 @@ export interface RetentionResult {
   crossFamilyOutboxDone: number;
   /** DB-ops S5-3: idempotency keys of applied events. */
   crossFamilyInbox: number;
+  /** DB scale batch B: whole months dropped as one partition (every
+   * database for post_view_events). */
+  postViewEventMonths: number;
+  authEventMonths: number;
+  /** DB scale batch C: keys of applied counter flush batches. */
+  counterFlushBatches: number;
 }
 
 /**
@@ -57,6 +69,16 @@ export interface RetentionResult {
  *   largest tables. `pending` and `dead` outbox rows are never touched. The
  *   outbox's oldest still-pending age is logged by the relay itself
  *   (`outbox.sweep`, metric `cross_family_outbox_oldest_pending`).
+ * - counter_flush_batches (`storage.retention_counter_flush_days`, 7) on
+ *   every database: keys of applied counter flush batches.
+ * DB scale batch B: rows per DELETE, the pause and the per-table cap of one
+ * run are settings (storage.retention_batch_rows / _pause_ms /
+ * _max_rows_per_table, 0 = no cap). Once post_view_events or auth_events is
+ * partitioned by month, a month whose whole range is past the retention is
+ * dropped as one partition first (storage.retention_partition_drop_enabled);
+ * the row delete then takes what is left (the current month's part, held
+ * persons' months). Removed post views always go to posts.view_count_base
+ * (row delete and month drop alike), so the recount keeps them.
  * A person under a legal hold keeps their login history (round 13, S13-6).
  * 0 days = keep forever. Already handled elsewhere: notifications
  * (notifications.retention_days), sessions, OTP, processed Stripe webhooks
@@ -66,6 +88,8 @@ export interface RetentionResult {
 @Injectable()
 export class DataRetentionService implements OnModuleDestroy {
   private retentionDb?: PrismaClient;
+  /** Pace of the run in progress (settings read once per run). */
+  private pace!: RetentionPace;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -90,6 +114,10 @@ export class DataRetentionService implements OnModuleDestroy {
       activeDaysDays,
       outboxDoneDays,
       inboxDays,
+      flushDays,
+      monthDrop,
+      monthLockMs,
+      pace,
     ] = await Promise.all([
       this.settings.number('storage.retention_auth_events_days'),
       this.settings.number('storage.retention_assistant_activity_days'),
@@ -101,11 +129,46 @@ export class DataRetentionService implements OnModuleDestroy {
       this.settings.number('storage.retention_user_activity_days'),
       this.settings.number('storage.retention_outbox_done_days'),
       this.settings.number('storage.retention_inbox_days'),
+      this.settings.number('storage.retention_counter_flush_days'),
+      this.settings.boolean('storage.retention_partition_drop_enabled'),
+      this.settings.number('storage.retention_partition_lock_timeout_ms'),
+      retentionPace(this.settings),
     ]);
+    this.pace = pace;
     const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
+    // Months go first (cheap: one DROP each); the row delete takes the rest.
+    const heldUsers =
+      monthDrop && (viewEventsDays > 0 || authDays > 0)
+        ? await allHeldIds(this.prisma, 'user', now)
+        : [];
+    const months = async (
+      table: MonthRetentionTable,
+      days: number,
+      db: () => MonthRetentionDb,
+    ): Promise<number> =>
+      monthDrop && days > 0
+        ? (
+            await this.dropMonths(
+              table,
+              db,
+              before(days),
+              heldUsers,
+              monthLockMs,
+            )
+          ).length
+        : 0;
     // Owner 2026-10-28: activity rows of a person under a legal hold stay.
     const ok = (col: string) =>
       Prisma.sql`NOT ${held('user', Prisma.raw(col))}`;
+    const authEventMonths = await months('auth_events', authDays, () =>
+      this.retention(),
+    );
+    const postViewEventMonths =
+      monthDrop && viewEventsDays > 0
+        ? await this.onEveryDatabase(() =>
+            months('post_view_events', viewEventsDays, () => this.prisma),
+          )
+        : 0;
     const result: RetentionResult = {
       authEvents: authDays > 0 ? await this.authEvents(before(authDays)) : 0,
       assistantActivity:
@@ -166,19 +229,32 @@ export class DataRetentionService implements OnModuleDestroy {
           : 0,
       // By (id, created_at), not ctid: a ctid is only unique inside ONE
       // partition, so after the monthly conversion it could hit other months.
+      // DB scale batch C: the removed 'view' rows are added to their post's
+      // view_count_base in the same statement (the post lives with its
+      // events: foreign key), so the nightly recount keeps those views.
       postViewEvents:
         viewEventsDays > 0
           ? await this.onEveryDatabase(() =>
-              this.batched(
-                (limit) => this.prisma.$executeRaw`
-                DELETE FROM post_view_events
-                WHERE created_at < ${before(viewEventsDays)}
-                  AND (id, created_at) IN (
-                  SELECT id, created_at FROM post_view_events
+              this.batched(async (limit) => {
+                const rows = await this.prisma.$queryRaw<{ n: number }[]>`
+                WITH d AS (
+                  DELETE FROM post_view_events
                   WHERE created_at < ${before(viewEventsDays)}
-                    AND ${ok('viewer_id')}
-                  LIMIT ${limit})`,
-              ),
+                    AND (id, created_at) IN (
+                    SELECT id, created_at FROM post_view_events
+                    WHERE created_at < ${before(viewEventsDays)}
+                      AND ${ok('viewer_id')}
+                    LIMIT ${limit})
+                  RETURNING post_id, kind),
+                v AS (
+                  SELECT post_id, count(*)::INT AS n FROM d
+                  WHERE kind = 'view' GROUP BY post_id),
+                u AS (
+                  UPDATE posts AS p SET view_count_base = p.view_count_base + v.n
+                  FROM v WHERE p.id = v.post_id RETURNING 1)
+                SELECT count(*)::INT AS n FROM d`;
+                return Number(rows[0]?.n ?? 0);
+              }),
             )
           : 0,
       userActivityDays:
@@ -222,6 +298,22 @@ export class DataRetentionService implements OnModuleDestroy {
                   LIMIT ${limit})`,
             )
           : 0,
+      postViewEventMonths,
+      authEventMonths,
+      // DB scale batch C: on every database, next to the counted rows.
+      counterFlushBatches:
+        flushDays > 0
+          ? await this.onEveryDatabase(() =>
+              this.batched(
+                (limit) => this.prisma.$executeRaw`
+                DELETE FROM counter_flush_batches
+                WHERE token IN (
+                  SELECT token FROM counter_flush_batches
+                  WHERE applied_at < ${before(flushDays)}
+                  LIMIT ${limit})`,
+              ),
+            )
+          : 0,
     };
     if (Object.values(result).some((n) => n > 0)) {
       this.logger.info(result, 'data retention');
@@ -255,18 +347,38 @@ export class DataRetentionService implements OnModuleDestroy {
     return parts.reduce((n, d) => n + d, 0);
   }
 
-  private async batched(
-    step: (limit: number) => Promise<number>,
-  ): Promise<number> {
-    let deleted = 0;
-    while (deleted < MAX_PER_TABLE) {
-      const n = await step(BATCH);
-      deleted += n;
-      if (n < BATCH) break;
-      // A short pause so a big backlog never hogs the database.
-      await new Promise((r) => setTimeout(r, 200));
+  private batched(step: (limit: number) => Promise<number>): Promise<number> {
+    return deleteInBatches(step, this.pace);
+  }
+
+  /** Whole expired months of a monthly table; a failure (a busy table hits
+   * the lock timeout) is logged and the row delete carries on. */
+  private async dropMonths(
+    table: MonthRetentionTable,
+    db: () => MonthRetentionDb,
+    before: Date,
+    heldUsers: string[],
+    lockMs: number,
+  ): Promise<string[]> {
+    try {
+      const dropped = await dropExpiredMonths(
+        db(),
+        table,
+        before,
+        heldUsers,
+        lockMs,
+      );
+      if (dropped.length > 0) {
+        this.logger.info({ table, dropped }, 'retention: months dropped');
+      }
+      return dropped;
+    } catch (error) {
+      this.logger.warn(
+        { table, err: (error as Error).message },
+        'retention: month drop skipped',
+      );
+      return [];
     }
-    return deleted;
   }
 
   private retention(): PrismaClient | PrismaService {

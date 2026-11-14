@@ -31,10 +31,12 @@ import { partitionDatabaseUrl } from './partition-url';
 /** Months kept ahead of today by the daily job. */
 export const MONTHS_AHEAD = 2;
 /**
- * Optional retention per table, in months. EMPTY on purpose: nothing is
- * detached today (audit and auth history are kept). Add `audit_log: 36` to
- * start detaching whole months older than that; the detached tables stay in
- * the database until someone archives and drops them.
+ * Optional DETACH (not drop) per table, in months, for the security journals
+ * (audit_log, data_access_log: kept for ever today). EMPTY on purpose. The
+ * tables with a retention setting are cleaned by whole month elsewhere: DB
+ * scale batch B, DataRetentionService + partition-retention.ts drop an
+ * expired month of post_view_events / auth_events reading the same
+ * storage.retention_*_days settings as the row delete.
  */
 export const PARTITION_RETENTION_MONTHS: Readonly<Record<string, number>> = {};
 

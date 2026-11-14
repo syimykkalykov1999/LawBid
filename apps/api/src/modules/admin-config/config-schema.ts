@@ -1063,6 +1063,47 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 100,
   };
+  // DB scale batch B: retention pace and the monthly partition drop.
+  out['storage.retention_max_rows_per_table'] = {
+    ...out['storage.retention_max_rows_per_table'],
+    description:
+      'Most rows the nightly retention removes per table in one run (notifications included); the next night continues. 0 = no cap.',
+    min: 0,
+    max: 1_000_000_000,
+  };
+  out['storage.retention_batch_rows'] = {
+    ...out['storage.retention_batch_rows'],
+    description:
+      'Rows per DELETE of the nightly retention (small transactions, short locks).',
+    min: 1,
+    max: 100_000,
+  };
+  out['storage.retention_pause_ms'] = {
+    ...out['storage.retention_pause_ms'],
+    description:
+      'Pause between two DELETEs of the nightly retention, ms (0 = none).',
+    min: 0,
+    max: 60_000,
+  };
+  out['storage.retention_partition_drop_enabled'] = {
+    ...out['storage.retention_partition_drop_enabled'],
+    description:
+      'Monthly tables (post_view_events, auth_events): a month whose whole range is past the retention is dropped as one partition instead of row by row. Months with a legal-hold row and tables in an unfinished online conversion are skipped. Off = row by row.',
+  };
+  out['storage.retention_partition_lock_timeout_ms'] = {
+    ...out['storage.retention_partition_lock_timeout_ms'],
+    description:
+      'lock_timeout of one monthly partition drop, ms; a busy table gives up and the next night tries again.',
+    min: 100,
+    max: 60_000,
+  };
+  out['storage.retention_counter_flush_days'] = {
+    ...out['storage.retention_counter_flush_days'],
+    description:
+      'Days to keep the keys of applied counter flush batches (they make a batch re-applied after a hard kill a no-op). 0 = keep for ever.',
+    min: 0,
+    max: 3650,
+  };
   out['storage.daily_upload_mb_per_user'] = {
     ...out['storage.daily_upload_mb_per_user'],
     description:
