@@ -32,7 +32,7 @@ const matches = (a, practice) =>
   a.practiceAreas.some((p) => p.code === practice.code || p.code.startsWith(`${practice.code}.`));
 
 const CSS = `
-:root{color-scheme:light dark;--bg:#fff;--fg:#14213d;--muted:#5c677d;--line:#e3e6ee;--gold:#a8832f;--card:#f7f8fb}
+:root{color-scheme:light dark;--bg:#fff;--fg:#14213d;--muted:#5c677d;--line:#e3e6ee;--gold:#806128;--card:#f7f8fb}
 @media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#eef1f7;--muted:#9aa4b8;--line:#232a36;--gold:#d4af5a;--card:#161b24}}
 *{box-sizing:border-box}body{margin:0;font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
 a{color:var(--gold)}header,main,footer{max-width:820px;margin:0 auto;padding:0 20px}

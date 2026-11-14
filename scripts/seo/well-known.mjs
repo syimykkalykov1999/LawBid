@@ -14,7 +14,8 @@
 // Android file is NOT written: a made-up fingerprint would only look valid.
 //
 // Usage: node scripts/seo/well-known.mjs --out dist-seo [--android-sha256 AA:BB:…]
-import { mkdir, writeFile } from 'node:fs/promises';
+//        node scripts/seo/well-known.mjs --check dist-seo   (exit 1 on a bad file)
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export const TEAM_ID = '78T56RPM74';
@@ -134,12 +135,67 @@ export async function writeWellKnown({ out, androidSha256, now }) {
   return written;
 }
 
+/**
+ * D1-48 (13.11): the last gate before the publish. Returns the problems found
+ * in <dir>/.well-known (an empty list = fine). A missing assetlinks.json is
+ * allowed (no fingerprint yet: the generator leaves it out); a present one must
+ * hold real fingerprints and both relations (App Links + passkeys).
+ */
+export async function checkPublished(dir) {
+  const problems = [];
+  const read = async (name) => {
+    try {
+      return await readFile(join(dir, '.well-known', name), 'utf8');
+    } catch {
+      return null;
+    }
+  };
+  const links = await read('assetlinks.json');
+  if (links !== null) {
+    if (/REPLACE_|<SHA-256/i.test(links)) problems.push('assetlinks.json holds a placeholder fingerprint');
+    let json = null;
+    try {
+      json = JSON.parse(links);
+    } catch {
+      problems.push('assetlinks.json is not valid JSON');
+    }
+    if (json) {
+      const entry = Array.isArray(json) ? json.find((e) => e?.target?.package_name === ANDROID_PACKAGE) : null;
+      if (!entry) problems.push(`assetlinks.json has no entry for ${ANDROID_PACKAGE}`);
+      const relations = entry?.relation ?? [];
+      for (const r of assetLinks([])[0].relation) {
+        if (!relations.includes(r)) problems.push(`assetlinks.json lacks ${r}`);
+      }
+      const fps = entry?.target?.sha256_cert_fingerprints ?? [];
+      if (fps.length === 0) problems.push('assetlinks.json lists no fingerprint');
+      for (const f of fps) {
+        if (normalizeFingerprint(f) !== f) problems.push(`assetlinks.json: not a SHA-256 fingerprint: "${f}"`);
+      }
+    }
+  }
+  const aasa = await read('apple-app-site-association');
+  if (aasa === null) {
+    problems.push('apple-app-site-association is missing');
+  } else if (aasa.trim() !== JSON.stringify(appleAppSiteAssociation(), null, 2)) {
+    problems.push('apple-app-site-association is not the generated file');
+  }
+  return problems;
+}
+
 if (process.argv[1] && process.argv[1].endsWith('well-known.mjs')) {
   const argv = process.argv.slice(2);
   const arg = (n, d) => {
     const i = argv.indexOf(`--${n}`);
     return i >= 0 ? argv[i + 1] : d;
   };
+  const checkDir = arg('check');
+  if (checkDir) {
+    const problems = await checkPublished(checkDir);
+    for (const p of problems) console.log(`::error::well-known: ${p}`);
+    if (problems.length > 0) process.exit(1);
+    console.log(`well-known: ${checkDir}/.well-known is fine`);
+    process.exit(0);
+  }
   const out = arg('out', 'dist-seo');
   const sha = arg('android-sha256', process.env.ANDROID_APP_SHA256 ?? '');
   const written = await writeWellKnown({ out, androidSha256: sha });

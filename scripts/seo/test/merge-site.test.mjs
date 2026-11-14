@@ -24,6 +24,7 @@ put(site, 'practice-areas/divorce/index.html', 'SITE divorce');
 put(site, 'practice-areas/index.html', 'SITE practice areas');
 put(site, 'lawyers/texas/index.html', 'SITE lawyers');
 put(site, '_next/static/a.js', 'js');
+put(site, '.well-known/assetlinks.json', '[{"target":{"sha256_cert_fingerprints":["REPLACE_WITH_SHA256"]}}]');
 put(
   site,
   'sitemap.xml',
@@ -66,4 +67,9 @@ test('public-paths.txt lists what the app upload must keep', () => {
 
 test('.well-known is listed in public-paths.txt (the app upload must not delete it)', () => {
   assert.ok(read('public-paths.txt').split('\n').includes('.well-known'));
+});
+
+test("the site's own .well-known never reaches the publish (D1-48)", () => {
+  assert.equal(existsSync(join(seo, '.well-known/assetlinks.json')), false);
+  assert.equal(read('.well-known/apple-app-site-association'), '{}');
 });
