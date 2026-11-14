@@ -161,7 +161,7 @@ class _RoleSwitchSheetState extends ConsumerState<RoleSwitchSheet> {
             Text(
               _error!,
               key: const ValueKey('role-switch-error'),
-              style: typography.bodySmall.copyWith(color: colors.danger),
+              style: typography.bodySmall.copyWith(color: colors.dangerText),
             ),
           ],
           const SizedBox(height: AppSpacing.md),

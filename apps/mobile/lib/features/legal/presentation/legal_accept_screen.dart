@@ -133,7 +133,8 @@ class _LegalAcceptScreenState extends ConsumerState<LegalAcceptScreen> {
                         child: Text(
                           errorText(t, _error!),
                           key: const ValueKey('legal-accept-error'),
-                          style: type.bodySmall.copyWith(color: colors.danger),
+                          style:
+                              type.bodySmall.copyWith(color: colors.dangerText),
                         ),
                       ),
                   ],

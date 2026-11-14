@@ -279,7 +279,7 @@ class _DealRecordBodyState extends ConsumerState<DealRecordBody> {
               padding: const EdgeInsets.only(top: AppSpacing.sm),
               child: Text(
                 _error!,
-                style: type.bodySmall.copyWith(color: colors.danger),
+                style: type.bodySmall.copyWith(color: colors.dangerText),
               ),
             ),
           const SizedBox(height: AppSpacing.md),
@@ -471,7 +471,7 @@ class _DayGroup extends StatelessWidget {
                 Expanded(
                   child: Text(
                     formats.dateLong(day),
-                    style: type.bodySmall.copyWith(color: colors.gold),
+                    style: type.bodySmall.copyWith(color: colors.goldText),
                   ),
                 ),
                 Text(

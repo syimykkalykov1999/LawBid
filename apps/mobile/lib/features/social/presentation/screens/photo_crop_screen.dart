@@ -262,7 +262,7 @@ class _PhotoCropScreenState extends ConsumerState<PhotoCropScreen> {
                 : Text(
                     t.t('common.done'),
                     style: type.body.copyWith(
-                      color: colors.gold,
+                      color: colors.goldText,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
