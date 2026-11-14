@@ -131,7 +131,7 @@ describe('FileScanProcessor: AAC copy of a browser voice note (row 146)', () => 
     expect(t.transcode).toHaveBeenCalledWith(WEBM, {
       bitrateKbps: 32,
       sampleRateHz: 16000,
-      timeoutMs: 120_000,
+      timeoutMs: 20_000, // the default (R2 review: was 120 s)
     });
     expect(t.storage.put).toHaveBeenCalledWith(
       'docs',

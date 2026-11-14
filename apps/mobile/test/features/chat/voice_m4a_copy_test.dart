@@ -69,9 +69,28 @@ void main() {
       playableVoiceUrl('a', 'b', platform: TargetPlatform.android, web: false),
       'a',
     );
-    // The website plays the original; the browser asks for what it can play.
+    // The website plays the original when the browser plays Opus in WebM.
     expect(
-      playableVoiceUrl('a', 'b', platform: TargetPlatform.iOS, web: true),
+      playableVoiceUrl(
+        'a',
+        'b',
+        platform: TargetPlatform.iOS,
+        web: true,
+        webPlaysWebm: () => true,
+      ),
+      'a',
+    );
+  });
+
+  test(
+      'R2 review: a browser that cannot play Opus in WebM (canPlayType "") '
+      'gets the AAC/M4A copy, or the original when there is none', () {
+    expect(
+      playableVoiceUrl('a', 'b', web: true, webPlaysWebm: () => false),
+      'b',
+    );
+    expect(
+      playableVoiceUrl('a', null, web: true, webPlaysWebm: () => false),
       'a',
     );
   });

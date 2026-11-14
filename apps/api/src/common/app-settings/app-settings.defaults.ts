@@ -467,7 +467,10 @@ export const OWNER_MEDIA_SETTINGS = {
   // Off: no new copies (existing ones are still served). ffmpeg is given at
   // most this many seconds per note; then the note goes out as WebM only.
   'media.voice_transcode_enabled': true,
-  'media.voice_transcode_timeout_sec': 120,
+  // R2 review (14.11): the sender waits for this copy (the note turns
+  // clean after it), so a hung ffmpeg must not hold a note for minutes; a
+  // 15-minute note encodes in a few seconds.
+  'media.voice_transcode_timeout_sec': 20,
   // Owner 2026-10-05: document templates the admin uploads (PDF, Word).
   'files.document_template_max_size_mb': 10,
 } as const;

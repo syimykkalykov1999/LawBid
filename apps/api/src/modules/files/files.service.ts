@@ -61,6 +61,7 @@ import {
   variantKey,
   avifKey,
   voiceM4aKey,
+  FILE_MIME,
   AVIF_PURPOSES,
   type FileMime,
   isImageMime,
@@ -1564,6 +1565,11 @@ export class FilesService {
     const key =
       demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
     await this.storage.put(bucket, key, data, src.mime);
+    // R2 review (owner row 146): a browser voice note forwarded into another
+    // bucket keeps its AAC/M4A copy, or the iPhone could not play it there.
+    const voiceM4a = src.voice_m4a
+      ? await this.copyVoiceM4a(src.s3_bucket, src.s3_key, bucket, key)
+      : false;
     const sha256 = createHash('sha256').update(data).digest('hex');
     await this.prisma.file.create({
       data: {
@@ -1576,6 +1582,7 @@ export class FilesService {
         size_bytes: BigInt(data.length),
         sha256,
         source_sha256: src.source_sha256 ?? sha256,
+        voice_m4a: voiceM4a,
         scan_status: 'clean',
       },
     });
@@ -1669,6 +1676,30 @@ export class FilesService {
       });
     }
     return { file, data: await this.storage.read(file.s3_bucket, file.s3_key) };
+  }
+
+  /**
+   * R2 review (owner row 146): copies the AAC/M4A twin of a voice note next
+   * to its new copy (`<key>.m4a`). False when it cannot be read or written:
+   * the new note then plays as the original (WebM) only, as before.
+   */
+  private async copyVoiceM4a(
+    fromBucket: string,
+    fromKey: string,
+    toBucket: string,
+    toKey: string,
+  ): Promise<boolean> {
+    try {
+      const m4a = await this.storage.read(fromBucket, voiceM4aKey(fromKey));
+      await this.storage.put(toBucket, voiceM4aKey(toKey), m4a, FILE_MIME.m4a);
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        { err, alert: 'voice_transcode_failed', key: toKey },
+        'AAC copy of a forwarded voice note not copied: WebM only',
+      );
+      return false;
+    }
   }
 
   /**
