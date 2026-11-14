@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument } from '@cantoo/pdf-lib';
 import PDFDocumentKit from 'pdfkit';
 import { createHash } from 'node:crypto';
 import {

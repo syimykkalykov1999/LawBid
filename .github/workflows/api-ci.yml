@@ -19,9 +19,8 @@
 # workflow run on the merge queue's temporary branch.
 #
 # Service containers mirror docker-compose.yml's dev infra (PostgreSQL 16, Redis 7,
-# Mailpit, the multi-arch MailHog successor), all pinned by image digest. MinIO is built from source at a pinned
-# release (no image is published any more) and started on the runner for the
-# file suites.
+# Mailpit, the multi-arch MailHog successor, and versitygw, the local S3 that
+# replaced MinIO in row 120), all pinned by image digest.
 
 name: API CI
 
@@ -80,7 +79,7 @@ env:
   NODE_ENV: test
   PORT: "3000"
   # DATABASE_URL, REDIS_URL, SMTP_PORT, S3_ENDPOINT are set per job by
-  # scripts/ci/service-env.sh and start-minio.sh (random host ports); no
+  # scripts/ci/service-env.sh (random host ports of the service containers); no
   # fixed defaults here, so a job without that step fails loudly.
   SUBSCRIPTION_PAST_DUE_GRACE_DAYS: "3"
   JWT_KEYS: "ci1:ci_secret_at_least_32_characters_long_aaaa"
@@ -424,10 +423,34 @@ jobs:
       # Mailpit (MIT, multi-arch incl. arm64): same SMTP 1025 / HTTP 8025 as MailHog,
       # whose image is amd64-only. Tests only dial SMTP (MockEmailProvider).
       mailpit:
-        image: axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+        image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
         ports:
           - 1025
           - 8025
+      # Local S3, the same image as the `s3` service of docker-compose.yml:
+      # versitygw (Apache-2.0, multi-arch). MinIO no longer publishes images
+      # or binaries (it was built from source here until row 120). A real
+      # S3, not moto: the file suites check that S3 itself enforces the
+      # presigned POST policy, signed PUT headers, private buckets and link
+      # expiry. Configured by env only (the image's entrypoint); the
+      # container's /tmp is the object store.
+      s3:
+        image: versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5
+        env:
+          ROOT_ACCESS_KEY: lawbid
+          ROOT_SECRET_KEY: lawbid_dev_only
+          VGW_BACKEND: posix
+          VGW_BACKEND_ARG: /tmp
+          VGW_PORT: ":9000"
+          VGW_HEALTH: /health
+          VGW_QUIET: "true"
+        ports:
+          - 9000
+        options: >-
+          --health-cmd "wget -q -O /dev/null http://localhost:9000/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -437,6 +460,7 @@ jobs:
           PG_PORT: ${{ job.services.postgres.ports['5432'] }}
           REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
           SMTP_MAPPED_PORT: ${{ job.services.mailpit.ports['1025'] }}
+          S3_MAPPED_PORT: ${{ job.services.s3.ports['9000'] }}
         run: scripts/ci/service-env.sh
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -455,33 +479,6 @@ jobs:
       - name: Prisma generate
         working-directory: apps/api
         run: npx prisma generate
-
-      # MinIO no longer publishes images or binaries, so it is built from
-      # its source at a pinned release (RELEASE.2025-10-15T17-29-55Z) and
-      # cached. A real MinIO, not moto: the file suites check that S3 itself
-      # enforces the presigned POST policy, private buckets and link expiry.
-      # Plain cache (restore + save on a miss): on a self-hosted runner nobody else fills it, and
-      # building MinIO from source is far dearer than the one-off upload. Arch is in the key:
-      # an x64 binary restored on arm64 is an exec format error.
-      - name: Cache the MinIO build
-        id: minio-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /tmp/minio-bin
-          key: minio-${{ runner.arch }}-9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        if: steps.minio-cache.outputs.cache-hit != 'true'
-        with:
-          go-version: "1.24"
-          cache: false
-
-      - name: Build MinIO
-        if: steps.minio-cache.outputs.cache-hit != 'true'
-        run: GOBIN=/tmp/minio-bin go install github.com/minio/minio@9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
-
-      - name: Start MinIO for the file / voice e2e suites
-        run: scripts/ci/start-minio.sh
 
       - name: e2e tests (real PostgreSQL + Redis + local S3), shard ${{ matrix.shard }} of 3
         # Jest keeps every finished suite's module graph in memory (40–60 MB
@@ -506,14 +503,6 @@ jobs:
           path: ${{ runner.temp }}/e2e-out
           retention-days: 14
           if-no-files-found: ignore
-
-      - name: MinIO log (only when e2e failed)
-        if: failure()
-        run: tail -n 60 "$RUNNER_TEMP/minio/minio.log" || true; curl -s -o /dev/null -w "minio http %{http_code}\n" "http://127.0.0.1:${MINIO_PORT:-0}/minio/health/live" || echo "MinIO is down"
-
-      - name: Stop MinIO
-        if: always()
-        run: scripts/ci/stop-minio.sh
 
   two-db:
     name: API e2e (two databases)
@@ -549,10 +538,34 @@ jobs:
       # Mailpit (MIT, multi-arch incl. arm64): same SMTP 1025 / HTTP 8025 as MailHog,
       # whose image is amd64-only. Tests only dial SMTP (MockEmailProvider).
       mailpit:
-        image: axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+        image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
         ports:
           - 1025
           - 8025
+      # Local S3, the same image as the `s3` service of docker-compose.yml:
+      # versitygw (Apache-2.0, multi-arch). MinIO no longer publishes images
+      # or binaries (it was built from source here until row 120). A real
+      # S3, not moto: the file suites check that S3 itself enforces the
+      # presigned POST policy, signed PUT headers, private buckets and link
+      # expiry. Configured by env only (the image's entrypoint); the
+      # container's /tmp is the object store.
+      s3:
+        image: versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5
+        env:
+          ROOT_ACCESS_KEY: lawbid
+          ROOT_SECRET_KEY: lawbid_dev_only
+          VGW_BACKEND: posix
+          VGW_BACKEND_ARG: /tmp
+          VGW_PORT: ":9000"
+          VGW_HEALTH: /health
+          VGW_QUIET: "true"
+        ports:
+          - 9000
+        options: >-
+          --health-cmd "wget -q -O /dev/null http://localhost:9000/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -562,6 +575,7 @@ jobs:
           PG_PORT: ${{ job.services.postgres.ports['5432'] }}
           REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
           SMTP_MAPPED_PORT: ${{ job.services.mailpit.ports['1025'] }}
+          S3_MAPPED_PORT: ${{ job.services.s3.ports['9000'] }}
         run: scripts/ci/service-env.sh
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -581,33 +595,6 @@ jobs:
         working-directory: apps/api
         run: npx prisma generate
 
-      # MinIO no longer publishes images or binaries, so it is built from
-      # its source at a pinned release (RELEASE.2025-10-15T17-29-55Z) and
-      # cached. A real MinIO, not moto: the file suites check that S3 itself
-      # enforces the presigned POST policy, private buckets and link expiry.
-      # Plain cache (restore + save on a miss): on a self-hosted runner nobody else fills it, and
-      # building MinIO from source is far dearer than the one-off upload. Arch is in the key:
-      # an x64 binary restored on arm64 is an exec format error.
-      - name: Cache the MinIO build
-        id: minio-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /tmp/minio-bin
-          key: minio-${{ runner.arch }}-9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        if: steps.minio-cache.outputs.cache-hit != 'true'
-        with:
-          go-version: "1.24"
-          cache: false
-
-      - name: Build MinIO
-        if: steps.minio-cache.outputs.cache-hit != 'true'
-        run: GOBIN=/tmp/minio-bin go install github.com/minio/minio@9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
-
-      - name: Start MinIO for the file / voice e2e suites
-        run: scripts/ci/start-minio.sh
-
       - name: e2e tests on TWO databases (shard-ready step 5, subset)
         # docs/architecture/SHARDING_READY.md §10: every logical shard of
         # the case / user / content families lives in a second database,
@@ -622,14 +609,6 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
           E2E_TWO_DB: all
         run: npm run test:e2e:two-db --workspace apps/api
-
-      - name: MinIO log (only when e2e failed)
-        if: failure()
-        run: tail -n 60 "$RUNNER_TEMP/minio/minio.log" || true; curl -s -o /dev/null -w "minio http %{http_code}\n" "http://127.0.0.1:${MINIO_PORT:-0}/minio/health/live" || echo "MinIO is down"
-
-      - name: Stop MinIO
-        if: always()
-        run: scripts/ci/stop-minio.sh
 
   n1:
     name: API N-1 (previous release's suites on the new schema)
@@ -663,6 +642,30 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
+      # Local S3, the same image as the `s3` service of docker-compose.yml:
+      # versitygw (Apache-2.0, multi-arch). MinIO no longer publishes images
+      # or binaries (it was built from source here until row 120). A real
+      # S3, not moto: the file suites check that S3 itself enforces the
+      # presigned POST policy, signed PUT headers, private buckets and link
+      # expiry. Configured by env only (the image's entrypoint); the
+      # container's /tmp is the object store.
+      s3:
+        image: versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5
+        env:
+          ROOT_ACCESS_KEY: lawbid
+          ROOT_SECRET_KEY: lawbid_dev_only
+          VGW_BACKEND: posix
+          VGW_BACKEND_ARG: /tmp
+          VGW_PORT: ":9000"
+          VGW_HEALTH: /health
+          VGW_QUIET: "true"
+        ports:
+          - 9000
+        options: >-
+          --health-cmd "wget -q -O /dev/null http://localhost:9000/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       # 12.11 (KNOWN_ERRORS 115): a full clone (fetch-depth 0) of the 3 GB history
       # hung the whole hour on #950. Only two commits are needed: this one and
@@ -682,6 +685,7 @@ jobs:
         env:
           PG_PORT: ${{ job.services.postgres.ports['5432'] }}
           REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
+          S3_MAPPED_PORT: ${{ job.services.s3.ports['9000'] }}
         run: scripts/ci/service-env.sh
 
       # S11-3: a deploy runs migrate THEN rolls (10-40 min of old tasks on the new
@@ -731,45 +735,12 @@ jobs:
         working-directory: ${{ runner.temp }}/prev/apps/api
         run: npx prisma generate
 
-      # MinIO no longer publishes images or binaries, so it is built from
-      # its source at a pinned release (RELEASE.2025-10-15T17-29-55Z) and
-      # cached. A real MinIO, not moto: the file suites check that S3 itself
-      # enforces the presigned POST policy, private buckets and link expiry.
-      # Plain cache (restore + save on a miss): on a self-hosted runner nobody else fills it, and
-      # building MinIO from source is far dearer than the one-off upload. Arch is in the key:
-      # an x64 binary restored on arm64 is an exec format error.
-      - name: Cache the MinIO build
-        id: minio-cache
-        if: steps.mig.outputs.changed == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /tmp/minio-bin
-          key: minio-${{ runner.arch }}-9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        if: steps.mig.outputs.changed == 'true' && steps.minio-cache.outputs.cache-hit != 'true'
-        with:
-          go-version: "1.24"
-          cache: false
-
-      - name: Build MinIO
-        if: steps.mig.outputs.changed == 'true' && steps.minio-cache.outputs.cache-hit != 'true'
-        run: GOBIN=/tmp/minio-bin go install github.com/minio/minio@9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
-
-      - name: Start MinIO for the file / voice e2e suites
-        if: steps.mig.outputs.changed == 'true'
-        run: scripts/ci/start-minio.sh
-
       - name: New schema under the old code, then the old smoke suites
         if: steps.mig.outputs.changed == 'true'
         env:
           NODE_OPTIONS: --max-old-space-size=4096
           PREV_DIR: ${{ runner.temp }}/prev
         run: node scripts/ci/n1-compat.mjs "$PREV_DIR"
-
-      - name: Stop MinIO
-        if: always()
-        run: scripts/ci/stop-minio.sh
 
   # One stable required check for the ruleset / merge queue.
 

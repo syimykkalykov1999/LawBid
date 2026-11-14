@@ -21,7 +21,9 @@ on:
       tag:
         description: "Tag in ECR lawbid-pgbouncer (immutable)"
         required: false
-        default: "1.24.0-3"
+        # 1.25.2-1: Alpine 3.24.4 + PgBouncer 1.25.2 (row 120, 2026-11-14).
+        # Prod keeps 1.24.0-3 until pgbouncer_image in the tfvars is changed.
+        default: "1.25.2-1"
   pull_request:
     paths:
       - "infra/pgbouncer/**"

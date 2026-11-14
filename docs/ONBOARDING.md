@@ -57,7 +57,8 @@ Prerequisites: Node 26 (CI uses 26), npm, Docker, Flutter (stable) for the app.
 git clone <repo> && cd LawBid
 npm ci                      # root workspace: apps/api, apps/admin, packages/*
 npm run prepare             # installs the husky pre-commit hook (npm ci skips scripts)
-docker compose up -d        # PostgreSQL 16, Redis 7, MinIO (local S3), Mailhog, TURN
+docker compose up -d        # PostgreSQL 16, Redis 7, versitygw (local S3), Mailpit, TURN
+# docker compose --profile calls up -d livekit   # optional: LiveKit SFU in dev mode
 ```
 
 API (`apps/api`):
@@ -74,7 +75,7 @@ npm run start:dev --workspace apps/api      # http://localhost:3000, watch mode
 Notes:
 
 - In dev, SMS and e-mail use the mock providers (`SMS_PROVIDER`/`EMAIL_PROVIDER=auto`); codes
-  appear in the API log and Mailhog (<http://localhost:8025>). In staging/production a mock is
+  appear in the API log and Mailpit (<http://localhost:8025>). In staging/production a mock is
   refused at boot ([ADR-0014](adr/0014-no-silent-mock-in-prod.md)).
 - Jobs: `JOBS_ENABLED=true` makes the API also run queues and cron. Production runs a separate
   worker (`node dist/src/worker.js`).
@@ -122,7 +123,7 @@ Core list is `.cursorrules` (Russian, mandatory). The ones that matter most, gro
 - **Lint is clean and `--fix` changes nothing:** `npm run lint` runs ESLint with `--fix`; CI then
   fails if committed files changed. Run lint before you commit. A husky hook (`lint-staged`) lints staged API files.
 - **Typecheck** `tsc --noEmit`; strict TypeScript; no `any`, no `@ts-ignore` without a reason.
-- **Unit and e2e tests** on real PostgreSQL 16, Redis 7, MinIO, Mailhog; e2e also on two databases.
+- **Unit and e2e tests** on real PostgreSQL 16, Redis 7, versitygw (S3), Mailpit; e2e also on two databases.
 - **API contract regeneration:** after changing any controller, DTO or response, run
   `sh packages/api-contract/generate.sh` (needs dev DB and Redis) and commit `openapi.json` plus the
   Dart client. CI regenerates and fails on any difference ("contract drift"). `oasdiff` also fails the
