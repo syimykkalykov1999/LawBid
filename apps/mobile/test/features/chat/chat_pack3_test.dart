@@ -90,7 +90,7 @@ void main() {
   });
 
   group('«Ожидание сети… / Соединение…» title (Telegram)', () {
-    final ru = StaticTranslatorRu();
+    const ru = StaticTranslatorRu();
     test('online: the normal title', () {
       expect(connectionTitle(ru, null), isNull);
     });
