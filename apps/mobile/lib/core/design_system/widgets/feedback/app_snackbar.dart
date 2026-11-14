@@ -17,11 +17,14 @@ import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 ///
 /// [actionLabel] + [onAction]: an accent text button (e.g. "Undo", owner
 /// 2026-10-01 — a checkmark set by mistake can be taken back at once).
+/// [duration]: how long it stays (2.5 s by default; an «Undo» message
+/// stays for the admin's undo window, row 109).
 void showAppSnackBar(
   BuildContext context,
   String message, {
   String? actionLabel,
   VoidCallback? onAction,
+  Duration? duration,
 }) {
   // Owner 2026-10-19 («нажимаю на оплату — ничего»): a snackbar lives in the
   // screen's Scaffold, UNDER a bottom sheet or a dialog, so an error from a
@@ -33,6 +36,7 @@ void showAppSnackBar(
       message,
       actionLabel: actionLabel,
       onAction: onAction,
+      duration: duration ?? _defaultDuration,
     );
     return;
   }
@@ -41,14 +45,18 @@ void showAppSnackBar(
     message,
     actionLabel: actionLabel,
     onAction: onAction,
+    duration: duration ?? _defaultDuration,
   );
 }
+
+const _defaultDuration = Duration(milliseconds: 2500);
 
 OverlayEntry? _overlayMessage;
 
 void _showOverlayMessage(
   BuildContext context,
   String message, {
+  required Duration duration,
   String? actionLabel,
   VoidCallback? onAction,
 }) {
@@ -68,6 +76,7 @@ void _showOverlayMessage(
       final mq = MediaQuery.of(context);
       return _AutoClose(
         onClose: close,
+        duration: duration,
         child: Positioned(
           left: AppSpacing.lg,
           right: AppSpacing.lg,
@@ -119,7 +128,7 @@ void _showOverlayMessage(
   overlay.insert(entry);
 }
 
-/// Closes the message after 2.5 s; the timer ends with the widget.
+/// Closes the message after [duration]; the timer ends with the widget.
 ///
 /// Row 95 (motion catalog T2): the message used to pop in and out with no
 /// motion. It now moves like Flutter's Material 3 floating `SnackBar`
@@ -128,9 +137,14 @@ void _showOverlayMessage(
 /// (`Interval(0.4, 0.6, curve: Curves.easeInCirc)`), 250 ms each way, and
 /// plays the same backwards before it goes. Reduce motion: no motion.
 class _AutoClose extends StatefulWidget {
-  const _AutoClose({required this.onClose, required this.child});
+  const _AutoClose({
+    required this.onClose,
+    required this.duration,
+    required this.child,
+  });
 
   final VoidCallback onClose;
+  final Duration duration;
   final Widget child;
 
   @override
@@ -158,7 +172,7 @@ class _AutoCloseState extends State<_AutoClose>
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(milliseconds: 2500), _hide);
+    _timer = Timer(widget.duration, _hide);
   }
 
   @override
@@ -222,6 +236,7 @@ class _AutoCloseState extends State<_AutoClose>
 void _showScaffoldSnackBar(
   BuildContext context,
   String message, {
+  required Duration duration,
   String? actionLabel,
   VoidCallback? onAction,
 }) {
@@ -237,7 +252,7 @@ void _showScaffoldSnackBar(
         // a white system look. Now it closes by itself after 2.5 s, in the
         // theme's own surface.
         persist: false,
-        duration: const Duration(milliseconds: 2500),
+        duration: duration,
         backgroundColor: colors.surface,
         elevation: 6,
         margin: const EdgeInsets.all(AppSpacing.lg),

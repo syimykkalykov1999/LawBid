@@ -17,6 +17,7 @@ import 'package:lawbid/features/feed/application/feed_topics.dart'
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/social/application/post_insights_providers.dart';
 import 'package:lawbid/features/social/application/post_spotlight.dart';
+import 'package:lawbid/features/social/application/social_drafts.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -167,7 +168,8 @@ class DeletedPosts extends Notifier<Set<String>> {
   @override
   Set<String> build() {
     ref.watch(currentUserIdProvider);
-    return const {};
+    // Row 112: posts marked «Not interested» on this device stay out too.
+    return {...ref.read(notInterestedPostsProvider).keys};
   }
 
   void add(String id) => state = {...state, id};
