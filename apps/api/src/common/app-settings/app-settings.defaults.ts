@@ -2076,6 +2076,10 @@ export const OWNER_CASE_FANOUT_SETTINGS = {
  *   true = the old behaviour, any sign-in cancels.
  */
 export const OWNER_PRIVACY_SETTINGS = {
+  /** R2B-14 (14.11): days an old cold-email unsubscribe token is kept raw
+   * after its hash exists (a rollback still prints it); then only the hash
+   * stays. 0 = clear at once. */
+  'outreach.raw_unsubscribe_token_keep_days': 14,
   'privacy.auto_retention': true,
   'privacy.retention_audit_log_days': 1825,
   'privacy.retention_data_access_log_days': 1825,

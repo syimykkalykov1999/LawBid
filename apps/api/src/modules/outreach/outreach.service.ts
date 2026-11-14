@@ -15,7 +15,15 @@ import type {
   Partner,
   Prisma,
 } from '../../generated/prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { readKey } from '../../common/secrets/key-holder';
+import {
+  hashLegacyToken,
+  isSignedUnsubscribeToken,
+  UNSUBSCRIBE_TOKEN_PATTERN,
+  UnsubscribeTokenCodec,
+} from './unsubscribe-token';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestAdmin } from '../admin-auth/admin-auth.decorators';
 import type {
@@ -205,7 +213,51 @@ export class OutreachService {
     private readonly partners: PartnersService,
     private readonly rateLimit: RateLimitService,
     @Optional() @Inject(OUTREACH_EMAIL) private readonly email?: EmailProvider,
-  ) {}
+    // R2B-14: the secrets key ring that signs the unsubscribe links.
+    @Optional() private readonly config?: ConfigService,
+  ) {
+    this.tokens = UnsubscribeTokenCodec.from(
+      readKey('SECRETS_MASTER_KEYS', () =>
+        this.config?.get<string>('SECRETS_MASTER_KEYS'),
+      ),
+      this.config?.get<string>('SECRETS_ACTIVE_KID'),
+    );
+  }
+
+  /** Null without SECRETS_MASTER_KEYS (a bare dev box): links fall back to
+   * the legacy random token, stored as its hash. */
+  private readonly tokens: UnsubscribeTokenCodec | null;
+
+  /** Columns of a NEW lead: nothing secret when links are signed; on a box
+   * without the key ring a random token plus its hash (R2B-14). */
+  newLeadUnsubscribeFields(now: Date = new Date()): {
+    unsubscribe_token: string | null;
+    unsubscribe_token_hash: string | null;
+    unsubscribe_token_hashed_at: Date | null;
+  } {
+    if (this.tokens) {
+      return {
+        unsubscribe_token: null,
+        unsubscribe_token_hash: null,
+        unsubscribe_token_hashed_at: null,
+      };
+    }
+    const raw = newUnsubscribeToken();
+    return {
+      unsubscribe_token: raw,
+      unsubscribe_token_hash: hashLegacyToken(raw),
+      unsubscribe_token_hashed_at: now,
+    };
+  }
+
+  /** The token printed in a lead's unsubscribe link: signed when the key
+   * ring is set, else the lead's legacy token. */
+  unsubscribeLinkToken(
+    lead: Pick<OutreachLead, 'id' | 'unsubscribe_token'>,
+  ): string {
+    if (this.tokens) return this.tokens.sign(lead.id);
+    return lead.unsubscribe_token ?? '';
+  }
 
   // ---- settings & scope ---------------------------------------------------
 
@@ -519,12 +571,14 @@ export class OutreachService {
 
   // ---- unsubscribe ------------------------------------------------------------
 
-  /** Public link in every cold email. Idempotent; false = unknown token. */
+  /** Public link in every cold email. Idempotent; false = unknown token.
+   * R2B-14: a signed link names its lead (MAC checked, any kid of the
+   * ring); an old link is found by the sha256 the row keeps; a row the
+   * migration has not reached is found once by its raw token and migrated
+   * on the spot. A forged or unknown token finds nothing. */
   async unsubscribe(token: string): Promise<boolean> {
-    if (!/^[A-Za-z0-9_-]{16,48}$/.test(token)) return false;
-    const lead = await this.prisma.outreachLead.findUnique({
-      where: { unsubscribe_token: token },
-    });
+    if (!UNSUBSCRIBE_TOKEN_PATTERN.test(token)) return false;
+    const lead = await this.leadByUnsubscribeToken(token);
     if (!lead) return false;
     if (!lead.unsubscribed_at) {
       await this.prisma.outreachLead.update({
@@ -541,6 +595,33 @@ export class OutreachService {
     // calls as well — the person said no.
     await this.markDoNotContact(this.prisma, lead, 'unsubscribed');
     return true;
+  }
+
+  private async leadByUnsubscribeToken(
+    token: string,
+  ): Promise<OutreachLead | null> {
+    if (isSignedUnsubscribeToken(token)) {
+      const id = this.tokens?.verify(token) ?? null;
+      return id ? this.prisma.outreachLead.findUnique({ where: { id } }) : null;
+    }
+    const hash = hashLegacyToken(token);
+    const byHash = await this.prisma.outreachLead.findUnique({
+      where: { unsubscribe_token_hash: hash },
+    });
+    if (byHash) return byHash;
+    const byRaw = await this.prisma.outreachLead.findUnique({
+      where: { unsubscribe_token: token },
+    });
+    if (byRaw && !byRaw.unsubscribe_token_hash) {
+      await this.prisma.outreachLead.updateMany({
+        where: { id: byRaw.id, unsubscribe_token_hash: null },
+        data: {
+          unsubscribe_token_hash: hash,
+          unsubscribe_token_hashed_at: new Date(),
+        },
+      });
+    }
+    return byRaw;
   }
 
   // ---- cold email -------------------------------------------------------------
@@ -586,7 +667,7 @@ export class OutreachService {
     template: Pick<OutreachTemplate, 'subject' | 'body'>;
     lead: Pick<
       OutreachLead,
-      'first_name' | 'last_name' | 'company' | 'unsubscribe_token'
+      'id' | 'first_name' | 'last_name' | 'company' | 'unsubscribe_token'
     >;
     senderName: string;
     link: string;
@@ -602,7 +683,7 @@ export class OutreachService {
     const subject = renderTemplateString(input.template.subject, vars)
       .replace(/[\r\n]+/g, ' ')
       .trim();
-    const unsubscribeUrl = `${input.settings.apiPublicUrl}/api/v1/outreach/unsubscribe/${input.lead.unsubscribe_token}`;
+    const unsubscribeUrl = `${input.settings.apiPublicUrl}/api/v1/outreach/unsubscribe/${this.unsubscribeLinkToken(input.lead)}`;
     const bodyText = renderTemplateString(input.template.body, vars).trim();
     const footerText = [
       `${input.settings.fromName} · ${input.settings.footerAddress}`,
@@ -696,7 +777,7 @@ export class OutreachService {
       link,
       settings,
     });
-    const unsubscribeUrl = `${settings.apiPublicUrl}/api/v1/outreach/unsubscribe/${lead.unsubscribe_token}`;
+    const unsubscribeUrl = `${settings.apiPublicUrl}/api/v1/outreach/unsubscribe/${this.unsubscribeLinkToken(lead)}`;
     const message: EmailMessage = {
       to: lead.email,
       ...rendered,

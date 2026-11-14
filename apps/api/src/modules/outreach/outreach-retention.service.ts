@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -28,6 +29,7 @@ export class OutreachRetentionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: PinoLogger,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.logger.setContext(OutreachRetentionService.name);
   }
@@ -99,6 +101,43 @@ export class OutreachRetentionService {
       );
     }
     return { deleted, suppressed, retentionDays: leadRetentionDays };
+  }
+
+  /** The daily job: retention, then the raw-token clean-up (R2B-14). */
+  async runDaily(now: Date = new Date()) {
+    const res = await this.run(now);
+    const rawTokensCleared = await this.clearRawUnsubscribeTokens(now);
+    return { ...res, rawTokensCleared };
+  }
+
+  /**
+   * Detective R2B-14 (14.11): once a lead's old random unsubscribe token
+   * has its sha256 (the migration, or the first click), the raw value is
+   * cleared after `outreach.raw_unsubscribe_token_keep_days` (14; 0 = at
+   * once) — the wait keeps a rollback to the previous release, which still
+   * prints the raw token, working.
+   */
+  async clearRawUnsubscribeTokens(now: Date = new Date()): Promise<number> {
+    const n = await this.settings
+      ?.number('outreach.raw_unsubscribe_token_keep_days')
+      .catch(() => NaN);
+    const days = typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : 14;
+    const before = new Date(now.getTime() - days * 86_400_000);
+    const { count } = await this.prisma.outreachLead.updateMany({
+      where: {
+        unsubscribe_token: { not: null },
+        unsubscribe_token_hash: { not: null },
+        unsubscribe_token_hashed_at: { lte: before },
+      },
+      data: { unsubscribe_token: null },
+    });
+    if (count) {
+      this.logger.info(
+        { count, days },
+        'outreach raw unsubscribe tokens cleared',
+      );
+    }
+    return count;
   }
 }
 

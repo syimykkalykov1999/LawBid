@@ -1101,6 +1101,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100000,
   };
+  out['outreach.raw_unsubscribe_token_keep_days'] = {
+    ...out['outreach.raw_unsubscribe_token_keep_days'],
+    description:
+      'Days an old cold-email unsubscribe token stays readable after its hash is stored (14; 0 = clear at once). New links are signed and store nothing.',
+    min: 0,
+    max: 365,
+  };
   out['privacy.retention_batch'] = {
     ...out['privacy.retention_batch'],
     description: 'Privacy retention: rows per statement (short transactions).',

@@ -2172,7 +2172,9 @@ erDiagram
     String status
     String partner_id FK "nullable"
     String converted_user_id "nullable"
-    String unsubscribe_token UK
+    String unsubscribe_token UK "nullable"
+    String unsubscribe_token_hash UK "nullable"
+    DateTime unsubscribe_token_hashed_at "nullable"
     DateTime unsubscribed_at "nullable"
     DateTime last_activity_at "nullable"
     DateTime next_action_at "nullable"
