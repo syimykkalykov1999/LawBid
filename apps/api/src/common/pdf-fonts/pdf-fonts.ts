@@ -438,13 +438,19 @@ export const newPdfLayoutCache = (): PdfLayoutCache =>
  * on the parsed font and the word (pdfkit scales it by the font's own
  * units, copies it before changing it, and subsets per document from the
  * glyph ids), so the PDF bytes stay the same. Bounded: at most [maxWords]
- * words per parsed font, the least recently used one goes first; the
+ * words in all (every font together), the least recently used one goes first; the
  * caller sets [maxWords] from the admin setting, 0 = nothing is kept
  * between renders (the per-render cache, as before).
  */
 export class PdfWordCache implements PdfLayoutCache {
+  /** One store object per parsed font (what pdfkit's EmbeddedFont reads). */
   private readonly stores = new Map<object, Record<string, unknown>>();
-  private readonly words = new Map<object, Map<string, unknown>>();
+  /** A small id per parsed font: the shared LRU's key is `<id> <word>`. */
+  private readonly ids = new Map<object, number>();
+  /** All kept words of all fonts, least recently used first (Map order).
+   * Review of #1073 (14.11): ONE bound for the whole cache, not one per
+   * font, so [maxWords] × ~3.6 KB is the most it can ever hold. */
+  private readonly words = new Map<string, unknown>();
 
   constructor(public maxWords: number) {}
 
@@ -453,35 +459,51 @@ export class PdfWordCache implements PdfLayoutCache {
   forRender(): PdfLayoutCache {
     if (this.maxWords > 0) return this;
     this.stores.clear();
+    this.ids.clear();
     this.words.clear();
     return newPdfLayoutCache();
   }
 
+  /** Words kept, all fonts together (never above [maxWords]). */
+  get size(): number {
+    return this.words.size;
+  }
+
   /** Words kept for [font] (tests, memory checks). */
   sizeFor(font: object): number {
-    return this.words.get(font)?.size ?? 0;
+    const id = this.ids.get(font);
+    if (id === undefined) return 0;
+    const prefix = `${id}\u0000`;
+    let n = 0;
+    for (const k of this.words.keys()) if (k.startsWith(prefix)) n++;
+    return n;
   }
 
   get(font: object): Record<string, unknown> {
     let store = this.stores.get(font);
     if (store) return store;
-    const words = new Map<string, unknown>();
-    // pdfkit reads and writes `layoutCache[word]`: a bounded LRU behind the
-    // object it expects.
+    const id = this.ids.size;
+    this.ids.set(font, id);
+    const words = this.words;
+    const keyOf = (word: string) => `${id}\u0000${word}`;
+    // pdfkit reads and writes `layoutCache[word]`: the shared bounded LRU
+    // behind the object it expects.
     store = new Proxy(Object.create(null) as Record<string, unknown>, {
       get: (_t, key) => {
         if (typeof key !== 'string') return undefined;
-        const run = words.get(key);
+        const k = keyOf(key);
+        const run = words.get(k);
         if (run !== undefined) {
-          words.delete(key);
-          words.set(key, run);
+          words.delete(k);
+          words.set(k, run);
         }
         return run;
       },
       set: (_t, key, run: unknown) => {
         if (typeof key !== 'string') return true;
-        words.delete(key);
-        words.set(key, run);
+        const k = keyOf(key);
+        words.delete(k);
+        words.set(k, run);
         for (const oldest of words.keys()) {
           if (words.size <= this.maxWords) break;
           words.delete(oldest);
@@ -490,7 +512,6 @@ export class PdfWordCache implements PdfLayoutCache {
       },
     });
     this.stores.set(font, store);
-    this.words.set(font, words);
     return store;
   }
 
