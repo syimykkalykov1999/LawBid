@@ -158,3 +158,52 @@ export function pgAdapter(url: string | undefined): PrismaPg {
   const { pool, schema } = pgAdapterConfig(url);
   return new PrismaPg(pool, schema ? { schema } : undefined);
 }
+
+/** The node-pg pool size a database URL gives (`connection_limit`, else the
+ * v6 default) — the same number {@link pgAdapterConfig} hands to node-pg. */
+export function poolMaxOf(url: string | undefined): number {
+  if (!url) return 0;
+  return pgAdapterConfig(url).pool.max ?? 0;
+}
+
+/** What {@link warmPool} needs: a client that runs one raw statement. */
+export interface RawQueryClient {
+  $queryRawUnsafe(sql: string): Promise<unknown>;
+}
+
+/**
+ * 14.11 (detective F7, owner row 158): with Prisma 7 the driver adapter
+ * opens node-pg connections lazily (`new Pool()` connects nothing; Prisma 6's
+ * engine connected on `$connect()`), so the first requests after every task
+ * boot paid for N TLS connections at once on a busy 0.5 vCPU (prod 14.11:
+ * `AppConfig.findUnique took 2610 / 3994 / 3727 ms`). This opens [size]
+ * connections before the task serves traffic, by running [size] `SELECT 1`
+ * at the same time — each one makes the pool create its own connection
+ * (node-pg Pool, README "pool.connect": a new client is created while the
+ * pool is below `max` and no idle client is free). They then stay idle in
+ * the pool for `idleTimeoutMillis` (max_idle_connection_lifetime).
+ *
+ * Never throws: a database that is down at boot must not stop the task from
+ * starting (readiness reports it, as before); the failure is only counted.
+ */
+export async function warmPool(
+  client: RawQueryClient,
+  size: number,
+): Promise<{ opened: number; failed: number; ms: number }> {
+  const t0 = Date.now();
+  const n = Number.isInteger(size) && size > 0 ? size : 0;
+  const results = await Promise.allSettled(
+    Array.from({ length: n }, () => client.$queryRawUnsafe('SELECT 1')),
+  );
+  const failed = results.filter((r) => r.status === 'rejected').length;
+  return { opened: n - failed, failed, ms: Date.now() - t0 };
+}
+
+/** DB_POOL_WARM=off switches the boot warm-up off (on by default; off under
+ * jest unless DB_POOL_WARM=on, so unit/e2e query counters are unchanged). */
+export function poolWarmEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const v = env.DB_POOL_WARM?.trim().toLowerCase();
+  if (v === 'off' || v === '0' || v === 'false') return false;
+  if (v === 'on' || v === '1' || v === 'true') return true;
+  return !env.JEST_WORKER_ID && env.NODE_ENV !== 'test';
+}

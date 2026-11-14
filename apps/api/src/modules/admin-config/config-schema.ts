@@ -1159,6 +1159,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 200,
   };
+  out['ops.loop_stall_log_ms'] = {
+    ...out['ops.loop_stall_log_ms'],
+    description:
+      'A server whose event loop stood still at least this many ms writes one log line naming the garbage collections and open requests/jobs of that moment. 0 = off.',
+    min: 0,
+    max: 60_000,
+  };
   out['ops.bootstrap_cache_sec'] = {
     ...out['ops.bootstrap_cache_sec'],
     description:

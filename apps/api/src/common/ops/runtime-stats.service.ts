@@ -8,6 +8,7 @@ import {
 import { access } from 'node:fs/promises';
 import { getHeapStatistics } from 'node:v8';
 import { monitorEventLoopDelay, type IntervalHistogram } from 'node:perf_hooks';
+import { LoopStallService } from './loop-stall';
 
 const EMIT_MS = 60_000;
 
@@ -157,5 +158,8 @@ export class RuntimeStatsService
 }
 
 @Global()
-@Module({ providers: [RuntimeStatsService], exports: [RuntimeStatsService] })
+@Module({
+  providers: [RuntimeStatsService, LoopStallService],
+  exports: [RuntimeStatsService, LoopStallService],
+})
 export class RuntimeStatsModule {}

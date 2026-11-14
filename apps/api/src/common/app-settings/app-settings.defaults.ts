@@ -1540,6 +1540,11 @@ export const OWNER_OPS_SETTINGS = {
   // waits a random 0..jitter seconds first.
   'ops.db_lost_exit_min': 10,
   'ops.db_lost_exit_jitter_sec': 60,
+  // 14.11 (detective F3): a server whose event loop stood still for at
+  // least this many ms in one second writes one «event loop stall» line
+  // naming the garbage collections and the open requests / jobs of that
+  // second (common/ops/loop-stall.ts). 0 = off.
+  'ops.loop_stall_log_ms': 500,
   // Owner 2026-10-27 («Сегодня» as the owner's desk): the Sentry line on
   // «Сегодня» (one Sentry request per 5 minutes, needs the `sentry` keys in
   // «Ключи и сервисы») and the guided «Разделить базу» card on «Масштаб».

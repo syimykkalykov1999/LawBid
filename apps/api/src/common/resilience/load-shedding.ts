@@ -8,6 +8,7 @@ import {
 import type { NextFunction, Request, Response } from 'express';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { AppSettingsService } from '../app-settings/app-settings.service';
+import { trackWork } from '../ops/loop-stall';
 
 /** Paths that are never shed: the load balancer's probes, payment and
  * video webhooks (the sender retries badly), and the token refresh (a
@@ -138,11 +139,18 @@ export class LoadSheddingMiddleware implements NestMiddleware {
       return;
     }
     this.load.inFlight += 1;
+    // F3 (14.11): open requests are named in the «event loop stall» line
+    // (loop-stall.ts): route template once routed, else the path (no query).
+    const endWork = trackWork(() => {
+      const route = (req as { route?: { path?: string } }).route?.path;
+      return `${req.method} ${route ? `${req.baseUrl}${route}` : req.path}`;
+    });
     let done = false;
     const finish = () => {
       if (done) return;
       done = true;
       this.load.inFlight -= 1;
+      endWork();
     };
     res.once('finish', finish);
     res.once('close', finish);
