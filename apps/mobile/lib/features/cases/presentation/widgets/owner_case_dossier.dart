@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/pick_files.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -64,19 +66,16 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
   }
 
   Future<void> _pickDocuments() async {
-    final result = await FilePicker.pickFiles(
-      // Web: a big file from iCloud or a HEIC to convert arrives after the
-      // window gets focus back; don't drop it.
-      cancelUploadOnWindowBlur: false,
-      type: FileType.custom,
+    // Audit D8: read one by one from disk on a phone (no withData).
+    final picked = await pickFilesRead(
       allowedExtensions: _limits.documentExtensions,
       allowMultiple: true,
-      withData: true,
+      maxBytes: _limits.fileBytes,
+      maxCount: _filesLeft,
+      photos: photoLimitsOf(ref.read(featureFlagsControllerProvider)),
     );
     await _add([
-      for (final f
-          in (result?.files ?? const <PlatformFile>[]).take(_filesLeft))
-        if (f.bytes != null) (bytes: f.bytes!, name: f.name),
+      for (final f in picked.files) (bytes: f.bytes, name: f.name),
     ]);
   }
 

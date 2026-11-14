@@ -1,3 +1,4 @@
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 
 /// Owner 2026-10-05: photos are shrunk on the phone before upload — small
@@ -33,3 +34,18 @@ PhotoLimits avatarLimitsOf(FeatureFlagsState flags) => (
 /// the JPEG quality of a photo sent in a chat (HD stays a choice for later).
 const kChatPhotoMaxPx = 1600.0;
 const kChatPhotoQuality = 82;
+
+/// Media audit 13.11 (C7): a verification document (ID, bar card) picked
+/// from «Files»: the admin's `client.verification_photo_max_px` (2048) and
+/// `client.verification_photo_quality` (90).
+PhotoLimits verificationPhotoLimits() => (
+      maxPx: ClientTuning.verificationPhotoMaxPx,
+      quality: ClientTuning.verificationPhotoQuality,
+    );
+
+/// The chat photo size as [PhotoLimits] (a picture sent through «Files» is
+/// shrunk the same way as one from the gallery, audit C7).
+PhotoLimits chatPhotoLimits() => (
+      maxPx: ClientTuning.chatPhotoMaxPx,
+      quality: ClientTuning.chatPhotoQuality,
+    );

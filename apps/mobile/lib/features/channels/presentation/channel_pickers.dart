@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show ImagePicker, ImageSource;
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/video_frames.dart';
 import 'package:lawbid/features/channels/application/channel_compose.dart';
 import 'package:lawbid/features/social/presentation/screens/photo_crop_screen.dart';
@@ -26,9 +27,10 @@ final channelPhotoPickerProvider = Provider<ChannelPhotoPicker>(
       imageQuality: limits.quality,
       // image_picker refuses a limit under 2.
       limit: left > 1 ? left : null,
+      requestFullMetadata: false,
     );
     final bytes = [
-      for (final f in picked.take(left)) await f.readAsBytes(),
+      for (final f in picked.take(left)) await readPickedPhoto(f),
     ];
     if (bytes.isEmpty || !context.mounted) return const [];
     final framed = await PhotoCropScreen.open(
@@ -99,6 +101,7 @@ final channelAvatarPickerProvider = Provider<ChannelAvatarPicker>(
       maxWidth: limits.maxPx,
       maxHeight: limits.maxPx,
       imageQuality: limits.quality,
+      requestFullMetadata: false,
     );
     if (file == null || !context.mounted) return null;
     final bytes = await file.readAsBytes();

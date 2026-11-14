@@ -12,6 +12,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/media/video_frames.dart';
@@ -207,9 +208,10 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen>
       maxWidth: photo.maxPx,
       maxHeight: photo.maxPx,
       imageQuality: photo.quality,
+      requestFullMetadata: false,
     );
     if (x == null || !mounted) return;
-    final bytes = await x.readAsBytes();
+    final bytes = await readPickedPhoto(x);
     if (!mounted) return;
     setState(() {
       _custom = bytes;

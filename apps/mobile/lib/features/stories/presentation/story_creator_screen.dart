@@ -14,9 +14,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_jpeg.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/video_frames.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
@@ -169,6 +174,7 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
         maxWidth: 2160,
         maxHeight: 2160,
         imageQuality: 90,
+        requestFullMetadata: false,
       );
       if (x == null || !mounted) return;
       await _acceptPhoto(x);
@@ -182,7 +188,7 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
   Future<void> _acceptPhoto(XFile x) async {
     final t = ref.read(translatorProvider);
     try {
-      final bytes = await x.readAsBytes();
+      final bytes = await readPickedPhoto(x);
       if (!mounted) return;
       await _dropVideo();
       setState(() {
@@ -207,6 +213,7 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
         maxWidth: 2160,
         maxHeight: 2160,
         imageQuality: 90,
+        requestFullMetadata: false,
       );
       if (x == null || !mounted) return;
       final ext = x.name.split('.').last.toLowerCase();
@@ -464,17 +471,27 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
 
   /// Owner 2026-10-21: the gradient with the post sticker as one picture
   /// (1080 px wide); emoji stickers and the caption stay live overlays.
+  /// Media audit 13.11 (R12, C5): a JPEG at the admin's photo quality,
+  /// written in a background isolate (was PNG, several times the bytes).
   Future<Uint8List?> _capturePost() async {
     final box = _captureKey.currentContext?.findRenderObject();
     if (box is! RenderRepaintBoundary || !box.hasSize) return null;
     final image = await box.toImage(pixelRatio: 1080 / box.size.width);
     try {
+      final quality =
+          photoLimitsOf(ref.read(featureFlagsControllerProvider)).quality;
+      final jpeg = await encodeImageJpeg(image, quality: quality);
+      if (jpeg != null) return jpeg;
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       return data?.buffer.asUint8List();
     } finally {
       image.dispose();
     }
   }
+
+  /// The baked post picture's name: `.jpg`, or `.png` when it stayed PNG.
+  String _bakedName(Uint8List baked) => 'post-${widget.postId}.'
+      '${sniffImageMime(baked) == 'image/png' ? 'png' : 'jpg'}';
 
   Future<void> _share() async {
     if (!_ready) return;
@@ -502,7 +519,7 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
       },
       audience: _effectiveAudience,
       photo: baked ?? _photo,
-      photoName: baked != null ? 'post-${widget.postId}.png' : _photoName,
+      photoName: baked != null ? _bakedName(baked) : _photoName,
       video: _video,
       videoDurationMs: _videoMs,
       videoSize: _videoSize.width > 0 ? _videoSize : null,

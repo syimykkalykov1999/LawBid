@@ -57,7 +57,8 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
   Future<void> _pickFromGallery() async {
     if (_handling) return;
     final t = ref.read(translatorProvider);
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, requestFullMetadata: false);
     if (picked == null || !mounted) return;
     BarcodeCapture? capture;
     try {
