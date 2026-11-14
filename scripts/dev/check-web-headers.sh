@@ -88,8 +88,12 @@ if [ "${1:-}" = "--live" ]; then
   [ -n "$v" ] || { bad "live: no v/<sha>/ found in the page"; exit 1; }
   font=$(curl -fsS -H 'Accept-Encoding: br, gzip' --compressed "$URL/${v}assets/FontManifest.json" \
     | grep -oE '"asset":"[^"]+\.(ttf|otf)"' | head -1 | sed -E 's/"asset":"([^"]+)"/\1/' || true)
+  # Row 170: the engine has its own folder (boot_head.js `var E`), v/<sha>/ otherwise.
+  e=$(curl -fsS "$URL/boot_head.js" | grep -oE "var E = 'v/[0-9A-Za-z]{7,64}'" | grep -oE 'v/[0-9A-Za-z]+' | head -1 || true)
+  e="${e:+$e/}"; e="${e:-$v}"
   for path in main.dart.wasm main.dart.mjs canvaskit/skwasm.wasm ${font:+assets/$font}; do
-    h=$(curl -sS -o /dev/null -D - -H 'Accept-Encoding: br, gzip' "$URL/$v$path" | tr -d '\r')
+    case "$path" in canvaskit/*) base="$e" ;; *) base="$v" ;; esac
+    h=$(curl -sS -o /dev/null -D - -H 'Accept-Encoding: br, gzip' "$URL/$base$path" | tr -d '\r')
     enc=$(printf '%s' "$h" | awk -F': ' 'tolower($1)=="content-encoding"{print $2}')
     cc=$(printf '%s' "$h" | awk -F': ' 'tolower($1)=="cache-control"{print $2}')
     case "$enc" in br|gzip) ok "live $path: $enc" ;; *) bad "live $path: not compressed (${enc:-none})" ;; esac
