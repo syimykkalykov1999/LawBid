@@ -56,3 +56,31 @@ notice as above.
   MIT License — Copyright (c) Tailwind Labs, Inc.
 
 Same permission notice as above.
+
+## Remaining motion items (owner row 88, 2026-11-13): code copied, no package added
+
+- **Radix UI Primitives** — `FocusScope` copied whole into
+  `src/lib/vendor/focus-scope.tsx` (changes marked «LawBid:»); the
+  «only the highest layer handles Escape» rule and the IME check of
+  `DismissableLayer` / `useEscapeKeydown`, in `src/lib/layers.ts`.
+  https://github.com/radix-ui/primitives
+  MIT License — Copyright (c) 2022 WorkOS.
+- **react-remove-scroll-bar** — `getGapWidth` copied as is and the
+  `body[data-scroll-locked]` padding rule, in `src/lib/scroll-lock.ts`.
+  https://github.com/theKashey/react-remove-scroll-bar
+  MIT License — Copyright (c) 2025 Anton Korzunov.
+- **vaul** — the drag logic (`onPress` / `shouldDrag` / `onDrag` /
+  `onRelease`), `dampenValue`, the thresholds (velocity 0.4 px/ms, close at
+  25 %, 100 ms scroll lock, 500 ms after opening) and the 0.5 s
+  `[0.32, 0.72, 0, 1]` curve, in `src/lib/drag-dismiss.ts` (the package says
+  it is unmaintained, so it is not installed). https://github.com/emilkowalski/vaul
+  MIT License — Copyright (c) 2023 Emil Kowalski.
+- **sonner** — the toast countdown pause (`startTimer` / `pauseTimer`, paused
+  while hovered, touched or the tab is hidden), in `src/components/ui/toast.tsx`.
+  MIT License — Copyright (c) 2023 Emil Kowalski.
+- **shadcn/ui** — the Progress fill moved by `translateX` instead of `width`,
+  in `src/components/billing/shared.tsx`. MIT License — Copyright (c) 2023 shadcn.
+
+Same permission notice as above. Idea only (GPL-3.0, no code copied): the
+side-menu axis lock (the first clear axis wins) follows Telegram Web A
+`src/util/captureEvents.ts` (github.com/Ajaxy/telegram-tt).

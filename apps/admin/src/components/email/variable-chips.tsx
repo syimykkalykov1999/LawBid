@@ -42,7 +42,7 @@ export function VariableChips({
           </button>
           <span
             role="tooltip"
-            className="pointer-events-none absolute top-full left-0 z-30 mt-1.5 w-64 translate-y-1 rounded-xl border border-line bg-elevated p-3 text-xs opacity-0 shadow-pop transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
+            className="pointer-events-none absolute top-full left-0 z-30 mt-1.5 w-64 translate-y-1 rounded-xl border border-line bg-elevated p-3 text-xs opacity-0 shadow-pop transition-[opacity,translate] duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
           >
             <span className="block text-ink">{v.description}</span>
             <span className="mt-1.5 block text-faint">Пример:</span>

@@ -75,7 +75,10 @@ export function ProgressBar({ value, tone = 'gold', className }: { value: number
   }[tone];
   return (
     <div className={cn('h-1.5 w-full overflow-hidden rounded-full bg-surface-2', className)}>
-      <div className={cn('h-full rounded-full transition-[width] duration-700', fill)} style={{ width: `${v * 100}%` }} />
+      {/* Owner row 88 (2026-11-13): the fill moves by transform, not width
+          (no relayout per frame) — shadcn/ui Progress (MIT): a full-width
+          fill shifted left by the missing share; the track clips it. */}
+      <div className={cn('h-full w-full rounded-full transition-transform duration-700', fill)} style={{ transform: `translateX(-${100 - v * 100}%)` }} />
     </div>
   );
 }
