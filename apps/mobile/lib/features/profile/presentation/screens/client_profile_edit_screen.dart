@@ -112,6 +112,30 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
   bool _saving = false;
   bool _attempted = false;
 
+  /// Saved (or nothing to save): the screen closes without asking.
+  bool _leaving = false;
+
+  void _close() {
+    setState(() => _leaving = true);
+    // The guard lets go on the next frame, then the screen closes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.of(context).maybePop();
+    });
+  }
+
+  /// Row 109: anything here that «Save» would send.
+  bool get _dirty {
+    final p = widget.profile;
+    return _first.text.trim() != (p.firstName ?? '').trim() ||
+        _last.text.trim() != (p.lastName ?? '').trim() ||
+        _note.text.trim() != (p.contactNote ?? '').trim() ||
+        _username.text.trim() != p.username ||
+        _state != p.state.code ||
+        _method != p.contactMethod ||
+        _languages.length != p.languages.length ||
+        !_languages.containsAll(p.languages);
+  }
+
   /// Audit C8: the live profile arrives after the saved copy; while the
   /// person has not touched the form it takes the new values.
   @override
@@ -202,7 +226,10 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
   Future<void> _save(Translator t) async {
     setState(() => _attempted = true);
     if (_first.text.trim().isEmpty || _last.text.trim().isEmpty) return;
+    // Detective R2-A #19: not while the @username check is still running
+    // (a failed check is fine: the server's answer decides, as Instagram).
     if (const {
+      UsernameStatus.checking,
       UsernameStatus.invalid,
       UsernameStatus.taken,
       UsernameStatus.reserved,
@@ -235,7 +262,7 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
       await ref.read(currentUserControllerProvider.notifier).load();
       if (!mounted) return;
       showAppSnackBar(context, t.t('profile.edit.saved'));
-      Navigator.of(context).maybePop();
+      _close();
     } catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     } finally {
@@ -401,37 +428,46 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
       ),
     ];
 
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenSide,
-              AppSpacing.sm,
-              AppSpacing.screenSide,
-              AppSpacing.xxl,
-            ),
-            children: [
-              for (var i = 0; i < fields.length; i++) ...[
-                if (i > 0) const SizedBox(height: AppSpacing.lg),
-                AppEntrance(index: i, child: fields[i]),
+    // Row 109 (iOS Contacts, Instagram): unsaved changes ask first.
+    return UnsavedChangesGuard(
+      isDirty: () => !_leaving && _dirty,
+      listenable: Listenable.merge([_first, _last, _note, _username]),
+      title: t.t('leave.changes.title'),
+      message: t.t('leave.changes.message'),
+      discardLabel: t.t('leave.changes.discard'),
+      stayLabel: t.t('story.discard.keep'),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.sm,
+                AppSpacing.screenSide,
+                AppSpacing.xxl,
+              ),
+              children: [
+                for (var i = 0; i < fields.length; i++) ...[
+                  if (i > 0) const SizedBox(height: AppSpacing.lg),
+                  AppEntrance(index: i, child: fields[i]),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-        ProfileSaveBar(
-          label: t.t('profile.edit.save'),
-          loading: _saving,
-          enabled: _first.text.trim().isNotEmpty &&
-              _last.text.trim().isNotEmpty &&
-              !const {
-                UsernameStatus.invalid,
-                UsernameStatus.taken,
-                UsernameStatus.reserved,
-              }.contains(_usernameStatus),
-          onPressed: () => _save(t),
-        ),
-      ],
+          ProfileSaveBar(
+            label: t.t('profile.edit.save'),
+            loading: _saving,
+            enabled: _first.text.trim().isNotEmpty &&
+                _last.text.trim().isNotEmpty &&
+                !const {
+                  UsernameStatus.invalid,
+                  UsernameStatus.taken,
+                  UsernameStatus.reserved,
+                }.contains(_usernameStatus),
+            onPressed: () => _save(t),
+          ),
+        ],
+      ),
     );
   }
 }

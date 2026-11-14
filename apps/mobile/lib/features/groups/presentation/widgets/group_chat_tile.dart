@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
+import 'package:lawbid/features/chat/presentation/chat_undo.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
@@ -284,10 +285,22 @@ class GroupChatTile extends ConsumerWidget {
           context,
           t: t,
           group: true,
-          onConfirmed: () => act(
-            () => updateMyGroup(ref, g.id, hidden: true),
-            'chat.select.deleted',
-          ),
+          onConfirmed: () async {
+            try {
+              await updateMyGroup(ref, g.id, hidden: true);
+              // Row 109 (Telegram): «Chat deleted · Undo».
+              if (context.mounted) {
+                showChatMoveUndo(
+                  context,
+                  message: t.t('chat.select.deleted'),
+                  groupIds: [g.id],
+                  archived: false,
+                );
+              }
+            } on Object catch (e) {
+              if (context.mounted) showAppSnackBar(context, errorText(t, e));
+            }
+          },
         ),
       ),
       child: row,
@@ -427,6 +440,8 @@ Future<void> showGroupOrganizeSheet(
     return;
   }
   final messenger = ScaffoldMessenger.maybeOf(context);
+  // Row 109: the «Undo» message outlives this row (it leaves the list).
+  final host = Navigator.of(context).context;
   try {
     switch (pick) {
       case 'pin':
@@ -442,8 +457,25 @@ Future<void> showGroupOrganizeSheet(
         }
       case 'archive':
         await updateMyGroup(ref, g.id, archived: !inArchive);
+        // Row 109 (Gmail «Archived · Undo»).
+        if (!inArchive && host.mounted) {
+          showChatMoveUndo(
+            host,
+            message: t.t('chat.archived'),
+            groupIds: [g.id],
+            archived: true,
+          );
+        }
       case 'hide':
         await updateMyGroup(ref, g.id, hidden: true);
+        if (host.mounted) {
+          showChatMoveUndo(
+            host,
+            message: t.t('chat.select.deleted'),
+            groupIds: [g.id],
+            archived: false,
+          );
+        }
     }
   } on Object catch (e) {
     if (messenger != null && messenger.mounted) {

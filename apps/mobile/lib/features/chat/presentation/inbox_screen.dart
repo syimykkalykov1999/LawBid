@@ -38,6 +38,7 @@ import 'package:lawbid/features/chat/presentation/chat_note_sheet.dart';
 import 'package:lawbid/features/chat/presentation/chat_peek.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
+import 'package:lawbid/features/chat/presentation/chat_undo.dart';
 import 'package:lawbid/features/chat/presentation/chats_filter_row.dart';
 import 'package:lawbid/features/chat/presentation/desktop_chats.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
@@ -1708,8 +1709,14 @@ class ConversationRow extends ConsumerWidget {
             try {
               await repo.organize(c.id, hidden: true);
               refreshChatFolders(ref);
+              // Row 109 (Telegram): «Chat deleted · Undo».
               if (context.mounted) {
-                showAppSnackBar(context, t.t('chat.select.deleted'));
+                showChatMoveUndo(
+                  context,
+                  message: t.t('chat.select.deleted'),
+                  chatIds: [c.id],
+                  archived: false,
+                );
               }
             } on Object catch (e) {
               if (context.mounted) showAppSnackBar(context, errorText(t, e));
