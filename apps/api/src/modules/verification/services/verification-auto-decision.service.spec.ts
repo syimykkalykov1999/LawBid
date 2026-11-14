@@ -7,6 +7,7 @@ import { inAutoAuditSample } from '../auto-decision.logic';
 import type { VerificationChecksService } from './verification-checks.service';
 import {
   AUTO_DECISION_APPROVED_NOTE,
+  AUTO_DECISION_HUMAN_NOTE,
   AUTO_REJECT_KIND,
   VerificationAutoDecisionService,
   registryVerdict,
@@ -30,7 +31,7 @@ const SAMPLED = ids.find((id) => inAutoAuditSample(id, 10))!;
 
 interface Opts {
   enabled?: boolean;
-  registry?: { result: string; reason?: string };
+  registry?: { result: string; reason?: string; status?: string };
   face?: { result: string; similarity: number | null; reason?: string };
   consent?: boolean;
   liveness?: boolean;
@@ -39,6 +40,7 @@ interface Opts {
   adminProfile?: boolean;
   status?: string;
   existing?: string;
+  adminNote?: string | null;
 }
 
 function setup(o: Opts = {}) {
@@ -60,6 +62,7 @@ function setup(o: Opts = {}) {
   const request = (id: string) => ({
     id,
     status: o.status ?? 'submitted',
+    admin_note: o.adminNote ?? null,
     attorney_id: 'a1',
     biometric_consent_at: o.consent === false ? null : new Date('2026-11-12'),
     biometric_consent_version: '2026-11-12',
@@ -99,6 +102,7 @@ function setup(o: Opts = {}) {
         details: {
           licenseId: 'l1',
           ...(reg.reason ? { reason: reg.reason } : {}),
+          ...(reg.status ? { registryStatus: reg.status } : {}),
         },
         checked_at: new Date(),
       },
@@ -218,9 +222,9 @@ describe('VerificationAutoDecisionService (row 60)', () => {
     expect(row.evidence.face).not.toHaveProperty('similarity');
   });
 
-  it('hard fail → rejected with the reject code and an appealable automatic decision', async () => {
+  it('registry record «Disbarred» → rejected with the reject code and an appealable automatic decision', async () => {
     const t = setup({
-      registry: { result: 'fail', reason: 'not_found' },
+      registry: { result: 'fail', reason: 'not_active', status: 'Disbarred' },
       ai: null,
     });
     expect(await t.svc.evaluate(NOT_SAMPLED)).toBe('reject');
@@ -229,12 +233,12 @@ describe('VerificationAutoDecisionService (row 60)', () => {
       where: { id: NOT_SAMPLED },
       data: expect.objectContaining({
         status: 'rejected',
-        rejection_code: 'license_not_found',
+        rejection_code: 'license_inactive',
       }),
     });
     expect(t.licenseUpdateMany).toHaveBeenCalledWith({
       where: { attorney_id: 'a1', license_status: 'pending' },
-      data: { license_status: 'rejected', rejection_code: 'license_not_found' },
+      data: { license_status: 'rejected', rejection_code: 'license_inactive' },
     });
     expect(t.autoActionCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -247,24 +251,90 @@ describe('VerificationAutoDecisionService (row 60)', () => {
     });
     expect(t.upsert.mock.calls[0][0].create).toMatchObject({
       outcome: 'reject',
-      reason: 'license_not_found',
+      reason: 'license_inactive',
       auto_action_id: 'm1',
     });
+    expect(t.upsert.mock.calls[0][0].create.evidence.licenses[0].registry).toBe(
+      'disciplined',
+    );
     expect(t.emit.mock.calls[0][0].payload).toMatchObject({
       kind: 'rejected',
-      rejectionCode: 'license_not_found',
+      rejectionCode: 'license_inactive',
       autoActionId: 'm1',
     });
   });
 
-  it('a face far below the line → rejected as selfie_mismatch', async () => {
+  // Owner 13.11 (row 60): uncertain → the human queue with the reason.
+  it.each([
+    [
+      'registry not found',
+      { registry: { result: 'fail', reason: 'not_found' }, ai: null },
+      'registry_not_found',
+    ],
+    [
+      'registry error',
+      { registry: { result: 'manual_review', reason: 'provider_error' } },
+      'registry_unavailable',
+    ],
+    [
+      'registry timeout / budget',
+      { registry: { result: 'manual_review', reason: 'budget_exceeded' } },
+      'registry_unavailable',
+    ],
+    [
+      'registry «Retired» (inactive, not discipline)',
+      { registry: { result: 'fail', reason: 'not_active', status: 'Retired' } },
+      'registry_not_active',
+    ],
+    [
+      'face 30 %',
+      { face: { result: 'fail', similarity: 30, reason: 'selfie_mismatch' } },
+      'face_far_apart',
+    ],
+  ] as const)(
+    '%s → human queue, never a reject, reason in the note',
+    async (_name, opts, reason) => {
+      const t = setup(opts);
+      expect(await t.svc.evaluate(NOT_SAMPLED)).toBe('queue');
+      expect(t.approve).not.toHaveBeenCalled();
+      expect(t.autoActionCreate).not.toHaveBeenCalled();
+      expect(t.licenseUpdateMany).not.toHaveBeenCalled();
+      expect(t.emit).not.toHaveBeenCalled();
+      expect(t.requestUpdate).toHaveBeenCalledTimes(1);
+      expect(t.requestUpdate).toHaveBeenCalledWith({
+        where: { id: NOT_SAMPLED },
+        data: {
+          admin_note: expect.stringMatching(
+            new RegExp(`^${AUTO_DECISION_HUMAN_NOTE}: .+`),
+          ),
+        },
+      });
+      expect(t.upsert.mock.calls[0][0].create).toMatchObject({
+        outcome: 'queue',
+        proposal: 'queue',
+        reason,
+        auto_action_id: null,
+      });
+    },
+  );
+
+  it('a face 30 % is kept as the far-apart band in the evidence', async () => {
     const t = setup({
-      face: { result: 'fail', similarity: 22, reason: 'selfie_mismatch' },
+      face: { result: 'fail', similarity: 30, reason: 'selfie_mismatch' },
     });
-    expect(await t.svc.evaluate(NOT_SAMPLED)).toBe('reject');
+    expect(await t.svc.evaluate(NOT_SAMPLED)).toBe('queue');
     expect(t.upsert.mock.calls[0][0].create.evidence.face.band).toBe(
       'far_apart',
     );
+  });
+
+  it('the uncertain note never replaces a verifier or recheck note', async () => {
+    const t = setup({
+      registry: { result: 'fail', reason: 'not_found' },
+      adminNote: 'license_recheck: NY l1',
+    });
+    expect(await t.svc.evaluate(NOT_SAMPLED)).toBe('queue');
+    expect(t.requestUpdate).not.toHaveBeenCalled();
   });
 
   it('anything missing → stays in the queue, only the evidence row is written', async () => {
@@ -361,6 +431,19 @@ describe('registryVerdict', () => {
     expect(
       registryVerdict({ result: 'fail', details: { reason: 'not_active' } }),
     ).toBe('not_active');
+    expect(
+      registryVerdict({
+        result: 'fail',
+        details: { reason: 'not_active', registryStatus: 'Retired' },
+      }),
+    ).toBe('not_active');
+    for (const st of ['Disbarred', 'SUSPENDED', 'License Revoked'])
+      expect(
+        registryVerdict({
+          result: 'fail',
+          details: { reason: 'not_active', registryStatus: st },
+        }),
+      ).toBe('disciplined');
     expect(
       registryVerdict({
         result: 'manual_review',

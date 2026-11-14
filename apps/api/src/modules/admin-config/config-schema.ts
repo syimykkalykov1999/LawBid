@@ -767,12 +767,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['verification.auto_decision.enabled'] = {
     ...out['verification.auto_decision.enabled'],
     description:
-      'Owner only, a fresh 2FA code to change. Off (default): every attorney request waits for a person. On: all checks matched (state registry number + full name + active, face match at or above the threshold, liveness, the AI employee confident) = approved; a clear failure (number not in the registry, not active, faces far apart) = rejected with an appeal; anything else stays in the queue. Never for an owner or staff account, never without the biometric consent.',
+      'Owner only, a fresh 2FA code to change. Off (default): every attorney request waits for a person. On: all checks matched (state registry number + full name + active, face match at or above the threshold, liveness, the AI employee confident) = approved; only the registry record itself saying the licence is disbarred, suspended or revoked = rejected with an appeal; anything uncertain (number not found, registry error or timeout, not active, faces apart) and anything else goes to the human queue with the reason. Never for an owner or staff account, never without the biometric consent.',
   };
   out['verification.auto_decision.face_reject_below'] = {
     ...out['verification.auto_decision.face_reject_below'],
     description:
-      'Face similarity, % (default 50), under which the faces are clearly different: an automatic rejection with an appeal. Between it and the face match threshold a person decides.',
+      'Face similarity, % (default 50), under which the faces are marked «far apart» for the reviewer. Never an automatic rejection: below the face match threshold a person always decides.',
     min: 0,
     max: 89,
   };
