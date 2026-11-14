@@ -1,6 +1,6 @@
 # LawBid API / worker image (docs/06_PRODUCTION.md §6.1: one image, two
 # commands). Multi-stage: build with dev deps, run with prod deps only.
-FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS build
+FROM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS build
 # `nest build` type-checks the whole API and needs more than Node's default
 # ~2 GB heap (out of memory on the owner's Mac, 2026-10-07); 4 GB ran out
 # on the CI image build too (#364, 2026-10-26). Build stage only.
@@ -24,7 +24,7 @@ RUN npx --workspace apps/api prisma generate \
 # ↑ The runtime runs as `app` and reads prisma/migrations (demo world) and
 # assets/; a checkout with owner-only file modes gave EACCES in prod.
 
-FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS runtime
+FROM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS runtime
 ENV NODE_ENV=production
 # libuv's thread pool (default 4) runs scrypt, file system and DNS work.
 # 8 = twice the default: password hashing is capped at 4 at a time in the app

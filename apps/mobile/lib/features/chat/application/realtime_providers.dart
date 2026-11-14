@@ -24,7 +24,15 @@ final realtimeClientProvider = Provider<RealtimeClient?>((ref) {
   final session = ref.read(sessionControllerProvider.notifier);
   final client = RealtimeClient(
     apiBaseUrl: ref.watch(appEnvironmentProvider).apiBaseUrl,
-    token: () async => ref.read(sessionControllerProvider)?.accessToken,
+    // Perf batch 4 (row 127): a session opened from the phone's copy has
+    // no token until its background refresh lands; the socket waits for it.
+    token: () async {
+      try {
+        return await session.accessTokenForRequest();
+      } on Object {
+        return null;
+      }
+    },
     refreshToken: () async {
       try {
         return await session.refreshAccessToken();
@@ -64,7 +72,7 @@ final realtimeClientProvider = Provider<RealtimeClient?>((ref) {
   ref
     ..listen(sessionControllerProvider.select((s) => s?.accessToken),
         (_, token) {
-      if (token != null) client.tokenChanged(token);
+      if (token != null && token.isNotEmpty) client.tokenChanged(token);
     })
     ..onDispose(() {
       signals.cancel();

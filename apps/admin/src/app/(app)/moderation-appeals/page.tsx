@@ -16,8 +16,11 @@ import { api, errorText } from '@/lib/api/client';
 import { MOD_ACTION, TARGET_TYPE } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useUrlState } from '@/lib/url-state';
 
 type Status = 'pending' | 'accepted' | 'rejected';
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const STATUSES: readonly Status[] = ['pending', 'accepted', 'rejected'];
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
 const SORT_KEYS = ['target', 'action', 'message', 'created'] as const;
 
@@ -36,7 +39,7 @@ const STATUS_TAB: Record<Status, string> = {
 export default function ModerationAppealsPage() {
   const qc = useQueryClient();
   const toast = useToast();
-  const [status, setStatus] = useState<Status>('pending');
+  const [status, setStatus] = useUrlState<Status>('status', 'pending', STATUSES);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const q = useInfiniteQuery({
     queryKey: ['moderation-appeals', status],

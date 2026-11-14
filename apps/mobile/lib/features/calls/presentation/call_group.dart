@@ -263,7 +263,7 @@ class _MembersSheet extends ConsumerWidget {
     CallController c,
     CallMember m,
   ) async {
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(m.name),

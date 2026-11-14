@@ -48,6 +48,7 @@ import 'package:lawbid/features/chat/presentation/chat_album.dart';
 import 'package:lawbid/features/chat/presentation/chat_bubble_parts.dart';
 import 'package:lawbid/features/chat/presentation/chat_cards.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
+import 'package:lawbid/features/chat/presentation/chat_insert_motion.dart';
 import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
 import 'package:lawbid/features/chat/presentation/chat_list_layout.dart';
 import 'package:lawbid/features/chat/presentation/chat_post_card.dart';
@@ -904,6 +905,14 @@ class _MessageListState extends ConsumerState<_MessageList> {
     (label: null, shown: false),
   );
   String? _newestId;
+
+  /// Owner row 88: rows that came in at the bottom while the person was
+  /// there grow in ([ChatInsertMotion]); consumed by their first build.
+  final Set<String> _insertIds = {};
+
+  /// Client ids of own messages already shown from the outbox: the
+  /// server's copy replaces them in place, without a second entrance.
+  final Set<String> _shownLocal = {};
   int? _stickyTop;
   Timer? _hideSticky;
   ValueNotifier<bool>? _scrolling;
@@ -1049,6 +1058,11 @@ class _MessageListState extends ConsumerState<_MessageList> {
     if (newest != null && _newestId != null && newest.id != _newestId) {
       final me = ref.read(currentUserIdProvider);
       if (_c.away && newest.senderId != me) _fresh.value++;
+      final cmid = newest.clientMessageId;
+      final replacesLocal = !newest.id.startsWith('local:') &&
+          cmid != null &&
+          _shownLocal.contains(cmid);
+      if (!_c.away && !replacesLocal) _insertIds.add(newest.id);
       // Audit 26.10 B3: reading above — the new row comes in below
       // without moving the text on screen.
       if (_c.scroll.hasClients) {
@@ -1059,6 +1073,10 @@ class _MessageListState extends ConsumerState<_MessageList> {
       }
     }
     _newestId = newest?.id;
+    if (newest != null && newest.id.startsWith('local:')) {
+      final cmid = newest.clientMessageId;
+      if (cmid != null) _shownLocal.add(cmid);
+    }
   }
 
   @override
@@ -1265,10 +1283,16 @@ class _MessageListState extends ConsumerState<_MessageList> {
                   // flashed while it is the jump target.
                   return KeyedSubtree(
                     key: _c.keyFor(m.id),
-                    child: ChatHighlight(
-                      controller: _c,
-                      ids: {for (final x in entry.messages) x.id},
-                      child: row,
+                    child: ChatInsertMotion(
+                      // A photo joining an album keeps the album still.
+                      animate: _insertIds.remove(m.id) &&
+                          entry.messages.length == 1,
+                      mine: m.senderId == me,
+                      child: ChatHighlight(
+                        controller: _c,
+                        ids: {for (final x in entry.messages) x.id},
+                        child: row,
+                      ),
                     ),
                   );
                 },

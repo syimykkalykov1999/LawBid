@@ -523,7 +523,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
 
   Future<void> _delete() async {
     final t = ref.read(translatorProvider);
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(t.t('tasks.delete.title')),

@@ -4,6 +4,7 @@ import type { PrismaService } from '../../../prisma/prisma.service';
 import type { StateBarAdapter } from '../providers/bar-lookup/state-bar-adapter';
 import type { PaidBarVendorService } from '../providers/bar-lookup/paid-bar-vendors';
 import { StateRegistryService } from './state-registry.service';
+import type { RegistryHealthService } from './registry-health.service';
 
 // Test-only values (not real credentials).
 const VENDOR_A = 'test-vendor-9876';
@@ -21,6 +22,8 @@ function setup(
     /** Owner 2026-11-12: free sources ON with nothing saved. */
     defaults?: boolean;
     vendors?: PaidBarVendorService;
+    /** Owner row 50: the registry health watch. */
+    health?: RegistryHealthService;
   } = {},
 ) {
   const rows = new Map<string, StateBarRegistry>();
@@ -100,6 +103,7 @@ function setup(
       adapters,
       undefined,
       opts.vendors,
+      opts.health,
     ),
     rows,
     lookup,
@@ -335,6 +339,27 @@ describe('StateRegistryService — ready-made presets (owner 2026-10-28)', () =>
     await s.service.test('CA', { barNumber: '1', ...name });
     await s.service.test('CA', { barNumber: '1', ...name });
     expect(s.presetLookup).toHaveBeenCalledTimes(2);
+  });
+
+  it('row 50: real lookups go through the health watch, the admin test never does', async () => {
+    const observe = jest.fn((_state: string, call: Promise<unknown>) =>
+      call.then(() => ({
+        result: 'manual_review',
+        details: { reason: 'registry_degraded' },
+      })),
+    );
+    const s = setup({
+      health: { observe } as unknown as RegistryHealthService,
+    });
+    await s.service.save('CA', { adapter: 'state_preset', enabled: true }, 'a');
+    const reg = (await s.service.resolve('CA'))!;
+    await expect(
+      s.service.lookup({ stateCode: 'CA', barNumber: '7', ...name }, reg),
+    ).resolves.toMatchObject({ details: { reason: 'registry_degraded' } });
+    expect(observe).toHaveBeenCalledWith('CA', expect.any(Promise));
+    observe.mockClear();
+    await s.service.test('CA', { barNumber: '8', ...name });
+    expect(observe).not.toHaveBeenCalled();
   });
 
   it('the monthly sweep skips public web pages (bulk)', async () => {

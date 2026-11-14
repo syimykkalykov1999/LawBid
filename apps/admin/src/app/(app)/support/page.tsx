@@ -4,12 +4,11 @@ import {
   ArrowClockwise, ChatCircleDots, CheckCircle, EnvelopeSimple, HourglassMedium, Lifebuoy, MagnifyingGlass, Siren, Timer, UserCircleDashed,
 } from '@phosphor-icons/react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { KpiChip } from '@/components/support/kpi-chip';
 import { NextTicketButton, SupportNav } from '@/components/support/support-nav';
 import {
-  CATEGORIES, minutesText, PRIORITIES, type TicketCategory, type TicketPriority, type TicketStatus,
+  CATEGORIES, minutesText, PRIORITIES, STATUSES, type TicketCategory, type TicketPriority, type TicketStatus,
 } from '@/components/support/support-labels';
 import { TicketRowItem } from '@/components/support/ticket-row';
 import { Button } from '@/components/ui/button';
@@ -23,22 +22,28 @@ import { api, errorText } from '@/lib/api/client';
 import { PRIORITY, TICKET_CATEGORY } from '@/lib/labels';
 import { livePoll, supportStatsQuery } from '@/lib/live';
 import { cn } from '@/lib/utils';
+import { useUrlDraft, useUrlFlag, useUrlState } from '@/lib/url-state';
 
 type StatusTab = 'all' | TicketStatus;
 type AssigneeTab = 'all' | 'me' | 'unassigned';
 type SlaFilter = '' | 'breached';
+/** Scout 13.11 (row 96): every filter lives in the address (lib/url-state.ts). */
+const STATUS_TABS: readonly StatusTab[] = ['all', ...STATUSES];
+const ASSIGNEE_TABS: readonly AssigneeTab[] = ['all', 'me', 'unassigned'];
+const CATEGORY_VALUES: readonly ('' | TicketCategory)[] = ['', ...CATEGORIES];
+const PRIORITY_VALUES: readonly ('' | TicketPriority)[] = ['', ...PRIORITIES];
+const SLA_VALUES: readonly SlaFilter[] = ['', 'breached'];
 
 /** Support inbox — user tickets, latest activity first, refreshed every minute. */
 export default function SupportInboxPage() {
-  const [status, setStatus] = useState<StatusTab>('open');
-  const [assignee, setAssignee] = useState<AssigneeTab>('all');
-  const [category, setCategory] = useState<'' | TicketCategory>('');
-  const [priority, setPriority] = useState<'' | TicketPriority>('');
-  const [draftQ, setDraftQ] = useState('');
-  const [q, setQ] = useState('');
-  const [sla, setSla] = useState<SlaFilter>('');
+  const [status, setStatus] = useUrlState<StatusTab>('status', 'open', STATUS_TABS);
+  const [assignee, setAssignee] = useUrlState<AssigneeTab>('assignee', 'all', ASSIGNEE_TABS);
+  const [category, setCategory] = useUrlState<'' | TicketCategory>('category', '', CATEGORY_VALUES);
+  const [priority, setPriority] = useUrlState<'' | TicketPriority>('priority', '', PRIORITY_VALUES);
+  const { draft: draftQ, setDraft: setDraftQ, value: q, apply: setQ } = useUrlDraft('q');
+  const [sla, setSla] = useUrlState<SlaFilter>('sla', '', SLA_VALUES);
   // Owner 2026-10-18: «Непрочитанные» — something new from the user.
-  const [unread, setUnread] = useState(false);
+  const [unread, setUnread] = useUrlFlag('unread');
 
   // Polled by the sidebar badge (lib/live.ts); this page reads the cache.
   const stats = useQuery(supportStatsQuery);

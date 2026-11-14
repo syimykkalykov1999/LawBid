@@ -406,7 +406,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
   Future<void> _remove() async {
     final t = ref.read(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
         content: Text(

@@ -13,10 +13,22 @@ interface Toast {
   text: string;
   /** Set just before removal when the user swiped it away. */
   swiped?: boolean;
+  /** Scout 13.11 (row 96): one button inside the toast, e.g. «Отменить». */
+  action?: ToastAction;
 }
 
+/** sonner's `action` (MIT): a label and a click; the toast closes after the click. */
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+/** Words of the undo button and how long a toast with a button stays (Gmail-like, a little longer). */
+export const UNDO_LABEL = 'Отменить';
+const ACTION_MS = 6000;
+
 const Ctx = createContext<{
-  push: (kind: Kind, text: string) => void;
+  push: (kind: Kind, text: string, action?: ToastAction) => void;
 } | null>(null);
 
 let seq = 0;
@@ -31,9 +43,9 @@ const SWIPE_VELOCITY = 0.11;
 /** Small corner notifications — every mutation reports success or failure. */
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<Toast[]>([]);
-  const push = useCallback((kind: Kind, text: string) => {
+  const push = useCallback((kind: Kind, text: string, action?: ToastAction) => {
     const id = ++seq;
-    setItems((t) => [...t.slice(-3), { id, kind, text }]);
+    setItems((t) => [...t.slice(-3), { id, kind, text, action }]);
   }, []);
   // Owner row 88 (2026-11-13), sonner (MIT): the countdown stops while the
   // pointer is over the toasts, while a finger is on one, and while the tab
@@ -100,7 +112,7 @@ function ToastItem({
 }) {
   const Icon = t.kind === 'success' ? CheckCircle : t.kind === 'error' ? WarningCircle : Info;
   const started = useRef(0);
-  useCountdown(t.kind === 'error' ? 7000 : 3800, paused, onClose);
+  useCountdown(t.kind === 'error' ? 7000 : t.action ? ACTION_MS : 3800, paused, onClose);
   return (
     <m.div
       layout
@@ -132,6 +144,18 @@ function ToastItem({
     >
       <Icon size={20} weight="fill" className={t.kind === 'success' ? 'text-success' : t.kind === 'error' ? 'text-danger' : 'text-gold'} />
       <span className="flex-1 leading-snug text-ink">{t.text}</span>
+      {t.action ? (
+        <button
+          type="button"
+          className="shrink-0 rounded-md px-1.5 text-sm font-medium text-gold-600 hover:underline"
+          onClick={() => {
+            t.action?.onClick();
+            onClose();
+          }}
+        >
+          {t.action.label}
+        </button>
+      ) : null}
       <button type="button" aria-label="Закрыть" className="text-faint hover:text-ink" onClick={onClose}>
         <X size={14} />
       </button>
@@ -190,7 +214,9 @@ export function useToast() {
   const v = useContext(Ctx);
   if (!v) throw new Error('useToast outside ToastProvider');
   return {
-    success: (text: string) => v.push('success', text),
+    success: (text: string, action?: ToastAction) => v.push('success', text, action),
+    /** A reversible action done: the toast carries «Отменить», which runs `undo`. */
+    undo: (text: string, undo: () => void) => v.push('success', text, { label: UNDO_LABEL, onClick: undo }),
     info: (text: string) => v.push('info', text),
     error: (e: unknown) => v.push('error', typeof e === 'string' ? e : errorText(e)),
   };

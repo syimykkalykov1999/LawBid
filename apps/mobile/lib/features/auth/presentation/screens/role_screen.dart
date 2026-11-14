@@ -69,7 +69,7 @@ class RoleScreen extends ConsumerWidget {
       // but switching an already chosen one asks first (an attorney's
       // verification draft must not vanish by a stray tap).
       if (serverRole != null && selectedRole != serverRole) {
-        final sure = await showDialog<bool>(
+        final sure = await showAppDialog<bool>(
           context: context,
           builder: (ctx) {
             final c = Theme.of(ctx).extension<AppColorTokens>()!;

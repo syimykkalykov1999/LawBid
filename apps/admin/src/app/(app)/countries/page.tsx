@@ -71,7 +71,17 @@ export default function CountriesPage() {
     },
     onSuccess: (r) => {
       if (!r) return;
-      toast.success(`${r.c.name}: ${r.on ? 'включена' : 'выключена'}`);
+      // Scout 13.11 (row 96): «Отменить» puts the country back as it was (no second question).
+      toast.undo(`${r.c.name}: ${r.on ? 'включена' : 'выключена'}`, () => {
+        void api
+          .PATCH('/admin/countries/{code}', { params: { path: { code: r.c.code } }, body: { isEnabled: !r.on } })
+          .then((res) => {
+            if (res.error) throw res.error;
+            toast.success(`${r.c.name}: ${r.on ? 'выключена' : 'включена'} снова`);
+            refresh();
+          })
+          .catch((e: unknown) => toast.error(e));
+      });
       refresh();
     },
     onError: (e) => toast.error(e),

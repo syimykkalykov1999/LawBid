@@ -14,6 +14,7 @@ import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useUrlDraft } from '@/lib/url-state';
 
 const ROLE_LABEL: Record<string, string> = { owner: 'владелец', admin: 'админ', member: 'участник' };
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
@@ -28,8 +29,8 @@ export default function GroupChatsPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
-  const [search, setSearch] = useState('');
-  const [term, setTerm] = useState('');
+  // Scout 13.11 (row 96): the search lives in the address (lib/url-state.ts).
+  const { draft: search, setDraft: setSearch, value: term, apply: setTerm } = useUrlDraft('q');
   const [open, setOpen] = useState<string | null>(null);
 
   const list = useInfiniteQuery({

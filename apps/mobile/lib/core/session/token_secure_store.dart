@@ -4,6 +4,7 @@ import 'package:lawbid/core/session/browser_session_hint.dart';
 const _kRefreshTokenKey = 'auth.refresh_token';
 const _kRefreshTokenIsDemoKey = 'auth.refresh_token_demo';
 const _kRealRefreshTokenKey = 'lawbid.realRefreshToken';
+const _kSessionHintKey = 'auth.session_hint';
 
 /// Thin wrapper over [FlutterSecureStorage], refresh-token only
 /// (docs/01_FOUNDATION_AUTH.md §10.4: the refresh token is the one
@@ -120,12 +121,39 @@ class TokenSecureStore {
     }
   }
 
-  /// Clears the ACTIVE session's refresh token (and its demo flag). The
-  /// parked real token, if any, is left alone — see [clearRealRefreshToken].
+  /// Perf batch 4 (row 127): the last session's access-token claims (no
+  /// token, see `SessionController.cachedSession`), so a cold start can open
+  /// the phone's copies before the token refresh answers. Never throws: a
+  /// missing or unreadable hint is the old start.
+  Future<String?> readSessionHint() async {
+    try {
+      return await _storage.read(key: _kSessionHintKey);
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> writeSessionHint(String json) async {
+    try {
+      await _storage.write(key: _kSessionHintKey, value: json);
+    } on Object {
+      // Next rotation writes it again; until then the start is the old one.
+    }
+  }
+
+  /// Clears the ACTIVE session's refresh token (and its demo flag and its
+  /// claims hint). The parked real token, if any, is left alone — see
+  /// [clearRealRefreshToken].
   Future<void> clear() async {
     _browser.clear();
     await _storage.delete(key: _kRefreshTokenKey);
     await _storage.delete(key: _kRefreshTokenIsDemoKey);
+    try {
+      await _storage.delete(key: _kSessionHintKey);
+    } on Object {
+      // The hint is bound to the token it was written with: without that
+      // token it never opens anything.
+    }
   }
 
   Future<String?> readRealRefreshToken() => _read(_kRealRefreshTokenKey);

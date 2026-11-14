@@ -3,11 +3,9 @@
 import { MagnifyingGlass } from '@phosphor-icons/react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useState } from 'react';
 import { CsvButton } from '@/components/csv-button';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { MoreButton } from '@/components/legacy/more-button';
-import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Input, Label, Select } from '@/components/ui/input';
 import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
@@ -15,15 +13,16 @@ import { api, errorText } from '@/lib/api/client';
 import { BID_STATUS, FEE_TYPE, label, StatusPill, usd } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useUrlSearchText, useUrlState } from '@/lib/url-state';
 
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
 const SORT_KEYS = ['case', 'attorney', 'amount', 'rounds', 'status', 'created'] as const;
 
 /** Owner 2026-09-30: every bid with its case, attorney, amount and status. */
 export default function BidsPage() {
-  const [input, setInput] = useState('');
-  const text = useDebounced(input.trim(), 300);
-  const [status, setStatus] = useState('');
+  // Scout 13.11 (row 96): the search and the status live in the address (lib/url-state.ts).
+  const { text: input, setText: setInput, value: text } = useUrlSearchText('q');
+  const [status, setStatus] = useUrlState<string>('status', '');
   const q = useInfiniteQuery({
     queryKey: ['admin-bids', text, status],
     initialPageParam: undefined as string | undefined,

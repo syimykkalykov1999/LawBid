@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:flutter/foundation.dart'
     show ErrorDescription, FlutterError, FlutterErrorDetails, debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,6 +39,12 @@ final tokenWriteRetryDelaysProvider = Provider<List<Duration>>(
     Duration(seconds: 2),
   ],
 );
+
+/// Perf batch 4 (row 127): after the cached start's token refresh failed
+/// for a reason that is not the token's (no network, a busy server), the
+/// requests sent in this window fail at once instead of each asking
+/// `/auth/refresh` again.
+const refreshSoftFailureCooldown = Duration(seconds: 5);
 
 /// Whether the CURRENT session is a demo one (access-token claim `demo`).
 /// Lives here, not in features/demo, so any feature's gate can read it
@@ -125,7 +133,177 @@ class SessionController extends _$SessionController {
   Future<void> applyTokens(AuthTokensResult tokens) async {
     final decoded = _decode(tokens);
     state = decoded;
+    _softFailure = null;
     await _persistRefreshToken(tokens.refreshToken, isDemo: decoded.isDemo);
+    _rememberClaims(decoded, tokens.refreshToken);
+  }
+
+  // ---- Perf batch 4 (row 127): open from the phone's copy -----------------
+  //
+  // WhatsApp / Telegram open the chat list from the local copy with no
+  // round trip and sync behind it. A signed-in cold start used to wait for
+  // `POST /auth/refresh` and then `GET /me/session` before the first real
+  // screen (prod p95 1.4 s + 1.3 s, up to ~30 s on a weak link). Now, when
+  // the phone has the last session's claims for the stored refresh token
+  // and the last `/me/session` copy, the session opens from them at once
+  // and the refresh runs behind it; a request waits for the refresh
+  // («refresh before request», as `fresh_dio`'s `shouldRefreshBeforeRequest`
+  // does). The access token itself is still never written anywhere.
+
+  /// The claims last written, so a rotation with the same claims (every
+  /// 15 minutes) costs no keychain write.
+  String? _hintWritten;
+
+  /// Phones only: on the website the credential is the HttpOnly cookie, and
+  /// another tab may have signed that cookie into another account.
+  static bool _canOpenCached(String storedToken) =>
+      storedToken.isNotEmpty && storedToken != TokenSecureStore.cookieMarker;
+
+  /// Binds the claims to the refresh token they came with: a hint left from
+  /// another account (or a token the keychain refused) never matches.
+  static String _fingerprint(String storedToken) =>
+      sha256.convert(utf8.encode(storedToken)).toString().substring(0, 32);
+
+  void _rememberClaims(SessionState s, String refreshToken) {
+    final stored =
+        refreshToken.isEmpty ? TokenSecureStore.cookieMarker : refreshToken;
+    if (!_canOpenCached(stored)) return;
+    final json = jsonEncode({
+      'fp': _fingerprint(stored),
+      'sub': s.sub,
+      'role': s.role,
+      'sid': s.sid,
+      'verified': s.verified,
+      'subscriptionStatus': s.subscriptionStatus,
+      'demo': s.isDemo,
+    });
+    if (json == _hintWritten) return;
+    _hintWritten = json;
+    unawaited(ref.read(tokenSecureStoreProvider).writeSessionHint(json));
+  }
+
+  /// The last session's claims for the stored refresh token, as a session
+  /// that [SessionState.awaitsRefresh], or null (no hint, another token, a
+  /// demo flag that disagrees, the website, a session already in memory).
+  /// Sets nothing; [openCached] does. Never throws.
+  Future<SessionState?> cachedSession() async {
+    if (state != null) return null;
+    try {
+      final store = ref.read(tokenSecureStoreProvider);
+      final raw = await store.readSessionHint();
+      if (raw == null) return null;
+      final token = _pendingPersist?.token ?? await store.readRefreshToken();
+      if (token == null || !_canOpenCached(token)) return null;
+      final isDemo = await store.readRefreshTokenIsDemo();
+      final m = jsonDecode(raw);
+      if (m is! Map<String, dynamic> ||
+          m['fp'] != _fingerprint(token) ||
+          (m['demo'] == true) != isDemo) {
+        return null;
+      }
+      final sub = m['sub'];
+      final sid = m['sid'];
+      if (sub is! String || sub.isEmpty || sid is! String) return null;
+      _hintWritten = raw;
+      return SessionState(
+        accessToken: '',
+        sub: sub,
+        role: m['role'] as String?,
+        sid: sid,
+        verified: m['verified'] == true,
+        subscriptionStatus: (m['subscriptionStatus'] as String?) ?? 'none',
+        accessTokenExpiresAt: DateTime.now(),
+        isDemo: isDemo,
+      );
+    } on Object catch (e) {
+      debugPrint('cached session: $e');
+      return null;
+    }
+  }
+
+  /// Opens [cached] (from [cachedSession]) while nothing is signed in yet.
+  void openCached(SessionState cached) {
+    if (state == null && cached.awaitsRefresh) state = cached;
+  }
+
+  Object? _softFailure;
+  DateTime? _softFailureAt;
+
+  /// The cached start's refresh, in the background. A definitive rejection
+  /// (revoked, expired, reused) signs out — the account's data on the phone
+  /// leaves with it (`accountFilesGuardProvider`) — or, for a demo session,
+  /// brings the parked real account back; no network or a busy server keeps
+  /// the cached session (the offline banner shows; the next request, the
+  /// network coming back or a resume tries again). Never throws.
+  Future<SessionBootstrapResult> revalidate() async {
+    final wasDemo = state?.isDemo ?? false;
+    try {
+      await _refreshCached();
+      return SessionBootstrapResult.signedIn;
+    } on ApiException catch (e) {
+      switch (classifyRefreshFailure(e)) {
+        case RefreshFailureKind.network:
+        case RefreshFailureKind.transient:
+          return state == null
+              ? SessionBootstrapResult.signedOut
+              : SessionBootstrapResult.offline;
+        case RefreshFailureKind.definitive:
+          if (state != null && !state!.awaitsRefresh) {
+            // Another refresh already rotated the token: still signed in.
+            return SessionBootstrapResult.signedIn;
+          }
+          _endCached();
+          if (wasDemo && await restoreRealSession()) {
+            return SessionBootstrapResult.signedIn;
+          }
+          return SessionBootstrapResult.signedOut;
+        case RefreshFailureKind.unknown:
+          // Not a verdict on the token, but no session either: the welcome
+          // screen, as the old start did; the token stays.
+          _endCached();
+          return SessionBootstrapResult.signedOut;
+      }
+    } on Object {
+      _endCached();
+      return SessionBootstrapResult.signedOut;
+    }
+  }
+
+  void _endCached() {
+    if (state?.awaitsRefresh ?? false) state = null;
+  }
+
+  Future<String> _refreshCached() async {
+    try {
+      return await refreshAccessToken();
+    } on Object catch (e) {
+      if (state?.awaitsRefresh ?? false) {
+        _softFailure = e;
+        _softFailureAt = DateTime.now();
+      }
+      rethrow;
+    }
+  }
+
+  /// The access token a request (or the realtime socket) goes out with:
+  /// the current one, or — while the session [SessionState.awaitsRefresh]
+  /// — the one the background refresh brings (single-flight with it).
+  /// Throws when there is none (signed out, or the refresh failed; within
+  /// [refreshSoftFailureCooldown] of a soft failure it throws that failure
+  /// again without a new `/auth/refresh`).
+  Future<String> accessTokenForRequest() async {
+    final s = state;
+    if (s == null) throw StateError('Signed out.');
+    if (!s.awaitsRefresh) return s.accessToken;
+    final failed = _softFailure;
+    final at = _softFailureAt;
+    if (failed != null &&
+        at != null &&
+        DateTime.now().difference(at) < refreshSoftFailureCooldown) {
+      // ignore: only_throw_errors
+      throw failed;
+    }
+    return _refreshCached();
   }
 
   /// S15-6: the refresh token the server just rotated MUST reach the disk,
@@ -303,6 +481,7 @@ class SessionController extends _$SessionController {
     final wasDemo = state?.isDemo ?? false;
     state = null;
     _pendingPersist = null;
+    _hintWritten = null;
     try {
       await store.clear();
       // Owner 2026-11-05: the same as a sign-out: the demo's parked token
@@ -339,6 +518,7 @@ class SessionController extends _$SessionController {
     if (!restored) {
       state = null;
       _pendingPersist = null;
+      _hintWritten = null;
       await store.clear();
     }
     // A pending email magic-link verifier must not outlive the session.

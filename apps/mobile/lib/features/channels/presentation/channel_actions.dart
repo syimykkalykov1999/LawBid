@@ -130,7 +130,7 @@ Future<bool> confirmChannelAction(
   bool destructive = true,
 }) async {
   final t = ref.read(translatorProvider);
-  final ok = await showDialog<bool>(
+  final ok = await showAppDialog<bool>(
     context: context,
     builder: (d) => AppAlertDialog(
       title: Text(title),
