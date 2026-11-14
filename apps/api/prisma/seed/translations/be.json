@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "Пакінуць водгук можа толькі кліент, які завяршыў справу з гэтым адвакатам.",
   "reviews.write.saved": "Водгук апублікаваны",
   "reviews.write.title": "Ваш водгук",
+  "router.notFound.home": "Галоўная",
+  "router.notFound.title": "Старонка не знойдзена",
   "saved.chats.empty": "Захаваных паведамленняў пакуль няма",
   "saved.copied": "Скапіравана",
   "saved.empty": "Пакуль нічога не захавана",

@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "ఈ న్యాయవాదితో కేసు పూర్తి చేసిన క్లయింట్ మాత్రమే సమీక్షించగలరు.",
   "reviews.write.saved": "రివ్యూ పోస్ట్ చేయబడింది",
   "reviews.write.title": "మీ రివ్యూ",
+  "router.notFound.home": "హోమ్",
+  "router.notFound.title": "పేజీ కనుగొనబడలేదు",
   "saved.chats.empty": "ఇంకా సేవ్ చేసిన సందేశాలు లేవు",
   "saved.copied": "కాపీ చేయబడింది",
   "saved.empty": "ఇంకా ఏమీ సేవ్ చేయలేదు",

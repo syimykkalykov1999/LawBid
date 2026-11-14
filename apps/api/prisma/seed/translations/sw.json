@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "Ni mteja aliyekamilisha kesi na wakili huyu pekee anayeweza kumpitia.",
   "reviews.write.saved": "Maoni yamechapishwa",
   "reviews.write.title": "Maoni yako",
+  "router.notFound.home": "Nyumbani",
+  "router.notFound.title": "Ukurasa haujapatikana",
   "saved.chats.empty": "Hakuna ujumbe uliohifadhiwa",
   "saved.copied": "Imenakiliwa",
   "saved.empty": "Hakuna kilichohifadhiwa bado",

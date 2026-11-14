@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "Hanya klien yang menyelesaikan kasus dengan pengacara ini yang dapat mengulasnya.",
   "reviews.write.saved": "Ulasan dikirim",
   "reviews.write.title": "Ulasan Anda",
+  "router.notFound.home": "Beranda",
+  "router.notFound.title": "Halaman tidak ditemukan",
   "saved.chats.empty": "Belum ada pesan tersimpan",
   "saved.copied": "Disalin",
   "saved.empty": "Belum ada yang tersimpan",

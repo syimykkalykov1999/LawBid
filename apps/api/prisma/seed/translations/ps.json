@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "یوازې هغه پیرودونکی چې له دې وکیل سره قضیه بشپړه کړې وي کولی شي نظر ورکړي.",
   "reviews.write.saved": "نظر خپور شو",
   "reviews.write.title": "ستاسو نظر",
+  "router.notFound.home": "کور",
+  "router.notFound.title": "پاڼه ونه موندل شوه",
   "saved.chats.empty": "خوندي شوي پیغامونه نشته",
   "saved.copied": "کاپي شو",
   "saved.empty": "تر اوسه څه نه دي خوندي",

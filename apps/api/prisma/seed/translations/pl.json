@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "Opinię może wystawić tylko klient, który zakończył sprawę z tym prawnikiem.",
   "reviews.write.saved": "Opinia opublikowana",
   "reviews.write.title": "Twoja opinia",
+  "router.notFound.home": "Strona główna",
+  "router.notFound.title": "Nie znaleziono strony",
   "saved.chats.empty": "Brak zapisanych wiadomości",
   "saved.copied": "Skopiowano",
   "saved.empty": "Nic nie zapisano",

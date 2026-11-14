@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "Միայն այս փաստաբանի հետ գործ ավարտած հաճախորդը կարող է կարծիք թողնել։",
   "reviews.write.saved": "Կարծիքը հրապարակվեց",
   "reviews.write.title": "Ձեր կարծիքը",
+  "router.notFound.home": "Գլխավոր",
+  "router.notFound.title": "Էջը չի գտնվել",
   "saved.chats.empty": "Պահված հաղորդագրություններ չկան",
   "saved.copied": "Պատճենվեց",
   "saved.empty": "Դեռ ոչինչ չի պահվել",

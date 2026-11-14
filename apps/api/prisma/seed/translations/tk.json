@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "Diňe bu adwokat bilen iş tamamlan müşderi syn ýazyp bilýär.",
   "reviews.write.saved": "Syn çap edildi",
   "reviews.write.title": "Siziň syňyz",
+  "router.notFound.home": "Baş sahypa",
+  "router.notFound.title": "Sahypa tapylmady",
   "saved.chats.empty": "Saklanan habar entek ýok",
   "saved.copied": "Göçürildi",
   "saved.empty": "Entek hiç zat saklanmady",

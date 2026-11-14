@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "මෙම නීතිඥයා සමඟ නඩුවක් අවසන් කළ සේවාදායකයෙකුට පමණක් සමාලෝචනය කළ හැක.",
   "reviews.write.saved": "සමාලෝචනය පළ කරන ලදී",
   "reviews.write.title": "ඔබේ සමාලෝචනය",
+  "router.notFound.home": "මුල් පිටුව",
+  "router.notFound.title": "පිටුව හමු නොවීය",
   "saved.chats.empty": "සුරකින ලද පණිවිඩ නැත",
   "saved.copied": "පිටපත් කළා",
   "saved.empty": "තවම කිසිවක් සුරකිලා නැත",

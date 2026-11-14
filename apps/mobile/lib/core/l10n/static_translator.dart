@@ -61,6 +61,7 @@ import 'package:lawbid/core/l10n/strings/quick_replies_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/strings/role_switch_strings.dart';
+import 'package:lawbid/core/l10n/strings/router_strings.dart';
 import 'package:lawbid/core/l10n/strings/saved_cards_strings.dart';
 import 'package:lawbid/core/l10n/strings/seat_roles_strings.dart';
 import 'package:lawbid/core/l10n/strings/share_to_strings.dart';
@@ -1259,6 +1260,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...dealRecordRu,
         ...caseCloseRu,
         ...themeRu,
+        ...routerRu,
         ...postInnerRu,
         ...emailFlowsRu,
         ...storiesRu,
@@ -2724,6 +2726,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...dealRecordEn,
         ...caseCloseEn,
         ...themeEn,
+        ...routerEn,
         ...postInnerEn,
         ...storiesEn,
         ...channelsEn,

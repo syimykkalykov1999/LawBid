@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "Endast en klient som slutfört ett ärende med den här advokaten kan lämna ett omdöme.",
   "reviews.write.saved": "Omdömet publicerat",
   "reviews.write.title": "Ditt omdöme",
+  "router.notFound.home": "Start",
+  "router.notFound.title": "Sidan hittades inte",
   "saved.chats.empty": "Inga sparade meddelanden ännu",
   "saved.copied": "Kopierat",
   "saved.empty": "Inget sparat ännu",

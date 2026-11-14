@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "Csak olyan ügyfél értékelheti ezt az ügyvédet, aki lezárt vele egy ügyet.",
   "reviews.write.saved": "Értékelés közzétéve",
   "reviews.write.title": "Az Ön értékelése",
+  "router.notFound.home": "Főoldal",
+  "router.notFound.title": "Az oldal nem található",
   "saved.chats.empty": "Még nincs mentett üzenet",
   "saved.copied": "Másolva",
   "saved.empty": "Még nincs mentett elem",

@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "Dim ond cleient sydd wedi cwblhau achos gyda'r atwrnai hwn all ei adolygu.",
   "reviews.write.saved": "Postiwyd yr adolygiad",
   "reviews.write.title": "Eich adolygiad",
+  "router.notFound.home": "Hafan",
+  "router.notFound.title": "Heb ddod o hyd i'r dudalen",
   "saved.chats.empty": "Dim negeseuon wedi'u cadw eto",
   "saved.copied": "Copïwyd",
   "saved.empty": "Dim wedi'i gadw eto",

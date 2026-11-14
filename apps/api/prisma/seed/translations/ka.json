@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "მხოლოდ კლიენტს, რომელმაც ამ ადვოკატთან საქმე დაასრულა, შეუძლია მისი შეფასება.",
   "reviews.write.saved": "შეფასება გამოქვეყნდა",
   "reviews.write.title": "თქვენი შეფასება",
+  "router.notFound.home": "მთავარი",
+  "router.notFound.title": "გვერდი ვერ მოიძებნა",
   "saved.chats.empty": "შენახული შეტყობინებები ჯერ არ არის",
   "saved.copied": "დაკოპირდა",
   "saved.empty": "ჯერ არაფერია შენახული",

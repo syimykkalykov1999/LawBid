@@ -5223,6 +5223,8 @@
   "reviews.write.onlyAfterCase": "Ikhasimende eliqede icala nalo mmeli kuphela elingambuyekeza.",
   "reviews.write.saved": "Ukubuyekezwa kuthunyelwe",
   "reviews.write.title": "Ukubuyekezwa kwakho",
+  "router.notFound.home": "Ikhaya",
+  "router.notFound.title": "Ikhasi alitholakali",
   "saved.chats.empty": "Azikho imilayezo elondoloziwe",
   "saved.copied": "Kukopishiwe",
   "saved.empty": "Akukalondolozwa lutho",
