@@ -14,6 +14,7 @@ import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
+import { useNavigationGuard } from '@/lib/vendor/navigation-guard';
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const ZONES = [
@@ -53,6 +54,9 @@ export default function SupportSettingsPage() {
     },
     onError: (e) => toast.error(e),
   });
+
+  // Detective D1-7 (13.11): unsaved edits ask before a link or a reload drops them.
+  useNavigationGuard({ enabled: !!d && !!q.data && JSON.stringify(d) !== JSON.stringify(q.data) });
 
   if (!d) {
     return (

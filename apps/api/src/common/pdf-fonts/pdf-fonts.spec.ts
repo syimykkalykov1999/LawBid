@@ -19,7 +19,22 @@ import {
 type Font = { hasGlyphForCodePoint(cp: number): boolean };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const fontkit = require('fontkit') as { create: (b: Buffer) => Font };
-const open = (p: string): Font => fontkit.create(readFileSync(p));
+/** A font whose glyph answers are remembered per code point (the 85-language
+ * check asks for every character of the seed: ~20 M lookups). */
+const open = (p: string): Font => {
+  const font = fontkit.create(readFileSync(p));
+  const known = new Map<number, boolean>();
+  return {
+    hasGlyphForCodePoint: (cp) => {
+      let has = known.get(cp);
+      if (has === undefined) {
+        has = font.hasGlyphForCodePoint(cp);
+        known.set(cp, has);
+      }
+      return has;
+    },
+  };
+};
 
 // CJK letters and punctuation (until the CJK fonts are cached) and UI icons
 // (symbols such as a star or an ellipsis, never printed in PDFs) may have no glyph.

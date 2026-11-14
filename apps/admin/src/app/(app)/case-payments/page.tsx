@@ -36,6 +36,7 @@ import {
 } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useNavigationGuard } from '@/lib/vendor/navigation-guard';
 
 type Payment = components['schemas']['AdminCasePaymentRowDto'];
 type PaymentStatus = components['schemas']['CasePaymentStatus'];
@@ -630,6 +631,8 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
     disclaimerRu: disclaimerRu.trim(),
   };
   const dirty = (Object.keys(body) as (keyof typeof body)[]).some((k) => JSON.stringify(body[k]) !== JSON.stringify(initial[k]));
+  // Detective D1-7 (13.11): unsaved edits ask before a link or a reload drops them.
+  useNavigationGuard({ enabled: dirty });
 
   const save = useMutation({
     mutationFn: async () => (await api.PUT('/admin/case-payments/settings', { body })).data!.data,

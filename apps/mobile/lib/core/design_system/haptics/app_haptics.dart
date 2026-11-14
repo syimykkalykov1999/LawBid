@@ -19,4 +19,19 @@ abstract final class AppHaptics {
 
   /// A heavy tap (rare, e.g. an incoming call).
   static Future<void> heavy() => HapticFeedback.heavyImpact();
+
+  // 13.11 (owner row 95, motion catalog F4): the three iOS notification
+  // haptics (`UINotificationFeedbackGenerator`, Apple HIG «Playing
+  // haptics»), exposed by Flutter 3.47 `HapticFeedback` (BSD-3). Android
+  // API 30+ maps them to CONFIRM / REJECT. The phone's own «System
+  // haptics» / «Vibration» switch is honoured by the OS for every call.
+
+  /// A task finished well (sent, paid, verified, task done, code scanned).
+  static Future<void> success() => HapticFeedback.successNotification();
+
+  /// Something needs care (a destructive confirm, a soft limit).
+  static Future<void> warning() => HapticFeedback.warningNotification();
+
+  /// Something failed (wrong code, invalid form, failed send).
+  static Future<void> error() => HapticFeedback.errorNotification();
 }

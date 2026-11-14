@@ -143,7 +143,7 @@ export default function ModerationQueuePage() {
           <tbody>
             {q.isPending ? (
               <TableEmpty colSpan={6} loading />
-            ) : rows.length === 0 ? (
+            ) : rows.length === 0 && !q.isError ? (
               <TableEmpty colSpan={6}>
                 {status === "open"
                   ? "Очередь пуста — новых жалоб нет."

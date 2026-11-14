@@ -365,14 +365,14 @@ function Queue({ canManage, stats }: { canManage: boolean; stats: Stats | undefi
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={cols} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={cols}>Очередь пуста — никого проверять не нужно.</TableEmpty>
           ) : (
             rows.map((r, i) => (
               <MotionRow key={r.attorney.id} i={i}>
                 {canManage ? (
                   <Td>
-                    <RowSelectBox selected={sel.selected} id={r.attorney.id} onToggle={sel.toggle} />
+                    <RowSelectBox selected={sel.selected} id={r.attorney.id} onToggle={sel.toggle} order={() => ids} />
                   </Td>
                 ) : null}
                 <Td>
@@ -828,7 +828,7 @@ function Holds({ canManage }: { canManage: boolean }) {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={cols} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={cols}>Холдов нет.</TableEmpty>
           ) : (
             rows.map((r, i) => {

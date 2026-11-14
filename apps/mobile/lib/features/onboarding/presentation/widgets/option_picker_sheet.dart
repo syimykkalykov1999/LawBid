@@ -482,6 +482,10 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
         : DraggableScrollableSheet(
             expand: false,
             initialChildSize: 0.7,
+            // Row 95 (motion catalog N10, iOS `.medium` / `.large` detents):
+            // the sheet rests at its first height or full, never in between.
+            snap: true,
+            snapSizes: const [0.7],
             minChildSize: 0.4,
             builder: content,
           );

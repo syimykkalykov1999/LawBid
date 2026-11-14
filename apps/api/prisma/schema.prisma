@@ -1083,6 +1083,10 @@ model File {
   /// that asked for AVIF given `.avif` links; false = WebP / JPEG links.
   avif_twins         Boolean            @default(false)
   scan_status        ScanStatus         @default(pending)
+  /// Media batch A (R1): why the antivirus did not scan this file
+  /// ('too_large' = over clamd's size limit). The object is kept and the row
+  /// stays `failed` until a person decides; the storage cleanup skips it.
+  scan_skipped       String?            @db.VarChar(16)
   is_public          Boolean            @default(false)
   deleted_at         DateTime?          @db.Timestamptz
   /// Why the row was deleted: orphan (never attached / detached), released
@@ -1871,33 +1875,33 @@ model NewCaseAlertPractice {
 }
 
 model VerificationRequest {
-  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  attorney_id          String                    @db.Uuid
-  attorney             AttorneyProfile           @relation(fields: [attorney_id], references: [user_id], onDelete: Restrict)
-  status               VerificationRequestStatus
-  provider             VerificationProvider      @default(manual)
-  provider_ref         String?
-  submitted_at         DateTime?                 @db.Timestamptz
-  reviewed_by          String?                   @db.Uuid
-  reviewer             User?                     @relation("VerificationReviewer", fields: [reviewed_by], references: [id], onDelete: Restrict)
-  reviewed_at          DateTime?                 @db.Timestamptz
-  rejection_reason     String?
-  admin_note           String?
+  id                        String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id               String                    @db.Uuid
+  attorney                  AttorneyProfile           @relation(fields: [attorney_id], references: [user_id], onDelete: Restrict)
+  status                    VerificationRequestStatus
+  provider                  VerificationProvider      @default(manual)
+  provider_ref              String?
+  submitted_at              DateTime?                 @db.Timestamptz
+  reviewed_by               String?                   @db.Uuid
+  reviewer                  User?                     @relation("VerificationReviewer", fields: [reviewed_by], references: [id], onDelete: Restrict)
+  reviewed_at               DateTime?                 @db.Timestamptz
+  rejection_reason          String?
+  admin_note                String?
   // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
-  info_request_message String?
+  info_request_message      String?
   // ≤500 chars, CHECK in the migration
-  applicant_comment    String?
-  rejection_code       String?
+  applicant_comment         String?
+  rejection_code            String?
   // Owner 2026-10-04: sworn self-attestation of the license.
-  attested_at          DateTime?                 @db.Timestamptz
-  attestation_ip       String?
-  attestation_version  String?
+  attested_at               DateTime?                 @db.Timestamptz
+  attestation_ip            String?
+  attestation_version       String?
   // Owner 2026-11-12 (row 52): consent to the automatic face comparison
   // (BIPA / CUBI / RCW 19.375), given with the selfie, and the text version.
-  biometric_consent_at      DateTime? @db.Timestamptz
+  biometric_consent_at      DateTime?                 @db.Timestamptz
   biometric_consent_version String?
-  created_at           DateTime                  @default(now()) @db.Timestamptz
-  updated_at           DateTime                  @updatedAt @db.Timestamptz
+  created_at                DateTime                  @default(now()) @db.Timestamptz
+  updated_at                DateTime                  @updatedAt @db.Timestamptz
 
   documents     VerificationDocument[]
   checks        VerificationCheck[]
@@ -2131,44 +2135,44 @@ model CaseState {
 }
 
 model Bid {
-  id                      String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id                 String            @db.Uuid
-  case                    Case              @relation("CaseBids", fields: [case_id], references: [id], onDelete: Restrict)
-  attorney_id             String            @db.Uuid
-  attorney                User              @relation("BidAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
-  status                  BidStatus         @default(active)
-  fee_type                FeeType
-  amount_cents            Int
+  id                       String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id                  String            @db.Uuid
+  case                     Case              @relation("CaseBids", fields: [case_id], references: [id], onDelete: Restrict)
+  attorney_id              String            @db.Uuid
+  attorney                 User              @relation("BidAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  status                   BidStatus         @default(active)
+  fee_type                 FeeType
+  amount_cents             Int
   // Owner 2026-10-17: fee_type = contingency → percent in basis points
   // (amount_cents is then 0). CHECK in the migration.
-  percent_bps             Int?
+  percent_bps              Int?
   // ≤2000 chars (§6.1), CHECK in the migration.
-  message                 String
+  message                  String
   /// Deal record 2026-10-27: rich payment terms (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md §2.3),
   /// only while `bids.rich_terms_enabled`; the columns above stay the headline.
-  payment_terms           Json?
-  start_availability      StartAvailability
-  start_date              DateTime?         @db.Date
-  estimated_duration_days Int?
-  round_count             Int               @default(0) @db.SmallInt
-  turn                    PartyRole
+  payment_terms            Json?
+  start_availability       StartAvailability
+  start_date               DateTime?         @db.Date
+  estimated_duration_days  Int?
+  round_count              Int               @default(0) @db.SmallInt
+  turn                     PartyRole
   // Owner 2026-09-30: the case's practice is not one of the attorney's.
-  outside_practice        Boolean           @default(false)
+  outside_practice         Boolean           @default(false)
   // Owner 2026-10-04: no verified licence in the case's states.
-  outside_licensed_states Boolean           @default(false)
-  decided_at              DateTime?         @db.Timestamptz
-  created_at              DateTime          @default(now()) @db.Timestamptz
-  updated_at              DateTime          @updatedAt @db.Timestamptz
+  outside_licensed_states  Boolean           @default(false)
+  decided_at               DateTime?         @db.Timestamptz
+  created_at               DateTime          @default(now()) @db.Timestamptz
+  updated_at               DateTime          @updatedAt @db.Timestamptz
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
-  version                 Int               @default(0)
+  version                  Int               @default(0)
   /// Owner 2026-11-05: the client changed the open case; the bid waits for the
   /// attorney (`bids.confirmation_required`). Null = nothing to confirm.
-  confirmation_required_at DateTime?        @db.Timestamptz
+  confirmation_required_at DateTime?         @db.Timestamptz
   /// When the attorney last confirmed or changed the bid after such a change.
-  confirmed_at             DateTime?        @db.Timestamptz
+  confirmed_at             DateTime?         @db.Timestamptz
   /// The one reminder has gone out for the current wait.
-  confirm_reminded_at      DateTime?        @db.Timestamptz
+  confirm_reminded_at      DateTime?         @db.Timestamptz
 
   accepted_for_case  Case?                @relation("CaseAcceptedBid")
   offers             BidOffer[]
@@ -2768,9 +2772,9 @@ model Follow {
 /// follow of the same person; rows older than the sync window (7 days)
 /// are swept by the storage cleanup.
 model FollowTombstone {
-  follower_id String   @db.Uuid
-  follower    User     @relation("FollowTombstoneFollower", fields: [follower_id], references: [id], onDelete: Cascade)
-  followee_id String   @db.Uuid
+  follower_id   String   @db.Uuid
+  follower      User     @relation("FollowTombstoneFollower", fields: [follower_id], references: [id], onDelete: Cascade)
+  followee_id   String   @db.Uuid
   unfollowed_at DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
@@ -4072,15 +4076,15 @@ enum PrivacyAudience {
 }
 
 model UserPrivacySettings {
-  user_id        String          @id @db.Uuid
-  user           User            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_privacy_settings_user_fkey")
-  last_seen      PrivacyAudience @default(everyone)
-  message_from   PrivacyAudience @default(everyone)
-  call_from      PrivacyAudience @default(everyone)
+  user_id             String          @id @db.Uuid
+  user                User            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_privacy_settings_user_fkey")
+  last_seen           PrivacyAudience @default(everyone)
+  message_from        PrivacyAudience @default(everyone)
+  call_from           PrivacyAudience @default(everyone)
   // Who sees my profile photo / my "about", and who may add me to a group.
-  photo_from     PrivacyAudience @default(everyone)
-  about_from     PrivacyAudience @default(everyone)
-  group_add_from PrivacyAudience @default(everyone)
+  photo_from          PrivacyAudience @default(everyone)
+  about_from          PrivacyAudience @default(everyone)
+  group_add_from      PrivacyAudience @default(everyone)
   /// Owner 2026-10-28: the same settings as sets (bitmask: 1 = my contacts,
   /// 2 = my followers, 4 = people I follow, 8 = everyone, 0 = nobody).
   /// NULL = not set yet: the enum column above decides (its «contacts» =
@@ -4091,7 +4095,7 @@ model UserPrivacySettings {
   photo_from_mask     Int?            @db.SmallInt
   about_from_mask     Int?            @db.SmallInt
   group_add_from_mask Int?            @db.SmallInt
-  updated_at     DateTime        @updatedAt @db.Timestamptz
+  updated_at          DateTime        @updatedAt @db.Timestamptz
 
   @@map("user_privacy_settings")
 }
@@ -5507,6 +5511,9 @@ model VideoAsset {
   /// of the owner) — replaces the frame as the reel's poster.
   cover_file_id     String?          @db.Uuid
   upload_expires_at DateTime         @db.Timestamptz
+  /// Media batch A (R11): the MP4 fallback rendition Bunny stored ('720p',
+  /// '480p' …); '' = none; null = not checked yet (legacy play_720p.mp4).
+  mp4_fallback      String?          @db.VarChar(8)
   created_at        DateTime         @default(now()) @db.Timestamptz
   ready_at          DateTime?        @db.Timestamptz
   deleted_at        DateTime?        @db.Timestamptz
@@ -8236,26 +8243,26 @@ model LegalQuestion {
 }
 
 model LegalAnswer {
-  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  question_id  String        @db.Uuid
-  question     LegalQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  attorney_id  String        @db.Uuid
-  attorney     User          @relation("LegalAnswerAuthor", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  body         String        @db.VarChar(4000)
-  status       ContentStatus @default(published)
-  like_count   Int           @default(0)
-  is_best      Boolean       @default(false)
-  deleted_at   DateTime?     @db.Timestamptz
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question_id         String        @db.Uuid
+  question            LegalQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  attorney_id         String        @db.Uuid
+  attorney            User          @relation("LegalAnswerAuthor", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  body                String        @db.VarChar(4000)
+  status              ContentStatus @default(published)
+  like_count          Int           @default(0)
+  is_best             Boolean       @default(false)
+  deleted_at          DateTime?     @db.Timestamptz
   /// Owner 2026-10-28 (legal safety): private_info kinds, individualized_advice,
   /// state_not_licensed — shown to the admin only.
-  safety_flags String[]      @default([])
-  content_hash String?       @db.VarChar(64)
+  safety_flags        String[]      @default([])
+  content_hash        String?       @db.VarChar(64)
   /// R-401 (owner 2026-11-04): the assistant who typed the answer with the
   /// «qa_answers» duty; null = the attorney themself. The answer is the
   /// attorney's either way (attorney_id).
-  authored_by_user_id String? @db.Uuid
-  created_at   DateTime      @default(now()) @db.Timestamptz
-  updated_at   DateTime      @updatedAt @db.Timestamptz
+  authored_by_user_id String?       @db.Uuid
+  created_at          DateTime      @default(now()) @db.Timestamptz
+  updated_at          DateTime      @updatedAt @db.Timestamptz
 
   likes LegalAnswerLike[]
 

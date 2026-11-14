@@ -47,8 +47,9 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
       if (me != null) {
         ref.read(assistantMeProvider.notifier).apply(me);
         if (me.active) {
+          // Row 95 (catalog F4): joined the team — a success.
           // ignore: unawaited_futures
-          AppHaptics.medium();
+          AppHaptics.success();
           showAppSnackBar(
             context,
             t.t('assistant.join.done', {'name': me.attorneyName ?? ''}),

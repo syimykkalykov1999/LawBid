@@ -620,6 +620,9 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
       value: value,
       t: t,
       itemKey: (x) => x.id,
+      // Row 95 (catalog C4): a new notification grows in, a removed one
+      // collapses.
+      animateChanges: true,
       itemBuilder: (context, x, i) {
         final items = value.value?.items ?? const <AppNotification>[];
         final group = NotificationsView._group(x.createdAt);

@@ -10,9 +10,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/file_types.dart';
+import 'package:lawbid/core/files/pick_files.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/text/byte_size.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
@@ -236,11 +239,13 @@ Future<List<PickedChatFile>> pickChatFiles(
               maxWidth: ClientTuning.chatPhotoMaxPx,
               maxHeight: ClientTuning.chatPhotoMaxPx,
               imageQuality: ClientTuning.chatPhotoQuality,
+              requestFullMetadata: false,
             )
           : await ImagePicker().pickMultiImage(
               maxWidth: ClientTuning.chatPhotoMaxPx,
               maxHeight: ClientTuning.chatPhotoMaxPx,
               imageQuality: ClientTuning.chatPhotoQuality,
+              requestFullMetadata: false,
             );
       for (final f in picked) {
         // Too big: said at once, never read whole into the page's memory
@@ -260,7 +265,7 @@ Future<List<PickedChatFile>> pickChatFiles(
             add(await ready.readAsBytes(), name);
           }
         } else {
-          add(await f.readAsBytes(), f.name);
+          add(await readPickedPhoto(f), f.name);
         }
       }
     case 'camera':
@@ -269,8 +274,9 @@ Future<List<PickedChatFile>> pickChatFiles(
         maxWidth: ClientTuning.chatPhotoMaxPx,
         maxHeight: ClientTuning.chatPhotoMaxPx,
         imageQuality: ClientTuning.chatPhotoQuality,
+        requestFullMetadata: false,
       );
-      if (f != null) add(await f.readAsBytes(), f.name);
+      if (f != null) add(await readPickedPhoto(f), f.name);
     case 'files':
       final result = await FilePicker.pickFiles(
         // Web: a big file from iCloud or a HEIC to convert arrives after the
@@ -287,7 +293,13 @@ Future<List<PickedChatFile>> pickChatFiles(
           // A picture opens in the preview for editing, so it is read; it
           // was shrunk or is small. Only other files stay on disk.
           if (mimeFor(f.name)?.startsWith('image/') ?? false) {
-            add(await XFile(path).readAsBytes(), f.name);
+            // Audit C7: shrunk like a gallery photo, without its location.
+            final pic = await cleanPickedPicture(
+              await XFile(path).readAsBytes(),
+              f.name,
+              photos: chatPhotoLimits(),
+            );
+            add(pic.bytes, pic.name);
           } else {
             await addPath(path, f.name, f.size);
           }

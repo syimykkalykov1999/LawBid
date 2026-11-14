@@ -53,7 +53,9 @@ export function Providers({
               persister,
               maxAge: PERSIST_MAX_AGE_MS,
               buster: PERSIST_BUSTER,
-              dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
+              // D1-4: an admin action is never stored and replayed on the next
+              // open (TanStack persists paused mutations by default).
+              dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery, shouldDehydrateMutation: () => false },
             }}
           >
             <ToastProvider>

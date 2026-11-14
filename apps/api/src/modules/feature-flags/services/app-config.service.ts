@@ -77,7 +77,12 @@ export class AppConfigService {
     );
   }
 
-  async getConfig(): Promise<Record<string, unknown>> {
+  /** [fresh]: skip (and leave untouched) the in-process memo — for a
+   * caller that keeps what it builds (the bootstrap memo): writers drop the
+   * Redis copy before they bump the config version, so this read is never
+   * older than the version the caller keys its copy by. */
+  async getConfig(fresh = false): Promise<Record<string, unknown>> {
+    if (fresh) return this.loadConfig();
     const memoOn = process.env.NODE_ENV !== 'test';
     if (memoOn && appConfigMemo) {
       if (Date.now() - appConfigMemo.at < APP_CONFIG_MEMO_TTL_MS) {

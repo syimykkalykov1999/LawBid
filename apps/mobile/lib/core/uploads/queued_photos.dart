@@ -1,5 +1,8 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/upload_files.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
@@ -16,7 +19,7 @@ typedef PendingPhoto = ({
 
 /// Owner 2026-11-08 (instant publish, the app's own queue): the photo steps
 /// shared by the queued post and review. The job's payload keeps a list of
-/// `{id}` / `{file}` entries; [send] fills in the ids one by one, saving each,
+/// `{id}` / `{file}` entries; [send] fills in the ids (a few at once), saving each,
 /// so a restart never uploads a photo twice.
 abstract final class QueuedPhotos {
   /// The form's uploads still running, by job id and photo index (this run
@@ -73,16 +76,52 @@ abstract final class QueuedPhotos {
 
   /// Uploads what is missing (waiting for the form's own upload first) and
   /// returns every id, in order.
+  ///
+  /// Media audit 13.11 (C6): up to [parallel] photos go at once (default:
+  /// the admin's `client.uploads_at_once`, fewer on mobile data or a weak
+  /// phone), the pattern of AWS's own uploader (`queueSize` workers pulling
+  /// from one shared list, @aws-sdk/lib-storage `Upload`, Apache-2.0). The
+  /// order of the ids is the order of the photos, whatever finishes first;
+  /// each finished id is saved at once (one save at a time), so a failed or
+  /// killed run resends only the photos still missing. After a failure no
+  /// new photo starts; those in flight finish and are saved, then it is
+  /// thrown (the queue retries the rest later).
   static Future<List<String>> send(
     UploadJob job,
     UploadJobScope scope,
     UploadFiles files,
-    Future<String> Function(Uint8List bytes, int index) upload,
-  ) async {
+    Future<String> Function(Uint8List bytes, int index) upload, {
+    int? parallel,
+  }) =>
+      sendWith(
+        job,
+        scope.saveProgress,
+        files,
+        upload,
+        parallel: parallel,
+      );
+
+  /// [send] with the progress save passed in (tests).
+  @visibleForTesting
+  static Future<List<String>> sendWith(
+    UploadJob job,
+    Future<void> Function(Map<String, Object?> progress) saveProgress,
+    UploadFiles files,
+    Future<String> Function(Uint8List bytes, int index) upload, {
+    int? parallel,
+  }) async {
     final photos = entriesOf(job);
     final ids = idsOf(job);
-    for (var i = 0; i < photos.length; i++) {
-      if (ids[i] != null) continue;
+    final missing = [
+      for (var i = 0; i < photos.length; i++)
+        if (ids[i] == null) i,
+    ];
+    var next = 0;
+    Object? failure;
+    StackTrace? failureStack;
+    var saving = Future<void>.value();
+
+    Future<void> one(int i) async {
       String? id;
       final running = _running[job.id]?.remove(i);
       if (running != null) {
@@ -104,8 +143,27 @@ abstract final class QueuedPhotos {
         id = await upload(bytes, i);
       }
       ids[i] = id;
-      await scope.saveProgress({'ids': ids});
+      // Saves run one after another, each with the ids known at its turn.
+      saving = saving.then((_) => saveProgress({'ids': List.of(ids)}));
+      await saving;
     }
+
+    Future<void> worker() async {
+      while (failure == null && next < missing.length) {
+        final i = missing[next++];
+        try {
+          await one(i);
+        } on Object catch (e, st) {
+          failure ??= e;
+          failureStack ??= st;
+        }
+      }
+    }
+
+    final width = (parallel ?? ClientTuning.uploadsAtOnce)
+        .clamp(1, missing.isEmpty ? 1 : missing.length);
+    await Future.wait([for (var w = 0; w < width; w++) worker()]);
+    if (failure != null) Error.throwWithStackTrace(failure!, failureStack!);
     return [for (final id in ids) id!];
   }
 

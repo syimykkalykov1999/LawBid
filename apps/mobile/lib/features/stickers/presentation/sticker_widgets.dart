@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/text/search_fold.dart';
@@ -513,6 +514,10 @@ class _StickerHub extends ConsumerWidget {
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.7,
+      // Row 95 (motion catalog N10, iOS `.medium` / `.large` detents):
+      // the sheet rests at its first height or full, never in between.
+      snap: true,
+      snapSizes: const [0.7],
       maxChildSize: 0.95,
       builder: (_, scroll) => ListView(
         controller: scroll,
@@ -657,9 +662,10 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
       source: ImageSource.gallery,
       maxWidth: 512,
       maxHeight: 512,
+      requestFullMetadata: false,
     );
     if (x == null || !mounted) return;
-    final bytes = await x.readAsBytes();
+    final bytes = await readPickedPhoto(x);
     final mime = sniffImageMime(bytes);
     if (mime == null) {
       if (mounted) showAppSnackBar(context, t.t('stickers.badImage'));
@@ -671,8 +677,9 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
       await ref
           .read(stickersRepositoryProvider)
           .add(pack.id, bytes, mime, emoji: emoji);
+      // Row 95 (catalog F4): a sticker added is a success.
       // ignore: unawaited_futures
-      AppHaptics.medium();
+      AppHaptics.success();
       if (mounted) showAppSnackBar(context, t.t('stickers.added'));
     });
   }
@@ -725,6 +732,10 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.6,
+      // Row 95 (motion catalog N10, iOS `.medium` / `.large` detents):
+      // the sheet rests at its first height or full, never in between.
+      snap: true,
+      snapSizes: const [0.6],
       maxChildSize: 0.95,
       builder: (_, scroll) => async.when(
         loading: () =>

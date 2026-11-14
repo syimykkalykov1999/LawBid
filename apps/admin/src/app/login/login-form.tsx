@@ -2,7 +2,7 @@
 
 import { Fingerprint } from '@phosphor-icons/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ErrorNote } from '@/components/page-header';
 import { RecoveryCodes, TotpQr } from '@/components/totp-qr';
 import { Button } from '@/components/ui/button';
@@ -109,17 +109,29 @@ export function LoginForm() {
       setStep({ kind: 'password' });
     });
 
-  const finish = (ticket: string, mode: 'totp' | 'recovery' | 'setup') =>
+  // Detective D1-12 (13.11): the 6th digit signs in by itself, once per code,
+  // as input-otp (MIT, guilhermerodz/input-otp `onComplete`) and the Google /
+  // GitHub 2FA screens do; the button stays for a recovery code or a retry.
+  const autoSent = useRef('');
+  const codeTyped = (next: string, ticket: string, mode: 'totp' | 'setup', ready = true) => {
+    setCode(next);
+    if (next.length === 6 && ready && !busy && autoSent.current !== next) {
+      autoSent.current = next;
+      void finish(ticket, mode, next);
+    }
+  };
+
+  const finish = (ticket: string, mode: 'totp' | 'recovery' | 'setup', value = code) =>
     run(async () => {
       const res = await fetch('/api/auth/session', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(
           mode === 'recovery'
-            ? { ticket, recoveryCode: code }
+            ? { ticket, recoveryCode: value }
             : mode === 'setup'
-              ? { ticket, setupCode: code }
-              : { ticket, code },
+              ? { ticket, setupCode: value }
+              : { ticket, code: value },
         ),
       });
       const body = (await res.json()) as {
@@ -206,7 +218,7 @@ export function LoginForm() {
             required
             autoFocus
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            onChange={(e) => codeTyped(e.target.value.replace(/\D/g, '').slice(0, 6), step.ticket, 'setup', !!step.secret)}
           />
         </div>
         <ErrorNote text={error} />
@@ -401,16 +413,14 @@ export function LoginForm() {
             autoFocus
             value={code}
             onChange={(e) =>
-              setCode(
-                step.useRecovery
-                  ? e.target.value.toUpperCase()
-                  : e.target.value.replace(/\D/g, '').slice(0, 6),
-              )
+              step.useRecovery
+                ? setCode(e.target.value.toUpperCase())
+                : codeTyped(e.target.value.replace(/\D/g, '').slice(0, 6), step.ticket, 'totp')
             }
           />
         </div>
         <ErrorNote text={error} />
-        <Button type="submit" className="w-full" disabled={busy}>
+        <Button type="submit" className="w-full" disabled={busy || (step.useRecovery ? !code.trim() : code.length !== 6)}>
           Войти
         </Button>
         {step.passkey && canPasskey ? (

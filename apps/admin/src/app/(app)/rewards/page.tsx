@@ -262,7 +262,7 @@ export default function RewardsPage() {
               <ErrorNote text={board.error ? errorText(board.error) : null} />
               {board.isPending ? (
                 <Skeleton className="h-48 rounded-[var(--radius-lg)]" />
-              ) : (board.data?.departments ?? []).length === 0 ? (
+              ) : (board.data?.departments ?? []).length === 0 && !board.isError ? (
                 <EmptyState icon={Trophy} title="Нет отделов" text="Включите хотя бы один отдел в правилах." />
               ) : (
                 <div className="grid gap-4 lg:grid-cols-2">

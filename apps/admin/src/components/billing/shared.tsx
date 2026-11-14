@@ -4,6 +4,7 @@ import { Minus, Plus } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { PrefetchSentinel } from '@/components/legacy/prefetch-sentinel';
+import { SortScopeHint } from '@/components/legacy/sort-scope-hint';
 import { Badge, type Tone } from '@/components/ui/card';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
@@ -88,6 +89,7 @@ export function LoadMore({ q }: { q: { hasNextPage: boolean; isFetchingNextPage:
   return (
     <>
       <PrefetchSentinel enabled={!q.isFetchingNextPage} onNear={() => void q.fetchNextPage()} />
+      <SortScopeHint />
       <div className="mt-4 flex justify-center">
         <Button variant="outline" loading={q.isFetchingNextPage} disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>
           Показать ещё

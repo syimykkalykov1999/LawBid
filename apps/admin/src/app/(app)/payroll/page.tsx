@@ -450,7 +450,7 @@ export default function PayrollPage() {
         <tbody>
           {payouts.isPending ? (
             <TableEmpty colSpan={canWrite ? 9 : 8} loading />
-          ) : payoutRows.length === 0 ? (
+          ) : payoutRows.length === 0 && !payouts.isError ? (
             <TableEmpty colSpan={canWrite ? 9 : 8}>Выплат пока нет.</TableEmpty>
           ) : (
             payoutRows.map((p) => (
@@ -871,7 +871,7 @@ function ExtrasDialog({
             <tbody>
               {list.isPending ? (
                 <TableEmpty colSpan={canWrite ? 5 : 4} loading />
-              ) : rows.length === 0 ? (
+              ) : rows.length === 0 && !list.isError ? (
                 <TableEmpty colSpan={canWrite ? 5 : 4}>Начислений пока нет.</TableEmpty>
               ) : (
                 rows.map((a) => (

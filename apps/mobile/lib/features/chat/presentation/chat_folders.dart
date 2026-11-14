@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -171,12 +173,40 @@ Future<void> showChatOrganizeSheet(
       ),
     );
 
+/// Row 95: the quick actions of a chat on its long-press preview — the
+/// rows of [showChatOrganizeSheet] (same keys), the note and «waiting»
+/// one tap further («organize-more» opens the full sheet).
+class ChatOrganizeActions extends StatelessWidget {
+  const ChatOrganizeActions({
+    required this.conversation,
+    this.inArchive = false,
+    this.noReplyMessageId,
+    super.key,
+  });
+
+  final Conversation conversation;
+  final bool inArchive;
+  final String? noReplyMessageId;
+
+  @override
+  Widget build(BuildContext context) => _OrganizeSheet(
+        conversation: conversation,
+        inArchive: inArchive,
+        noReplyMessageId: noReplyMessageId,
+        compact: true,
+      );
+}
+
 class _OrganizeSheet extends ConsumerStatefulWidget {
   const _OrganizeSheet({
     required this.conversation,
     required this.inArchive,
     this.noReplyMessageId,
+    this.compact = false,
   });
+
+  /// Row 95: only the action rows, for the long-press preview menu.
+  final bool compact;
 
   /// Owner 2026-11-04 (N-03): the last message of a chat that shows
   /// «Awaiting reply»; the sheet then offers «No reply needed» for it.
@@ -238,20 +268,25 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = widget.conversation;
     final repo = ref.read(chatRepositoryProvider);
+    final compact = widget.compact;
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.screenSide,
-        0,
-        AppSpacing.screenSide,
-        MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
-      ),
+      padding: compact
+          ? EdgeInsets.zero
+          : EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              0,
+              AppSpacing.screenSide,
+              MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
+            ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: AppSpacing.sm),
-            const AppSheetHandle(),
+            if (!compact) ...[
+              const SizedBox(height: AppSpacing.sm),
+              const AppSheetHandle(),
+            ],
             AppListRow(
               key: const ValueKey('organize-pin'),
               icon: c.pinned ? AppIcons.pushPin : AppIcons.pushPinOutlined,
@@ -368,70 +403,94 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                           done: 'chat.organize.moved',
                         ),
               ),
-            const SizedBox(height: AppSpacing.md),
-            // A Material of its own: the switch row's ink stays visible on
-            // the gold tint.
-            Material(
-              color: colors.goldTint,
-              borderRadius: BorderRadius.circular(AppRadii.card),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SwitchListTile.adaptive(
-                      key: const ValueKey('organize-waiting'),
-                      contentPadding: EdgeInsets.zero,
-                      value: _waiting,
-                      activeTrackColor: colors.gold,
-                      title: Text(
-                        t.t('chat.organize.waiting'),
-                        style: type.body.copyWith(
-                          color: colors.text,
-                          fontWeight: FontWeight.w700,
+            if (compact)
+              AppListRow(
+                key: const ValueKey('organize-more'),
+                icon: AppIcons.stickyNote2Outlined,
+                label: t.t('chat.organize.title'),
+                onTap: _busy
+                    ? null
+                    : () {
+                        final nav = Navigator.of(context);
+                        final host = nav.context;
+                        nav.pop();
+                        unawaited(
+                          showChatOrganizeSheet(
+                            host,
+                            ref,
+                            c,
+                            inArchive: widget.inArchive,
+                            noReplyMessageId: widget.noReplyMessageId,
+                          ),
+                        );
+                      },
+              ),
+            if (!compact) ...[
+              const SizedBox(height: AppSpacing.md),
+              // A Material of its own: the switch row's ink stays visible on
+              // the gold tint.
+              Material(
+                color: colors.goldTint,
+                borderRadius: BorderRadius.circular(AppRadii.card),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SwitchListTile.adaptive(
+                        key: const ValueKey('organize-waiting'),
+                        contentPadding: EdgeInsets.zero,
+                        value: _waiting,
+                        activeTrackColor: colors.gold,
+                        title: Text(
+                          t.t('chat.organize.waiting'),
+                          style: type.body.copyWith(
+                            color: colors.text,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        subtitle: Text(
+                          t.t('chat.organize.waitingHint'),
+                          style: type.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                        onChanged: (v) => setState(() => _waiting = v),
+                      ),
+                      AppTextField(
+                        key: const ValueKey('organize-note'),
+                        controller: _note,
+                        hintText: t.t('chat.organize.noteHint'),
+                        semanticLabel: t.t('chat.organize.noteHint'),
+                        maxLength: 280,
+                        // Owner 2026-10-19: the field grows with the text
+                        // (about 220 characters on screen), then scrolls.
+                        maxLines: 8,
+                        keyboardType: TextInputType.multiline,
+                        leading: AppIcon(
+                          AppIcons.stickyNote2Outlined,
+                          color: colors.iconTint,
                         ),
                       ),
-                      subtitle: Text(
-                        t.t('chat.organize.waitingHint'),
-                        style:
-                            type.caption.copyWith(color: colors.textSecondary),
-                      ),
-                      onChanged: (v) => setState(() => _waiting = v),
-                    ),
-                    AppTextField(
-                      key: const ValueKey('organize-note'),
-                      controller: _note,
-                      hintText: t.t('chat.organize.noteHint'),
-                      semanticLabel: t.t('chat.organize.noteHint'),
-                      maxLength: 280,
-                      // Owner 2026-10-19: the field grows with the text
-                      // (about 220 characters on screen), then scrolls.
-                      maxLines: 8,
-                      keyboardType: TextInputType.multiline,
-                      leading: AppIcon(
-                        AppIcons.stickyNote2Outlined,
-                        color: colors.iconTint,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppButton(
-                      key: const ValueKey('organize-save'),
-                      label: t.t('common.save'),
-                      icon: AppIcons.checkRounded,
-                      isLoading: _busy,
-                      onPressed: () => _run(
-                        () => repo.organize(
-                          c.id,
-                          waiting: _waiting,
-                          note: _note.text.trim(),
+                      const SizedBox(height: AppSpacing.sm),
+                      AppButton(
+                        key: const ValueKey('organize-save'),
+                        label: t.t('common.save'),
+                        icon: AppIcons.checkRounded,
+                        isLoading: _busy,
+                        onPressed: () => _run(
+                          () => repo.organize(
+                            c.id,
+                            waiting: _waiting,
+                            note: _note.text.trim(),
+                          ),
+                          done: 'chat.organize.saved',
                         ),
-                        done: 'chat.organize.saved',
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),

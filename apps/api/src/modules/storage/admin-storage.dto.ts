@@ -180,6 +180,12 @@ export class StorageOverviewDto {
   dedupSavedBytes!: number;
   @ApiProperty() pendingRemovalCount!: number;
   @ApiProperty() pendingRemovalBytes!: number;
+  @ApiProperty({
+    description:
+      'Media batch A (R1): files kept but not scanned by the antivirus because they are over its size limit (never attachable, never auto-removed).',
+  })
+  scanSkippedCount!: number;
+  @ApiProperty() scanSkippedBytes!: number;
   @ApiProperty({ type: [StoragePurposeUsageDto] })
   byPurpose!: StoragePurposeUsageDto[];
   @ApiProperty({ type: [StorageTableUsageDto] })
