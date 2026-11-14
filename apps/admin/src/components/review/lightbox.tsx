@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowCounterClockwise, CaretLeft, CaretRight, MagnifyingGlassMinus, MagnifyingGlassPlus, X } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowCounterClockwise, CaretLeft, CaretRight, MagnifyingGlassMinus, MagnifyingGlassPlus, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LazyImg } from '@/components/ui/lazy-img';
@@ -40,10 +40,16 @@ const clamp = (v: number) => Math.min(MAX, Math.max(MIN, v));
  * Owner 2026-11-04 (R-400): [lastSlide] — controls shown only under the last
  * document (the registry button and the copy chips of the conveyor), so the
  * verifier reaches the registry right after the last picture.
+ *
+ * Scout 13.11 (row 96): «Повернуть» and the R key turn the picture by 90°
+ * (Shift+R the other way), as the Persona and Onfido review screens and
+ * react-photo-view (MIT, `rotate`) do — a photo of a licence taken sideways
+ * is read without tilting the head. Another picture starts upright.
  */
 export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { images: readonly LightboxImage[]; index: number; onIndex: (i: number) => void; onClose: () => void; lastSlide?: React.ReactNode }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [rotate, setRotate] = useState(0);
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -59,6 +65,7 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
     (d: number) => {
       if (count < 2) return;
       reset();
+      setRotate(0);
       onIndex((index + d + count) % count);
     },
     [count, index, onIndex, reset],
@@ -79,6 +86,10 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
       else if (e.key === '+' || e.key === '=') zoomBy(STEP);
       else if (e.key === '-' || e.key === '_') zoomBy(1 / STEP);
       else if (e.key === '0') reset();
+      else if ((e.key === 'r' || e.key === 'R' || e.code === 'KeyR') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (pdf) return;
+        setRotate((d) => d + (e.shiftKey ? -90 : 90));
+      }
       else if (e.key === 'Tab') {
         const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
         const first = nodes[0];
@@ -94,7 +105,7 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [go, onClose, reset, zoomBy]);
+  }, [go, onClose, pdf, reset, zoomBy]);
 
   // Scroll lock and focus: set once while open, given back on close.
   useEffect(() => {
@@ -133,6 +144,9 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
             <IconButton label="Сбросить масштаб" onClick={reset}>
               <ArrowCounterClockwise size={18} />
             </IconButton>
+            <IconButton label="Повернуть на 90° (R)" onClick={() => setRotate((d) => d + 90)}>
+              <ArrowClockwise size={18} />
+            </IconButton>
           </>
         )}
         <IconButton ref={closeRef} label="Закрыть" onClick={onClose}>
@@ -170,7 +184,8 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
             draggable={false}
             onDoubleClick={() => (zoom === 1 ? setZoom(2.5) : reset())}
             className="absolute inset-0 m-auto max-h-full max-w-full object-contain p-2 transition-transform duration-75"
-            style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, cursor: zoom > 1 ? 'grab' : 'zoom-in' }}
+            data-rotate={((rotate % 360) + 360) % 360}
+            style={{ transform: `translate(${pan.x}px, ${pan.y}px) rotate(${rotate}deg) scale(${zoom})`, cursor: zoom > 1 ? 'grab' : 'zoom-in' }}
           />
         )}
         {count > 1 ? (
@@ -200,7 +215,7 @@ export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { image
         </div>
       ) : null}
       <p className="shrink-0 pb-2 text-center text-xs text-white/70">
-        {pdf ? '' : 'Колесо или +/− — масштаб · перетаскивание — сдвиг · '}← → — листать · Esc — закрыть
+        {pdf ? '' : 'Колесо или +/− — масштаб · R — повернуть · перетаскивание — сдвиг · '}← → — листать · Esc — закрыть
       </p>
     </div>,
     document.body,

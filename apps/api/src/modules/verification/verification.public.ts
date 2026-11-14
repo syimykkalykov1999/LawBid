@@ -11,3 +11,9 @@ export {
   VerificationAutoDecisionService,
   reopenAutoRejectedRequest,
 } from './services/verification-auto-decision.service';
+// Owner row 50 (13.11): health of each state's bar registry; while a state is
+// degraded its lookups go to a person (registryDegraded(state)).
+export {
+  REGISTRY_DEGRADED_REASON,
+  RegistryHealthService,
+} from './services/registry-health.service';

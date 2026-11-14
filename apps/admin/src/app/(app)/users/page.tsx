@@ -5,10 +5,10 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { CopyButton } from '@/components/ui/copy-button';
 import {
   BulkBar,
   bulkData,
-  EMPTY_FILTER,
   FilterFields,
   type ListFilter,
   PageSelectBox,
@@ -20,7 +20,6 @@ import { CsvButton } from '@/components/csv-button';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { VirtualRows } from '@/components/ui/virtual-rows';
 import { MoreButton } from '@/components/legacy/more-button';
-import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select } from '@/components/ui/input';
@@ -35,11 +34,15 @@ import { US_STATES } from '@/lib/us-states';
 import { ROLE_TEXT, STATUS_LABEL, StatusBadge, StatusPill, VERIFICATION_STATUS } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { replaceSearch, useUrlSearchText, useUrlState } from '@/lib/url-state';
 
 /** The server's `role` filter enum (no `assistant` there yet). */
 type Role = '' | 'client' | 'attorney' | 'admin';
 type Status = '' | 'active' | 'suspended' | 'deletion_pending' | 'deleted';
 const ROLE_FILTER: Exclude<Role, ''>[] = ['client', 'attorney', 'admin'];
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const ROLES: readonly Role[] = ['', ...ROLE_FILTER];
+const STATUSES: readonly Status[] = ['', 'active', 'suspended', 'deletion_pending', 'deleted'];
 type BulkAction = components['schemas']['AdminUsersBulkAction'];
 /** Mirrors the server's BULK_PREVIEW_CAP (admin-users.service.ts). */
 const BULK_CAP = 500;
@@ -62,17 +65,20 @@ const ACTION_TEXT: Record<BulkAction, { verb: string; done: string; describe: st
 /** docs/06 §2.3 item 3: search by name, email, phone, @username, id. */
 export default function UsersPage() {
   const router = useRouter();
-  const [text, setText] = useState('');
-  const [role, setRole] = useState<Role>('');
-  const [status, setStatus] = useState<Status>('');
-  const [stateCode, setStateCode] = useState('');
+  // ⌘K «Найти пользователя» opens /users?q=…: the box and the list start from it.
+  const { text, setText, value: search } = useUrlSearchText('q');
+  const [role, setRole] = useUrlState<Role>('role', '', ROLES);
+  const [status, setStatus] = useUrlState<Status>('status', '', STATUSES);
+  const [stateCode, setStateCode] = useUrlState<string>('state', '');
   // The 51 states are 51 <option>s parsed, styled and hydrated on every visit
   // although the list is opened rarely: render them on the first focus /
   // pointer down (the native select opens after that event, so it opens full).
   const [statesShown, setStatesShown] = useState(false);
   const showStates = () => setStatesShown(true);
-  const [dates, setDates] = useState<ListFilter>(EMPTY_FILTER);
-  const search = useDebounced(text.trim(), 300);
+  const [from] = useUrlState<string>('from', '');
+  const [to] = useUrlState<string>('to', '');
+  const dates: ListFilter = { author: null, from, to };
+  const setDates = (v: ListFilter) => replaceSearch({ from: v.from || null, to: v.to || null });
   const filters = { q: search, role, status, stateCode, ...dayBounds(dates.from, dates.to) };
   const qc = useQueryClient();
   const { data: me } = useMe();
@@ -288,6 +294,7 @@ export default function UsersPage() {
                   <div className="text-xs text-faint">
                     {u.username ? `@${u.username} · ` : ''}
                     <span className="font-mono">{u.id}</span>
+                    <CopyButton text={u.id} label="Скопировать id" className="ml-0.5 align-middle" />
                   </div>
                 </Td>
                 <Td>

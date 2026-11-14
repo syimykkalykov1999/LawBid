@@ -77,7 +77,7 @@ class SeatLimitNote extends ConsumerWidget {
     SeatLimitState s,
   ) async {
     final t = ref.read(translatorProvider);
-    final sent = await showDialog<bool>(
+    final sent = await showAppDialog<bool>(
       context: context,
       builder: (_) => _RequestDialog(min: s.limit + 1),
     );

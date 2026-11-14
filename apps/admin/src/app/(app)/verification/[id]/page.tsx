@@ -25,9 +25,10 @@ import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { can, canOpen } from '@/lib/rbac';
 import { livePoll } from '@/lib/live';
-import { cardHref, nextInQueue, queueFilterFrom, type QueueFilter, type QueueRow } from '@/lib/registry-conveyor';
+import { cardHref, listHref, nextInQueue, queueFilterFrom, type QueueFilter, type QueueRow } from '@/lib/registry-conveyor';
 import { dialogOnScreen, reviewKeyOf } from '@/lib/review-flow';
 import { formatDateTime } from '@/lib/utils';
+import { CopyButton } from '@/components/ui/copy-button';
 import {
   CHECK_RESULT,
   CHECK_TYPE,
@@ -391,7 +392,7 @@ export default function VerificationCardPage() {
               >
                 Проверить ещё раз
               </Button>
-              <Link href="/verification" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+              <Link href={listHref(filter)} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
                 К списку
               </Link>
             </div>
@@ -453,7 +454,8 @@ export default function VerificationCardPage() {
           text={`После решения откроется следующая заявка${filter.status ? ` («${label(REQUEST_STATUS, filter.status)}»)` : ''}${filter.stateCode ? `, штат ${filter.stateCode}` : ''} — без возврата в список. Клавиши: A — одобрить, R — отклонить, N — следующая.`}
           busy={queue.isFetching}
           onSkip={() => void advance()}
-          onExit={() => router.push('/verification')}
+          // Scout 13.11 (row 96): back to the list in the same filter.
+          onExit={() => router.push(listHref(filter))}
         />
       )}
       <PageHeader
@@ -462,6 +464,7 @@ export default function VerificationCardPage() {
         subtitle={
           <span className="inline-flex flex-wrap items-center gap-2">
             @{r.attorney.username} · заявка <span className="font-mono text-xs">{r.id}</span>
+            <CopyButton text={r.id} label="Скопировать id заявки" className="ml-0.5 align-middle" />
             <StatusPill map={REQUEST_STATUS} value={r.status} />
           </span>
         }

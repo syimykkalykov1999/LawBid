@@ -125,7 +125,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.read(translatorProvider);
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (dialog) => AppAlertDialog(
         backgroundColor: colors.sheet,
@@ -155,7 +155,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.read(translatorProvider);
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       builder: (dialog) => AppAlertDialog(
         backgroundColor: colors.sheet,

@@ -474,6 +474,11 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   // photo (the sign-up profile step already asks for it). Requests already
   // sent are never touched. Off = no photo check on submit.
   'verification.require_photo': true,
+  // Scout 13.11 (row 96): the admin's verification queue colours the
+  // «Ожидает» column amber from this many hours of waiting and red from the
+  // second number (Zendesk SLA badge pattern). Display only, nothing else.
+  'verification.queue_warn_hours': 24,
+  'verification.queue_late_hours': 48,
   // Owner 2026-11-12 (row 52): automatic selfie ↔ ID photo comparison with
   // Amazon Rekognition CompareFaces («Сравнение лица (Amazon)»). off
   // (default) = no call, a person compares as before; on / auto = compared
@@ -488,6 +493,12 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
    * (approved / rejected), then deleted by privacy.retention. The legal
    * texts state no period yet: 30 until the owner's lawyer sets one. */
   'verification.face_match.retention_days': 30,
+  /** Owner 2026-11-13 (row 52): the selfie and ID / licence pictures of a
+   * request go right after the final decision (VerificationMediaPurgeService);
+   * a request the attorney left unfinished (draft / needs_more_info) loses
+   * them after this many days without activity. 15 = Persona's longest
+   * recommended inquiry life; 0 = only after a decision. */
+  'verification.media.abandoned_days': 15,
   // Owner 2026-11-12 (row 60): «Автоматическое решение по адвокатам»
   // (verification-auto-decision.service.ts, the Persona / Onfido / Stripe
   // Identity pattern: approve / decline / review). Off (default) = nothing
@@ -526,6 +537,22 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
 export const PAID_BAR_VENDOR_SETTINGS = {
   'verification.bar_vendor_microbilt_enabled': false,
   'verification.bar_vendor_surepass_enabled': false,
+} as const;
+
+// Owner row 50 (13.11): health watch of each state's bar registry
+// (services/registry-health.*): a site that changed or blocks us must not
+// turn silently into «not found». ON by default (watching costs nothing).
+export const REGISTRY_HEALTH_SETTINGS = {
+  'verification.registry_health.enabled': true,
+  /** Hours of the window compared with the state's previous 7 days. */
+  'verification.registry_health.window_hours': 24,
+  /** Days before the window that make the state's normal (its baseline). */
+  'verification.registry_health.baseline_days': 7,
+  /** Fewer checks than this in the window decide nothing. */
+  'verification.registry_health.min_checks': 5,
+  /** Percentage points the error / not-found rate must rise above the
+   * state's own baseline rate to mark the registry degraded. */
+  'verification.registry_health.jump_points': 50,
 } as const;
 
 // Owner 2026-10-05: the planner's archive — finished tasks are kept this
@@ -2117,6 +2144,7 @@ export const APP_SETTINGS = {
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
   ...PAID_BAR_VENDOR_SETTINGS,
+  ...REGISTRY_HEALTH_SETTINGS,
   ...OWNER_TASKS_SETTINGS,
   ...OWNER_WEB_SETTINGS,
   ...OWNER_SMS_SETTINGS,

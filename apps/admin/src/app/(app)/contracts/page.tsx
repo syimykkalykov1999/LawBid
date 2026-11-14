@@ -32,8 +32,11 @@ import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useUrlState } from '@/lib/url-state';
 
 type Status = 'active' | 'scheduled' | 'expired' | 'revoked';
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const STATUSES: readonly Status[] = ['active', 'scheduled', 'expired', 'revoked'];
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
 const SORT_KEYS = ['user', 'months', 'seats', 'period', 'contract', 'created'] as const;
 
@@ -43,7 +46,7 @@ export default function ContractsPage() {
   const toast = useToast();
   const { ask, dialog } = useReason();
   const { canWrite, canOpenUsers } = useBillingRole();
-  const [status, setStatus] = useState<Status>('active');
+  const [status, setStatus] = useUrlState<Status>('status', 'active', STATUSES);
   const [creating, setCreating] = useState(false);
   const [extending, setExtending] = useState<ContractGrant | null>(null);
 

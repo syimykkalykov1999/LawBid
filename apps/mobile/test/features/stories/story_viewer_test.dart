@@ -146,6 +146,60 @@ void main() {
     expect(closed, 1);
   });
 
+  // Owner row 88: the story follows a slow swipe down and shrinks; let
+  // go early it springs back and plays on, far enough it closes.
+  testWidgets('a slow drag down moves the story; short = back, far = close',
+      (tester) async {
+    useSmallPhone(tester);
+    var closed = 0;
+    await tester.pumpWidget(
+      _view(
+        [fakeStory('a', text: 'Only')],
+        overrides: await storyOverrides(),
+        onClose: () => closed++,
+      ),
+    );
+    await tester.pump();
+    final area = find.byKey(const ValueKey('story-gestures'));
+    final top = tester.getTopLeft(find.text('Only')).dy;
+    // Slow: 10 px per 50 ms (the gesture's own clock, for its speed).
+    var ms = 0;
+    Duration at() => Duration(milliseconds: ms += 50);
+    final g = await tester.startGesture(tester.getCenter(area));
+    for (var i = 0; i < 6; i++) {
+      await g.moveBy(const Offset(0, 10), timeStamp: at());
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    // Moved with the finger (less the drag slop), and a little smaller.
+    expect(tester.getTopLeft(find.text('Only')).dy, greaterThan(top + 20));
+    final scale = tester.widget<Transform>(
+      find
+          .ancestor(of: find.text('Only'), matching: find.byType(Transform))
+          .first,
+    );
+    expect(scale.transform.getMaxScaleOnAxis(), lessThanOrEqualTo(1));
+    await tester.pump(const Duration(milliseconds: 300));
+    ms += 300;
+    await g.up(timeStamp: at());
+    // The spring settles (the story clock keeps running, so no settle).
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(closed, 0);
+    expect(tester.getTopLeft(find.text('Only')).dy, closeTo(top, 0.5));
+
+    final g2 = await tester.startGesture(tester.getCenter(area));
+    for (var i = 0; i < 20; i++) {
+      await g2.moveBy(const Offset(0, 10), timeStamp: at());
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+    ms += 300;
+    await g2.up(timeStamp: at());
+    await tester.pump();
+    expect(closed, 1);
+  });
+
   testWidgets('a reply is a direct message to the author, then "Sent"',
       (tester) async {
     useSmallPhone(tester);

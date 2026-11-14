@@ -23,6 +23,7 @@ import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { BID_STATUS, CASE_STATUS, FEE_TYPE, INVITE_STATUS, JOURNAL_EVENT, label, PARTY_ROLE, partyName, StatusPill, usd } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
+import { CopyButton } from '@/components/ui/copy-button';
 
 type CaseCard = components['schemas']['AdminCaseCardDto'];
 type Action = 'hide' | 'close' | 'archive' | 'restore';
@@ -191,6 +192,11 @@ export default function CaseDetailPage() {
             </CardHeader>
             <CardContent>
               <dl className="space-y-2.5 text-sm">
+                {/* Scout 13.11 (row 96): the case id with a copy icon (Stripe shows one next to every id). */}
+                <Row k="ID">
+                  <span className="font-mono text-xs">{c.id}</span>
+                  <CopyButton text={c.id} label="Скопировать id кейса" className="ml-0.5 align-middle" />
+                </Row>
                 <Row k="Клиент">
                   {canOpenUsers ? (
                     <Link href={`/users/${c.client.id}`} className="font-medium text-gold-600 hover:underline">

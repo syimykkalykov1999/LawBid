@@ -20,7 +20,7 @@ Future<bool> toggleBlock(
 }) async {
   final t = ref.read(translatorProvider);
   if (!currentlyBlocked) {
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (dialog) => AppAlertDialog(
         title: Text(t.t('block.confirm.title', {'name': displayName})),

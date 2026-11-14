@@ -75,7 +75,7 @@ class _InviteCardState extends ConsumerState<InviteCard> {
 
   Future<void> _decline() async {
     final t = ref.read(translatorProvider);
-    final reason = await showDialog<String>(
+    final reason = await showAppDialog<String>(
       context: context,
       builder: (_) => const _DeclineDialog(),
     );

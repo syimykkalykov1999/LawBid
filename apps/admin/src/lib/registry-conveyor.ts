@@ -138,6 +138,11 @@ export function cardHref(id: string, filter: QueueFilter): string {
   return `/verification/${encodeURIComponent(id)}${queueSearch(filter)}`;
 }
 
+/** Scout 13.11 (row 96): the queue list in the same filter (the card's «К списку» / exit). */
+export function listHref(filter: QueueFilter): string {
+  return `/verification${queueSearch(filter)}`;
+}
+
 export interface QueueRow {
   id: string;
   status: string;

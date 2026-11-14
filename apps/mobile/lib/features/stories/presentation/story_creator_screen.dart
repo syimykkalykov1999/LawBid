@@ -549,7 +549,7 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
 
   Future<void> _confirmLeave() async {
     final t = ref.read(translatorProvider);
-    final discard = await showDialog<bool>(
+    final discard = await showAppDialog<bool>(
       context: context,
       builder: (dialog) => AppAlertDialog(
         title: Text(t.t('story.discard.title')),

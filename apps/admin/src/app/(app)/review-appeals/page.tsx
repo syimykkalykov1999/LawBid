@@ -16,8 +16,11 @@ import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useUrlState } from '@/lib/url-state';
 
 type Status = 'pending' | 'accepted' | 'rejected' | 'auto_removed';
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const STATUSES: readonly Status[] = ['pending', 'accepted', 'rejected', 'auto_removed'];
 
 const STATUS_LABEL: Record<Status, string> = {
   pending: 'ждут решения',
@@ -44,7 +47,7 @@ export default function ReviewAppealsPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
-  const [status, setStatus] = useState<Status>('pending');
+  const [status, setStatus] = useUrlState<Status>('status', 'pending', STATUSES);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [note, setNote] = useState('');
   const q = useInfiniteQuery({
