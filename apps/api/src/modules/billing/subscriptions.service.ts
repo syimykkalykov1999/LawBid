@@ -14,7 +14,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import type { Payment, PromoCode, Subscription } from '@prisma/client';
+import type {
+  Payment,
+  PromoCode,
+  Subscription,
+} from '../../generated/prisma/client';
 import { Queue } from 'bullmq';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -37,7 +41,7 @@ import {
   PricingService,
   seatPriceKind,
 } from './pricing.service';
-import type { Plan, Prisma as PrismaNs } from '@prisma/client';
+import type { Plan, Prisma as PrismaNs } from '../../generated/prisma/client';
 import { entitlementNumber } from '../plans/entitlement-catalog';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { presentPlan } from '../plans/plans.controller';

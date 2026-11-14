@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { AdminWorkspace } from '@prisma/client';
+import type { AdminWorkspace } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   RetaliationAction,

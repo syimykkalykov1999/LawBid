@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma, ReportTargetType } from '@prisma/client';
+import type { Prisma, ReportTargetType } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {

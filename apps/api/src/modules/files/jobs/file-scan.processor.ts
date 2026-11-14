@@ -1,6 +1,6 @@
 import { videoDimensions } from '../processing/video-dimensions';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import type { File } from '@prisma/client';
+import type { File } from '../../../generated/prisma/client';
 import { createHash } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../../prisma/prisma.service';

@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../src/generated/prisma/client';
 
 /**
  * Owner 2026-10-13: demo data for the case workspace. One accepted case
@@ -253,7 +253,7 @@ export async function seedCaseWorkspace(
       data: {
         case_id: caseId,
         file_id: docs[3].id,
-        position: pos++,
+        position: pos,
         description: 'Certified translation of the marriage certificate',
         source: 'update',
         source_id: u1.id,

@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { boardEtag, notModified } from '../../common/sync/cheap-etag';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,

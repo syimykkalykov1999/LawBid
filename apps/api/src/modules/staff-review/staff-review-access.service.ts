@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { AdminWorkspace } from '@prisma/client';
+import type { AdminWorkspace } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestAdmin } from '../admin-auth/admin-auth.decorators';

@@ -6,7 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { CasePayment } from '@prisma/client';
+import type { CasePayment } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';

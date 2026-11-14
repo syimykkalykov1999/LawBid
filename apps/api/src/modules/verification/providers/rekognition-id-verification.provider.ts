@@ -8,7 +8,7 @@ import {
 } from '@aws-sdk/client-rekognition';
 import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { VerificationDocType } from '@prisma/client';
+import type { VerificationDocType } from '../../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { SecretsService } from '../../../common/secrets/secrets.service';

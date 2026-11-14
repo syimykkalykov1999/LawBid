@@ -6,7 +6,7 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import * as Sentry from '@sentry/nestjs';
 import type Redis from 'ioredis';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';

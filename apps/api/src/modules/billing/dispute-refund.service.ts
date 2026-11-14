@@ -6,7 +6,10 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { Prisma, type BillingDisputeRefund } from '@prisma/client';
+import {
+  Prisma,
+  type BillingDisputeRefund,
+} from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { withTxRetry } from '../../prisma/tx-retry.util';

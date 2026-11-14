@@ -1,5 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
-import type { ChatGroupMessage } from '@prisma/client';
+import type { ChatGroupMessage } from '../../generated/prisma/client';
 import type { PinoLogger } from 'nestjs-pino';
 import { GroupFanoutQueue } from './group-fanout.queue';
 import { GroupsService } from './groups.service';

@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type AdminRole, type AdminWorkspace } from '@prisma/client';
+import {
+  Prisma,
+  type AdminRole,
+  type AdminWorkspace,
+} from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   StaffCountersService,

@@ -3,6 +3,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
+import 'package:lawbid/core/media/browser_voice_aac_stub.dart'
+    if (dart.library.js_interop) 'package:lawbid/core/media/browser_voice_aac_web.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -16,6 +19,32 @@ const kVoiceBars = 48;
 
 /// A finished recording.
 typedef VoiceRecording = ({String path, int durationMs, List<int> waveform});
+
+/// Owner rows 101/102 (13.11, «проверить каждое сжатие»): the note's AAC
+/// bitrate and sample rate are the admin's (Система → Настройки:
+/// `media.voice_bitrate_kbps` 32, `media.voice_sample_rate_hz` 16000 — the
+/// old built-in numbers; 32 kbit/s needs 16 kHz, at 44.1 kHz AAC bubbles
+/// and warbles).
+typedef VoiceQuality = ({int bitRate, int sampleRate});
+
+VoiceQuality voiceQualityOf(FeatureFlagsState flags) {
+  final rate = flags.configInt('media.voice_sample_rate_hz', 16000);
+  return (
+    bitRate:
+        flags.configInt('media.voice_bitrate_kbps', 32).clamp(16, 256) * 1000,
+    sampleRate: const [8000, 11025, 16000, 22050, 24000, 32000, 44100, 48000]
+            .contains(rate)
+        ? rate
+        : 16000,
+  );
+}
+
+/// The browser's WebM note → AAC/MP4 (a new blob: link), or null.
+typedef VoiceToAac = Future<String?> Function(
+  String url, {
+  required int bitRate,
+  required int sampleRate,
+});
 
 /// How often the recorder samples the microphone level.
 const kVoiceSamplePeriod = Duration(milliseconds: 50);
@@ -33,15 +62,22 @@ abstract interface class VoiceLevelSource {
   Duration get elapsed;
 }
 
-/// Records a voice note (AAC in .m4a, mono, 16 kHz, 32 kbit/s), sampling the
-/// level every 50 ms for the live meter and the stored waveform. In a
-/// browser the note is AAC in MP4 where the browser can (Safari) and Opus in
-/// WebM otherwise (Chrome, Firefox); `stop` then gives a blob: URL, not a
-/// file.
+/// Records a voice note (AAC in .m4a, mono, by default 16 kHz, 32 kbit/s —
+/// [voiceQualityOf]), sampling the level every 50 ms for the live meter and
+/// the stored waveform. In a browser the note is AAC in MP4 where the
+/// browser can (Safari) and Opus in WebM otherwise (Chrome, Firefox); `stop`
+/// then gives a blob: URL, not a file. Owner rows 101/102: a WebM note is
+/// converted to AAC/MP4 in the browser when it has an AAC encoder
+/// (web/js/voice_aac.js), so the iPhone app can play it.
 class VoiceRecorder implements VoiceLevelSource {
-  VoiceRecorder() : _rec = AudioRecorder();
+  VoiceRecorder({VoiceToAac toAac = browserVoiceToAac})
+      : _rec = AudioRecorder(),
+        _toAac = toAac;
 
   final AudioRecorder _rec;
+  final VoiceToAac _toAac;
+  VoiceQuality _quality = (bitRate: 32000, sampleRate: 16000);
+  bool _webm = false;
   final _levels = StreamController<double>.broadcast();
   StreamSubscription<Amplitude>? _ampSub;
   final List<double> _samples = [];
@@ -77,9 +113,11 @@ class VoiceRecorder implements VoiceLevelSource {
   /// Asks for the microphone once; false when refused.
   Future<bool> hasPermission() => _rec.hasPermission();
 
-  /// Starts; [onCap] fires when the 15-minute limit is reached.
-  Future<bool> start({void Function()? onCap}) {
+  /// Starts; [onCap] fires when the 15-minute limit is reached; [quality]
+  /// is the admin's ([voiceQualityOf]).
+  Future<bool> start({void Function()? onCap, VoiceQuality? quality}) {
     if (recording) return Future.value(true);
+    if (quality != null) _quality = quality;
     return _starting ??= _start(onCap).whenComplete(() => _starting = null);
   }
 
@@ -93,12 +131,12 @@ class VoiceRecorder implements VoiceLevelSource {
       final dir = await getTemporaryDirectory();
       path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
     }
+    _webm = encoder == AudioEncoder.opus;
     await _rec.start(
       RecordConfig(
         encoder: encoder,
-        bitRate: 32000,
-        // 32 kbit/s needs 16 kHz: at 44.1 kHz AAC bubbles and warbles.
-        sampleRate: 16000,
+        bitRate: _quality.bitRate,
+        sampleRate: _quality.sampleRate,
         numChannels: 1,
       ),
       path: path,
@@ -173,8 +211,16 @@ class VoiceRecorder implements VoiceLevelSource {
     final took = elapsed;
     await _ampSub?.cancel();
     _halt();
-    final path = await _rec.stop();
+    var path = await _rec.stop();
     if (path == null || took < kVoiceMinDuration) return null;
+    if (kIsWeb && _webm) {
+      path = await _toAac(
+            path,
+            bitRate: _quality.bitRate,
+            sampleRate: _quality.sampleRate,
+          ) ??
+          path;
+    }
     return (
       path: path,
       durationMs:

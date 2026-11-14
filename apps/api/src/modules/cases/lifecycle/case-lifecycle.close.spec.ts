@@ -1,4 +1,4 @@
-import type { Case } from '@prisma/client';
+import type { Case } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { CaseStateMachine } from '../domain/case-state-machine';

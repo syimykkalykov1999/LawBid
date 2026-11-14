@@ -1,5 +1,5 @@
 import type { PrismaService } from '../../prisma/prisma.service';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import {
   LEGAL_LANGS,
   MACHINE_LANGS,

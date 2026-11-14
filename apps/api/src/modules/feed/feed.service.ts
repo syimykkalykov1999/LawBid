@@ -5,7 +5,7 @@ import {
   Logger,
   Optional,
 } from '@nestjs/common';
-import type { Post, Prisma } from '@prisma/client';
+import type { Post, Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {

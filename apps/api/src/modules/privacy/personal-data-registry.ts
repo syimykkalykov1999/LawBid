@@ -383,7 +383,7 @@ export function registeredModels(): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// User-reference detection (used by the spec against Prisma.dmmf)
+// User-reference detection (used by the spec against the generated data model, prisma-dmmf.ts)
 // ---------------------------------------------------------------------------
 
 const USER_ID_FIELD =

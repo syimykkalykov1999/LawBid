@@ -1,4 +1,4 @@
-import { ThemePref } from '@prisma/client';
+import { ThemePref } from '../../../generated/prisma/client';
 
 /** Owner 2026-10-22: Navy became Blue, Glass was removed (read as Night).
  *  Old rows and old apps may still hold the legacy values. */

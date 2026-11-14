@@ -1,5 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { DealRecordStatus, FeeType, PartyRole } from '@prisma/client';
+import {
+  DealRecordStatus,
+  FeeType,
+  PartyRole,
+} from '../../../generated/prisma/client';
 import {
   IsOptional,
   IsString,

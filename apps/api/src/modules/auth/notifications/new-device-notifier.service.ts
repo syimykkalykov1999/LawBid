@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common';
-import type { User } from '@prisma/client';
+import type { User } from '../../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import {
   AuthEventService,

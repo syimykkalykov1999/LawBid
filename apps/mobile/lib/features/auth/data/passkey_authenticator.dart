@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:passkeys/authenticator.dart';
 import 'package:passkeys/exceptions.dart' as pk;
 import 'package:passkeys/types.dart';
@@ -97,6 +98,11 @@ class CorbadoPasskeyAuthenticator implements PasskeyAuthenticatorPort {
     if (e is PasskeyAuthenticatorException) return e;
     final failure = switch (e) {
       pk.PasskeyAuthCancelledException() => PasskeyFailure.cancelled,
+      // The web bridge (corbado bundle.js 2.5.0, passkeys_web >= 2.7) says
+      // `suppressed` for an operation aborted by the authenticator itself
+      // (a newer request replaced it), which 2.4.0 reported as `cancelled`;
+      // the passkeys package does not map it yet.
+      PlatformException(code: 'suppressed') => PasskeyFailure.cancelled,
       pk.NoCredentialsAvailableException() => PasskeyFailure.noCredentials,
       pk.DeviceNotSupportedException() ||
       pk.PasskeyUnsupportedException() ||

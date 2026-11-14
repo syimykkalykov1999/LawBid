@@ -438,6 +438,15 @@ export const OWNER_MEDIA_SETTINGS = {
   'media.video_bitrate_1080_kbps': 4500,
   'media.video_bitrate_720_kbps': 2000,
   'media.video_bitrate_540_kbps': 1200,
+  // Owner rows 101/102 (13.11, «проверить каждое сжатие»): the numbers that
+  // were built into the app. A reel/story/channel video no taller than the
+  // limit is re-encoded only above this bitrate (kbit/s); a chat, case or
+  // support video goes down to this height (0 = as recorded); a voice note
+  // is AAC at this bitrate (kbit/s) and sample rate (Hz).
+  'media.video_reencode_above_kbps': 8000,
+  'media.chat_video_max_height': 720,
+  'media.voice_bitrate_kbps': 32,
+  'media.voice_sample_rate_hz': 16000,
   // Owner 2026-10-05: document templates the admin uploads (PDF, Word).
   'files.document_template_max_size_mb': 10,
 } as const;

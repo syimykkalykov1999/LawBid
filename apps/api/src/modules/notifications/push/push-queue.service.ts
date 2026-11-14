@@ -4,7 +4,7 @@ import {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { NotificationType } from '@prisma/client';
+import type { NotificationType } from '../../../generated/prisma/client';
 import { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import {

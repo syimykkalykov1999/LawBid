@@ -8,11 +8,11 @@
  * output after the hand-written shard_map DDL and the trigger function;
  * `src/sharding/shard-trigger-migration.spec.ts` fails when they drift.
  */
-import { Prisma } from '@prisma/client';
 import { SHARDED_MODELS } from '../src/sharding/shard-manifest';
+import { datamodel as prismaDatamodel } from '../src/generated/prisma-dmmf';
 
 export function shardTriggerSql(): string {
-  const models = new Map(Prisma.dmmf.datamodel.models.map((m) => [m.name, m]));
+  const models = new Map(prismaDatamodel.models.map((m) => [m.name, m]));
   const table = (name: string) => models.get(name)!.dbName ?? name;
   const column = (model: string, field: string) => {
     const f = models.get(model)!.fields.find((x) => x.name === field)!;

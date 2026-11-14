@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';

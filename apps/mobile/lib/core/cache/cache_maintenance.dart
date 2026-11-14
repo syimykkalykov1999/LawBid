@@ -6,6 +6,7 @@ import 'package:flutter/painting.dart' show PaintingBinding;
 import 'package:lawbid/core/cache/cache_database.dart';
 import 'package:lawbid/core/cache/cache_eviction.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
+import 'package:lawbid/core/cache/camera_shots.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/media_cache_dir.dart';
 import 'package:lawbid/core/cache/voice_web_cache.dart';
@@ -367,6 +368,8 @@ class CacheMaintenance {
       ])
         guarded(s.name, () => clear(s)),
       guarded('partial notes', () => done(_voiceNotes.clearWithPartial)),
+      // D1-44: an ID photo or selfie an app kill left as a camera temp file.
+      guarded('camera shots', () => done(sweepCameraShots)),
       guarded(
         'rows',
         () => done(() async {

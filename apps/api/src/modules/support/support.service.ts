@@ -5,7 +5,10 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
-import type { SupportMessage, SupportTicket } from '@prisma/client';
+import type {
+  SupportMessage,
+  SupportTicket,
+} from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
 import { ErrorCode } from '../../common/errors/error-code.enum';

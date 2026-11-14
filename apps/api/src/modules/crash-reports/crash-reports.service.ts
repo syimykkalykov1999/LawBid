@@ -1,6 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { ipBucket } from '../../common/net/ip-bucket';

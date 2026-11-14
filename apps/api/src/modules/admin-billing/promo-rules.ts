@@ -1,4 +1,4 @@
-import type { Prisma, PromoCode } from '@prisma/client';
+import type { Prisma, PromoCode } from '../../generated/prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type {

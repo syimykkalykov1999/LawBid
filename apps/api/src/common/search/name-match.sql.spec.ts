@@ -6,7 +6,7 @@ import {
   personTierSql,
   startsAWord,
 } from './name-match.sql';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 
 /** Load test 2026-10-28 (#2): the typed text's spelling keys are computed
  * once, and the row predicate compares the stored users.name_skel /

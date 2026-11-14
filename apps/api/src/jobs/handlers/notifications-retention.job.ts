@@ -1,6 +1,6 @@
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';

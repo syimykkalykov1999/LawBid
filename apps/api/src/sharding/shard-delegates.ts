@@ -1,5 +1,5 @@
-import { Prisma } from '@prisma/client';
 import { ShardFamily, familyOf } from './shard-manifest';
+import { datamodel as prismaDatamodel } from '../generated/prisma-dmmf';
 
 /**
  * Prisma delegate property name (`case`, `callLogHidden` ...) -> the model
@@ -17,7 +17,7 @@ let cache: Map<string, DelegateInfo> | null = null;
 export function delegateInfo(prop: string): DelegateInfo | undefined {
   if (!cache) {
     cache = new Map();
-    for (const m of Prisma.dmmf.datamodel.models) {
+    for (const m of prismaDatamodel.models) {
       const family = familyOf(m.name);
       if (!family) continue;
       cache.set(m.name[0].toLowerCase() + m.name.slice(1), {
@@ -35,7 +35,7 @@ let tables: Map<string, ShardFamily> | null = null;
 function tableFamilies(): Map<string, ShardFamily> {
   if (!tables) {
     tables = new Map();
-    for (const m of Prisma.dmmf.datamodel.models) {
+    for (const m of prismaDatamodel.models) {
       const family = familyOf(m.name);
       if (!family) continue;
       tables.set((m.dbName ?? m.name).toLowerCase(), family);

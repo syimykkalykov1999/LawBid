@@ -1,6 +1,7 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { familyOf } from './shard-manifest';
 import { ghostRow } from './ghost-row';
+import { datamodel as prismaDatamodel } from '../generated/prisma-dmmf';
 
 /**
  * Shard-ready step 6 (docs/architecture/SHARDING_READY.md §3): the runtime
@@ -57,7 +58,7 @@ interface Rel {
 
 const relations = new Map<string, Map<string, Rel>>();
 const softDeletes = new Set<string>();
-for (const m of Prisma.dmmf.datamodel.models) {
+for (const m of prismaDatamodel.models) {
   const rels = new Map<string, Rel>();
   for (const f of m.fields) {
     if (f.name === 'deleted_at') softDeletes.add(m.name);

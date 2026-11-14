@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 
 /**

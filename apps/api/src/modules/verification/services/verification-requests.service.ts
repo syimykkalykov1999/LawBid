@@ -11,7 +11,7 @@ import {
   Prisma,
   type VerificationDocType,
   type VerificationRequestStatus,
-} from '@prisma/client';
+} from '../../../generated/prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';

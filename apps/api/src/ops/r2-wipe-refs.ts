@@ -1,5 +1,5 @@
 import type { S3Client } from '@aws-sdk/client-s3';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../generated/prisma/client';
 import { createR2Client } from '../common/secrets/r2-client';
 import { SecretEnvelope } from '../common/secrets/secret-envelope';
 import { r2WipeTargets } from './prelaunch-wipe.plan';

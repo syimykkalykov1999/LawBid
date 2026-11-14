@@ -15,7 +15,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ModuleRef } from '@nestjs/core';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { Prisma, type AdminRole } from '@prisma/client';
+import { Prisma, type AdminRole } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readKey } from '../../common/secrets/key-holder';

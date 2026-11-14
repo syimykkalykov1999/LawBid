@@ -1,4 +1,4 @@
-import type { AdminRole } from '@prisma/client';
+import type { AdminRole } from '../../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import type { PrismaService } from '../../src/prisma/prisma.service';

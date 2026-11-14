@@ -1,4 +1,4 @@
-import type { LedgerAccountType } from '@prisma/client';
+import type { LedgerAccountType } from '../../generated/prisma/client';
 
 /**
  * Chart of accounts of the money ledger (docs/architecture/MONEY_LEDGER.md).

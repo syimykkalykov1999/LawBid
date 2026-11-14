@@ -1,6 +1,8 @@
 package com.lawbid.lawbid
 
 import android.content.Context
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
@@ -121,7 +123,11 @@ class VideoEncoder(private val context: Context, messenger: BinaryMessenger) {
         io.execute {
             val meta = metadataOf(job.path)
             main.post {
-                if (job.cancelled) {
+                // Owner rows 101/102 (13.11): an already light H.264 SDR file
+                // (not taller, not faster, not heavier than the target) goes
+                // up as it is — a second encode only loses quality. Same rule
+                // as iOS (VideoEncoder.swift `keep`) and the web.
+                if (job.cancelled || keepOriginal(job, meta)) {
                     done(job)
                     job.result.success(null)
                 } else {
@@ -243,7 +249,18 @@ class VideoEncoder(private val context: Context, messenger: BinaryMessenger) {
         job.result.success(null)
     }
 
-    private class Meta(val shortSide: Int, val bitrate: Int)
+    private class Meta(
+        val shortSide: Int,
+        val bitrate: Int,
+        val avc: Boolean = false,
+        val hdr: Boolean = true,
+        val fps: Float = 0f,
+    )
+
+    private fun keepOriginal(job: Job, m: Meta): Boolean =
+        m.avc && !m.hdr && m.shortSide in 1..job.maxShortSide &&
+            m.fps > 0f && m.fps <= job.frameRate + 0.5f &&
+            m.bitrate > 0 && m.bitrate <= job.bitrateKbps * 1000
 
     /** The smaller of width / height (rotation does not change it) and the
      * bitrate in bit/s; 0 = unknown. Background thread. */
@@ -254,7 +271,14 @@ class VideoEncoder(private val context: Context, messenger: BinaryMessenger) {
             val w = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
             val h = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
             val b = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull() ?: 0
-            Meta(if (w <= 0 || h <= 0) 0 else minOf(w, h), b)
+            val track = videoTrackOf(path)
+            Meta(
+                if (w <= 0 || h <= 0) 0 else minOf(w, h),
+                b,
+                avc = track?.getString(MediaFormat.KEY_MIME) == MediaFormat.MIMETYPE_VIDEO_AVC,
+                hdr = track == null || isHdr(track),
+                fps = track?.let { fpsOf(it) } ?: 0f,
+            )
         } catch (e: Exception) {
             Meta(0, 0)
         } finally {
@@ -264,5 +288,40 @@ class VideoEncoder(private val context: Context, messenger: BinaryMessenger) {
                 // already released
             }
         }
+    }
+
+    /** The first video track's format, or null. Background thread. */
+    private fun videoTrackOf(path: String): MediaFormat? {
+        val x = MediaExtractor()
+        return try {
+            x.setDataSource(path)
+            (0 until x.trackCount).map { x.getTrackFormat(it) }
+                .firstOrNull { it.getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true }
+        } catch (e: Exception) {
+            null
+        } finally {
+            x.release()
+        }
+    }
+
+    /** PQ / HLG transfer = HDR (unknown = SDR, as MediaCodec reports). */
+    private fun isHdr(f: MediaFormat): Boolean {
+        if (!f.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) return false
+        val t = f.getInteger(MediaFormat.KEY_COLOR_TRANSFER)
+        return t == MediaFormat.COLOR_TRANSFER_ST2084 || t == MediaFormat.COLOR_TRANSFER_HLG
+    }
+
+    private fun fpsOf(f: MediaFormat): Float = try {
+        if (f.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+            try {
+                f.getInteger(MediaFormat.KEY_FRAME_RATE).toFloat()
+            } catch (e: ClassCastException) {
+                f.getFloat(MediaFormat.KEY_FRAME_RATE)
+            }
+        } else {
+            0f
+        }
+    } catch (e: Exception) {
+        0f
     }
 }

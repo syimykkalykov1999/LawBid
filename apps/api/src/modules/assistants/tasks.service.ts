@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { AttorneyTaskStatus, Prisma } from '@prisma/client';
+import type { AttorneyTaskStatus, Prisma } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   assertExpectedVersion,

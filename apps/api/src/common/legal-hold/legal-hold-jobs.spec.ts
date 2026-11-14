@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { ConfigService } from '@nestjs/config';
 import type { PinoLogger } from 'nestjs-pino';
 import { NotificationsRetentionJob } from '../../jobs/handlers/notifications-retention.job';

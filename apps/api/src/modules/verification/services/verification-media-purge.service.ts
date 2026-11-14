@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma, VerificationRequestStatus } from '@prisma/client';
+import type {
+  Prisma,
+  VerificationRequestStatus,
+} from '../../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { heldIds } from '../../../common/privacy/legal-hold';

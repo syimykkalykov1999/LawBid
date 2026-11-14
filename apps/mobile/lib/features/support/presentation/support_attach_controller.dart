@@ -201,11 +201,8 @@ class SupportAttachController extends ChangeNotifier {
     if (context.mounted) {
       showAppSnackBar(context, t.t('chat.attach.videoPreparing'));
     }
-    final reel = videoLimitsOf(_ref.read(featureFlagsControllerProvider));
-    final limits = (
-      maxHeight: reel.maxHeight <= 0 ? 720 : math.min(720, reel.maxHeight),
-      frameRate: reel.frameRate,
-    );
+    // Owner rows 101/102: the admin's chat/case height.
+    final limits = chatVideoLimitsOf(_ref.read(featureFlagsControllerProvider));
     final out = await _ref
         .read(videoCompressorProvider)
         .compress(video, limits: limits);

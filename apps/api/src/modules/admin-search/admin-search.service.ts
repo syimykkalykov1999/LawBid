@@ -4,7 +4,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';

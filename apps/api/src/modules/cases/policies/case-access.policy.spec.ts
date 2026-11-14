@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import { CaseAccessPolicy, type CaseViewer } from './case-access.policy';

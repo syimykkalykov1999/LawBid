@@ -28,7 +28,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { NestFactory } from '@nestjs/core';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/client';
 import type Redis from 'ioredis';
 import { AppModule } from '../app.module';
 import { unwrapKmsWrappedKeys } from '../common/secrets/kms-env';
@@ -69,6 +69,7 @@ import {
   type UserRow,
   type UserSplit,
 } from '../ops/purge-test-data.plan';
+import { pgAdapter } from '../prisma/pg-adapter';
 
 const out = (line = ''): void => {
   process.stdout.write(`${line}\n`);
@@ -521,7 +522,7 @@ async function inspect(db: PrismaClient, args: PurgeArgs) {
 async function main(): Promise<void> {
   const args = parsePurgeArgs(process.argv.slice(2));
   await unwrapKmsWrappedKeys();
-  const db = new PrismaClient();
+  const db = new PrismaClient({ adapter: pgAdapter(process.env.DATABASE_URL) });
   try {
     const dbName = (
       await db.$queryRawUnsafe<{ d: string }[]>(

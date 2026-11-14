@@ -1,4 +1,4 @@
-import type { Prisma, SubscriptionPlan } from '@prisma/client';
+import type { Prisma, SubscriptionPlan } from '../../generated/prisma/client';
 
 /**
  * Audit 2026-10-02 — one definition of a "live" subscription for every

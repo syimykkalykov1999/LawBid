@@ -30,8 +30,16 @@ export function databaseDown(err: unknown): boolean {
   if (e?.code === 'P1001' || e?.code === 'P1017' || e?.code === 'P2024') {
     return true;
   }
+  // Prisma 7 (driver adapter): the OS socket code, and node-pg's own pool
+  // timeout message in place of P2024.
+  if (
+    typeof e?.code === 'string' &&
+    /^E(CONNREFUSED|CONNRESET|TIMEDOUT|HOSTUNREACH|NETUNREACH)$/.test(e.code)
+  ) {
+    return true;
+  }
   const text = typeof e?.message === 'string' ? e.message : '';
-  return /can't reach database server|server has closed the connection|database#\d+ is failing/i.test(
+  return /can't reach database server|server has closed the connection|database#\d+ is failing|timeout exceeded when trying to connect/i.test(
     text,
   );
 }

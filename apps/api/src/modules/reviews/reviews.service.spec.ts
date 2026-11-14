@@ -1,5 +1,5 @@
 import { HttpException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { ModerationService } from '../moderation/moderation.service';

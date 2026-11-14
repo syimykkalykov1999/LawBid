@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { VideoAsset } from '@prisma/client';
+import type { VideoAsset } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VideosService } from '../videos/videos.service';
 import { PostsService } from './posts.service';

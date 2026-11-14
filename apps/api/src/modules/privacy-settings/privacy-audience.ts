@@ -1,4 +1,4 @@
-import type { PrivacyAudience } from '@prisma/client';
+import type { PrivacyAudience } from '../../generated/prisma/client';
 
 /**
  * Owner 2026-10-28: each «who can» setting is a SET of audiences, stored as

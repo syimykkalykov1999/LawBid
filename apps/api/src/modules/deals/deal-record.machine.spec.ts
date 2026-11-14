@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import type { DealRecordStatus } from '@prisma/client';
+import type { DealRecordStatus } from '../../generated/prisma/client';
 import {
   dealRecordTransition,
   LIVE_DEAL_RECORD_STATUSES,

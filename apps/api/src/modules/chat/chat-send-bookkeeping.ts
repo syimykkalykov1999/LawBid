@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 
 /**
  * What a stored chat message changes around it, in ONE statement inside the

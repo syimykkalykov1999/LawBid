@@ -2,7 +2,11 @@ import { SloMetricsService } from '../../../common/ops/slo-metrics.service';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { isKnownCountry } from '../../../common/reference-data/countries';
 import { ConflictException, Injectable, Optional } from '@nestjs/common';
-import type { Prisma, PrismaClient, User } from '@prisma/client';
+import type {
+  Prisma,
+  PrismaClient,
+  User,
+} from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withDeleted } from '../../../prisma/soft-delete.extension';

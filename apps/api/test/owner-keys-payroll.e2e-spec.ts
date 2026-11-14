@@ -2,7 +2,7 @@ import type { AddressInfo, Server } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../src/generated/prisma/client';
 import type Redis from 'ioredis';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';

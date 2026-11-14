@@ -4,7 +4,7 @@ import {
   VerificationDocType,
   VerificationRequestStatus,
   VerificationStatus,
-} from '@prisma/client';
+} from '../../../generated/prisma/client';
 import { StateRefDto } from '../../profiles/dto/attorney-profile.dto';
 
 /** The attorney's own license inside a verification request (bar number

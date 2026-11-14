@@ -5,7 +5,7 @@ import {
   type OnModuleInit,
   Optional,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';

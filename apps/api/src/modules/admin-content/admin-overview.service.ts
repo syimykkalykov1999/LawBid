@@ -1,5 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { dailyDue } from '../../common/admin-summary/snapshot-gate';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';

@@ -7,7 +7,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { SeatLimitRequest } from '@prisma/client';
+import type { SeatLimitRequest } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';

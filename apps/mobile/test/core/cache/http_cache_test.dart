@@ -157,6 +157,50 @@ void main() {
     expect(adapter.requests.length, before, reason: 'no request at all');
   });
 
+  for (final status in const [403, 404, 410]) {
+    test('D1-47: a $status evicts the copy from memory and disk', () async {
+      final dio = build();
+      await dio.get<dynamic>('/cases/c1');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(await db.httpBytes(), greaterThan(0));
+
+      adapter = FakeHttpAdapter(
+        (o) async => ResponseBody.fromString('{}', status),
+      );
+      dio.httpClientAdapter = adapter;
+      await expectLater(
+        dio.get<dynamic>('/cases/c1'),
+        throwsA(isA<DioException>()),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(await db.httpBytes(), 0, reason: 'gone from the disk');
+
+      // Neither the same process nor a new one shows the old body.
+      for (final d in [dio, build()]) {
+        await expectLater(
+          readFromPhoneOnly(() => d.get<dynamic>('/cases/c1')),
+          throwsA(
+            isA<DioException>().having((e) => e.error, 'error', kNoPhoneCopy),
+          ),
+        );
+      }
+    });
+  }
+
+  test('a 500 keeps the copy (only 403 / 404 / 410 say it is gone)', () async {
+    final dio = build();
+    await dio.get<dynamic>('/cases/c1');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    dio.httpClientAdapter =
+        FakeHttpAdapter((o) async => ResponseBody.fromString('{}', 500));
+    await expectLater(
+      dio.get<dynamic>('/cases/c1'),
+      throwsA(isA<DioException>()),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(await db.httpBytes(), greaterThan(0));
+  });
+
   test('readFromPhoneOnly asUser: the copy of that account only (row 127)',
       () async {
     String bearer(String sub) {
@@ -457,6 +501,9 @@ class _SlowStore implements HttpCacheStore {
     DateTime now, {
     required bool confirmed,
   }) async {}
+
+  @override
+  Future<void> remove(String key) async {}
 
   @override
   Future<void> clear() async {}

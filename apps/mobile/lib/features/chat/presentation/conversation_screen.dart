@@ -336,16 +336,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   }
 
   /// Owner 2026-10-17 (WhatsApp): a chat video is re-encoded on the phone
-  /// to at most 720p (the admin's reel setting may make it smaller) before
-  /// upload; the original goes when compressing fails or doesn't help.
+  /// to at most 720p (owner rows 101/102: the admin's
+  /// `media.chat_video_max_height`; the reel setting may make it smaller)
+  /// before upload; the original goes when compressing fails or doesn't
+  /// help.
   Future<XFile> _prepareVideo(XFile video) async {
     final t = ref.read(translatorProvider);
     showAppSnackBar(context, t.t('chat.attach.videoPreparing'));
-    final reel = videoLimitsOf(ref.read(featureFlagsControllerProvider));
-    final limits = (
-      maxHeight: reel.maxHeight <= 0 ? 720 : math.min(720, reel.maxHeight),
-      frameRate: reel.frameRate,
-    );
+    final limits = chatVideoLimitsOf(ref.read(featureFlagsControllerProvider));
     final out =
         await ref.read(videoCompressorProvider).compress(video, limits: limits);
     return out == null
@@ -2732,7 +2730,10 @@ class _ComposerState extends ConsumerState<_Composer> {
     // The buzz is over before the microphone opens, so it is not recorded.
     await Future<void>.delayed(const Duration(milliseconds: 130));
     if (!mounted) return;
-    final ok = await _rec.start(onCap: () => _finish(send: true));
+    final ok = await _rec.start(
+      onCap: () => _finish(send: true),
+      quality: voiceQualityOf(ref.read(featureFlagsControllerProvider)),
+    );
     if (!mounted) {
       // Left the chat while the recorder started: close the microphone.
       if (ok) unawaited(_rec.cancel());

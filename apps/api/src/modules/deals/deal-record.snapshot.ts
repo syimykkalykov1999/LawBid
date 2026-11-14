@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { FeeType, PartyRole } from '@prisma/client';
+import type { FeeType, PartyRole } from '../../generated/prisma/client';
 import type { PaymentTerms } from '../bids/bids.public';
 
 /**

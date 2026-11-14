@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { CaseJournal, Prisma } from '@prisma/client';
+import type { CaseJournal, Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { canonicalJson } from './canonical-json';
