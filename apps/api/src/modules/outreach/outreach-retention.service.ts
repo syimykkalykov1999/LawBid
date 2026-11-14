@@ -111,13 +111,19 @@ export class OutreachRetentionService {
   }
 
   /**
-   * Detective R2B-14 (14.11): once a lead's old random unsubscribe token
-   * has its sha256 (the migration, or the first click), the raw value is
-   * cleared after `outreach.raw_unsubscribe_token_keep_days` (14; 0 = at
-   * once) — the wait keeps a rollback to the previous release, which still
-   * prints the raw token, working.
+   * Detective R2B-14 (14.11): once the signed links are switched on
+   * (`outreach.signed_unsubscribe_links`), a lead's old random token whose
+   * sha256 is stored is cleared after `outreach.raw_unsubscribe_token_keep_days`
+   * (14; 0 = at once); the hash keeps the sent links working. Switch off =
+   * nothing is cleared (the legacy token is still printed).
    */
   async clearRawUnsubscribeTokens(now: Date = new Date()): Promise<number> {
+    // Expand/contract: while the links printed are still the legacy token
+    // (switch off), the raw value is what every new email carries.
+    const signed = await this.settings
+      ?.boolean('outreach.signed_unsubscribe_links')
+      .catch(() => false);
+    if (!signed) return 0;
     const n = await this.settings
       ?.number('outreach.raw_unsubscribe_token_keep_days')
       .catch(() => NaN);

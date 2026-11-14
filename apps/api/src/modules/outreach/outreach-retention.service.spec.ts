@@ -215,7 +215,10 @@ describe('outreach: raw unsubscribe tokens are cleared', () => {
     const job = new OutreachRetentionService(
       { outreachLead: { updateMany } } as unknown as PrismaService,
       logger,
-      { number: jest.fn(() => Promise.resolve(14)) } as never,
+      {
+        number: jest.fn(() => Promise.resolve(14)),
+        boolean: jest.fn(() => Promise.resolve(true)),
+      } as never,
     );
     expect(await job.clearRawUnsubscribeTokens(now)).toBe(2);
     expect(updateMany).toHaveBeenCalledWith({
@@ -228,5 +231,19 @@ describe('outreach: raw unsubscribe tokens are cleared', () => {
       },
       data: { unsubscribe_token: null },
     });
+  });
+
+  it('nothing is cleared while the signed links are off (legacy token still printed)', async () => {
+    const updateMany = jest.fn(() => Promise.resolve({ count: 5 }));
+    const job = new OutreachRetentionService(
+      { outreachLead: { updateMany } } as unknown as PrismaService,
+      logger,
+      {
+        number: jest.fn(() => Promise.resolve(0)),
+        boolean: jest.fn(() => Promise.resolve(false)),
+      } as never,
+    );
+    expect(await job.clearRawUnsubscribeTokens(now)).toBe(0);
+    expect(updateMany).not.toHaveBeenCalled();
   });
 });

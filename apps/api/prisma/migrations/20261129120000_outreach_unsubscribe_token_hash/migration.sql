@@ -12,6 +12,10 @@ ALTER TABLE "outreach_leads" ADD COLUMN "unsubscribe_token_hash" VARCHAR(64);
 ALTER TABLE "outreach_leads" ADD COLUMN "unsubscribe_token_hashed_at" TIMESTAMPTZ;
 ALTER TABLE "outreach_leads" ALTER COLUMN "unsubscribe_token" DROP NOT NULL;
 
+-- Row count: one UPDATE over every row of outreach_leads in this
+-- transaction. Fine today: pre-launch, the table holds only test and
+-- registry-import leads (thousands at most, a few seconds); a much larger
+-- table would need the hash backfilled in batches by a job instead.
 UPDATE "outreach_leads"
    SET "unsubscribe_token_hash" = encode(sha256(convert_to("unsubscribe_token", 'UTF8')), 'hex'),
        "unsubscribe_token_hashed_at" = now()

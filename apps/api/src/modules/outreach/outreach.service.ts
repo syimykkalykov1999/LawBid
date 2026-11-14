@@ -16,6 +16,7 @@ import type {
   Prisma,
 } from '../../generated/prisma/client';
 import { ConfigService } from '@nestjs/config';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { readKey } from '../../common/secrets/key-holder';
 import {
@@ -215,6 +216,8 @@ export class OutreachService {
     @Optional() @Inject(OUTREACH_EMAIL) private readonly email?: EmailProvider,
     // R2B-14: the secrets key ring that signs the unsubscribe links.
     @Optional() private readonly config?: ConfigService,
+    // R2B-14: `outreach.signed_unsubscribe_links` (expand/contract switch).
+    @Optional() private readonly appSettings?: AppSettingsService,
   ) {
     this.tokens = UnsubscribeTokenCodec.from(
       readKey('SECRETS_MASTER_KEYS', () =>
@@ -228,20 +231,19 @@ export class OutreachService {
    * the legacy random token, stored as its hash. */
   private readonly tokens: UnsubscribeTokenCodec | null;
 
-  /** Columns of a NEW lead: nothing secret when links are signed; on a box
-   * without the key ring a random token plus its hash (R2B-14). */
+  /**
+   * Columns of a NEW lead (R2B-14, expand/contract). This release still
+   * writes a legacy random token (plus its sha256): a previous-release task
+   * during a rolling deploy, or after a rollback, prints
+   * `…/unsubscribe/<unsubscribe_token>` and must never print `null`. The
+   * raw value is cleared only after the signed links are switched on and
+   * `outreach.raw_unsubscribe_token_keep_days` have passed.
+   */
   newLeadUnsubscribeFields(now: Date = new Date()): {
-    unsubscribe_token: string | null;
-    unsubscribe_token_hash: string | null;
-    unsubscribe_token_hashed_at: Date | null;
+    unsubscribe_token: string;
+    unsubscribe_token_hash: string;
+    unsubscribe_token_hashed_at: Date;
   } {
-    if (this.tokens) {
-      return {
-        unsubscribe_token: null,
-        unsubscribe_token_hash: null,
-        unsubscribe_token_hashed_at: null,
-      };
-    }
     const raw = newUnsubscribeToken();
     return {
       unsubscribe_token: raw,
@@ -250,12 +252,28 @@ export class OutreachService {
     };
   }
 
-  /** The token printed in a lead's unsubscribe link: signed when the key
-   * ring is set, else the lead's legacy token. */
+  /** Does this release print signed links? The admin switch
+   * `outreach.signed_unsubscribe_links` (default off: the owner turns it on
+   * once this release is fully live, so a rollback keeps working links). */
+  async signedLinksOn(): Promise<boolean> {
+    if (!this.tokens) return false;
+    return (
+      (await this.appSettings
+        ?.boolean('outreach.signed_unsubscribe_links')
+        .catch(() => false)) ?? false
+    );
+  }
+
+  /** The token printed in a lead's unsubscribe link. Switch off: the
+   * legacy token the previous release understands (a signed one only for
+   * a row whose raw token was already cleared). Switch on: signed. */
   unsubscribeLinkToken(
     lead: Pick<OutreachLead, 'id' | 'unsubscribe_token'>,
+    signed: boolean,
   ): string {
-    if (this.tokens) return this.tokens.sign(lead.id);
+    if (this.tokens && (signed || !lead.unsubscribe_token)) {
+      return this.tokens.sign(lead.id);
+    }
     return lead.unsubscribe_token ?? '';
   }
 
@@ -672,6 +690,8 @@ export class OutreachService {
     senderName: string;
     link: string;
     settings: OutreachSettings;
+    /** R2B-14: print a signed link (see [signedLinksOn]). */
+    signedLinks?: boolean;
   }): { subject: string; text: string; html: string } {
     const vars = {
       first_name: input.lead.first_name ?? '',
@@ -683,7 +703,7 @@ export class OutreachService {
     const subject = renderTemplateString(input.template.subject, vars)
       .replace(/[\r\n]+/g, ' ')
       .trim();
-    const unsubscribeUrl = `${input.settings.apiPublicUrl}/api/v1/outreach/unsubscribe/${this.unsubscribeLinkToken(input.lead)}`;
+    const unsubscribeUrl = `${input.settings.apiPublicUrl}/api/v1/outreach/unsubscribe/${this.unsubscribeLinkToken(input.lead, input.signedLinks ?? false)}`;
     const bodyText = renderTemplateString(input.template.body, vars).trim();
     const footerText = [
       `${input.settings.fromName} · ${input.settings.footerAddress}`,
@@ -770,14 +790,16 @@ export class OutreachService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+    const signedLinks = await this.signedLinksOn();
     const rendered = this.renderEmail({
       template,
       lead,
       senderName,
       link,
       settings,
+      signedLinks,
     });
-    const unsubscribeUrl = `${settings.apiPublicUrl}/api/v1/outreach/unsubscribe/${this.unsubscribeLinkToken(lead)}`;
+    const unsubscribeUrl = `${settings.apiPublicUrl}/api/v1/outreach/unsubscribe/${this.unsubscribeLinkToken(lead, signedLinks)}`;
     const message: EmailMessage = {
       to: lead.email,
       ...rendered,

@@ -1108,6 +1108,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 365,
   };
+  out['outreach.signed_unsubscribe_links'] = {
+    ...out['outreach.signed_unsubscribe_links'],
+    description:
+      'Cold emails print the signed unsubscribe link (nothing secret in the database). Off: the legacy token, which a rollback can still read. Turn on once this release is fully live.',
+  };
   out['privacy.retention_batch'] = {
     ...out['privacy.retention_batch'],
     description: 'Privacy retention: rows per statement (short transactions).',

@@ -1,5 +1,6 @@
 import type { AddressInfo, Server } from 'node:net';
 import { createHash, randomUUID } from 'node:crypto';
+import { UnsubscribeTokenCodec } from '../src/modules/outreach/unsubscribe-token';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -341,17 +342,20 @@ describe('Outreach (e2e)', () => {
     expect(sent[0].to).toBe(email(1));
     expect(sent[0].text).toContain(code); // the employee's partner link
     expect(sent[0].text).toContain('Olga Sales');
-    // R2B-14 (14.11): the link is signed (no secret in the row).
+    // R2B-14 expand/contract: `outreach.signed_unsubscribe_links` is off
+    // in this release, so the email carries the legacy token — non-null and
+    // in the shape the previous release's controller accepts.
     const link =
       /https:\/\/api\.lawbid\.test\/api\/v1\/outreach\/unsubscribe\/([A-Za-z0-9_.-]+)/.exec(
         sent[0].text,
       );
-    expect(link?.[1]).toMatch(/^u1\./);
-    const signed = link![1];
-    expect(
-      (await prisma.outreachLead.findUniqueOrThrow({ where: { id: ivan.id } }))
-        .unsubscribe_token,
-    ).toBeNull();
+    expect(ivan.unsubscribe_token).toMatch(/^[A-Za-z0-9_-]{16,48}$/);
+    expect(link?.[1]).toBe(ivan.unsubscribe_token);
+    // A signed link (what the switch prints once on) is accepted already.
+    const signed = UnsubscribeTokenCodec.from(
+      process.env.SECRETS_MASTER_KEYS,
+      process.env.SECRETS_ACTIVE_KID,
+    )!.sign(ivan.id);
     expect(sent[0].text).toContain('Schaumburg');
     const afterMail = await prisma.outreachLead.findUniqueOrThrow({
       where: { id: ivan.id },

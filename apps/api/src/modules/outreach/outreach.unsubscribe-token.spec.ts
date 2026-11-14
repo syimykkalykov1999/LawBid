@@ -79,7 +79,7 @@ describe('outreach unsubscribe tokens (R2B-14)', () => {
       unsubscribe_token_hash: null,
       unsubscribed_at: null,
     });
-    const token = svc.unsubscribeLinkToken(lead as never);
+    const token = svc.unsubscribeLinkToken(lead as never, true);
     expect(token).toMatch(/^u1\.k1\./);
     expect(await svc.unsubscribe(token)).toBe(true);
     expect(lead.unsubscribed_at).toBeInstanceOf(Date);
@@ -141,8 +141,45 @@ describe('outreach unsubscribe tokens (R2B-14)', () => {
       unsubscribe_token_hash: null,
       unsubscribed_at: null,
     });
-    const good = svc.unsubscribeLinkToken(lead as never);
+    const good = svc.unsubscribeLinkToken(lead as never, true);
     expect(await svc.unsubscribe(forge(good))).toBe(false);
     expect(lead.unsubscribed_at).toBeNull();
+  });
+
+  // Expand/contract (review of #1086): this release keeps the previous
+  // release working during a rolling deploy and after a rollback.
+  describe('while outreach.signed_unsubscribe_links is off', () => {
+    const OLD_REGEX = /^[A-Za-z0-9_-]{16,48}$/; // the previous release's controller
+
+    it('a new lead still gets a legacy token (an N-1 sender never prints null)', () => {
+      const { svc } = setup({ id: LEAD });
+      const f = svc.newLeadUnsubscribeFields();
+      expect(f.unsubscribe_token).toMatch(OLD_REGEX);
+      expect(f.unsubscribe_token_hash).toBe(sha(f.unsubscribe_token));
+    });
+
+    it('printed links are the legacy token the old controller accepts', () => {
+      const { svc } = setup({ id: LEAD });
+      const f = svc.newLeadUnsubscribeFields();
+      const printed = svc.unsubscribeLinkToken(
+        { id: LEAD, unsubscribe_token: f.unsubscribe_token },
+        false,
+      );
+      expect(printed).toBe(f.unsubscribe_token);
+      expect(printed).toMatch(OLD_REGEX);
+    });
+
+    it('a signed link is accepted on read either way', async () => {
+      const { svc, lead } = setup({
+        id: LEAD,
+        unsubscribe_token: OLD_RAW,
+        unsubscribe_token_hash: sha(OLD_RAW),
+        unsubscribed_at: null,
+      });
+      expect(await svc.signedLinksOn()).toBe(false);
+      const signed = new UnsubscribeTokenCodec(KEYS, 'k1').sign(LEAD);
+      expect(await svc.unsubscribe(signed)).toBe(true);
+      expect(lead.unsubscribed_at).toBeInstanceOf(Date);
+    });
   });
 });
