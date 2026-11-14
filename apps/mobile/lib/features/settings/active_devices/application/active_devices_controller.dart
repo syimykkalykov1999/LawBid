@@ -87,6 +87,16 @@ class ActiveDevicesController
     }
   }
 
-  /// Signs out of every device; the caller clears the local session.
-  Future<void> logoutAll() => _repo.logoutAll();
+  /// R2-A #9 (Telegram «Terminate all other sessions»): ends every session
+  /// but this one (`POST /auth/logout-all` keeps the caller's) and leaves
+  /// only this device in the list. Errors propagate to the caller.
+  Future<void> logoutOthers() async {
+    await _repo.logoutAll();
+    final current = state.value;
+    if (current != null) {
+      state = AsyncData(
+        PaginatedList(items: current.items.where((s) => s.isCurrent).toList()),
+      );
+    }
+  }
 }

@@ -354,8 +354,8 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiEnvelopeResponse(LoggedOutDto)
   @ApiErrors({ 401: BEARER_401 })
+  // R2-A #9: the caller's own session stays, so its web cookie stays too.
   @Post('logout-all')
-  @ClearsWebSessionCookie()
   @HttpCode(HttpStatus.OK)
   async logoutAll(@CurrentUser() user: RequestUser): Promise<LoggedOutDto> {
     await this.auth.logoutAll(user);

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -359,30 +360,35 @@ class _AccountContactFlowScreenState
               ),
             ],
           ],
-          action: Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  label: t.t('auth.otp.resend'),
-                  variant: AppButtonVariant.secondary,
-                  height: AppSizes.touchTarget,
-                  fitLabel: true,
-                  isEnabled: !state.busy,
-                  onPressed: state.busy ? null : _resend,
+          // R2-A #18: «Resend in 0:59» and «Use another» stay the same
+          // height whatever the label.
+          action: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _ResendButton(
+                    // A new code (the controller bumps `attempt`) restarts
+                    // the countdown.
+                    key: ValueKey('resend-${state.attempt}'),
+                    t: t,
+                    busy: state.busy,
+                    onResend: _resend,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: AppButton(
-                  label: t.t('account.flow.editValue'),
-                  variant: AppButtonVariant.secondary,
-                  height: AppSizes.touchTarget,
-                  fitLabel: true,
-                  isEnabled: !state.busy,
-                  onPressed: state.busy ? null : _edit,
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: AppButton(
+                    label: t.t('account.flow.editValue'),
+                    variant: AppButtonVariant.secondary,
+                    height: AppSizes.touchTarget,
+                    fitLabel: true,
+                    isEnabled: !state.busy,
+                    onPressed: state.busy ? null : _edit,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       case ContactVerificationStage.verified:
@@ -441,6 +447,76 @@ class _StageLayout extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         action,
       ],
+    );
+  }
+}
+
+/// R2-A #18 (WhatsApp «Resend in 0:59», as `otp_screen.dart`'s countdown):
+/// «Resend» waits for the admin's SMS cooldown (`sms.resend_cooldown_seconds`,
+/// 0 = none) after every code, so a tap is never a new paid SMS before the
+/// server would allow it anyway.
+class _ResendButton extends ConsumerStatefulWidget {
+  const _ResendButton({
+    required this.t,
+    required this.busy,
+    required this.onResend,
+    super.key,
+  });
+
+  final Translator t;
+  final bool busy;
+  final Future<void> Function() onResend;
+
+  @override
+  ConsumerState<_ResendButton> createState() => _ResendButtonState();
+}
+
+class _ResendButtonState extends ConsumerState<_ResendButton> {
+  Timer? _timer;
+  int _remaining = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = ref
+        .read(featureFlagsControllerProvider)
+        .configInt('sms.resend_cooldown_seconds', 60);
+    if (_remaining > 0) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (_remaining <= 1) timer.cancel();
+        setState(() => _remaining -= 1);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final waiting = _remaining > 0;
+    final label = waiting
+        ? widget.t.t('auth.otp.resendIn', {
+            'time': '${_remaining ~/ 60}:'
+                '${(_remaining % 60).toString().padLeft(2, '0')}',
+          })
+        : widget.t.t('auth.otp.resend');
+    final enabled = !widget.busy && !waiting;
+    // The 1/sec label is not re-announced by a screen reader every second.
+    return ExcludeSemantics(
+      excluding: waiting,
+      child: AppButton(
+        key: const ValueKey('account-flow-resend'),
+        label: label,
+        variant: AppButtonVariant.secondary,
+        height: AppSizes.touchTarget,
+        fitLabel: true,
+        isEnabled: enabled,
+        onPressed: enabled ? widget.onResend : null,
+      ),
     );
   }
 }

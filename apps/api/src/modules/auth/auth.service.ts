@@ -1210,8 +1210,15 @@ export class AuthService {
     });
   }
 
+  /** R2-A #9 (Telegram «Terminate all other sessions»): every session of
+   * the account ends except the caller's own — the phone that pressed it
+   * stays signed in. «This wasn't me» (wasntMe) still ends them all. */
   async logoutAll(user: RequestUser): Promise<void> {
-    await this.revocation.revokeAllChainsForUser(user.sub, 'logout_all');
+    await this.revocation.revokeOtherChainsForUser(
+      user.sub,
+      user.sid,
+      'logout_all',
+    );
     await this.authEvents.record({
       userId: user.sub,
       eventType: AUTH_EVENT_TYPES.LOGOUT_ALL,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -419,7 +420,7 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.logout'),
             destructive: true,
             // AppRouterGuard sends the signed-out user to /welcome.
-            onTap: () => signOut(ref),
+            onTap: () => _confirmSignOut(context, ref),
           ),
           AppListRow(
             icon: AppIcons.deleteOutlineRounded,
@@ -437,7 +438,10 @@ class SettingsScreen extends ConsumerWidget {
         title: Text(t.t('settings.title')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          // R2-A #2: alone on the stack (a link, a web refresh), back
+          // leads to the profile.
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go(AppRoutes.profile),
         ),
       ),
       body: SafeArea(
@@ -458,5 +462,43 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// R2-A #10 (Telegram / Instagram «Log out?»): Log out asks first. A second
+/// tap while the question or the sign-out is on screen does nothing.
+bool _signingOut = false;
+
+Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
+  if (_signingOut) return;
+  _signingOut = true;
+  try {
+    final t = ref.read(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final ok = await showAppDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AppAlertDialog(
+        backgroundColor: colors.sheet,
+        title: Text(t.t('settings.logout.confirm.title')),
+        content: Text(t.t('settings.logout.confirm.body')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(t.t('common.cancel')),
+          ),
+          TextButton(
+            key: const ValueKey('settings-logout-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              t.t('settings.logout'),
+              style: TextStyle(color: colors.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok ?? false) await signOut(ref);
+  } finally {
+    _signingOut = false;
   }
 }

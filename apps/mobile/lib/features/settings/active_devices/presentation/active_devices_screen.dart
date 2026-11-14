@@ -36,6 +36,13 @@ class ActiveDevicesScreen extends ConsumerStatefulWidget {
 class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
   final Set<String> _revoking = {};
 
+  /// R2-A #9: «sign out of other devices» is on the way (or being asked);
+  /// a second tap does nothing.
+  bool _endingOthers = false;
+
+  /// The confirmed request is on the way (the button shows its spinner).
+  bool _othersLoading = false;
+
   ActiveDevicesController get _controller =>
       ref.read(activeDevicesControllerProvider.notifier);
 
@@ -91,20 +98,27 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
     }
   }
 
-  Future<void> _logoutAll() async {
+  /// R2-A #9 (Telegram «Terminate all other sessions»): every other device
+  /// is signed out, this phone stays signed in.
+  Future<void> _logoutOthers() async {
+    if (_endingOthers) return;
     final t = ref.read(translatorProvider);
-    final ok = await _confirm(
-      title: t.t('devices.logoutAll.confirm.title'),
-      body: t.t('devices.logoutAll.confirm.body'),
-      action: t.t('devices.logoutAll'),
-    );
-    if (!ok) return;
+    _endingOthers = true;
     try {
-      await _controller.logoutAll();
-      await ref.read(sessionControllerProvider.notifier).clear();
-      if (mounted) context.go(AuthRoutes.welcome);
+      final ok = await _confirm(
+        title: t.t('devices.logoutOthers.confirm.title'),
+        body: t.t('devices.logoutOthers.confirm.body'),
+        action: t.t('devices.logoutOthers.confirm.action'),
+      );
+      if (!ok) return;
+      setState(() => _othersLoading = true);
+      await _controller.logoutOthers();
+      if (mounted) showAppSnackBar(context, t.t('devices.logoutOthers.done'));
     } on Object catch (error) {
       if (mounted) showAppSnackBar(context, errorText(t, error));
+    } finally {
+      _endingOthers = false;
+      if (mounted) setState(() => _othersLoading = false);
     }
   }
 
@@ -145,7 +159,11 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
         title: Text(t.t('devices.title')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          // R2-A #2: alone on the stack (a link, a web refresh), back
+          // leads to Settings.
+          onPressed: () => context.canPop()
+              ? context.pop()
+              : context.go(AppRoutes.profileSettings),
         ),
       ),
       body: AnimatedSwitcher(
@@ -159,7 +177,8 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
               t: t,
               revoking: _revoking,
               onRevoke: _revoke,
-              onLogoutAll: _logoutAll,
+              onLogoutOthers: _logoutOthers,
+              endingOthers: _othersLoading,
               onRefresh: _pullToRefresh,
               onLoadMore: _controller.loadMore,
               onRetryMore: _controller.retryLoadMore,
@@ -197,7 +216,8 @@ class _DevicesList extends StatelessWidget {
     required this.t,
     required this.revoking,
     required this.onRevoke,
-    required this.onLogoutAll,
+    required this.onLogoutOthers,
+    required this.endingOthers,
     required this.onRefresh,
     required this.onLoadMore,
     required this.onRetryMore,
@@ -208,7 +228,8 @@ class _DevicesList extends StatelessWidget {
   final Translator t;
   final Set<String> revoking;
   final ValueChanged<DeviceSessionInfo> onRevoke;
-  final VoidCallback onLogoutAll;
+  final VoidCallback onLogoutOthers;
+  final bool endingOthers;
   final Future<void> Function() onRefresh;
   final VoidCallback onLoadMore;
   final VoidCallback onRetryMore;
@@ -253,9 +274,28 @@ class _DevicesList extends StatelessWidget {
       header: AppEntrance(
         child: Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-          child: Text(
-            t.t('devices.subtitle'),
-            style: typography.body.copyWith(color: colors.textSecondary),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                t.t('devices.subtitle'),
+                style: typography.body.copyWith(color: colors.textSecondary),
+              ),
+              // R2-A #9 (Telegram Devices): «sign out of other devices» at
+              // the top, not after every page of the list; only when there
+              // is another device.
+              if (list.hasMore || list.items.any((s) => !s.isCurrent)) ...[
+                const SizedBox(height: AppSpacing.md),
+                AppButton(
+                  key: const ValueKey('devices-logout-others'),
+                  label: t.t('devices.logoutOthers'),
+                  icon: AppIcons.logoutRounded,
+                  variant: AppButtonVariant.secondary,
+                  isLoading: endingOthers,
+                  onPressed: onLogoutOthers,
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -277,21 +317,13 @@ class _DevicesList extends StatelessWidget {
             const PasskeysSection(),
             // Owner 2026-10-20: sign in on the website by scanning its QR
             // code (the phone only; the website shows the code).
-            if (!kIsWeb) ...[
+            if (!kIsWeb)
               AppButton(
                 key: const ValueKey('devices-scan-web'),
                 label: t.t('devices.scanWeb'),
                 icon: AppIcons.qrCode,
                 onPressed: () => context.push(AppRoutes.qrScan),
               ),
-              const SizedBox(height: AppSpacing.sm),
-            ],
-            AppButton(
-              label: t.t('devices.logoutAll'),
-              icon: AppIcons.logoutRounded,
-              variant: AppButtonVariant.secondary,
-              onPressed: onLogoutAll,
-            ),
           ],
         ),
       ),

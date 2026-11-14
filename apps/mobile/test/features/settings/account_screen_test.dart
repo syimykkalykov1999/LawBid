@@ -569,6 +569,44 @@ void main() {
       await _tearDown(tester);
     });
 
+    testWidgets(
+        'R2-A #18: Resend waits for the SMS cooldown after every code '
+        '(«Resend in 0:59»)', (tester) async {
+      _tallView(tester);
+      final repo = FakeAccountRepository(() async => const []);
+      final wrap = await _wrap(repo);
+      await tester.pumpWidget(
+        wrap(
+          const AccountContactFlowScreen(
+            type: ContactType.email,
+            mode: AccountContactMode.primary,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'x@example.com');
+      await tester.tap(find.text('Send code'));
+      await tester.pumpAndSettle();
+      await _useSms(tester);
+      AppButton resend() => tester
+          .widget<AppButton>(find.byKey(const ValueKey('account-flow-resend')));
+      // Right after the code: counting down, not tappable.
+      expect(resend().isEnabled, isFalse);
+      expect(resend().label, 'Resend in 1:00');
+      await tester.pump(const Duration(seconds: 1));
+      expect(resend().label, 'Resend in 0:59');
+      await tester.pump(const Duration(seconds: 60));
+      expect(resend().isEnabled, isTrue);
+      expect(resend().label, 'Resend code');
+      // A new code starts the wait again.
+      await tester.tap(find.byKey(const ValueKey('account-flow-resend')));
+      await tester.pump();
+      await tester.pump();
+      expect(resend().isEnabled, isFalse);
+      expect(resend().label, 'Resend in 1:00');
+      await _tearDown(tester);
+    });
+
     for (final scale in [1.0, 1.6]) {
       testWidgets('code step: Resend / Change buttons equal size at x$scale',
           (tester) async {

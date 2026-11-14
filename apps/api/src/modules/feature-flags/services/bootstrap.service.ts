@@ -170,6 +170,9 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // D1-53 (13.11): the biometric consent the attorney ticks names how long
   // the face-comparison result is kept; the app fills `{days}` from this.
   'verification.face_match.retention_days',
+  // R2-A #18 (14.11): «Resend in 0:59» on the phone/email change counts
+  // the admin's own SMS cooldown, not a number written into the app.
+  'sms.resend_cooldown_seconds',
 ] as const;
 
 @Injectable()
@@ -564,6 +567,9 @@ export class BootstrapService {
         // D1-53: always present, so the consent never shows a stale number.
         'verification.face_match.retention_days':
           APP_SETTINGS['verification.face_match.retention_days'],
+        // R2-A #18: always present, so the resend countdown is never a guess.
+        'sms.resend_cooldown_seconds':
+          APP_SETTINGS['sms.resend_cooldown_seconds'],
         ...Object.fromEntries(
           Object.entries(appConfig).filter(([k]) =>
             PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
