@@ -63,12 +63,17 @@
        Owner 2026-10-26: the splash looks exactly as before 2026-10-23 again
        (one pulsing logo; no spinner, no progress bar, no slow-load text) —
        the look is frozen. The download speed-ups in boot_head.js stay. */
-    html, body { margin: 0; height: 100%; background: #fff; }
-    #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #fff; z-index: 1; pointer-events: none; transition: opacity .25s; }
+    /* Owner 13.11 (row 93): the splash is in the app's theme colour, not
+       always white: the system's light / dark (AppColorsLight.bg #FFFFFF,
+       AppColorsDark.bg #0B0B0D), or the theme picked in the app, which
+       boot_head.js puts in --boot-bg before the first paint. */
+    :root { --boot-default: #FFFFFF; }
+    @media (prefers-color-scheme: dark) { :root { --boot-default: #0B0B0D; } }
+    html, body { margin: 0; height: 100%; background: var(--boot-bg, var(--boot-default)); }
+    #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--boot-bg, var(--boot-default)); z-index: 1; pointer-events: none; transition: opacity .25s; }
     #boot img { width: 96px; height: 96px; border-radius: 22px; animation: boot-pulse 1.4s ease-in-out infinite; }
     #boot.gone { opacity: 0; pointer-events: none; }
     @keyframes boot-pulse { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.06); opacity: 1; } }
-    @media (prefers-color-scheme: dark) { html, body, #boot { background: #0D1117; } }
     @media (prefers-reduced-motion: reduce) { #boot img { animation: none; } }
     /* Text for search engines and readers without the app; not drawn. */
     #seo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

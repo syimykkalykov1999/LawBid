@@ -110,7 +110,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     bool destructive = false,
   }) async {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
         backgroundColor: colors.sheet,

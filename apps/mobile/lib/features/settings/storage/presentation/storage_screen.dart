@@ -213,7 +213,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
       };
 
   Future<void> _confirmClear(Translator t) async {
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (dialog) => AppAlertDialog(
         title: Text(t.t('storage.clear.confirm.title')),

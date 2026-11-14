@@ -54,7 +54,7 @@ class _SigningTabState extends ConsumerState<SigningTab> {
 
   Future<void> _cancel(api.SignRequestDto r) async {
     final t = ref.read(translatorProvider);
-    final yes = await showDialog<bool>(
+    final yes = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(t.t('sign.cancelAsk')),

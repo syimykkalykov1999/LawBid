@@ -85,7 +85,7 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
   /// Audit 2026-10-04: closing is permanent — confirm first.
   Future<void> _close() async {
     final t = ref.read(translatorProvider);
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
         content: Text(t.t('support.close.confirm')),

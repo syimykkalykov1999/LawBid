@@ -10,6 +10,7 @@ import { FadeIn, MotionRow } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { RevealValue } from '@/components/security/reveal-value';
+import { CopyButton } from '@/components/ui/copy-button';
 import { SubscriptionCard } from '@/components/subscription-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -229,6 +230,7 @@ export default function UserCardPage() {
         subtitle={
           <>
             {u.role ? ROLE_TEXT[u.role] ?? u.role : 'без роли'} · <span className="font-mono text-xs">{u.id}</span>
+            <CopyButton text={u.id} label="Скопировать id" className="ml-0.5 align-middle" />
           </>
         }
         actions={
@@ -442,7 +444,10 @@ export default function UserCardPage() {
                       <Link href={`/cases/${c.id}`} className="font-medium text-heading hover:underline">
                         {c.title}
                       </Link>
-                      <div className="font-mono text-xs text-faint">{c.id}</div>
+                      <div className="font-mono text-xs text-faint">
+                        {c.id}
+                        <CopyButton text={c.id} label="Скопировать id кейса" className="ml-0.5 align-middle" />
+                      </div>
                     </Td>
                     <Td>
                       <StatusPill map={CASE_STATUS} value={c.status} />
@@ -487,7 +492,10 @@ export default function UserCardPage() {
                       <Link href={`/cases/${b.caseId}`} className="font-medium text-heading hover:underline">
                         {b.caseTitle}
                       </Link>
-                      <div className="font-mono text-xs text-faint">{b.caseId}</div>
+                      <div className="font-mono text-xs text-faint">
+                        {b.caseId}
+                        <CopyButton text={b.caseId} label="Скопировать id кейса" className="ml-0.5 align-middle" />
+                      </div>
                     </Td>
                     <Td>
                       <StatusPill map={BID_STATUS} value={b.status} />
