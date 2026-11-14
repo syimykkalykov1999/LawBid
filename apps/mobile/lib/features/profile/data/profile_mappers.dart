@@ -81,6 +81,7 @@ abstract final class ProfileMappers {
         advertisingLabel:
             contractField<bool>(d, ContractExtra.advertisingLabel) ?? false,
         publicUrl: contractField<String>(d, ContractExtra.publicUrl),
+        replyMinutesMedian: d.replyMinutesMedian?.toInt(),
       );
 
   static LicenseState license(api.LicenseStatus s) => switch (s) {

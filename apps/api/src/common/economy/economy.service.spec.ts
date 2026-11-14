@@ -367,6 +367,24 @@ describe('EconomyService.figures', () => {
     expect(f.revenue30dUsd).toBe(868);
   });
 
+  it('R3A-1: refunded payments stay in revenue; refunds count by the day they happen', async () => {
+    const t = setup({
+      revenueCents: 10_000,
+      refundedCents: 20_000,
+      paymentCount: 1,
+    });
+    const f = await t.svc.figures(NOW);
+    // A loss shows as a loss (no 0 clamp).
+    expect(f.revenue30dUsd).toBeLessThan(0);
+    const calls = t.prisma.$queryRaw.mock.calls as unknown as [
+      TemplateStringsArray,
+    ][];
+    const sql = calls[0][0].join('?');
+    expect(sql).toMatch(/p\.status IN \('succeeded', 'refunded'\)/);
+    expect(sql).toMatch(/r\.created_at >= /);
+    expect(sql).toMatch(/r\.status IN \('pending', 'succeeded'\)/);
+  });
+
   it('falls back to the configured AWS amount when Budgets is unreadable', async () => {
     const f = await setup({ awsActual: null }).svc.figures(NOW);
     expect(f.lines[0]).toMatchObject({
