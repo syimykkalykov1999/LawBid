@@ -97,6 +97,9 @@ class Instance:
     # itself when the primary's are higher (AWS RDS PostgreSQL docs,
     # "Setting the parameters that control shared memory"). Kept for the log.
     has_replicas: bool = False
+    # Owner row 6 (13.11): our own read copies (`<db>-replica-N`, modules/
+    # growth). They follow the primary's class (handler.follow_replicas).
+    replica_ids: tuple = ()
 
 
 @dataclass(frozen=True)

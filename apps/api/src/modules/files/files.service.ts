@@ -1078,7 +1078,10 @@ export class FilesService {
       !file ||
       (file.purpose !== 'verification_document' &&
         file.purpose !== 'verification_selfie') ||
-      file.scan_status !== 'clean'
+      file.scan_status !== 'clean' ||
+      // Owner 2026-11-13 (row 52): deleted after the decision — no link
+      // to an object that is gone.
+      Boolean(file.deleted_at)
     ) {
       throw new NotFoundException({
         code: ErrorCode.NOT_FOUND,

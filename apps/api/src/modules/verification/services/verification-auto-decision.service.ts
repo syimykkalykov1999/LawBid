@@ -45,6 +45,21 @@ export const AUTO_DECISION_SAMPLE_NOTE =
 export const AUTO_DECISION_INFO_NOTE =
   'Автоматически запрошено повторное фото / документ';
 
+/** `admin_note` of a request the rules left to a person because a check
+ * was uncertain (owner row 60, 13.11): the queue shows why. */
+export const AUTO_DECISION_HUMAN_NOTE = 'Автопроверка не уверена, решите сами';
+export const HUMAN_REASON_RU: Readonly<Record<string, string>> = {
+  registry_not_found:
+    'реестр штата не нашёл номер (бывает и сбой реестра), сверьте сами',
+  registry_not_active:
+    'реестр штата: лицензия не активна, но не лишение и не приостановка',
+  registry_unavailable: 'реестр штата не ответил (ошибка или тайм-аут)',
+  face_far_apart: 'селфи сильно не похоже на фото в удостоверении',
+};
+
+/** The registry record's own status that rejects automatically. */
+const DISCIPLINED_STATUS = /disbar|suspend|revok/i;
+
 const PROPOSAL_RU: Record<string, string> = {
   approve: 'одобрить',
   reject: 'отклонить',
@@ -113,9 +128,23 @@ export class VerificationAutoDecisionService {
       // Still nobody's: a verifier who took it meanwhile wins.
       const req = await tx.verificationRequest.findUnique({
         where: { id: requestId },
-        select: { status: true },
+        select: { status: true, admin_note: true },
       });
       if (req?.status !== 'submitted') return false;
+      const humanReason =
+        outcome === 'queue' && verdict.reason
+          ? HUMAN_REASON_RU[verdict.reason]
+          : undefined;
+      // Never over a verifier's or a recheck note: only an empty one or ours.
+      if (
+        humanReason &&
+        (!req.admin_note || req.admin_note.startsWith(AUTO_DECISION_HUMAN_NOTE))
+      ) {
+        await tx.verificationRequest.update({
+          where: { id: requestId },
+          data: { admin_note: `${AUTO_DECISION_HUMAN_NOTE}: ${humanReason}` },
+        });
+      }
       let autoActionId: string | null = null;
       if (outcome === 'reject') {
         autoActionId = await this.reject(
@@ -421,7 +450,7 @@ export class VerificationAutoDecisionService {
     const i = f.input;
     return {
       at: now.toISOString(),
-      rules: 'row60-v1',
+      rules: 'row60-v2',
       proposal: v.proposal,
       reason: v.reason,
       samplePct,
@@ -560,8 +589,14 @@ export function registryVerdict(
   if (!c) return 'none';
   const reason = (c.details as { reason?: unknown } | null)?.reason;
   if (c.result === 'pass') return 'pass';
-  if (c.result === 'fail')
-    return reason === 'not_active' ? 'not_active' : 'not_found';
+  if (c.result === 'fail') {
+    if (reason !== 'not_active') return 'not_found';
+    const status = (c.details as { registryStatus?: unknown } | null)
+      ?.registryStatus;
+    return typeof status === 'string' && DISCIPLINED_STATUS.test(status)
+      ? 'disciplined'
+      : 'not_active';
+  }
   return reason === 'name_mismatch' ? 'name_mismatch' : 'unavailable';
 }
 

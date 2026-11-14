@@ -78,6 +78,7 @@ import {
 } from '../verification.helpers';
 import { VerificationChecksService } from './verification-checks.service';
 import { VerificationAutoDecisionService } from './verification-auto-decision.service';
+import { VerificationMediaPurgeService } from './verification-media-purge.service';
 import {
   REGISTRY_CHECK_TIMEOUT_MS,
   RegistryCheckQueue,
@@ -147,6 +148,8 @@ export class VerificationAdminService {
     @Optional() private readonly summary?: AdminSummaryService,
     // Row 60: the owner's decision on an audit-sampled request.
     @Optional() private readonly autoDecision?: VerificationAutoDecisionService,
+    // Owner 2026-11-13 (row 52): the pictures go after the final decision.
+    @Optional() private readonly media?: VerificationMediaPurgeService,
   ) {
     registryWorker?.handle((data) => this.runRegistryCheck(data));
   }
@@ -606,6 +609,8 @@ export class VerificationAdminService {
     });
     await this.endLease(admin, requestId, 'approve');
     await this.autoDecision?.recordOwnerDecision(requestId, 'approve');
+    // Row 52: a person's decision is final — selfie and ID pictures go now.
+    await this.media?.afterDecision(requestId, now);
     await this.dropCounts();
     return this.card(requestId);
   }
@@ -738,6 +743,8 @@ export class VerificationAdminService {
     });
     await this.endLease(admin, requestId, 'reject');
     await this.autoDecision?.recordOwnerDecision(requestId, 'reject');
+    // Row 52: a person's rejection is final — the pictures go now.
+    await this.media?.afterDecision(requestId, now);
     await this.dropCounts();
     return this.card(requestId);
   }

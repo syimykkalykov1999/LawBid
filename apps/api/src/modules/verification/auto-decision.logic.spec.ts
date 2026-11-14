@@ -76,7 +76,8 @@ describe('decideAutomatically (row 60)', () => {
     ).toBe('queue');
   });
 
-  it('hard fails → reject with the existing reject codes', () => {
+  // Owner 13.11 (row 60): uncertain checks go to a person, never a reject.
+  it('registry not found → human queue (a scraper miss looks the same)', () => {
     expect(
       decideAutomatically(
         allPass({
@@ -86,7 +87,24 @@ describe('decideAutomatically (row 60)', () => {
           ai: null,
         }),
       ),
-    ).toEqual({ proposal: 'reject', reason: 'license_not_found' });
+    ).toEqual({ proposal: 'queue', reason: 'registry_not_found' });
+  });
+
+  it('registry error / timeout → human queue, not the «upload again» lever', () => {
+    expect(
+      decideAutomatically(
+        allPass({
+          licenses: [
+            { stateCode: 'NY', formatUnusual: false, registry: 'unavailable' },
+          ],
+          identity: { hasIdFront: true, missingBack: true, hasSelfie: true },
+          requestInfoEnabled: true,
+        }),
+      ),
+    ).toEqual({ proposal: 'queue', reason: 'registry_unavailable' });
+  });
+
+  it('inactive without discipline (retired, inactive) → human queue', () => {
     expect(
       decideAutomatically(
         allPass({
@@ -96,14 +114,42 @@ describe('decideAutomatically (row 60)', () => {
           ],
         }),
       ),
-    ).toEqual({ proposal: 'reject', reason: 'license_inactive' });
+    ).toEqual({ proposal: 'queue', reason: 'registry_not_active' });
+  });
+
+  it('face 30 % (below the line) → human queue, marked far apart', () => {
     expect(
       decideAutomatically(
         allPass({
-          face: { result: 'fail', similarity: 31.5, reason: 'selfie_mismatch' },
+          face: { result: 'fail', similarity: 30, reason: 'selfie_mismatch' },
         }),
       ),
-    ).toEqual({ proposal: 'reject', reason: 'selfie_mismatch' });
+    ).toEqual({ proposal: 'queue', reason: 'face_far_apart' });
+  });
+
+  it('registry record disbarred / suspended / revoked → the only reject', () => {
+    expect(
+      decideAutomatically(
+        allPass({
+          licenses: [
+            { stateCode: 'NY', formatUnusual: false, registry: 'pass' },
+            { stateCode: 'CA', formatUnusual: false, registry: 'disciplined' },
+          ],
+        }),
+      ),
+    ).toEqual({ proposal: 'reject', reason: 'license_inactive' });
+    // Before the uncertain ones: a disbarred licence rejects even with a
+    // second licence not found.
+    expect(
+      decideAutomatically(
+        allPass({
+          licenses: [
+            { stateCode: 'NY', formatUnusual: false, registry: 'not_found' },
+            { stateCode: 'CA', formatUnusual: false, registry: 'disciplined' },
+          ],
+        }),
+      )?.proposal,
+    ).toBe('reject');
   });
 
   it('a face between the reject line and the threshold waits for a person', () => {
@@ -241,7 +287,8 @@ describe('decideAutomatically (row 60)', () => {
         }),
       ),
     ).toEqual({ proposal: 'request_info', reason: 'ai_request_info' });
-    // A clear failure still wins over a retake.
+    // An uncertain registry result goes to a person, not to a retake
+    // (owner 13.11); the registry's own «disbarred» still rejects.
     expect(
       decideAutomatically(
         allPass({
@@ -249,6 +296,17 @@ describe('decideAutomatically (row 60)', () => {
           face: blurry,
           licenses: [
             { stateCode: 'NY', formatUnusual: false, registry: 'not_found' },
+          ],
+        }),
+      ),
+    ).toEqual({ proposal: 'queue', reason: 'registry_not_found' });
+    expect(
+      decideAutomatically(
+        allPass({
+          requestInfoEnabled: true,
+          face: blurry,
+          licenses: [
+            { stateCode: 'NY', formatUnusual: false, registry: 'disciplined' },
           ],
         }),
       )?.proposal,

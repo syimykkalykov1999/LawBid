@@ -488,20 +488,27 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
    * (approved / rejected), then deleted by privacy.retention. The legal
    * texts state no period yet: 30 until the owner's lawyer sets one. */
   'verification.face_match.retention_days': 30,
+  /** Owner 2026-11-13 (row 52): the selfie and ID / licence pictures of a
+   * request go right after the final decision (VerificationMediaPurgeService);
+   * a request the attorney left unfinished (draft / needs_more_info) loses
+   * them after this many days without activity. 15 = Persona's longest
+   * recommended inquiry life; 0 = only after a decision. */
+  'verification.media.abandoned_days': 15,
   // Owner 2026-11-12 (row 60): «Автоматическое решение по адвокатам»
   // (verification-auto-decision.service.ts, the Persona / Onfido / Stripe
   // Identity pattern: approve / decline / review). Off (default) = nothing
   // automatic, every request waits for a person as today. On = everything
   // matched (registry number + full name + active, face match at or above
   // the threshold, liveness, the AI employee's confident «approve») is
-  // approved; a clear failure (number not in the registry, not active, the
-  // face far below the threshold) is rejected with an appeal; anything else
-  // stays in the queue. Owner only, a fresh 2FA code to change; never for
+  // approved; only the registry's own record «disbarred / suspended /
+  // revoked» is rejected with an appeal; anything uncertain (number not
+  // found, registry error or timeout, inactive, faces apart) and anything
+  // else goes to a person with the reason (owner 13.11). Owner only, a fresh 2FA code to change; never for
   // an owner or staff account, never without the biometric consent.
   'verification.auto_decision.enabled': false,
-  /** Face similarity, %, under which the faces count as clearly different
-   * (an automatic rejection with an appeal). Between it and the face match
-   * threshold the request waits for a person. */
+  /** Face similarity, %, under which the faces are marked «far apart» for
+   * the reviewer. Never an automatic rejection: below the face match
+   * threshold the request always waits for a person (owner 13.11). */
   'verification.auto_decision.face_reject_below': 50,
   /** % of the automatic decisions shown to the owner first (the random
    * audit) until his agreement with them is proven high… */

@@ -415,12 +415,13 @@ export function purposesOfProfile(profile: DedupProfile): FilePurpose[] {
   );
 }
 
-/** Purposes the orphan cleanup never touches: identity documents (kept
- * for the verification history), data exports (their own expiry job) and
- * video (Bunny's own sweep). */
+/** Purposes the orphan cleanup never touches: data exports (their own
+ * expiry job) and video (Bunny's own sweep). Owner 2026-11-13 (row 52):
+ * identity documents and selfies are no longer exempt — one attached to a
+ * request (verification_documents) or a client check stays while it is
+ * referenced and goes with the decision (VerificationMediaPurgeService);
+ * one never attached or removed from a draft is an orphan like any other. */
 export const CLEANUP_EXEMPT_PURPOSES: readonly FilePurpose[] = [
-  'verification_document',
-  'verification_selfie',
   'data_export',
   'post_video',
   // Owner 2026-11-12: the AI images have their own clock (AiRetentionService:
