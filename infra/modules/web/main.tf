@@ -145,7 +145,7 @@ variable "api_proxy_host" {
 variable "cross_origin_isolation" {
   type        = bool
   default     = false
-  description = "Send COOP/COEP headers on the app pages (not on /pay.html, Stripe frames break under COEP) so the engine can render on a worker thread (faster, Chrome and Firefox). Off by default: test on a staging stack first (docs/perf/WEB_PERF_2026-10-25.md), then turn on."
+  description = "Send COOP/COEP headers on the app pages (not on /pay.html, Stripe frames break under COEP) so the engine can render on a worker thread (faster, Chrome and Firefox). Keep it off: since row 173 (2026-11-14) the admin switch web.cross_origin_isolation does the same through the site's own service worker (apps/mobile/web/coi_sw.js) and can be turned off in seconds; with this variable on, the admin switch can no longer take the headers away. Results: docs/dev/COOP_COEP_TEST_2026-11-14.md."
 }
 
 data "aws_region" "current" {}

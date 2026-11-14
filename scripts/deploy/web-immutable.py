@@ -21,7 +21,7 @@ What it does, in a built `build/web`:
      (fonts.gstatic.com)
 
 Stays at the root (asked again each time, small): index.html, spa.html,
-flutter_bootstrap.js, flutter.js, manifest.json, version.json, boot_*.js,
+flutter_bootstrap.js, flutter.js, manifest.json, version.json, boot_*.js, coi_sw.js,
 sqlite3.wasm / drift_worker.js (the database's files; Dart refers to them
 by name), icons/, pay.*, firebase-messaging-sw.js, passkeys_bundle.js.
 
@@ -42,6 +42,15 @@ def main() -> None:
     # the JS string it is written into.
     if font_base and not re.fullmatch(r"(/|https://[0-9A-Za-z.-]+/)[0-9A-Za-z._/-]*/", font_base):
         sys.exit(f"bad font base: {font_base!r}")
+    # Owner row 173 (2026-11-14), build flag WEB_SKWASM_THREADS (repository
+    # variable, web-deploy.yml): "auto" (default) = the loader's own choice,
+    # skwasm on a worker thread whenever the page is cross-origin isolated
+    # (admin switch web.cross_origin_isolation, coi_sw.js); "single" = always
+    # one thread, even on an isolated page (the loader's documented
+    # forceSingleThreadedSkwasm), a kill switch that needs only a redeploy.
+    threads = os.environ.get("WEB_SKWASM_THREADS", "auto") or "auto"
+    if threads not in ("auto", "single"):
+        sys.exit(f"bad WEB_SKWASM_THREADS: {threads!r} (auto or single)")
     vdir = os.path.join(root, "v", version)
     os.makedirs(vdir, exist_ok=True)
 
@@ -67,6 +76,7 @@ def main() -> None:
         f'canvasKitBaseUrl:"{prefix}/canvaskit",'
         f'assetBase:"{prefix}/"'
         + (f',fontFallbackBaseUrl:"{font_base}"' if font_base else "")
+        + (",forceSingleThreadedSkwasm:true" if threads == "single" else "")
         + "},"
     )
     if "_flutter.loader.load({" not in boot:

@@ -717,6 +717,16 @@ export const OWNER_WEB_SETTINGS = {
     'https://lawbid.dev',
     'https://www.lawbid.dev',
   ] as string[],
+  // Owner row 173 (2026-11-14): cross-origin isolation of the website, so
+  // the Flutter engine (skwasm) draws on a second thread. Off by default:
+  // under it a cross-origin frame without its own COEP (Cloudflare
+  // Turnstile, Stripe Elements) and a popup that talks back to its opener
+  // (Google / Apple sign-in popups) do not work — results in
+  // docs/dev/COOP_COEP_TEST_2026-11-14.md. On = the website's own service
+  // worker (apps/mobile/web/coi_sw.js) adds COOP `same-origin` + COEP
+  // `credentialless` to the app's pages from the next page load; off = the
+  // worker takes them away again and removes itself.
+  'web.cross_origin_isolation': false,
 };
 
 // Owner 2026-10-05 (automation principle, docs/AUTOMATION_PRINCIPLE.md):

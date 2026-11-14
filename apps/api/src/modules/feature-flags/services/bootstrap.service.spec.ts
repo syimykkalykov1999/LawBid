@@ -251,6 +251,24 @@ describe('BootstrapService.build app-side limits (feature reality 2026-11-08)', 
   });
 });
 
+describe('BootstrapService.build website cross-origin isolation (row 173)', () => {
+  it('always present: off until the admin stores a value', async () => {
+    const r = await build({ config: {} }).service.build();
+    expect(r.app_config['web.cross_origin_isolation']).toBe(false);
+  });
+
+  it('the admin value reaches the website; the other web.* keys stay private', async () => {
+    const r = await build({
+      config: {
+        'web.cross_origin_isolation': true,
+        'web.allowed_origins': ['https://lawbid.dev'],
+      },
+    }).service.build();
+    expect(r.app_config['web.cross_origin_isolation']).toBe(true);
+    expect(r.app_config['web.allowed_origins']).toBeUndefined();
+  });
+});
+
 describe('BootstrapService.build SMS consent wording (FR D-c2)', () => {
   it('never decided: only the version (its default); the app keeps its translated text', async () => {
     const r = await build({ config: {} }).service.build();
@@ -340,6 +358,8 @@ describe('BootstrapService.build', () => {
       'client.guest_browse_web_enabled': true,
       // D1-53: the days the biometric consent text names, always sent.
       'verification.face_match.retention_days': 30,
+      // Row 173: the website's cross-origin isolation, always sent (off).
+      'web.cross_origin_isolation': false,
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
       'client.video_prefetch_ahead': 3,
       'client.video_prefetch_cellular': 3,

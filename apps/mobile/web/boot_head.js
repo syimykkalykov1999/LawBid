@@ -184,3 +184,47 @@
     for (var i = 0; i < metas.length; i++) metas[i].setAttribute('content', t.bg);
   } catch (e) { /* no storage: the default colours stay */ }
 })();
+
+/* Owner row 173 (2026-11-14): cross-origin isolation behind the admin switch
+   `web.cross_origin_isolation` (off by default). The app keeps the admin's
+   last answer in shared_preferences (localStorage
+   "flutter.web_cross_origin_isolation", core/platform/web_isolation.dart)
+   and calls window.__lbCoi(on) as soon as a bootstrap brings a new one.
+   On: coi_sw.js is registered after the page has loaded and told "on" (the
+   next page loads are isolated, so skwasm draws on a worker thread). Off: the
+   worker is told "off" (the next page loads are not isolated) and is removed
+   only from a page that is not isolated itself (an isolated page still needs
+   it for the COEP of its own workers). docs/dev/COOP_COEP_TEST_2026-11-14.md. */
+(function () {
+  var sw = navigator.serviceWorker;
+  function mine(r) {
+    var w = r.active || r.waiting || r.installing;
+    try { return !!w && new URL(w.scriptURL).pathname === '/coi_sw.js'; } catch (e) { return false; }
+  }
+  function tell(r, on) {
+    var w = r.active || r.waiting || r.installing;
+    if (w) w.postMessage({ coi: on });
+  }
+  function apply(on) {
+    if (!sw || !window.isSecureContext) return;
+    if (on) {
+      sw.register('/coi_sw.js', { scope: '/', updateViaCache: 'none' })
+        .then(function (r) { tell(r, true); })
+        .catch(function () { /* blocked: stays single-threaded */ });
+      return;
+    }
+    sw.getRegistrations().then(function (rs) {
+      for (var i = 0; i < rs.length; i++) {
+        if (!mine(rs[i])) continue;
+        tell(rs[i], false);
+        if (!window.crossOriginIsolated) rs[i].unregister();
+      }
+    }).catch(function () { /* no access: nothing registered either */ });
+  }
+  window.__lbCoi = apply;
+  var on = false;
+  try { on = window.localStorage.getItem('flutter.web_cross_origin_isolation') === 'true'; } catch (e) { /* no storage: off */ }
+  if (!on) { apply(false); return; }
+  if (document.readyState === 'complete') apply(true);
+  else window.addEventListener('load', function () { apply(true); });
+})();

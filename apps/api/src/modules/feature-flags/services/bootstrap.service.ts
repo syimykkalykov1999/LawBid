@@ -170,6 +170,9 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // D1-53 (13.11): the biometric consent the attorney ticks names how long
   // the face-comparison result is kept; the app fills `{days}` from this.
   'verification.face_match.retention_days',
+  // Owner row 173 (2026-11-14): the website's cross-origin isolation switch
+  // (apps/mobile core/platform/web_isolation.dart keeps it for boot_head.js).
+  'web.cross_origin_isolation',
 ] as const;
 
 @Injectable()
@@ -564,6 +567,10 @@ export class BootstrapService {
         // D1-53: always present, so the consent never shows a stale number.
         'verification.face_match.retention_days':
           APP_SETTINGS['verification.face_match.retention_days'],
+        // Row 173: always present, so a website that once turned isolation
+        // on hears "off" after a fresh database too.
+        'web.cross_origin_isolation':
+          APP_SETTINGS['web.cross_origin_isolation'],
         ...Object.fromEntries(
           Object.entries(appConfig).filter(([k]) =>
             PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
