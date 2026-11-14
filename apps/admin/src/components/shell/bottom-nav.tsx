@@ -4,6 +4,7 @@ import { List } from '@phosphor-icons/react';
 import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { usePathname } from 'next/navigation';
 import type { Me } from '@/lib/hooks';
+import { NAV_TRANSITION_TYPES } from '@/lib/nav-transition';
 import { groupFor, groupsFor } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
 import { ICONS } from './icons';
@@ -14,7 +15,11 @@ const SLOTS = 4;
 
 /** Phone navigation (< lg): the first four sections the admin may open plus
  * «Ещё», which opens the full menu drawer. The active section is always
- * shown, swapped in for the last slot when it isn't among the first four. */
+ * shown, swapped in for the last slot when it isn't among the first four.
+ *
+ * Owner row 88 (2026-11-13): a tap dims the tab while the finger is down
+ * (`active:opacity-60`, the iOS tab-bar highlight), so the tap is answered
+ * before the next page arrives. Nothing changes at rest. */
 export function BottomNav({ me, onMore }: { me: Me | undefined; onMore: () => void }) {
   const pathname = usePathname();
   const counts = useNavCounts(me);
@@ -39,8 +44,9 @@ export function BottomNav({ me, onMore }: { me: Me | undefined; onMore: () => vo
           <Link
             key={g.key}
             href={g.items[0].href}
+            transitionTypes={NAV_TRANSITION_TYPES}
             className={cn(
-              'relative flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-[10.5px] transition-colors',
+              'relative flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-[10.5px] transition-colors active:opacity-60',
               isActive ? 'font-medium text-ink' : 'text-muted',
             )}
           >
@@ -57,7 +63,7 @@ export function BottomNav({ me, onMore }: { me: Me | undefined; onMore: () => vo
       <button
         type="button"
         onClick={onMore}
-        className="flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-[10.5px] text-muted"
+        className="flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-[10.5px] text-muted active:opacity-60"
       >
         <List size={22} weight="light" />
         <span>Ещё</span>

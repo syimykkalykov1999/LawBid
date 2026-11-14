@@ -6,6 +6,9 @@ import * as m from 'motion/react-m';
 import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEscapeLayer } from '@/lib/layers';
+import * as MOTION from '@/lib/motion-tokens';
+import { NAV_TRANSITION_TYPES } from '@/lib/nav-transition';
 import { cn } from '@/lib/utils';
 
 interface OverflowTab {
@@ -104,16 +107,12 @@ export function OverflowTabs({ items, active, label, className }: { items: Overf
       const t = e.target as Node;
       if (!menu.current?.contains(t) && !box.current?.contains(t)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
     window.addEventListener('mousedown', onDown);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('mousedown', onDown);
-      window.removeEventListener('keydown', onKey);
-    };
+    return () => window.removeEventListener('mousedown', onDown);
   }, [open]);
+  // Owner row 88 (2026-11-13): Esc closes only the top layer, so a menu
+  // inside a dialog closes alone (lib/layers.ts, Radix DismissableLayer rule).
+  useEscapeLayer(open, () => setOpen(false));
 
   const visible = shown ? items.filter((t) => shown.includes(t.href)) : items;
   const hidden = shown ? items.filter((t) => !shown.includes(t.href)) : [];
@@ -127,6 +126,7 @@ export function OverflowTabs({ items, active, label, className }: { items: Overf
         key={t.href}
         href={t.href}
         scroll={false}
+        transitionTypes={NAV_TRANSITION_TYPES}
         data-tab={ruler ? t.href : undefined}
         tabIndex={ruler ? -1 : undefined}
         aria-current={on && !ruler ? 'page' : undefined}
@@ -179,7 +179,7 @@ export function OverflowTabs({ items, active, label, className }: { items: Overf
             initial={{ opacity: 0, y: -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ duration: 0.12 }}
+            transition={MOTION.menu}
             className="absolute top-full right-0 z-30 mt-1.5 max-w-[calc(100vw-2rem)] min-w-56 overflow-hidden rounded-[var(--radius-md)] border border-line bg-surface p-1 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.45)]"
           >
             {hidden.map((t) => {
@@ -189,6 +189,7 @@ export function OverflowTabs({ items, active, label, className }: { items: Overf
                   key={t.href}
                   href={t.href}
                   scroll={false}
+                  transitionTypes={NAV_TRANSITION_TYPES}
                   role="menuitem"
                   onClick={() => setOpen(false)}
                   className="flex items-center gap-2.5 rounded-[8px] px-3 py-2 text-sm text-ink transition-colors hover:bg-surface-2"

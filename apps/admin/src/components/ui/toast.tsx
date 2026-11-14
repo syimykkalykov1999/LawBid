@@ -3,7 +3,7 @@
 import { CheckCircle, Info, WarningCircle, X } from '@phosphor-icons/react';
 import { AnimatePresence } from 'motion/react';
 import * as m from 'motion/react-m';
-import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { errorText } from '@/lib/api/client';
 
 type Kind = 'success' | 'error' | 'info';
@@ -34,8 +34,22 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const push = useCallback((kind: Kind, text: string) => {
     const id = ++seq;
     setItems((t) => [...t.slice(-3), { id, kind, text }]);
-    window.setTimeout(() => setItems((t) => t.filter((x) => x.id !== id)), kind === 'error' ? 7000 : 3800);
   }, []);
+  // Owner row 88 (2026-11-13), sonner (MIT): the countdown stops while the
+  // pointer is over the toasts, while a finger is on one, and while the tab
+  // is hidden, and goes on from where it stopped.
+  const [expanded, setExpanded] = useState(false);
+  const [interacting, setInteracting] = useState(false);
+  const hidden = useDocumentHidden();
+  const paused = expanded || interacting || hidden;
+  // A toast closed under the pointer never sends mouseleave (sonner resets the
+  // same way when the stack empties).
+  useEffect(() => {
+    if (items.length === 0) {
+      setExpanded(false);
+      setInteracting(false);
+    }
+  }, [items.length]);
   const close = useCallback((id: number) => setItems((t) => t.filter((x) => x.id !== id)), []);
   const swipe = useCallback((id: number) => {
     // First render the toast with its swipe exit, then remove it, so it leaves
@@ -53,7 +67,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       >
         <AnimatePresence initial={false}>
           {items.map((t) => (
-            <ToastItem key={t.id} t={t} onClose={() => close(t.id)} onSwipe={() => swipe(t.id)} />
+            <ToastItem
+              key={t.id}
+              t={t}
+              paused={paused}
+              onClose={() => close(t.id)}
+              onSwipe={() => swipe(t.id)}
+              onHover={setExpanded}
+              onInteract={setInteracting}
+            />
           ))}
         </AnimatePresence>
       </div>
@@ -61,12 +83,33 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ToastItem({ t, onClose, onSwipe }: { t: Toast; onClose: () => void; onSwipe: () => void }) {
+function ToastItem({
+  t,
+  paused,
+  onClose,
+  onSwipe,
+  onHover,
+  onInteract,
+}: {
+  t: Toast;
+  paused: boolean;
+  onClose: () => void;
+  onSwipe: () => void;
+  onHover: (on: boolean) => void;
+  onInteract: (on: boolean) => void;
+}) {
   const Icon = t.kind === 'success' ? CheckCircle : t.kind === 'error' ? WarningCircle : Info;
   const started = useRef(0);
+  useCountdown(t.kind === 'error' ? 7000 : 3800, paused, onClose);
   return (
     <m.div
       layout
+      onMouseEnter={() => onHover(true)}
+      onMouseMove={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
+      onPointerDown={() => onInteract(true)}
+      onPointerUp={() => onInteract(false)}
+      onPointerCancel={() => onInteract(false)}
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={{ left: 0.05, right: 1 }}
@@ -93,6 +136,53 @@ function ToastItem({ t, onClose, onSwipe }: { t: Toast; onClose: () => void; onS
         <X size={14} />
       </button>
     </m.div>
+  );
+}
+
+/**
+ * sonner's `startTimer` / `pauseTimer` (MIT, Copyright (c) 2023 Emil Kowalski;
+ * see THIRD_PARTY_NOTICES.md): on pause the elapsed time is taken off the
+ * remaining time, on resume a new timeout runs for what is left.
+ */
+function useCountdown(duration: number, paused: boolean, onDone: () => void) {
+  const remainingTime = useRef(duration);
+  const closeTimerStartTimeRef = useRef(0);
+  const lastCloseTimerStartTimeRef = useRef(0);
+  const done = useRef(onDone);
+  useEffect(() => {
+    done.current = onDone;
+  });
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    // Pause the timer on each hover
+    const pauseTimer = () => {
+      if (lastCloseTimerStartTimeRef.current < closeTimerStartTimeRef.current) {
+        // Get the elapsed time since the timer started
+        const elapsedTime = new Date().getTime() - closeTimerStartTimeRef.current;
+        remainingTime.current = remainingTime.current - elapsedTime;
+      }
+      lastCloseTimerStartTimeRef.current = new Date().getTime();
+    };
+    const startTimer = () => {
+      if (remainingTime.current === Infinity) return;
+      closeTimerStartTimeRef.current = new Date().getTime();
+      timeoutId = setTimeout(() => done.current(), remainingTime.current);
+    };
+    if (paused) pauseTimer();
+    else startTimer();
+    return () => clearTimeout(timeoutId);
+  }, [paused]);
+}
+
+/** sonner's useIsDocumentHidden. */
+function useDocumentHidden() {
+  return useSyncExternalStore(
+    (cb) => {
+      document.addEventListener('visibilitychange', cb);
+      return () => document.removeEventListener('visibilitychange', cb);
+    },
+    () => document.hidden,
+    () => false,
   );
 }
 
