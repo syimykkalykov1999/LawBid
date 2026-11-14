@@ -1,5 +1,8 @@
 // ignore_for_file: lines_longer_than_80_chars
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -68,9 +71,13 @@ class PasswordRepo extends RecordingAuthRepository {
   bool needsReauth = false;
   final List<String?> reauthTokens = [];
 
+  /// When set, a reset request waits for it (a slow network).
+  Completer<void>? requestHold;
+
   @override
   Future<PasswordAuthResult> requestPasswordReset(String identifier) async {
     resetRequests.add(identifier);
+    await requestHold?.future;
     return requestResult;
   }
 
@@ -559,6 +566,116 @@ void main() {
       expect(repo.resets, [
         (identifier: '+14155552680', code: '000000', password: 'Brand-new-1'),
       ]);
+    });
+
+    group('Detective R2-A batch F', () {
+      List<String> methods(WidgetTester tester) =>
+          [for (final c in tester.testTextInput.log) c.method];
+
+      testWidgets(
+          '#14: the login fields are one AutofillGroup; only a sign-in that '
+          'worked asks the password manager to save', (tester) async {
+        repo.loginResult = const PasswordAuthResult(
+          PasswordAuthStatus.invalidCredentials,
+        );
+        await open(tester, AuthRoutes.login);
+        expect(
+          find.ancestor(
+            of: find.byType(TextField).first,
+            matching: find.byType(AutofillGroup),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<AutofillGroup>(find.byType(AutofillGroup))
+              .onDisposeAction,
+          AutofillContextAction.cancel,
+        );
+        await tester.enterText(find.byType(TextField).first, 'a@b.co');
+        await tester.enterText(find.byType(TextField).last, 'wrong-pass');
+        await tester.pump();
+        await tester.tap(button('Log in'));
+        await tester.pumpAndSettle();
+        expect(
+          methods(tester),
+          isNot(contains('TextInput.finishAutofillContext')),
+        );
+
+        repo.loginResult = const PasswordAuthResult.success();
+        await tester.tap(button('Log in'));
+        await tester.pump();
+        expect(methods(tester), contains('TextInput.finishAutofillContext'));
+      });
+
+      testWidgets(
+          '#14: set password carries the phone as the hidden username and '
+          'saves on success', (tester) async {
+        final me = meFixture(
+          role: UserRole.client,
+          consents: true,
+          phone: '+15551234567',
+          phoneVerified: true,
+        );
+        await open(
+          tester,
+          AuthRoutes.setPassword,
+          overrides: [
+            currentUserControllerProvider.overrideWith(
+              () => FixedUserController(CurrentUserState.ready(me)),
+            ),
+          ],
+        );
+        final hidden = tester.widget<TextField>(
+          find.byKey(const ValueKey('autofill-username'), skipOffstage: false),
+        );
+        expect(hidden.controller!.text, '+15551234567');
+        expect(hidden.autofillHints, [AutofillHints.username]);
+        await tester.enterText(find.byType(TextField), '12345678');
+        await tester.pump();
+        await tester.tap(button('Continue'));
+        await tester.pump();
+        expect(methods(tester), contains('TextInput.finishAutofillContext'));
+      });
+
+      testWidgets(
+          '#17: «Go» twice while the code is being sent sends one SMS; '
+          'Resend counts down first', (tester) async {
+        repo.requestHold = Completer<void>();
+        await open(tester, AuthRoutes.forgotPassword, extra: '(415) 555-2680');
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.pump();
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.pump();
+        repo.requestHold!.complete();
+        await tester.pumpAndSettle();
+        expect(repo.resetRequests, ['+14155552680']);
+
+        // The code step: the hidden username is the number, and Resend
+        // waits the admin's time (default 60 s) before it can be tapped.
+        expect(
+          tester
+              .widget<TextField>(
+                find.byKey(
+                  const ValueKey('autofill-username'),
+                  skipOffstage: false,
+                ),
+              )
+              .controller!
+              .text,
+          '+14155552680',
+        );
+        expect(find.byKey(const ValueKey('resend-countdown')), findsOneWidget);
+        expect(find.text('Resend in 1:00'), findsOneWidget);
+        expect(find.byKey(const ValueKey('resend-link')), findsNothing);
+        await tester.pump(const Duration(seconds: 61));
+        expect(find.byKey(const ValueKey('resend-link')), findsOneWidget);
+        repo.requestHold = null;
+        await tester.tap(find.byKey(const ValueKey('resend-link')));
+        await tester.pumpAndSettle();
+        expect(repo.resetRequests, ['+14155552680', '+14155552680']);
+        expect(find.byKey(const ValueKey('resend-countdown')), findsOneWidget);
+      });
     });
 
     testWidgets('forgot password: an e-mail is refused, nothing is sent', (
