@@ -95,7 +95,7 @@ describe('biometric policy in the privacy texts', () => {
     };
   }
 
-  it('appends the section to the owner’s published text once, as a new version', async () => {
+  it('prepares the section once as a DRAFT of the next version; the current text stays current, nothing is published', async () => {
     const { seed, prisma, bootstrap } = seedWith({
       en: [
         {
@@ -126,16 +126,15 @@ describe('biometric policy in the privacy texts', () => {
     expect(data).toMatchObject({
       doc_type: 'privacy',
       locale: 'en',
-      status: 'published',
-      is_current: true,
+      status: 'draft',
+      is_current: false,
       requires_reacceptance: false,
     });
+    expect(data).not.toHaveProperty('published_at');
     expect(String(data.change_note)).toContain(BIOMETRIC_TAG);
-    expect(prisma.legalDocument.update).toHaveBeenCalledWith({
-      where: { id: 'p1' },
-      data: { is_current: false, status: 'archived' },
-    });
-    expect(bootstrap.invalidate).toHaveBeenCalled();
+    // The owner's current text is left as it is (publishing is his).
+    expect(prisma.legalDocument.update).not.toHaveBeenCalled();
+    expect(bootstrap.invalidate).not.toHaveBeenCalled();
   });
 
   it('never twice, and never over a text that already has the section', async () => {

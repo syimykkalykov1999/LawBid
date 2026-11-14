@@ -124,12 +124,13 @@ export class LegalDocumentsSeed implements OnModuleInit {
    * D1-50 (13.11): Illinois BIPA asks for a PUBLIC written retention and
    * destruction schedule before any biometric data is collected. Where the
    * CURRENT published privacy text of a language has no "Biometric
-   * information" section, publish it once as the next version: the owner's
-   * text unchanged, with the shipped section (apps/api/assets/legal/
-   * privacy.<locale>.md) appended. Additive only: nothing of the owner's text
-   * is removed, no re-acceptance is asked, a language with no published
-   * text is left to the owner, and the tag stops any second run (also after
-   * the owner edits or removes the section). Lines in [brackets] (facts the
+   * information" section, prepare it once as a DRAFT of the next version:
+   * the owner's text unchanged, with the shipped section (apps/api/assets/
+   * legal/privacy.<locale>.md) appended. Nothing is published by itself
+   * (public legal text, owner review and a US attorney first): the owner
+   * publishes the draft in admin → Legal. The current text stays current, a
+   * language with no published text is left to the owner, and the tag stops
+   * any second run (also after the owner edits or deletes the draft). Lines in [brackets] (facts the
    * owner still has to confirm) are left out. The periods stay `{{…}}` and
    * are filled from the admin settings on every read.
    */
@@ -164,33 +165,25 @@ export class LegalDocumentsSeed implements OnModuleInit {
         .map((l) => l.replace(/\s*\[[^\]]*\]/g, ''))
         .join('\n');
       const now = new Date();
-      await this.prisma.$transaction([
-        this.prisma.legalDocument.update({
-          where: { id: current.id },
-          data: { is_current: false, status: 'archived' },
-        }),
-        this.prisma.legalDocument.create({
-          data: {
-            doc_type: 'privacy',
-            locale,
-            version: nextVersion(
-              now,
-              rows.map((r) => r.version),
-            ),
-            content_md: `${(current.content_md ?? '').trimEnd()}\n\n${addition}\n`,
-            status: 'published',
-            is_current: true,
-            published_at: now,
-            requires_reacceptance: false,
-            change_note: `${BIOMETRIC_TAG} Добавлен раздел о биометрических данных (BIPA 740 ILCS 14/15(a)); сроки берутся из настроек админки; проверить юристом США`,
-          },
-        }),
-      ]);
+      await this.prisma.legalDocument.create({
+        data: {
+          doc_type: 'privacy',
+          locale,
+          version: nextVersion(
+            now,
+            rows.map((r) => r.version),
+          ),
+          content_md: `${(current.content_md ?? '').trimEnd()}\n\n${addition}\n`,
+          status: 'draft',
+          is_current: false,
+          requires_reacceptance: false,
+          change_note: `${BIOMETRIC_TAG} Черновик: раздел о биометрических данных (BIPA 740 ILCS 14/15(a)); сроки берутся из настроек админки; проверить юристом США и опубликовать в админке`,
+        },
+      });
       published += 1;
     }
     if (published > 0) {
-      this.log.log(`privacy: biometric section published (${published})`);
-      await this.bootstrap?.invalidate();
+      this.log.log(`privacy: biometric section drafted (${published})`);
     }
     return published;
   }
