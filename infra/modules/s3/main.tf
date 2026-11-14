@@ -205,6 +205,22 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents" {
     noncurrent_version_expiration { noncurrent_days = 90 }
     abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
+  # Owner 2026-11-13 (row 52): attorney verification selfies and ID
+  # pictures are deleted right after the decision (API
+  # VerificationMediaPurgeService); their old versions go a day later, not
+  # after 90 days. Where rules overlap S3 applies the shorter one.
+  rule {
+    id     = "verification-selfie-old-versions"
+    status = "Enabled"
+    filter { prefix = "verification_selfie/" }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+  }
+  rule {
+    id     = "verification-document-old-versions"
+    status = "Enabled"
+    filter { prefix = "verification_document/" }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+  }
   # Cleanup: a delete marker whose old versions are all gone is just clutter.
   rule {
     id     = "orphan-delete-markers"
@@ -362,6 +378,26 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents_replica" {
     filter { prefix = "" }
     noncurrent_version_expiration { noncurrent_days = 90 }
     abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+  # Owner 2026-11-13 (row 52): delete markers are not replicated (S4-5), so
+  # a verification picture deleted after the decision would stay current in
+  # the replica for ever. Its replica copy expires 30 days after upload (the
+  # primary deletes it at the decision; a request still open longer only
+  # loses its disaster-recovery copy), and the expired version goes a day
+  # later.
+  rule {
+    id     = "verification-selfie-expire"
+    status = "Enabled"
+    filter { prefix = "verification_selfie/" }
+    expiration { days = 30 }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+  }
+  rule {
+    id     = "verification-document-expire"
+    status = "Enabled"
+    filter { prefix = "verification_document/" }
+    expiration { days = 30 }
+    noncurrent_version_expiration { noncurrent_days = 1 }
   }
   rule {
     id     = "orphan-delete-markers"

@@ -49,7 +49,7 @@ Future<SubscribeOutcome> payForPlan(
 
   Future<bool> askChargeNow(int cents) async {
     final price = formats.currencyFromCents(cents);
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
         backgroundColor: colors.sheet,

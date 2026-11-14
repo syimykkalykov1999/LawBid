@@ -494,6 +494,12 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
    * (approved / rejected), then deleted by privacy.retention. The legal
    * texts state no period yet: 30 until the owner's lawyer sets one. */
   'verification.face_match.retention_days': 30,
+  /** Owner 2026-11-13 (row 52): the selfie and ID / licence pictures of a
+   * request go right after the final decision (VerificationMediaPurgeService);
+   * a request the attorney left unfinished (draft / needs_more_info) loses
+   * them after this many days without activity. 15 = Persona's longest
+   * recommended inquiry life; 0 = only after a decision. */
+  'verification.media.abandoned_days': 15,
   // Owner 2026-11-12 (row 60): «Автоматическое решение по адвокатам»
   // (verification-auto-decision.service.ts, the Persona / Onfido / Stripe
   // Identity pattern: approve / decline / review). Off (default) = nothing

@@ -1,12 +1,22 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
+
+/// Whether Android's predictive back moves the page (tests switch it on
+/// for any platform).
+@visibleForTesting
+bool? debugPredictiveBack;
+
+bool get predictiveBackOn =>
+    debugPredictiveBack ??
+    (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
 
 /// Owner 2026-10-22: the Android SYSTEM back (hardware key, the gesture and
 /// the gesture bar all reach Dart as `popRoute`) must always go to the
@@ -62,6 +72,20 @@ class _SystemBackGuardState extends State<SystemBackGuard>
     with WidgetsBindingObserver {
   DateTime? _hintAt;
 
+  /// Owner row 88 (2026-11-13): Android's predictive back. While the edge
+  /// swipe of the system back is held, the page on top follows it like
+  /// the iPhone swipe and the one under it shows; let go, it closes, or it
+  /// slides back. Copied from Flutter's `_PredictiveBackGestureDetector`
+  /// (`material/predictive_back_page_transitions_builder.dart`, BSD-3):
+  /// only a page whose back is not held by a `PopScope`
+  /// (`popGestureEnabled`), never for the button, progress `1 - event`.
+  /// We pick that ONE page ourselves (the top page above the tabs, else
+  /// the page of the tab on screen): Flutter's detector would also move
+  /// the top pages of the hidden tabs. Anything else (a dialog, a sheet,
+  /// a tab root, «press again to leave») is not taken here, so the
+  /// release still comes to [didPopRoute] below as before.
+  TransitionRoute<Object?>? _backRoute;
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +99,80 @@ class _SystemBackGuardState extends State<SystemBackGuard>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  bool handleStartBackGesture(PredictiveBackEvent backEvent) {
+    _backRoute = null;
+    if (!predictiveBackOn || backEvent.isButtonEvent) return false;
+    final route = _pageToSwipe();
+    if (route == null) return false;
+    _backRoute = route;
+    route.handleStartBackGesture(progress: 1 - backEvent.progress);
+    return true;
+  }
+
+  @override
+  void handleUpdateBackGestureProgress(PredictiveBackEvent backEvent) =>
+      _backRoute?.handleUpdateBackGestureProgress(
+        progress: 1 - backEvent.progress,
+      );
+
+  @override
+  void handleCancelBackGesture() {
+    _backRoute?.handleCancelBackGesture();
+    _backRoute = null;
+  }
+
+  @override
+  void handleCommitBackGesture() {
+    _backRoute?.handleCommitBackGesture();
+    _backRoute = null;
+  }
+
+  /// The page the back swipe moves: the top route of the root navigator
+  /// when something stands above the tabs, else of the deepest navigator
+  /// on screen that can go back — only when it is a page that may close.
+  TransitionRoute<Object?>? _pageToSwipe() {
+    final root = widget.rootNavigatorKey.currentState;
+    NavigatorState? nav;
+    if (root != null && root.canPop()) {
+      nav = root;
+    } else {
+      final start = widget.rootNavigatorKey.currentContext;
+      if (start == null) return null;
+      final found = <NavigatorState>[];
+      void visit(Element e) {
+        final w = e.widget;
+        if (w is Offstage && w.offstage) return;
+        if (e is StatefulElement && e.state is NavigatorState) {
+          found.add(e.state as NavigatorState);
+        }
+        e.visitChildren(visit);
+      }
+
+      (start as Element).visitChildren(visit);
+      for (final n in found.reversed) {
+        if (n.mounted && n.canPop()) {
+          nav = n;
+          break;
+        }
+      }
+    }
+    if (nav == null) return null;
+    Route<Object?>? top;
+    // The top route, without popping anything.
+    nav.popUntil((r) {
+      top ??= r;
+      return true;
+    });
+    final route = top;
+    if (route is! PageRoute<Object?> ||
+        !route.isCurrent ||
+        !route.popGestureEnabled) {
+      return null;
+    }
+    return route;
   }
 
   @override

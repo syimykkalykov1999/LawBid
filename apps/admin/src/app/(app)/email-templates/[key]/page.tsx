@@ -368,15 +368,21 @@ export default function EmailTemplateEditorPage() {
                 </span>
                 <CaretDown size={16} className={cn('text-faint transition-transform duration-300', showDefault && 'rotate-180')} />
               </button>
-              <AnimatePresence initial={false}>
-                {showDefault ? (
-                  <m.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                    className="overflow-hidden"
-                  >
+              {/* Owner row 88 (2026-11-13): opens without animating `height`
+                  (that re-measured the text every frame): one CSS transition
+                  of the grid row 0fr → 1fr (the CSS-Tricks / Chrome
+                  «animate to height: auto» grid recipe), same 0.35 s and curve.
+                  Closed, the text stays in the page but is `inert` (no focus,
+                  no screen reader). Reduced motion: instant (globals.css). */}
+              <div
+                className={cn(
+                  'grid transition-[grid-template-rows,opacity] duration-[350ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
+                  showDefault ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+                )}
+                inert={!showDefault}
+                data-testid="default-letter"
+              >
+                <div className="min-h-0 overflow-hidden">
                     <div className="space-y-3 border-t border-line px-5 py-4">
                       <div className="text-sm">
                         <span className="text-faint">Тема: </span>
@@ -393,9 +399,8 @@ export default function EmailTemplateEditorPage() {
                         <CopySimple size={15} weight="light" /> Взять стандартный за основу
                       </Button>
                     </div>
-                  </m.div>
-                ) : null}
-              </AnimatePresence>
+                </div>
+              </div>
             </Card>
           ) : null}
         </div>
