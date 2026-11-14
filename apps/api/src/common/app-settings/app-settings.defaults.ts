@@ -1174,6 +1174,20 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'chat.delete_for_all_hours': 48,
   /** Pinned messages per chat. Owner 2026-11-09: 10 (Telegram pins
    * without a cap, WhatsApp stops at 3; the owner wants ten everywhere). */
+  /** Detective R2 (14.11, rule 11): limits that were numbers in the code.
+   * Wrong OTP guesses at one phone/e-mail from all sources in 24 h before
+   * every wrong guess burns the code (0 = no cap). */
+  'auth.otp_global_failure_cap': 20,
+  /** R2B-9: a Google ID token issued longer ago than this many seconds is
+   * refused (0 = no check). */
+  'auth.social_token_max_age_sec': 600,
+  /** R2B-7: a Persona webhook signed more than this many seconds from now
+   * is refused (0 = no check). */
+  'verification.persona_webhook_tolerance_sec': 300,
+  /** R2B-8: the stored onboarding answers of one account, KB (0 = no cap). */
+  'users.onboarding_data_max_kb': 64,
+  /** Saved messages one person keeps (0 = no cap). */
+  'chat.saved_max': 5000,
   'chat.max_pins': 10,
   /** Owner 2026-10-22: link cards under messages. Kill switch + domains
    * (and their subdomains) that are never fetched. */
