@@ -27,6 +27,14 @@ import 'package:lawbid/features/calls/presentation/call_host.dart';
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
 import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
 
+/// Perf batch 4 (row 127): today's network use is counted from the start,
+/// kept alive with `listen`, not `watch` — the counter ticks on every
+/// response, and a watch rebuilt the whole root (MaterialApp and its
+/// wrappers) 10–40 times per screen open (Riverpod «Reading providers»:
+/// `listen` keeps a provider alive without rebuilding the widget).
+void keepNetworkUsageCounted(WidgetRef ref) =>
+    ref.listen(networkUsageTodayProvider, (_, __) {});
+
 class LawBidApp extends ConsumerWidget {
   const LawBidApp({super.key});
 
@@ -43,8 +51,8 @@ class LawBidApp extends ConsumerWidget {
     // once a day, and today's network use is counted from the start.
     ref
       ..watch(cacheEnforcerProvider)
-      ..watch(accountFilesGuardProvider)
-      ..watch(networkUsageTodayProvider);
+      ..watch(accountFilesGuardProvider);
+    keepNetworkUsageCounted(ref);
     // Owner 2026-10-13: Day, Night, Blue or Green; never chosen = Day or
     // Night by the phone.
     final chosen = ref.watch(appThemeControllerProvider);

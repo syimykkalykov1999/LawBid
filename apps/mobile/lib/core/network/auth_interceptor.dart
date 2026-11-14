@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
@@ -29,9 +30,48 @@ class AuthInterceptor extends Interceptor {
   bool _signingOut = false;
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    final session = _ref.read(sessionControllerProvider);
+  Future<void> onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    final initial = _ref.read(sessionControllerProvider);
     final skipAuth = options.extra[RequestFlags.skipAuth] == true;
+    if (!skipAuth && initial != null && initial.awaitsRefresh) {
+      // Perf batch 4 (row 127): the session was opened from the phone's copy
+      // and its token refresh is still on the way.
+      if (readingFromPhoneOnly) {
+        // A first-screen copy never leaves the phone: no token needed, only
+        // whose copy it is.
+        options.extra[kCacheSubjectExtra] = initial.sub;
+        if (initial.isDemo) options.headers[RequestFlags.demoHeader] = '1';
+        handler.next(options);
+        return;
+      }
+      // «Refresh before request»: wait for the token (single-flight with the
+      // background refresh), then go as usual.
+      try {
+        await _ref
+            .read(sessionControllerProvider.notifier)
+            .accessTokenForRequest();
+      } on Object catch (e) {
+        if (_ref.read(sessionControllerProvider)?.awaitsRefresh ?? false) {
+          // No network or a busy server: the session stays, this request
+          // fails as a network failure (offline banner, the phone's copies).
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              type: DioExceptionType.connectionError,
+              error: e,
+              message: 'token refresh pending: $e',
+            ),
+            true,
+          );
+          return;
+        }
+      }
+    }
+    // Read again: the refresh above may have replaced (or ended) it.
+    final session = _ref.read(sessionControllerProvider);
     if (!skipAuth && session != null) {
       options.headers['Authorization'] = 'Bearer ${session.accessToken}';
     } else if (!skipAuth) {
@@ -96,12 +136,11 @@ class AuthInterceptor extends Interceptor {
       // call already refreshed): just retry with the current token.
       final current = _ref.read(sessionControllerProvider)?.accessToken;
       final sentWith = err.requestOptions.headers['Authorization'];
-      final newAccessToken =
-          current != null && sentWith != 'Bearer $current'
-              ? current
-              : await _ref
-                  .read(sessionControllerProvider.notifier)
-                  .refreshAccessToken();
+      final newAccessToken = current != null && sentWith != 'Bearer $current'
+          ? current
+          : await _ref
+              .read(sessionControllerProvider.notifier)
+              .refreshAccessToken();
       final retryOptions = err.requestOptions
         ..headers['Authorization'] = 'Bearer $newAccessToken'
         ..extra = {...err.requestOptions.extra, 'retriedAfterRefresh': true};

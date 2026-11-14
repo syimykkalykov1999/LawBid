@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/memory_pressure.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
@@ -297,6 +298,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
       // No provider scope (a bare widget test): no call.
     }
     if ((widget.active || widget.warm) && !widget.deferOpen) _open();
+    MemoryPressure.signal.addListener(_onMemoryPressure);
     // The cover is drawn only for a video that cannot play (see build);
     // then it is on screen at once (it is cached by the list).
     final thumb = widget.video.thumbnailUrl;
@@ -635,8 +637,21 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     }
   }
 
+  /// Perf batch 4 (row 127): the phone is short of memory — a player warmed
+  /// for a neighbour (not on screen) closes like one scrolled away and
+  /// re-opens at the same spot when it is needed.
+  void _onMemoryPressure() {
+    final c = _c;
+    if (!mounted || widget.active || c == null) return;
+    final at = c.value.isInitialized ? c.value.position : null;
+    _close();
+    _resumeAt = at;
+    setState(() {});
+  }
+
   @override
   void dispose() {
+    MemoryPressure.signal.removeListener(_onMemoryPressure);
     _release?.cancel();
     _callSub?.close();
     _close();
