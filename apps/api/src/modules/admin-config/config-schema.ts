@@ -1589,6 +1589,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 50,
     max: 100,
   };
+  // Owner row 42: the bitrate ladder of the phone's video re-encode; the
+  // app keeps the same bounds (core/media/video_compression.dart).
+  for (const h of [1080, 720, 540]) {
+    const key = `media.video_bitrate_${h}_kbps`;
+    out[key] = {
+      ...out[key],
+      description: `Target video bitrate (kbit/s at 30 fps) of a ${h}p re-encode on the phone; never above the source.`,
+      min: 300,
+      max: 50000,
+    };
+  }
   for (const platform of ['ios', 'android']) {
     // The "Update" button of the forced / soft update screen. Needed for
     // iOS before the first release: the App Store id exists only after the
