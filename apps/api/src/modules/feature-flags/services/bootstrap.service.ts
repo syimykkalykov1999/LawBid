@@ -415,8 +415,8 @@ export class BootstrapService {
    * - inputs the version does not cover (a saved integration key, the
    *   Bunny usage level) were already bounded by the 5-minute bucket of the
    *   ETag (a client 304s that long); the copy lives at most as long;
-   * - a translation edit (bumps the bundle version, not the config one):
-   *   `translations_version` is overlaid live on every answer as before.
+   * - languages, legal documents and translation versions (their own
+   *   cache, dropped without a config bump): taken live on every answer.
    */
   async buildFor(tag: string): Promise<BootstrapResponse> {
     const ttlMs = (await this.memoSeconds()) * 1000;
@@ -443,12 +443,24 @@ export class BootstrapService {
       });
       this.memo = { tag, at: Date.now(), value: base };
     }
+    // Languages, legal documents and bundle versions have their own cache
+    // (BOOTSTRAP_CACHE_KEY, dropped by [invalidate] and by an i18n import
+    // that sets only the bundle version key): always taken live, so this
+    // copy never serves them older than before (e2e «GET /config/bootstrap
+    // caching»). Only flags / app_config / client are reused.
+    const content = await this.getContent();
     return {
       ...base,
+      languages: content.languages,
       translations_version: await this.overlayImportedVersions(
-        base.translations_version,
-        base.languages.map((l) => l.code),
+        content.translations_version,
+        content.languages.map((l) => l.code),
       ),
+      legal_documents: content.legal_documents.map((doc) => ({
+        ...doc,
+        published_at:
+          doc.published_at === null ? null : new Date(doc.published_at),
+      })),
     };
   }
 

@@ -1,5 +1,6 @@
 import {
   BOOTSTRAP_BODY_KEY_PREFIX,
+  BOOTSTRAP_CACHE_KEY,
   BootstrapService,
 } from './bootstrap.service';
 
@@ -62,10 +63,26 @@ function make(redis = new MemoryRedis(), memoSec?: number) {
     undefined,
     settings as never,
   );
-  return { service, flags, appConfig, redis };
+  return { service, flags, appConfig, redis, prisma };
 }
 
 describe('BootstrapService.buildFor (perf batch 2)', () => {
+  it('languages, legal documents and bundle versions stay live under the same tag (e2e «GET /config/bootstrap caching»)', async () => {
+    const { service, redis, prisma } = make();
+    await service.buildFor('W/"boot-7-1"');
+    // a new language after the content cache is dropped (admin / invalidate)
+    prisma.i18nLanguage.findMany.mockResolvedValue([
+      EN,
+      { code: 'zz', name_native: 'Zed', is_active: true, sort: 99 },
+    ]);
+    await redis.del(BOOTSTRAP_CACHE_KEY);
+    // an i18n import sets only the bundle version key
+    redis.store.set('i18n:bundle:version:zz', '7');
+    const b = await service.buildFor('W/"boot-7-1"');
+    expect(b.languages.map((l) => l.code)).toEqual(['en', 'zz']);
+    expect(b.translations_version.zz).toBe(7);
+  });
+
   it('builds once per tag, with fresh flag/config reads, and again for a new tag', async () => {
     const { service, flags, appConfig } = make();
     const a = await service.buildFor('W/"boot-7-1"');
