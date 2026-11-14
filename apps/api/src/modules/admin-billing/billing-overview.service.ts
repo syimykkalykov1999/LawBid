@@ -27,6 +27,7 @@ import {
   usersById,
 } from './admin-billing.util';
 import { LIVE_REFUND_STATUSES } from './refunds.service';
+import { payingMonthlyRevenueCents } from '../../common/subscription-metrics';
 
 const DAY = 86_400_000;
 export const BILLING_OVERVIEW_SUMMARY_KEY = 'billing-overview';
@@ -40,18 +41,6 @@ export function monthlyEquivalentCents(plan: string, seats: number): number {
   return plan === 'yearly'
     ? YEARLY_PRICE_CENTS / 12
     : SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS;
-}
-
-/** MRR over (status, plan, seats) groups; trialing and others are $0. */
-export function computeMrrCents(
-  groups: { status: string; plan: string; seats: number; count: number }[],
-): number {
-  let total = 0;
-  for (const g of groups) {
-    if (!(MRR_STATUSES as readonly string[]).includes(g.status)) continue;
-    total += monthlyEquivalentCents(g.plan, g.seats) * g.count;
-  }
-  return Math.round(total);
 }
 
 /** Owner 2026-10-02: the admin's billing dashboard and subscriptions list. */
@@ -88,39 +77,41 @@ export class BillingOverviewService {
   private async computeOverview(): Promise<BillingOverviewDto> {
     const now = new Date();
     const d30 = new Date(now.getTime() - 30 * DAY);
-    const [groups, grants, gross, refunds, redemptions] = await Promise.all([
-      this.prisma.subscription.groupBy({
-        by: ['status', 'plan', 'assistant_seats'],
-        where: { status: { in: ['trialing', 'active', 'past_due'] } },
-        _count: { _all: true },
-      }),
-      this.prisma.contractGrant.count({
-        where: {
-          revoked_at: null,
-          starts_at: { lte: now },
-          ends_at: { gt: now },
-        },
-      }),
-      this.prisma.payment.aggregate({
-        // A refunded payment was still paid; its refunds are subtracted.
-        where: {
-          status: { in: ['succeeded', 'refunded'] },
-          paid_at: { gte: d30 },
-        },
-        _sum: { amount_cents: true },
-      }),
-      this.prisma.refund.aggregate({
-        where: {
-          status: { in: LIVE_REFUND_STATUSES },
-          created_at: { gte: d30 },
-        },
-        _sum: { amount_cents: true },
-        _count: { _all: true },
-      }),
-      this.prisma.promoRedemption.count({
-        where: { created_at: { gte: d30 } },
-      }),
-    ]);
+    const [groups, mrrCents, grants, gross, refunds, redemptions] =
+      await Promise.all([
+        this.prisma.subscription.groupBy({
+          by: ['status', 'plan', 'assistant_seats'],
+          where: { status: { in: ['trialing', 'active', 'past_due'] } },
+          _count: { _all: true },
+        }),
+        payingMonthlyRevenueCents(this.prisma, now),
+        this.prisma.contractGrant.count({
+          where: {
+            revoked_at: null,
+            starts_at: { lte: now },
+            ends_at: { gt: now },
+          },
+        }),
+        this.prisma.payment.aggregate({
+          // A refunded payment was still paid; its refunds are subtracted.
+          where: {
+            status: { in: ['succeeded', 'refunded'] },
+            paid_at: { gte: d30 },
+          },
+          _sum: { amount_cents: true },
+        }),
+        this.prisma.refund.aggregate({
+          where: {
+            status: { in: LIVE_REFUND_STATUSES },
+            created_at: { gte: d30 },
+          },
+          _sum: { amount_cents: true },
+          _count: { _all: true },
+        }),
+        this.prisma.promoRedemption.count({
+          where: { created_at: { gte: d30 } },
+        }),
+      ]);
     const rows = groups.map((g) => ({
       status: g.status,
       plan: g.plan,
@@ -134,7 +125,7 @@ export class BillingOverviewService {
     const grossCents = gross._sum.amount_cents ?? 0;
     const refundCents = refunds._sum.amount_cents ?? 0;
     return {
-      mrrCents: computeMrrCents(rows),
+      mrrCents,
       subscriptions: {
         active: count((r) => r.status === 'active'),
         trialing: count((r) => r.status === 'trialing'),
