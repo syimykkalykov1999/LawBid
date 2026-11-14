@@ -8,13 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/empty';
-import { Input, Label, Textarea } from '@/components/ui/input';
+import { Input, Label, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import { formatDateTime } from '@/lib/utils';
 import {
   asReport,
   formatMetric,
+  hashVersionLabel,
   parseVariantWeights,
   statusLabel,
   SURFACE_WEIGHTS,
@@ -152,7 +153,7 @@ function ExperimentCard({
             {e.stoppedBySystem ? <Badge tone="warning">остановлен защитой</Badge> : null}
           </div>
           <p className="mt-1 break-words text-xs text-faint">
-            ключ <code>{e.key}</code> · где: {e.surface} · варианты: {e.variants.map((v) => `${v.key} ${v.weight}%${v.weights && Object.keys(v.weights).length ? ` (${Object.entries(v.weights).map(([k, w]) => `${k}=${w}`).join(', ')})` : ''}`).join(', ')}
+            ключ <code>{e.key}</code> · где: {e.surface} · деление: {hashVersionLabel(e.hashVersion ?? 1, true)} · варианты: {e.variants.map((v) => `${v.key} ${v.weight}%${v.weights && Object.keys(v.weights).length ? ` (${Object.entries(v.weights).map(([k, w]) => `${k}=${w}`).join(', ')})` : ''}`).join(', ')}
           </p>
           {e.hypothesis ? <p className="mt-1.5 text-sm text-muted">{e.hypothesis}</p> : null}
           {e.stopReason ? <p className="mt-1.5 text-sm text-muted">Причина остановки: {e.stopReason}</p> : null}
@@ -304,6 +305,8 @@ function CreateDialog({
   const newWeights = 'weights' in parsedWeights ? parsedWeights.weights : {};
   const [reportsPct, setReportsPct] = useState(25);
   const [errorsPct, setErrorsPct] = useState(25);
+  // Owner row 150: new tests use GrowthBook hash v2; v1 stays for old ones.
+  const [hashVersion, setHashVersion] = useState<1 | 2>(2);
 
   const create = useMutation({
     mutationFn: async () =>
@@ -321,6 +324,7 @@ function CreateDialog({
                 : { key: variantKey, weight: newWeight },
             ],
             guardrails: { reportsRelIncreasePct: reportsPct, errorsRelIncreasePct: errorsPct },
+            hashVersion,
           },
         })
       ).data,
@@ -378,6 +382,14 @@ function CreateDialog({
             <Label>Остановить, если ошибок больше на, %</Label>
             <Input type="number" min={1} max={500} value={errorsPct} onChange={(e) => setErrorsPct(Number(e.target.value))} />
           </div>
+        </div>
+        <div>
+          <Label>Как делить людей</Label>
+          <Select value={hashVersion} onChange={(e) => setHashVersion(Number(e.target.value) === 1 ? 1 : 2)}>
+            <option value={2}>{hashVersionLabel(2)}</option>
+            <option value={1}>{hashVersionLabel(1)}</option>
+          </Select>
+          <p className="mt-1 text-xs text-faint">Выбирается один раз: у идущего теста не меняется, чтобы никого не перекинуло.</p>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>

@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
@@ -128,6 +129,19 @@ export class CreateExperimentDto {
   @IsOptional()
   @IsDateString()
   endAt?: string;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 2,
+    default: 2,
+    description:
+      'Bucketing hash: 2 = GrowthBook hash v2 (unbiased, independent between tests; default), 1 = the original FNV-1a. Fixed for the life of the test.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsIn([1, 2])
+  hashVersion?: number;
 }
 
 export class StartExperimentDto {
@@ -180,6 +194,13 @@ export class ExperimentDto {
   @ApiProperty({ type: [ExperimentVariantDto] })
   variants!: ExperimentVariantDto[];
   @ApiProperty({ type: 'integer' }) trafficPercent!: number;
+  @ApiProperty({
+    type: 'integer',
+    minimum: 1,
+    maximum: 2,
+    description: '1 = original FNV-1a, 2 = GrowthBook hash v2.',
+  })
+  hashVersion!: number;
   @ApiProperty({ type: ExperimentGuardrailsDto })
   guardrails!: ExperimentGuardrailsDto;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })

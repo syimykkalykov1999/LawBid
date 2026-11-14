@@ -282,7 +282,9 @@ describe('Recommendations + experiments wiring (e2e)', () => {
     let inControl: { id: string; auth: Record<string, string> } | null = null;
     for (let i = 0; i < 30 && (!inNew || !inControl); i++) {
       const a = await attorney();
-      const v = assignVariant(a.id, key, variants, 100);
+      // A new test is bucketed with hash v2 (owner row 150): predict the
+      // same way the server assigns.
+      const v = assignVariant(a.id, key, variants, 100, 2);
       if (v === 'urgent_first' && !inNew) inNew = a;
       if (v === 'control' && !inControl) inControl = a;
     }
@@ -298,6 +300,7 @@ describe('Recommendations + experiments wiring (e2e)', () => {
           { ...variants[1], weights: { budget: 0, urgency: 1 } },
         ],
         traffic_percent: 100,
+        hash_version: 2,
         guardrails: {},
         started_at: new Date(Date.now() - 1000),
       },

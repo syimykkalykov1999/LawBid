@@ -7,10 +7,12 @@ import Link from 'next/link';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
+import { Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { hashVersionLabel } from '@/lib/experiments';
 import { optimistic, patchRow } from '@/lib/optimistic';
 import {
   REELS_CLIENT_FLAG,
@@ -326,6 +328,8 @@ type Flag = {
   key: string;
   enabled: boolean;
   rolloutPercent: number;
+  /** Bucketing hash of a partial rollout (owner row 150): 1 = FNV-1a, 2 = GrowthBook v2. */
+  hashVersion?: number;
   description: string | null;
   paid: boolean;
   missingKeys: string[];
@@ -368,6 +372,22 @@ export default function FlagsPage() {
       if (v.undo) toast.success(text);
       else toast.undo(text, () => update.mutate({ key: v.key, enabled: !v.enabled, undo: true }));
     },
+  });
+
+  // Owner row 150: a partly rolled-out flag can switch its bucketing hash.
+  const setHash = useMutation({
+    mutationFn: async (v: { key: string; hashVersion: 1 | 2 }) => {
+      await api.PATCH('/admin/feature-flags/{key}', {
+        params: { path: { key: v.key } },
+        body: { hashVersion: v.hashVersion },
+      });
+      return v;
+    },
+    onSuccess: (v) => {
+      toast.success(`${FLAG_INFO[v.key]?.title ?? v.key}: ${hashVersionLabel(v.hashVersion, true)}`);
+      void qc.invalidateQueries({ queryKey: ['flags'] });
+    },
+    onError: (e) => toast.error(e),
   });
 
   const flags = q.data ?? [];
@@ -432,7 +452,14 @@ export default function FlagsPage() {
                       }
                     />
                   ) : (
-                    <FlagCard key={f.key} f={f} i={i} busy={update.isPending} onChange={(v) => update.mutate({ key: f.key, ...v })} />
+                    <FlagCard
+                      key={f.key}
+                      f={f}
+                      i={i}
+                      busy={update.isPending || setHash.isPending}
+                      onChange={(v) => update.mutate({ key: f.key, ...v })}
+                      onHash={(hashVersion) => setHash.mutate({ key: f.key, hashVersion })}
+                    />
                   ),
                 )}
               </div>
@@ -477,12 +504,14 @@ function FlagCard({
   i,
   busy,
   onChange,
+  onHash,
   control,
 }: {
   f: Flag;
   i: number;
   busy: boolean;
   onChange: (v: { enabled: boolean }) => void;
+  onHash?: (v: 1 | 2) => void;
   /** Replaces the on/off switch with a richer control (R-398). */
   control?: React.ReactNode;
 }) {
@@ -533,6 +562,24 @@ function FlagCard({
           )}
         </div>
         {control}
+        {onHash && f.rolloutPercent > 0 && f.rolloutPercent < 100 ? (
+          <div className="mt-3" data-testid="flag-hash-version">
+            <div className="mb-1 text-xs text-muted">Включено у {f.rolloutPercent}% людей. Как выбирать этих людей:</div>
+            <Select
+              value={f.hashVersion ?? 1}
+              disabled={busy}
+              onChange={(e) => {
+                const v = Number(e.target.value) === 1 ? 1 : 2;
+                if (v === (f.hashVersion ?? 1)) return;
+                if (!window.confirm('Смена способа заново выберет, у кого функция включена. Сменить?')) return;
+                onHash(v);
+              }}
+            >
+              <option value={2}>{hashVersionLabel(2)}</option>
+              <option value={1}>{hashVersionLabel(1)}</option>
+            </Select>
+          </div>
+        ) : null}
         {f.paid && f.missingKeys.length > 0 ? (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-warning-soft px-3 py-2 text-xs text-warning">
             <span className="min-w-0 break-words">Нельзя включить: ключи сервиса ещё не добавлены.</span>

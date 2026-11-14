@@ -168,6 +168,7 @@ erDiagram
     String key PK
     Boolean enabled
     Int rollout_percent
+    Int hash_version
     String description "nullable"
     String updated_by FK "nullable"
     DateTime updated_at
@@ -3633,6 +3634,7 @@ erDiagram
     String status
     Json variants
     Int traffic_percent
+    Int hash_version
     Json guardrails
     DateTime start_at "nullable"
     DateTime end_at "nullable"

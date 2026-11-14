@@ -9,6 +9,8 @@ interface RunningExperiment {
   surface: string;
   variants: VariantSpec[];
   trafficPercent: number;
+  /** Bucketing hash of this row (1 = FNV-1a, 2 = GrowthBook v2). */
+  hashVersion: number;
   startAt: number | null;
   endAt: number | null;
 }
@@ -137,7 +139,13 @@ export class ExperimentsService implements OnModuleDestroy {
     const now = Date.now();
     if (exp.startAt !== null && now < exp.startAt) return null;
     if (exp.endAt !== null && now >= exp.endAt) return null;
-    const v = assignVariant(unitId, exp.key, exp.variants, exp.trafficPercent);
+    const v = assignVariant(
+      unitId,
+      exp.key,
+      exp.variants,
+      exp.trafficPercent,
+      exp.hashVersion,
+    );
     if (v === null) return null;
     if (opts.expose !== false) this.noteExposure(exp.id, unitId, v);
     const weights = exp.variants.find((x) => x.key === v)?.weights;
@@ -168,6 +176,9 @@ export class ExperimentsService implements OnModuleDestroy {
               surface: r.surface,
               variants: parseVariants(r.variants),
               trafficPercent: r.traffic_percent,
+              // A pod built before the column existed never reaches here;
+              // a missing value reads as 1 (the original hash).
+              hashVersion: r.hash_version ?? 1,
               startAt: r.start_at ? r.start_at.getTime() : null,
               endAt: r.end_at ? r.end_at.getTime() : null,
             });

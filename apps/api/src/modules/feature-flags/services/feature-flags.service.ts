@@ -26,7 +26,14 @@ import { inRollout } from '../../experiments/experiment-math';
 const FLAGS_CACHE_TTL_SECONDS = 30;
 export const FLAGS_CACHE_KEY = 'config:feature_flags';
 /** `{key: percent}` of the enabled flags that are on for only part of the users. */
-export const ROLLOUT_CACHE_KEY = 'config:feature_flag_rollout';
+/** `{key: [percent, hashVersion]}` of the partly rolled-out flags. A new key
+ * (owner row 150 added the hash version): during a deploy the previous build
+ * keeps its own `{key: percent}` copy under the old name, so neither build
+ * ever reads the other's shape. */
+export const ROLLOUT_CACHE_KEY = 'config:feature_flag_rollout:v2';
+/** The previous build's copy; dropped together with the new one. */
+const LEGACY_ROLLOUT_CACHE_KEY = 'config:feature_flag_rollout';
+type Rollouts = Record<string, [percent: number, hashVersion: number]>;
 
 /**
  * Reads the full `feature_flags` table as a flat `{key: enabled}` map —
@@ -130,9 +137,9 @@ export class FeatureFlagsService implements OnModuleInit {
     return (await this.fill()).flags;
   }
 
-  private async readRollouts(): Promise<Record<string, number>> {
+  private async readRollouts(): Promise<Rollouts> {
     const cached = await this.redis.get(ROLLOUT_CACHE_KEY);
-    if (cached !== null) return JSON.parse(cached) as Record<string, number>;
+    if (cached !== null) return JSON.parse(cached) as Rollouts;
     return (await this.fill()).rollouts;
   }
 
@@ -140,19 +147,26 @@ export class FeatureFlagsService implements OnModuleInit {
   // read the table; one refill per pod instead.
   private fill(): Promise<{
     flags: Record<string, boolean>;
-    rollouts: Record<string, number>;
+    rollouts: Rollouts;
   }> {
     return singleFlight(FLAGS_CACHE_KEY, async () => {
       const rows = await this.prisma.featureFlag.findMany({
-        select: { key: true, enabled: true, rollout_percent: true },
+        select: {
+          key: true,
+          enabled: true,
+          rollout_percent: true,
+          hash_version: true,
+        },
       });
       const flags: Record<string, boolean> = {};
-      const rollouts: Record<string, number> = {};
+      const rollouts: Rollouts = {};
       for (const row of rows) {
         const pct = row.rollout_percent ?? 100;
         // Partly rolled out: unknown without a user, so off here.
         flags[row.key] = row.enabled && pct >= 100;
-        if (row.enabled && pct > 0 && pct < 100) rollouts[row.key] = pct;
+        if (row.enabled && pct > 0 && pct < 100) {
+          rollouts[row.key] = [pct, row.hash_version ?? 1];
+        }
       }
       const ttl = jitterTtl(FLAGS_CACHE_TTL_SECONDS);
       await this.redis.set(FLAGS_CACHE_KEY, JSON.stringify(flags), 'EX', ttl);
@@ -171,8 +185,8 @@ export class FeatureFlagsService implements OnModuleInit {
     const flags = await this.readFlags();
     const rollouts = await this.readRollouts();
     const out = { ...flags };
-    for (const [key, pct] of Object.entries(rollouts)) {
-      out[key] = inRollout(key, userId, pct);
+    for (const [key, [pct, hashVersion]] of Object.entries(rollouts)) {
+      out[key] = inRollout(key, userId, pct, hashVersion);
     }
     return lockFlags(out);
   }
@@ -202,6 +216,7 @@ export class FeatureFlagsService implements OnModuleInit {
     this.l1.clear();
     await this.redis.del(FLAGS_CACHE_KEY);
     await this.redis.del(ROLLOUT_CACHE_KEY);
+    await this.redis.del(LEGACY_ROLLOUT_CACHE_KEY);
     await bumpConfigVersion(this.redis);
   }
 }

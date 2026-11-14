@@ -22,6 +22,7 @@ class ExperimentDto {
     required this.status,
     required this.variants,
     required this.trafficPercent,
+    required this.hashVersion,
     required this.guardrails,
     required this.startedAt,
     required this.endAt,
@@ -43,6 +44,9 @@ class ExperimentDto {
   final ExperimentDtoStatus status;
   final List<ExperimentVariantDto> variants;
   final int trafficPercent;
+
+  /// 1 = original FNV-1a, 2 = GrowthBook hash v2.
+  final int hashVersion;
   final ExperimentGuardrailsDto guardrails;
   final DateTime? startedAt;
   final DateTime? endAt;

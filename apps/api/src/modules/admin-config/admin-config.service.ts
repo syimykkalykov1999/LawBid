@@ -186,6 +186,9 @@ export class AdminConfigService {
           ...(dto.rolloutPercent !== undefined
             ? { rollout_percent: dto.rolloutPercent }
             : {}),
+          ...(dto.hashVersion !== undefined
+            ? { hash_version: dto.hashVersion }
+            : {}),
           updated_by: admin.id,
         },
       });
@@ -199,11 +202,13 @@ export class AdminConfigService {
             key,
             enabled: before.enabled,
             rolloutPercent: before.rollout_percent,
+            hashVersion: before.hash_version,
           },
           after: {
             key,
             enabled: updated.enabled,
             rolloutPercent: updated.rollout_percent,
+            hashVersion: updated.hash_version,
           },
           ip: admin.ip,
         },
@@ -229,6 +234,7 @@ export class AdminConfigService {
     key: string;
     enabled: boolean;
     rollout_percent: number;
+    hash_version: number;
     description: string | null;
     updated_by: string | null;
     updated_at: Date;
@@ -238,6 +244,7 @@ export class AdminConfigService {
       key: r.key,
       enabled: r.enabled,
       rolloutPercent: r.rollout_percent,
+      hashVersion: r.hash_version,
       description: r.description,
       paid: required.length > 0,
       requiredKeys: required,

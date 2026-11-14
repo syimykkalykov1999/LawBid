@@ -88,6 +88,8 @@ export interface Experiment {
   status: 'draft' | 'running' | 'stopped';
   variants: ExperimentVariant[];
   trafficPercent: number;
+  /** Bucketing hash: 1 = original FNV-1a, 2 = GrowthBook hash v2 (row 150). */
+  hashVersion: number;
   startedAt: string | null;
   endAt: string | null;
   stoppedAt: string | null;
@@ -102,6 +104,12 @@ export interface Experiment {
     summary: string[];
     report: Record<string, unknown>;
   } | null;
+}
+
+/** Owner row 150: how people are split (the row's bucketing hash). */
+export function hashVersionLabel(v: number, short = false): string {
+  if (v === 2) return short ? 'хэш v2' : 'Хэш v2 (как в GrowthBook, ровнее и независимо от других тестов) — рекомендуется';
+  return short ? 'хэш v1' : 'Хэш v1 (старый способ, как у тестов до 14.11)';
 }
 
 export function statusLabel(s: Experiment['status']): string {

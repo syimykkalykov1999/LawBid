@@ -148324,6 +148324,12 @@
           "rolloutPercent": {
             "type": "integer"
           },
+          "hashVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "description": "1 = original FNV-1a, 2 = GrowthBook hash v2."
+          },
           "description": {
             "type": "string",
             "nullable": true
@@ -148360,6 +148366,7 @@
           "key",
           "enabled",
           "rolloutPercent",
+          "hashVersion",
           "description",
           "paid",
           "requiredKeys",
@@ -148395,6 +148402,16 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 100
+          },
+          "hashVersion": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "minimum": 1,
+            "maximum": 2,
+            "description": "Bucketing hash of a partial rollout: 2 = GrowthBook hash v2, 1 = the original FNV-1a. Changing it re-picks who is inside."
           }
         }
       },
@@ -182449,6 +182466,12 @@
           "trafficPercent": {
             "type": "integer"
           },
+          "hashVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "description": "1 = original FNV-1a, 2 = GrowthBook hash v2."
+          },
           "guardrails": {
             "$ref": "#/components/schemas/ExperimentGuardrailsDto"
           },
@@ -182497,6 +182520,7 @@
           "status",
           "variants",
           "trafficPercent",
+          "hashVersion",
           "guardrails",
           "startedAt",
           "endAt",
@@ -182560,6 +182584,17 @@
             "type": "string",
             "format": "date-time",
             "description": "Stops by itself at this moment."
+          },
+          "hashVersion": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "minimum": 1,
+            "maximum": 2,
+            "default": 2,
+            "description": "Bucketing hash: 2 = GrowthBook hash v2 (unbiased, independent between tests; default), 1 = the original FNV-1a. Fixed for the life of the test."
           }
         },
         "required": [

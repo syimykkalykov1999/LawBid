@@ -1,4 +1,8 @@
-import { FeatureFlagsService } from './feature-flags.service';
+import { inRollout } from '../../experiments/experiment-math';
+import {
+  FeatureFlagsService,
+  ROLLOUT_CACHE_KEY,
+} from './feature-flags.service';
 
 function buildFakeRedis(store: Map<string, string> = new Map()) {
   return {
@@ -134,5 +138,35 @@ describe('rollout_percent (owner 2026-10-25)', () => {
 
   it('falls back to the default for an unknown flag', async () => {
     expect(await make().isEnabledFor('missing', true, 'u1')).toBe(true);
+  });
+});
+
+describe('hash_version of a partial rollout (owner row 150)', () => {
+  it('each flag is bucketed with its own row version; a row without one reads as 1', async () => {
+    const store = new Map<string, string>();
+    const rows = [
+      { key: 'old_flag', enabled: true, rollout_percent: 30, hash_version: 1 },
+      { key: 'new_flag', enabled: true, rollout_percent: 30, hash_version: 2 },
+      { key: 'legacy_row', enabled: true, rollout_percent: 30 },
+    ];
+    const svc = new FeatureFlagsService(
+      { featureFlag: { findMany: jest.fn().mockResolvedValue(rows) } } as never,
+      buildFakeRedis(store) as never,
+    );
+    let differs = 0;
+    for (let i = 0; i < 500; i++) {
+      const id = `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
+      const f = await svc.getFlagsFor(id);
+      expect(f.old_flag).toBe(inRollout('old_flag', id, 30, 1));
+      expect(f.new_flag).toBe(inRollout('new_flag', id, 30, 2));
+      expect(f.legacy_row).toBe(inRollout('legacy_row', id, 30, 1));
+      if (inRollout('new_flag', id, 30, 1) !== f.new_flag) differs++;
+    }
+    expect(differs).toBeGreaterThan(0);
+    expect(JSON.parse(store.get(ROLLOUT_CACHE_KEY) as string)).toEqual({
+      old_flag: [30, 1],
+      new_flag: [30, 2],
+      legacy_row: [30, 1],
+    });
   });
 });

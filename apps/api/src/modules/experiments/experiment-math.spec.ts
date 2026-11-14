@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { bucketHash, hash01 } from '../recommendations/ranking.math';
 import {
   assignVariant,
   chiSquareSurvival,
@@ -121,6 +122,124 @@ describe('inRollout / inImpressionSample', () => {
     let on = 0;
     for (let i = 0; i < n; i++) if (inImpressionSample(randomUUID(), 10)) on++;
     expect(Math.abs(on / n - 0.1)).toBeLessThan(0.01);
+  });
+});
+
+// Owner row 150: per-row hash version. v1 must stay byte-for-byte the old
+// hash (nobody moves); v2 is GrowthBook's hash v2.
+describe('hash versions', () => {
+  /** Ids that look alike — the case where plain FNV-1a is biased. */
+  const seqId = (i: number) => `user-${i}`;
+  const seqUuid = (i: number) =>
+    `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
+  const FOUR = [
+    { key: 'aa', weight: 25 },
+    { key: 'ab', weight: 25 },
+    { key: 'ba', weight: 25 },
+    { key: 'bb', weight: 25 },
+  ];
+  const pair = (a: string | null, b: string | null) =>
+    `${a === 'control' ? 'a' : 'b'}${b === 'control' ? 'a' : 'b'}`;
+
+  it('v1 (and no version) is exactly the old hash01 of seed + value', () => {
+    for (let i = 0; i < 2000; i++) {
+      const id = unit(i, 7);
+      expect(bucketHash('k:traffic:', id, 1)).toBe(hash01(`k:traffic:${id}`));
+      expect(bucketHash('k:variant:', id)).toBe(hash01(`k:variant:${id}`));
+      expect(assignVariant(id, 'old', VARIANTS, 30, 1)).toBe(
+        assignVariant(id, 'old', VARIANTS, 30),
+      );
+      expect(inRollout('old_flag', id, 30, 1)).toBe(
+        inRollout('old_flag', id, 30),
+      );
+    }
+  });
+
+  it('v2 is GrowthBook hash(seed, value, 2) and differs from v1', () => {
+    // From GrowthBook cases.json: hash("seed", "a", 2) = 0.0505.
+    expect(bucketHash('seed', 'a', 2)).toBe(0.0505);
+    let same = 0;
+    for (let i = 0; i < 1000; i++) {
+      const id = unit(i, 8);
+      if (
+        assignVariant(id, 'x', VARIANTS, 100, 1) ===
+        assignVariant(id, 'x', VARIANTS, 100, 2)
+      )
+        same++;
+    }
+    expect(same).toBeGreaterThan(400);
+    expect(same).toBeLessThan(600);
+  });
+
+  it.each([
+    ['random-looking ids', (i: number) => unit(i, 9)],
+    ['sequential ids', seqId],
+    ['uuids with a shared prefix', seqUuid],
+  ])('v2 splits 50/50 and passes SRM on %s', (_, id) => {
+    const n = 40_000;
+    const counts: Record<string, number> = { control: 0, new_formula: 0 };
+    for (let i = 0; i < n; i++) {
+      counts[assignVariant(id(i), 'split_v2', VARIANTS, 100, 2) as string]++;
+    }
+    expect(Math.abs(counts.control / n - 0.5)).toBeLessThan(0.01);
+    expect(srmCheck(counts, VARIANTS).flag).toBe(false);
+  });
+
+  it.each([
+    ['random-looking ids', (i: number) => unit(i, 10)],
+    ['sequential ids', seqId],
+    ['uuids with a shared prefix', seqUuid],
+  ])('v2 is independent between experiments on %s', (_, id) => {
+    // 2×2 table of (exp_a, exp_b) variants: independent = 25% each cell.
+    const n = 20_000;
+    const cells: Record<string, number> = { aa: 0, ab: 0, ba: 0, bb: 0 };
+    for (let i = 0; i < n; i++) {
+      const a = assignVariant(id(i), 'exp_a', VARIANTS, 100, 2);
+      const b = assignVariant(id(i), 'exp_b', VARIANTS, 100, 2);
+      cells[pair(a, b)]++;
+    }
+    for (const c of Object.values(cells)) {
+      expect(Math.abs(c / n - 0.25)).toBeLessThan(0.015);
+    }
+    expect(srmCheck(cells, FOUR).flag).toBe(false);
+  });
+
+  it('v2 traffic gate: about trafficPercent inside, ramp keeps everyone', () => {
+    const ids = Array.from({ length: 40_000 }, (_, i) => seqId(i));
+    let inside = 0;
+    for (const id of ids) {
+      const at5 = assignVariant(id, 'ramp_v2', VARIANTS, 5, 2);
+      const at50 = assignVariant(id, 'ramp_v2', VARIANTS, 50, 2);
+      if (at5 !== null) expect(at50).toBe(at5);
+      if (assignVariant(id, 'ramp_v2', VARIANTS, 10, 2) !== null) inside++;
+    }
+    expect(Math.abs(inside / ids.length - 0.1)).toBeLessThan(0.01);
+  });
+
+  it('v2 flag rollout: 10% of sequential ids is about 10%, raising keeps users', () => {
+    const n = 40_000;
+    let on = 0;
+    for (let i = 0; i < n; i++) {
+      const id = seqId(i);
+      const in10 = inRollout('flag_v2', id, 10, 2);
+      if (in10) {
+        on++;
+        expect(inRollout('flag_v2', id, 30, 2)).toBe(true);
+      }
+    }
+    expect(Math.abs(on / n - 0.1)).toBeLessThan(0.01);
+  });
+
+  it('documents the cause: v1 under-fills a 10% rollout on sequential ids', () => {
+    // Measured 14.11 (owner row 150): 7.5% instead of 10% for ids "0".."9999".
+    let on1 = 0;
+    let on2 = 0;
+    for (let i = 0; i < 10_000; i++) {
+      if (inRollout('f', String(i), 10, 1)) on1++;
+      if (inRollout('f', String(i), 10, 2)) on2++;
+    }
+    expect(on1 / 10_000).toBeLessThan(0.08);
+    expect(Math.abs(on2 / 10_000 - 0.1)).toBeLessThan(0.01);
   });
 });
 

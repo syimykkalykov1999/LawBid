@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asReport, formatMetric, parseVariantWeights, statusLabel, verdictLabel } from './experiments';
+import { asReport, formatMetric, hashVersionLabel, parseVariantWeights, statusLabel, verdictLabel } from './experiments';
 import { SECTIONS, canOpen } from './rbac';
 
 describe('experiments page helpers', () => {
@@ -34,5 +34,14 @@ describe('experiments page helpers', () => {
     expect(parseVariantWeights('hot=0.5', 'case_feed')).toHaveProperty('error');
     expect(parseVariantWeights('urgency=11', 'case_feed')).toHaveProperty('error');
     expect(parseVariantWeights('urgency', 'case_feed')).toHaveProperty('error');
+  });
+});
+
+describe('hashVersionLabel (owner row 150)', () => {
+  it('names v2 as the recommended one and v1 as the old way; unknown reads as v1', () => {
+    expect(hashVersionLabel(2)).toContain('рекомендуется');
+    expect(hashVersionLabel(1)).toContain('старый');
+    expect(hashVersionLabel(2, true)).toBe('хэш v2');
+    expect(hashVersionLabel(7, true)).toBe('хэш v1');
   });
 });

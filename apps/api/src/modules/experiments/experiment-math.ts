@@ -1,4 +1,4 @@
-import { hash01 } from '../recommendations/ranking.math';
+import { bucketHash, hash01 } from '../recommendations/ranking.math';
 
 /**
  * Pure helpers for experiments (owner 2026-10-25, docs/architecture/
@@ -16,23 +16,26 @@ export interface VariantWeight {
  * unit + key mapped to 0..1, then cut by weights): first a traffic gate (a
  * separate salt, so ramping 5% -> 50% keeps everyone already inside), then the
  * variant by cumulative weight. null = not in the experiment.
+ * [hashVersion]: the row's `hash_version` (1 = the original FNV-1a, 2 =
+ * GrowthBook's hash v2; owner row 150).
  */
 export function assignVariant(
   unitId: string,
   key: string,
   variants: readonly VariantWeight[],
   trafficPercent: number,
+  hashVersion = 1,
 ): string | null {
   if (variants.length === 0 || trafficPercent <= 0) return null;
   if (
     trafficPercent < 100 &&
-    hash01(`${key}:traffic:${unitId}`) * 100 >= trafficPercent
+    bucketHash(`${key}:traffic:`, unitId, hashVersion) * 100 >= trafficPercent
   ) {
     return null;
   }
   const total = variants.reduce((s, v) => s + Math.max(0, v.weight), 0);
   if (total <= 0) return null;
-  const u = hash01(`${key}:variant:${unitId}`) * total;
+  const u = bucketHash(`${key}:variant:`, unitId, hashVersion) * total;
   let acc = 0;
   for (const v of variants) {
     acc += Math.max(0, v.weight);
@@ -46,10 +49,11 @@ export function inRollout(
   flagKey: string,
   userId: string,
   percent: number,
+  hashVersion = 1,
 ): boolean {
   if (percent >= 100) return true;
   if (percent <= 0) return false;
-  return hash01(`flag:${flagKey}:${userId}`) * 100 < percent;
+  return bucketHash(`flag:${flagKey}:`, userId, hashVersion) * 100 < percent;
 }
 
 /** Impressions/clicks are kept for this share of users (same user always in or out). */

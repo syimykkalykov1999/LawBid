@@ -94,6 +94,8 @@ export class AdminExperimentsService {
           dto.guardrails,
         ) as unknown as Prisma.InputJsonValue,
         end_at: dto.endAt ? new Date(dto.endAt) : null,
+        // New tests default to GrowthBook hash v2 (owner row 150).
+        hash_version: dto.hashVersion ?? 2,
         created_by: admin.id,
       },
     });
@@ -104,6 +106,7 @@ export class AdminExperimentsService {
       targetId: row.id,
       after: {
         key: row.key,
+        hashVersion: row.hash_version,
         variants: JSON.parse(
           JSON.stringify(dto.variants),
         ) as Prisma.InputJsonValue,
@@ -278,6 +281,7 @@ export class AdminExperimentsService {
       status: r.status,
       variants: parseVariants(r.variants),
       trafficPercent: r.traffic_percent,
+      hashVersion: r.hash_version,
       guardrails: normalizeGuardrails(r.guardrails as Record<string, number>),
       startedAt: r.started_at?.toISOString() ?? null,
       endAt: r.end_at?.toISOString() ?? null,

@@ -1,4 +1,5 @@
 /** Small pure helpers shared by the recommendation scorers. */
+import { hash as growthbookHash } from '../vendor/growthbook/hash';
 
 export const clamp01 = (x: number): number =>
   Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0;
@@ -41,6 +42,25 @@ export function hash01(s: string): number {
     h = Math.imul(h, 0x01000193) >>> 0;
   }
   return (h >>> 0) / 0xffffffff;
+}
+
+/** Bucketing hash versions an experiment / flag row can carry (owner row
+ * 150): 1 = [hash01] of seed + value (what every row made before 14.11 uses,
+ * kept so nobody moves), 2 = GrowthBook's "hash v2" (double FNV-1a, unbiased
+ * on similar ids and independent between seeds). */
+export const HASH_VERSIONS = [1, 2] as const;
+export type HashVersion = (typeof HASH_VERSIONS)[number];
+
+/** 0..1 bucket of [value] under [seed]. Version 1 is exactly
+ * `hash01(seed + value)`; version 2 is GrowthBook's `hash(seed, value, 2)`
+ * (vendored, MIT). Anything else falls back to version 1. */
+export function bucketHash(
+  seed: string,
+  value: string,
+  version: number = 1,
+): number {
+  if (version === 2) return growthbookHash(seed, value, 2) ?? 0;
+  return hash01(seed + value);
 }
 
 /** UTC day number: a seed that rotates "exploration" once a day. */

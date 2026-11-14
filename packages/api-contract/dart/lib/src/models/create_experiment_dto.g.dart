@@ -14,6 +14,11 @@ CreateExperimentDto _$CreateExperimentDtoFromJson(Map<String, dynamic> json) =>
       variants: (json['variants'] as List<dynamic>)
           .map((e) => ExperimentVariantDto.fromJson(e as Map<String, dynamic>))
           .toList(),
+      hashVersion: json['hashVersion'] == null
+          ? CreateExperimentDtoHashVersion.value2
+          : CreateExperimentDtoHashVersion.fromJson(
+              (json['hashVersion'] as num).toInt(),
+            ),
       hypothesis: json['hypothesis'] as String?,
       guardrails: json['guardrails'] == null
           ? null
@@ -35,4 +40,5 @@ Map<String, dynamic> _$CreateExperimentDtoToJson(
   'variants': instance.variants.map((e) => e.toJson()).toList(),
   'guardrails': ?instance.guardrails?.toJson(),
   'endAt': ?instance.endAt?.toIso8601String(),
+  'hashVersion': instance.hashVersion.toJson(),
 };

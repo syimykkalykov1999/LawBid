@@ -10,10 +10,16 @@ UpdateFlagDto _$UpdateFlagDtoFromJson(Map<String, dynamic> json) =>
     UpdateFlagDto(
       enabled: json['enabled'] as bool?,
       rolloutPercent: (json['rolloutPercent'] as num?)?.toInt(),
+      hashVersion: json['hashVersion'] == null
+          ? null
+          : UpdateFlagDtoHashVersion.fromJson(
+              (json['hashVersion'] as num).toInt(),
+            ),
     );
 
 Map<String, dynamic> _$UpdateFlagDtoToJson(UpdateFlagDto instance) =>
     <String, dynamic>{
       'enabled': ?instance.enabled,
       'rolloutPercent': ?instance.rolloutPercent,
+      'hashVersion': ?instance.hashVersion?.toJson(),
     };
