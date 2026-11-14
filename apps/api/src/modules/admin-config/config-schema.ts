@@ -769,6 +769,33 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Owner only, a fresh 2FA code to change. Off (default): every attorney request waits for a person. On: all checks matched (state registry number + full name + active, face match at or above the threshold, liveness, the AI employee confident) = approved; a clear failure (number not in the registry, not active, faces far apart) = rejected with an appeal; anything else stays in the queue. Never for an owner or staff account, never without the biometric consent.',
   };
+  // Owner row 50 (13.11): health watch of the state bar registries.
+  out['verification.registry_health.enabled'] = {
+    ...out['verification.registry_health.enabled'],
+    description:
+      "On (default): every state bar registry lookup is counted per state; when the error or not-found rate jumps above the state's own 7-day rate the registry is marked degraded, the owner gets an alert and that state's checks go to a person. Off: no counting, no mark.",
+  };
+  out['verification.registry_health.window_hours'] = {
+    ...out['verification.registry_health.window_hours'],
+    description:
+      'Hours of the window (default 24) compared with the previous 7 days.',
+    min: 1,
+    max: 168,
+  };
+  out['verification.registry_health.min_checks'] = {
+    ...out['verification.registry_health.min_checks'],
+    description:
+      'Fewer lookups than this (default 5) in the window decide nothing.',
+    min: 1,
+    max: 1000,
+  };
+  out['verification.registry_health.jump_points'] = {
+    ...out['verification.registry_health.jump_points'],
+    description:
+      "Percentage points (default 50) the error / not-found rate must rise above the state's 7-day rate to count as degraded.",
+    min: 5,
+    max: 100,
+  };
   out['verification.auto_decision.face_reject_below'] = {
     ...out['verification.auto_decision.face_reject_below'],
     description:
