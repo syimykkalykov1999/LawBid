@@ -8,6 +8,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/core/transfers/transfer_limits.dart';
+import 'package:lawbid/core/uploads/file_ready.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -193,6 +194,35 @@ abstract interface class PartsGate {
   Future<void> get whenLeft;
 }
 
+/// One part of a resumable upload still to send: its number, its link and
+/// its bytes [start, end) in the file.
+typedef StoragePart = ({int number, String url, int start, int end});
+
+/// Owner row 100 (media audit 13.11, batch E item 11; Telegram iOS sends
+/// parts in a background session): when the app leaves the screen in the
+/// middle of a big queued file, the parts still missing go to the OS as one
+/// background transfer each (core/uploads/background_transport_io.dart), so
+/// a closed or killed app continues the upload instead of starting over.
+abstract interface class BackgroundParts {
+  /// The switch is on and this platform has an OS transfer service.
+  bool get enabled;
+
+  /// Sends [parts] of [body] as OS transfers and waits until each ended;
+  /// true when every one was stored. [onPartDone] gets each stored part's
+  /// size. [cancel] stops them all.
+  Future<bool> send(
+    String taskId,
+    UploadBody body,
+    List<StoragePart> parts, {
+    void Function(int bytes)? onPartDone,
+    CancelToken? cancel,
+  });
+
+  /// Before the app sends parts of [taskId] itself again: OS transfers of
+  /// them still waiting or running are stopped, so no part goes twice.
+  Future<void> settle(String taskId);
+}
+
 /// Owner 2026-10-22 (product audit #4 §3): the ONE way the app puts a file
 /// into storage — `POST /files/presign` → S3 POST → `POST /files/:id/confirm`
 /// → wait for a clean virus scan. Before, nine repositories each had their
@@ -207,6 +237,7 @@ class StorageUploader {
     Future<void> Function(String taskId)? forgetTransfer,
     Duration Function(int failures)? partBackoff,
     PartsGate? partsGate,
+    BackgroundParts? backgroundParts,
     AdaptiveLimiter? limiter,
     bool browser = kIsWeb,
   })  : _files = api.FilesClient(apiDio),
@@ -216,6 +247,7 @@ class StorageUploader {
         _storageDio = storageDio,
         _partBackoff = partBackoff ?? DioStorageTransport.defaultBackoff,
         _partsGate = partsGate,
+        _backgroundParts = backgroundParts,
         _limiter = limiter ?? TransferLimits.uploads;
 
   /// The usual pair: the API's Dio and the plain storage Dio.
@@ -239,6 +271,7 @@ class StorageUploader {
   final Future<void> Function(String taskId)? _forgetTransfer;
   final Duration Function(int failures) _partBackoff;
   final PartsGate? _partsGate;
+  final BackgroundParts? _backgroundParts;
   final AdaptiveLimiter _limiter;
 
   /// In a browser a part PUT needs CORS on the storage. Without it the browser
@@ -567,8 +600,24 @@ class StorageUploader {
     int? maxPolls,
   }) async {
     var s = status;
+    final pushed = s == api.ScanStatus.pending && FileReady.connected();
+    if (pushed) {
+      // Owner row 106: the server pushes `file:ready`; a slow safety poll
+      // (`client.scan_poll_socket_ms`) covers a lost push. The whole wait
+      // stays as long as before (polls × interval).
+      final deadline = scanPoll * (maxPolls ?? scanMaxPolls);
+      final watch = Stopwatch()..start();
+      while (s == api.ScanStatus.pending && watch.elapsed < deadline) {
+        final left = deadline - watch.elapsed;
+        final step = ClientTuning.scanPollWithSocket;
+        await FileReady.wait(fileId, step < left ? step : left);
+        s = await scanStatus(fileId);
+      }
+    }
     for (var i = 0;
-        s == api.ScanStatus.pending && i < (maxPolls ?? scanMaxPolls);
+        !pushed &&
+            s == api.ScanStatus.pending &&
+            i < (maxPolls ?? scanMaxPolls);
         i++) {
       await Future<void>.delayed(scanPoll);
       s = await scanStatus(fileId);
@@ -774,6 +823,9 @@ class StorageUploader {
     unawaited(cancel?.whenCancel.then((_) => halt('cancelled')));
 
     var fileId = resumeFileId;
+    // E11: parts this job handed to the OS before (the app was closed) stop
+    // first; the plan below then lists what storage already has.
+    if (fileId != null) await _backgroundParts?.settle(taskId);
     try {
       var offered = false;
       if (fileId != null) {
@@ -810,8 +862,22 @@ class StorageUploader {
       }
       if (!offered) return null;
     } on DioException catch (e) {
-      if (left && CancelToken.isCancel(e)) return null;
-      rethrow;
+      if (!left || !CancelToken.isCancel(e)) rethrow;
+      // E11: the parts still missing go on as OS transfers; only when that
+      // cannot be, the whole file goes to the OS as before.
+      final id = fileId;
+      if (id == null ||
+          !await _partsToOs(
+            taskId,
+            id,
+            body,
+            onProgress: onProgress,
+            cancel: cancel,
+          )) {
+        return null;
+      }
+      await waitClean(id, status: await confirm(id), maxPolls: scanMaxPolls);
+      return id;
     }
     await waitClean(
       fileId,
@@ -819,5 +885,56 @@ class StorageUploader {
       maxPolls: scanMaxPolls,
     );
     return fileId;
+  }
+
+  /// E11: the parts of [fileId] storage does not have yet, each as its own
+  /// OS transfer ([BackgroundParts]); then the parts are assembled. False:
+  /// switched off, not possible here, or a part failed (the caller falls
+  /// back to the whole-file OS transfer, as before).
+  Future<bool> _partsToOs(
+    String taskId,
+    String fileId,
+    UploadBody body, {
+    void Function(double progress)? onProgress,
+    CancelToken? cancel,
+  }) async {
+    final bg = _backgroundParts;
+    if (bg == null || !bg.enabled) return false;
+    try {
+      final total = await body.length();
+      // A fresh plan: links for exactly the missing parts.
+      var plan =
+          (await guardApiCall(() => _files.multipartPlan(id: fileId))).data;
+      if (plan.parts.isNotEmpty) {
+        final size = plan.partSizeBytes.toInt();
+        var done = plan.uploadedParts.length * size;
+        final sent = await bg.send(
+          taskId,
+          body,
+          [
+            for (final p in plan.parts)
+              (
+                number: p.partNumber.toInt(),
+                url: p.url,
+                start: (p.partNumber.toInt() - 1) * size,
+                end: math.min(p.partNumber.toInt() * size, total),
+              ),
+          ],
+          onPartDone: (n) {
+            done += n;
+            onProgress?.call((done / total).clamp(0, 1));
+          },
+          cancel: cancel,
+        );
+        if (!sent || (cancel?.isCancelled ?? false)) return false;
+        plan =
+            (await guardApiCall(() => _files.multipartPlan(id: fileId))).data;
+        if (plan.parts.isNotEmpty) return false;
+      }
+      await guardApiCall(() => _files.multipartComplete(id: fileId));
+      return true;
+    } on Object {
+      return false;
+    }
   }
 }

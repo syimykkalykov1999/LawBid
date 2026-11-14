@@ -17,6 +17,7 @@ ChatAttachmentDto _$ChatAttachmentDtoFromJson(Map<String, dynamic> json) =>
       previewUrl: json['previewUrl'] as String?,
       width: (json['width'] as num?)?.toInt(),
       height: (json['height'] as num?)?.toInt(),
+      blurhash: json['blurhash'] as String?,
     );
 
 Map<String, dynamic> _$ChatAttachmentDtoToJson(ChatAttachmentDto instance) =>
@@ -30,4 +31,5 @@ Map<String, dynamic> _$ChatAttachmentDtoToJson(ChatAttachmentDto instance) =>
       'previewUrl': ?instance.previewUrl,
       'width': ?instance.width,
       'height': ?instance.height,
+      'blurhash': ?instance.blurhash,
     };

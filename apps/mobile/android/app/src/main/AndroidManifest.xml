@@ -47,6 +47,12 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove" />
     <!-- OQ-040: voice messages; in-app calls. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Owner row 100 (media audit R3): background uploads run as a
+         foreground service with a progress notification (background_downloader
+         Config.runInForeground over WorkManager); Android 14+ asks for the
+         dataSync type. The same permission is in PR #1034 (row 42): keep one
+         line when both are merged. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- android:label comes from the flavor's resValue app_name
          (android/app/build.gradle.kts): "LawBid Dev" / "LawBid Staging" /
@@ -190,6 +196,12 @@
             android:name=".CallForegroundService"
             android:exported="false"
             android:foregroundServiceType="phoneCall|microphone" />
+        <!-- Owner row 100: WorkManager's foreground service of the background
+             uploads (background_downloader doc/CONFIG.md). -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
         <service
             android:name="com.hiennv.flutter_callkit_incoming.CallkitNotificationService"
             android:foregroundServiceType="phoneCall|microphone"

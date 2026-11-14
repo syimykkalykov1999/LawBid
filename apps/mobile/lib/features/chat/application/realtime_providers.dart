@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/config/app_environment.dart';
@@ -7,6 +9,7 @@ import 'package:lawbid/core/realtime/app_signals.dart';
 import 'package:lawbid/core/realtime/timings_provider.dart';
 import 'package:lawbid/core/session/proactive_refresh_provider.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/uploads/file_ready.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 
 // Owner 2026-10-22: other features read the event type from here, not from
@@ -61,6 +64,14 @@ final realtimeClientProvider = Provider<RealtimeClient?>((ref) {
         client.networkBack();
     }
   });
+  // Owner row 106: `file:ready` reaches the uploader (core/uploads).
+  FileReady.connected = () => client.connected;
+  final ready = client.events.listen((e) {
+    if (e.name != 'file:ready') return;
+    final d = e.data;
+    final id = d is Map ? d['fileId'] : null;
+    if (id is String) FileReady.add(id);
+  });
   ref
     ..listen(sessionControllerProvider.select((s) => s?.accessToken),
         (_, token) {
@@ -68,6 +79,8 @@ final realtimeClientProvider = Provider<RealtimeClient?>((ref) {
     })
     ..onDispose(() {
       signals.cancel();
+      unawaited(ready.cancel());
+      FileReady.reset();
       client.dispose();
     });
   client.connect();

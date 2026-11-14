@@ -166,6 +166,15 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'How many pieces of files the app fetches at once, across all files. Fewer on mobile data or a weak phone, and after a network failure.',
   },
+  // Owner row 106: the server pushes `file:ready`; this is only the safety
+  // poll of an upload's check while the realtime socket is connected.
+  'client.scan_poll_socket_ms': {
+    default: 3000,
+    min: 500,
+    max: 30_000,
+    description:
+      'While the realtime connection is up, the server tells the app when the virus check of an upload ended; the app asks itself only this often, in milliseconds, as a safety net (without the connection it asks every 700 ms as before).',
+  },
   'client.resume_refresh_min_away_s': {
     default: 30,
     min: 5,

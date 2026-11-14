@@ -4,6 +4,7 @@ import { S3StorageService } from './storage/s3-storage.service';
 import { FileReleaseService } from './storage/file-release.service';
 import { ImageProcessor } from './processing/image-processor';
 import { FileScanProcessor } from './jobs/file-scan.processor';
+import { ScanHandoff } from './jobs/scan-handoff';
 import {
   FILES_JOBS_OPTIONS,
   FileScanRunner,
@@ -30,6 +31,7 @@ export function filesCoreProviders(options: FilesJobsOptions): Provider[] {
     FileReleaseService,
     ImageProcessor,
     FileScanProcessor,
+    ScanHandoff,
     FileScanRunner,
   ];
 }

@@ -7,12 +7,17 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/chat/data/chat_media_seed.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+
+// Owner row 106: group chats keep their sent media the same way.
+export 'package:lawbid/features/chat/data/chat_media_seed.dart'
+    show adoptSentChatMedia;
 
 /// The queue kinds of chat media (core/uploads/upload_queue.dart).
 abstract final class ChatMediaKind {
@@ -39,6 +44,10 @@ class ChatMediaHandler extends UploadJobHandler {
 
   /// Server message ids of sent voice notes (their file becomes the cache).
   final _sentIds = <String, String>{};
+
+  /// Owner row 106: the server's attachment of a sent photo / video (its
+  /// file becomes the phone's cached copy, see [adoptSentChatMedia]).
+  final _sentMedia = <String, ChatAttachment>{};
 
   ChatRepository get _repo => _ref.read(chatRepositoryProvider);
 
@@ -106,6 +115,8 @@ class ChatMediaHandler extends UploadJobHandler {
             fileName: p['name'] as String? ?? 'file',
             caption: caption == null || caption.isEmpty ? null : caption,
           );
+          final media = sent.attachment;
+          if (media != null) _sentMedia[job.id] = media;
           unawaited(_ref.read(appSoundsProvider).messageOut());
         default:
           sent = await _repo.sendSticker(
@@ -129,6 +140,15 @@ class ChatMediaHandler extends UploadJobHandler {
   @override
   Future<void> removed(UploadJob job, {required bool sent}) async {
     final messageId = _sentIds.remove(job.id);
+    final media = _sentMedia.remove(job.id);
+    if (sent && media != null) {
+      final n = job.fileName;
+      await adoptSentChatMedia(
+        media,
+        n == null ? null : await _ref.read(uploadFilesProvider).pathOf(n),
+      );
+      return;
+    }
     if (!sent || messageId == null || kind != ChatMediaKind.voice) return;
     // Your own note plays from the recording, not from a download.
     final n = job.fileName;

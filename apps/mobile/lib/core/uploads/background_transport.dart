@@ -29,3 +29,18 @@ Future<bool> backgroundUploadKnown(String taskId) =>
 /// Whether queued uploads have an OS transfer to fall back on when the app
 /// leaves the screen.
 bool get backgroundHandsOff => impl.backgroundHandsOff;
+
+/// Owner row 100 (batch E item 11): the parts of a big file handed to the OS
+/// when the app leaves the screen; null where there is no OS service.
+BackgroundParts? backgroundParts({required bool Function() enabled}) =>
+    impl.backgroundParts(enabled: enabled);
+
+/// Owner row 100 (batch E item 10): Android runs the background uploads as a
+/// foreground service with a progress notification titled [title] (flag
+/// `uploads_android_foreground`); WorkManager alone stops a task after
+/// about 9 minutes. A no-op where there is no such service.
+Future<void> configureBackgroundUploads({
+  required bool foreground,
+  required String title,
+}) =>
+    impl.configureBackgroundUploads(foreground: foreground, title: title);

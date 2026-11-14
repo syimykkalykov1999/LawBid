@@ -139,6 +139,9 @@ export type RealtimeEvent =
   // Owner 2026-10-24: somebody opened a confidential file of mine - an open
   // view list pulls the new rows (`?since=`).
   | 'file:viewed'
+  // Owner row 106: the check of my upload ended (clean / infected / failed)
+  // — the app stops polling `GET /files/:id`.
+  | 'file:ready'
   // Owner 2026-10-22 (client economy plan, package E): a case of mine
   // changed (a bid came / was accepted / declined / countered / withdrawn,
   // the case was edited / closed, a task or payment) and a consultation

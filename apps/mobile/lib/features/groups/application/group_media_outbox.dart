@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart'
-    show uploadChatAttachmentJob;
+    show adoptSentChatMedia, uploadChatAttachmentJob;
+import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart'
     show groupRepositoryProvider;
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -24,6 +25,9 @@ class GroupMediaHandler extends UploadJobHandler {
 
   final Ref _ref;
   final StreamController<api.GroupMessageDto> _sent;
+
+  /// Owner row 106: the server's attachment of a sent photo / video.
+  final _sentMedia = <String, ChatAttachment>{};
 
   @override
   String get kind => GroupMediaKind.attachment;
@@ -50,8 +54,31 @@ class GroupMediaHandler extends UploadJobHandler {
             fileName: p['name'] as String? ?? 'file',
           ),
         );
+    final a = sent.attachment;
+    if (a != null) {
+      _sentMedia[job.id] = ChatAttachment(
+        fileId: a.fileId,
+        name: a.name,
+        isImage: a.isImage,
+        mime: a.mime,
+        url: a.url,
+      );
+    }
     // Into the open thread before the job (and its bubble) goes.
     if (!_sent.isClosed) _sent.add(sent);
+  }
+
+  /// Owner row 106: your own photo or video is not downloaded back; the file
+  /// the queue sent becomes the cached copy ([adoptSentChatMedia]).
+  @override
+  Future<void> removed(UploadJob job, {required bool sent}) async {
+    final media = _sentMedia.remove(job.id);
+    final n = job.fileName;
+    if (!sent || media == null || n == null) return;
+    await adoptSentChatMedia(
+      media,
+      await _ref.read(uploadFilesProvider).pathOf(n),
+    );
   }
 }
 

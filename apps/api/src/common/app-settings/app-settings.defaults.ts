@@ -1268,6 +1268,16 @@ export const OWNER_STORAGE_SETTINGS = {
   'images.avif_since': '',
   'images.avif_quality': 60,
   'images.avif_effort': 2,
+  /** Owner row 106 (media audit 13.11): a post / chat photo already at most
+   * 2048 px, upright, JPEG or WebP and without EXIF / XMP / IPTC is stored
+   * as the phone sent it (only the 320 / 1080 sizes are made): less worker
+   * CPU, no second round of compression. Off = every photo re-encoded. */
+  'images.keep_small_originals': true,
+  /** Owner row 106: a small upload that `confirm` read whole goes on to the
+   * scan worker through Redis (up to this many KB, for this many seconds),
+   * so the worker does not read it from storage again. 0 KB = off. */
+  'files.scan_handoff_max_kb': 8192,
+  'files.scan_handoff_ttl_s': 120,
   /** Owner 2026-10-26: hash partitioning of the big chat / notification
    * tables starts by itself only at `partition.auto_rows` (50M rows; at small
    * sizes the plain tables are faster, so below it nothing happens). Per

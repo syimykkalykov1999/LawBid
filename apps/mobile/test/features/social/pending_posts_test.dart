@@ -45,6 +45,7 @@ class _CreatingRepo extends FakeSocialRepository {
     bool reviewPhoto = false,
     String? fileName,
     int? maxBytes,
+    String? path,
   }) async {
     photos.add(bytes.length);
     return 'photo-${photos.length}';
@@ -97,7 +98,8 @@ void main() {
     expect(live?.id, 'new-1');
   });
 
-  test('«Publish» while a photo still uploads: the post waits for it, the '
+  test(
+      '«Publish» while a photo still uploads: the post waits for it, the '
       'photo is not sent twice', () async {
     final repo = _CreatingRepo();
     final c = _container(repo);

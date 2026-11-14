@@ -210,6 +210,10 @@ import flutter_callkit_incoming
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidSpotlight") {
       SpotlightBridge.shared.register(registrar)
     }
+    // Owner row 106: chat video tiles draw a first-frame picture.
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidVideoFrame") {
+      VideoFrameBridge.register(registrar.messenger())
+    }
   }
 
   // MARK: - Secure screen
@@ -907,5 +911,69 @@ final class SpotlightBridge: NSObject, FlutterSceneLifeCycleDelegate {
     continue userActivity: NSUserActivity
   ) -> Bool {
     return open(userActivity)
+  }
+}
+
+// MARK: - Chat video first frame
+
+/// Owner row 106 (media audit 13.11, batch F item 13; WhatsApp / Telegram
+/// show a picture, not a player): the first frame of a chat video as one
+/// JPEG, plus its length, so a chat tile draws a picture instead of opening
+/// an AVPlayer per tile. The player opens only on tap.
+///
+/// `generateThumbnail` copied from video_thumbnail 0.5.6 (MIT, John Zhong,
+/// github.com/justsoft/video_thumbnail, ios/Classes/VideoThumbnailPlugin.m),
+/// in Swift; see THIRD_PARTY_NOTICES.md. The length is the asset's duration.
+///
+/// Channel `lawbid/video_frame`, method `frame` {url, maxPx, quality} →
+/// {jpeg: FlutterStandardTypedData, durationMs: Int} or nil.
+enum VideoFrameBridge {
+  static func register(_ messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(name: "lawbid/video_frame", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "frame" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      let args = call.arguments as? [String: Any]
+      guard let raw = args?["url"] as? String else {
+        result(nil)
+        return
+      }
+      let maxPx = args?["maxPx"] as? Int ?? 0
+      let quality = args?["quality"] as? Int ?? 70
+      let url: URL? = raw.hasPrefix("file://")
+        ? URL(fileURLWithPath: String(raw.dropFirst(7)))
+        : (raw.hasPrefix("/") ? URL(fileURLWithPath: raw) : URL(string: raw))
+      guard let url = url else {
+        result(nil)
+        return
+      }
+      DispatchQueue.global(qos: .userInitiated).async {
+        let out = frame(url, maxPx: maxPx, quality: quality)
+        DispatchQueue.main.async { result(out) }
+      }
+    }
+  }
+
+  private static func frame(_ url: URL, maxPx: Int, quality: Int) -> [String: Any]? {
+    let asset = AVURLAsset(url: url)
+    let generator = AVAssetImageGenerator(asset: asset)
+    generator.appliesPreferredTrackTransform = true
+    if maxPx > 0 {
+      generator.maximumSize = CGSize(width: maxPx, height: maxPx)
+    }
+    generator.requestedTimeToleranceBefore = .zero
+    generator.requestedTimeToleranceAfter = CMTimeMake(value: 100, timescale: 1000)
+    guard let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) else {
+      return nil
+    }
+    let image = UIImage(cgImage: cgImage)
+    guard let jpeg = image.jpegData(compressionQuality: CGFloat(quality) * 0.01) else {
+      return nil
+    }
+    let seconds = CMTimeGetSeconds(asset.duration)
+    let durationMs = seconds.isFinite ? Int(seconds * 1000) : 0
+    return ["jpeg": FlutterStandardTypedData(bytes: jpeg), "durationMs": durationMs]
   }
 }

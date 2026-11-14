@@ -54,7 +54,7 @@ class CasePhotosPicker extends ConsumerWidget {
         left: maxPhotos - photoCount,
         videos: upload.allowsVideo,
       );
-      c.addFiles(picked);
+      c.addPicked(picked);
     }
 
     // OQ-034: PDF / Word documents next to the photos.

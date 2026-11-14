@@ -64,6 +64,8 @@ const Map<String, bool> defaultFeatureFlags = {
   'web_file_drop': true,
   'reels_tus_parallel': true,
   'chat_upload_parallel': true,
+  'uploads_android_foreground': true,
+  'uploads_background_parts': true,
   'downloads_parallel': true,
   'video_cache_parallel': true,
   'payments_in_app': false,

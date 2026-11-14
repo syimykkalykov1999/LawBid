@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -11,7 +12,17 @@ import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
 /// A picked case file: `name` null = a photo; a video or a document
 /// carries its name (the extension decides the type).
-typedef CasePickedFile = ({Uint8List bytes, String? name});
+///
+/// Owner row 100 (media audit R2): on a phone a video is NOT read into
+/// memory — `path` names the file on disk, `bytes` is empty, and the upload
+/// streams it from disk (`UploadBody.file`), as the chat does. The browser
+/// has no path: there `bytes` holds the video, as before.
+typedef CasePickedFile = ({Uint8List bytes, String? name, String? path});
+
+/// A picked video: its path on a phone, its bytes in the browser.
+Future<CasePickedFile> _pickedVideo(XFile f, String name) async => kIsWeb
+    ? (bytes: await f.readAsBytes(), name: name, path: null)
+    : (bytes: Uint8List(0), name: name, path: f.path);
 
 /// Video extensions a case accepts (owner 2026-10-19).
 const kCaseVideoExtensions = {'mp4', 'mov', 'm4v'};
@@ -59,18 +70,15 @@ Future<List<CasePickedFile>> pickCaseMedia(
       final small =
           await ref.read(videoCompressorProvider).compress(f, limits: limits);
       if (small != null) {
-        out.add((bytes: await small.readAsBytes(), name: 'video.mp4'));
+        out.add(await _pickedVideo(small, 'video.mp4'));
       } else {
         final ext = _ext(f.name.isNotEmpty ? f.name : f.path);
         out.add(
-          (
-            bytes: await f.readAsBytes(),
-            name: ext == 'mov' ? 'video.mov' : 'video.mp4',
-          ),
+          await _pickedVideo(f, ext == 'mov' ? 'video.mov' : 'video.mp4'),
         );
       }
     } else {
-      out.add((bytes: await f.readAsBytes(), name: null));
+      out.add((bytes: await f.readAsBytes(), name: null, path: null));
     }
   }
   return out;
@@ -89,7 +97,9 @@ Future<List<CasePickedFile>> droppedCaseFiles(
     final video = limits.allowsVideo && _isVideo(f);
     final photo = !video && isDroppedPhoto(f);
     if (!video && !photo && limits.mimeForName(f.name) == null) continue;
-    out.add((bytes: await f.readAsBytes(), name: photo ? null : f.name));
+    out.add(
+      (bytes: await f.readAsBytes(), name: photo ? null : f.name, path: null),
+    );
   }
   return out;
 }

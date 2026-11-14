@@ -1387,6 +1387,8 @@ class SocialActions {
     // Owner 2026-10-19: the photo types the place allows (admin «Загрузки и
     // файлы»); another type is refused at once, before any upload.
     Set<String>? allowedMimes,
+    // Owner row 100 (media audit R2): a phone file on disk, streamed.
+    String? path,
   }) async {
     final image = sniffImageMime(bytes);
     if (allowedMimes != null &&
@@ -1404,6 +1406,7 @@ class SocialActions {
       reviewPhoto: reviewPhoto,
       fileName: fileName,
       maxBytes: maxBytes,
+      path: path,
     );
   }
 

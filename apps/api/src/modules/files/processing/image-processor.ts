@@ -219,6 +219,10 @@ export class ImageProcessor {
     postImage?: boolean;
     format?: ImageFormat;
     quality?: ImageQuality;
+    /** Owner row 106: a post / chat photo that is already small, upright,
+     * JPEG or WebP and carries no EXIF / XMP / IPTC is stored as sent (only
+     * the smaller sizes are made). `images.keep_small_originals`. */
+    keepSmallOriginal?: boolean;
   }): Promise<ProcessedFile> {
     const format = input.format ?? 'jpeg';
     const q = input.quality ?? DEFAULT_IMAGE_QUALITY;
@@ -253,6 +257,10 @@ export class ImageProcessor {
     }
 
     if (input.postImage) {
+      const kept = input.keepSmallOriginal
+        ? await this.keptOriginal(input.data, input.mime, source, format, q)
+        : null;
+      if (kept) return kept;
       const oriented = await source
         .rotate()
         .raw()
@@ -296,6 +304,85 @@ export class ImageProcessor {
       width: (swap ? meta.height : meta.width) ?? null,
       height: (swap ? meta.width : meta.height) ?? null,
     };
+  }
+
+  /**
+   * Owner row 106 (media audit 13.11, batch F item 14): the app already
+   * sends chat photos as 1600 px JPEG and post photos at ≤ 2048 px.
+   * Encoding such a photo again costs worker CPU and a second generation
+   * of JPEG/WebP loss, and its bytes do not get much smaller. Kept as is
+   * only when nothing would change but the encoder: no rotation, no
+   * metadata to strip (GPS!), no transparency to flatten, not over the main
+   * size. The smaller sizes (and the AVIF twins) are made as before.
+   * Null: the usual full processing.
+   */
+  private async keptOriginal(
+    data: Buffer,
+    mime: FileMime,
+    source: sharp.Sharp,
+    format: ImageFormat,
+    q: ImageQuality,
+  ): Promise<ProcessedFile | null> {
+    if (mime !== FILE_MIME.jpeg && mime !== FILE_MIME.webp) return null;
+    const meta = await source.metadata();
+    const width = meta.width ?? 0;
+    const height = meta.height ?? 0;
+    assertPixels(width, height);
+    const long = Math.max(width, height);
+    if (
+      long === 0 ||
+      long > POST_IMAGE_MAIN_PX ||
+      (meta.orientation ?? 1) !== 1 ||
+      meta.exif !== undefined ||
+      meta.xmp !== undefined ||
+      meta.iptc !== undefined ||
+      meta.hasAlpha === true ||
+      (meta.pages ?? 1) > 1
+    ) {
+      return null;
+    }
+    const main: ProcessedImage = { data, mime, width, height };
+    const raw = await source
+      .clone()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    if (q.avif) {
+      const twin = await sharp(raw.data, {
+        raw: {
+          width: raw.info.width,
+          height: raw.info.height,
+          channels: raw.info.channels,
+        },
+        limitInputPixels: MAX_INPUT_PIXELS,
+      })
+        .avif({ quality: q.avif.quality, effort: q.avif.effort })
+        .toBuffer({ resolveWithObject: true });
+      if (twin.data.length < data.length) {
+        main.avif = {
+          data: twin.data,
+          mime: 'image/avif',
+          width: twin.info.width,
+          height: twin.info.height,
+        };
+      }
+    }
+    const variants = new Map<number, ProcessedImage>();
+    const smaller = POST_IMAGE_VARIANT_PX.filter((px) => px < long);
+    const made = this.atOnce()
+      ? await Promise.all(smaller.map((px) => this.fitted(raw, px, format, q)))
+      : await smaller.reduce<Promise<ProcessedImage[]>>(
+          async (acc, px) => [
+            ...(await acc),
+            await this.fitted(raw, px, format, q),
+          ],
+          Promise.resolve([]),
+        );
+    smaller.forEach((px, i) => variants.set(px, made[i]));
+    // A size the photo does not reach is the photo itself, as before.
+    for (const px of POST_IMAGE_VARIANT_PX) {
+      if (!variants.has(px)) variants.set(px, main);
+    }
+    return { main, variants, width, height };
   }
 
   private async heicToSharp(data: Buffer): Promise<sharp.Sharp> {

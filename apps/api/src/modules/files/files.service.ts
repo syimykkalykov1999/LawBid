@@ -30,6 +30,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { S3StorageService } from './storage/s3-storage.service';
 import { FileScanRunner } from './jobs/file-scan.runner';
+import { ScanHandoff } from './jobs/scan-handoff';
 import { detectMime } from './magic-bytes';
 import { dangerousContent } from './content-guard';
 import {
@@ -182,6 +183,8 @@ export class FilesService {
     @Optional() private readonly access?: FileAccessService,
     // WP-G: who uploads the most bytes (admin «Масштаб»).
     @Optional() private readonly heavy?: HeavyHittersService,
+    // Owner row 106: the bytes of a direct confirm go on to the scan job.
+    @Optional() private readonly handoff?: ScanHandoff,
   ) {
     this.logger.setContext(FilesService.name);
   }
@@ -811,6 +814,11 @@ export class FilesService {
       leftoverUploadMember(fileId, intent.bucket, intent.key),
     );
     void this.dropObjects(fileId, intent.bucket, [intent.key]);
+    // Owner row 106: the bytes just checked and stored wait for the scan
+    // job in Redis, so the worker does not read them from storage again.
+    if (directData && (await this.handoff?.stash(fileId, directData))) {
+      lap('handoff');
+    }
     await this.scans.enqueueScan(fileId, userId);
     lap('enqueue');
     const answer = await this.get(userId, fileId);

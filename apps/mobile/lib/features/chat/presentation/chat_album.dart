@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart'
+    show blurhashStandIn;
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
@@ -143,7 +145,9 @@ class ChatPhoto extends StatelessWidget {
         ? math.max(size.width, size.height)
         : math.max(size.width, size.height * r);
     final px = math.min(2048, ((logical * dpr) / 64).ceil() * 64);
-    final skeleton = ColoredBox(color: colors.skeletonBase);
+    // Owner row 106 (Telegram): the server's BlurHash instead of a flat
+    // grey box until the preview or the photo is there.
+    final skeleton = blurhashStandIn(a.blurhash, colors.skeletonBase);
     if (a.localBytes != null) {
       return Image.memory(
         a.localBytes!,

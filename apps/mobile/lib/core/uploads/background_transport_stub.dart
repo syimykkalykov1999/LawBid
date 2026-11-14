@@ -14,3 +14,12 @@ Future<bool> backgroundUploadKnown(String taskId) async => false;
 
 /// The browser: nothing is handed over when the tab is hidden.
 const bool backgroundHandsOff = false;
+
+/// The browser: no OS transfer to hand parts to.
+BackgroundParts? backgroundParts({required bool Function() enabled}) => null;
+
+/// The browser: no background service to configure.
+Future<void> configureBackgroundUploads({
+  required bool foreground,
+  required String title,
+}) async {}

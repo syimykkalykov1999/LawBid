@@ -330,6 +330,7 @@ export class GroupPresenter {
           previewUrl: f?.previewUrl ?? null,
           width: f?.width ?? null,
           height: f?.height ?? null,
+          blurhash: f?.blurhash ?? null,
         };
       }
       const pick = (ids: string[]) =>

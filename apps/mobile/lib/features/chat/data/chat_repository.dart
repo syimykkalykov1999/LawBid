@@ -910,6 +910,7 @@ abstract final class ChatMappers {
                 previewUrl: d.attachment!.previewUrl,
                 width: d.attachment!.width,
                 height: d.attachment!.height,
+                blurhash: d.attachment!.blurhash,
               ),
         voice: d.voice == null
             ? null

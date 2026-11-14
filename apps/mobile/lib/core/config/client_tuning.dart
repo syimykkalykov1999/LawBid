@@ -30,6 +30,7 @@ abstract final class ClientTuning {
   static int _partsMax = 8;
   static int _partsMin = 2;
   static int _downloadsAtOnce = 4;
+  static int _scanPollSocketMs = 3000;
 
   /// Whether a bootstrap answer (or [reset]) has set the numbers yet.
   static bool applied = false;
@@ -131,6 +132,12 @@ abstract final class ClientTuning {
   /// (`client.downloads_at_once`); two on mobile data, a weak phone or
   /// low power.
   static int get downloadsAtOnce => _gentle(_downloadsAtOnce);
+
+  /// Owner row 106: while the realtime socket is connected the server pushes
+  /// `file:ready`; the check of an upload is then asked only this often as a
+  /// safety net (`client.scan_poll_socket_ms`) instead of every 700 ms.
+  static Duration get scanPollWithSocket =>
+      Duration(milliseconds: _scanPollSocketMs);
 
   /// Pieces one document download is cut into; 1 = the old single stream.
   static int get downloadPieces => downloadsParallel ? downloadsAtOnce : 1;
@@ -259,6 +266,7 @@ abstract final class ClientTuning {
     _partsMax = pick('client.upload_parts_max', 8, 1, 16);
     _partsMin = pick('client.upload_parts_min', 2, 1, 8);
     _downloadsAtOnce = pick('client.downloads_at_once', 4, 1, 4);
+    _scanPollSocketMs = pick('client.scan_poll_socket_ms', 3000, 500, 30000);
     _chatPhotoMaxPx = pick(
       'media.chat_photo_max_px',
       1600,
