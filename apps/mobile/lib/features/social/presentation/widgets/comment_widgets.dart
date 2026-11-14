@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/shell/desktop_input.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/social/application/comment_sender.dart';
@@ -216,162 +217,173 @@ class _CommentTileState extends ConsumerState<CommentTile> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(
-            onLongPress: _menu,
-            behavior: HitTestBehavior.opaque,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Owner row 111: a 48 pt touch area, same look.
-                AppTapTarget(
-                  child: AppPressable(
-                    onTap: _openAuthor,
-                    child: GoldRingAvatar(
-                      url: a.avatarUrl,
-                      initials: a.displayName.isEmpty
-                          ? '?'
-                          : avatarInitials(a.displayName),
-                      size: avatarSize,
-                      ring: a.verified,
+          // Owner row 113: a right-click on the website opens the same menu
+          // as the long press (Telegram Web: a comment is a message).
+          WebRightClickMenu(
+            onMenu: _menu,
+            child: GestureDetector(
+              onLongPress: _menu,
+              behavior: HitTestBehavior.opaque,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Owner row 111: a 48 pt touch area, same look.
+                  AppTapTarget(
+                    child: AppPressable(
+                      onTap: _openAuthor,
+                      child: GoldRingAvatar(
+                        url: a.avatarUrl,
+                        initials: a.displayName.isEmpty
+                            ? '?'
+                            : avatarInitials(a.displayName),
+                        size: avatarSize,
+                        ring: a.verified,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            // Owner row 111: a 48 pt touch area, same look.
-                            child: AppTapTarget(
-                              child: GestureDetector(
-                                onTap: _openAuthor,
-                                child: Text(
-                                  // OQ-034: the client is anonymous under a
-                                  // case — "Case owner" / "Client".
-                                  a.isCaseOwner
-                                      ? t.t('cases.comments.owner')
-                                      : a.isAttorney
-                                          ? a.displayName
-                                          : (isCaseRef(_c.id)
-                                              ? t.t('person.client')
-                                              : a.displayName),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: type.bodySmall.copyWith(
-                                    color: colors.text,
-                                    fontWeight: FontWeight.w600,
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              // Owner row 111: a 48 pt touch area, same look.
+                              child: AppTapTarget(
+                                child: GestureDetector(
+                                  onTap: _openAuthor,
+                                  child: Text(
+                                    // OQ-034: the client is anonymous under a
+                                    // case — "Case owner" / "Client".
+                                    a.isCaseOwner
+                                        ? t.t('cases.comments.owner')
+                                        : a.isAttorney
+                                            ? a.displayName
+                                            : (isCaseRef(_c.id)
+                                                ? t.t('person.client')
+                                                : a.displayName),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: type.bodySmall.copyWith(
+                                      color: colors.text,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                          if (a.verified) ...[
-                            const SizedBox(width: 3),
-                            VerifiedCheck(
-                              label: t.t('post.verified'),
-                              size: 13,
-                              gold: !a.isAttorney,
+                            if (a.verified) ...[
+                              const SizedBox(width: 3),
+                              VerifiedCheck(
+                                label: t.t('post.verified'),
+                                size: 13,
+                                gold: !a.isAttorney,
+                              ),
+                            ],
+                            const SizedBox(width: AppSpacing.sm),
+                            Flexible(
+                              child: Text(
+                                SocialFormat.ago(t, f, _c.createdAt),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.caption.copyWith(
+                                  color: colors.textSecondary,
+                                ),
+                              ),
                             ),
                           ],
-                          const SizedBox(width: AppSpacing.sm),
-                          Flexible(
-                            child: Text(
-                              SocialFormat.ago(t, f, _c.createdAt),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: type.caption
-                                  .copyWith(color: colors.textSecondary),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      // OQ-042: #tags and @mentions are tappable.
-                      // Owner 2026-10-05: «Перевести» (posts zone).
-                      TranslatableText(
-                        kind: TranslatableKind.comment,
-                        id: _c.id,
-                        text: _c.body,
-                        enabled: !_c.isMine,
-                        builder: (context, body) => PostBodyText(
-                          body: body,
-                          expanded: true,
-                          mentions: _c.mentions,
-                          height: 1.4,
                         ),
-                      ),
-                      // One row; long translations shrink, nothing moves.
-                      Row(
-                        children: [
-                          Flexible(
-                            child: TextButton(
-                              onPressed: _pending ? null : _replyToThis,
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize:
-                                    const Size(0, AppSizes.touchTarget),
-                                foregroundColor: colors.textSecondary,
-                              ),
-                              child: FitText(t.t('comment.reply')),
-                            ),
+                        const SizedBox(height: 2),
+                        // OQ-042: #tags and @mentions are tappable.
+                        // Owner 2026-10-05: «Перевести» (posts zone).
+                        TranslatableText(
+                          kind: TranslatableKind.comment,
+                          id: _c.id,
+                          text: _c.body,
+                          enabled: !_c.isMine,
+                          builder: (context, body) => PostBodyText(
+                            body: body,
+                            expanded: true,
+                            mentions: _c.mentions,
+                            height: 1.4,
                           ),
-                          if (!widget.isReply && _c.replyCount > 0) ...[
-                            const SizedBox(width: AppSpacing.lg),
+                        ),
+                        // One row; long translations shrink, nothing moves.
+                        Row(
+                          children: [
                             Flexible(
                               child: TextButton(
-                                onPressed: () => setState(
-                                  () => _showReplies = !_showReplies,
-                                ),
+                                onPressed: _pending ? null : _replyToThis,
                                 style: TextButton.styleFrom(
                                   padding: EdgeInsets.zero,
-                                  minimumSize:
-                                      const Size(0, AppSizes.touchTarget),
+                                  minimumSize: const Size(
+                                    0,
+                                    AppSizes.touchTarget,
+                                  ),
                                   foregroundColor: colors.textSecondary,
                                 ),
-                                child: FitText(
-                                  t.t(
-                                    _showReplies
-                                        ? 'comment.hideReplies'
-                                        : 'comment.showReplies',
-                                    {
-                                      'count': SocialFormat.count(
-                                        ref.watch(l10nFormatsProvider),
-                                        _c.replyCount,
-                                      ),
-                                    },
+                                child: FitText(t.t('comment.reply')),
+                              ),
+                            ),
+                            if (!widget.isReply && _c.replyCount > 0) ...[
+                              const SizedBox(width: AppSpacing.lg),
+                              Flexible(
+                                child: TextButton(
+                                  onPressed: () => setState(
+                                    () => _showReplies = !_showReplies,
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: const Size(
+                                      0,
+                                      AppSizes.touchTarget,
+                                    ),
+                                    foregroundColor: colors.textSecondary,
+                                  ),
+                                  child: FitText(
+                                    t.t(
+                                      _showReplies
+                                          ? 'comment.hideReplies'
+                                          : 'comment.showReplies',
+                                      {
+                                        'count': SocialFormat.count(
+                                          ref.watch(l10nFormatsProvider),
+                                          _c.replyCount,
+                                        ),
+                                      },
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    children: [
+                      BounceIcon(
+                        active: _c.likedByMe,
+                        icon: AppIcons.favoriteBorderRounded,
+                        activeIcon: AppIcons.favoriteRounded,
+                        activeColor: colors.danger,
+                        size: 18,
+                        label: t.t(_c.likedByMe ? 'post.unlike' : 'post.like'),
+                        onTap: _toggleLike,
                       ),
+                      if (_c.likeCount > 0)
+                        Text(
+                          SocialFormat.count(f, _c.likeCount),
+                          style: type.caption.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
                     ],
                   ),
-                ),
-                Column(
-                  children: [
-                    BounceIcon(
-                      active: _c.likedByMe,
-                      icon: AppIcons.favoriteBorderRounded,
-                      activeIcon: AppIcons.favoriteRounded,
-                      activeColor: colors.danger,
-                      size: 18,
-                      label: t.t(_c.likedByMe ? 'post.unlike' : 'post.like'),
-                      onTap: _toggleLike,
-                    ),
-                    if (_c.likeCount > 0)
-                      Text(
-                        SocialFormat.count(f, _c.likeCount),
-                        style:
-                            type.caption.copyWith(color: colors.textSecondary),
-                      ),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           if (_showReplies) _Replies(commentId: _c.id, onReply: widget.onReply),
@@ -512,8 +524,9 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                                   Text(
                                     SocialFormat.ago(t, f, _c.createdAt),
                                     maxLines: 1,
-                                    style: type.caption
-                                        .copyWith(color: colors.textSecondary),
+                                    style: type.caption.copyWith(
+                                      color: colors.textSecondary,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -577,8 +590,10 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                                   setState(() => _showReplies = !_showReplies),
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
-                                minimumSize:
-                                    const Size(0, AppSizes.touchTarget),
+                                minimumSize: const Size(
+                                  0,
+                                  AppSizes.touchTarget,
+                                ),
                                 textStyle: type.bodySmall,
                                 foregroundColor: colors.textSecondary,
                               ),
@@ -588,8 +603,10 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                                       ? 'comment.hideReplies'
                                       : 'comment.showReplies',
                                   {
-                                    'count':
-                                        SocialFormat.count(f, _c.replyCount),
+                                    'count': SocialFormat.count(
+                                      f,
+                                      _c.replyCount,
+                                    ),
                                   },
                                 ),
                               ),
@@ -619,11 +636,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
           ),
         ),
         if (_showReplies)
-          _Replies(
-            commentId: _c.id,
-            onReply: widget.onReply,
-            threads: true,
-          ),
+          _Replies(commentId: _c.id, onReply: widget.onReply, threads: true),
         Divider(height: 1, color: colors.border),
       ],
     );
@@ -849,8 +862,9 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                           t.t('comment.replyingTo', {'name': reply.name}),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: type.caption
-                              .copyWith(color: colors.textSecondary),
+                          style: type.caption.copyWith(
+                            color: colors.textSecondary,
+                          ),
                         ),
                       ),
                       AppIconButton(
