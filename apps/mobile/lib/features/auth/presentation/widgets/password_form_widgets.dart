@@ -50,42 +50,50 @@ class PasswordFormScaffold extends ConsumerWidget {
                 ),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 8),
-                        if (onBack != null)
-                          AppBackButton(
-                            semanticLabel: t.t('common.back'),
-                            onPressed: onBack!,
-                          )
-                        else
-                          const SizedBox(height: 40),
-                        const SizedBox(height: 14),
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            title,
-                            style: typography.titleLarge
-                                .copyWith(color: colors.text, fontSize: 20),
+                  // Detective R2-A #14 (Flutter `AutofillGroup` docs): the
+                  // phone/e-mail and the password are one form for iOS
+                  // Keychain and Google Password Manager. The screen calls
+                  // `TextInput.finishAutofillContext()` after a success;
+                  // leaving without one saves nothing.
+                  child: AutofillGroup(
+                    onDisposeAction: AutofillContextAction.cancel,
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 8),
+                          if (onBack != null)
+                            AppBackButton(
+                              semanticLabel: t.t('common.back'),
+                              onPressed: onBack!,
+                            )
+                          else
+                            const SizedBox(height: 40),
+                          const SizedBox(height: 14),
+                          Semantics(
+                            header: true,
+                            child: Text(
+                              title,
+                              style: typography.titleLarge
+                                  .copyWith(color: colors.text, fontSize: 20),
+                            ),
                           ),
-                        ),
-                        if (subtitle != null) ...[
-                          const SizedBox(height: AppSpacing.sm),
-                          Text(
-                            subtitle!,
-                            style: typography.body
-                                .copyWith(color: colors.textSecondary),
+                          if (subtitle != null) ...[
+                            const SizedBox(height: AppSpacing.sm),
+                            Text(
+                              subtitle!,
+                              style: typography.body
+                                  .copyWith(color: colors.textSecondary),
+                            ),
+                          ],
+                          const SizedBox(height: 18),
+                          ...fields,
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 22, top: 16),
+                            child: bottom,
                           ),
                         ],
-                        const SizedBox(height: 18),
-                        ...fields,
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 22, top: 16),
-                          child: bottom,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -96,6 +104,49 @@ class PasswordFormScaffold extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// The account name a new password is saved under, for a form that has
+/// no visible username field (set password, the code step of «Forgot
+/// password»). Without it iOS / Android save the strong password with no
+/// phone number (Detective R2-A #14). Not shown, not focusable, not read by
+/// screen readers; it only fills the [AutofillGroup] (the hidden username
+/// field of Chromium's / Apple's password-form guidance).
+class AutofillUsernameField extends StatefulWidget {
+  const AutofillUsernameField({required this.username, super.key});
+
+  final String username;
+
+  @override
+  State<AutofillUsernameField> createState() => _AutofillUsernameFieldState();
+}
+
+class _AutofillUsernameFieldState extends State<AutofillUsernameField> {
+  late final _controller = TextEditingController(text: widget.username);
+
+  @override
+  void didUpdateWidget(AutofillUsernameField old) {
+    super.didUpdateWidget(old);
+    if (old.username != widget.username) _controller.text = widget.username;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Offstage(
+        child: ExcludeFocus(
+          child: TextField(
+            key: const ValueKey('autofill-username'),
+            controller: _controller,
+            autofillHints: const [AutofillHints.username],
+            enableInteractiveSelection: false,
+          ),
+        ),
+      );
 }
 
 /// A password field with the show / hide eye (owner 2026-10-13).

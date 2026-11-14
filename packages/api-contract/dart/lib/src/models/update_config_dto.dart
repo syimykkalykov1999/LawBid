@@ -8,13 +8,14 @@ part 'update_config_dto.g.dart';
 
 @JsonSerializable()
 class UpdateConfigDto {
-  const UpdateConfigDto({required this.value});
+  const UpdateConfigDto({required this.value, this.expectedUpdatedAt});
 
   factory UpdateConfigDto.fromJson(Map<String, Object?> json) =>
       _$UpdateConfigDtoFromJson(json);
 
   /// Validated against the key schema (type, min/max, items).
   final dynamic value;
+  final DateTime? expectedUpdatedAt;
 
   Map<String, Object?> toJson() => _$UpdateConfigDtoToJson(this);
 }

@@ -11,10 +11,12 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/platform/app_settings_opener.dart';
 import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
+import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
@@ -373,6 +375,10 @@ class _CallScreenState extends ConsumerState<CallScreen>
     final peer = s.peer ?? s.call?.peer ?? _lastPeer;
     _lastPeer = peer;
     final peerCameraOff = ref.watch(callCamerasOffProvider).contains(peer?.id);
+    // Row 166 (WhatsApp «X muted»): their microphone is off (1:1 only; a
+    // group shows it in the people list).
+    final peerMuted =
+        !group && s.busy && ref.watch(callMicsOffProvider).contains(peer?.id);
     final active = s.phase == CallPhase.active;
     final incoming = s.phase == CallPhase.incoming;
     final ringing = s.phase == CallPhase.outgoing || incoming;
@@ -491,6 +497,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
             session: s,
             type: type,
             bottomInset: sheetHeight,
+            peerMuted: peerMuted,
           ),
         ],
       );
@@ -500,8 +507,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
       title: bigCentre ? '' : title,
       session: bigCentre ? null : s,
       type: type,
-      onMinimize:
-          incoming ? null : () => unawaited(Navigator.of(context).maybePop()),
+      // Row 166 (WhatsApp Android): a ringing call goes to the background
+      // too — it keeps ringing in the notification and the in-app banner.
+      onMinimize: () => unawaited(Navigator.of(context).maybePop()),
       // Owner 2026-11-04 (R-376): no «Add participant» while group calls
       // are off.
       onAdd: active && ref.watch(groupCallsEnabledProvider)
@@ -511,7 +519,31 @@ class _CallScreenState extends ConsumerState<CallScreen>
       addLabel: t.t('call.addParticipant'),
     );
 
+    // Row 166 (WhatsApp «Poor connection», Telegram «Weak network signal»):
+    // the 3-second link readings the media already takes (getStats).
+    final live = media;
     final banners = <Widget>[
+      if (active && !s.reconnecting && live != null)
+        ValueListenableBuilder<LinkQuality>(
+          valueListenable: live.quality,
+          builder: (context, q, _) => AnimatedSwitcher(
+            duration: context.reduceMotion ? Duration.zero : CallMotion.quick,
+            child: q.index >= LinkQuality.poor.index
+                ? CallInfoPill(
+                    key: const Key('call-poor-connection'),
+                    icon: AppIcons.warningAmberRounded,
+                    text: t.t('call.poorConnection'),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ),
+      // The voice call of two shows it under the name instead.
+      if (peerMuted && !bigCentre)
+        CallInfoPill(
+          key: const Key('call-peer-muted'),
+          icon: AppIcons.micOffRounded,
+          text: t.t('call.peerMuted', {'name': peer?.name ?? ''}),
+        ),
       if (s.notice != null)
         CallNoticeBanner(key: ValueKey(s.notice), notice: s.notice!),
       if (s.videoPrompt != null)
@@ -526,56 +558,76 @@ class _CallScreenState extends ConsumerState<CallScreen>
     ];
 
     final audio = ref.watch(callAudioRouterProvider);
-    final Widget bottom = incoming
-        ? _IncomingButtons(
+    // Row 166 (WhatsApp «No answer» · Cancel · Call again; iOS mic alert
+    // with Settings): an ended call that leaves something to do.
+    final endedActions =
+        s.releasing ? const <CallEndedAction>[] : callEndedActions(s);
+    final Widget bottom = endedActions.isNotEmpty
+        ? _EndedButtons(
+            actions: endedActions,
             video: s.video,
-            onDecline: c.decline,
-            onAccept: c.accept,
-            pulse: _pulse,
+            onCancel: c.dismissEnded,
+            onCallAgain: () => unawaited(c.callAgain()),
+            onSettings: () {
+              c.dismissEnded();
+              unawaited(openAppSettingsPage());
+            },
           )
-        : CallControlSheet(
-            translucent: videoMode,
-            label: t.t('call.members'),
-            panel: const CallMembersPanel(),
-            buttons: CallControlBar(
-              speaker: s.speaker,
-              videoOn: s.video && s.cameraOn,
-              muted: s.muted,
-              onFlip: s.video && s.cameraOn && s.busy
-                  ? () => unawaited(c.switchCamera())
-                  : null,
-              audioRoute: audio.inHeadset ? audio.current?.kind : null,
-              // Owner 2026-11-04 (WhatsApp): with a headset connected the
-              // button lists the outputs; without one it switches the
-              // loudspeaker as before.
-              onSpeaker: s.busy
-                  ? () => c.audioChoice
-                      ? unawaited(showCallAudioSheet(context))
-                      : unawaited(c.toggleSpeaker())
-                  : null,
-              // Owner 2026-10-22: switches video on / off mid-call; a
-              // channel's video call keeps the plain camera pause.
-              onVideo: c.canSwitchVideo
-                  ? () => _videoTap(c, s, c.toggleVideo)
-                  : s.video && s.busy
-                      ? () => _videoTap(c, s, c.toggleCamera)
+        : incoming
+            ? _IncomingButtons(
+                video: s.video,
+                onDecline: c.decline,
+                onAccept: c.accept,
+                pulse: _pulse,
+              )
+            : CallControlSheet(
+                translucent: videoMode,
+                label: t.t('call.members'),
+                panel: const CallMembersPanel(),
+                buttons: CallControlBar(
+                  speaker: s.speaker,
+                  videoOn: s.video && s.cameraOn,
+                  muted: s.muted,
+                  onFlip: s.video && s.cameraOn && s.busy
+                      ? () => unawaited(c.switchCamera())
                       : null,
-              onMute: s.busy ? c.toggleMute : null,
-              onEnd: s.busy ? () => unawaited(_pressEnd(c, s)) : null,
-            ),
-          );
+                  audioRoute: audio.inHeadset ? audio.current?.kind : null,
+                  // Owner 2026-11-04 (WhatsApp): with a headset connected the
+                  // button lists the outputs; without one it switches the
+                  // loudspeaker as before.
+                  onSpeaker: s.busy
+                      ? () => c.audioChoice
+                          ? unawaited(showCallAudioSheet(context))
+                          : unawaited(c.toggleSpeaker())
+                      : null,
+                  // Owner 2026-10-22: switches video on / off mid-call; a
+                  // channel's video call keeps the plain camera pause.
+                  onVideo: c.canSwitchVideo
+                      ? () => _videoTap(c, s, c.toggleVideo)
+                      : s.video && s.busy
+                          ? () => _videoTap(c, s, c.toggleCamera)
+                          : null,
+                  onMute: s.busy ? c.toggleMute : null,
+                  onEnd: s.busy ? () => unawaited(_pressEnd(c, s)) : null,
+                ),
+              );
 
     return SystemNavBandColor(
       color: AppCallColors.sheet,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: PopScope(
-          // Back minimises a live call (it goes on) — it never drops it. A
-          // ringing call stays. One person big: back returns to everyone.
-          canPop: !incoming && !(groupVideo && layout.focusId != null),
+          // Back minimises a live call (it goes on) — it never drops it.
+          // Row 166 (WhatsApp Android): a ringing call goes behind too and
+          // rings on in the compact Accept · Decline banner. One person
+          // big: back returns to everyone.
+          canPop: !(groupVideo && layout.focusId != null),
           onPopInvokedWithResult: (didPop, _) {
             if (!didPop && layout.focusId != null) {
               ref.read(callVideoLayoutProvider.notifier).clearFocus();
+            }
+            if (didPop && incoming) {
+              ref.read(systemRingingCallProvider.notifier).set(null);
             }
           },
           child: Listener(
@@ -688,7 +740,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
                         // R-037: the sheet goes once the call is let go —
                         // never while native teardown holds the frames.
                         hidden: hidden ||
-                            (s.phase == CallPhase.ended && !s.releasing),
+                            (s.phase == CallPhase.ended &&
+                                !s.releasing &&
+                                endedActions.isEmpty),
                         offset: const Offset(0, 0.3),
                         child: bottom,
                       ),
@@ -1012,8 +1066,11 @@ class _BigPerson extends StatelessWidget {
     required this.session,
     required this.type,
     required this.bottomInset,
+    this.peerMuted = false,
   });
 
+  /// Row 166: their microphone is off — «X muted» under the status.
+  final bool peerMuted;
   final CallPeer? peer;
   final Animation<double> pulse;
   final bool ringing;
@@ -1072,10 +1129,13 @@ class _BigPerson extends StatelessWidget {
                 duration:
                     context.reduceMotion ? Duration.zero : CallMotion.quick,
                 // Only a change of kind cross-fades (not every second).
+                // Row 166: «Allow microphone access…» and the refusals read
+                // whole (they were cut on one line).
                 child: Text(
                   status,
                   key: ValueKey(_kind(status)),
-                  maxLines: 1,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: type.body.copyWith(
                     color: Colors.white.withValues(alpha: 0.8),
@@ -1086,6 +1146,19 @@ class _BigPerson extends StatelessWidget {
               ),
             ),
           ),
+          if (peerMuted)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.md),
+              child: Consumer(
+                builder: (context, ref, _) => CallInfoPill(
+                  key: const Key('call-peer-muted'),
+                  icon: AppIcons.micOffRounded,
+                  text: ref
+                      .watch(translatorProvider)
+                      .t('call.peerMuted', {'name': name}),
+                ),
+              ),
+            ),
           const Spacer(flex: 2),
         ],
       ),
@@ -1224,6 +1297,131 @@ String callStatusText(Translator t, CallSession s, {DateTime? now}) {
       return text;
     case CallPhase.idle:
       return '';
+  }
+}
+
+/// Row 166: a short line on the call screen — «Poor connection», «X muted»
+/// (the same soft pill as the host's notices).
+class CallInfoPill extends StatelessWidget {
+  const CallInfoPill({required this.icon, required this.text, super.key});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return Semantics(
+      liveRegion: true,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppCallColors.pill,
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIcon(icon, size: 16, color: colors.iconTint),
+              const SizedBox(width: AppSpacing.xs),
+              Flexible(
+                child: Text(
+                  text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: type.caption.copyWith(color: AppCallColors.onStage),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Row 166 (WhatsApp): the ended call's buttons — Cancel · Call again, or
+/// Cancel · Settings after a refused microphone, or Cancel alone.
+class _EndedButtons extends ConsumerWidget {
+  const _EndedButtons({
+    required this.actions,
+    required this.video,
+    required this.onCancel,
+    required this.onCallAgain,
+    required this.onSettings,
+  });
+
+  final List<CallEndedAction> actions;
+  final bool video;
+  final VoidCallback onCancel;
+  final VoidCallback onCallAgain;
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final reduce = context.reduceMotion;
+    Widget button(CallEndedAction a) => switch (a) {
+          CallEndedAction.cancel => CallRoundButton(
+              key: const Key('call-btn-ended-cancel'),
+              icon: AppIcons.closeRounded,
+              label: t.t('common.cancel'),
+              caption: t.t('common.cancel'),
+              fill: AppCallColors.cancel,
+              size: 72,
+              onTap: onCancel,
+            ),
+          CallEndedAction.callAgain => CallRoundButton(
+              key: const Key('call-btn-call-again'),
+              icon: video ? AppIcons.videoCameraOutlined : AppIcons.callRounded,
+              label: t.t('call.again'),
+              caption: t.t('call.again'),
+              fill: AppCallColors.accept,
+              size: 72,
+              onTap: onCallAgain,
+            ),
+          CallEndedAction.settings => CallRoundButton(
+              key: const Key('call-btn-ended-settings'),
+              icon: AppIcons.settingsOutlined,
+              label: t.t('phoneContacts.openSettings'),
+              caption: t.t('phoneContacts.openSettings'),
+              fill: AppCallColors.accept,
+              size: 72,
+              onTap: onSettings,
+            ),
+        };
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: reduce ? Duration.zero : CallMotion.layout,
+      curve: CallMotion.curve,
+      builder: (context, v, child) => Opacity(
+        opacity: v,
+        child: Transform.translate(
+          offset: Offset(0, 24 * (1 - v)),
+          child: child,
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.xxl,
+          0,
+          AppSpacing.xxl,
+          MediaQuery.paddingOf(context).bottom + AppSpacing.xxl,
+        ),
+        child: Row(
+          mainAxisAlignment: actions.length == 1
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.spaceBetween,
+          children: [for (final a in actions) button(a)],
+        ),
+      ),
+    );
   }
 }
 

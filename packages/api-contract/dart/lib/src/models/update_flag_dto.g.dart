@@ -11,6 +11,9 @@ UpdateFlagDto _$UpdateFlagDtoFromJson(Map<String, dynamic> json) =>
       enabled: json['enabled'] as bool?,
       rolloutPercent: (json['rolloutPercent'] as num?)?.toInt(),
       hashVersion: (json['hashVersion'] as num?)?.toInt(),
+      expectedUpdatedAt: json['expectedUpdatedAt'] == null
+          ? null
+          : DateTime.parse(json['expectedUpdatedAt'] as String),
     );
 
 Map<String, dynamic> _$UpdateFlagDtoToJson(UpdateFlagDto instance) =>
@@ -18,4 +21,5 @@ Map<String, dynamic> _$UpdateFlagDtoToJson(UpdateFlagDto instance) =>
       'enabled': ?instance.enabled,
       'rolloutPercent': ?instance.rolloutPercent,
       'hashVersion': ?instance.hashVersion,
+      'expectedUpdatedAt': ?instance.expectedUpdatedAt?.toIso8601String(),
     };

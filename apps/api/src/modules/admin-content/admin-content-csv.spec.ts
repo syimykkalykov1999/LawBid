@@ -1,3 +1,4 @@
+import { exportWhere } from './export-filter';
 import {
   AdminContentService,
   CSV_EXPORT_LIMIT,
@@ -111,5 +112,89 @@ describe('exportCsvStream (S18-3: keyset pages, cap notice)', () => {
     const { svc } = serviceWith(CSV_EXPORT_LIMIT);
     const out = await svc.exportCsvStream('users', () => undefined);
     expect(out).toEqual({ rows: CSV_EXPORT_LIMIT, truncated: false });
+  });
+});
+
+/** Owner 14.11 (row 180, B7 / detective R3A-8): the CSV is what the list
+ * shows — the page's filters go with the export (Stripe «Export» of the
+ * filtered list), not the whole table. */
+describe('exportCsvStream honours the page filters', () => {
+  const where = async (entity: string, filter: Record<string, unknown>) => {
+    const findMany = jest.fn(() => Promise.resolve([]));
+    const model = { findMany };
+    const svc = new AdminContentService(
+      {
+        user: model,
+        case: model,
+        bid: model,
+        payment: model,
+        casePayment: model,
+        post: model,
+        assistantMembership: model,
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    await svc.exportCsvStream(entity, () => undefined, { filter });
+    return (findMany.mock.calls[0] as unknown as [{ where?: unknown }])[0]
+      .where;
+  };
+  const U = '11111111-1111-4111-8111-111111111111';
+
+  it('users: role, status and the date range', async () => {
+    expect(
+      await where('users', {
+        role: 'attorney',
+        status: 'suspended',
+        from: '2026-11-01T00:00:00.000Z',
+        to: '2026-11-14T00:00:00.000Z',
+      }),
+    ).toEqual({
+      AND: [
+        { role: 'attorney' },
+        { status: 'suspended' },
+        {
+          created_at: {
+            gte: new Date('2026-11-01T00:00:00.000Z'),
+            lt: new Date('2026-11-14T00:00:00.000Z'),
+          },
+        },
+      ],
+    });
+  });
+
+  it('payments: one person and one status (e.g. only refunded)', async () => {
+    expect(await where('payments', { status: 'refunded', userId: U })).toEqual({
+      AND: [{ status: 'refunded' }, { user_id: U }],
+    });
+  });
+
+  it('a value the list cannot take is a 400 before the file starts', () => {
+    expect(() => exportWhere('payments', { status: 'nope' })).toThrow(
+      expect.objectContaining({ status: 400 }),
+    );
+    expect(() => exportWhere('teams', { q: 'x' })).toThrow(
+      expect.objectContaining({ status: 400 }),
+    );
+  });
+
+  it('cases: the title search and the state', async () => {
+    expect(await where('cases', { q: 'divorce', stateCode: 'NV' })).toEqual({
+      AND: [
+        { title: { contains: 'divorce', mode: 'insensitive' } },
+        { primary_state_code: 'NV' },
+      ],
+    });
+  });
+
+  it('case payments: either side of the payment, and the case', async () => {
+    expect(await where('case_payments', { userId: U, caseId: U })).toEqual({
+      AND: [{ OR: [{ client_id: U }, { attorney_id: U }] }, { case_id: U }],
+    });
+  });
+
+  it('no filter → the whole table, as before', async () => {
+    expect(await where('bids', {})).toBeUndefined();
   });
 });

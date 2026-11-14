@@ -21,6 +21,7 @@ import 'package:lawbid/features/calls/application/call_decline_marks.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_media_view.dart';
+import 'package:lawbid/features/calls/application/call_screen_awake.dart';
 import 'package:lawbid/features/calls/application/call_sound_prefs.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/application/cloudflare_sfu_call_media.dart';
@@ -73,7 +74,12 @@ class CallSession {
     this.videoPrompt,
     this.endedAt,
     this.releasing = false,
+    this.conversationId,
   });
+
+  /// Row 166 (WhatsApp «Call again»): the chat this phone dialled from — set
+  /// only on a 1:1 call we started, so the ended screen can ring again.
+  final String? conversationId;
 
   /// R-037 (owner 2026-10-28, «the slide-down stops halfway»): the call
   /// ended here and the phone is still letting go of it — camera and mic,
@@ -146,6 +152,7 @@ class CallSession {
     bool clearVideoPrompt = false,
     DateTime? endedAt,
     bool? releasing,
+    String? conversationId,
   }) =>
       CallSession(
         phase: phase ?? this.phase,
@@ -164,6 +171,7 @@ class CallSession {
         videoPrompt: clearVideoPrompt ? null : videoPrompt ?? this.videoPrompt,
         endedAt: endedAt ?? this.endedAt,
         releasing: releasing ?? this.releasing,
+        conversationId: conversationId ?? this.conversationId,
       );
 }
 
@@ -410,8 +418,50 @@ const kCallSfuReportEvery = Duration(minutes: 1);
 /// (the server's `calls.solo_end_seconds` has the same 3 s).
 const kCallAloneGrace = Duration(seconds: 3);
 
-/// How long the "Call ended" screen stays.
+/// How long the "Call ended" screen stays when nothing is left to do —
+/// the default of the admin setting `client.call_ended_ms`
+/// ([ClientTuning.callEndedLinger]).
 const kCallEndedLinger = Duration(milliseconds: 1600);
+
+/// Row 166 (WhatsApp): what the ended screen offers.
+enum CallEndedAction {
+  /// Close the ended screen.
+  cancel,
+
+  /// Ring the same person again (a 1:1 call we started).
+  callAgain,
+
+  /// The phone's settings (the microphone was refused).
+  settings,
+}
+
+/// Row 166 (WhatsApp «No answer» · Cancel · Call again; iOS mic alert with
+/// Settings): the buttons an ended call keeps on screen until the person
+/// taps one (or `client.call_ended_hold_s` runs out). Empty = the screen
+/// closes by itself after [kCallEndedLinger], as before.
+List<CallEndedAction> callEndedActions(CallSession s) {
+  if (s.phase != CallPhase.ended || s.staleCallId != null) return const [];
+  final code = s.errorCode;
+  if (code == kMicDenied) {
+    return const [CallEndedAction.cancel, CallEndedAction.settings];
+  }
+  // The plan offer opens instead; a removed member just leaves.
+  if (code == ApiErrorCodes.entitlementRequired || code == kRemovedFromCall) {
+    return const [];
+  }
+  // A refusal (calls not open yet, subscription, …): long words to read.
+  if (code != null) return const [CallEndedAction.cancel];
+  if (s.conversationId == null) return const [];
+  const again = {
+    CallStatus.missed,
+    CallStatus.busy,
+    CallStatus.declined,
+    CallStatus.failed,
+  };
+  return again.contains(s.outcome)
+      ? const [CallEndedAction.cancel, CallEndedAction.callAgain]
+      : const [];
+}
 
 /// R-037: the longest one step of the end may hold the «Call ended»
 /// screen still (a native call that never answers must not keep it up).
@@ -613,6 +663,14 @@ class CallController extends Notifier<CallSession> {
     listenSelf(_syncForeground);
     listenSelf(_syncProximity);
     listenSelf(_syncSocket);
+    listenSelf(_syncScreenAwake);
+    // Row 166: an ended screen that waits for a tap goes when the screen
+    // itself goes (back, minimise, another route on top of the app).
+    ref.listen<bool>(callScreenVisibleProvider, (_, visible) {
+      if (!visible && state.phase == CallPhase.ended && !state.releasing) {
+        dismissEnded();
+      }
+    });
     // R-373: the feed's players follow the call (silent, no audio focus).
     listenSelf((_, next) {
       ref.read(callAudioActiveProvider.notifier).set(active: next.busy);
@@ -634,9 +692,12 @@ class CallController extends Notifier<CallSession> {
       }),
     );
     final proximity = ref.read(proximityScreenProvider);
+    final awake = ref.read(callScreenAwakeProvider);
     ref.onDispose(() {
       _proximityOn = false;
       unawaited(proximity.release(this));
+      if (_awakeOn) unawaited(awake(on: false));
+      _awakeOn = false;
       unawaited(actions.cancel());
       _events?.cancel();
       _clearTimers();
@@ -665,6 +726,21 @@ class CallController extends Notifier<CallSession> {
     _proximityOn = on;
     final screen = ref.read(proximityScreenProvider);
     unawaited(on ? screen.hold(this) : screen.release(this));
+  }
+
+  /// Row 166 (WhatsApp / FaceTime): a video call keeps the screen on while
+  /// it rings out, connects and runs (wakelock_plus, BSD-3); a voice call
+  /// leaves the screen to the proximity sensor and the system timeout.
+  bool _awakeOn = false;
+
+  void _syncScreenAwake(CallSession? prev, CallSession next) {
+    final on = next.video &&
+        (next.phase == CallPhase.outgoing ||
+            next.phase == CallPhase.connecting ||
+            next.phase == CallPhase.active);
+    if (on == _awakeOn) return;
+    _awakeOn = on;
+    unawaited(ref.read(callScreenAwakeProvider)(on: on));
   }
 
   /// Owner 2026-11-04 (WhatsApp): the sound moved by itself (a headset
@@ -767,6 +843,7 @@ class CallController extends Notifier<CallSession> {
       peer: peer,
       video: video,
       speaker: video,
+      conversationId: conversationId,
     );
     try {
       // The microphone first: a refusal must not ring the other phone.
@@ -1016,14 +1093,47 @@ class CallController extends Notifier<CallSession> {
   }
 
   /// Group calls: the others' list shows our microphone (best effort).
+  /// Row 166 (WhatsApp «X muted», FaceTime mic-off): in a call of two the
+  /// other phone hears it over the call's own signalling
+  /// ({'type':'mute','on':…}, like {'type':'camera'}); an older app ignores
+  /// a type it does not know.
   void _shareMuteState({required bool muted}) {
     final call = state.call;
-    if (call == null || !call.group) return;
+    if (call == null) return;
+    if (!call.group) {
+      if (!state.busy) return;
+      unawaited(
+        ref
+            .read(callSignalSenderProvider)(
+              call.id,
+              {'type': 'mute', 'on': muted},
+            )
+            .then<void>((_) {}, onError: (Object _) {}),
+      );
+      return;
+    }
     unawaited(
       _repo
           .setMuteState(call.id, muted: muted)
           .then<void>((_) {}, onError: (Object _) {}),
     );
+  }
+
+  /// Row 166: «Cancel» on the ended screen — it closes now.
+  void dismissEnded() {
+    if (state.phase != CallPhase.ended) return;
+    _linger?.cancel();
+    state = const CallSession();
+  }
+
+  /// Row 166 (WhatsApp «Call again»): rings the same person the same way.
+  Future<void> callAgain() async {
+    final s = state;
+    final id = s.conversationId;
+    if (s.phase != CallPhase.ended || id == null) return;
+    // Straight from «ended» to «calling»: the screen stays up (never idle
+    // in between, which would close it).
+    await call(id, peer: s.peer ?? s.call?.peer, video: s.video);
   }
 
   /// The screen showed the notice.
@@ -2510,6 +2620,10 @@ class CallController extends Notifier<CallSession> {
           }
         case 'video':
           _onPeerVideo(peer, on: data['on'] != false);
+        case 'mute':
+          ref
+              .read(callMicsOffProvider.notifier)
+              .set(peer, on: data['on'] != true);
         case 'restart':
           // The side that answered lost the route: the offerer renews it.
           if (_offered.contains(peer)) await _restartIce(peer);
@@ -2828,7 +2942,16 @@ class CallController extends Notifier<CallSession> {
     state = state.copyWith(releasing: false);
     // The 409 sheet decides when this screen goes.
     if (keepOpen) return;
-    _linger = Timer(kCallEndedLinger, () {
+    // Row 166 (WhatsApp): «No answer» · Cancel · Call again stays until the
+    // person taps (or the admin's `client.call_ended_hold_s`, 0 = until a
+    // tap) — only while the call screen shows it; otherwise the short
+    // «Call ended» as before (`client.call_ended_ms`).
+    final hold = callEndedActions(state).isNotEmpty &&
+        ref.read(callScreenVisibleProvider);
+    final wait =
+        hold ? ClientTuning.callEndedHold : ClientTuning.callEndedLinger;
+    if (wait == Duration.zero) return;
+    _linger = Timer(wait, () {
       if (ref.mounted && state.phase == CallPhase.ended) {
         state = const CallSession();
       }
@@ -2878,6 +3001,7 @@ class CallController extends Notifier<CallSession> {
       _mediaClosing = Future<void>.value();
     }
     ref.read(callCamerasOffProvider.notifier).clear();
+    ref.read(callMicsOffProvider.notifier).clear();
     ref.read(callFrontCameraProvider.notifier).front();
     _accepting = null;
     _clearTimers();

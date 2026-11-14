@@ -8,7 +8,12 @@ part 'update_flag_dto.g.dart';
 
 @JsonSerializable()
 class UpdateFlagDto {
-  const UpdateFlagDto({this.enabled, this.rolloutPercent, this.hashVersion});
+  const UpdateFlagDto({
+    this.enabled,
+    this.rolloutPercent,
+    this.hashVersion,
+    this.expectedUpdatedAt,
+  });
 
   factory UpdateFlagDto.fromJson(Map<String, Object?> json) =>
       _$UpdateFlagDtoFromJson(json);
@@ -18,6 +23,7 @@ class UpdateFlagDto {
 
   /// Bucketing hash of the partial rollout: 1 = old FNV-1a, 2 = GrowthBook v2. Changing it re-picks who has the flag.
   final int? hashVersion;
+  final DateTime? expectedUpdatedAt;
 
   Map<String, Object?> toJson() => _$UpdateFlagDtoToJson(this);
 }

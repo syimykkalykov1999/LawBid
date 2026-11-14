@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -59,6 +60,12 @@ export class UpdateFlagDto {
   @Min(1)
   @Max(2)
   hashVersion?: number;
+
+  // Owner 14.11 (row 179): the updatedAt the editor saw; a newer row → 409 STALE_VERSION.
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
+  @IsOptional()
+  @IsISO8601()
+  expectedUpdatedAt?: string;
 }
 
 export class FeatureFlagAdminDto {
@@ -117,6 +124,12 @@ export class UpdateConfigDto {
   // Any JSON shape passes the whitelist; the key schema decides.
   @Allow()
   value!: unknown;
+
+  // Owner 14.11 (row 179): the updatedAt the editor saw (null = the default, no row yet); a different row → 409 STALE_VERSION. Omitted = no check.
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  @IsOptional()
+  @IsISO8601()
+  expectedUpdatedAt?: string | null;
 }
 
 export class ConfigEntryDto {
