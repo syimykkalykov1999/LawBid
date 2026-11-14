@@ -19,6 +19,7 @@ import { PUSH_QUEUE } from '../../modules/notifications/push/push.constants';
 import { DATA_EXPORT_QUEUE } from '../../modules/privacy/privacy.constants';
 import {
   CRON_FAST_QUEUE,
+  CRON_HEAVY_FREQUENT_QUEUE,
   CRON_HEAVY_QUEUE,
   CRON_QUEUE,
 } from '../jobs.constants';
@@ -46,6 +47,7 @@ export {
 export const OBSERVED_QUEUES: readonly string[] = [
   CRON_QUEUE,
   CRON_FAST_QUEUE,
+  CRON_HEAVY_FREQUENT_QUEUE,
   CRON_HEAVY_QUEUE,
   // S10-7: queues whose failures used to reach only the logs.
   ACCOUNT_DELETION_QUEUE,
@@ -76,6 +78,9 @@ export const OBSERVED_QUEUES: readonly string[] = [
  */
 export const SLOW_LANE_QUEUES: readonly string[] = [
   CRON_HEAVY_QUEUE,
+  // Batch D (14.11): split off cron-heavy; its jobs keep the same lenient
+  // alarm they had there (a 10-minute recompute may hold legal.exports).
+  CRON_HEAVY_FREQUENT_QUEUE,
   ACCOUNT_DELETION_QUEUE,
   CHANNEL_FANOUT_QUEUE,
   POST_FANOUT_QUEUE,

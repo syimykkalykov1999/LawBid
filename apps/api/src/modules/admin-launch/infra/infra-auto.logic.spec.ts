@@ -10,6 +10,7 @@ import {
   dueWants,
   SEARCH_ENGINE_OFF_PEOPLE,
   SEARCH_ENGINE_ON_PEOPLE,
+  searchDomainSpare,
   type AutoSignals,
   type AutoWant,
 } from './infra-auto.logic';
@@ -1233,5 +1234,132 @@ describe('autoWants: the two WAF protections on an attack', () => {
         }),
       ).toBeNull();
     }
+  });
+});
+
+describe('rows 8 / 85 / 9 (prod 14.11): whole-stack plans and the search domain', () => {
+  const replicaOff = [
+    {
+      address: 'module.stack.module.growth.aws_db_instance.replica[0]',
+      action: 'delete',
+    },
+    {
+      address: 'module.stack.aws_ecs_task_definition.api',
+      action: 'delete-create',
+    },
+  ];
+  it('a switch-off may create watchers (alarms, async retry settings), nothing else', () => {
+    const watchers = [
+      {
+        address:
+          'module.stack.module.db_autoscale[0].aws_lambda_function_event_invoke_config.this',
+        action: 'create',
+      },
+      {
+        address:
+          'module.stack.module.monitoring.aws_cloudwatch_metric_alarm.api_admin_5xx_ratio_deploy[0]',
+        action: 'create',
+      },
+    ];
+    expect(
+      autoApplyBlockers(
+        'off',
+        [...replicaOff, ...watchers],
+        'aws.rds_replicas',
+      ),
+    ).toEqual([]);
+    // replacing a watcher deletes it: still waits
+    expect(
+      autoApplyBlockers(
+        'off',
+        [
+          ...replicaOff,
+          {
+            address:
+              'module.stack.module.monitoring.aws_cloudwatch_metric_alarm.x',
+            action: 'delete-create',
+          },
+        ],
+        'aws.rds_replicas',
+      ),
+    ).toEqual([
+      'module.stack.module.monitoring.aws_cloudwatch_metric_alarm.x: delete-create in a switch-off',
+    ]);
+    // any other create, and an update outside the item, still wait
+    expect(
+      autoApplyBlockers(
+        'off',
+        [
+          ...replicaOff,
+          { address: 'module.stack.aws_sns_topic.t', action: 'create' },
+          {
+            address:
+              'module.stack.module.growth.aws_opensearch_domain.search[0]',
+            action: 'update',
+          },
+        ],
+        'aws.rds_replicas',
+      ),
+    ).toEqual([
+      'module.stack.aws_sns_topic.t: create in a switch-off',
+      'module.stack.module.growth.aws_opensearch_domain.search[0]: update outside aws.rds_replicas',
+    ]);
+    // the pooler's switch-off still waits for the owner (KNOWN_ERRORS 144)
+    expect(
+      autoApplyOk(
+        'off',
+        [
+          {
+            address: 'module.stack.module.pgbouncer[0].aws_ecs_service.this',
+            action: 'delete',
+          },
+        ],
+        'aws.pgbouncer',
+      ),
+    ).toBe(false);
+  });
+
+  it('row 9: the domain «Авто» switched on goes once search is drained and people are below the off line', () => {
+    const ids = (w: AutoWant[]) =>
+      w.map((x) => `${x.id}:${x.to}`).filter((x) => x.includes('opensearch'));
+    // prod 14.11: domain + 2 + 4 nodes on, all by «Авто»
+    const live = (id: string) =>
+      id.startsWith('aws.opensearch') ? ('on' as const) : ('off' as const);
+    const mine = new Set([
+      'aws.opensearch',
+      'aws.opensearch_nodes_2',
+      'aws.opensearch_nodes_4',
+    ]);
+    const prod = {
+      ...calm,
+      people: 40,
+      searchOnPeople: SEARCH_ENGINE_ON_PEOPLE,
+    };
+    // search still on the engine: nothing is removed under live reads
+    expect(
+      ids(autoWants({ ...prod, searchEngine: 'engine' }, live, mine)),
+    ).toEqual([]);
+    // drained (searchPass set postgres): the top node step goes first
+    expect(ids(autoWants(prod, live, mine))).toEqual([
+      'aws.opensearch_nodes_4:off',
+    ]);
+    // then the domain itself, once its extra steps are off
+    const one = (id: string) =>
+      id.startsWith('aws.opensearch_nodes')
+        ? ('off' as const)
+        : ('on' as const);
+    expect(ids(autoWants(prod, one, mine))).toEqual(['aws.opensearch:off']);
+    // the owner's own domain (not handed to «Авто») stays
+    expect(ids(autoWants(prod, one, new Set()))).toEqual([]);
+    // «Вкл» on «Масштаб» keeps it
+    expect(
+      ids(autoWants({ ...prod, modes: { 'aws.opensearch': 'on' } }, one, mine)),
+    ).toEqual([]);
+    // unknown people (failed read): never spare
+    expect(searchDomainSpare({ people: undefined }, mine)).toBe(false);
+    expect(searchDomainSpare({ people: 40 }, mine)).toBe(true);
+    expect(searchDomainSpare({ people: SEARCH_ENGINE_OFF_PEOPLE }, mine)).toBe(
+      false,
+    );
   });
 });

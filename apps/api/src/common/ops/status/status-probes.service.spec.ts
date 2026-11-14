@@ -440,8 +440,14 @@ describe('StatusProbesService.callsPath (Integrations -> «Связь для з�
 describe('StatusProbesService queues probe (deploy safety 2026-10-27)', () => {
   // A stuck `cron-fast` or `cron-heavy` lane must turn «Очереди» red, not
   // only the old `cron` queue.
-  function withLanes(oldestAgeSec: Record<string, number>) {
+  function withLanes(
+    oldestAgeSec: Record<string, number>,
+    runs?: Record<string, string>,
+    stalePeriods = 3,
+  ) {
     const svc = make({}) as unknown as {
+      redis: unknown;
+      settings: unknown;
       queue: (name: string) => unknown;
       queuesProbe: (now: Date) => Promise<{
         status: string;
@@ -449,6 +455,10 @@ describe('StatusProbesService queues probe (deploy safety 2026-10-27)', () => {
       }>;
     };
     const now = new Date('2026-10-27T12:00:00Z');
+    if (runs) {
+      svc.redis = { hgetall: () => Promise.resolve(runs) };
+      svc.settings = { number: () => Promise.resolve(stalePeriods) };
+    }
     svc.queue = (name: string) => ({
       getJobCounts: () => Promise.resolve({ waiting: 1, failed: 0 }),
       getWaiting: () =>
@@ -464,15 +474,64 @@ describe('StatusProbesService queues probe (deploy safety 2026-10-27)', () => {
   it('is red when only cron-fast is stuck', async () => {
     const r = await withLanes({ 'cron-fast': 600, cron: 5 });
     expect(r.status).toBe('red');
-    expect(r.detail).toMatchObject({ oldestSec: 600, waiting: 3 });
+    expect(r.detail).toMatchObject({ oldestSec: 600, waiting: 4 });
     expect(Object.keys(r.detail.lanes as object).sort()).toEqual([
       'cron',
       'cron-fast',
       'cron-heavy',
+      'cron-heavy-frequent',
     ]);
   });
 
   it('is green when every lane moves', async () => {
     expect((await withLanes({ cron: 10 })).status).toBe('green');
+  });
+
+  // Batch D (14.11): a per-job «last good run» alarm.
+  it('is red when a job had no good run for N of its periods, and lists the last good run of each job', async () => {
+    const now = new Date('2026-10-27T12:00:00Z').getTime();
+    const runs = {
+      // every minute, last good run 10 minutes ago → stale (3 periods)
+      'legal.exports': JSON.stringify({
+        firstAt: now - 86_400_000,
+        lastOkAt: now - 10 * 60_000,
+        okMs: [100],
+      }),
+      // daily, 2 hours ago → fine
+      'sessions.cleanup': JSON.stringify({
+        firstAt: now - 86_400_000,
+        lastOkAt: now - 2 * 3_600_000,
+        okMs: [100],
+      }),
+      // every 10 minutes, tried 40 minutes ago, never well → stale
+      'feed.reco': JSON.stringify({ firstAt: now - 40 * 60_000, okMs: [] }),
+    };
+    const r = await withLanes({ cron: 10 }, runs, 3);
+    expect(r.status).toBe('red');
+    const stale = r.detail.staleJobs as { job: string }[];
+    expect(stale.map((x) => x.job).sort()).toEqual([
+      'feed.reco',
+      'legal.exports',
+    ]);
+    expect(r.detail.lastSuccess).toMatchObject({
+      'sessions.cleanup': new Date(now - 2 * 3_600_000).toISOString(),
+      'feed.reco': null,
+    });
+  });
+
+  it('ops.cron_stale_periods = 0 switches the job check off', async () => {
+    const now = new Date('2026-10-27T12:00:00Z').getTime();
+    const r = await withLanes(
+      { cron: 10 },
+      {
+        'legal.exports': JSON.stringify({
+          firstAt: now - 86_400_000,
+          lastOkAt: now - 10 * 60_000,
+          okMs: [1],
+        }),
+      },
+      0,
+    );
+    expect(r.status).toBe('green');
   });
 });

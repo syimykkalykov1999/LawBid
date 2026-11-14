@@ -17,10 +17,14 @@ stays closed in a browser until it is built with
 - Not a replacement for `tool/web_preview` (the owner's browser preview): that
   script copies its own `index.html` over this one while it builds.
 - Deploy layout (2026-10-23): `scripts/deploy/web-immutable.py` moves
-  `main.dart.*`, `canvaskit/` and `assets/` to `v/<sha>/` (immutable cache) and
-  fills `__LB_V__` in `boot_head.js` (preload hints). A local build leaves the
-  placeholder and everything is served from the root. See
-  `docs/perf/WEB_PASS_2026-10-23.md`.
+  `main.dart.*` and `assets/` to `v/<sha>/` (immutable cache) and fills
+  `__LB_V__` in `boot_head.js` (preload hints). The engine (`canvaskit/`) goes
+  to `v/<engineRevision>/canvaskit` (row 170, 14.11; `__LB_E__`), uploaded once
+  per Flutter engine, so a deploy does not make returning visitors download it
+  again. A local build leaves the placeholders and everything is served from
+  the root. See `docs/perf/WEB_PASS_2026-10-23.md`.
+- `flutter_bootstrap.js` is our copy of Flutter's documented template without
+  the deprecated service-worker step (row 170).
 - `boot_head.js` / `boot_end.js` are scripts, not inline code (strict CSP).
 - `firebase-messaging-sw.js`: `FIREBASE_JS_VERSION` is the page's Firebase JS
   SDK (firebase_core_web's `supportedFirebaseJsSdkVersion`); the same check

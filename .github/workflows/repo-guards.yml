@@ -75,6 +75,11 @@ jobs:
           bash scripts/ci/select-xcode.test.sh
           bash scripts/ci/mobile-web-parity.test.sh
           bash scripts/deploy/web-size-budget.test.sh
+          # Row 170: the engine folder, the compressed small files, the prune guard.
+          python3 -m unittest discover -s scripts/deploy -p 'test_*.py'
+          node scripts/deploy/web-boot-head.test.mjs
+          bash scripts/deploy/web-gzip-big.test.sh
+          bash scripts/deploy/web-prune-releases.test.sh
           node --test scripts/ci/migration-role-check.test.mjs
 
       # OPEN_ITEMS_SWEEP 2026-11-09 C-c9: the docs name the DB user migrations

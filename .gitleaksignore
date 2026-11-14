@@ -70,3 +70,6 @@ b97e386773b684945bf2b2594f5413cc82297754:apps/api/src/modules/videos/bunny-strea
 # commit f664e10 ("avatar/s1/2026/11/mine"), not a secret; replaced by
 # "avatar/me/mine" in the next commit.
 f664e10bea6316ed309c03b4d6dd573523bd63e3:apps/api/src/modules/files/files.service.spec.ts:generic-api-key:1085
+# commit 05db9d8 (PR #1069): a made-up unsubscribe link id in a unit test,
+# not a secret; replaced by a low-entropy stand-in in the next commit.
+05db9d82619eaca7bb32c0ff625068aa2ae66c1f:apps/api/src/modules/outreach/outreach.unsubscribe-get.spec.ts:generic-api-key:23
