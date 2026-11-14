@@ -32,4 +32,9 @@ abstract class SessionState with _$SessionState {
   const SessionState._();
 
   bool get isAuthenticated => true;
+
+  /// Perf batch 4 (row 127): opened from the phone's copy at a cold start —
+  /// the claims of the last session, no access token yet. The refresh runs
+  /// in the background; a request waits for it (AuthInterceptor).
+  bool get awaitsRefresh => accessToken.isEmpty;
 }

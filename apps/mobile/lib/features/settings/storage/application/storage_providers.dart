@@ -11,6 +11,7 @@ import 'package:lawbid/core/cache/web_storage.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/startup/startup_idle_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart'
     show casesLocalDatabaseProvider;
@@ -179,7 +180,12 @@ final cacheReportProvider =
 /// limits and «Хранить медиа» are applied to what is on the phone.
 final cacheEnforcerProvider = Provider<void>((ref) {
   final maintenance = ref.watch(cacheMaintenanceProvider);
-  unawaited(maintenance.enforce());
+  // Perf batch 4 (row 127): the first pass waits for the first screens
+  // (directory scans, trims and a vacuum used to run during the splash).
+  final first = Timer(
+    StartupDelays.cacheEnforce,
+    () => unawaited(maintenance.enforce()),
+  );
   final timer = Timer.periodic(
     const Duration(hours: 24),
     (_) => unawaited(maintenance.enforce()),
@@ -188,6 +194,7 @@ final cacheEnforcerProvider = Provider<void>((ref) {
   // only at start and once a day.
   AppImageCaches.onWriteBurst = () => unawaited(maintenance.enforce());
   ref.onDispose(() {
+    first.cancel();
     timer.cancel();
     AppImageCaches.onWriteBurst = null;
   });
