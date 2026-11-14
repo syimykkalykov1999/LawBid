@@ -50,7 +50,22 @@ vi.mock('@/lib/api/client', async (orig) => {
   return { ...real, api: { GET: net.call, POST: net.call, PUT: net.call, PATCH: net.call, DELETE: net.call } };
 });
 
-const pages = Object.entries(import.meta.glob('./**/page.tsx')).filter(([path]) => path.startsWith('./(app)/'));
+type PageModule = { default: ComponentType<unknown> } | null;
+/** Every page is loaded while the file is collected, like a static import.
+ * Loading inside the first test cost it 2.5 s of its 5 s (the cold module
+ * graph of the whole panel lands on whichever page is first, `admins`) and
+ * timed it out in full runs (KNOWN_ERRORS №114). Server-only pages: null. */
+const pages: [string, PageModule][] = await Promise.all(
+  Object.entries(import.meta.glob('./**/page.tsx'))
+    .filter(([path]) => path.startsWith('./(app)/'))
+    .map(async ([path, load]): Promise<[string, PageModule]> => [
+      path,
+      (await load().catch((e: Error) => {
+        if (/server-only/.test(e.message)) return null;
+        throw e;
+      })) as PageModule,
+    ]),
+);
 
 /** The defaults before R-385 (providers.tsx until 2026-11-04). */
 function legacyClient(): QueryClient {
@@ -133,12 +148,8 @@ afterAll(() => {
 });
 
 describe('R-385: admin page request budget', () => {
-  for (const [path, load] of pages) {
+  for (const [path, mod] of pages) {
     it(`${path}: a return visit within a minute asks the server only for live boards`, async () => {
-      const mod = (await load().catch((e: Error) => {
-        if (/server-only/.test(e.message)) return null;
-        throw e;
-      })) as { default: ComponentType<unknown> } | null;
       if (!mod || mod.default.constructor.name === 'AsyncFunction') return;
 
       const oldQc = legacyClient();
