@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 
 /**
  * `FROM … WHERE …` of the messages [viewer] has not read in a group, for

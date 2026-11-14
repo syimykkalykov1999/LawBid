@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../src/generated/prisma/client';
 
 /**
  * Owner 2026-10-15: examples for «Моё › Задачи» in every state, for both

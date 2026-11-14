@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { VerificationDocType } from '@prisma/client';
+import { VerificationDocType } from '../../../generated/prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,

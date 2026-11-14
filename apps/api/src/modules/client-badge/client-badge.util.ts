@@ -1,4 +1,4 @@
-import { type ClientVerification, Prisma } from '@prisma/client';
+import { type ClientVerification, Prisma } from '../../generated/prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { clientsWithEntitlementSql } from '../plans/entitlements.service';
 

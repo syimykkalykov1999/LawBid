@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { VideoAsset } from '@prisma/client';
+import type { VideoAsset } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VideosService } from '../videos/videos.service';
 import { PostsService } from './posts.service';
@@ -36,6 +36,12 @@ export class PostVideosService {
   async onWebhook(guid: string): Promise<void> {
     const asset = await this.videos.findByExternalId(guid);
     if (!asset) return;
+    // R11: a video already playable gets its MP4 fallback looked up again
+    // (Bunny's «Finished» webhook comes after the MP4 files are written).
+    if (asset.status === 'ready') {
+      await this.videos.refreshMp4Fallback(asset);
+      return;
+    }
     await this.videos.refresh(asset);
   }
 

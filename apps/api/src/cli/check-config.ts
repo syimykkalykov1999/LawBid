@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/client';
+import { pgAdapter } from '../prisma/pg-adapter';
 import { envSchema } from '../config/env.schema';
 import { unwrapKmsWrappedKeys } from '../common/secrets/kms-env';
 import { createRedisClient } from '../redis/redis-connection';
@@ -52,7 +53,7 @@ function safeMessage(e: unknown): string {
 }
 
 async function checkPostgres(url: string): Promise<string | null> {
-  const prisma = new PrismaClient({ datasources: { db: { url } } });
+  const prisma = new PrismaClient({ adapter: pgAdapter(url) });
   try {
     await withTimeout(prisma.$queryRaw`SELECT 1`, 10_000, 'Postgres');
     return null;

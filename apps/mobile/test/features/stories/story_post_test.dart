@@ -165,8 +165,8 @@ void main() {
 
     await tester.runAsync(() async {
       await tester.tap(find.byKey(const ValueKey('story-share')));
-      // toImage / PNG encoding run on the engine.
-      for (var i = 0; i < 20 && r.repo.created.isEmpty; i++) {
+      // toImage on the engine, the JPEG in a background isolate.
+      for (var i = 0; i < 100 && r.repo.created.isEmpty; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 50));
         await tester.pump();
       }
@@ -175,8 +175,8 @@ void main() {
     expect(r.repo.created.single['kind'], StoryKind.photo);
     expect(r.repo.created.single['fileId'], 'file-1');
     expect(r.repo.created.single['overlays'], 1);
-    // A PNG picture went up.
-    expect(r.social.uploads.single.sublist(0, 4), [0x89, 0x50, 0x4E, 0x47]);
+    // Media audit 13.11 (C5): a JPEG went up, no longer a PNG.
+    expect(r.social.uploads.single.sublist(0, 3), [0xFF, 0xD8, 0xFF]);
   });
 
   // Owner rule: 4 themes x longest / ru / ne / ar / de / mr at 360 dp, x1 and x1.1.

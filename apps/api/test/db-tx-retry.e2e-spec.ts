@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { withTxRetry } from '../src/prisma/tx-retry.util';
 import type { PrismaService } from '../src/prisma/prisma.service';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * docs/02_DATABASE.md §8 stage 2.7: withTxRetry against a REAL
@@ -11,7 +12,9 @@ import type { PrismaService } from '../src/prisma/prisma.service';
 const FORCE_40001 = `DO $$ BEGIN RAISE EXCEPTION 'forced serialization failure' USING ERRCODE = '40001'; END $$`;
 
 describe('withTxRetry — real 40001 from PostgreSQL', () => {
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
 
   afterAll(async () => {
     await prisma.$disconnect();

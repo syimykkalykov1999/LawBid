@@ -336,16 +336,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   }
 
   /// Owner 2026-10-17 (WhatsApp): a chat video is re-encoded on the phone
-  /// to at most 720p (the admin's reel setting may make it smaller) before
-  /// upload; the original goes when compressing fails or doesn't help.
+  /// to at most 720p (owner rows 101/102: the admin's
+  /// `media.chat_video_max_height`; the reel setting may make it smaller)
+  /// before upload; the original goes when compressing fails or doesn't
+  /// help.
   Future<XFile> _prepareVideo(XFile video) async {
     final t = ref.read(translatorProvider);
     showAppSnackBar(context, t.t('chat.attach.videoPreparing'));
-    final reel = videoLimitsOf(ref.read(featureFlagsControllerProvider));
-    final limits = (
-      maxHeight: reel.maxHeight <= 0 ? 720 : math.min(720, reel.maxHeight),
-      frameRate: reel.frameRate,
-    );
+    final limits = chatVideoLimitsOf(ref.read(featureFlagsControllerProvider));
     final out =
         await ref.read(videoCompressorProvider).compress(video, limits: limits);
     return out == null
@@ -1144,6 +1142,10 @@ class _MessageListState extends ConsumerState<_MessageList> {
           key: _listKey,
           controller: _c.scroll,
           reverse: true,
+          // Row 95 (motion catalog K2, Messages / Telegram / WhatsApp):
+          // dragging the chat hides the keyboard (Flutter's `onDrag`; the
+          // finger-tracking iOS keyboard needs native code).
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           scrollCacheExtent: const ScrollCacheExtent.viewport(1),
           semanticChildCount: entries.length,
           slivers: [
@@ -1285,8 +1287,8 @@ class _MessageListState extends ConsumerState<_MessageList> {
                     key: _c.keyFor(m.id),
                     child: ChatInsertMotion(
                       // A photo joining an album keeps the album still.
-                      animate: _insertIds.remove(m.id) &&
-                          entry.messages.length == 1,
+                      animate:
+                          _insertIds.remove(m.id) && entry.messages.length == 1,
                       mine: m.senderId == me,
                       child: ChatHighlight(
                         controller: _c,
@@ -1861,7 +1863,41 @@ class _Bubble extends ConsumerWidget {
           );
 
     final interactive = m.kind != MessageKind.system;
-    void menu() => unawaited(showMessageMenu(context, ref, threadId, m));
+    // Row 95: the menu lifts this very bubble (a snapshot of its
+    // RepaintBoundary) over the blurred chat.
+    BuildContext? bubbleContext;
+    final lifted = RepaintBoundary(
+      child: Builder(
+        builder: (c) {
+          bubbleContext = c;
+          return bubble;
+        },
+      ),
+    );
+    void menu() => unawaited(
+          showMessageMenu(
+            context,
+            ref,
+            threadId,
+            m,
+            bubble: bubbleContext,
+          ),
+        );
+    // Row 95 (owner «Конечно», Instagram / Telegram): a double tap puts the
+    // quick reaction ❤️ on the message (the app has no per-user default
+    // reaction), with a pop over the bubble.
+    final quickReact = interactive && !m.isLocal && !m.revoked && !selecting
+        ? (TapDownDetails? at) => unawaited(
+              quickReactToMessage(
+                context,
+                ref,
+                threadId,
+                m,
+                at: at?.globalPosition,
+                bubble: bubbleContext,
+              ),
+            )
+        : null;
     final shown = AppEntrance(
       child: Semantics(
         label: [
@@ -1893,11 +1929,14 @@ class _Bubble extends ConsumerWidget {
             m.kind != MessageKind.place &&
             m.kind != MessageKind.post,
         onLongPress: interactive && !selecting ? menu : null,
-        child: bubble,
+        child: lifted,
       ),
     );
+    TapDownDetails? doubleAt;
     final actionable = interactive && !m.isLocal
         ? GestureDetector(
+            onDoubleTapDown: quickReact == null ? null : (d) => doubleAt = d,
+            onDoubleTap: quickReact == null ? null : () => quickReact(doubleAt),
             onLongPress: selecting
                 ? () => ref
                     .read(chatMsgSelectionProvider(threadId).notifier)
@@ -2691,7 +2730,10 @@ class _ComposerState extends ConsumerState<_Composer> {
     // The buzz is over before the microphone opens, so it is not recorded.
     await Future<void>.delayed(const Duration(milliseconds: 130));
     if (!mounted) return;
-    final ok = await _rec.start(onCap: () => _finish(send: true));
+    final ok = await _rec.start(
+      onCap: () => _finish(send: true),
+      quality: voiceQualityOf(ref.read(featureFlagsControllerProvider)),
+    );
     if (!mounted) {
       // Left the chat while the recorder started: close the microphone.
       if (ok) unawaited(_rec.cancel());

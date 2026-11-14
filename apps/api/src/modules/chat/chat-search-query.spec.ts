@@ -1,5 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { MessageSearchIndex } from '../../common/secrets/message-search-index';

@@ -169,6 +169,33 @@ void main() {
     expect(out.exceptions!.single.value, isNot(contains('555')));
   });
 
+  test('D1-46: breadcrumbs lose URL queries, query fields and personal text',
+      () {
+    final event = SentryEvent(
+      breadcrumbs: [
+        Breadcrumb.http(
+          url: Uri.parse('https://api.lawbid.dev/search?q=divorce+lawyer#x'),
+          method: 'GET',
+          statusCode: 200,
+        )..data!['http.query'] = 'q=divorce+lawyer',
+        Breadcrumb(
+          message: 'GET /link-preview?url=https://docs.example/d/secret',
+          data: {'url': '/link-preview?url=https://docs.example/d/secret'},
+        ),
+        Breadcrumb(message: 'call jane@firm.com'),
+      ],
+    );
+    final crumbs = SentryNative.scrub(event).breadcrumbs!;
+    expect(crumbs, hasLength(3));
+    expect(crumbs[0].data!['url'], 'https://api.lawbid.dev/search');
+    expect(crumbs[0].data!.containsKey('http.query'), isFalse);
+    expect(crumbs[0].data!.containsKey('http.fragment'), isFalse);
+    expect(crumbs[1].data!['url'], '/link-preview');
+    expect(crumbs[1].message, isNot(contains('secret')));
+    expect(crumbs[2].message, isNot(contains('jane@firm.com')));
+    expect(SentryNative.scrubBreadcrumb(null), isNull);
+  });
+
   group('compiled-in DSN (S15-11)', () {
     const compiled = 'https://pub@o1.ingest.sentry.io/999';
 

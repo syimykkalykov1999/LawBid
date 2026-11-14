@@ -6,10 +6,11 @@ import {
   OnModuleInit,
   Optional,
 } from '@nestjs/common';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '../generated/prisma/client';
 import { queryTap } from './query-tap';
 import { demoContext } from '../common/demo/demo-context';
 import { withPoolerRouting } from './pooler-url';
+import { pgAdapter } from './pg-adapter';
 import {
   slowQueryExtension,
   slowQueryThresholdMs,
@@ -185,7 +186,7 @@ export class PrismaService
       e,
     );
     super({
-      ...(datasourceUrl ? { datasourceUrl } : {}),
+      adapter: pgAdapter(datasourceUrl),
       ...queryTap.clientOptions(),
     });
     if (queryTap.enabled()) {
@@ -224,7 +225,7 @@ export class PrismaService
       const url = shardUrls[key];
       if (!url) throw new ShardDatabaseNotConfiguredError(key);
       const raw = new PrismaClient({
-        datasourceUrl: withPoolDefaults(url, e, 'DB_POOL_SIZE_SHARD'),
+        adapter: pgAdapter(withPoolDefaults(url, e, 'DB_POOL_SIZE_SHARD')),
       });
       const ext = extend(raw, () => real) as unknown as PrismaService;
       shardClients.set(key, { raw, ext });
@@ -392,7 +393,9 @@ export class PrismaService
           demoReason = 'DEMO_DATABASE_URL is off';
           return null;
         }
-        demoRaw = new PrismaClient({ datasourceUrl: withPoolDefaults(url) });
+        demoRaw = new PrismaClient({
+          adapter: pgAdapter(withPoolDefaults(url)),
+        });
         demo = extend(demoRaw);
         return demoRaw;
       },

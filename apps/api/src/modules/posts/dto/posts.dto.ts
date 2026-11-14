@@ -1,7 +1,7 @@
 import { MentionDto } from '../../mentions/mention.dto';
 import { PostVideoDto } from '../../videos/videos.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ContentStatus } from '@prisma/client';
+import { ContentStatus } from '../../../generated/prisma/client';
 import {
   POST_CONTENT_CLASSES,
   type PostContentClass,

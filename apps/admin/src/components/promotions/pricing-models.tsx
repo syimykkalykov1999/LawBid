@@ -15,6 +15,7 @@ import { useToast } from '@/components/ui/toast';
 import { ApiError, api } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { cn } from '@/lib/utils';
+import { useNavigationGuard } from '@/lib/vendor/navigation-guard';
 
 /**
  * Owner 2026-10-27: what a boost is paid for, per promotable thing. Each
@@ -100,6 +101,8 @@ export function PricingModelsCard({ settings, canEdit }: { settings: Settings; c
   const patch = (t: BoostTarget, f: (p: TargetPricing) => TargetPricing) => setM((prev) => ({ ...prev, [t]: f(prev[t]) }));
   const valid = Object.values(text).every((v) => toCents(v) != null);
   const dirty = JSON.stringify(m) !== JSON.stringify(initial);
+  // Detective D1-7 (13.11): unsaved edits ask before a link or a reload drops them.
+  useNavigationGuard({ enabled: dirty });
 
   const save = useMutation({
     // Only the matrix is sent (maxActivePerCase is the schema's defaulted

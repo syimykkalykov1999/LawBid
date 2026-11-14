@@ -17,7 +17,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
-import { Prisma, type File, type FilePurpose } from '@prisma/client';
+import {
+  Prisma,
+  type File,
+  type FilePurpose,
+} from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { createHash, randomUUID } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
@@ -1683,6 +1687,13 @@ export class FilesService {
       );
     }
     return out;
+  }
+
+  /** Media batch A (R7): the served link of a public media object this
+   * server stored itself (link-preview pictures): R2's own domain, else the
+   * media CDN, else a short signed link (dev). */
+  publicMediaLink(bucket: string, key: string): Promise<string> {
+    return this.mediaLink(bucket, key);
   }
 
   /** docs/06 §6.1: media (avatars, post images) come from CloudFront in

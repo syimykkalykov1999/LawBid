@@ -295,12 +295,14 @@ class ChannelCompose extends Notifier<ChannelComposeState> {
 
   Future<XFile> _compressed(ChannelVideoDraft v) async {
     // Owner 2026-11-08: the browser re-encodes too (WebCodecs).
-    final limits = videoLimitsOf(ref.read(featureFlagsControllerProvider));
+    final flags = ref.read(featureFlagsControllerProvider);
+    final limits = videoLimitsOf(flags);
     final need = needsVideoCompression(
       shortSide: v.shortSide,
       bytes: v.size,
       durationMs: v.durationSec * 1000,
       limits: limits,
+      reencodeAboveKbps: videoReencodeAboveKbpsOf(flags),
     );
     if (!need) return v.file;
     _set(ChannelComposePhase.compressing);

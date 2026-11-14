@@ -10,7 +10,7 @@ import {
   Put,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AppSettingsWriter } from '../../common/app-settings/app-settings.writer';
 import {
@@ -94,6 +94,8 @@ export class AdminStorageController {
       dedupSavedBytes: Math.max(0, usage.filesBytes - usage.storedBytes),
       pendingRemovalCount: usage.pendingRemovalCount,
       pendingRemovalBytes: usage.pendingRemovalBytes,
+      scanSkippedCount: usage.scanSkippedCount,
+      scanSkippedBytes: usage.scanSkippedBytes,
       byPurpose: usage.byPurpose,
       tables,
       topUsers,

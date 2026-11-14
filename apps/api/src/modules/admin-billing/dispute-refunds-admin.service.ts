@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { BillingDisputeRefund } from '@prisma/client';
+import type { BillingDisputeRefund } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';

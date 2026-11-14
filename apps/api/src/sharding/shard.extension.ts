@@ -1,9 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '../generated/prisma/client';
 import { SOFT_DELETE_META, withDeleted } from '../prisma/soft-delete.extension';
 import { hashShard, isShardedId, newShardedId, shardOf } from './shard-id';
 import { SHARDED_MODELS, ShardKey } from './shard-manifest';
 import { shardStats } from './shard-stats';
+import { datamodel as prismaDatamodel } from '../generated/prisma-dmmf';
 
 /**
  * Shard-ready steps 1 and 2 (docs/architecture/SHARDING_READY.md §4): a
@@ -133,7 +134,7 @@ let metaCache: Map<string, ModelMeta> | null = null;
 function metaFor(model: string): ModelMeta | undefined {
   if (!metaCache) {
     metaCache = new Map();
-    for (const m of Prisma.dmmf.datamodel.models) {
+    for (const m of prismaDatamodel.models) {
       const spec = SHARDED_MODELS[m.name];
       if (!spec) continue;
       const relationOf = new Map<string, string>();

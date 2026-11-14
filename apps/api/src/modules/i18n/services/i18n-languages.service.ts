@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { I18nLanguage } from '@prisma/client';
+import type { I18nLanguage } from '../../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { configTag } from '../../feature-flags/feature-flags.public';

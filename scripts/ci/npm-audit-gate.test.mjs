@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -28,7 +28,21 @@ test('an unallowed high advisory fails', () => {
   assert.equal(run(vuln('GHSA-aaaa-bbbb-cccc')).status, 1);
 });
 test('the allowlisted advisory passes', () => {
-  assert.equal(run(vuln('GHSA-ggr8-5vv4-36mx')).status, 0);
+  // Own allowlist fixture (the repo list can be empty: deepmerge-ts, its last
+  // entry, was fixed by Prisma 7). The gate reads <its root>/.github/…, so a
+  // copy of the gate runs from a temporary root that has the fixture.
+  const root = mkdtempSync(join(tmpdir(), 'audit-root-'));
+  mkdirSync(join(root, 'scripts', 'ci'), { recursive: true });
+  mkdirSync(join(root, '.github'));
+  const copy = join(root, 'scripts', 'ci', 'npm-audit-gate.mjs');
+  copyFileSync(gate, copy);
+  writeFileSync(
+    join(root, '.github', 'npm-audit-allowlist.json'),
+    JSON.stringify({ advisories: [{ id: 'GHSA-test-allo-wed1', package: 'pkg', reason: 'test', expires: '2999-12-31' }] }),
+  );
+  const f = join(root, 'a.json');
+  writeFileSync(f, JSON.stringify(vuln('GHSA-test-allo-wed1')));
+  assert.equal(spawnSync('node', [copy, f], { encoding: 'utf8' }).status, 0);
 });
 test('a workspace run does not call another workspace allowlist entry stale', () => {
   const r = run({ vulnerabilities: {} }, '--workspace', 'apps/admin');

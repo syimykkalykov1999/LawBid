@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import Redis from 'ioredis';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../src/generated/prisma/client';
 import {
   dropCrossFamilyForeignKeys,
   seedShardMap,
@@ -17,6 +17,7 @@ import {
   e2eRedisUrl,
   withDatabase,
 } from './e2e-env';
+import { pgAdapter } from '../../src/prisma/pg-adapter';
 
 const MIGRATIONS_DIR = join(__dirname, '../../prisma/migrations');
 
@@ -57,7 +58,7 @@ export default async function globalSetup(): Promise<void> {
   const url = withDatabase(databaseUrl, dbName);
   const url2 = withDatabase(databaseUrl, dbName2);
 
-  const admin = new PrismaClient({ datasourceUrl: databaseUrl });
+  const admin = new PrismaClient({ adapter: pgAdapter(databaseUrl) });
   const existing = await admin.$queryRaw<{ database_name: string }[]>`
     SELECT datname AS database_name FROM pg_database
     WHERE datname LIKE ${`${stem.replace(/[_%]/g, '\\$&')}%`}`;
@@ -81,7 +82,7 @@ export default async function globalSetup(): Promise<void> {
   async function prepare(name: string, dbUrl: string): Promise<boolean> {
     let ready = false;
     if (existing.some((d) => d.database_name === name)) {
-      const db = new PrismaClient({ datasourceUrl: dbUrl });
+      const db = new PrismaClient({ adapter: pgAdapter(dbUrl) });
       const [{ applied }] = await db.$queryRaw<{ applied: bigint }[]>`
         SELECT count(*) AS applied FROM _prisma_migrations
         WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`;
@@ -118,7 +119,7 @@ export default async function globalSetup(): Promise<void> {
     // Migration 20261007090000_email_flows_off seeds «Вход и письма по
     // почте» off for prod; the suites run with e-mail flows on (a missing
     // row counts as on — the same state a reused, truncated DB starts in).
-    const db = new PrismaClient({ datasourceUrl: url });
+    const db = new PrismaClient({ adapter: pgAdapter(url) });
     await db.featureFlag.deleteMany({ where: { key: 'email_login' } });
     await db.$disconnect();
   }
@@ -136,7 +137,7 @@ export default async function globalSetup(): Promise<void> {
   // confirmed (`trust.bids_require_cleared`); the suites place offers
   // without a registry, so they start with the gate open. The suites about
   // the gate itself switch it on explicitly.
-  const seed = new PrismaClient({ datasourceUrl: url });
+  const seed = new PrismaClient({ adapter: pgAdapter(url) });
   await seed.appConfig.upsert({
     where: { key: 'trust.bids_require_cleared' },
     create: { key: 'trust.bids_require_cleared', value: false },

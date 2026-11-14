@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import { validateCaseStates } from '../src/modules/cases/domain/case-states.rule';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * docs/02_DATABASE.md §8, stage 2.4 acceptance (real PostgreSQL):
@@ -11,7 +12,9 @@ import { validateCaseStates } from '../src/modules/cases/domain/case-states.rule
  * test/db-roles-indexes.e2e-spec.ts.
  */
 describe('DB schema — stage 2.4 acceptance', () => {
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   let leafId: string;
 
   beforeAll(async () => {

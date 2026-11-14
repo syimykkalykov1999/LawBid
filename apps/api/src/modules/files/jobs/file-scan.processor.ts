@@ -1,6 +1,6 @@
 import { videoDimensions } from '../processing/video-dimensions';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import type { File } from '@prisma/client';
+import type { File } from '../../../generated/prisma/client';
 import { createHash } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -21,6 +21,7 @@ import {
   derivedKeys,
   purposesOfProfile,
   FILE_MIME,
+  MB,
 } from '../files.policy';
 import {
   avifSince,
@@ -29,12 +30,23 @@ import {
 } from '../processing/image-processor';
 import { MediaModerationQueue } from '../../media-moderation/media-moderation.queue';
 import { ReadBudget, SCAN_READ_BUDGET_MB } from '../read-budget';
+import { readUploadLimits } from '../upload-limits';
+
+/** files.scan_skipped: over the antivirus size limit (R1). */
+export const SCAN_SKIPPED_TOO_LARGE = 'too_large';
+/** Purposes sized by their own setting instead of «Загрузки и файлы». */
+const SIZE_SETTINGS = [
+  'files.max_size_mb',
+  'files.sticker_max_size_mb',
+  'files.document_template_max_size_mb',
+] as const;
 
 export type ScanOutcome =
   | 'clean'
   | 'deduplicated'
   | 'infected'
   | 'failed'
+  | 'skipped:too-large'
   | 'skipped:not-pending'
   | 'skipped:no-scanner';
 
@@ -48,7 +60,12 @@ export type ScanOutcome =
  *   attachable; size/sha256/mime/width/height describe the stored object;
  * - an image that can't be decoded → failed, object deleted;
  * - scanner/S3 errors → thrown for a BullMQ retry; on the last attempt
- *   the file becomes `failed`.
+ *   the file becomes `failed`;
+ * - media batch A (R1): a file over the scanner's size limit is NEVER
+ *   deleted. Like ClamAV's own «exceeds max» heuristic and Gmail's «this
+ *   file was not scanned», it is kept and set aside: `failed` (never
+ *   attachable) with `scan_skipped = 'too_large'`, counted on the admin's
+ *   «Хранилище» page and left alone by the storage cleanup.
  * No scanner (staging/production without CLAMAV_HOST) → the file stays
  * `pending` and is never attachable.
  */
@@ -118,6 +135,12 @@ export class FileScanProcessor {
       return 'skipped:no-scanner';
     }
 
+    // R1: over what clamd accepts → not even read; kept and set aside.
+    const scanMax = this.scanner.maxBytes ?? 0;
+    if (scanMax > 0 && Number(file.size_bytes) > scanMax) {
+      return this.setAsideTooLarge(file, scanMax);
+    }
+
     let data: Buffer;
     try {
       data = held ?? (await this.storage.read(file.s3_bucket, file.s3_key));
@@ -134,17 +157,17 @@ export class FileScanProcessor {
         return 'infected';
       }
     } catch (err) {
-      if (!finalAttempt && !(err instanceof ClamdTooLargeError)) throw err;
+      // R1 (audit 13.11): clamd said «size limit exceeded». Before, the
+      // object was deleted here — a person's file lost after a successful
+      // upload. It is kept and set aside instead (permanent: no retry).
+      if (err instanceof ClamdTooLargeError) {
+        return this.setAsideTooLarge(file, scanMax);
+      }
+      if (!finalAttempt) throw err;
       this.logger.error(
         { fileId, err },
         'File scan failed on the last attempt',
       );
-      // Too big for clamd: never scanned, so do not keep the object either.
-      if (err instanceof ClamdTooLargeError) {
-        await this.storage
-          .remove(file.s3_bucket, [file.s3_key])
-          .catch(() => undefined);
-      }
       await this.setStatus(fileId, 'failed');
       return 'failed';
     }
@@ -344,6 +367,50 @@ export class FileScanProcessor {
       );
     }
     return true;
+  }
+
+  /**
+   * R1: too big for the antivirus. The object stays where it is; the row
+   * turns `failed` (never attachable, so nothing unscanned reaches anybody)
+   * and says why, for the admin («Хранилище» → «Не проверены антивирусом»).
+   * The alert names the admin's largest upload limit read live, so a limit
+   * raised above the scanner's shows up at once.
+   */
+  private async setAsideTooLarge(
+    file: File,
+    scanMaxBytes: number,
+  ): Promise<ScanOutcome> {
+    await this.prisma.file.updateMany({
+      where: { id: file.id, scan_status: 'pending' },
+      data: { scan_status: 'failed', scan_skipped: SCAN_SKIPPED_TOO_LARGE },
+    });
+    this.logger.warn(
+      {
+        alert: 'scan_skipped_too_large',
+        fileId: file.id,
+        purpose: file.purpose,
+        sizeBytes: Number(file.size_bytes),
+        scannerMaxMb: scanMaxBytes ? Math.round(scanMaxBytes / MB) : null,
+        largestUploadMb: await this.largestUploadMb(),
+      },
+      'File over the antivirus size limit: kept, not scanned, set aside',
+    );
+    return 'skipped:too-large';
+  }
+
+  /** The biggest MB per file an admin has set anywhere (upload places and
+   * the purposes sized by their own setting), read live. */
+  private async largestUploadMb(): Promise<number | null> {
+    if (!this.settings) return null;
+    try {
+      const limits = await readUploadLimits(this.settings);
+      const own = await Promise.all(
+        SIZE_SETTINGS.map((k) => this.settings!.number(k)),
+      );
+      return Math.max(...Object.values(limits).map((l) => l.fileMb), ...own);
+    } catch {
+      return null;
+    }
   }
 
   private async imageFormat(): Promise<ImageFormat> {

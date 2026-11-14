@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/application/story_publish_job.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
+import 'package:lawbid/features/stories/presentation/story_hero.dart';
 import 'package:lawbid/features/stories/presentation/story_navigation.dart';
 import 'package:lawbid/features/stories/presentation/story_publish_sheet.dart';
 import 'package:lawbid/features/stories/presentation/story_ring.dart';
@@ -134,11 +135,15 @@ class _Bubble extends ConsumerWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  StoryRingAvatar(
-                    user: item.user,
-                    size: _avatar,
-                    state: state,
-                    progress: job.busy ? _progressOf(job) : null,
+                  // Row 95: the story zooms out of this ring.
+                  StoryHero(
+                    tag: StoryHero.tagFor(context, item.user.id),
+                    child: StoryRingAvatar(
+                      user: item.user,
+                      size: _avatar,
+                      state: state,
+                      progress: job.busy ? _progressOf(job) : null,
+                    ),
                   ),
                   if (item.isMe && !job.busy)
                     PositionedDirectional(
@@ -179,14 +184,15 @@ class _Bubble extends ConsumerWidget {
       };
 
   void _open(BuildContext context, WidgetRef ref) {
+    final hero = StoryHero.tagFor(context, item.user.id);
     if (!item.isMe) {
-      openStories(context, item.user.id);
+      openStories(context, item.user.id, heroTag: hero);
       return;
     }
     if (job.phase != StoryPublishPhase.idle) {
       showStoryPublishSheet(context);
     } else if (item.hasStories) {
-      openStories(context, item.user.id);
+      openStories(context, item.user.id, heroTag: hero);
     } else {
       openStoryCreator(context);
     }

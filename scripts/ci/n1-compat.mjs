@@ -66,8 +66,17 @@ const env = { ...process.env, DATABASE_URL: url };
 if (run('npx', ['--no-install', 'prisma', 'migrate', 'deploy'], { cwd: prevApi, env }).status !== 0) process.exit(1);
 if (existsSync(join(here, 'prisma/run-concurrent.mjs'))) {
   console.log('N-1: running prisma/concurrent (online-DDL runner)');
-  // Same reason: the runner imports @prisma/client, which resolves next to the file.
-  cpSync(join(here, 'prisma/run-concurrent.mjs'), join(prevApi, 'prisma/run-concurrent.mjs'));
+  // Same reason: the runner's imports resolve next to the file. Since Prisma 7
+  // the runner talks to the database through node-pg (prisma/pg-client.mjs);
+  // a previous release still on Prisma 6 has no `pg` package, so it keeps its
+  // own runner (same job: runs the prisma/concurrent files copied below).
+  const prevHasPg = existsSync(join(prev, 'node_modules/pg/package.json'));
+  if (prevHasPg && existsSync(join(here, 'prisma/pg-client.mjs'))) {
+    cpSync(join(here, 'prisma/pg-client.mjs'), join(prevApi, 'prisma/pg-client.mjs'));
+    cpSync(join(here, 'prisma/run-concurrent.mjs'), join(prevApi, 'prisma/run-concurrent.mjs'));
+  } else if (!existsSync(join(prevApi, 'prisma/run-concurrent.mjs'))) {
+    cpSync(join(here, 'prisma/run-concurrent.mjs'), join(prevApi, 'prisma/run-concurrent.mjs'));
+  }
   const conc = join(here, 'prisma/concurrent');
   if (existsSync(conc)) {
     rmSync(join(prevApi, 'prisma/concurrent'), { recursive: true, force: true });

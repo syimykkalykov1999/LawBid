@@ -10,9 +10,10 @@ import {
   Optional,
 } from '@nestjs/common';
 import { AppSettingsService } from '../common/app-settings/app-settings.service';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/client';
 import { demoContext } from '../common/demo/demo-context';
 import { withPoolerRouting } from './pooler-url';
+import { pgAdapter } from './pg-adapter';
 import { resolveReplicaUrl, resolveReplicaUrls } from './replica-url';
 import { shardContext } from '../sharding/shard-context';
 import {
@@ -29,6 +30,14 @@ const CONNECTION_ERRORS = new Set([
   'P1008',
   'P1017',
   'P2024',
+  // Prisma 7 (driver adapter): the OS socket error is the code.
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EAI_AGAIN',
 ]);
 
 /**
@@ -265,7 +274,7 @@ export class PrismaReadService implements OnModuleInit, OnModuleDestroy {
       process.env,
       'DB_READ_POOL_SIZE',
     );
-    const raw = new PrismaClient(datasourceUrl ? { datasourceUrl } : undefined);
+    const raw = new PrismaClient({ adapter: pgAdapter(datasourceUrl) });
     const markDown = (e: unknown) => {
       const code = (e as { code?: string } | null)?.code;
       if (code && CONNECTION_ERRORS.has(code)) {

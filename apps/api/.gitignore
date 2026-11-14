@@ -3,3 +3,6 @@ node_modules
 .env
 
 /generated/prisma
+
+# Prisma 7 generated client + data model (`npx prisma generate`)
+/src/generated/

@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { PrivacyRetentionService } from './privacy-retention.service';
 
 /** R-39: the session IP blanking walks a partial index, never the table. */

@@ -20,7 +20,7 @@ import {
   ACCOUNT_ERASER,
   type AccountEraser,
 } from '../../common/privacy/privacy.ports';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {

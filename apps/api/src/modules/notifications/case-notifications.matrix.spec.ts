@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { NotificationType } from '@prisma/client';
+import type { NotificationType } from '../../generated/prisma/client';
 import { DEFAULT_PUSH } from './notification-rules';
 import { TOPIC_DEFAULT_OFF, TYPE_TOPIC } from './notification-topics';
 import { NOTIFICATION_CATEGORY } from './notifications.service';

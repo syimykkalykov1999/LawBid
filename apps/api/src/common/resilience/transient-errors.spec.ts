@@ -5,6 +5,7 @@ import {
   isDatabaseOutageError,
   isUnreachableBeforeSend,
   retryTransient,
+  sqlStateOf,
 } from './transient-errors';
 
 const prismaErr = (code: string, message = 'x') =>
@@ -151,4 +152,44 @@ describe('isDatabaseOutageError (whole-job retries)', () => {
     }),
     prismaErr('P2002'),
   ])('does not match %p', (e) => expect(isDatabaseOutageError(e)).toBe(false));
+});
+
+describe('Prisma 7 (driver adapter) error shapes, measured 13.11', () => {
+  // Unreachable database: the OS code is in `code`, the message is empty.
+  const refused = Object.assign(new Error(''), { code: 'ECONNREFUSED' });
+  // node-pg pool: no free connection within connectionTimeoutMillis.
+  const poolTimeout = new Error('timeout exceeded when trying to connect');
+  // Failover: a raw query fails with the SQLSTATE nested in the adapter error.
+  const shutdown = Object.assign(new Error('Raw query failed'), {
+    code: 'P2010',
+    meta: { driverAdapterError: { cause: { originalCode: '57P01' } } },
+  });
+  // A failed COMMIT, passed through unwrapped.
+  const commit = Object.assign(new Error('TransactionWriteConflict'), {
+    name: 'DriverAdapterError',
+    cause: { originalCode: '40001', kind: 'TransactionWriteConflict' },
+  });
+
+  it('transient: refused connection, pool timeout, nested shutdown state', () => {
+    expect(isTransientInfraError(refused)).toBe(true);
+    expect(isTransientInfraError(poolTimeout)).toBe(true);
+    expect(isTransientInfraError(shutdown)).toBe(true);
+    expect(isDatabaseOutageError(refused)).toBe(true);
+    expect(isDatabaseOutageError(poolTimeout)).toBe(true);
+    expect(isDatabaseOutageError(shutdown)).toBe(true);
+  });
+
+  it('a refused connection never left the process (safe to repeat a write)', () => {
+    expect(isUnreachableBeforeSend(refused)).toBe(true);
+    expect(isUnreachableBeforeSend(poolTimeout)).toBe(false);
+  });
+
+  it('sqlStateOf reads Prisma 6 meta.code, Prisma 7 nested and unwrapped shapes', () => {
+    expect(sqlStateOf({ code: 'P2010', meta: { code: '23505' } })).toBe(
+      '23505',
+    );
+    expect(sqlStateOf(shutdown)).toBe('57P01');
+    expect(sqlStateOf(commit)).toBe('40001');
+    expect(sqlStateOf(new Error('x'))).toBeUndefined();
+  });
 });

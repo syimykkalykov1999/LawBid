@@ -12,7 +12,7 @@ import {
   type Partner,
   type PartnerCommission,
   type Referral,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';

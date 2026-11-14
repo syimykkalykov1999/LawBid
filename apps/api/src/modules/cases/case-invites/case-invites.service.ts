@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { privateDetailsAad } from '../../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../../generated/prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';

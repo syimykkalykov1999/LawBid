@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * docs/02_DATABASE.md §8 stages 2.6 + 2.7 and the leftover 2.4 item,
@@ -14,12 +15,14 @@ import { randomUUID } from 'node:crypto';
 describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
   // The EXPLAIN test seeds 3000 background cases and runs ANALYZE.
   jest.setTimeout(60_000);
-  const root = new PrismaClient();
+  const root = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   const as = (role: string) => {
     const url = new URL(process.env.DATABASE_URL ?? '');
     url.username = role;
     url.password = '';
-    return new PrismaClient({ datasourceUrl: url.toString() });
+    return new PrismaClient({ adapter: pgAdapter(url.toString()) });
   };
   const app = as('lawbid_app');
   const readonly = as('lawbid_readonly');

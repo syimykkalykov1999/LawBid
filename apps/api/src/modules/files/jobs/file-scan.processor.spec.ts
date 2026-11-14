@@ -5,6 +5,7 @@ import type { PrismaService } from '../../../prisma/prisma.service';
 import type { S3StorageService } from '../storage/s3-storage.service';
 import type { ImageProcessor } from '../processing/image-processor';
 import {
+  ClamdTooLargeError,
   DevEicarScanner,
   EICAR_SIGNATURE,
   type VirusScanner,
@@ -19,6 +20,7 @@ function make(opts: {
   purpose?: string;
   readError?: Error;
   bucket?: string;
+  size?: number;
 }) {
   const prisma = {
     file: {
@@ -28,6 +30,7 @@ function make(opts: {
         scan_status: opts.status ?? 'pending',
         s3_bucket: opts.bucket ?? 'b',
         s3_key: 'k',
+        size_bytes: BigInt(opts.size ?? 100),
       }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
@@ -264,6 +267,70 @@ describe('FileScanProcessor', () => {
       );
       expect(await processor.run('f1', false)).toBe('clean');
       expect(storage.read).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+/** Media batch A (R1, audit 13.11): a file over the antivirus limit was
+ * deleted after a successful upload. Now it is kept and set aside. */
+describe('FileScanProcessor: over the antivirus size limit (R1)', () => {
+  const MB = 1024 * 1024;
+  const setAside = {
+    where: { id: 'f1', scan_status: 'pending' },
+    data: { scan_status: 'failed', scan_skipped: 'too_large' },
+  };
+
+  it('clamd answers «size limit exceeded»: kept (never deleted), set aside, no retry', async () => {
+    const tooBig: VirusScanner = {
+      name: 'clamd',
+      scan: () =>
+        Promise.reject(new ClamdTooLargeError('clamd error: size limit')),
+    };
+    // Not the last attempt: still final, a retry gives the same answer.
+    const { processor, prisma, storage, logger } = make({ scanner: tooBig });
+    expect(await processor.run('f1', false)).toBe('skipped:too-large');
+    expect(storage.remove).not.toHaveBeenCalled();
+    expect(prisma.file.updateMany).toHaveBeenCalledWith(setAside);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ alert: 'scan_skipped_too_large' }),
+      expect.any(String),
+    );
+  });
+
+  it('over the scanner limit (CLAMAV_MAX_MB): not read, not sent to clamd, kept', async () => {
+    const scan = jest.fn();
+    const scanner: VirusScanner = { name: 'clamd', maxBytes: 110 * MB, scan };
+    const { processor, prisma, storage } = make({
+      scanner,
+      size: 111 * MB,
+    });
+    expect(await processor.run('f1', true)).toBe('skipped:too-large');
+    expect(scan).not.toHaveBeenCalled();
+    expect(storage.read).not.toHaveBeenCalled();
+    expect(storage.remove).not.toHaveBeenCalled();
+    expect(prisma.file.updateMany).toHaveBeenCalledWith(setAside);
+  });
+
+  it('at the limit or with no known limit: scanned as before', async () => {
+    const atLimit = make({
+      scanner: Object.assign(new DevEicarScanner(), { maxBytes: 110 * MB }),
+      size: 110 * MB,
+    });
+    expect(await atLimit.processor.run('f1', false)).toBe('clean');
+    const unknown = make({ scanner: new DevEicarScanner(), size: 500 * MB });
+    expect(await unknown.processor.run('f1', false)).toBe('clean');
+  });
+
+  it('a scanner outage is still retried and never sets the file aside', async () => {
+    const broken: VirusScanner = {
+      name: 'clamd',
+      scan: () => Promise.reject(new Error('down')),
+    };
+    const last = make({ scanner: broken });
+    expect(await last.processor.run('f1', true)).toBe('failed');
+    expect(last.prisma.file.updateMany).toHaveBeenCalledWith({
+      where: { id: 'f1', scan_status: 'pending' },
+      data: { scan_status: 'failed' },
     });
   });
 });

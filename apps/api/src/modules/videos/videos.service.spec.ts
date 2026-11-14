@@ -1,5 +1,9 @@
-import type { VideoAsset } from '@prisma/client';
-import { VideosService } from './videos.service';
+import type { VideoAsset } from '../../generated/prisma/client';
+import {
+  VideosService,
+  mp4FallbackFile,
+  pickMp4Fallback,
+} from './videos.service';
 
 const MB = 1024 * 1024;
 
@@ -133,5 +137,135 @@ describe('VideosService limits', () => {
       duration_sec: 300,
     });
     expect(post).toMatchObject({ status: 'ready' });
+  });
+});
+
+/** Media batch A (R11, audit 13.11): play_720p.mp4 was hard-coded. */
+describe('MP4 fallback from the renditions Bunny stored', () => {
+  it('picks the tallest up to 720p, else the shortest, else none', () => {
+    expect(pickMp4Fallback(['240p', '360p', '720p'])).toBe('720p');
+    expect(pickMp4Fallback(['360p', '480p'])).toBe('480p');
+    expect(pickMp4Fallback(['1080p', '720p'])).toBe('720p');
+    expect(pickMp4Fallback(['1080p'])).toBe('1080p');
+    expect(pickMp4Fallback([])).toBe('');
+    expect(pickMp4Fallback(['original', ' 360p '])).toBe('360p');
+  });
+
+  it('file name: stored rendition, none, or the legacy 720p for unchecked rows', () => {
+    expect(mp4FallbackFile({ mp4_fallback: '480p' })).toBe('play_480p.mp4');
+    expect(mp4FallbackFile({ mp4_fallback: '' })).toBeNull();
+    expect(mp4FallbackFile({ mp4_fallback: null })).toBe('play_720p.mp4');
+    expect(mp4FallbackFile({ mp4_fallback: '../x' })).toBeNull();
+  });
+
+  it('a video turning ready stores what Bunny has', async () => {
+    const s = setup({ status: 4, length: 30, storageSize: 10 * MB });
+    const bunny = (s.service as unknown as { bunny: Record<string, unknown> })
+      .bunny;
+    bunny.getMp4Resolutions = jest.fn().mockResolvedValue(['360p']);
+    const next = await s.service.refresh(asset);
+    expect(next).toMatchObject({ status: 'ready', mp4_fallback: '360p' });
+    expect(s.prisma.videoAsset.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'a1' },
+      data: { mp4_fallback: '360p' },
+    });
+  });
+
+  it('a failed Bunny look keeps the video ready and unchanged', async () => {
+    const s = setup({ status: 4, length: 30, storageSize: 10 * MB });
+    const bunny = (s.service as unknown as { bunny: Record<string, unknown> })
+      .bunny;
+    bunny.getMp4Resolutions = jest.fn().mockRejectedValue(new Error('500'));
+    const next = await s.service.refresh(asset);
+    expect(next).toMatchObject({ status: 'ready' });
+    expect(next.mp4_fallback).toBeUndefined();
+  });
+});
+
+/** Media batch A (R10): the TUS signature lived 60 min with no way to renew. */
+describe('VideosService.renewUpload', () => {
+  const open = {
+    id: 'a1',
+    owner_user_id: 'u1',
+    library_id: '42',
+    external_id: 'guid',
+    status: 'awaiting_upload',
+    duration_sec: 30,
+    upload_expires_at: new Date(Date.now() + 60_000),
+  };
+
+  function renewSetup(row: Record<string, unknown> | null) {
+    const prisma = {
+      videoAsset: {
+        findFirst: jest.fn().mockResolvedValue(row),
+        updateMany: jest.fn().mockResolvedValue({ count: row ? 1 : 0 }),
+      },
+      appConfig: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const bunny = {
+      keys: jest.fn().mockResolvedValue({ libraryId: '42', apiKey: 'k' }),
+      tusEndpoint: () => 'https://video.bunnycdn.com/tusupload',
+    };
+    const settings = {
+      number: jest.fn((key: string) =>
+        Promise.resolve(
+          (
+            {
+              'video.upload_ttl_min': 60,
+              'video.reel_max_duration_sec': 180,
+              'video.max_duration_sec': 180,
+              'video.post_max_duration_sec': 3600,
+            } as Record<string, number>
+          )[key],
+        ),
+      ),
+      storedNumber: jest.fn().mockResolvedValue(null),
+    };
+    const flags = { isEnabled: jest.fn().mockResolvedValue(true) };
+    const service = new VideosService(
+      prisma as never,
+      bunny as never,
+      flags as never,
+      settings as never,
+      {} as never,
+      {} as never,
+    );
+    return { service, prisma };
+  }
+
+  it('signs the same video again and moves the upload deadline', async () => {
+    const { service, prisma } = renewSetup(open);
+    const before = Math.floor(Date.now() / 1000);
+    const out = await service.renewUpload('u1', 'a1');
+    expect(out).toMatchObject({
+      videoAssetId: 'a1',
+      videoId: 'guid',
+      libraryId: '42',
+      maxDurationSec: 180,
+    });
+    expect(out.authorizationExpire).toBeGreaterThanOrEqual(before + 3600);
+    expect(out.authorizationSignature).toMatch(/^[0-9a-f]{64}$/);
+    const call = prisma.videoAsset.updateMany.mock.calls[0][0] as {
+      where: object;
+      data: { upload_expires_at: Date };
+    };
+    expect(call.where).toEqual({ id: 'a1', status: 'awaiting_upload' });
+    expect(call.data.upload_expires_at.getTime()).toBe(
+      out.authorizationExpire * 1000,
+    );
+  });
+
+  it('refuses an upload that already finished or failed', async () => {
+    const { service } = renewSetup({ ...open, status: 'processing' });
+    await expect(service.renewUpload('u1', 'a1')).rejects.toMatchObject({
+      response: { code: 'VIDEO_NOT_READY' },
+    });
+  });
+
+  it('someone else’s video is not found', async () => {
+    const { service } = renewSetup(null);
+    await expect(service.renewUpload('u2', 'a1')).rejects.toMatchObject({
+      response: { code: 'NOT_FOUND' },
+    });
   });
 });

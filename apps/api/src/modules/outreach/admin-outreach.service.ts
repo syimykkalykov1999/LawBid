@@ -4,7 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type OutreachTemplate, type Partner } from '@prisma/client';
+import {
+  Prisma,
+  type OutreachTemplate,
+  type Partner,
+} from '../../generated/prisma/client';
 import {
   assertStaffBulkCap,
   chunks,

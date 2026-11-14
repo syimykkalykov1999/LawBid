@@ -1,4 +1,7 @@
-import type { SupportMessage, SupportTicket } from '@prisma/client';
+import type {
+  SupportMessage,
+  SupportTicket,
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { NotificationsService } from '../notifications/notifications.service';

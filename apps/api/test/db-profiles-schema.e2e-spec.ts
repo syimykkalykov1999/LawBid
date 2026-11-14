@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * docs/02_DATABASE.md §8, stage 2.3 acceptance (real PostgreSQL): one
@@ -9,7 +10,9 @@ import { randomUUID } from 'node:crypto';
 // 23514 = check_violation (PostgreSQL reports the expression, not the
 // constraint name).
 describe('DB schema — stage 2.3 acceptance', () => {
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   const UNIQUE_VIOLATION = { code: 'P2002' };
 
   beforeAll(async () => {

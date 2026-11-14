@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 
 type Db = Prisma.TransactionClient | PrismaClient;

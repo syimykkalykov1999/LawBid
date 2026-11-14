@@ -8,7 +8,7 @@ import type {
   CaseJournalEvent,
   CaseStatus,
   Prisma,
-} from '@prisma/client';
+} from '../../../generated/prisma/client';
 import {
   assertExpectedVersion,
   BUMP_VERSION,

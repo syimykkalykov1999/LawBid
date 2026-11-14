@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import type { PinoLogger } from 'nestjs-pino';
 import type { PrismaService } from '../../prisma/prisma.service';

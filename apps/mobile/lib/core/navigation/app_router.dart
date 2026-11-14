@@ -191,6 +191,11 @@ GoRouter appRouter(Ref ref) {
             AppPageTransitions.fade(state, const SplashScreen()),
       ),
       StatefulShellRoute.indexedStack(
+        // go_router 17+ also hands the tabs' navigation to the root
+        // observers by default. Kept as before the 14 → 18 upgrade (D1-24):
+        // each tab has its own UnfocusOnNavigateObserver below, and the
+        // root routeObserver watches the root navigator only.
+        notifyRootObserver: false,
         // UI modernization pass (2026-09-27): the shell fades in when the
         // user lands on it (e.g. role → feed); see app_page_transitions.dart.
         pageBuilder: (context, state, navigationShell) =>

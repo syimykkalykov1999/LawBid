@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import type { CountryPartner, Prisma } from '@prisma/client';
+import type { CountryPartner, Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PayrollAccrualsService } from '../admin-payroll/payroll-accruals.service';
 import type { EmailProvider } from '../auth/providers/email/email-provider.interface';

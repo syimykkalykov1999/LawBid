@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * Owner 2026-11-03: the media caches on the phone have no per-store ceiling
@@ -36,7 +37,9 @@ const KEYS = [
 ];
 
 describe('cache ceilings follow the user cap (migration)', () => {
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
 
   const put = (key: string, value: unknown) =>
     prisma.appConfig.upsert({

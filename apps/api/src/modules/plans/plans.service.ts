@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { Plan } from '@prisma/client';
+import type { Plan } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MAX_ASSISTANT_SEATS, TRIAL_DAYS } from '../billing/billing.constants';

@@ -7,7 +7,7 @@ import {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { DataExportJob } from '@prisma/client';
+import type { DataExportJob } from '../../generated/prisma/client';
 import { Queue, Worker, type Job } from 'bullmq';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';

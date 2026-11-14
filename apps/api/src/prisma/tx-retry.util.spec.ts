@@ -1,4 +1,4 @@
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { withTxRetry } from './tx-retry.util';
 import type { PrismaService } from './prisma.service';
 
@@ -109,5 +109,59 @@ describe('withTxRetry isolation option (DB-ops S5-7)', () => {
       ),
     ).rejects.toBeInstanceOf(PrismaClientKnownRequestError);
     expect($transaction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('withTxRetry with Prisma 7 driver-adapter errors (measured 13.11)', () => {
+  // A failed COMMIT: Prisma 7.10 passes the adapter's error through unwrapped.
+  const commitConflict = () =>
+    Object.assign(new Error('TransactionWriteConflict'), {
+      name: 'DriverAdapterError',
+      cause: {
+        originalCode: '40001',
+        originalMessage: 'could not serialize access',
+        kind: 'TransactionWriteConflict',
+      },
+    });
+  // A raw query inside the transaction: P2010 with the SQLSTATE nested.
+  const rawDeadlock = () =>
+    new PrismaClientKnownRequestError('Raw query failed. Code: `40P01`', {
+      code: 'P2010',
+      clientVersion: '7.10.1',
+      meta: {
+        driverAdapterError: {
+          cause: { originalCode: '40P01', kind: 'TransactionWriteConflict' },
+        },
+      },
+    });
+
+  it('retries a serialization failure raised by COMMIT', async () => {
+    const $transaction = jest
+      .fn()
+      .mockRejectedValueOnce(commitConflict())
+      .mockResolvedValueOnce('ok');
+    await expect(
+      withTxRetry(
+        { $transaction } as unknown as PrismaService,
+        () => Promise.resolve('ok'),
+        { baseDelayMs: 1 },
+      ),
+    ).resolves.toBe('ok');
+    expect($transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('readCommitted retries a deadlock of a raw query (P2010, nested SQLSTATE)', async () => {
+    const $transaction = jest
+      .fn()
+      .mockRejectedValueOnce(rawDeadlock())
+      .mockResolvedValueOnce('ok');
+    await expect(
+      withTxRetry(
+        { $transaction } as unknown as PrismaService,
+        () => Promise.resolve('ok'),
+        { isolation: 'readCommitted', baseDelayMs: 1 },
+      ),
+    ).resolves.toBe('ok');
+    expect($transaction).toHaveBeenCalledTimes(2);
   });
 });

@@ -193,7 +193,9 @@ jobs:
           models=$(npx prisma db pull --print | grep -c '^model ')
           echo "introspected models: $models"
           test "$models" -gt 0
-          npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
+          # Prisma 7: --from-schema-datasource → --from-config-datasource
+          # (DATABASE_URL via prisma.config.ts), --to-schema-datamodel → --to-schema.
+          npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
 
       - name: Migrations apply on the previous release's database
         # docs/02_DATABASE.md §8 stage 2.7: "миграции применяются на чистой
@@ -614,7 +616,10 @@ jobs:
         # "run" in apps/api/test/two-db-suites.json; the "knownLimitations"
         # there are the to-do list of plan steps 6-8, not failures.
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          # 6144 like the e2e shards (KNOWN_ERRORS 148): with Prisma 7 every
+          # suite loads the generated client + its query compiler, and a batch
+          # of 20 suites outgrew 4096 (heap out of memory, exit 134).
+          NODE_OPTIONS: --max-old-space-size=6144
           E2E_TWO_DB: all
         run: npm run test:e2e:two-db --workspace apps/api
 

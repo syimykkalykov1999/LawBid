@@ -7,7 +7,7 @@ import {
   type CaseUrgencyLevel,
 } from '../domain/case-urgency';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BudgetMode, CaseStatus } from '@prisma/client';
+import { BudgetMode, CaseStatus } from '../../../generated/prisma/client';
 
 export class PracticeAreaRefDto {
   @ApiProperty({ format: 'uuid' })

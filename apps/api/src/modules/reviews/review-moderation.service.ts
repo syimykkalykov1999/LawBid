@@ -5,7 +5,7 @@ import {
   CrossFamilyOutbox,
   type OutboxTicket,
 } from '../../sharding/outbox/cross-family-outbox';
-import type { ReviewStatus } from '@prisma/client';
+import type { ReviewStatus } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';

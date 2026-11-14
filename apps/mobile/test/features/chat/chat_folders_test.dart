@@ -190,8 +190,12 @@ void main() {
     expect(repo.folders, contains(ChatListFolder.waiting));
     expect(find.byKey(const ValueKey('chat-waiting-w')), findsOneWidget);
 
-    // ⋯ → waiting on + a note → saved.
+    // ⋯ → waiting on + a note → saved. Row 95: the long press is the chat
+    // preview with its quick actions; the note is one tap further.
     await tester.longPress(find.byKey(const ValueKey('chat-organize-w')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-peek-w')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('organize-more')));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey('organize-note')),

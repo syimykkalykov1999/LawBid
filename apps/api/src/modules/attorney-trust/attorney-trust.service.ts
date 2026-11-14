@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import { licenseIsLapsed } from '../verification/license-renewal';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';

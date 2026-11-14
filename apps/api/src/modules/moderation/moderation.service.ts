@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { CrossFamilyOutbox } from '../../sharding/outbox/cross-family-outbox';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { AUTO_HOLD_NOTE } from './auto-hold.service';
-import type { Prisma, ReportTargetType } from '@prisma/client';
+import type { Prisma, ReportTargetType } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { FilesService } from '../files/files.service';
 import { PrismaService } from '../../prisma/prisma.service';

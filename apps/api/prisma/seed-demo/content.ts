@@ -15,7 +15,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '../../src/generated/prisma/client';
 import { DEMO_EMAIL_DOMAIN } from '../../src/modules/demo/demo-seed';
 import {
   DEMO_AVATAR_SIZE,

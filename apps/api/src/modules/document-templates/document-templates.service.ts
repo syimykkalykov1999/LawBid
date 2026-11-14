@@ -16,7 +16,7 @@ import {
   type DocumentTemplate,
   type File,
   type PracticeArea,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { US_STATES } from '../../common/reference-data/us-states';

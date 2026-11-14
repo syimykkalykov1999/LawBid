@@ -10,7 +10,7 @@ import {
   type CaseJournalEvent,
   type OfferStatus,
   type PartyRole,
-} from '@prisma/client';
+} from '../../../generated/prisma/client';
 import {
   assertExpectedVersion,
   BUMP_VERSION,

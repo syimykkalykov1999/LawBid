@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import type { PinoLogger } from 'nestjs-pino';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { PrismaService } from '../../prisma/prisma.service';

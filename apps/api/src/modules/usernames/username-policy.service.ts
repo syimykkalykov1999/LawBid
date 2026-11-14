@@ -3,7 +3,7 @@ import {
   ConflictException,
   Injectable,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';

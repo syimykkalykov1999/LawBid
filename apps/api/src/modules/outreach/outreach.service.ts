@@ -14,7 +14,7 @@ import type {
   OutreachTemplate,
   Partner,
   Prisma,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestAdmin } from '../admin-auth/admin-auth.decorators';

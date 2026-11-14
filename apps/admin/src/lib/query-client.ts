@@ -191,6 +191,16 @@ export function makeQueryClient(toastSink: ErrorSink = { current: null }): Query
           retryDelay: (attempt) => queryRetryDelay(attempt),
           networkMode: 'offlineFirst',
         },
+        // Detective D1-4 (13.11): TanStack's default `networkMode: 'online'`
+        // PAUSES a mutation while the browser is offline — the button spins
+        // forever, onError never runs and the action fires on its own when
+        // the network is back (a ban or a broadcast minutes later). 'always'
+        // (TanStack Query docs, «Network Mode») lets the request run: offline
+        // it fails at once, errorText() says «Сервер не ответил…» and the
+        // MutationCache toast above shows it. Admin actions are never queued.
+        mutations: {
+          networkMode: 'always',
+        },
       },
     }),
   );

@@ -195,14 +195,29 @@ class GroupChatTile extends ConsumerWidget {
                                 muted: false,
                               ),
                             ],
-                            if (unread > 0) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              _Badge(
-                                key: ValueKey('group-unread-${g.id}'),
-                                text: unread > 99 ? '99+' : '$unread',
-                                muted: muted,
-                              ),
-                            ],
+                            // Row 95 (catalog C7, Telegram): the unread
+                            // badge pops in when it appears or changes.
+                            AnimatedSwitcher(
+                              duration: context.reduceMotion
+                                  ? Duration.zero
+                                  : AppMotion.popIn,
+                              transitionBuilder: AppMotionBits.pop,
+                              child: unread > 0
+                                  ? Padding(
+                                      key: ValueKey('group-unread-n$unread'),
+                                      padding: const EdgeInsetsDirectional.only(
+                                        start: AppSpacing.sm,
+                                      ),
+                                      child: _Badge(
+                                        key: ValueKey('group-unread-${g.id}'),
+                                        text: unread > 99 ? '99+' : '$unread',
+                                        muted: muted,
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(
+                                      key: ValueKey('group-unread-none'),
+                                    ),
+                            ),
                           ],
                         ),
                       ],

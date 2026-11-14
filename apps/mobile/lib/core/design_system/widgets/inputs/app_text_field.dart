@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/inputs/field_counter.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_motion_bits.dart';
 
 /// General-purpose text field (file 07 §4 "AppTextField"): height 52, radius
 /// 12, `surface` fill, 1px `border`, focused border `gold` 1.5px, text 16.
@@ -106,6 +107,22 @@ class _AppTextFieldState extends State<AppTextField> {
   final _focusNode = FocusNode();
   bool _focused = false;
 
+  /// Row 95 (motion catalog K6 / F3): an error that appears on the field
+  /// (an invalid form sent) shakes it and buzzes the error haptic, as
+  /// Telegram's and the iOS passcode fields do. Not again while the same
+  /// error stays.
+  final _shake = AppShakeController();
+
+  @override
+  void didUpdateWidget(AppTextField old) {
+    super.didUpdateWidget(old);
+    final was = old.errorText;
+    final now = widget.errorText;
+    if (now != null && now.isNotEmpty && (was == null || was.isEmpty)) {
+      _shake.shake();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -115,6 +132,7 @@ class _AppTextFieldState extends State<AppTextField> {
 
   @override
   void dispose() {
+    _shake.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -160,88 +178,91 @@ class _AppTextFieldState extends State<AppTextField> {
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
-          _withCounter(
-            Container(
-              constraints: BoxConstraints(minHeight: widget.minHeight),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(AppRadii.field),
-                border: Border.all(color: borderColor, width: borderWidth),
-                boxShadow: _focused && !hasError
-                    ? [
-                        BoxShadow(
-                          color: colors.focusRingGlow,
-                          blurRadius: 4,
-                          spreadRadius: 1,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                children: [
-                  if (widget.leading != null) ...[
-                    const SizedBox(width: AppSpacing.md),
-                    widget.leading!,
-                    const SizedBox(width: 6),
-                  ] else
-                    const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: TextField(
-                      onTapOutside: widget.onTapOutside,
-                      controller: widget.controller,
-                      focusNode: _focusNode,
-                      autofocus: widget.autofocus,
-                      keyboardType: widget.keyboardType,
-                      inputFormatters: [
-                        ...?widget.inputFormatters,
-                        if (widget.maxLength != null)
-                          LengthLimitingTextInputFormatter(widget.maxLength),
-                      ],
-                      onChanged: (value) {
-                        if (widget.maxLength != null) setState(() {});
-                        widget.onChanged?.call(value);
-                      },
-                      obscureText: widget.obscureText,
-                      maxLines: widget.obscureText ? 1 : widget.maxLines,
-                      minLines: 1,
-                      textCapitalization: widget.textCapitalization,
-                      textInputAction: widget.textInputAction,
-                      autofillHints: widget.autofillHints,
-                      onSubmitted: widget.onSubmitted,
-                      enabled: widget.enabled,
-                      cursorColor: colors.gold,
-                      cursorWidth: 1.5,
-                      style: const TextStyle(fontSize: 14)
-                          .copyWith(color: colors.text),
-                      decoration: InputDecoration(
-                        hintText: widget.hintText,
-                        hintStyle: typography.body.copyWith(
-                          color: colors.textSecondary,
-                          fontSize: 14,
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        // Owner 2026-10-19: room for the counter inside.
-                        contentPadding: EdgeInsets.only(
-                          top: widget.compact
-                              ? AppSpacing.sm
-                              : AppSpacing.lg + 1,
-                          bottom: (widget.compact
-                                  ? AppSpacing.sm
-                                  : AppSpacing.lg + 1) +
-                              (widget.maxLength != null &&
-                                      widget.controller != null
-                                  ? kInsideCounterRoom - 4
-                                  : 0),
+          AppShake(
+            controller: _shake,
+            child: _withCounter(
+              Container(
+                constraints: BoxConstraints(minHeight: widget.minHeight),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.field),
+                  border: Border.all(color: borderColor, width: borderWidth),
+                  boxShadow: _focused && !hasError
+                      ? [
+                          BoxShadow(
+                            color: colors.focusRingGlow,
+                            blurRadius: 4,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    if (widget.leading != null) ...[
+                      const SizedBox(width: AppSpacing.md),
+                      widget.leading!,
+                      const SizedBox(width: 6),
+                    ] else
+                      const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: TextField(
+                        onTapOutside: widget.onTapOutside,
+                        controller: widget.controller,
+                        focusNode: _focusNode,
+                        autofocus: widget.autofocus,
+                        keyboardType: widget.keyboardType,
+                        inputFormatters: [
+                          ...?widget.inputFormatters,
+                          if (widget.maxLength != null)
+                            LengthLimitingTextInputFormatter(widget.maxLength),
+                        ],
+                        onChanged: (value) {
+                          if (widget.maxLength != null) setState(() {});
+                          widget.onChanged?.call(value);
+                        },
+                        obscureText: widget.obscureText,
+                        maxLines: widget.obscureText ? 1 : widget.maxLines,
+                        minLines: 1,
+                        textCapitalization: widget.textCapitalization,
+                        textInputAction: widget.textInputAction,
+                        autofillHints: widget.autofillHints,
+                        onSubmitted: widget.onSubmitted,
+                        enabled: widget.enabled,
+                        cursorColor: colors.gold,
+                        cursorWidth: 1.5,
+                        style: const TextStyle(fontSize: 14)
+                            .copyWith(color: colors.text),
+                        decoration: InputDecoration(
+                          hintText: widget.hintText,
+                          hintStyle: typography.body.copyWith(
+                            color: colors.textSecondary,
+                            fontSize: 14,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          // Owner 2026-10-19: room for the counter inside.
+                          contentPadding: EdgeInsets.only(
+                            top: widget.compact
+                                ? AppSpacing.sm
+                                : AppSpacing.lg + 1,
+                            bottom: (widget.compact
+                                    ? AppSpacing.sm
+                                    : AppSpacing.lg + 1) +
+                                (widget.maxLength != null &&
+                                        widget.controller != null
+                                    ? kInsideCounterRoom - 4
+                                    : 0),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  if (widget.trailing != null)
-                    widget.trailing!
-                  else
-                    const SizedBox(width: AppSpacing.md),
-                ],
+                    if (widget.trailing != null)
+                      widget.trailing!
+                    else
+                      const SizedBox(width: AppSpacing.md),
+                  ],
+                ),
               ),
             ),
           ),

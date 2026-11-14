@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ModuleRef } from '@nestjs/core';
-import type { ClientFraudProfile, Prisma } from '@prisma/client';
+import type { ClientFraudProfile, Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';

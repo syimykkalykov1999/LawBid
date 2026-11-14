@@ -171,6 +171,9 @@ class DriftHttpCacheStore implements HttpCacheStore {
       _db.touchHttpEntry(key, now, confirmed: confirmed);
 
   @override
+  Future<void> remove(String key) => _db.removeHttpEntry(key);
+
+  @override
   Future<void> clear() => _db.clearHttp();
 }
 
@@ -216,6 +219,9 @@ class PublicRoutedHttpCacheStore implements HttpCacheStore {
   @override
   Future<void> touch(String key, DateTime now, {required bool confirmed}) =>
       _of(key).touch(key, now, confirmed: confirmed);
+
+  @override
+  Future<void> remove(String key) => _of(key).remove(key);
 
   @override
   Future<void> clear() async {

@@ -1,4 +1,4 @@
-import type { LegalDocType } from '@prisma/client';
+import type { LegalDocType } from '../../generated/prisma/client';
 import { LEGACY_ACCEPTED_TYPES } from './legal-documents.constants';
 
 /** A published version (current or archived) as the logic sees it. */

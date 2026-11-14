@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * Per-chat message numbers (migration 20261109090000_message_seq): the
@@ -8,7 +9,9 @@ import { randomUUID } from 'node:crypto';
  */
 describe('message seq (e2e)', () => {
   jest.setTimeout(60_000);
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
 
   async function chat() {
     const att = await prisma.user.create({

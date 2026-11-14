@@ -19,6 +19,7 @@ import { useMe } from "@/lib/hooks";
 import { CONFIG_TYPE, label } from "@/lib/labels";
 import { can } from "@/lib/rbac";
 import { formatDateTime } from "@/lib/utils";
+import { useNavigationGuard } from "@/lib/vendor/navigation-guard";
 
 /** Russian explanations for the known keys (most server descriptions are null or English). */
 const KEY_TEXT: Record<string, string> = {
@@ -275,6 +276,11 @@ const KEY_TEXT: Record<string, string> = {
   "files.max_size_mb":
     "Голосовые сообщения, МБ. Остальные файлы — в «Загрузки и файлы».",
   "files.sticker_max_size_mb": "Максимальный размер стикера, МБ.",
+  "chat.link_preview_images":
+    "Картинка карточки ссылки: сервер скачивает её один раз и показывает из нашего хранилища (сайт не видит читателя). Выкл. — карточки без картинок.",
+  "chat.link_preview_image_max_kb": "Самая большая картинка карточки ссылки, которую скачивает сервер, КБ.",
+  "chat.link_preview_image_timeout_ms": "Время на скачивание одной картинки карточки ссылки, мс.",
+  "chat.link_preview_image_px": "Длинная сторона сохранённой картинки карточки ссылки, px (не увеличивается).",
   "video.max_source_duration_sec":
     "Длина исходного видео, из которого автор вырезает рилс, сек.",
   "search.weight_title":
@@ -451,6 +457,19 @@ const KEY_TEXT: Record<string, string> = {
   "media.video_max_height":
     "Видео (рилсы): высота кадра после сжатия на телефоне, px (1080 = Full HD; 0 = без сжатия)",
   "media.video_frame_rate": "Видео: кадров в секунду после сжатия (24–60)",
+  "media.video_bitrate_1080_kbps":
+    "Видео 1080p: битрейт после сжатия на телефоне, кбит/с при 30 к/с (300–50000; не выше исходного)",
+  "media.video_bitrate_720_kbps":
+    "Видео 720p: битрейт после сжатия на телефоне, кбит/с при 30 к/с (300–50000)",
+  "media.video_bitrate_540_kbps":
+    "Видео 540p: битрейт после сжатия на телефоне, кбит/с при 30 к/с (300–50000)",
+  "media.video_reencode_above_kbps":
+    "Рилсы, истории, каналы: видео не выше предела пережимается, только если его битрейт выше этого, кбит/с (8000 = как было)",
+  "media.chat_video_max_height":
+    "Видео в чате, деле и поддержке: высота кадра после сжатия на телефоне, px (720 = как в WhatsApp; 0 = без сжатия)",
+  "media.voice_bitrate_kbps": "Голосовые: битрейт AAC, кбит/с (32 = как было)",
+  "media.voice_sample_rate_hz":
+    "Голосовые: частота записи, Гц (16000 = как было; 8000–48000)",
   "files.document_template_max_size_mb":
     "Максимальный размер шаблона документа (PDF, Word), МБ.",
   "media.avatar_max_px": "Фото профиля: длинная сторона после сжатия, px",
@@ -947,6 +966,10 @@ const KEY_TEXT: Record<string, string> = {
     "Сколько мегабайт на телефоне отведено под кэш видео (хранятся первые секунды каждого ролика, чтобы повтор и возврат назад открывались сразу и не тратили трафик CDN). 0 — кэш выключен. Ключ: client.video_cache_mb.",
   "client.video_cache_chunk_s":
     "Сколько первых секунд каждого видео телефон хранит в кэше (1–15). Больше — больше места на телефоне. Ключ: client.video_cache_chunk_s.",
+  "client.verification_photo_max_px":
+    "Фото документа для верификации (удостоверение, карточка адвоката), выбранное из файлов: длинная сторона после сжатия на телефоне, px. Ключ: client.verification_photo_max_px.",
+  "client.verification_photo_quality":
+    "Фото документа для верификации: качество JPEG после сжатия на телефоне (50–100). Ключ: client.verification_photo_quality.",
   "client.uploads_at_once":
     "Сколько кусков файлов приложение отправляет одновременно (на все файлы сразу). По мобильной сети, на слабом телефоне и после сбоя сети — само меньше. Ключ: client.uploads_at_once.",
   "client.upload_parts_mode":
@@ -1152,6 +1175,16 @@ const KEY_TEXT: Record<string, string> = {
     "Как часто (в минутах) идёт «спящая» проверка. Потолок 30 минут.",
   "ops.reencrypt_rows_per_min":
     "Потолок перешифровки сообщений после смены ключа: строк в минуту. 0 — пауза (прогресс сохраняется). Уменьшите, если база занята.",
+  "ops.i18n_bundle_cache_ttl_sec":
+    "Сколько секунд собранный набор переводов лежит в общем кэше (новая версия переводов — сразу новый набор). 0 — только в памяти каждого сервера.",
+  "ops.i18n_bundle_cache_langs":
+    "Сколько последних наборов переводов (язык + версия) каждый сервер держит в памяти. 0 — не держать.",
+  "ops.bootstrap_cache_sec":
+    "Сколько секунд ответ для запуска приложения (/config/bootstrap) используется повторно, пока настройки не менялись; любая правка настроек сразу даёт новый ответ. 0 — собирать каждый раз.",
+  "ops.db_lost_exit_min":
+    "Сервер, который столько минут не может достучаться до базы, когда другой сервер может, перезапускается сам. 0 — никогда. Если база недоступна всем — не перезапускается.",
+  "ops.db_lost_exit_jitter_sec":
+    "Случайная пауза (0…N секунд) перед таким перезапуском, чтобы два сервера не перезапускались вместе.",
   "log.ws_events":
     "Строки журнала про подключения и обрывы связи: Авто — выборка, а при всплеске обрывов 30 минут пишутся все. Вкл — все строки. Выкл — только выборка (счётчики на панели состояния всегда полные). Значения: off / on / auto.",
   "log.ws_sample_percent":
@@ -1429,6 +1462,8 @@ function FullConfigPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // Detective D1-7 (13.11): unsaved edits ask before a link or a reload drops them.
+  useNavigationGuard({ enabled: Object.keys(drafts).length > 0 });
   const [filter, setFilter] = useState("");
   const q = useQuery({
     queryKey: ["config"],

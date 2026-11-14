@@ -21,6 +21,26 @@ export function toggleId(set: ReadonlySet<string>, id: string): Set<string> {
   return next;
 }
 
+/**
+ * Detective D1-14 (13.11): Shift+click ticks (or unticks) every row between
+ * the last clicked row ([anchor]) and this one, in the order shown — Gmail's
+ * and GitHub's list selection, as TanStack Table's row-range examples do.
+ * The clicked row's new state is applied to the whole range. No anchor on
+ * the page (or not found) = an ordinary single toggle.
+ */
+export function toggleRange(set: ReadonlySet<string>, anchor: string | null, id: string, order: readonly string[]): Set<string> {
+  const a = anchor === null ? -1 : order.indexOf(anchor);
+  const b = order.indexOf(id);
+  if (a < 0 || b < 0) return toggleId(set, id);
+  const select = !set.has(id);
+  const next = new Set(set);
+  for (const x of order.slice(Math.min(a, b), Math.max(a, b) + 1)) {
+    if (select) next.add(x);
+    else next.delete(x);
+  }
+  return next;
+}
+
 /** Adds every id when some are missing, otherwise removes them all
  * (the header checkbox of a page). */
 export function togglePage(set: ReadonlySet<string>, ids: string[]): Set<string> {

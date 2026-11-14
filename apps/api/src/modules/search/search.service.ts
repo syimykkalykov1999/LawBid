@@ -9,7 +9,7 @@ import { readsAreSplit } from '../../sharding/split-reads';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { shardContext } from '../../sharding/shard-context';
 import { legacyTopicTags, postPracticeWhere } from '../posts/hidden-tags';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';

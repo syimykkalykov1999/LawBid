@@ -1,5 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import {
   HANDLED_STRIPE_EVENTS,
   STRIPE_WEBHOOK_JOB,

@@ -10,7 +10,11 @@ import {
 } from '../domain/case-urgency';
 import { CasePhotoDto } from './case-responses.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BudgetMode, CaseStatus, SavedItemType } from '@prisma/client';
+import {
+  BudgetMode,
+  CaseStatus,
+  SavedItemType,
+} from '../../../generated/prisma/client';
 import { Type, Transform } from 'class-transformer';
 import {
   ArrayMaxSize,

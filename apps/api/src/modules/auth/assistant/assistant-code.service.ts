@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import type { AssistantMembership } from '@prisma/client';
+import type { AssistantMembership } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { hashJoinCode, normalizeJoinCode } from '../../assistants/join-code';

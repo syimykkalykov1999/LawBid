@@ -6,7 +6,11 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { Prisma, Sticker, StickerPack } from '@prisma/client';
+import type {
+  Prisma,
+  Sticker,
+  StickerPack,
+} from '../../generated/prisma/client';
 import { randomBytes } from 'node:crypto';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { readSwitchMode } from '../../common/app-settings/switch-mode';

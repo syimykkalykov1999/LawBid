@@ -22,7 +22,7 @@ import type {
   CallVote,
   CallStatus,
   Conversation,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { SecretsService } from '../../common/secrets/secrets.service';

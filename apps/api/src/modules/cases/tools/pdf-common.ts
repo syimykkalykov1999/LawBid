@@ -1,5 +1,8 @@
 import PDFDocument from 'pdfkit';
-import { applyPdfFonts } from '../../../common/pdf-fonts/pdf-fonts';
+import {
+  applyPdfFonts,
+  type PdfLayoutCache,
+} from '../../../common/pdf-fonts/pdf-fonts';
 
 export const NAVY = '#0B1B3F';
 export const GOLD = '#B8860B';
@@ -16,6 +19,8 @@ export function startPdf(info: {
   creationDate?: Date;
   /** Document language (BCP-47), picks the Han font for CJK text. */
   lang?: string;
+  /** Word layouts shared by the documents of one render (several passes). */
+  layoutCache?: PdfLayoutCache;
 }): {
   doc: PDFKit.PDFDocument;
   done: Promise<Buffer>;
@@ -42,7 +47,7 @@ export function startPdf(info: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
   });
-  applyPdfFonts(doc, { lang: info.lang });
+  applyPdfFonts(doc, { lang: info.lang, layoutCache: info.layoutCache });
   return { doc, done };
 }
 

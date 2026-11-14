@@ -1,7 +1,7 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { privateDetailsAad } from '../../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { FilesService } from '../../files/files.service';
 import { assertUploadCount } from '../../files/upload-limits';

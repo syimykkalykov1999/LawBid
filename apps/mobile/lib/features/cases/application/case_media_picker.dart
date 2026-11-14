@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
@@ -41,21 +41,20 @@ Future<List<CasePickedFile>> pickCaseMedia(
           maxHeight: photo.maxPx,
           imageQuality: photo.quality,
           limit: left > 1 ? left : null,
+          requestFullMetadata: false,
         )
       : await ImagePicker().pickMultiImage(
           maxWidth: photo.maxPx,
           maxHeight: photo.maxPx,
           imageQuality: photo.quality,
           limit: left > 1 ? left : null,
+          requestFullMetadata: false,
         );
   final out = <CasePickedFile>[];
   for (final f in picked.take(left)) {
     if (videos && _isVideo(f)) {
-      final reel = videoLimitsOf(flags);
-      final limits = (
-        maxHeight: reel.maxHeight <= 0 ? 720 : math.min(720, reel.maxHeight),
-        frameRate: reel.frameRate,
-      );
+      // Owner rows 101/102: the admin's chat/case height.
+      final limits = chatVideoLimitsOf(flags);
       final small =
           await ref.read(videoCompressorProvider).compress(f, limits: limits);
       if (small != null) {
@@ -70,7 +69,7 @@ Future<List<CasePickedFile>> pickCaseMedia(
         );
       }
     } else {
-      out.add((bytes: await f.readAsBytes(), name: null));
+      out.add((bytes: await readPickedPhoto(f), name: null));
     }
   }
   return out;

@@ -1,8 +1,8 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/pick_files.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -103,7 +103,7 @@ class _RequestSheet extends ConsumerStatefulWidget {
 
 class _RequestSheetState extends ConsumerState<_RequestSheet> {
   final _title = TextEditingController();
-  PlatformFile? _file;
+  PickedFileBytes? _file;
   bool _busy = false;
   String? _error;
 
@@ -115,16 +115,18 @@ class _RequestSheetState extends ConsumerState<_RequestSheet> {
 
   Future<void> _pick() async {
     final t = ref.read(translatorProvider);
-    final result = await FilePicker.pickFiles(
-      cancelUploadOnWindowBlur: false,
-      type: FileType.custom,
+    // Audit D8: read from disk on a phone (no withData).
+    final result = await pickFilesRead(
       allowedExtensions: const ['pdf'],
-      withData: true,
+      maxCount: 1,
     );
     if (!mounted) return;
-    final f = result?.files.firstOrNull;
-    if (f == null) return;
-    if (f.bytes == null || !isPdfName(f.name)) {
+    final f = result.files.firstOrNull;
+    if (f == null) {
+      if (result.skipped > 0) setState(() => _error = t.t('sign.pdfOnly'));
+      return;
+    }
+    if (!isPdfName(f.name)) {
       setState(() => _error = t.t('sign.pdfOnly'));
       return;
     }
@@ -137,7 +139,7 @@ class _RequestSheetState extends ConsumerState<_RequestSheet> {
 
   Future<void> _send() async {
     final f = _file;
-    if (f == null || f.bytes == null || _busy) return;
+    if (f == null || _busy) return;
     final t = ref.read(translatorProvider);
     setState(() {
       _busy = true;
@@ -146,7 +148,7 @@ class _RequestSheetState extends ConsumerState<_RequestSheet> {
     try {
       await ref.read(caseSigningActionsProvider).requestFromBytes(
             widget.caseId,
-            bytes: f.bytes!,
+            bytes: f.bytes,
             fileName: f.name,
             title: _title.text.trim(),
           );

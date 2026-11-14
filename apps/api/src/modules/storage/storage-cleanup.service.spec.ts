@@ -1,16 +1,18 @@
-import { Prisma } from '@prisma/client';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   FILE_REFERENCES,
   StorageCleanupService,
   postMediaRetentionDays,
 } from './storage-cleanup.service';
 import { growth } from './storage-stats.service';
+import { datamodel as prismaDatamodel } from '../../generated/prisma-dmmf';
 
 /** Every column that keeps a file id, read from schema.prisma (DMMF):
  * foreign keys to File, uuid arrays named `*_ids` and JSON `*file_ids`. */
 function fileColumnsInSchema(): string[] {
   const out: string[] = [];
-  for (const model of Prisma.dmmf.datamodel.models) {
+  for (const model of prismaDatamodel.models) {
     const table = model.dbName ?? model.name;
     const column = (name: string) =>
       model.fields.find((f) => f.name === name)?.dbName ?? name;
@@ -127,5 +129,23 @@ describe('deleted post media vs the legal retention window (dedup D-7)', () => {
     const where = some.prisma.legalHold.findMany.mock.calls[0][0].where;
     expect(where.released_at).toBeNull();
     expect(JSON.stringify(where)).toContain('expires_at');
+  });
+});
+
+describe('a file the antivirus could not scan (media batch A, R1)', () => {
+  it('is never picked by the cleanup (both candidate queries skip it)', () => {
+    // Before 13.11 an over-limit file was deleted at the scan; now it is kept
+    // for a person, so the orphan sweep must not remove it either.
+    const src = readFileSync(
+      join(__dirname, 'storage-cleanup.service.ts'),
+      'utf8',
+    );
+    const candidates = src.split('f.purpose::TEXT <> ALL(${exempt}::TEXT[])');
+    expect(candidates).toHaveLength(3);
+    for (const after of candidates.slice(1)) {
+      expect(after.trimStart().startsWith('AND f.scan_skipped IS NULL')).toBe(
+        true,
+      );
+    }
   });
 });

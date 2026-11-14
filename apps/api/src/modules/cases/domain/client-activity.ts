@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../../generated/prisma/client';
 
 /** The write side only: PrismaService and a transaction client both fit. */
 type RawWriter = Pick<PrismaClient, '$executeRaw'>;

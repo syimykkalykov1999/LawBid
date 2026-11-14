@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 
 /**
  * docs/03 §7.5: `attorney_profiles.rating_avg` / `rating_count` are a plain

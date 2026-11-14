@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService, routingOf } from '../../prisma/prisma.service';
 import { shardContext } from '../shard-context';
 import { PRIMARY_DB } from '../shard-router';

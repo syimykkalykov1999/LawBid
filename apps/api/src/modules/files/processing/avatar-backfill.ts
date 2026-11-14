@@ -1,4 +1,4 @@
-import type { File } from '@prisma/client';
+import type { File } from '../../../generated/prisma/client';
 import { createHash } from 'node:crypto';
 import { computeBlurhash } from './blurhash';
 import { imageQuality, type ImageFormat } from './image-processor';

@@ -25,8 +25,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// through `CrashReporter` → [SentryReporter.capture] → [capture] (one
 /// route, privacy-scrubbed), so the SDK's own Dart error hooks are removed
 /// and nothing is sent twice. No user, no IP (`sendDefaultPii` off), no
-/// screenshots, no view hierarchy; Dart events are scrubbed again in
-/// `beforeSend` (native crash reports carry only native stacks).
+/// screenshots, no view hierarchy, no request breadcrumbs from the phone's
+/// side; Dart events and their breadcrumbs are scrubbed again in
+/// `beforeSend` / `beforeBreadcrumb` (native crash reports carry only
+/// native stacks).
 class SentryNative {
   SentryNative._();
 
@@ -226,8 +228,43 @@ class SentryNative {
         SentryReporter.scrubText(message.formatted),
       );
     }
+    // D1-46: breadcrumbs merged in from the phone's side (and any left on
+    // the Dart scope) carry the same privacy filter as the event itself.
+    final crumbs = event.breadcrumbs;
+    if (crumbs != null) {
+      event.breadcrumbs = [
+        for (final b in crumbs)
+          if (scrubBreadcrumb(b) case final kept?) kept,
+      ];
+    }
     return event;
   }
+
+  /// D1-46: one breadcrumb without what identifies a person: every URL or
+  /// path keeps its path only (no query, no fragment: `/search?q=…`,
+  /// `/link-preview?url=…` are private), the query fields go, the message
+  /// is scrubbed.
+  @visibleForTesting
+  static Breadcrumb? scrubBreadcrumb(Breadcrumb? b) {
+    if (b == null) return null;
+    final message = b.message;
+    if (message != null) b.message = _scrubCrumbText(message);
+    final data = b.data;
+    if (data != null) {
+      b.data = {
+        for (final MapEntry(:key, :value) in data.entries)
+          if (key != 'http.query' && key != 'http.fragment')
+            key: value is String ? _scrubCrumbText(value) : value,
+      };
+    }
+    return b;
+  }
+
+  static final _pathQuery = RegExp(r'(/[^\s?#]*)[?#]\S*');
+
+  static String _scrubCrumbText(String text) => SentryReporter.scrubText(
+        text.replaceAllMapped(_pathQuery, (m) => m[1]!),
+      );
 }
 
 /// The SDK calls — `sentry_flutter` in the app, a fake in tests.
@@ -299,6 +336,13 @@ class _FlutterSdk implements SentryNativeSdk, SentryTracingSdk {
           ..tracesSampleRate = SentryNative.currentTracesRate
           ..attachScreenshot = false
           ..attachViewHierarchy = false
+          // D1-46: no request breadcrumbs from the phone's side (on iOS
+          // this is sentry-cocoa's `enableNetworkBreadcrumbs`): they hold
+          // the full URL with its query, and native crash reports carry
+          // them past [beforeSend]. The rest go through the same filter.
+          ..recordHttpBreadcrumbs = false
+          ..beforeBreadcrumb =
+              ((crumb, hint) => SentryNative.scrubBreadcrumb(crumb))
           ..beforeSend = (event, hint) => SentryNative.scrub(event);
         // Dart errors come through CrashReporter (scrubbed, one route);
         // the SDK's own hooks would send each of them twice.

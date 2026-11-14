@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { AdminAuthService, INVITE_TTL_SECONDS } from './admin-auth.service';
 import type { AdminActor } from './admin-auth.decorators';
 

@@ -722,6 +722,31 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 100000,
   };
+  // Media batch A (R7): link-card pictures re-hosted by the server.
+  out['chat.link_preview_images'] = {
+    ...out['chat.link_preview_images'],
+    description:
+      'On (default): the link card picture is downloaded by the server once and shown from our storage as a WebP (the reader never contacts the site). Off: cards without pictures.',
+  };
+  out['chat.link_preview_image_max_kb'] = {
+    ...out['chat.link_preview_image_max_kb'],
+    description: 'Largest link-card picture the server downloads, KB.',
+    min: 50,
+    max: 51200,
+  };
+  out['chat.link_preview_image_timeout_ms'] = {
+    ...out['chat.link_preview_image_timeout_ms'],
+    description: 'Time for downloading one link-card picture, ms.',
+    min: 500,
+    max: 30000,
+  };
+  out['chat.link_preview_image_px'] = {
+    ...out['chat.link_preview_image_px'],
+    description:
+      'Long side of the stored link-card picture, px (never enlarged).',
+    min: 100,
+    max: 2048,
+  };
   out['security.seal_case_metadata'] = {
     ...out['security.seal_case_metadata'],
     description:
@@ -1095,6 +1120,42 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Ceiling of the message re-encryption pass, rows per minute (0 = paused, the pass keeps its place). Lower it if the database is busy.',
     min: 0,
     max: 20_000,
+  };
+  // Perf batch 2 (13.11, row 125).
+  out['ops.i18n_bundle_cache_ttl_sec'] = {
+    ...out['ops.i18n_bundle_cache_ttl_sec'],
+    description:
+      'Seconds a built translation bundle stays in the shared cache (a new translation version is a new copy at once). 0 = each server keeps it in memory only.',
+    min: 0,
+    max: 7 * 86_400,
+  };
+  out['ops.i18n_bundle_cache_langs'] = {
+    ...out['ops.i18n_bundle_cache_langs'],
+    description:
+      'How many recent translation bundles (language + version) each server keeps in memory. 0 = none.',
+    min: 0,
+    max: 200,
+  };
+  out['ops.bootstrap_cache_sec'] = {
+    ...out['ops.bootstrap_cache_sec'],
+    description:
+      'Seconds the app start answer (/config/bootstrap) is reused while no setting changed; any setting change makes a new one at once. 0 = built on every request.',
+    min: 0,
+    max: 300,
+  };
+  out['ops.db_lost_exit_min'] = {
+    ...out['ops.db_lost_exit_min'],
+    description:
+      'A server that cannot reach the database for this many minutes, while another server can, restarts itself. 0 = never. Never when the whole database is down.',
+    min: 0,
+    max: 120,
+  };
+  out['ops.db_lost_exit_jitter_sec'] = {
+    ...out['ops.db_lost_exit_jitter_sec'],
+    description:
+      'Random wait (0..N seconds) before such a restart, so two servers never restart together.',
+    min: 0,
+    max: 600,
   };
   triState(
     'log.ws_events',
@@ -1637,6 +1698,43 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 50,
     max: 100,
   };
+  // Owner row 42: the bitrate ladder of the phone's video re-encode; the
+  // app keeps the same bounds (core/media/video_compression.dart).
+  for (const h of [1080, 720, 540]) {
+    const key = `media.video_bitrate_${h}_kbps`;
+    out[key] = {
+      ...out[key],
+      description: `Target video bitrate (kbit/s at 30 fps) of a ${h}p re-encode on the phone; never above the source.`,
+      min: 300,
+      max: 50000,
+    };
+  }
+  // Owner rows 101/102: the numbers the app used to have built in; the app
+  // keeps the same bounds (core/media/video_compression.dart,
+  // features/chat/application/voice_recorder.dart).
+  for (const [key, description, min, max] of [
+    [
+      'media.video_reencode_above_kbps',
+      'A reel/story/channel video no taller than the limit is re-encoded on the phone only above this bitrate (kbit/s).',
+      300,
+      200000,
+    ],
+    [
+      'media.chat_video_max_height',
+      'Chat, case and support videos are re-encoded on the phone to at most this height, px (0 = sent as recorded).',
+      0,
+      2160,
+    ],
+    ['media.voice_bitrate_kbps', 'Voice note AAC bitrate, kbit/s.', 16, 256],
+    [
+      'media.voice_sample_rate_hz',
+      'Voice note sample rate, Hz (8000, 11025, 16000, 22050, 24000, 32000, 44100 or 48000).',
+      8000,
+      48000,
+    ],
+  ] as const) {
+    out[key] = { ...out[key], description, min, max };
+  }
   for (const platform of ['ios', 'android']) {
     // The "Update" button of the forced / soft update screen. Needed for
     // iOS before the first release: the App Store id exists only after the

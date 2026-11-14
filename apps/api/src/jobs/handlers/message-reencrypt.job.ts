@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';

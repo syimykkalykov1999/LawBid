@@ -5,8 +5,9 @@ stays closed in a browser until it is built with
 `--dart-define=WEB_ENABLED=true` (`lib/core/platform/web_gate.dart`).
 
 - `sqlite3.wasm` and `drift_worker.js`: the local database on the web, at the
-  versions pinned in `pubspec.lock` (drift 2.35.0, sqlite3 3.5.2). After a drift
-  or sqlite3 upgrade, download the matching files:
+  versions pinned in `pubspec.lock` (drift 2.35.3, sqlite3 3.5.2). After a drift
+  or sqlite3 upgrade, download the matching files
+  (`scripts/ci/check-web-assets-lock.sh` fails CI until they match):
   `https://github.com/simolus3/drift/releases/download/drift-<ver>/drift_worker.js`
   `https://github.com/simolus3/sqlite3.dart/releases/download/sqlite3-<ver>/sqlite3.wasm`
 - `index.html` is `noindex`: search engines get the separate public pages.
@@ -21,3 +22,8 @@ stays closed in a browser until it is built with
   placeholder and everything is served from the root. See
   `docs/perf/WEB_PASS_2026-10-23.md`.
 - `boot_head.js` / `boot_end.js` are scripts, not inline code (strict CSP).
+- `firebase-messaging-sw.js`: `FIREBASE_JS_VERSION` is the page's Firebase JS
+  SDK (firebase_core_web's `supportedFirebaseJsSdkVersion`); the same check
+  fails when a FlutterFire bump changes it.
+- `passkeys_bundle.js`: corbado flutter-passkeys release `bundle.js` 2.5.0 (the
+  one passkeys_web 2.7+ is built for), see `boot_end.js`.

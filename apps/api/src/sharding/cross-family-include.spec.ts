@@ -7,9 +7,9 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { Prisma } from '@prisma/client';
 import * as ts from 'typescript';
 import { familyOf } from './shard-manifest';
+import { datamodel as prismaDatamodel } from '../generated/prisma-dmmf';
 
 /**
  * Shard-ready step 0 (docs/architecture/SHARDING_READY.md §5, §7): "an
@@ -58,7 +58,7 @@ interface Rel {
 
 const delegates = new Map<string, string>(); // `bid` -> `Bid`
 const relations = new Map<string, Map<string, Rel>>(); // Model -> field -> rel
-for (const m of Prisma.dmmf.datamodel.models) {
+for (const m of prismaDatamodel.models) {
   delegates.set(m.name[0].toLowerCase() + m.name.slice(1), m.name);
   const rels = new Map<string, Rel>();
   for (const f of m.fields) {
