@@ -763,6 +763,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 1095,
   };
+  // Owner 2026-11-13 (row 52): pictures of unfinished requests.
+  out['verification.media.abandoned_days'] = {
+    ...out['verification.media.abandoned_days'],
+    description:
+      'Days without activity after which an unfinished request (draft / waiting for the attorney) loses its selfie and ID pictures (default 15; 0 = never). Decided requests lose them at once.',
+    min: 0,
+    max: 90,
+  };
   // Owner 2026-11-12 (row 60): «Автоматическое решение по адвокатам».
   out['verification.auto_decision.enabled'] = {
     ...out['verification.auto_decision.enabled'],
