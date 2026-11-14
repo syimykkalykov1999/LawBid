@@ -3342,10 +3342,12 @@ void main() {
       expect(of(base.copyWith(outcome: CallStatus.canceled)), isEmpty);
       // A call that rang in here: nothing to ring back from this screen.
       expect(
-        of(const CallSession(
-          phase: CallPhase.ended,
-          outcome: CallStatus.missed,
-        )),
+        of(
+          const CallSession(
+            phase: CallPhase.ended,
+            outcome: CallStatus.missed,
+          ),
+        ),
         isEmpty,
       );
       expect(
@@ -3353,21 +3355,27 @@ void main() {
         [CallEndedAction.cancel, CallEndedAction.settings],
       );
       expect(
-        of(base.copyWith(
-          outcome: CallStatus.failed,
-          errorCode: 'CALL_NOT_ALLOWED',
-        )),
+        of(
+          base.copyWith(
+            outcome: CallStatus.failed,
+            errorCode: 'CALL_NOT_ALLOWED',
+          ),
+        ),
         [CallEndedAction.cancel],
       );
       expect(
-        of(base.copyWith(
-          outcome: CallStatus.failed,
-          errorCode: ApiErrorCodes.entitlementRequired,
-        )),
+        of(
+          base.copyWith(
+            outcome: CallStatus.failed,
+            errorCode: ApiErrorCodes.entitlementRequired,
+          ),
+        ),
         isEmpty,
       );
-      expect(of(base.copyWith(outcome: CallStatus.missed, staleCallId: 'x')),
-          isEmpty);
+      expect(
+        of(base.copyWith(outcome: CallStatus.missed, staleCallId: 'x')),
+        isEmpty,
+      );
       expect(
         of(const CallSession(phase: CallPhase.active, conversationId: 'c')),
         isEmpty,
