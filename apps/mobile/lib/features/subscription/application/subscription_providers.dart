@@ -368,6 +368,37 @@ class SubscribeController extends Notifier<SubscribeState> {
   /// webhook and shows on the next refresh).
   void stopWaiting() => _stopWaiting = true;
 
+  /// Detective R2 item 1 (14.11): back from Stripe by the return link
+  /// (`session_id` kept by the deep link). On the web the payment page
+  /// opened in this tab, so the poll of [subscribeWeb] is gone; on the
+  /// phones the link may open a fresh screen. Confirm the session
+  /// (`checkout/complete` is idempotent) until it is active, a bounded
+  /// number of times. A poll that is still running takes the id instead.
+  Future<SubscribeOutcome> completeReturn(String sessionId) async {
+    if (state.busy) {
+      _sessionId ??= sessionId;
+      return SubscribeOutcome.pendingConfirmation;
+    }
+    _sessionId = sessionId;
+    final repo = ref.read(subscriptionRepositoryProvider);
+    final interval = ref.read(checkoutPollIntervalProvider);
+    _phase(SubscribePhase.syncing);
+    for (var i = 0; i < _maxPolls && ref.mounted; i++) {
+      final overview = await _check(repo);
+      if (overview != null && overview.isActive) {
+        if (!ref.mounted) return SubscribeOutcome.activated;
+        ref.read(subscriptionOverviewProvider.notifier).apply(overview);
+        _phase(SubscribePhase.idle);
+        return (overview.subscription?.inTrial ?? false)
+            ? SubscribeOutcome.trialStarted
+            : SubscribeOutcome.activated;
+      }
+      await Future<void>.delayed(interval);
+    }
+    _phase(SubscribePhase.idle);
+    return SubscribeOutcome.pendingConfirmation;
+  }
+
   Future<SubscriptionOverview?> _check(SubscriptionRepository repo) async {
     final id = _sessionId;
     if (id == null) return null;
