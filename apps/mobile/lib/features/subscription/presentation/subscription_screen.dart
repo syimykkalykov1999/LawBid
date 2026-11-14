@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
@@ -31,7 +32,13 @@ import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 /// payment history. States: loading / error / offline via
 /// [AsyncDetailBody]; "empty" is the plan card without a status card.
 class SubscriptionScreen extends ConsumerStatefulWidget {
-  const SubscriptionScreen({super.key});
+  const SubscriptionScreen({this.checkoutSessionId, super.key});
+
+  /// Detective R2 item 1 (14.11): Stripe's return link
+  /// `/subscription/success?session_id=…` — the paid session is confirmed
+  /// on open (the in-memory poll is gone after the web tab left for the
+  /// payment page or the phone came back by the link).
+  final String? checkoutSessionId;
 
   @override
   ConsumerState<SubscriptionScreen> createState() => _SubscriptionScreenState();
@@ -41,6 +48,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     with WidgetsBindingObserver, ResumeRefreshGate {
   bool _portalBusy = false;
   bool _primeBusy = false;
+
+  /// Detective R2 item 20: Resume / Cancel show progress and take one tap.
+  bool _actionBusy = false;
 
   Future<void> _switchToPrime(SubscriptionOverview o) async {
     final formats = ref.read(l10nFormatsProvider);
@@ -70,6 +80,32 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final id = widget.checkoutSessionId;
+    if (id != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_completeReturn(id));
+      });
+    }
+  }
+
+  /// Back from Stripe by the return link: confirm the session, as the
+  /// Stripe success page does with `{CHECKOUT_SESSION_ID}`
+  /// (stripe-samples/checkout-single-subscription, MIT).
+  Future<void> _completeReturn(String sessionId) async {
+    final outcome = await ref
+        .read(subscribeControllerProvider.notifier)
+        .completeReturn(sessionId);
+    if (!mounted) return;
+    switch (outcome) {
+      case SubscribeOutcome.trialStarted:
+        showAppSnackBar(context, _t.t('subscription.done.trial'));
+      case SubscribeOutcome.activated:
+        showAppSnackBar(context, _t.t('subscription.done.active'));
+      case SubscribeOutcome.pendingConfirmation:
+      case SubscribeOutcome.cancelled:
+      case SubscribeOutcome.failed:
+        unawaited(_refreshQuietly());
+    }
   }
 
   @override
@@ -215,7 +251,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
       action: _t.t('subscription.cancel.confirm'),
       destructive: true,
     );
-    if (!ok) return;
+    if (!ok || _actionBusy) return;
+    setState(() => _actionBusy = true);
     try {
       final next =
           await ref.read(subscriptionOverviewProvider.notifier).cancel();
@@ -229,15 +266,21 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
       );
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(_t, e));
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
     }
   }
 
   Future<void> _resume() async {
+    if (_actionBusy) return;
+    setState(() => _actionBusy = true);
     try {
       await ref.read(subscriptionOverviewProvider.notifier).resume();
       if (mounted) showAppSnackBar(context, _t.t('subscription.resume.done'));
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(_t, e));
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
     }
   }
 
@@ -280,7 +323,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('subscription.title')),
       ),
@@ -346,6 +389,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             t: t,
             formats: formats,
             portalBusy: _portalBusy,
+            actionBusy: _actionBusy,
             onManage: _openPortal,
             onCancel: () => _cancel(s),
             onResume: _resume,
@@ -562,6 +606,7 @@ class SubscriptionStatusCard extends StatelessWidget {
     required this.onCancel,
     required this.onRefresh,
     this.onResume,
+    this.actionBusy = false,
     super.key,
   });
 
@@ -575,6 +620,9 @@ class SubscriptionStatusCard extends StatelessWidget {
 
   /// Shown while a cancel is scheduled: keep the subscription.
   final VoidCallback? onResume;
+
+  /// A cancel or resume request is on its way.
+  final bool actionBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -618,6 +666,7 @@ class SubscriptionStatusCard extends StatelessWidget {
             label: t.t('subscription.action.cancel'),
             variant: AppButtonVariant.secondary,
             height: AppSizes.touchTarget,
+            isLoading: actionBusy,
             onPressed: onCancel,
           ),
         if (s.isActive && s.cancelAtPeriodEnd && onResume != null)
@@ -626,6 +675,7 @@ class SubscriptionStatusCard extends StatelessWidget {
             label: t.t('subscription.action.resume'),
             icon: AppIcons.replayRounded,
             height: AppSizes.touchTarget,
+            isLoading: actionBusy,
             onPressed: onResume,
           ),
       ],
