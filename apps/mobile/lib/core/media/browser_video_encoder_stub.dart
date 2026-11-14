@@ -15,6 +15,7 @@ class _None implements BrowserVideoEncoder {
     XFile source, {
     required int maxShortSide,
     required int frameRate,
+    required int bitrateKbps,
     void Function(double progress)? onProgress,
   }) async =>
       null;

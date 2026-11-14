@@ -1648,6 +1648,32 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       max: 50000,
     };
   }
+  // Owner rows 101/102: the numbers the app used to have built in; the app
+  // keeps the same bounds (core/media/video_compression.dart,
+  // features/chat/application/voice_recorder.dart).
+  for (const [key, description, min, max] of [
+    [
+      'media.video_reencode_above_kbps',
+      'A reel/story/channel video no taller than the limit is re-encoded on the phone only above this bitrate (kbit/s).',
+      300,
+      200000,
+    ],
+    [
+      'media.chat_video_max_height',
+      'Chat, case and support videos are re-encoded on the phone to at most this height, px (0 = sent as recorded).',
+      0,
+      2160,
+    ],
+    ['media.voice_bitrate_kbps', 'Voice note AAC bitrate, kbit/s.', 16, 256],
+    [
+      'media.voice_sample_rate_hz',
+      'Voice note sample rate, Hz (8000, 11025, 16000, 22050, 24000, 32000, 44100 or 48000).',
+      8000,
+      48000,
+    ],
+  ] as const) {
+    out[key] = { ...out[key], description, min, max };
+  }
   for (const platform of ['ios', 'android']) {
     // The "Update" button of the forced / soft update screen. Needed for
     // iOS before the first release: the App Store id exists only after the

@@ -210,6 +210,10 @@ import flutter_callkit_incoming
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidSpotlight") {
       SpotlightBridge.shared.register(registrar)
     }
+    // Owner rows 101/102: the video re-encode (VideoEncoder.swift).
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidVideoEncoder") {
+      VideoEncoderChannel.shared.register(registrar.messenger())
+    }
   }
 
   // MARK: - Secure screen

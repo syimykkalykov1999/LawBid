@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,11 +50,8 @@ Future<List<CasePickedFile>> pickCaseMedia(
   final out = <CasePickedFile>[];
   for (final f in picked.take(left)) {
     if (videos && _isVideo(f)) {
-      final reel = videoLimitsOf(flags);
-      final limits = (
-        maxHeight: reel.maxHeight <= 0 ? 720 : math.min(720, reel.maxHeight),
-        frameRate: reel.frameRate,
-      );
+      // Owner rows 101/102: the admin's chat/case height.
+      final limits = chatVideoLimitsOf(flags);
       final small =
           await ref.read(videoCompressorProvider).compress(f, limits: limits);
       if (small != null) {
