@@ -110,19 +110,22 @@ class PendingPostCard extends ConsumerWidget {
                   ),
                 ),
                 if (failed) ...[
-                  InkWell(
-                    key: const ValueKey('pending-post-retry'),
-                    onTap: () => controller.retry(post.id),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                        vertical: AppSpacing.xs,
-                      ),
-                      child: Text(
-                        t.t('error.retry'),
-                        style: type.bodySmall.copyWith(
-                          color: colors.goldDark,
-                          fontWeight: FontWeight.w600,
+                  // Owner row 111: 48 pt touch area, same look.
+                  AppTapTarget(
+                    child: InkWell(
+                      key: const ValueKey('pending-post-retry'),
+                      onTap: () => controller.retry(post.id),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xs,
+                        ),
+                        child: Text(
+                          t.t('error.retry'),
+                          style: type.bodySmall.copyWith(
+                            color: colors.goldDark,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),

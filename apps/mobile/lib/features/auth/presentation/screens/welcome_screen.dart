@@ -203,29 +203,32 @@ class WelcomeScreen extends ConsumerWidget {
                             // Owner 2026-10-20 (website only, like WhatsApp Web):
                             // sign in by scanning a QR code with the phone.
                             if (kIsWeb)
-                              TextButton.icon(
-                                key: const ValueKey('welcome-qr'),
-                                style: TextButton.styleFrom(
-                                  minimumSize: const Size(0, 36),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                onPressed: () {
-                                  if (_isTopRoute(context)) {
-                                    context.push(AuthRoutes.webQr);
-                                  }
-                                },
-                                icon: AppIcon(
-                                  AppIcons.qrCode,
-                                  color: colors.text,
-                                  size: AppSizes.iconSm,
-                                ),
-                                label: Text(
-                                  t.t('qr.web.title'),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: typography.body
-                                      .copyWith(color: colors.text),
+                              // Owner row 111: 48 pt touch area, same look.
+                              AppTapTarget(
+                                child: TextButton.icon(
+                                  key: const ValueKey('welcome-qr'),
+                                  style: TextButton.styleFrom(
+                                    minimumSize: const Size(0, 36),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  onPressed: () {
+                                    if (_isTopRoute(context)) {
+                                      context.push(AuthRoutes.webQr);
+                                    }
+                                  },
+                                  icon: AppIcon(
+                                    AppIcons.qrCode,
+                                    color: colors.text,
+                                    size: AppSizes.iconSm,
+                                  ),
+                                  label: Text(
+                                    t.t('qr.web.title'),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: typography.body
+                                        .copyWith(color: colors.text),
+                                  ),
                                 ),
                               ),
                             const SizedBox(height: 10),
@@ -233,35 +236,38 @@ class WelcomeScreen extends ConsumerWidget {
                             // around first — the feed, search and profiles
                             // open without an account.
                             if (ref.watch(guestBrowsingEnabledProvider))
-                              TextButton(
-                                key: const ValueKey('welcome-browse'),
-                                style: TextButton.styleFrom(
-                                  minimumSize: const Size(0, 28),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 4,
+                              // Owner row 111: 48 pt touch area, same look.
+                              AppTapTarget(
+                                child: TextButton(
+                                  key: const ValueKey('welcome-browse'),
+                                  style: TextButton.styleFrom(
+                                    minimumSize: const Size(0, 28),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
                                   ),
-                                ),
-                                onPressed: () {
-                                  if (!_isTopRoute(context)) return;
-                                  // Pushed over the guest's screen: just
-                                  // go back to it; a cold start: the feed.
-                                  if (context.canPop()) {
-                                    context.pop();
-                                  } else {
-                                    context.go(AppRoutes.feed);
-                                  }
-                                },
-                                child: Text(
-                                  t.t('guest.welcome.browse'),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: typography.caption.copyWith(
-                                    color: colors.textSecondary,
-                                    decoration: TextDecoration.underline,
+                                  onPressed: () {
+                                    if (!_isTopRoute(context)) return;
+                                    // Pushed over the guest's screen: just
+                                    // go back to it; a cold start: the feed.
+                                    if (context.canPop()) {
+                                      context.pop();
+                                    } else {
+                                      context.go(AppRoutes.feed);
+                                    }
+                                  },
+                                  child: Text(
+                                    t.t('guest.welcome.browse'),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: typography.caption.copyWith(
+                                      color: colors.textSecondary,
+                                      decoration: TextDecoration.underline,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -270,26 +276,29 @@ class WelcomeScreen extends ConsumerWidget {
                             if (ref
                                 .watch(featureFlagsControllerProvider)
                                 .isEnabled('demo_code_login'))
-                              TextButton(
-                                key: const ValueKey('welcome-demo-code'),
-                                style: TextButton.styleFrom(
-                                  minimumSize: const Size(0, 28),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 4,
+                              // Owner row 111: 48 pt touch area, same look.
+                              AppTapTarget(
+                                child: TextButton(
+                                  key: const ValueKey('welcome-demo-code'),
+                                  style: TextButton.styleFrom(
+                                    minimumSize: const Size(0, 28),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
                                   ),
-                                ),
-                                onPressed: () => DemoCodeSheet.show(context),
-                                child: Text(
-                                  t.t('demo.code.entry'),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: typography.caption.copyWith(
-                                    color: colors.textSecondary,
-                                    decoration: TextDecoration.underline,
+                                  onPressed: () => DemoCodeSheet.show(context),
+                                  child: Text(
+                                    t.t('demo.code.entry'),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: typography.caption.copyWith(
+                                      color: colors.textSecondary,
+                                      decoration: TextDecoration.underline,
+                                    ),
                                   ),
                                 ),
                               ),

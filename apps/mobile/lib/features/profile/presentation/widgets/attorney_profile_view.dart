@@ -30,6 +30,7 @@ import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_quiet_button.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_trust_widgets.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
     show followerCountsProvider;
@@ -150,6 +151,23 @@ Future<void> showAttorneyMoreSheet(
 
 class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
   late AttorneyProfileTab _picked = widget.initialTab;
+
+  /// Row 112 (Airbnb «Reserve», Thumbtack «Request estimate» bars): the
+  /// header's Message button; once it scrolls out of sight a bar with
+  /// «Message» and «Book» stays at the bottom.
+  final _actionsKey = GlobalKey();
+  bool _stickyCta = false;
+
+  bool _onScroll(ScrollNotification n) {
+    if (n.metrics.axis != Axis.vertical) return false;
+    final box = _actionsKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached) return false;
+    final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
+    final top = MediaQuery.paddingOf(context).top + kToolbarHeight;
+    final show = bottom < top;
+    if (show != _stickyCta) setState(() => _stickyCta = show);
+    return false;
+  }
 
   /// Owner 2026-10-18: the briefs live in the Reposts tab (no Threads tab).
   /// Owner 2026-10-24 (R-104): at most 4 tabs in one row — Posts, Reels,
@@ -358,6 +376,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           _ChipRows(profile: p),
           // Owner 2026-10-21: the gifts moved to an icon in the top bar.
           const SizedBox(height: AppSpacing.sm),
+          // Row 112 (LinkedIn «Profile strength», Upwork % complete): the
+          // attorney's own profile shows what is still missing.
+          if (p.isSelf) ProfileCompletenessCard(profile: p),
           // Instagram order: buttons right above the tabs — Follow |
           // Message | share icon (owner request).
           if (!p.isSelf && (p.isBlocked || p.hasBlockedMe)) ...[
@@ -367,6 +388,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
             const SizedBox(height: AppSpacing.sm),
           ],
           _Actions(
+            key: _actionsKey,
             isSelf: p.isSelf,
             attorneyId: p.id,
             isFollowing: p.isFollowing,
@@ -458,7 +480,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         title: t.t(offline ? 'offline.title' : 'error.default.title'),
         message: t.t(offline ? 'offline.message' : 'reviews.error'),
         actionLabel: t.t('error.retry'),
-        onAction: () => ref.invalidate(reviewsListProvider(_reviewsKey)),
+        onAction: () => ref
+          ..invalidate(reviewsListProvider(_reviewsKey))
+          ..invalidate(reviewSummaryProvider(p.id)),
       );
     } else if (state != null && state.items.isEmpty) {
       reviewsState = _stars != null
@@ -532,7 +556,23 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
               borderRadius: AppRadii.card,
             ),
           ),
-          error: (_, __) => const SizedBox.shrink(),
+          // Detective R2-A #23: a failed summary says so, with a Retry —
+          // unless the whole tab already shows its own error with Retry.
+          error: (_, __) => reviews.hasError && state == null
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    0,
+                    AppSpacing.screenSide,
+                    AppSpacing.md,
+                  ),
+                  child: _InlineRetry(
+                    message: t.t('reviews.error'),
+                    retryLabel: t.t('error.retry'),
+                    onRetry: () => ref.invalidate(reviewSummaryProvider(p.id)),
+                  ),
+                ),
           // No reviews: the tab's "New — no reviews" state says it all.
           data: (s) => s.isNew
               ? const SizedBox.shrink()
@@ -602,6 +642,53 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           child: child,
         );
 
+    final canMessage = !p.isSelf &&
+        !(p.isBlocked || p.hasBlockedMe) &&
+        (!ref.watch(actsAsAttorneyProvider) ||
+            ref.watch(canDoProvider(AssistantDuty.chats)));
+    final canBook = !p.isSelf &&
+        !(p.isBlocked || p.hasBlockedMe) &&
+        p.consultationEnabled &&
+        ref.watch(consultationsFlagProvider) &&
+        ref.watch(currentUserRoleProvider) == UserRole.client;
+    final pages = _pages(t, tabs, header, reviewsPage, minPage, page);
+    if (!canMessage && !canBook) return pages;
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: Stack(
+        children: [
+          pages,
+          PositionedDirectional(
+            start: 0,
+            end: 0,
+            bottom: 0,
+            child: ProfileStickyCta(
+              visible: _stickyCta,
+              messageLabel: canMessage ? t.t('profile.action.message') : null,
+              onMessage: () => openDirectChat(context, ref, p.id),
+              bookLabel: canBook ? t.t('consult.book') : null,
+              onBook: () => showConsultationBooking(
+                context,
+                attorneyId: p.id,
+                attorneyName: p.fullName.trim().isEmpty
+                    ? atHandle(p.username)
+                    : p.fullName,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pages(
+    Translator t,
+    List<AttorneyProfileTab> tabs,
+    Widget header,
+    Widget reviewsPage,
+    double minPage,
+    Widget Function(Widget child) page,
+  ) {
     return ProfileTabPages(
       initialPage: tabs.indexOf(_tab).clamp(0, tabs.length - 1),
       onPage: (i) => setState(() => _picked = tabs[i]),
@@ -756,10 +843,12 @@ class _HeaderCard extends ConsumerWidget {
             size: _avatar,
             url: profile.avatarUrl,
             // Owner 2026-11-08: my photo just picked, at once (see
-            // AvatarUploadController).
+            // AvatarUploadController); a failed upload goes back to the
+            // old photo (Detective R2-A #6).
             preview: profile.isSelf
                 ? ref.watch(
-                    avatarUploadControllerProvider.select((s) => s.preview),
+                    avatarUploadControllerProvider
+                        .select((s) => s.shownPreview),
                   )
                 : null,
             initials: initialsOf(
@@ -941,6 +1030,8 @@ class _AboutSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Row 112 (Airbnb): «Обычно отвечает в течение часа».
+        ProfileReplyTimeLine(minutes: profile.replyMinutesMedian),
         // Owner 2026-09-30: the "★ — · New" line is gone; ratings live on
         // the Reviews tab.
         // Owner 2026-10-22 (audit #4 §5): «Attorney Advertising» where the
@@ -1269,6 +1360,7 @@ class _Actions extends ConsumerWidget {
     required this.onShare,
     this.blocked = false,
     this.canMessage = true,
+    super.key,
   });
 
   /// OQ-043: direct chats are attorney ↔ client.
@@ -1488,6 +1580,52 @@ class _Tabs extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// One line «couldn't load» with a Retry, for a part of a page that
+/// failed while the rest loaded (Detective R2-A #23).
+class _InlineRetry extends StatelessWidget {
+  const _InlineRetry({
+    required this.message,
+    required this.retryLabel,
+    required this.onRetry,
+  });
+
+  final String message;
+  final String retryLabel;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Row(
+      children: [
+        Icon(
+          AppIcons.errorOutlineRounded,
+          size: AppSizes.iconSm,
+          color: colors.dangerText,
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Semantics(
+            liveRegion: true,
+            child: Text(
+              message,
+              style: typography.bodySmall.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+        TextButton(
+          key: const ValueKey('reviews-summary-retry'),
+          onPressed: onRetry,
+          child: Text(retryLabel),
+        ),
+      ],
     );
   }
 }

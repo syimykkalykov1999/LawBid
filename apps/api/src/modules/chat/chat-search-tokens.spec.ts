@@ -119,6 +119,7 @@ describe('ChatActionsService edit / delete keep the index in step', () => {
     } as unknown as PrismaService;
     const chat = {
       load: jest.fn(async () => conv),
+      assertNotBlockedIn: jest.fn(async () => undefined),
       mediaLinks: jest.fn(async () => ({})),
       toMessage: jest.fn(() => ({ id: 'm1' })),
     } as unknown as ChatService;

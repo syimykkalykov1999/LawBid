@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -10,6 +13,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/social/application/comment_sender.dart';
+import 'package:lawbid/features/social/application/social_drafts.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -101,6 +105,43 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     }
   }
 
+  /// Row 109 (Instagram «Comment deleted · Undo»): the comment goes from
+  /// the list at once; the server is asked when the undo window ends, and
+  /// not at all after «Undo». Runs on after this tile is gone.
+  void _deleteWithUndo(Translator t) {
+    final c = _c;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final hidden = container.read(deletedCommentsProvider.notifier)..add(c.id);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    showUndoSnackBar(
+      context,
+      message: t.t('comment.deleted'),
+      undoLabel: t.t('tasks.undo'),
+      window: ClientTuning.undoWindow,
+      onUndo: () => hidden.remove(c.id),
+      onTimeout: () => unawaited(() async {
+        try {
+          await container.read(socialRepositoryProvider).deleteComment(c.id);
+          container.invalidate(commentsProvider(c.postId));
+          if (c.parentId != null) {
+            container.invalidate(repliesProvider(c.parentId!));
+          }
+          // Audit 2026-10-02: the post's count drops too (the server
+          // removes the comment with its replies).
+          if (!isCaseRef(c.postId)) {
+            await syncPostCountsIn(container, c.postId);
+          }
+        } on Object catch (e) {
+          // Not deleted: the comment comes back and the reason is shown.
+          hidden.remove(c.id);
+          if (messenger != null && messenger.mounted) {
+            showAppSnackBar(messenger.context, errorText(t, e));
+          }
+        }
+      }()),
+    );
+  }
+
   Future<void> _menu() async {
     if (_pending) return;
     final t = ref.read(translatorProvider);
@@ -129,23 +170,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                     destructive: true,
                   );
                   if (!ok || !mounted) return;
-                  try {
-                    await ref
-                        .read(socialRepositoryProvider)
-                        .deleteComment(_c.id);
-                    if (!mounted) return;
-                    ref.invalidate(commentsProvider(_c.postId));
-                    if (_c.parentId != null) {
-                      ref.invalidate(repliesProvider(_c.parentId!));
-                    }
-                    // Audit 2026-10-02: the post's count drops too (the
-                    // server removes the comment with its replies).
-                    if (!isCaseRef(_c.postId)) {
-                      await syncPostCounts(ref, _c.postId);
-                    }
-                  } on Object catch (e) {
-                    if (mounted) showAppSnackBar(context, errorText(t, e));
-                  }
+                  _deleteWithUndo(t);
                 },
               ),
             if (!_c.isMine)
@@ -168,6 +193,10 @@ class _CommentTileState extends ConsumerState<CommentTile> {
 
   @override
   Widget build(BuildContext context) {
+    // Row 109: deleted, the undo window still open.
+    if (ref.watch(deletedCommentsProvider.select((d) => d.contains(_c.id)))) {
+      return const SizedBox.shrink();
+    }
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
@@ -192,15 +221,18 @@ class _CommentTileState extends ConsumerState<CommentTile> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppPressable(
-                  onTap: _openAuthor,
-                  child: GoldRingAvatar(
-                    url: a.avatarUrl,
-                    initials: a.displayName.isEmpty
-                        ? '?'
-                        : avatarInitials(a.displayName),
-                    size: avatarSize,
-                    ring: a.verified,
+                // Owner row 111: a 48 pt touch area, same look.
+                AppTapTarget(
+                  child: AppPressable(
+                    onTap: _openAuthor,
+                    child: GoldRingAvatar(
+                      url: a.avatarUrl,
+                      initials: a.displayName.isEmpty
+                          ? '?'
+                          : avatarInitials(a.displayName),
+                      size: avatarSize,
+                      ring: a.verified,
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -211,23 +243,26 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                       Row(
                         children: [
                           Flexible(
-                            child: GestureDetector(
-                              onTap: _openAuthor,
-                              child: Text(
-                                // OQ-034: the client is anonymous under a
-                                // case — "Case owner" / "Client".
-                                a.isCaseOwner
-                                    ? t.t('cases.comments.owner')
-                                    : a.isAttorney
-                                        ? a.displayName
-                                        : (isCaseRef(_c.id)
-                                            ? t.t('person.client')
-                                            : a.displayName),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: type.bodySmall.copyWith(
-                                  color: colors.text,
-                                  fontWeight: FontWeight.w600,
+                            // Owner row 111: a 48 pt touch area, same look.
+                            child: AppTapTarget(
+                              child: GestureDetector(
+                                onTap: _openAuthor,
+                                child: Text(
+                                  // OQ-034: the client is anonymous under a
+                                  // case — "Case owner" / "Client".
+                                  a.isCaseOwner
+                                      ? t.t('cases.comments.owner')
+                                      : a.isAttorney
+                                          ? a.displayName
+                                          : (isCaseRef(_c.id)
+                                              ? t.t('person.client')
+                                              : a.displayName),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.bodySmall.copyWith(
+                                    color: colors.text,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ),
@@ -412,15 +447,19 @@ class _CommentTileState extends ConsumerState<CommentTile> {
             end: AppSpacing.sm,
             top: AppSpacing.md,
           ),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: 36,
-                  child: Column(
-                    children: [
-                      AppPressable(
+          // Owner row 128: the thread line is a positioned layer from under
+          // the avatar to the bottom of the row (was IntrinsicHeight +
+          // stretch: a second, speculative layout pass per comment).
+          child: Stack(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 36,
+                    // Owner row 111: a 48 pt touch area, same look.
+                    child: AppTapTarget(
+                      child: AppPressable(
                         onTap: _openAuthor,
                         child: GoldRingAvatar(
                           url: a.avatarUrl,
@@ -431,142 +470,151 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                           ring: a.verified,
                         ),
                       ),
-                      if (line)
-                        Expanded(
-                          child: Container(
-                            width: 2,
-                            margin: const EdgeInsets.only(top: AppSpacing.xs),
-                            decoration: BoxDecoration(
-                              color: colors.border,
-                              borderRadius: BorderRadius.circular(1),
-                            ),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Flexible(
-                                  child: GestureDetector(
-                                    onTap: _openAuthor,
-                                    child: Text(
-                                      name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: type.bodySmall.copyWith(
-                                        color: colors.text,
-                                        fontWeight: FontWeight.w700,
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Flexible(
+                                    // Owner row 111: 48 pt touch area.
+                                    child: AppTapTarget(
+                                      child: GestureDetector(
+                                        onTap: _openAuthor,
+                                        child: Text(
+                                          name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: type.bodySmall.copyWith(
+                                            color: colors.text,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                if (a.verified) ...[
-                                  const SizedBox(width: 3),
-                                  VerifiedCheck(
-                                    label: t.t('post.verified'),
-                                    size: 13,
-                                    gold: !a.isAttorney,
+                                  if (a.verified) ...[
+                                    const SizedBox(width: 3),
+                                    VerifiedCheck(
+                                      label: t.t('post.verified'),
+                                      size: 13,
+                                      gold: !a.isAttorney,
+                                    ),
+                                  ],
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Text(
+                                    SocialFormat.ago(t, f, _c.createdAt),
+                                    maxLines: 1,
+                                    style: type.caption
+                                        .copyWith(color: colors.textSecondary),
                                   ),
                                 ],
-                                const SizedBox(width: AppSpacing.sm),
-                                Text(
-                                  SocialFormat.ago(t, f, _c.createdAt),
-                                  maxLines: 1,
-                                  style: type.caption
-                                      .copyWith(color: colors.textSecondary),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
-                          AppIconButton(
-                            icon: const AppIcon(
-                              AppIcons.moreHorizRounded,
-                              size: 18,
+                            AppIconButton(
+                              icon: const AppIcon(
+                                AppIcons.moreHorizRounded,
+                                size: 18,
+                              ),
+                              semanticLabel: t.t('post.menu'),
+                              onPressed: _menu,
                             ),
-                            semanticLabel: t.t('post.menu'),
-                            onPressed: _menu,
-                          ),
-                        ],
-                      ),
-                      TranslatableText(
-                        kind: TranslatableKind.comment,
-                        id: _c.id,
-                        text: _c.body,
-                        enabled: !_c.isMine,
-                        builder: (context, body) => PostBodyText(
-                          body: body,
-                          expanded: true,
-                          mentions: _c.mentions,
-                          height: 1.4,
+                          ],
                         ),
-                      ),
-                      Row(
-                        children: [
-                          action(
-                            BounceIcon(
-                              active: _c.likedByMe,
-                              icon: AppIcons.favoriteBorderRounded,
-                              activeIcon: AppIcons.favoriteRounded,
-                              activeColor: colors.danger,
-                              size: 20,
-                              label: t.t(
-                                _c.likedByMe ? 'post.unlike' : 'post.like',
+                        TranslatableText(
+                          kind: TranslatableKind.comment,
+                          id: _c.id,
+                          text: _c.body,
+                          enabled: !_c.isMine,
+                          builder: (context, body) => PostBodyText(
+                            body: body,
+                            expanded: true,
+                            mentions: _c.mentions,
+                            height: 1.4,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            action(
+                              BounceIcon(
+                                active: _c.likedByMe,
+                                icon: AppIcons.favoriteBorderRounded,
+                                activeIcon: AppIcons.favoriteRounded,
+                                activeColor: colors.danger,
+                                size: 20,
+                                label: t.t(
+                                  _c.likedByMe ? 'post.unlike' : 'post.like',
+                                ),
+                                onTap: _toggleLike,
                               ),
-                              onTap: _toggleLike,
+                              _c.likeCount,
                             ),
-                            _c.likeCount,
-                          ),
-                          action(
-                            BounceIcon(
-                              active: false,
-                              icon: AppIcons.modeCommentOutlined,
-                              activeIcon: AppIcons.modeCommentOutlined,
-                              size: 20,
-                              label: t.t('comment.reply'),
-                              onTap: _replyToThis,
+                            action(
+                              BounceIcon(
+                                active: false,
+                                icon: AppIcons.modeCommentOutlined,
+                                activeIcon: AppIcons.modeCommentOutlined,
+                                size: 20,
+                                label: t.t('comment.reply'),
+                                onTap: _replyToThis,
+                              ),
+                              0,
                             ),
-                            0,
-                          ),
-                        ],
-                      ),
-                      if (hasReplies)
-                        Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: TextButton(
-                            onPressed: () =>
-                                setState(() => _showReplies = !_showReplies),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(0, AppSizes.touchTarget),
-                              textStyle: type.bodySmall,
-                              foregroundColor: colors.textSecondary,
-                            ),
-                            child: FitText(
-                              t.t(
-                                _showReplies
-                                    ? 'comment.hideReplies'
-                                    : 'comment.showReplies',
-                                {'count': SocialFormat.count(f, _c.replyCount)},
+                          ],
+                        ),
+                        if (hasReplies)
+                          Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: TextButton(
+                              onPressed: () =>
+                                  setState(() => _showReplies = !_showReplies),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize:
+                                    const Size(0, AppSizes.touchTarget),
+                                textStyle: type.bodySmall,
+                                foregroundColor: colors.textSecondary,
+                              ),
+                              child: FitText(
+                                t.t(
+                                  _showReplies
+                                      ? 'comment.hideReplies'
+                                      : 'comment.showReplies',
+                                  {
+                                    'count':
+                                        SocialFormat.count(f, _c.replyCount),
+                                  },
+                                ),
                               ),
                             ),
-                          ),
-                        )
-                      else
-                        const SizedBox(height: AppSpacing.sm),
-                    ],
+                          )
+                        else
+                          const SizedBox(height: AppSpacing.sm),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (line)
+                PositionedDirectional(
+                  start: 17,
+                  width: 2,
+                  top: 36 + AppSpacing.xs,
+                  bottom: 0,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.border,
+                      borderRadius: BorderRadius.circular(1),
+                    ),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
         ),
         if (_showReplies)
@@ -661,12 +709,21 @@ class CommentComposer extends ConsumerStatefulWidget {
 class _CommentComposerState extends ConsumerState<CommentComposer> {
   bool get _isCase => widget.postId.startsWith(kCaseThreadPrefix);
 
-  final _text = TextEditingController();
+  // Row 109 (Instagram, YouTube): the half-typed comment of this post
+  // comes back when the comments open again.
+  late final _text = TextEditingController(
+    text: ref.read(commentDraftsProvider)[widget.postId] ?? '',
+  )..addListener(_keepDraft);
+  late final CommentDrafts _drafts = ref.read(commentDraftsProvider.notifier);
   bool _sending = false;
+
+  void _keepDraft() => _drafts.set(widget.postId, _text.text);
 
   @override
   void dispose() {
-    _text.dispose();
+    _text
+      ..removeListener(_keepDraft)
+      ..dispose();
     super.dispose();
   }
 
@@ -913,18 +970,39 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
 
 /// Audit 2026-10-02: re-reads a post after a comment change so every card
 /// shows the server's comment count (keeps the viewer's like/save state).
-Future<void> syncPostCounts(WidgetRef ref, String postId) async {
+Future<void> syncPostCounts(WidgetRef ref, String postId) => _syncPostCounts(
+      ref.read(socialRepositoryProvider),
+      () => ref.read(postOverridesProvider),
+      ref.read(postOverridesProvider.notifier),
+      postId,
+    );
+
+/// [syncPostCounts] for work that outlives its widget (row 109 undo).
+Future<void> syncPostCountsIn(ProviderContainer container, String postId) =>
+    _syncPostCounts(
+      container.read(socialRepositoryProvider),
+      () => container.read(postOverridesProvider),
+      container.read(postOverridesProvider.notifier),
+      postId,
+    );
+
+Future<void> _syncPostCounts(
+  SocialRepository repo,
+  Map<String, Post> Function() current,
+  PostOverrides overrides,
+  String postId,
+) async {
   try {
-    final fresh = await ref.read(socialRepositoryProvider).post(postId);
-    final known = ref.read(postOverridesProvider)[postId];
-    ref.read(postOverridesProvider.notifier).put(
-          known == null
-              ? fresh
-              : fresh.copyWith(
-                  likedByMe: known.likedByMe,
-                  savedByMe: known.savedByMe,
-                ),
-        );
+    final fresh = await repo.post(postId);
+    final known = current()[postId];
+    overrides.put(
+      known == null
+          ? fresh
+          : fresh.copyWith(
+              likedByMe: known.likedByMe,
+              savedByMe: known.savedByMe,
+            ),
+    );
   } on Object {
     // Offline: the next refresh corrects it.
   }

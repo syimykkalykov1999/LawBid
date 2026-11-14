@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/case_history_controller.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
@@ -40,7 +41,7 @@ class CaseHistoryScreen extends ConsumerWidget {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => context.pop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('history.title')),
         actions: [
@@ -219,7 +220,7 @@ class CaseHistoryDetailScreen extends ConsumerWidget {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => context.pop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('history.detailTitle')),
       ),
@@ -294,65 +295,72 @@ class _EventRow extends StatelessWidget {
       if (event.roundNo != null && event.roundNo! > 0)
         t.t('cases.timeline.round', {'n': '${event.roundNo}'}),
     ].join(' · ');
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: AppSpacing.xl,
-            child: Column(
-              children: [
-                Container(
-                  width: AppSpacing.md,
-                  height: AppSpacing.md,
-                  margin: const EdgeInsets.only(top: AppSpacing.xs),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: colors.gold, width: 2),
-                    color: colors.surface,
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: last
-                        ? Colors.transparent
-                        : colors.gold.withValues(alpha: 0.35),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+    // Owner row 128: the timeline line is a positioned layer under the dot
+    // (was IntrinsicHeight + stretch: a second, speculative layout pass per
+    // event). Same pixels.
+    return Stack(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: AppSpacing.xl,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    title,
-                    style: typography.body.copyWith(
-                      color: colors.text,
-                      fontWeight: FontWeight.w600,
+                  Container(
+                    width: AppSpacing.md,
+                    height: AppSpacing.md,
+                    margin: const EdgeInsets.only(top: AppSpacing.xs),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colors.gold, width: 2),
+                      color: colors.surface,
                     ),
-                  ),
-                  if (extra.isNotEmpty)
-                    Text(
-                      extra,
-                      style: typography.bodySmall.copyWith(color: colors.text),
-                    ),
-                  Text(
-                    '$actor · ${formats.dateTime(event.createdAt)}',
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: typography.body.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (extra.isNotEmpty)
+                      Text(
+                        extra,
+                        style:
+                            typography.bodySmall.copyWith(color: colors.text),
+                      ),
+                    Text(
+                      '$actor · ${formats.dateTime(event.createdAt)}',
+                      style: typography.caption
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (!last)
+          PositionedDirectional(
+            start: (AppSpacing.xl - 2) / 2,
+            width: 2,
+            top: AppSpacing.xs + AppSpacing.md,
+            bottom: 0,
+            child: ColoredBox(color: colors.gold.withValues(alpha: 0.35)),
           ),
-        ],
-      ),
+      ],
     );
   }
 }

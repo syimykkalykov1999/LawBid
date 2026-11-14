@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
@@ -301,16 +302,21 @@ class GroupMessageBubble extends ConsumerWidget {
       child: content,
     );
 
-    final interactive = GestureDetector(
-      onTap: onTap,
-      onLongPress: onMenu,
-      onSecondaryTap: onMenu,
-      child: Semantics(
-        container: true,
-        label: groupMessagePreview(t, m, withSender: true),
+    // Owner row 113: the right-click (website) opens the same menu, and the
+    // browser's own menu stays closed over the bubble.
+    final interactive = WebRightClickMenu(
+      onMenu: onMenu,
+      child: GestureDetector(
+        onTap: onTap,
         onLongPress: onMenu,
-        excludeSemantics: a == null && !m.isPoll,
-        child: bubble,
+        onSecondaryTap: onMenu,
+        child: Semantics(
+          container: true,
+          label: groupMessagePreview(t, m, withSender: true),
+          onLongPress: onMenu,
+          excludeSemantics: a == null && !m.isPoll,
+          child: bubble,
+        ),
       ),
     );
 
@@ -624,7 +630,7 @@ class GroupPendingBubble extends ConsumerWidget {
                         : t.t('group.slow.wait', {
                             'time': slowModeLabel(t, p.slowWaitS!),
                           }),
-                    style: type.caption.copyWith(color: colors.danger),
+                    style: type.caption.copyWith(color: colors.dangerText),
                   ),
                 ),
                 // Audit 26.10 B9: a file is sent again too (1:1 chats).

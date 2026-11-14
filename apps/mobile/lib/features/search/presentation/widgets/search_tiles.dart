@@ -496,6 +496,8 @@ class TopicRow extends StatelessWidget {
                           previewUrl: coverUrl!,
                           url: coverUrl!,
                           decodeWidth: 320,
+                          // The topic's name is read from the row.
+                          excludeFromSemantics: true,
                         )
                       : categoryCode == null
                           // A topic with no practiced posts yet: a tile in a

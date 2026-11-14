@@ -8,7 +8,6 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
@@ -614,7 +613,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
   }
 
   Widget _list(BuildContext context, Translator t) {
-    final value = ref.watch(notificationsProvider);
+    final value = ref.watch(visibleNotificationsProvider);
     final n = ref.read(notificationsProvider.notifier);
     return PagedListBody<AppNotification>(
       value: value,
@@ -687,10 +686,8 @@ class _NotificationRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Owner 2026-11-04 (R-386): no channel rows with the `channels` flag off.
-    if (n.type == 'channel_post' && !ref.watch(channelsEnabledProvider)) {
-      return const SizedBox.shrink();
-    }
+    // Owner 2026-11-04 (R-386): channel rows with the `channels` flag off
+    // never reach the row — [visibleNotificationsProvider] leaves them out.
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
@@ -757,23 +754,24 @@ class _NotificationRow extends ConsumerWidget {
             ),
           ),
           clipBehavior: Clip.antiAlias,
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  width: 3,
-                  color: n.unread ? colors.gold : Colors.transparent,
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _Medallion(n: n),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
+          // Owner row 128: the 3 px unread rule is a positioned layer the
+          // height of the card (was IntrinsicHeight + stretch: a second,
+          // speculative layout pass per row). Same pixels.
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: 3),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _Medallion(n: n),
+                      const SizedBox(width: AppSpacing.md),
+                      // Owner row 111: the notification text follows the
+                      // phone's font size in full (past the shell's 1.3x).
+                      Expanded(
+                        child: FullTextScale(
                           child: Text(
                             text,
                             style: type.bodySmall.copyWith(
@@ -784,42 +782,51 @@ class _NotificationRow extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: AppSpacing.sm),
-                        // Capped: a long localized "x ago" can't squeeze the
-                        // notification text.
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 88),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                SocialFormat.ago(t, f, n.createdAt),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.end,
-                                style: type.caption
-                                    .copyWith(color: colors.textSecondary),
-                              ),
-                              if (n.unread) ...[
-                                const SizedBox(height: 6),
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: colors.gold,
-                                    shape: BoxShape.circle,
-                                  ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      // Capped: a long localized "x ago" can't squeeze the
+                      // notification text.
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 88),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              SocialFormat.ago(t, f, n.createdAt),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.end,
+                              style: type.caption
+                                  .copyWith(color: colors.textSecondary),
+                            ),
+                            if (n.unread) ...[
+                              const SizedBox(height: 6),
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: colors.gold,
+                                  shape: BoxShape.circle,
                                 ),
-                              ],
+                              ),
                             ],
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              PositionedDirectional(
+                start: 0,
+                top: 0,
+                bottom: 0,
+                width: 3,
+                child: ColoredBox(
+                  color: n.unread ? colors.gold : Colors.transparent,
+                ),
+              ),
+            ],
           ),
         ),
       ),

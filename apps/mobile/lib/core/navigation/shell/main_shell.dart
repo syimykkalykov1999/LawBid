@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/stable_under_cover.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
+import 'package:lawbid/core/platform/web_tab_title.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/proactive_refresh_provider.dart';
 import 'package:lawbid/core/startup/startup_idle_queue.dart';
@@ -65,6 +67,15 @@ class _MainShellState extends ConsumerState<MainShell> {
   /// Owner 2026-10-22: the feed's pages run on into Chats; the bottom bar
   /// slides down with them (0 = shown, 1 = gone), as a pushed Chats had it.
   final _navAway = ValueNotifier<double>(0);
+
+  /// Owner row 113: the website's tab title «(3) LawBid» (web only). Set
+  /// after the current build: a provider is not changed mid-build.
+  void _tabUnread(int total) {
+    if (!kIsWeb) return;
+    scheduleMicrotask(() {
+      if (mounted) ref.read(webTabUnreadProvider.notifier).set(total);
+    });
+  }
 
   @override
   void dispose() {
@@ -151,8 +162,10 @@ class _MainShellState extends ConsumerState<MainShell> {
       ref
         ..listen(realtimeClientProvider, (_, __) {})
         ..listen(proactiveRefresherProvider, (_, __) {})
-        ..listen(badgesProvider, (_, __) {})
+        // Owner row 113: the unread number in the browser tab's title.
+        ..listen(badgesProvider, (_, b) => _tabUnread(b.total))
         ..listen(sessionServicesProvider, (_, __) {});
+      _tabUnread(ref.read(badgesProvider).total);
     }
 
     final miniPlayer = ref.watch(

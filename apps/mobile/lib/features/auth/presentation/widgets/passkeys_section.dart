@@ -54,7 +54,7 @@ class _PasskeysSectionState extends ConsumerState<PasskeysSection> {
             onPressed: () => Navigator.of(dialog).pop(true),
             child: Text(
               t.t('common.delete'),
-              style: TextStyle(color: colors.danger),
+              style: TextStyle(color: colors.dangerText),
             ),
           ),
         ],

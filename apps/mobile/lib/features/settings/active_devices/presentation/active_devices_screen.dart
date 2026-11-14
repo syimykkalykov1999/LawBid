@@ -66,7 +66,7 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(action, style: TextStyle(color: colors.danger)),
+            child: Text(action, style: TextStyle(color: colors.dangerText)),
           ),
         ],
       ),

@@ -3,6 +3,8 @@ import { AdminSummaryService } from '../admin-summary/admin-summary.service';
 import { withSnapshotTimeout } from '../admin-summary/snapshot-gate';
 import { SpendService } from '../ops/spend/spend.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AppSettingsService } from '../app-settings/app-settings.service';
+import { stripeFeeFrom } from '../economy/economy.rules';
 import {
   buildPnl,
   type PaymentDayRow,
@@ -36,6 +38,7 @@ export class PnlService {
     private readonly prisma: PrismaService,
     @Optional() private readonly summary?: AdminSummaryService,
     @Optional() private readonly spend?: SpendService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   /** What is stored; null before the first count. Never computes. */
@@ -75,22 +78,35 @@ export class PnlService {
     } catch {
       // No spend snapshot yet: revenue only, the page says costs are unknown.
     }
-    return buildPnl({ rows, vendorDaily, fixed, now });
+    const fee = stripeFeeFrom(
+      await this.settings
+        ?.number('economy.stripe_fee_percent')
+        .catch(() => undefined),
+      await this.settings
+        ?.number('economy.stripe_fee_fixed_cents')
+        .catch(() => undefined),
+    );
+    return buildPnl({ rows, vendorDaily, fixed, now, fee });
   }
 
   /**
-   * Succeeded payments per UTC day and source. Source: a star purchase, a
-   * bid pack, a case promotion or a seat purchase points at the payment /
-   * invoice; any other payment of a client is a client subscription, the
-   * rest are attorney subscriptions. Client → attorney case payments live
-   * in another table and are not here.
+   * Payments per UTC day and source, and refunds per UTC day of the refund.
+   * Source: a star purchase, a bid pack, a case promotion or a seat
+   * purchase points at the payment / invoice; any other payment of a client
+   * is a client subscription, the rest are attorney subscriptions. A refund
+   * has the source of its payment. Client → attorney case payments live in
+   * another table and are not here.
+   * R3A-1 (14.11): a fully refunded payment (`refunded`) stays a sale of its
+   * day and the refund is a minus on the day it was made (live statuses, as
+   * the billing overview), the way Stripe's balance reports book them — so
+   * a closed day or month never changes when a refund comes weeks later.
    */
   private async paymentRows(since: Date): Promise<PaymentDayRow[]> {
     const res = await withSnapshotTimeout(
       this.prisma,
       (p) =>
         p.$queryRaw<RawRow[]>`
-        SELECT to_char(p.paid_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
+        SELECT x.day,
                CASE
                  WHEN EXISTS (SELECT 1 FROM star_purchases s WHERE s.payment_id = p.id) THEN 'stars'
                  WHEN EXISTS (SELECT 1 FROM bid_pack_purchases b WHERE b.payment_id = p.id) THEN 'bid_packs'
@@ -99,14 +115,29 @@ export class PnlService {
                  WHEN u.role::text = 'client' THEN 'client_subscriptions'
                  ELSE 'subscriptions'
                END AS kind,
-               COALESCE(SUM(COALESCE(p.subtotal_cents, p.amount_cents - COALESCE(p.tax_cents, 0))), 0) AS subtotal_cents,
-               COALESCE(SUM(p.amount_cents), 0) AS gross_cents,
-               COUNT(*) AS payments,
-               COALESCE(SUM((SELECT COALESCE(SUM(r.amount_cents), 0) FROM refunds r
-                              WHERE r.payment_id = p.id AND r.status = 'succeeded')), 0) AS refunded_cents
-          FROM payments p
+               COALESCE(SUM(x.subtotal_cents), 0) AS subtotal_cents,
+               COALESCE(SUM(x.gross_cents), 0) AS gross_cents,
+               COALESCE(SUM(x.payments), 0) AS payments,
+               COALESCE(SUM(x.refunded_cents), 0) AS refunded_cents
+          FROM (
+            SELECT to_char(p.paid_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
+                   p.id AS payment_id,
+                   COALESCE(p.subtotal_cents, p.amount_cents - COALESCE(p.tax_cents, 0)) AS subtotal_cents,
+                   p.amount_cents AS gross_cents,
+                   1 AS payments,
+                   0 AS refunded_cents
+              FROM payments p
+             WHERE p.status IN ('succeeded', 'refunded') AND p.paid_at >= ${since}
+            UNION ALL
+            SELECT to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
+                   r.payment_id,
+                   0, 0, 0,
+                   r.amount_cents
+              FROM refunds r
+             WHERE r.status IN ('pending', 'succeeded') AND r.created_at >= ${since}
+          ) x
+          JOIN payments p ON p.id = x.payment_id
           JOIN users u ON u.id = p.user_id
-         WHERE p.status = 'succeeded' AND p.paid_at >= ${since}
          GROUP BY 1, 2`,
     );
     return res.map((r) => ({

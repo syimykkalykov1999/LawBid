@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/platform/secure_screen.dart';
 import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 import 'package:lawbid/features/verification/application/verification_wizard_controller.dart';
@@ -371,7 +372,7 @@ class _VerificationWizardScreenState
               if (!atFirst)
                 AppIconButton(
                   semanticLabel: t.t('verification.wizard.close'),
-                  onPressed: () => Navigator.of(context).maybePop(),
+                  onPressed: () => context.safeBack(),
                   icon: AppIcon(AppIcons.closeRounded, color: colors.text),
                 ),
             ],

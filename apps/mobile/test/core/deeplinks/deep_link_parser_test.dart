@@ -108,6 +108,26 @@ void main() {
       );
       expect(
         web('/subscription/success?session_id=cs_1'),
+        const TabDeepLink('/profile/settings/subscription?session_id=cs_1'),
+      );
+      // Detective R2 item 1: the paid session's id reaches the screen;
+      // a malformed one is dropped, a cancel never carries it.
+      expect(
+        web('/plan/success?session_id=cs_test_a1B2'),
+        const TabDeepLink('/profile/settings/client-plan?session_id=cs_test_a1B2'),
+      );
+      expect(
+        web('/subscription/success?session_id=own:9f3a'),
+        const TabDeepLink(
+          '/profile/settings/subscription?session_id=own%3A9f3a',
+        ),
+      );
+      expect(
+        web('/subscription/success?session_id=%3Cscript%3E'),
+        const TabDeepLink('/profile/settings/subscription'),
+      );
+      expect(
+        web('/subscription/cancel?session_id=cs_1'),
         const TabDeepLink('/profile/settings/subscription'),
       );
       expect(

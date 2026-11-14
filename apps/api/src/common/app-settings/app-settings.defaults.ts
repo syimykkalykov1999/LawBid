@@ -78,6 +78,14 @@ export const FILE_03_SETTINGS = {
   'profile.username_similar_min_audience': 1000,
   'review.edit_window_days': 14,
   'review.reminder_after_days': 7,
+  // Owner row 112 (Airbnb «Typically responds within an hour»): the line
+  // under an attorney's name, from the nightly `profiles.reply-time` job.
+  // Off = the line is gone from every profile at the next run.
+  'profile.reply_time_enabled': true,
+  // Chats with a message in the last this-many days count.
+  'profile.reply_time_window_days': 90,
+  // Fewer answered chats than this = no line (too little to say).
+  'profile.reply_time_min_chats': 3,
   // Voice messages and other files outside «Загрузки и файлы» (bug 17).
   'files.max_size_mb': 10,
 } as const;
@@ -1548,6 +1556,11 @@ export const OWNER_OPS_SETTINGS = {
   // waits a random 0..jitter seconds first.
   'ops.db_lost_exit_min': 10,
   'ops.db_lost_exit_jitter_sec': 60,
+  // 14.11 (detective F3): a server whose event loop stood still for at
+  // least this many ms in one second writes one «event loop stall» line
+  // naming the garbage collections and the open requests / jobs of that
+  // second (common/ops/loop-stall.ts). 0 = off.
+  'ops.loop_stall_log_ms': 500,
   // Owner 2026-10-27 («Сегодня» as the owner's desk): the Sentry line on
   // «Сегодня» (one Sentry request per 5 minutes, needs the `sentry` keys in
   // «Ключи и сервисы») and the guided «Разделить базу» card on «Масштаб».
@@ -1592,6 +1605,11 @@ export const OWNER_OPS_SETTINGS = {
   /** S9-4: the global daily money brake = allowed spend / 30 × this many
    * days (3 → about $15 a day at the $150 floor; it grows with revenue). */
   'economy.daily_brake_days': 3,
+  /** R3A-9 (14.11): the Stripe card fee the profit and economy pages
+   * subtract (Stripe US standard 2.9 % + 30 ¢); the owner changes it when
+   * his Stripe pricing differs. */
+  'economy.stripe_fee_percent': 2.9,
+  'economy.stripe_fee_fixed_cents': 30,
   /** S9-6 (owner 2026-10-25): the VPC interface endpoints (≈ $29 a month)
    * are created and removed by a Lambda. auto = by the NAT traffic signal
    * (default); on = keep them always; off = never. The economy job copies
