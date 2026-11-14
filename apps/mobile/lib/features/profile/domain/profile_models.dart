@@ -144,7 +144,12 @@ class PublicAttorneyProfile {
     this.qaBest = 0,
     this.advertisingLabel = false,
     this.publicUrl,
+    this.replyMinutesMedian,
   });
+
+  /// Owner row 112 (Airbnb): median minutes to the attorney's first reply
+  /// in chats, from the server's nightly snapshot; null = not shown.
+  final int? replyMinutesMedian;
 
   /// Owner 2026-10-22 (audit #4 §5, NY Rule 7.1(f)): the attorney is
   /// licensed in a state that requires the «Attorney Advertising» label on

@@ -10,6 +10,7 @@ import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/presentation/chat_undo.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
@@ -70,6 +71,7 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     required String done,
     Future<void> Function(api.GroupDto g)? groupCall,
     Future<void> Function(Channel c)? channelCall,
+    bool? undoArchived,
   }) async {
     final t = ref.read(translatorProvider);
     final picked = _picked;
@@ -108,10 +110,22 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     }
     if (mounted) {
       setState(() => _busy = false);
-      showAppSnackBar(
-        context,
-        failure == null ? t.t(done) : errorText(t, failure),
-      );
+      // Row 109 (Telegram / Gmail): a delete or an archive of chats and
+      // groups offers «Undo» (channels have their own Archive screen).
+      if (failure == null && undoArchived != null && channels.isEmpty) {
+        showChatMoveUndo(
+          context,
+          message: t.t(done),
+          chatIds: [for (final c in picked) c.id],
+          groupIds: [for (final g in groups) g.id],
+          archived: undoArchived,
+        );
+      } else {
+        showAppSnackBar(
+          context,
+          failure == null ? t.t(done) : errorText(t, failure),
+        );
+      }
     }
   }
 
@@ -174,7 +188,8 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
         channelCall: (c) => ref
             .read(channelsRepositoryProvider)
             .organize(c, archived: !widget.inArchive),
-        done: widget.inArchive ? 'chat.unarchive' : 'tasks.bulk.archive',
+        done: widget.inArchive ? 'chat.unarchive' : 'chat.archived',
+        undoArchived: widget.inArchive ? null : true,
       );
 
   /// Owner 2026-10-20: «mark read» for the chats and groups picked.
@@ -218,6 +233,7 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
       (c) => ref.read(chatRepositoryProvider).organize(c.id, hidden: true),
       groupCall: (g) => updateMyGroup(ref, g.id, hidden: true),
       done: 'chat.select.deleted',
+      undoArchived: false,
     );
   }
 
