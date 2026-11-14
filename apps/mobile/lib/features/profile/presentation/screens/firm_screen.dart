@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/feedback/app_confirm_sheet.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -232,8 +233,21 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
     ];
   }
 
-  Future<void> _leave(String? me) => _run(() async {
-        if (me == null) return;
-        await guardApiCall(() => _client.removeFirmMember(attorneyId: me));
-      });
+  Future<void> _leave(String? me) async {
+    if (me == null) return;
+    final t = ref.read(translatorProvider);
+    // Row 109 (Apple HIG): leaving the firm asks first.
+    final ok = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('firm.leave.title'),
+      message: t.t('firm.leave.message'),
+      confirmLabel: t.t('firm.leave'),
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    await _run(() async {
+      await guardApiCall(() => _client.removeFirmMember(attorneyId: me));
+    });
+  }
 }

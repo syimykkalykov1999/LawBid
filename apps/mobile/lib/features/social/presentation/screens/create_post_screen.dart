@@ -35,6 +35,7 @@ import 'package:lawbid/features/reels/presentation/reel_video.dart'
     show formatReelDuration;
 import 'package:lawbid/features/reels/presentation/video_editor_screen.dart';
 import 'package:lawbid/features/social/application/pending_posts.dart';
+import 'package:lawbid/features/social/application/social_drafts.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/post_text.dart';
@@ -242,6 +243,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   @override
   void initState() {
     super.initState();
+    _restoreDraft();
+    // The back guard follows the typing (PopScope reads [_dirty] on build).
+    _body.addListener(_onTyped);
+    _place.addListener(_onTyped);
     final debug = widget.debugVideo;
     if (debug != null) {
       final pick = _VideoPick(
@@ -256,6 +261,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   @override
   void dispose() {
+    // Row 109: a published post leaves no draft behind.
+    if (_publishing && !_editing) unawaited(_drafts.clear());
     // R-396: closed without «Publish»: the early upload stops.
     final pick = _pickedVideo;
     if (pick != null) _dropDraft(pick);
@@ -264,6 +271,84 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     _bodyFocus.dispose();
     _place.dispose();
     super.dispose();
+  }
+
+  /// Row 109: the device's draft store (kept for [dispose]: no `ref` there).
+  late final PostComposeDrafts _drafts = ref.read(postComposeDraftsProvider);
+
+  /// Row 109 (Instagram «Save draft»): a new post opens with the draft the
+  /// person saved last time (caption, place, topic).
+  void _restoreDraft() {
+    final drafts = _drafts;
+    if (_editing || widget.debugPhotoCount > 0 || widget.debugVideo != null) {
+      return;
+    }
+    final d = drafts.load();
+    if (d == null) return;
+    _body.text = d.body;
+    _place.text = d.place;
+    _practice = d.practice;
+    _pickedNews = d.news || widget.news;
+  }
+
+  bool _wasDirty = false;
+
+  void _onTyped() {
+    final dirty = _dirty;
+    if (dirty != _wasDirty && mounted) setState(() => _wasDirty = dirty);
+  }
+
+  /// Something typed or picked that closing would lose.
+  bool get _dirty {
+    if (_editing) {
+      final p = widget.editing!;
+      return _body.text != _initial ||
+          _practice != p.practice?.code ||
+          _legal != !p.isGeneral;
+    }
+    return _body.text.trim().isNotEmpty ||
+        _place.text.trim().isNotEmpty ||
+        _practice != null ||
+        _photos.isNotEmpty ||
+        _docs.items.isNotEmpty ||
+        _video != null;
+  }
+
+  /// Row 109 (Instagram, X, Threads): closing a post with unsaved work asks
+  /// «Save draft? / Discard»; an edited post asks «Discard changes?».
+  Future<void> _confirmLeave() async {
+    final t = ref.read(translatorProvider);
+    final media =
+        _photos.isNotEmpty || _docs.items.isNotEmpty || _video != null;
+    final choice = await showLeaveSheet(
+      context,
+      title: t.t(_editing ? 'leave.changes.title' : 'leave.draft.title'),
+      message: t.t(
+        _editing
+            ? 'leave.changes.message'
+            : (media ? 'leave.draft.messageText' : 'leave.draft.message'),
+      ),
+      saveLabel: _editing ? null : t.t('leave.draft.save'),
+      discardLabel: t.t(_editing ? 'leave.changes.discard' : 'chat.discard'),
+      stayLabel: t.t('story.discard.keep'),
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case LeaveChoice.stay:
+        return;
+      case LeaveChoice.save:
+        await _drafts.save(
+          PostComposeDraft(
+            body: _body.text,
+            place: _place.text,
+            practice: _practice,
+            news: _pickedNews,
+          ),
+        );
+      case LeaveChoice.discard:
+        if (!_editing) await _drafts.clear();
+    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   /// Owner 2026-10-02: Instagram-style — one gallery for photos AND videos
@@ -864,10 +949,17 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => FileDropZone(
-        enabled: !_publishing && !_editing && _video == null,
-        onFiles: (f) => unawaited(_drop(f)),
-        child: _page(context),
+  Widget build(BuildContext context) => PopScope(
+        // Row 109: back / swipe / ✕ with unsaved work asks first.
+        canPop: _publishing || !_dirty,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) unawaited(_confirmLeave());
+        },
+        child: FileDropZone(
+          enabled: !_publishing && !_editing && _video == null,
+          onFiles: (f) => unawaited(_drop(f)),
+          child: _page(context),
+        ),
       );
 
   Widget _page(BuildContext context) {
@@ -890,7 +982,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         leading: AppIconButton(
           icon: const AppIcon(AppIcons.closeRounded),
           semanticLabel: t.t('common.close'),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text(
           t.t(

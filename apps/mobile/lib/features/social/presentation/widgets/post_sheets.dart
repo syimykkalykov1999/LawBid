@@ -5,8 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -19,6 +22,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
 import 'package:lawbid/features/chat/presentation/share_to_sheet.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/application/post_insights_providers.dart';
+import 'package:lawbid/features/social/application/social_drafts.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -540,22 +544,54 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                           showChevron: false,
                           onTap: () async {
                             Navigator.of(sheet).pop();
-                            final error = await ref
-                                .read(socialActionsProvider)
-                                .setFollowing(post.author.id, false);
-                            if (context.mounted) {
-                              showAppSnackBar(
-                                context,
-                                error == null
-                                    ? t.t(
-                                        'post.menu.unfollowed',
-                                        {'name': post.author.displayName},
-                                      )
-                                    : errorText(t, error),
-                              );
+                            final actions = ref.read(socialActionsProvider);
+                            final error = await actions.setFollowing(
+                              post.author.id,
+                              false,
+                            );
+                            if (!context.mounted) return;
+                            if (error != null) {
+                              showAppSnackBar(context, errorText(t, error));
+                              return;
                             }
+                            // Row 109 (Instagram): «Unfollowed · Undo».
+                            showUndoSnackBar(
+                              context,
+                              message: t.t(
+                                'post.menu.unfollowed',
+                                {'name': post.author.displayName},
+                              ),
+                              undoLabel: t.t('tasks.undo'),
+                              window: ClientTuning.undoWindow,
+                              onUndo: () => unawaited(
+                                actions.setFollowing(post.author.id, true),
+                              ),
+                            );
                           },
                         ),
+                      // Row 112 (Instagram, X, TikTok «Not interested»):
+                      // the post leaves the feed at once, «Undo» brings it
+                      // back; kept on this device.
+                      AppListRow(
+                        key: const ValueKey('post-menu-not-interested'),
+                        icon: AppIcons.visibilityOffOutlined,
+                        label: t.t('post.notInterested'),
+                        showChevron: false,
+                        onTap: () {
+                          Navigator.of(sheet).pop();
+                          final hidden = ref
+                              .read(notInterestedPostsProvider.notifier)
+                            ..add(post.id);
+                          AppEvents.track(AppEventNames.postNotInterested);
+                          showUndoSnackBar(
+                            Navigator.of(context).context,
+                            message: t.t('post.notInterested.done'),
+                            undoLabel: t.t('tasks.undo'),
+                            window: ClientTuning.undoWindow,
+                            onUndo: () => hidden.remove(post.id),
+                          );
+                        },
+                      ),
                       AppListRow(
                         key: const ValueKey('post-menu-block'),
                         icon: AppIcons.blockFlipped,

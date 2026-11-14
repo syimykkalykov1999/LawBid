@@ -78,6 +78,14 @@ export const FILE_03_SETTINGS = {
   'profile.username_similar_min_audience': 1000,
   'review.edit_window_days': 14,
   'review.reminder_after_days': 7,
+  // Owner row 112 (Airbnb «Typically responds within an hour»): the line
+  // under an attorney's name, from the nightly `profiles.reply-time` job.
+  // Off = the line is gone from every profile at the next run.
+  'profile.reply_time_enabled': true,
+  // Chats with a message in the last this-many days count.
+  'profile.reply_time_window_days': 90,
+  // Fewer answered chats than this = no line (too little to say).
+  'profile.reply_time_min_chats': 3,
   // Voice messages and other files outside «Загрузки и файлы» (bug 17).
   'files.max_size_mb': 10,
 } as const;

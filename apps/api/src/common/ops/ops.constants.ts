@@ -90,6 +90,7 @@ export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.topicCovers,
   CRON_JOBS.countersReconcile,
   CRON_JOBS.ratingReconcile,
+  CRON_JOBS.attorneyReplyTime,
   CRON_JOBS.trustRecompute,
   CRON_JOBS.licenseRegistryRecheck,
   CRON_JOBS.opsBusinessMetrics,

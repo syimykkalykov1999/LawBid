@@ -22,6 +22,8 @@ abstract final class ClientTuning {
   static int _callSyncS = 30;
   static int _qrPollS = 10;
   static int _resumeMinAwayS = 30;
+  static int _undoWindowS = 5;
+  static int _notInterestedKeepDays = 90;
   static int _videoPrefetchAhead = 3;
   static int _videoPrefetchCellular = 1;
   static int _videoCacheMb = 100;
@@ -87,6 +89,15 @@ abstract final class ClientTuning {
   static Duration get callSync => Duration(seconds: _callSyncS);
   static Duration get qrPoll => Duration(seconds: _qrPollS);
   static Duration get resumeMinAway => Duration(seconds: _resumeMinAwayS);
+
+  /// Row 109 (Telegram / Gmail): how long «Undo» stays after a delete,
+  /// an archive or an unfollow (`client.undo_window_s`).
+  static Duration get undoWindow => Duration(seconds: _undoWindowS);
+
+  /// Row 112: posts marked «Not interested» stay hidden on this device for
+  /// this many days (`client.not_interested_keep_days`).
+  static Duration get notInterestedKeep =>
+      Duration(days: _notInterestedKeepDays);
 
   /// Reels warmed ahead of the one on screen: `client.video_prefetch_ahead`
   /// on Wi-Fi, `client.video_prefetch_cellular` on mobile data (S20-9; the
@@ -264,6 +275,9 @@ abstract final class ClientTuning {
     _callSyncS = pick('client.call_sync_s', 30, 10, 300);
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
+    _undoWindowS = pick('client.undo_window_s', 5, 2, 30);
+    _notInterestedKeepDays =
+        pick('client.not_interested_keep_days', 90, 1, 3650);
     _videoPrefetchAhead = pick('client.video_prefetch_ahead', 3, 0, 6);
     _videoPrefetchCellular = pick('client.video_prefetch_cellular', 1, 0, 6);
     _videoCacheMb = pick('client.video_cache_mb', 100, 0, 1000);

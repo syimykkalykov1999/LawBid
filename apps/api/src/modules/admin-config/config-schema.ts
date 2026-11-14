@@ -109,6 +109,23 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 100,
     max: 5000,
   };
+  // Owner row 112: «Обычно отвечает за …» (nightly profiles.reply-time).
+  out['profile.reply_time_window_days'] = {
+    type: 'integer',
+    defaultValue: 90,
+    description:
+      'Response time on attorney profiles: chats with a message in the last this-many days count.',
+    min: 1,
+    max: 3650,
+  };
+  out['profile.reply_time_min_chats'] = {
+    type: 'integer',
+    defaultValue: 3,
+    description:
+      'Response time on attorney profiles: shown only after at least this many answered chats.',
+    min: 1,
+    max: 1000,
+  };
   out['search.reindex_keep_days'] = {
     type: 'integer',
     defaultValue: 7,
