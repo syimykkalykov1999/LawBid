@@ -175,6 +175,7 @@ import {
 import { DemoHeaderMiddleware } from './common/demo/demo-header.middleware';
 import { DemoModule } from './modules/demo/demo.module';
 import { scrubLogObject } from './telemetry/scrub';
+import { ALL_ROUTES } from './app.setup';
 import {
   compactReq,
   compactRes,
@@ -511,15 +512,17 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     // Demo mode (owner 2026-10-05): the demo header decides the database
     // for the whole request; it must wrap everything that follows.
-    consumer.apply(RequestIdMiddleware, DemoHeaderMiddleware).forRoutes('*');
+    consumer
+      .apply(RequestIdMiddleware, DemoHeaderMiddleware)
+      .forRoutes(ALL_ROUTES);
     // Owner 2026-10-23: an overloaded instance answers 503 + Retry-After
     // instead of timing out (limits in app_config, 0 = off).
-    consumer.apply(LoadSheddingMiddleware).forRoutes('*');
+    consumer.apply(LoadSheddingMiddleware).forRoutes(ALL_ROUTES);
     // Owner 2026-10-22: error rate and p95 for «Состояние системы».
-    consumer.apply(HttpStatsMiddleware).forRoutes('*');
+    consumer.apply(HttpStatsMiddleware).forRoutes(ALL_ROUTES);
     // Owner 2026-10-23: admin GETs are private and revalidated by ETag.
-    consumer.apply(AdminCacheHeadersMiddleware).forRoutes('*');
+    consumer.apply(AdminCacheHeadersMiddleware).forRoutes(ALL_ROUTES);
     // Batch C item 14: nothing personal reaches a shared cache.
-    consumer.apply(CacheSafetyMiddleware).forRoutes('*');
+    consumer.apply(CacheSafetyMiddleware).forRoutes(ALL_ROUTES);
   }
 }
