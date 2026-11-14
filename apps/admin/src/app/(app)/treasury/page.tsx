@@ -12,6 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ErrorNote, PageHeader, SectionTitle } from "@/components/page-header";
+import { useConfirm } from "@/components/legacy/confirm";
 import { StepUpDialog } from "@/components/step-up-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
@@ -70,6 +71,9 @@ export default function TreasuryPage() {
   });
   const set = (t: TreasuryOverview) => qc.setQueryData(["treasury"], t);
   const t = q.data;
+  // R3A-5 (14.11): money leaves only after the amounts are shown and
+  // confirmed (Stripe «Pay out funds»: amount + bank, then confirm).
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const [stepUp, setStepUp] = useState<Pending | null>(null);
   const guarded = useMutation({
@@ -256,7 +260,23 @@ export default function TreasuryPage() {
             t={t}
             canWrite={canWrite}
             busy={expense.isPending}
-            onChange={(a) => expense.mutate(a)}
+            onChange={(a) =>
+              void (async () => {
+                // R3A-5: deleting a line changes every later split — ask first.
+                if (a.op === "delete") {
+                  const line = t.expenses.find((x) => x.id === a.id);
+                  const ok = await confirm({
+                    title: `Удалить «${line?.name ?? "расход"}»?`,
+                    description:
+                      "Строка перестанет учитываться в следующих делениях. Вернуть её можно, только добавив заново.",
+                    confirm: "Удалить",
+                    danger: true,
+                  });
+                  if (!ok) return;
+                }
+                expense.mutate(a);
+              })()
+            }
           />
 
           <SectionTitle>Настройки</SectionTitle>
@@ -277,7 +297,16 @@ export default function TreasuryPage() {
               variant="outline"
               disabled={!canWrite || !t.setup.manualPayouts}
               loading={guarded.isPending && guarded.variables?.kind === "run"}
-              onClick={() => guarded.mutate({ kind: "run" })}
+              onClick={() =>
+                void (async () => {
+                  const ok = await confirm({
+                    title: "Поделить сейчас?",
+                    description: `Расходы ${money(t.plan.expensePayoutCents)}, прибыль ${money(t.plan.profitPayoutCents)} уйдут на ${bankText(t.profitBank, "основной банк в Stripe")}. Отменить выплату Stripe нельзя.`,
+                    confirm: "Отправить",
+                  });
+                  if (ok) guarded.mutate({ kind: "run" });
+                })()
+              }
             >
               <ArrowsSplit size={16} /> Поделить сейчас
             </Button>
@@ -288,6 +317,7 @@ export default function TreasuryPage() {
         </>
       )}
 
+      {confirmDialog}
       <StepUpDialog
         open={stepUp !== null}
         description="Это меняет, как делятся деньги. Подтвердите, что это вы."
