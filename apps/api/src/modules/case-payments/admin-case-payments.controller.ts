@@ -8,8 +8,12 @@ import {
   Post,
   Put,
   Query,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
+import { RequireIdempotencyKeyGuard } from '../../idempotency/require-idempotency-key.guard';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -144,15 +148,33 @@ export class AdminCasePaymentsController {
   @Post(':id/refund')
   @HttpCode(HttpStatus.OK)
   @SkipAutoAudit()
+  // Detective R3A-2 (14.11): a double click, a retry after a timeout or a
+  // second tab returns the first refund instead of sending another one —
+  // the same contract as POST /admin/billing/refunds.
+  @UseGuards(RequireIdempotencyKeyGuard)
+  @UseInterceptors(IdempotencyInterceptor)
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description: 'Required: a retry returns the first refund, never a second.',
+  })
   @ApiOperation({
     summary: "Refund the client on the attorney's behalf (full or partial)",
   })
   @ApiEnvelopeResponse(AdminCasePaymentRowDto)
   @ApiErrors({
-    400: [E.VALIDATION_ERROR, E.PAYMENT_AMOUNT_INVALID],
+    400: [
+      E.VALIDATION_ERROR,
+      E.PAYMENT_AMOUNT_INVALID,
+      E.IDEMPOTENCY_KEY_REQUIRED,
+    ],
     403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
-    409: [E.PAYMENT_INVALID_STATE],
+    409: [
+      E.PAYMENT_INVALID_STATE,
+      E.REFUND_AMOUNT_EXCEEDED,
+      E.IDEMPOTENCY_KEY_CONFLICT,
+    ],
     503: [E.PAYMENTS_NOT_CONFIGURED],
   })
   async refundAdminCasePayment(

@@ -192,6 +192,23 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'While the realtime connection is up, the server tells the app when the virus check of an upload ended; the app asks itself only this often, in milliseconds, as a safety net (without the connection it asks every 700 ms as before).',
   },
+  // Owner row 109 (Telegram / Gmail): «Undo» after a delete, an archive or
+  // an unfollow; the deleted comment reaches the server when it ends.
+  'client.undo_window_s': {
+    default: 5,
+    min: 2,
+    max: 30,
+    description:
+      'How long, in seconds, the «Undo» button stays after deleting or archiving a chat, deleting a comment, unfollowing or hiding a post. A deleted comment is removed on the server when this time ends.',
+  },
+  // Owner row 112 (Instagram «Not interested»): kept on the phone.
+  'client.not_interested_keep_days': {
+    default: 90,
+    min: 1,
+    max: 3650,
+    description:
+      'Posts a person marked «Not interested» stay hidden on that phone or browser for this many days.',
+  },
   'client.resume_refresh_min_away_s': {
     default: 30,
     min: 5,

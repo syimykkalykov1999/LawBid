@@ -938,6 +938,7 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
     const refund = await api()
       .post(`/api/v1/admin/case-payments/${id}/refund`)
       .set(root.auth)
+      .set('Idempotency-Key', `cp-refund-${id}`)
       .send({ amountCents: 5_000, reason: 'Support ticket #1' })
       .expect(200);
     expect((refund.body as Body).data).toMatchObject({
