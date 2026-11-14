@@ -17,6 +17,12 @@
 #    (web-deploy.yml writes `br_<sha>`). Until that function is applied the
 #    twins just sit in the bucket, unused.
 #
+# 3. (row 170, 14.11) the small Flutter files CloudFront never compresses:
+#    assets/NOTICES (1.6 MB, the licences screen), assets/AssetManifest.bin
+#    (15 KB, read at every start) and the shaders (*.frag, ink_sparkle 9 KB).
+#    They have no or an unknown extension, so S3 stores them as
+#    binary/octet-stream, a type CloudFront does not compress. Same gzip as 1.
+#
 # Run from the built web folder (apps/mobile/build/web):
 #   scripts/deploy/web-gzip-big.sh s3://bucket[/prefix] "<cache-control>" ["<cache-control for v/>"]
 # The third argument (immutable) is used for files under v/.
@@ -34,6 +40,8 @@ ctype() {
     *.json) echo application/json ;;
     *.ttf) echo font/ttf ;;
     *.otf) echo font/otf ;;
+    */NOTICES | NOTICES) echo "text/plain; charset=utf-8" ;;
+    *.bin | *.frag) echo application/octet-stream ;;
     *) echo text/javascript ;;
   esac
 }
@@ -60,6 +68,18 @@ done
 # whatever their size. CloudFront would compress them only when `aws s3
 # sync` guessed a font content type; here the type is set explicitly.
 find . -type f \( -name '*.ttf' -o -name '*.otf' \) -size +1000c \
+  -not -path './releases/*' | while read -r f; do
+  rel="${f#./}"
+  mkdir -p "$TMP/gz/$(dirname "$rel")"
+  gzip -9 -n -c "$f" > "$TMP/gz/$rel"
+  echo "gzip $rel: $(wc -c < "$f") -> $(wc -c < "$TMP/gz/$rel") bytes"
+  aws s3 cp "$TMP/gz/$rel" "$DEST/$rel" \
+    --content-encoding gzip --content-type "$(ctype "$rel")" \
+    --cache-control "$(cc_for "$rel")" --only-show-errors
+done
+
+# Row 170: NOTICES, AssetManifest.bin, shaders (see 3. above).
+find . -type f \( -name 'NOTICES' -o -name 'AssetManifest.bin' -o -name '*.frag' \) -size +1000c \
   -not -path './releases/*' | while read -r f; do
   rel="${f#./}"
   mkdir -p "$TMP/gz/$(dirname "$rel")"
