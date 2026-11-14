@@ -258,7 +258,11 @@ class ChatMediaAlbum extends ConsumerWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                ChatPhoto(attachment: a, size: box),
+                // Owner row 88: the full-screen photo grows out of it.
+                GalleryHero(
+                  url: a.url ?? '',
+                  child: ChatPhoto(attachment: a, size: box),
+                ),
                 if (item.sending)
                   ColoredBox(
                     color: Colors.black26,

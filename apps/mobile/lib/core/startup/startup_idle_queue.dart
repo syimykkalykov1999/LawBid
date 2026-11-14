@@ -2,6 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/scheduler.dart';
 
+/// Perf batch 4 (row 127): how long background clean-ups wait after the
+/// start, so they never compete with the splash, the translations read and
+/// the first lists for the disk and the database (Telegram cleans its cache
+/// from a background timer, not at launch).
+abstract final class StartupDelays {
+  /// Broken case-file downloads leave the phone (`CaseFileCache.cleanUp`).
+  static const caseFileCleanUp = Duration(seconds: 20);
+
+  /// The first pass of the cache limits («Хранить медиа», sizes, vacuum).
+  static const cacheEnforce = Duration(seconds: 30);
+}
+
 /// S16-3: non-critical start-up work (the phone-book hash pass, nudges,
 /// warm-ups) runs when the first content is on screen and the UI isolate
 /// is idle — Meta's "defer non-critical init to idle after first content"

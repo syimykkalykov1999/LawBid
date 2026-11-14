@@ -351,19 +351,22 @@ export default function FlagsPage() {
     });
   // SPEED_MATRIX 2026-11-09: the switch flips at once; the server's
   // answer confirms it, a refusal flips it back (lib/optimistic.ts).
+  // Scout 13.11 (row 96): the toast carries «Отменить» (the same switch back; the undo itself offers none).
   const update = useMutation({
-    mutationFn: async (v: { key: string; enabled: boolean }) => {
+    mutationFn: async (v: { key: string; enabled: boolean; undo?: boolean }) => {
       await patch(v);
       return v;
     },
-    ...optimistic<Flag[], { key: string; enabled: boolean }>(
+    ...optimistic<Flag[], { key: string; enabled: boolean; undo?: boolean }>(
       qc,
       ['flags'],
       patchRow((f, v) => ({ ...f, enabled: v.enabled })),
       { onError: (e) => toast.error(e) },
     ),
     onSuccess: (v) => {
-      toast.success(`${FLAG_INFO[v.key]?.title ?? v.key}: ${v.enabled ? 'включено' : 'выключено'}`);
+      const text = `${FLAG_INFO[v.key]?.title ?? v.key}: ${v.enabled ? 'включено' : 'выключено'}`;
+      if (v.undo) toast.success(text);
+      else toast.undo(text, () => update.mutate({ key: v.key, enabled: !v.enabled, undo: true }));
     },
   });
 

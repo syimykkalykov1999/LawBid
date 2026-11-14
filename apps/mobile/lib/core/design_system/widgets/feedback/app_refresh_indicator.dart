@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/material.dart';
+import 'package:lawbid/core/design_system/widgets/feedback/app_dialog.dart'
+    show AppDialogMotion;
+import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 
 /// The one pull-to-refresh of the app (owner 2026-10-28, Samsung: a tiny pull
 /// started the refresh with the spinner in the middle of the screen).
@@ -16,6 +19,12 @@ import 'package:flutter/material.dart';
 ///    [edgeOffset] + [displacement], never over the content;
 ///  * Android: a Material spinner dragged down with resistance; iOS: the
 ///    native bouncing list plus the Cupertino spinner.
+///  * Owner 13.11 (row 93, like Instagram iOS / UIRefreshControl): on iOS
+///    the list stays down by [iosRefreshExtent] while it refreshes, the
+///    spinner in that gap, then rises back on the iOS spring — what
+///    Flutter's `CupertinoSliverRefreshControl` does (its 60 px
+///    `refreshIndicatorExtent`, BSD-3), without turning every list into
+///    slivers. The bouncing list never shows less than that gap.
 ///
 /// Keep using this instead of [RefreshIndicator] (an architecture test
 /// guards it). [AppRefreshIndicatorState.show] refreshes programmatically.
@@ -37,6 +46,10 @@ class AppRefreshIndicator extends StatefulWidget {
 
   /// Spinner size on Android.
   static const double circleSize = 40;
+
+  /// The gap an iOS list keeps open while refreshing
+  /// (`CupertinoSliverRefreshControl` `_defaultRefreshIndicatorExtent`).
+  static const double iosRefreshExtent = 60;
 
   final Future<void> Function() onRefresh;
   final Widget child;
@@ -60,7 +73,7 @@ class AppRefreshIndicator extends StatefulWidget {
 }
 
 class AppRefreshIndicatorState extends State<AppRefreshIndicator>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   /// How much of the finger travel past the edge reaches the spinner.
   static const double _resistance = 0.5;
 
@@ -84,6 +97,15 @@ class AppRefreshIndicatorState extends State<AppRefreshIndicator>
   double _shown = 0;
   Animation<double>? _anim;
 
+  /// iOS: the gap held open above the list (0 = none), and how far the
+  /// list itself is still bounced past its top.
+  double _hold = 0;
+  double _bounce = 0;
+  late final AnimationController _holdBack = AnimationController(
+    vsync: this,
+    duration: AppDialogMotion.duration,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -95,9 +117,12 @@ class AppRefreshIndicatorState extends State<AppRefreshIndicator>
 
   @override
   void dispose() {
+    _holdBack.dispose();
     _settle.dispose();
     super.dispose();
   }
+
+  bool get _ios => Theme.of(context).platform == TargetPlatform.iOS;
 
   void _animateShown(double to) {
     _anim = Tween<double>(begin: _shown, end: to)
@@ -124,6 +149,12 @@ class AppRefreshIndicatorState extends State<AppRefreshIndicator>
     if (n.metrics.axis != Axis.vertical ||
         n.metrics.axisDirection != AxisDirection.down) {
       return false;
+    }
+    final bounce = n.metrics.minScrollExtent - n.metrics.pixels;
+    final b = bounce > 0 ? bounce : 0.0;
+    if (b != _bounce) {
+      _bounce = b;
+      if (_hold > 0) setState(() {});
     }
     if (_refreshing) return false;
     final m = n.metrics;
@@ -184,7 +215,18 @@ class AppRefreshIndicatorState extends State<AppRefreshIndicator>
 
   Future<void> _run() async {
     if (_refreshing) return;
+    final ios = _ios;
+    _holdBack.stop();
     setState(() => _refreshing = true);
+    if (ios) {
+      // A pull already shows the gap (no jump); a refresh from code (the
+      // tab tapped again) opens it on the spring.
+      if (_bounce >= AppRefreshIndicator.iosRefreshExtent) {
+        setState(() => _hold = AppRefreshIndicator.iosRefreshExtent);
+      } else {
+        _animateHold(AppRefreshIndicator.iosRefreshExtent);
+      }
+    }
     _animateShown(widget.triggerDistance);
     try {
       await widget.onRefresh();
@@ -192,8 +234,44 @@ class AppRefreshIndicatorState extends State<AppRefreshIndicator>
       if (mounted) {
         setState(() => _refreshing = false);
         _animateShown(0);
+        if (_hold > 0) _animateHold(0);
       }
     }
+  }
+
+  /// The held gap opens and closes on the iOS spring (Flutter
+  /// `CupertinoDialogRoute`'s standard spring); reduce motion: at once.
+  int _holdRun = 0;
+
+  void _animateHold(double to) {
+    final run = ++_holdRun;
+    _holdBack.stop();
+    if (context.reduceMotion) {
+      setState(() => _hold = to);
+      return;
+    }
+    final from = _hold;
+    final curve = AppDialogMotion.curve;
+    void tick() {
+      if (!mounted || run != _holdRun) return;
+      final k = curve.transform(_holdBack.value);
+      setState(() => _hold = from + (to - from) * k);
+    }
+
+    _holdBack
+      ..value = 0
+      ..addListener(tick)
+      ..forward().whenCompleteOrCancel(() {
+        _holdBack.removeListener(tick);
+        if (mounted && run == _holdRun) setState(() => _hold = to);
+      });
+  }
+
+  /// How far the list is pushed down to keep the gap open: the bounce
+  /// already shows part of it.
+  double get _push {
+    final p = _hold - _bounce;
+    return p > 0 ? p : 0;
   }
 
   /// Runs the refresh with the spinner visible (a tap on the open tab).
@@ -215,7 +293,10 @@ class AppRefreshIndicatorState extends State<AppRefreshIndicator>
           onPointerCancel: _pointerGone,
           child: NotificationListener<ScrollNotification>(
             onNotification: _onNotification,
-            child: widget.child,
+            child: Transform.translate(
+              offset: Offset(0, ios ? _push : 0),
+              child: widget.child,
+            ),
           ),
         ),
         if (_shown > 0 || _refreshing)

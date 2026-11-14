@@ -1,8 +1,7 @@
 'use client';
 
-import { Check, Copy, Minus, Plus } from '@phosphor-icons/react';
+import { Minus, Plus } from '@phosphor-icons/react';
 import Link from 'next/link';
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { PrefetchSentinel } from '@/components/legacy/prefetch-sentinel';
 import { Badge, type Tone } from '@/components/ui/card';
@@ -113,26 +112,8 @@ export function Stepper({ value, min, max, onChange, label }: { value: number; m
   );
 }
 
-export function CopyButton({ text, label = 'Скопировать' }: { text: string; label?: string }) {
-  const [done, setDone] = useState(false);
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={(e) => {
-        e.stopPropagation();
-        void navigator.clipboard?.writeText(text).then(() => {
-          setDone(true);
-          setTimeout(() => setDone(false), 1200);
-        });
-      }}
-      className="rounded-md p-1 text-faint transition-colors hover:bg-surface-2 hover:text-ink"
-    >
-      {done ? <Check size={14} className="text-success" /> : <Copy size={14} />}
-    </button>
-  );
-}
+/** Scout 13.11 (row 96): one shared copy button for the whole admin. */
+export { CopyButton } from '@/components/ui/copy-button';
 
 /** Badge with an explicit tone per value (for enums toneFor doesn't know). */
 export function TonePill({ map, tones, value }: { map: Record<string, string>; tones: Record<string, Tone>; value: string }) {

@@ -157,6 +157,43 @@ void main() {
     expect(adapter.requests.length, before, reason: 'no request at all');
   });
 
+  test('readFromPhoneOnly asUser: the copy of that account only (row 127)',
+      () async {
+    String bearer(String sub) {
+      String enc(Map<String, Object?> m) =>
+          base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');
+      return 'Bearer ${enc({'alg': 'none'})}.${enc({'sub': sub})}.sig';
+    }
+
+    final dio = build();
+    await dio.get<dynamic>(
+      '/me/session',
+      options: Options(headers: {'Authorization': bearer('u1')}),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final before = adapter.requests.length;
+    final restarted = build();
+    // The cached cold start: no bearer yet, the account from the claims.
+    final r = (await readFromPhoneOnly(
+      () => restarted.get<Map<String, dynamic>>('/me/session'),
+      asUser: 'u1',
+    ))!;
+    expect(r.data, body);
+    await expectLater(
+      readFromPhoneOnly(
+        () => restarted.get<dynamic>('/me/session'),
+        asUser: 'u2',
+      ),
+      throwsA(isA<DioException>()),
+    );
+    // Without asUser it is a guest's key: no copy either.
+    await expectLater(
+      readFromPhoneOnly(() => restarted.get<dynamic>('/me/session')),
+      throwsA(isA<DioException>()),
+    );
+    expect(adapter.requests.length, before, reason: 'no request at all');
+  });
+
   test('readFromPhoneOnly: no copy fails without touching the network',
       () async {
     final dio = build();

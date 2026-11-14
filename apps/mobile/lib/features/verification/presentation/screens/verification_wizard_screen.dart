@@ -87,7 +87,7 @@ class _VerificationWizardScreenState
 
   Future<bool> _confirm(String title, String body, String action) async {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
         backgroundColor: colors.sheet,

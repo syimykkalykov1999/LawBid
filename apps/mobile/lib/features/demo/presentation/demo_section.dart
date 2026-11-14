@@ -123,7 +123,7 @@ class _AccountRow extends ConsumerWidget {
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (dialog) => AppAlertDialog(
         title: Text(t.t('demo.delete.confirm.title')),

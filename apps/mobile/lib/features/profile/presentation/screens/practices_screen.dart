@@ -215,7 +215,7 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
 
   /// Back with unsaved changes asks first (settings only).
   Future<void> _confirmLeave(Translator t) async {
-    final leave = await showDialog<bool>(
+    final leave = await showAppDialog<bool>(
       context: context,
       builder: (context) => AppAlertDialog(
         title: Text(t.t('practices.unsaved.title')),

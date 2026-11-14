@@ -28,6 +28,7 @@ import { Reason } from '@/lib/reasons';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { REASON_MIN, useReasonRequired } from '@/lib/reason-policy';
+import { useUrlState } from '@/lib/url-state';
 
 type Promotion = components['schemas']['AdminPromotionRowDto'];
 type PromotionStatus = components['schemas']['CasePromotionStatus'];
@@ -62,7 +63,8 @@ export default function PromotionsPage() {
   const { data: me } = useMe();
   const canWrite = me?.role === 'super_admin' || me?.role === 'finance';
   const { ask, dialog } = useReason();
-  const [tab, setTab] = useState<Tab>('all');
+  // Scout 13.11 (row 96): the tab lives in the address (lib/url-state.ts).
+  const [tab, setTab] = useUrlState<Tab>('tab', 'all');
   const [target, setTarget] = useState<TargetTab>('all');
   const [canceling, setCanceling] = useState<Promotion | null>(null);
   const [granting, setGranting] = useState(false);

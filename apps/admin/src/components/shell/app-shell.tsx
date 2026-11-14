@@ -12,6 +12,7 @@ import { useDragDismiss } from '@/lib/drag-dismiss';
 import { type Me, useMe } from '@/lib/hooks';
 import { useEscapeLayer } from '@/lib/layers';
 import { NAV_TRANSITION } from '@/lib/nav-transition';
+import { useTabTitle } from './use-tab-title';
 import { canOpen, navModeFor, sectionFor } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
 import { BottomNav } from './bottom-nav';
@@ -31,6 +32,7 @@ const CommandPalette = dynamic(() => import('./command-palette').then((m) => m.C
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { data: me } = useMe();
   const pathname = usePathname();
+  useTabTitle(me, pathname);
   const [collapsed, setCollapsed] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);

@@ -175,11 +175,34 @@ drag and `CupertinoSheetRoute` release logic (`material/bottom_sheet.dart`,
 the Flutter cookbook "Create a shimmer loading effect" (docs.flutter.dev) in
 `lib/core/design_system/widgets/feedback/app_skeleton.dart`;
 `SpringSimulation` springs in `reply_swipe.dart` and `photo_gallery.dart`.
+Row 88, second part: the floating, snapping header of
+`RenderSliverFloatingPersistentHeader` / `FloatingHeaderSnapConfiguration`
+(`rendering/sliver_persistent_header.dart`) in
+`lib/features/feed/presentation/widgets/feed_chrome.dart`; the
+`CupertinoDialogRoute` entrance (1.3 → 1 scale, fade-only exit, the iOS
+standard spring) (`cupertino/route.dart`) in
+`lib/core/design_system/widgets/feedback/app_dialog.dart`; the
+`_PredictiveBackGestureDetector` hand-off to the route
+(`material/predictive_back_page_transitions_builder.dart`) in
+`lib/core/navigation/system_back.dart`; `Hero`, `AnimatedSwitcher` and
+`SpringSimulation` in `photo_gallery.dart` and
+`lib/features/stories/presentation/story_viewer_screen.dart`.
 
 Copyright 2014 The Flutter Authors. All rights reserved.
 Licensed under the BSD 3-Clause license; full text as in the battery_plus
 entry above (the same licence, with "The Flutter Authors" as copyright
 holder): https://github.com/flutter/flutter/blob/master/LICENSE
+
+## flutter_chat_ui (flyerhq) — Apache-2.0
+
+The insert animation of a new chat message in
+`lib/features/chat/presentation/chat_insert_motion.dart` follows
+`ChatAnimatedList` / `ChatMessage` of flutter_chat_ui 2.12.0
+(https://github.com/flyerhq/flutter_chat_ui, `packages/flutter_chat_ui/lib/src`):
+Fade over Size over Scale on `Curves.linearToEaseOut`, 250 ms
+(`insertAnimationDuration`), scaled from `centerRight` for sent and
+`centerLeft` for received messages. Copyright (c) Flyer Chat authors.
+Licensed under the Apache License, Version 2.0, as for livekit_client above.
 
 ## open_filex — BSD-3-Clause
 

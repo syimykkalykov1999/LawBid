@@ -4,7 +4,6 @@ import { Archive, ArrowCounterClockwise, Briefcase, EyeSlash, Flag, LockSimple, 
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
-import { useState } from 'react';
 import { LoadMore } from '@/components/billing/shared';
 import { DossierBadge } from '@/components/cases/dossier';
 import { BulkBar, bulkData, PageSelectBox, RowSelectBox, useBulkRun, useSelection } from '@/components/bulk/bulk-controls';
@@ -27,6 +26,7 @@ import { CASE_STATUS, StatusPill } from '@/lib/labels';
 import { can } from '@/lib/rbac';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useUrlDraft, useUrlFlag, useUrlState } from '@/lib/url-state';
 
 type CaseStatus = components['schemas']['AdminCaseStatus'];
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
@@ -34,6 +34,7 @@ const SORT_KEYS = ['title', 'client', 'status', 'state', 'bids', 'activity'] as 
 type Tab = 'all' | CaseStatus;
 
 const STATUSES: CaseStatus[] = ['open', 'in_progress', 'pending_completion', 'disputed', 'closed', 'archived'];
+const TABS: readonly Tab[] = ['all', ...STATUSES];
 type BulkAction = components['schemas']['AdminCasesBulkAction'];
 const CASES: Noun = ['кейс', 'кейса', 'кейсов'];
 
@@ -48,13 +49,12 @@ const ACTION_TEXT: Record<BulkAction, { verb: string; done: string; describe: st
 /** All cases: status tabs, title search (Enter), "has reports" and "with a date" toggles, state filter. */
 export function CaseList() {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('all');
-  const [draft, setDraft] = useState('');
-  const [q, setQ] = useState('');
-  const [hasReports, setHasReports] = useState(false);
-  const [stateDraft, setStateDraft] = useState('');
-  const [stateCode, setStateCode] = useState('');
-  const [withDeadline, setWithDeadline] = useState(false);
+  // Scout 13.11 (row 96): every filter lives in the address (lib/url-state.ts).
+  const [tab, setTab] = useUrlState<Tab>('status', 'all', TABS);
+  const { draft, setDraft, value: q, apply: setQ } = useUrlDraft('q');
+  const [hasReports, setHasReports] = useUrlFlag('reports');
+  const { draft: stateDraft, setDraft: setStateDraft, value: stateCode, apply: setStateCode } = useUrlDraft('state');
+  const [withDeadline, setWithDeadline] = useUrlFlag('deadline');
 
   const qc = useQueryClient();
   const { data: me } = useMe();

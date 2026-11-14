@@ -19,13 +19,17 @@ import { Switch } from "@/components/ui/switch";
 import { SortTh, Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/legacy/confirm";
 import { api, errorText } from "@/lib/api/client";
 import { usd } from "@/lib/economy";
 import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
+import { useUrlState } from "@/lib/url-state";
 import { LazyImg } from '@/components/ui/lazy-img';
 
 type Tab = "report" | "packs" | "gifts" | "history";
+/** Scout 13.11 (row 96): the tab lives in the address (lib/url-state.ts). */
+const TABS: readonly Tab[] = ["report", "packs", "gifts", "history"];
 
 const KIND: Record<string, string> = {
   topup: "Пополнение",
@@ -66,7 +70,7 @@ const LEDGER_SORT_KEYS = [
  * the history of every balance with a hand-made grant / take-back.
  */
 export default function StarsPage() {
-  const [tab, setTab] = useState<Tab>("report");
+  const [tab, setTab] = useUrlState<Tab>("tab", "report", TABS);
   return (
     <>
       <PageHeader
@@ -470,6 +474,8 @@ function PacksTab() {
               </Field>
               <Button
                 variant="ghost"
+                aria-label="Убрать строку"
+                title="Убрать строку"
                 onClick={() => setRows(current.filter((_, j) => j !== i))}
               >
                 <Trash size={16} />
@@ -578,6 +584,7 @@ function PacksTab() {
 function GiftsTab() {
   const qc = useQueryClient();
   const toast = useToast();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const q = useQuery({
     queryKey: ["admin-gifts"],
     queryFn: async () => (await api.GET("/admin/stars/gifts")).data!.data,
@@ -593,6 +600,7 @@ function GiftsTab() {
         position?: number;
         status?: "active" | "hidden";
       };
+      undo?: boolean;
     }) =>
       (
         await api.PATCH("/admin/stars/gifts/{id}", {
@@ -600,14 +608,32 @@ function GiftsTab() {
           body: v.body,
         })
       ).data!.data,
-    onSuccess: refresh,
+    // Scout 13.11 (row 96): hiding / showing a gift says so with «Отменить».
+    onSuccess: (_, v) => {
+      refresh();
+      const st = v.body.status;
+      if (!st || v.undo) return;
+      toast.undo(st === "hidden" ? "Подарок скрыт из каталога" : "Подарок снова в каталоге", () =>
+        patch.mutate({ id: v.id, body: { status: st === "hidden" ? "active" : "hidden" }, undo: true }),
+      );
+    },
     onError: (e) => toast.error(e),
   });
+  // Scout 13.11 (row 96): a delete asks first.
   const remove = useMutation({
-    mutationFn: async (id: string) => {
-      await api.DELETE("/admin/stars/gifts/{id}", { params: { path: { id } } });
+    mutationFn: async (g: { id: string; title: string }) => {
+      const ok = await confirm({
+        title: `Удалить подарок «${g.title}»?`,
+        description: "Он пропадёт из каталога. Уже подаренные остаются у получателей.",
+        confirm: "Удалить",
+        danger: true,
+      });
+      if (!ok) return null;
+      await api.DELETE("/admin/stars/gifts/{id}", { params: { path: { id: g.id } } });
+      return g;
     },
-    onSuccess: () => {
+    onSuccess: (g) => {
+      if (!g) return;
       toast.success(
         "Подарок убран из каталога. Уже подаренные остаются у получателей.",
       );
@@ -626,6 +652,7 @@ function GiftsTab() {
   });
   return (
     <div className="space-y-5">
+      {confirmDialog}
       <GiftUploader onAdded={refresh} />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       {!q.isPending && rows.length === 0 ? (
@@ -743,6 +770,8 @@ function GiftsTab() {
                     <Button
                       size="sm"
                       variant="soft"
+                      aria-label={g.status === "active" ? "Скрыть подарок" : "Вернуть подарок в каталог"}
+                      title={g.status === "active" ? "Скрыть подарок" : "Вернуть подарок в каталог"}
                       onClick={() =>
                         patch.mutate({
                           id: g.id,
@@ -761,7 +790,9 @@ function GiftsTab() {
                     <Button
                       size="sm"
                       variant="danger-soft"
-                      onClick={() => remove.mutate(g.id)}
+                      aria-label="Удалить подарок"
+                      title="Удалить подарок"
+                      onClick={() => remove.mutate({ id: g.id, title: g.title })}
                     >
                       <Trash size={14} />
                     </Button>

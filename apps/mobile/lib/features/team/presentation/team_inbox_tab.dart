@@ -26,7 +26,7 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
     final t = ref.read(translatorProvider);
     String? note;
     if (!approve) {
-      final result = await showDialog<({String? note})>(
+      final result = await showAppDialog<({String? note})>(
         context: context,
         builder: (_) => _RejectDialog(t: t),
       );

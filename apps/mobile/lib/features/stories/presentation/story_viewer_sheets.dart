@@ -18,7 +18,7 @@ Future<bool> confirmDeleteStory(
   Story story,
 ) async {
   final t = ref.read(translatorProvider);
-  final ok = await showDialog<bool>(
+  final ok = await showAppDialog<bool>(
     context: context,
     builder: (dialog) => AppAlertDialog(
       title: Text(t.t('story.delete.title')),

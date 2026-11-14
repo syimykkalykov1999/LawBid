@@ -15,6 +15,7 @@ import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/legacy/confirm';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { usd } from '@/lib/labels';
@@ -319,6 +320,7 @@ function PostAttachmentsCard({ canWrite }: { canWrite: boolean }) {
 /** Owner 2026-10-14: «Новая функция» — a plan feature is data, no release. */
 function CustomFeaturesCard({ canWrite, catalog }: { canWrite: boolean; catalog: Def[] }) {
   const toast = useToast();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState('');
@@ -356,10 +358,20 @@ function CustomFeaturesCard({ canWrite, catalog }: { canWrite: boolean; catalog:
     },
     onError: (e) => toast.error(e),
   });
+  // Scout 13.11 (row 96): a delete asks first.
   const remove = useMutation({
-    mutationFn: async (k: string) =>
-      (await api.DELETE('/admin/billing/entitlements/{key}', { params: { path: { key: k } } })).data!.data,
-    onSuccess: () => {
+    mutationFn: async (d: { key: string; name: string }) => {
+      const ok = await confirm({
+        title: `Удалить функцию «${d.name}»?`,
+        description: 'Она пропадёт из редактора каждого плана.',
+        confirm: 'Удалить',
+        danger: true,
+      });
+      if (!ok) return null;
+      return (await api.DELETE('/admin/billing/entitlements/{key}', { params: { path: { key: d.key } } })).data!.data;
+    },
+    onSuccess: (r) => {
+      if (r === null) return;
       toast.success('Функция удалена');
       qc.invalidateQueries({ queryKey: QUERY_KEY });
     },
@@ -368,6 +380,7 @@ function CustomFeaturesCard({ canWrite, catalog }: { canWrite: boolean; catalog:
   const valid = /^[a-z][a-z0-9_]{2,39}$/.test(key) && (ru.trim() || en.trim()) && aud.length > 0;
   return (
     <Card className="mb-5">
+      {confirmDialog}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-medium">Свои функции планов</h3>
@@ -389,7 +402,7 @@ function CustomFeaturesCard({ canWrite, catalog }: { canWrite: boolean; catalog:
                 <b>{text(d.label, d.key)}</b> <span className="text-muted">· {d.key} · {d.type === 'boolean' ? 'вкл/выкл' : 'лимит'}</span>
               </span>
               {canWrite ? (
-                <Button variant="ghost" onClick={() => remove.mutate(d.key)}>
+                <Button variant="ghost" aria-label="Удалить функцию" title="Удалить функцию" onClick={() => remove.mutate({ key: d.key, name: text(d.label, d.key) })}>
                   <Trash size={16} />
                 </Button>
               ) : null}
@@ -489,7 +502,7 @@ function BidPacksCard({ canWrite }: { canWrite: boolean }) {
               <Input value={r.price} disabled={!canWrite} onChange={(e) => set(i, { price: e.target.value })} />
             </Field>
             {canWrite ? (
-              <Button variant="ghost" onClick={() => setRows(current.filter((_, j) => j !== i))}>
+              <Button variant="ghost" aria-label="Убрать строку" title="Убрать строку" onClick={() => setRows(current.filter((_, j) => j !== i))}>
                 <Trash size={16} />
               </Button>
             ) : null}

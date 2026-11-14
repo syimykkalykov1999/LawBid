@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart' show SpringSimulation;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,6 +42,12 @@ class StoryViewerScreen extends ConsumerStatefulWidget {
 
 class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen> {
   late String _userId = widget.userId;
+
+  /// Owner row 88: which way the last move between people went (1 = to
+  /// the next person), so the next person's stories slide in from that
+  /// side (WhatsApp / TikTok slide; the Instagram cube needs the owner's
+  /// word first).
+  int _step = 1;
   ProviderContainer? _container;
 
   @override
@@ -71,7 +80,10 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen> {
       final item = tray[j];
       if (item.isMe || !item.hasStories) continue;
       if (step > 0 && !item.hasUnseen) continue;
-      setState(() => _userId = item.user.id);
+      setState(() {
+        _step = step;
+        _userId = item.user.id;
+      });
       return;
     }
     if (step > 0) _close();
@@ -85,45 +97,51 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen> {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: stories.when(
-          loading: () => _Plain(
-            onClose: _close,
-            t: t,
-            child: const CircularProgressIndicator(color: Colors.white),
-          ),
-          error: (e, _) => _Plain(
-            onClose: _close,
-            t: t,
-            child: AppErrorState(
-              message: errorText(t, e),
-              retryLabel: t.t('common.retry'),
-              onRetry: () => ref.invalidate(userStoriesProvider(_userId)),
+        body: StoryPeopleSlide(
+          step: _step,
+          child: KeyedSubtree(
+            key: ValueKey('story-user-$_userId'),
+            child: stories.when(
+              loading: () => _Plain(
+                onClose: _close,
+                t: t,
+                child: const CircularProgressIndicator(color: Colors.white),
+              ),
+              error: (e, _) => _Plain(
+                onClose: _close,
+                t: t,
+                child: AppErrorState(
+                  message: errorText(t, e),
+                  retryLabel: t.t('common.retry'),
+                  onRetry: () => ref.invalidate(userStoriesProvider(_userId)),
+                ),
+              ),
+              data: (list) => list.isEmpty
+                  ? _Plain(
+                      onClose: _close,
+                      t: t,
+                      child: AppEmptyState(
+                        message: t.t('story.viewer.empty'),
+                        icon: AppIcons.imageNotSupportedOutlined,
+                      ),
+                    )
+                  : StoryPlaybackView(
+                      key: ValueKey(_userId),
+                      stories: list,
+                      startIndex: _firstUnseen(list),
+                      onClose: _close,
+                      onFinished: () => _move(1),
+                      onBeforeFirst: () => _move(-1),
+                      onNextUser: () => _move(1),
+                      onPreviousUser: () => _move(-1),
+                      onDeleted: (_) {
+                        ref
+                          ..invalidate(userStoriesProvider(_userId))
+                          ..invalidate(storyTrayProvider);
+                      },
+                    ),
             ),
           ),
-          data: (list) => list.isEmpty
-              ? _Plain(
-                  onClose: _close,
-                  t: t,
-                  child: AppEmptyState(
-                    message: t.t('story.viewer.empty'),
-                    icon: AppIcons.imageNotSupportedOutlined,
-                  ),
-                )
-              : StoryPlaybackView(
-                  key: ValueKey(_userId),
-                  stories: list,
-                  startIndex: _firstUnseen(list),
-                  onClose: _close,
-                  onFinished: () => _move(1),
-                  onBeforeFirst: () => _move(-1),
-                  onNextUser: () => _move(1),
-                  onPreviousUser: () => _move(-1),
-                  onDeleted: (_) {
-                    ref
-                      ..invalidate(userStoriesProvider(_userId))
-                      ..invalidate(storyTrayProvider);
-                  },
-                ),
         ),
       ),
     );
@@ -132,6 +150,53 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen> {
   int _firstUnseen(List<Story> list) {
     final i = list.indexWhere((s) => !s.viewedByMe);
     return i < 0 ? 0 : i;
+  }
+}
+
+/// Owner row 88 (2026-11-13): moving to another person's stories slides
+/// them in from the side they come from and the last person's out the
+/// other way (Flutter `AnimatedSwitcher` + `SlideTransition`, BSD-3), as in
+/// WhatsApp and TikTok, instead of a hard cut. Reduce motion: a cut.
+class StoryPeopleSlide extends StatelessWidget {
+  const StoryPeopleSlide({
+    required this.step,
+    required this.child,
+    super.key,
+  });
+
+  final int step;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final dx = (step > 0 ? 1.0 : -1.0) * (rtl ? -1 : 1);
+    final current = child.key;
+    return AnimatedSwitcher(
+      duration: context.reduceMotion ? Duration.zero : AppMotion.pageEnter,
+      switchInCurve: AppMotion.enterCurve,
+      switchOutCurve: AppMotion.enterCurve,
+      layoutBuilder: (shown, previous) => Stack(
+        fit: StackFit.expand,
+        children: [...previous, if (shown != null) shown],
+      ),
+      transitionBuilder: (child, animation) {
+        final incoming = child.key == current;
+        final offset = Tween<Offset>(
+          begin: Offset(incoming ? dx : -dx, 0),
+          end: Offset.zero,
+        ).animate(animation);
+        // The person going away no longer plays or takes touches.
+        return TickerMode(
+          enabled: incoming,
+          child: IgnorePointer(
+            ignoring: !incoming,
+            child: SlideTransition(position: offset, child: child),
+          ),
+        );
+      },
+      child: child,
+    );
   }
 }
 
@@ -225,8 +290,17 @@ class StoryPlaybackView extends ConsumerStatefulWidget {
 }
 
 class _StoryPlaybackViewState extends ConsumerState<StoryPlaybackView>
-    with SingleTickerProviderStateMixin, PlaybackVisibility {
+    with TickerProviderStateMixin, PlaybackVisibility {
   static const _touch = 'touch';
+  static const _pullKey = 'pull';
+
+  /// Owner row 88 (Instagram): a swipe down drags the story with the
+  /// finger and shrinks it; let go far enough (or flung) it closes, else
+  /// it springs back (Flutter SpringSimulation, BSD-3).
+  double _pull = 0;
+  late final AnimationController _pullBack = AnimationController.unbounded(
+    vsync: this,
+  )..addListener(() => setState(() => _pull = math.max(0, _pullBack.value)));
   static const _reply = 'reply';
   static const _visibility = 'visibility';
 
@@ -272,6 +346,7 @@ class _StoryPlaybackViewState extends ConsumerState<StoryPlaybackView>
   @override
   void dispose() {
     _sentTimer?.cancel();
+    _pullBack.dispose();
     _ticker.dispose();
     _pb
       ..removeListener(_onChanged)
@@ -355,11 +430,41 @@ class _StoryPlaybackViewState extends ConsumerState<StoryPlaybackView>
     }
   }
 
+  void _onVerticalStart(DragStartDetails _) => _pullBack.stop();
+
+  void _onVerticalUpdate(DragUpdateDetails d) {
+    final dy = d.primaryDelta ?? 0;
+    if (dy <= 0 && _pull <= 0) return;
+    if (_pull <= 0) _pb.hold(_pullKey);
+    setState(() => _pull = math.max(0, _pull + dy));
+  }
+
   void _onVerticalEnd(DragEndDetails d) {
     final v = d.velocity.pixelsPerSecond.dy;
-    if (v > 400) {
+    final pulled = _pull;
+    if (v > 400 || pulled > 120) {
       widget.onClose();
-    } else if (v < -400 && _pb.current.isMine && !widget.readOnly) {
+      return;
+    }
+    if (pulled > 0) {
+      if (context.reduceMotion) {
+        setState(() => _pull = 0);
+        _pb.release(_pullKey);
+        return;
+      }
+      _pullBack.value = pulled;
+      _pullBack
+          .animateWith(
+        SpringSimulation(AppMotion.snapBackSpring, pulled, 0, v),
+      )
+          .whenCompleteOrCancel(() {
+        if (!mounted || _pullBack.isAnimating) return;
+        setState(() => _pull = 0);
+        _pb.release(_pullKey);
+      });
+      return;
+    }
+    if (v < -400 && _pb.current.isMine && !widget.readOnly) {
       unawaited(_openViewers());
     }
   }
@@ -497,28 +602,37 @@ class _StoryPlaybackViewState extends ConsumerState<StoryPlaybackView>
     final story = _pb.current;
     final canReply = !widget.readOnly && !story.isMine && story.canReply;
     final showViewers = !widget.readOnly && story.isMine;
-    return SafeArea(
-      child: Column(
-        children: [
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, c) {
-                final size = storyFrameSize(c.biggest);
-                return Center(
-                  child: SizedBox(
-                    width: size.width,
-                    height: size.height,
-                    child: _frame(context, t, story, size),
-                  ),
-                );
-              },
-            ),
+    final height = MediaQuery.sizeOf(context).height;
+    // Down to 85 % at a third of the screen.
+    final scale = (1 - 0.15 * _pull / (height / 3)).clamp(0.85, 1.0);
+    return Transform.translate(
+      offset: Offset(0, _pull),
+      child: Transform.scale(
+        scale: scale,
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, c) {
+                    final size = storyFrameSize(c.biggest);
+                    return Center(
+                      child: SizedBox(
+                        width: size.width,
+                        height: size.height,
+                        child: _frame(context, t, story, size),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (canReply)
+                _replyBar(t)
+              else if (showViewers)
+                _viewersBar(t, story),
+            ],
           ),
-          if (canReply)
-            _replyBar(t)
-          else if (showViewers)
-            _viewersBar(t, story),
-        ],
+        ),
       ),
     );
   }
@@ -553,6 +667,8 @@ class _StoryPlaybackViewState extends ConsumerState<StoryPlaybackView>
               onLongPressStart: (_) => _pb.hold(_touch),
               onLongPressEnd: (_) => _pb.release(_touch),
               onLongPressCancel: () => _pb.release(_touch),
+              onVerticalDragStart: _onVerticalStart,
+              onVerticalDragUpdate: _onVerticalUpdate,
               onVerticalDragEnd: _onVerticalEnd,
               onHorizontalDragEnd: _onHorizontalEnd,
             ),

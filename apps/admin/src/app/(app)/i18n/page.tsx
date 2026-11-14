@@ -57,7 +57,17 @@ export default function I18nPage() {
     },
     onSuccess: (v) => {
       if (!v) return;
-      toast.success(`${v.name}: ${v.isActive ? 'включён' : 'выключен'}`);
+      // Scout 13.11 (row 96): «Отменить» puts the language back as it was (no second question).
+      toast.undo(`${v.name}: ${v.isActive ? 'включён' : 'выключен'}`, () => {
+        void api
+          .PATCH('/admin/i18n/languages/{code}', { params: { path: { code: v.code } }, body: { isActive: !v.isActive } })
+          .then((res) => {
+            if (res.error) throw res.error;
+            toast.success(`${v.name}: ${v.isActive ? 'выключен' : 'включён'} снова`);
+            void qc.invalidateQueries({ queryKey: ['languages'] });
+          })
+          .catch((e: unknown) => toast.error(e));
+      });
       void qc.invalidateQueries({ queryKey: ['languages'] });
     },
     onError: (e) => toast.error(e),
