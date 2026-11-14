@@ -41,7 +41,7 @@ class _MyGiftsScreenState extends ConsumerState<MyGiftsScreen> {
     final t = ref.read(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final stars = (s.gift.priceStars * percent / 100).floor();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
         backgroundColor: colors.sheet,

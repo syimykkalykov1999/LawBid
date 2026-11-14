@@ -493,7 +493,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     final t = ref.read(translatorProvider);
     final ids = _picked.toList();
     if (action == TaskBulkAction.delete) {
-      final ok = await showDialog<bool>(
+      final ok = await showAppDialog<bool>(
         context: context,
         builder: (ctx) => AppAlertDialog(
           title: Text(t.t('tasks.bulk.deleteTitle', {'n': '${ids.length}'})),

@@ -94,7 +94,7 @@ class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
     required String action,
   }) async {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
         backgroundColor: colors.sheet,

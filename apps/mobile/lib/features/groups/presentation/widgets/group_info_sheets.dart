@@ -295,7 +295,7 @@ Future<bool> confirmGroupAction(
   required String cancelLabel,
   bool destructive = false,
 }) async {
-  final ok = await showDialog<bool>(
+  final ok = await showAppDialog<bool>(
     context: context,
     builder: (dialog) => AppAlertDialog(
       title: Text(title),

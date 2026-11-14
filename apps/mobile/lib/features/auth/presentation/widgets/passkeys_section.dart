@@ -39,7 +39,7 @@ class _PasskeysSectionState extends ConsumerState<PasskeysSection> {
   Future<void> _remove(PasskeyInfo key) async {
     final t = ref.read(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (dialog) => AppAlertDialog(
         backgroundColor: colors.sheet,

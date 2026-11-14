@@ -22,7 +22,7 @@ Future<bool> showOtherDeviceDialog(
       ? ''
       : t.t('otherDevice.when', {'date': formats.dateTime(last.toLocal())});
   final colors = Theme.of(context).extension<AppColorTokens>()!;
-  final ok = await showDialog<bool>(
+  final ok = await showAppDialog<bool>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => AppAlertDialog(
