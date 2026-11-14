@@ -57,8 +57,9 @@ class TokenSecureStore {
       accessibility: KeychainAccessibility.first_unlock_this_device,
     ),
     // Row 149: version 11 has no EncryptedSharedPreferences; what version 9
-    // kept there is moved by LegacySecureStorage before the first read.
-    aOptions: AndroidOptions(resetOnError: true),
+    // kept there is moved by LegacySecureStorage before the first read. Its
+    // defaults are the old hardened ones (`resetOnError: true`).
+    aOptions: AndroidOptions.defaultOptions,
   );
 
   /// Stored in place of a refresh token that lives in the web cookie.

@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
-import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:lawbid/core/files/file_types.dart';
+import 'package:lawbid/core/files/picker_web_options.dart';
 import 'package:lawbid/core/media/photo_jpeg.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/photo_metadata.dart';
@@ -17,10 +17,9 @@ typedef PickedFileBytes = ({Uint8List bytes, String name});
 /// (two copies per file, up to ten case videos at once) before the size was
 /// even checked: the out-of-memory crash of the audit.
 ///
-/// Now a phone gets only paths (`withData: false`, as the chat already does)
-/// and the files are read here one at a time, after the size check, so a
-/// file over [maxBytes] is never read at all. The browser has no paths, so
-/// it keeps `withData` (file_picker's web reader).
+/// Now the files are read here one at a time, after the size check, so a
+/// file over [maxBytes] is never read at all (file_picker 13 reads only when
+/// asked: `PlatformFile.readAsBytes`, the size from `lengthSync`).
 ///
 /// A picture is cleaned on the way (C7): with [photos] it becomes a JPEG at
 /// most that long side (a HEIC from an iPhone included), else at least its
@@ -33,17 +32,28 @@ Future<({List<PickedFileBytes> files, int skipped})> pickFilesRead({
   int? maxCount,
   PhotoLimits? photos,
 }) async {
-  final result = await FilePicker.pickFiles(
-    // Web: a big file from iCloud or a HEIC to convert arrives after the
-    // window gets focus back; don't drop it.
-    cancelUploadOnWindowBlur: false,
-    type: type,
-    allowedExtensions: allowedExtensions,
-    allowMultiple: allowMultiple,
-    withData: kIsWeb,
-  );
+  // file_picker 13: a list (empty when cancelled); one file via pickFile.
+  final List<PlatformFile> picked;
+  if (allowMultiple) {
+    picked = await FilePicker.pickFiles(
+      type: type,
+      allowedExtensions: allowedExtensions,
+      // The stub equals the default; the web build passes other options.
+      // ignore: avoid_redundant_argument_values
+      webOptions: pickerWebOptions,
+    );
+  } else {
+    final one = await FilePicker.pickFile(
+      type: type,
+      allowedExtensions: allowedExtensions,
+      // The stub equals the default; the web build passes other options.
+      // ignore: avoid_redundant_argument_values
+      webOptions: pickerWebOptions,
+    );
+    picked = one == null ? const [] : [one];
+  }
   return readPickedFiles(
-    result?.files ?? const [],
+    picked,
     maxBytes: maxBytes,
     maxCount: maxCount,
     photos: photos,
@@ -57,28 +67,21 @@ Future<({List<PickedFileBytes> files, int skipped})> readPickedFiles(
   int? maxBytes,
   int? maxCount,
   PhotoLimits? photos,
-  Future<Uint8List> Function(String path)? read,
 }) async {
   final out = <PickedFileBytes>[];
   var skipped = 0;
   for (final f in picked) {
     if (maxCount != null && out.length >= maxCount) break;
-    if (maxBytes != null && f.size > maxBytes) {
-      skipped++;
-      continue;
-    }
-    final path = kIsWeb ? null : f.path;
-    final Uint8List? bytes;
+    final Uint8List bytes;
     try {
-      bytes = f.bytes ??
-          (path == null
-              ? null
-              : await (read ?? (p) => XFile(p).readAsBytes())(path));
+      // The size the picker reported, else from disk; unknown = unreadable.
+      final size = f.lengthSync() ?? await f.length();
+      if (size == null || (maxBytes != null && size > maxBytes)) {
+        skipped++;
+        continue;
+      }
+      bytes = await f.readAsBytes();
     } on Object {
-      skipped++;
-      continue;
-    }
-    if (bytes == null) {
       skipped++;
       continue;
     }

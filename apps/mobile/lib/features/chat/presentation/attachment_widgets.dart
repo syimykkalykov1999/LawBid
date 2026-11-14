@@ -11,6 +11,7 @@ import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/pick_files.dart';
+import 'package:lawbid/core/files/picker_web_options.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -278,16 +279,23 @@ Future<List<PickedChatFile>> pickChatFiles(
       );
       if (f != null) add(await readPickedPhoto(f), f.name);
     case 'files':
-      final result = await FilePicker.pickFiles(
-        // Web: a big file from iCloud or a HEIC to convert arrives after the
-        // window gets focus back; don't drop it.
-        cancelUploadOnWindowBlur: false,
+      // Row 149 (file_picker 13): a list; files are read only when asked.
+      // Web: a big file from iCloud or a HEIC to convert arrives after the
+      // window gets focus back; don't drop it (pickerWebOptions).
+      final picked = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: limits?.allExtensions ?? kChatFileExtensions,
-        allowMultiple: true,
-        withData: !onDisk,
+        // The stub equals the default; the web build passes other options.
+        // ignore: avoid_redundant_argument_values
+        webOptions: pickerWebOptions,
       );
-      for (final f in result?.files ?? const <PlatformFile>[]) {
+      for (final f in picked) {
+        // The size the picker reported, else from disk; unknown = unreadable.
+        final size = f.lengthSync() ?? await f.length();
+        if (size == null) {
+          skipped++;
+          continue;
+        }
         final path = onDisk ? f.path : null;
         if (path != null) {
           // A picture opens in the preview for editing, so it is read; it
@@ -301,15 +309,18 @@ Future<List<PickedChatFile>> pickChatFiles(
             );
             add(pic.bytes, pic.name);
           } else {
-            await addPath(path, f.name, f.size);
+            await addPath(path, f.name, size);
           }
           continue;
         }
-        if (f.bytes == null) {
+        final Uint8List bytes;
+        try {
+          bytes = await f.readAsBytes();
+        } on Object {
           skipped++;
           continue;
         }
-        add(f.bytes!, f.name);
+        add(bytes, f.name);
       }
   }
   if (skipped > 0 && context.mounted) {
