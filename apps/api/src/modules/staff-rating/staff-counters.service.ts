@@ -1,4 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { reportDayKey, reportTimeZone } from '../../common/utils/report-day';
 import { Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -19,6 +21,8 @@ const UPSERT_CHUNK = 500;
 /** An outcome is a short word; anything else is not counted by outcome. */
 const OUTCOME_RE = /^[a-z_]{1,16}$/;
 
+/** The UTC date of [d]. Owner 14.11 (row 180): the counters themselves are
+ * keyed by the report-zone day (`reportDayKey`); this stays for labels. */
 export const dayKey = (d: Date): string => d.toISOString().slice(0, 10);
 const ctrKey = (day: string, adminId: string) => `staff:ctr:${day}:${adminId}`;
 const adminsKey = (day: string) => `staff:ctr-admins:${day}`;
@@ -72,7 +76,13 @@ export class StaffCountersService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Owner 14.11 (row 180): a staff day is a day of the report time zone.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  private async dayOf(at: Date): Promise<string> {
+    return reportDayKey(at, await reportTimeZone(this.settings));
+  }
 
   /**
    * Count one decision. Returns true when it was new (the first time this
@@ -92,7 +102,7 @@ export class StaffCountersService {
       COUNTER_TTL_SEC,
       'NX',
     );
-    const day = dayKey(at);
+    const day = await this.dayOf(at);
     if (first === null) {
       // Seen. Only a missing handling time can still be added.
       if (
@@ -165,7 +175,13 @@ export class StaffCountersService {
   /** The hourly flush: today and yesterday (the job `staff.counters-flush`
    * calls this). Returns the number of rows written. */
   async flushRecent(now: Date = new Date()): Promise<number> {
-    const days = [dayKey(now), dayKey(new Date(now.getTime() - 86_400_000))];
+    const tz = await reportTimeZone(this.settings);
+    const today = reportDayKey(now, tz);
+    const [y, m, d] = today.split('-').map(Number);
+    const days = [
+      today,
+      new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10),
+    ];
     let rows = 0;
     for (const d of days) rows += (await this.flushDay(d)).length;
     return rows;
