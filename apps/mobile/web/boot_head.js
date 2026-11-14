@@ -161,6 +161,9 @@
    choice in localStorage as a JSON string under "flutter.<key>". */
 (function () {
   var themes = {
+    /* Row 93: Day / Night picked in the app win over the system's mode. */
+    day: { bg: '#FFFFFF' },
+    night: { bg: '#0B0B0D' },
     blue: { bg: '#003B70', fg: '#FFFFFF', dim: '#C3D8EE', ring: '#FFFFFF', track: '#2F6AA3', btn: '#003B70' },
     green: { bg: '#007200', fg: '#FFFFFF', dim: '#E2F4E2', ring: '#FFFFFF', track: '#3CAE3C', btn: '#006000' }
   };
@@ -170,11 +173,13 @@
     if (!t) return;
     var s = document.documentElement.style;
     s.setProperty('--boot-bg', t.bg);
-    s.setProperty('--boot-fg', t.fg);
-    s.setProperty('--boot-dim', t.dim);
-    s.setProperty('--boot-ring', t.ring);
-    s.setProperty('--boot-track', t.track);
-    s.setProperty('--boot-btn', t.btn);
+    if (t.fg) {
+      s.setProperty('--boot-fg', t.fg);
+      s.setProperty('--boot-dim', t.dim);
+      s.setProperty('--boot-ring', t.ring);
+      s.setProperty('--boot-track', t.track);
+      s.setProperty('--boot-btn', t.btn);
+    }
     var metas = document.querySelectorAll('meta[name="theme-color"]');
     for (var i = 0; i < metas.length; i++) metas[i].setAttribute('content', t.bg);
   } catch (e) { /* no storage: the default colours stay */ }

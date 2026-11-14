@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show kPressTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -63,7 +64,8 @@ void main() {
     double chipsHeight(WidgetTester t) =>
         t.getSize(find.byType(ChromeCollapse)).height;
 
-    testWidgets('the rows hide pixel for pixel; the row stays under the '
+    testWidgets(
+        'the rows hide pixel for pixel; the row stays under the '
         'finger', (t) async {
       phone(t);
       await t.pumpWidget(feed());
@@ -91,7 +93,8 @@ void main() {
       expect(chrome.visible, isFalse);
     });
 
-    testWidgets('a short drag down hides the rest on release; back at the '
+    testWidgets(
+        'a short drag down hides the rest on release; back at the '
         'top they come back', (t) async {
       phone(t);
       await t.pumpWidget(feed());
@@ -111,7 +114,8 @@ void main() {
       expect(chipsHeight(t), 50);
     });
 
-    testWidgets('«Mine» (revealOnUp): a scroll up brings them back with the '
+    testWidgets(
+        '«Mine» (revealOnUp): a scroll up brings them back with the '
         'finger', (t) async {
       phone(t);
       chrome.dispose();
@@ -174,8 +178,7 @@ void main() {
         .transform
         .getMaxScaleOnAxis();
 
-    testWidgets('scales 1.3 → 1 on the iOS spring, fades out only',
-        (t) async {
+    testWidgets('scales 1.3 → 1 on the iOS spring, fades out only', (t) async {
       await open(t);
       await t.pump(const Duration(milliseconds: 30));
       expect(scale(t), greaterThan(1.05));
@@ -276,8 +279,7 @@ void main() {
           ),
         );
 
-    testWidgets('opens out of the tapped thumbnail (a Hero flight)',
-        (t) async {
+    testWidgets('opens out of the tapped thumbnail (a Hero flight)', (t) async {
       phone(t);
       await t.pumpWidget(thumbScreen());
       await t.tap(find.byType(GalleryHero));
@@ -292,7 +294,8 @@ void main() {
       expect(t.getSize(photo).width, 400);
     });
 
-    testWidgets('a diagonal drag moves it both ways and shrinks it; a short '
+    testWidgets(
+        'a diagonal drag moves it both ways and shrinks it; a short '
         'one springs back', (t) async {
       phone(t);
       await t.pumpWidget(thumbScreen());
@@ -341,10 +344,8 @@ void main() {
           ),
         ),
       );
-      final tags = t
-          .widgetList<Hero>(find.byType(Hero))
-          .map((h) => h.tag)
-          .toSet();
+      final tags =
+          t.widgetList<Hero>(find.byType(Hero)).map((h) => h.tag).toSet();
       expect(tags, hasLength(2));
     });
   });
@@ -390,6 +391,96 @@ void main() {
       await t.pump();
       expect(find.text('anna'), findsNothing);
       expect(t.getCenter(find.text('ben')).dx, 200);
+    });
+  });
+
+  // Owner 13.11 (row 93): list rows light up while pressed.
+  group('row press highlight', () {
+    Widget row(
+      TargetPlatform platform, {
+      bool still = false,
+      bool over = false,
+    }) =>
+        MaterialApp(
+          theme: AppTheme.light().copyWith(platform: platform),
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: const Size(400, 800),
+              disableAnimations: still,
+            ),
+            child: Scaffold(
+              body: AppPressable(
+                highlight: true,
+                highlightOver: over,
+                onTap: () {},
+                child: const SizedBox(height: 60, child: Text('row')),
+              ),
+            ),
+          ),
+        );
+
+    // The painted colour (the AnimatedContainer's current value).
+    Color? fill(WidgetTester t, {bool over = false}) {
+      final boxes = t.widgetList<DecoratedBox>(
+        find.descendant(
+          of: find.byType(AnimatedContainer),
+          matching: find.byType(DecoratedBox),
+        ),
+      );
+      final position =
+          over ? DecorationPosition.foreground : DecorationPosition.background;
+      final d = boxes.firstWhere((b) => b.position == position).decoration
+          as BoxDecoration;
+      return d.color;
+    }
+
+    Color chip(WidgetTester t) =>
+        Theme.of(t.element(find.text('row'))).extension<AppColorTokens>()!.chip;
+
+    testWidgets('iPhone: the chip colour while pressed, fades out after',
+        (t) async {
+      await t.pumpWidget(row(TargetPlatform.iOS));
+      final g = await t.startGesture(t.getCenter(find.text('row')));
+      await t.pump(kPressTimeout + const Duration(milliseconds: 10));
+      expect(fill(t), chip(t));
+      await g.up();
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 60));
+      final mid = fill(t)!.a;
+      expect(mid, inExclusiveRange(0, chip(t).a));
+      await t.pumpAndSettle();
+      expect(fill(t)!.a, 0);
+    });
+
+    testWidgets('Android: the Material ripple in the chip colour', (t) async {
+      await t.pumpWidget(row(TargetPlatform.android));
+      final ink = t.widget<InkWell>(find.byType(InkWell));
+      expect(ink.splashColor, chip(t));
+      expect(ink.splashFactory, InkRipple.splashFactory);
+    });
+
+    testWidgets('a solid card: half-strength tint over it, both platforms',
+        (t) async {
+      await t.pumpWidget(row(TargetPlatform.android, over: true));
+      expect(find.byType(InkWell), findsNothing);
+      final g = await t.startGesture(t.getCenter(find.text('row')));
+      await t.pump(kPressTimeout + const Duration(milliseconds: 10));
+      expect(fill(t, over: true), chip(t).withValues(alpha: 0.5));
+      await g.up();
+      await t.pumpAndSettle();
+    });
+
+    testWidgets('reduce motion: no ripple, the highlight goes at once',
+        (t) async {
+      await t.pumpWidget(row(TargetPlatform.android, still: true));
+      expect(find.byType(InkWell), findsNothing);
+      final g = await t.startGesture(t.getCenter(find.text('row')));
+      await t.pump(kPressTimeout + const Duration(milliseconds: 10));
+      expect(fill(t), chip(t));
+      await g.up();
+      await t.pump();
+      await t.pump();
+      expect(fill(t)!.a, 0);
     });
   });
 }

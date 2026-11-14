@@ -66,15 +66,17 @@ class _ChatInsertMotionState extends State<ChatInsertMotion>
   Widget build(BuildContext context) {
     final curved = _curved;
     if (curved == null) return widget.child;
-    final rtl = Directionality.of(context) == TextDirection.rtl;
-    final end = widget.mine != rtl;
+    // Own messages from the end side (right in LTR), others' from the start.
+    final from = widget.mine
+        ? AlignmentDirectional.centerEnd
+        : AlignmentDirectional.centerStart;
     return FadeTransition(
       opacity: curved,
       child: SizeTransition(
         sizeFactor: curved,
         child: ScaleTransition(
           scale: curved,
-          alignment: end ? Alignment.centerRight : Alignment.centerLeft,
+          alignment: from.resolve(Directionality.of(context)),
           child: widget.child,
         ),
       ),

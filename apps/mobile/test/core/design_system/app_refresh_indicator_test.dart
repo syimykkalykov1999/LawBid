@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -169,5 +172,78 @@ void main() {
     await state.show();
     await tester.pumpAndSettle();
     expect(refreshes, 1);
+  });
+
+  // Owner 13.11 (row 93, Instagram iOS): the list stays down by the
+  // Cupertino refresh gap while it refreshes, then rises back.
+  Widget iosList(Future<void> Function() refresh, TargetPlatform platform) =>
+      MaterialApp(
+        theme: ThemeData(platform: platform),
+        home: Scaffold(
+          body: AppRefreshIndicator(
+            onRefresh: refresh,
+            child: ListView.builder(
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              itemCount: 50,
+              itemBuilder: (_, i) => SizedBox(height: 60, child: Text('r$i')),
+            ),
+          ),
+        ),
+      );
+
+  testWidgets('iOS: the list holds the 60 px gap while refreshing',
+      (tester) async {
+    final done = Completer<void>();
+    await tester.pumpWidget(
+      iosList(
+        () {
+          refreshes++;
+          return done.future;
+        },
+        TargetPlatform.iOS,
+      ),
+    );
+    final top = tester.getTopLeft(find.text('r0')).dy;
+    await pull(tester, find.byType(ListView), 600);
+    // The bounce settles (the refresh is still running, so no settle()).
+    for (var i = 0; i < 120; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(refreshes, 1);
+    expect(
+      tester.getTopLeft(find.text('r0')).dy,
+      closeTo(top + AppRefreshIndicator.iosRefreshExtent, 1),
+    );
+    expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+    done.complete();
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('r0')).dy, closeTo(top, 0.5));
+  });
+
+  testWidgets('Android: no gap, the Material spinner as before',
+      (tester) async {
+    final done = Completer<void>();
+    await tester.pumpWidget(
+      iosList(
+        () {
+          refreshes++;
+          return done.future;
+        },
+        TargetPlatform.android,
+      ),
+    );
+    final top = tester.getTopLeft(find.text('r0')).dy;
+    await pull(tester, find.byType(ListView), 600);
+    // The bounce settles (the refresh is still running, so no settle()).
+    for (var i = 0; i < 120; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(refreshes, 1);
+    expect(tester.getTopLeft(find.text('r0')).dy, closeTo(top, 0.5));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    done.complete();
+    await tester.pumpAndSettle();
   });
 }

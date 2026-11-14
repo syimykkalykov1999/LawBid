@@ -699,6 +699,8 @@ class _NotificationRow extends ConsumerWidget {
       label: '${n.unread ? '${t.t('notif.unread')}. ' : ''}$text',
       excludeSemantics: true,
       child: AppPressable(
+        // Owner 13.11 (row 93): the row lights up while pressed.
+        highlight: true,
         onTap: () {
           if (n.unread) {
             ref.read(notificationsProvider.notifier).markRead(id: n.id);
