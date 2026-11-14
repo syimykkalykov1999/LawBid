@@ -10,7 +10,7 @@ import { Prisma, PrismaClient } from '../generated/prisma/client';
 import { queryTap } from './query-tap';
 import { demoContext } from '../common/demo/demo-context';
 import { withPoolerRouting } from './pooler-url';
-import { pgAdapter } from './pg-adapter';
+import { pgAdapter, poolMaxOf, poolWarmEnabled, warmPool } from './pg-adapter';
 import {
   slowQueryExtension,
   slowQueryThresholdMs,
@@ -104,6 +104,7 @@ import { addDbTime } from '../common/heavy-hitters/heavy-hitters.context';
 
 const slowLog = new Logger('SlowQuery');
 const shardLog = new Logger('ShardRouting');
+const poolLog = new Logger('PrismaPool');
 
 function shardMapTtlMs(
   env: NodeJS.ProcessEnv = process.env,
@@ -436,6 +437,16 @@ export class PrismaService
         if (prop === 'onModuleInit') {
           return async () => {
             await (real as unknown as PrismaClient).$connect();
+            // F7 (14.11): open the pool before the task listens (main.ts
+            // calls listen() only after every onModuleInit), so the ALB
+            // /health/live check and the first requests find connections.
+            if (poolWarmEnabled(e)) {
+              const size = poolMaxOf(datasourceUrl);
+              const w = await warmPool(rawPrimary, size);
+              const line = `database pool warmed: ${w.opened}/${size} connections in ${w.ms} ms`;
+              if (w.failed > 0) poolLog.warn(`${line}, ${w.failed} failed`);
+              else poolLog.log(line);
+            }
             await control.connectShardDatabases();
             await router.start();
           };

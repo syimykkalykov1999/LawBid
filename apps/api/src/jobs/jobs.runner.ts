@@ -30,6 +30,7 @@ import {
   outageProof,
 } from '../common/queues/queue-hardening';
 import { CronProcessor } from './cron.processor';
+import { withWork } from '../common/ops/loop-stall';
 import { bullOptions } from '../redis/redis-connection';
 
 export interface JobsModuleOptions {
@@ -137,7 +138,9 @@ export class JobsRunner
     for (const lane of CRON_LANES) {
       const worker = new Worker(
         lane,
-        outageProof((job: Job) => this.processor.process(job.name)),
+        outageProof((job: Job) =>
+          withWork(`job ${job.name}`, () => this.processor.process(job.name)),
+        ),
         {
           // Required by BullMQ for the worker's blocking connection.
           ...bullOptions(lane, url, { worker: true }),
