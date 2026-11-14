@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
@@ -228,7 +229,7 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
     final attorney = ref.watch(actsAsAttorneyProvider);
     final back = AppBackButton(
       semanticLabel: t.t('common.back'),
-      onPressed: () => Navigator.of(context).maybePop(),
+      onPressed: () => context.safeBack(),
     );
     if (c == null) {
       return Scaffold(

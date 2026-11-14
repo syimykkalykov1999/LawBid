@@ -4,9 +4,11 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LegalAcceptanceService } from '../legal-documents/legal-acceptance.service';
 
 export const FIRMS_FLAG = 'firm_profiles';
 const MAX_MEMBERS = 50;
@@ -38,7 +40,12 @@ export interface FirmView {
  */
 @Injectable()
 export class FirmsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // R2B-1: the lawyer a bid is sent as must have accepted the current
+    // legal documents themselves (the route guard checks only the caller).
+    @Optional() private readonly acceptance?: LegalAcceptanceService,
+  ) {}
 
   private async assertEnabled(): Promise<void> {
     const f = await this.prisma.featureFlag.findUnique({
@@ -225,8 +232,11 @@ export class FirmsService {
     await this.prisma.firmMember.delete({ where: { attorney_id: attorneyId } });
   }
 
-  /** The lawyer a firm member sends a bid as: both active members of one
-   * firm, and the sender holds a verified licence that fits the case. */
+  /** The lawyer a bid is sent as. R2B-1 (14.11): only the firm owner picks
+   * another member (like an org owner acting for the org on GitHub); the
+   * sender is an active member whose verified licence fits the case and who
+   * has accepted the current legal documents. A plain member sends only as
+   * themselves. */
   async resolveSender(
     callerId: string,
     senderId: string,
@@ -241,11 +251,13 @@ export class FirmsService {
         message: 'This lawyer cannot send a bid on this case for the firm.',
       });
     }
+    await this.acceptance?.assertAccepted(senderId);
     return senderId;
   }
 
   /** Members who can bid on a case: an active, verified licence in one of
-   * the case's states (the firm owner picks who sends the bid). */
+   * the case's states. The firm owner picks who sends the bid, so a plain
+   * member sees only themselves (R2B-1). */
   async eligibleForCase(
     userId: string,
     caseId: string,
@@ -254,6 +266,7 @@ export class FirmsService {
     if (!m || m.status !== 'active') {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     }
+    const isOwner = m.role === 'owner';
     const c = await this.prisma.case.findUnique({
       where: { id: caseId },
       select: {
@@ -267,6 +280,10 @@ export class FirmsService {
       ...c.states.map((s) => s.state_code),
     ]);
     const firm = await this.view(m.firm_id, false);
-    return firm.members.filter((x) => x.states.some((s) => wanted.has(s)));
+    return firm.members.filter(
+      (x) =>
+        (isOwner || x.attorneyId === userId) &&
+        x.states.some((s) => wanted.has(s)),
+    );
   }
 }

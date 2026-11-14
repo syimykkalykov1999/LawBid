@@ -8,7 +8,6 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
@@ -614,7 +613,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
   }
 
   Widget _list(BuildContext context, Translator t) {
-    final value = ref.watch(notificationsProvider);
+    final value = ref.watch(visibleNotificationsProvider);
     final n = ref.read(notificationsProvider.notifier);
     return PagedListBody<AppNotification>(
       value: value,
@@ -687,10 +686,8 @@ class _NotificationRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Owner 2026-11-04 (R-386): no channel rows with the `channels` flag off.
-    if (n.type == 'channel_post' && !ref.watch(channelsEnabledProvider)) {
-      return const SizedBox.shrink();
-    }
+    // Owner 2026-11-04 (R-386): channel rows with the `channels` flag off
+    // never reach the row — [visibleNotificationsProvider] leaves them out.
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
