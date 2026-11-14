@@ -9,6 +9,8 @@
  *   → reindex from Postgres (built by the cron step) → swap reads (verified
  *   first) → swap writes → engine.
  *   domain off (or no engine address) → postgres at once.
+ *   domain spare (row 9, 14.11: on «Авто», fewer people than the off line)
+ *   → postgres at once, so the domain can go without serving reads.
  *
  * `search.engine_follow = manual`: nothing is touched, `search.engine` is the
  * admin's (Выкл = postgres, Вкл = engine). Pure; infra-auto.service does I/O.
@@ -32,6 +34,10 @@ export interface SearchAutoInput {
   engineConfigured: boolean;
   /** The current reindex run, null = none ever. */
   phase: ReindexPhaseLike | null;
+  /** Row 9 (14.11): the domain is on but not needed (searchDomainSpare in
+   * infra-auto.logic.ts): drain search back to the database so the domain
+   * can go. */
+  spare?: boolean;
 }
 
 export type SearchAutoAction =
@@ -44,14 +50,15 @@ export type SearchAutoAction =
 export function searchAutoStep(i: SearchAutoInput): SearchAutoAction | null {
   if (i.follow.trim().toLowerCase() !== 'auto') return null;
   const up = i.domain === 'on' && i.engineConfigured;
-  if (!up) {
+  if (!up || i.spare === true) {
     return i.mode === 'postgres'
       ? null
       : {
           kind: 'set_mode',
           to: 'postgres',
-          reason:
-            'Поисковый движок выключен или без адреса: поиск вернулся в базу.',
+          reason: up
+            ? 'Поисковый движок не нужен (людей меньше порога выключения): поиск вернулся в базу, движок уйдёт сам после infra.auto_off_hours.'
+            : 'Поисковый движок выключен или без адреса: поиск вернулся в базу.',
         };
   }
   if (i.mode === 'postgres') {

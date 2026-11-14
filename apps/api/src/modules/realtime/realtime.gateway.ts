@@ -1321,6 +1321,12 @@ export class RealtimeGateway
     const id = this.conversationIdOf(body);
     const s = state(socket);
     if (!id || !s.viewing.has(id)) return;
+    // R2B-6 (14.11): taken out of the room (removed from the group,
+    // RealtimePublisher.leaveRoom) — the chat is no longer open here.
+    if (!socket.rooms.has(conversationRoom(id))) {
+      s.viewing.delete(id);
+      return;
+    }
     const now = Date.now();
     const last = s.lastTypingAt?.get(id);
     if (typing && last && now - last < TYPING_MIN_GAP_MS) return;

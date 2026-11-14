@@ -51,7 +51,10 @@ import { decodeOffset, encodeOffset } from '../recommendations/offset-cursor';
 import { RecommendationsService } from '../recommendations/recommendations.service';
 import { BadgesService } from '../notifications/badges.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import {
+  conversationRoom,
+  RealtimePublisher,
+} from '../realtime/realtime-publisher.service';
 import {
   DETAIL_MEMBERS,
   MEMBERS_PAGE_DEFAULT,
@@ -2516,6 +2519,8 @@ export class GroupsService {
       userId,
       reason,
     });
+    // R2B-6 (14.11): out of the chat room on every instance at once.
+    this.realtime.leaveRoom([userId], conversationRoom(groupId));
     this.membershipEnded$.next({ groupId, userId, reason });
     await this.badges.chatsChanged(userId);
     return row;

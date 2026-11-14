@@ -323,7 +323,7 @@ resource "aws_cloudwatch_log_metric_filter" "queue_waiting_total" {
 resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age_all" {
   name           = "${var.name}-queue-oldest-age-all"
   log_group_name = var.worker_log_group
-  pattern        = "{ $.metric = \"queue_depth\" && $.queue != \"stripe-webhooks-dlq\" && $.queue != \"cron-heavy\" && $.queue != \"account-deletion\" && $.queue != \"channel-fanout\" && $.queue != \"admin-broadcast\" }"
+  pattern        = "{ $.metric = \"queue_depth\" && $.queue != \"stripe-webhooks-dlq\" && $.queue != \"cron-heavy\" && $.queue != \"cron-heavy-frequent\" && $.queue != \"account-deletion\" && $.queue != \"channel-fanout\" && $.queue != \"admin-broadcast\" }"
   metric_transformation {
     name      = "QueueOldestAgeSecondsAll"
     namespace = local.ns
@@ -339,7 +339,7 @@ resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age_all" {
 resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age_slow" {
   name           = "${var.name}-queue-oldest-age-slow"
   log_group_name = var.worker_log_group
-  pattern        = "{ $.metric = \"queue_depth\" && ($.queue = \"cron-heavy\" || $.queue = \"account-deletion\" || $.queue = \"channel-fanout\" || $.queue = \"admin-broadcast\") }"
+  pattern        = "{ $.metric = \"queue_depth\" && ($.queue = \"cron-heavy\" || $.queue = \"cron-heavy-frequent\" || $.queue = \"account-deletion\" || $.queue = \"channel-fanout\" || $.queue = \"admin-broadcast\") }"
   metric_transformation {
     name      = "QueueOldestAgeSecondsSlow"
     namespace = local.ns
