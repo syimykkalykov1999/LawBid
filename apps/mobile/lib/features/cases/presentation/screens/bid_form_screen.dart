@@ -8,6 +8,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -23,8 +24,11 @@ import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dar
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/tools/conflict_banner.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
+import 'package:lawbid/features/profile/presentation/screens/firm_screen.dart'
+    show myFirmProvider;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// docs/04 §5.1 limits.
 abstract final class BidLimits {
@@ -72,6 +76,24 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
   /// OQ-048: who prepared the loaded draft (an assistant).
   String? _draftBy;
 
+  /// R2-A #21: the form as it was opened (or last loaded / saved); leaving
+  /// with anything else asks «Save draft?».
+  String _clean = '';
+
+  /// The form leaves on purpose (sent, saved, discarded): no question.
+  bool _leaving = false;
+
+  String get _snapshot => [
+        _pay.feeType.json,
+        _pay.amountCents,
+        _message.text.trim(),
+        _start.json,
+        _startDate?.toIso8601String(),
+        _duration.text.trim(),
+      ].join('|');
+
+  bool get _dirty => !_leaving && !_busy && _snapshot != _clean;
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +101,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     if (initial != null && initial > 0) {
       _pay.rich.flat.text = '${initial ~/ 100}';
     }
+    _clean = _snapshot;
     _loadDraft();
   }
 
@@ -107,7 +130,9 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
         if (d.estimatedDurationDays != null && _duration.text.trim().isEmpty) {
           _duration.text = '${d.estimatedDurationDays}';
         }
-        _draftBy = d.preparedBy ?? '';
+        // My own saved draft (R2-A #21) has no «prepared by» line.
+        _draftBy = d.preparedBy;
+        _clean = _snapshot;
       });
     } on Object {
       // No draft or offline: an empty form.
@@ -122,18 +147,10 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       _error = null;
     });
     try {
-      await ref.read(teamRepositoryProvider).saveBidDraft(
-            widget.caseId,
-            feeType: _pay.feeType.json,
-            amountCents: _pay.amountCents,
-            message: _message.text.trim().isEmpty ? null : _message.text,
-            startAvailability: _start.json,
-            startDate: _startDate,
-            estimatedDurationDays: int.tryParse(_duration.text),
-          );
+      await _saveDraftOnServer();
       if (!mounted) return;
       showAppSnackBar(context, t.t('bidDraft.saved'));
-      context.pop();
+      _leaveNow();
     } on Object catch (e) {
       if (mounted) {
         setState(() {
@@ -143,6 +160,71 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       }
     }
   }
+
+  /// R2-A #21 (Instagram «Save draft?», Gmail): back, the edge swipe and
+  /// the top bar's back button ask before typed work is lost. The draft is
+  /// the same server copy an assistant's draft uses; it fills the form the
+  /// next time this case's bid form opens.
+  Future<void> _confirmLeave() async {
+    final t = ref.read(translatorProvider);
+    final choice = await showAppBottomSheet<_LeaveChoice>(
+      context: context,
+      builder: (context) => _LeaveBidSheet(t: t),
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case _LeaveChoice.save:
+        setState(() {
+          _busy = true;
+          _error = null;
+        });
+        try {
+          await _saveDraftOnServer();
+          if (!mounted) return;
+          showAppSnackBar(context, t.t('cases.bidForm.leave.saved'));
+          _leaveNow();
+        } on Object catch (e) {
+          if (mounted) {
+            setState(() {
+              _busy = false;
+              _error = errorText(t, e);
+            });
+          }
+        }
+      case _LeaveChoice.discard:
+        _leaveNow();
+      case _LeaveChoice.stay || null:
+        return;
+    }
+  }
+
+  /// R2-A #2: opened by a link or after a web refresh, the form is alone on
+  /// the stack — back leads to the case.
+  void _leaveNow() {
+    setState(() => _leaving = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.canPop()
+          ? context.pop()
+          : context.go(AppRoutes.caseDetail(widget.caseId));
+    });
+  }
+
+  Future<void> _back() async {
+    if (_dirty) return _confirmLeave();
+    _leaveNow();
+  }
+
+  Future<void> _saveDraftOnServer() =>
+      ref.read(teamRepositoryProvider).saveBidDraft(
+            widget.caseId,
+            feeType: _pay.feeType.json,
+            amountCents: _pay.amountCents,
+            message: _message.text.trim().isEmpty ? null : _message.text,
+            startAvailability: _start.json,
+            startDate: _startDate,
+            estimatedDurationDays: int.tryParse(_duration.text),
+          );
 
   ContingencyRules get _rules =>
       ContingencyRules.of(ref.read(featureFlagsControllerProvider));
@@ -185,7 +267,14 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: now.add(const Duration(days: 365 * 2)),
     );
-    if (picked != null && mounted) setState(() => _startDate = picked);
+    // R2-A #21 (iOS: cancelling a picker keeps the previous choice): the
+    // «Pick date» chip is chosen only once a date is picked.
+    if (picked != null && mounted) {
+      setState(() {
+        _start = StartAvailability.customDate;
+        _startDate = picked;
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -217,6 +306,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
           );
       if (!mounted) return;
       showAppSnackBar(context, t.t('cases.bidForm.sent'));
+      setState(() => _leaving = true);
       context.pushReplacement(AppRoutes.bid(bid.id));
     } on Object catch (e) {
       if (!mounted) return;
@@ -277,159 +367,248 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     // attorney switched on (under their responsibility); else a draft.
     final assistant = ref.watch(isAssistantProvider) &&
         !ref.watch(canDoProvider(AssistantDuty.bids));
-    return Scaffold(
-      backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        leading: AppBackButton(
-          semanticLabel: t.t('common.back'),
-          onPressed: () => context.pop(),
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !_busy) _confirmLeave();
+      },
+      child: Scaffold(
+        backgroundColor: colors.bg,
+        appBar: AppTopBar(
+          leading: AppBackButton(
+            semanticLabel: t.t('common.back'),
+            onPressed: () {
+              if (!_busy) _back();
+            },
+          ),
+          title: Text(t.t('cases.bidForm.title')),
         ),
-        title: Text(t.t('cases.bidForm.title')),
-      ),
-      body: ListView(
-        padding: kDetailPadding,
-        children: [
-          WizardHeading(
-            title: t.t('cases.bidForm.heading'),
-            subtitle: t.t(
-              assistant ? 'assistant.mode.noBids' : 'cases.bidForm.subtitle',
-            ),
-          ),
-          if (!assistant) ConflictBanner(caseId: widget.caseId),
-          if (_draftBy != null) ...[
-            Container(
-              key: const ValueKey('bid-draft-banner'),
-              padding: const EdgeInsets.all(AppSpacing.md),
-              margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-              decoration: BoxDecoration(
-                color: colors.iconTintFill,
-                borderRadius: BorderRadius.circular(AppRadii.field),
-                border: Border.all(color: colors.goldStroke),
-              ),
-              child: Row(
-                children: [
-                  AppIcon(AppIcons.editNoteRounded, color: colors.iconTint),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      t.t('bidDraft.prepared', {'name': _draftBy!}),
-                      style: typography.bodySmall.copyWith(color: colors.text),
-                    ),
-                  ),
-                ],
+        body: ListView(
+          padding: kDetailPadding,
+          children: [
+            WizardHeading(
+              title: t.t('cases.bidForm.heading'),
+              subtitle: t.t(
+                assistant ? 'assistant.mode.noBids' : 'cases.bidForm.subtitle',
               ),
             ),
-          ],
-          PayBlock(
-            draft: _pay,
-            rules: ContingencyRules.of(
-              ref.watch(featureFlagsControllerProvider),
-            ),
-            richOn: richOn,
-            percentAllowed: percentAllowed,
-            enabled: !_busy,
-            maxDollars: BidLimits.amountMaxDollars,
-            onChanged: () => setState(() => _payTouched = true),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          _FirmSender(
-            caseId: widget.caseId,
-            value: _sendAs,
-            onChanged: (v) => setState(() => _sendAs = v),
-          ),
-          AppTextField(
-            controller: _message,
-            label: t.t('cases.bidForm.message'),
-            hintText: t.t('cases.bidForm.messageHint'),
-            maxLines: 6,
-            maxLength: BidLimits.messageMax,
-            textCapitalization: TextCapitalization.sentences,
-            errorText: _message.text.isNotEmpty && !_messageOk
-                ? t.t('cases.bidForm.messageError', {
-                    'min': '${BidLimits.messageMin}',
-                  })
-                : null,
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text(
-            t.t('cases.bidForm.start'),
-            style: typography.bodySmall.copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              for (final (s, key) in [
-                (StartAvailability.immediately, 'cases.start.immediately'),
-                (StartAvailability.withinWeek, 'cases.start.withinWeek'),
-                (StartAvailability.customDate, 'cases.start.pickDate'),
-              ])
-                AppChip(
-                  label: s == StartAvailability.customDate && _startDate != null
-                      ? formats.date(_startDate!)
-                      : t.t(key),
-                  selected: _start == s,
-                  onTap: () {
-                    setState(() => _start = s);
-                    if (s == StartAvailability.customDate) _pickDate();
-                  },
+            if (!assistant) ConflictBanner(caseId: widget.caseId),
+            if (_draftBy != null) ...[
+              Container(
+                key: const ValueKey('bid-draft-banner'),
+                padding: const EdgeInsets.all(AppSpacing.md),
+                margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                decoration: BoxDecoration(
+                  color: colors.iconTintFill,
+                  borderRadius: BorderRadius.circular(AppRadii.field),
+                  border: Border.all(color: colors.goldStroke),
                 ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppTextField(
-            controller: _duration,
-            label: t.t('cases.bidForm.duration'),
-            hintText: t.t('cases.bidForm.durationHint'),
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(4),
-            ],
-            errorText: _durationOk ? null : t.t('cases.bidForm.durationError'),
-            onChanged: (_) => setState(() {}),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: AppSpacing.lg),
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                _error!,
-                style: typography.bodySmall.copyWith(color: colors.dangerText),
+                child: Row(
+                  children: [
+                    AppIcon(AppIcons.editNoteRounded, color: colors.iconTint),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        t.t('bidDraft.prepared', {'name': _draftBy!}),
+                        style:
+                            typography.bodySmall.copyWith(color: colors.text),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+            ],
+            PayBlock(
+              draft: _pay,
+              rules: ContingencyRules.of(
+                ref.watch(featureFlagsControllerProvider),
+              ),
+              richOn: richOn,
+              percentAllowed: percentAllowed,
+              enabled: !_busy,
+              maxDollars: BidLimits.amountMaxDollars,
+              onChanged: () => setState(() => _payTouched = true),
             ),
+            const SizedBox(height: AppSpacing.lg),
+            _FirmSender(
+              caseId: widget.caseId,
+              value: _sendAs,
+              onChanged: (v) => setState(() => _sendAs = v),
+            ),
+            AppTextField(
+              controller: _message,
+              label: t.t('cases.bidForm.message'),
+              hintText: t.t('cases.bidForm.messageHint'),
+              maxLines: 6,
+              maxLength: BidLimits.messageMax,
+              textCapitalization: TextCapitalization.sentences,
+              errorText: _message.text.isNotEmpty && !_messageOk
+                  ? t.t('cases.bidForm.messageError', {
+                      'min': '${BidLimits.messageMin}',
+                    })
+                  : null,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              t.t('cases.bidForm.start'),
+              style: typography.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final (s, key) in [
+                  (StartAvailability.immediately, 'cases.start.immediately'),
+                  (StartAvailability.withinWeek, 'cases.start.withinWeek'),
+                  (StartAvailability.customDate, 'cases.start.pickDate'),
+                ])
+                  AppChip(
+                    label:
+                        s == StartAvailability.customDate && _startDate != null
+                            ? formats.date(_startDate!)
+                            : t.t(key),
+                    selected: _start == s,
+                    onTap: () {
+                      if (s == StartAvailability.customDate) {
+                        _pickDate();
+                      } else {
+                        setState(() => _start = s);
+                      }
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            AppTextField(
+              controller: _duration,
+              label: t.t('cases.bidForm.duration'),
+              hintText: t.t('cases.bidForm.durationHint'),
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(4),
+              ],
+              errorText:
+                  _durationOk ? null : t.t('cases.bidForm.durationError'),
+              onChanged: (_) => setState(() {}),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  _error!,
+                  style:
+                      typography.bodySmall.copyWith(color: colors.dangerText),
+                ),
+              ),
+            ],
           ],
-        ],
-      ),
-      bottomNavigationBar: BottomActionBar(
-        children: [
-          if (assistant)
-            AppButton(
-              key: const ValueKey('bid-draft-save'),
-              label: t.t('bidDraft.save'),
-              icon: AppIcons.saveOutlined,
-              isLoading: _busy,
-              onPressed: _saveDraft,
-            )
-          else
-            GavelStrikeButton(
-              label: t.t('cases.bidForm.submit'),
-              strike: true,
-              isLoading: _busy,
-              disabledHint: t.t('form.disabled.required'),
-              isEnabled: _valid,
-              onPressed: _submit,
-            ),
-        ],
+        ),
+        bottomNavigationBar: BottomActionBar(
+          children: [
+            if (assistant)
+              AppButton(
+                key: const ValueKey('bid-draft-save'),
+                label: t.t('bidDraft.save'),
+                icon: AppIcons.saveOutlined,
+                isLoading: _busy,
+                onPressed: _saveDraft,
+              )
+            else
+              GavelStrikeButton(
+                label: t.t('cases.bidForm.submit'),
+                strike: true,
+                isLoading: _busy,
+                disabledHint: t.t('form.disabled.required'),
+                isEnabled: _valid,
+                onPressed: _submit,
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Owner 2026-10-14: a firm member picks which lawyer of the firm (with a
+enum _LeaveChoice { save, discard, stay }
+
+/// R2-A #21: «Save draft?» with Save draft / Discard / Keep editing — the
+/// look of the app's other leave sheets (create_case_screen.dart).
+class _LeaveBidSheet extends StatelessWidget {
+  const _LeaveBidSheet({required this.t});
+
+  final Translator t;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.md,
+          AppSpacing.screenSide,
+          AppSpacing.lg,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const AppSheetHandle(),
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                t.t('cases.bidForm.leave.title'),
+                textAlign: TextAlign.center,
+                style: typography.titleMedium.copyWith(color: colors.text),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                t.t('cases.bidForm.leave.body'),
+                textAlign: TextAlign.center,
+                style: typography.body.copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              AppButton(
+                key: const ValueKey('bid-leave-save'),
+                label: t.t('cases.bidForm.leave.save'),
+                onPressed: () => Navigator.of(context).pop(_LeaveChoice.save),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                key: const ValueKey('bid-leave-discard'),
+                label: t.t('cases.bidForm.leave.discard'),
+                variant: AppButtonVariant.danger,
+                onPressed: () =>
+                    Navigator.of(context).pop(_LeaveChoice.discard),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                key: const ValueKey('bid-leave-stay'),
+                label: t.t('cases.bidForm.leave.stay'),
+                variant: AppButtonVariant.secondary,
+                onPressed: () => Navigator.of(context).pop(_LeaveChoice.stay),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-14: the firm OWNER picks which lawyer of the firm (with a
 /// matching verified licence) sends the bid.
+///
+/// R2-A #4 (what you see is what is sent): the field starts on me — the
+/// sender of a bid nobody re-assigned — and is shown only to the firm's
+/// owner, the one the server lets send as another member (R2B-1). Before,
+/// when my licence did not fit the case, it showed the first lawyer while
+/// the bid went out as me.
 class _FirmSender extends ConsumerWidget {
   const _FirmSender({
     required this.caseId,
@@ -441,30 +620,57 @@ class _FirmSender extends ConsumerWidget {
   final String? value;
   final ValueChanged<String?> onChanged;
 
+  static String _name(String? first, String? last) =>
+      [first, last].whereType<String>().join(' ').trim();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final me = ref.watch(sessionControllerProvider)?.sub;
     final fit = ref.watch(firmSendersProvider(caseId)).value ?? const [];
-    if (fit.isEmpty || (fit.length == 1 && fit.first.attorneyId == me)) {
+    final others = [
+      for (final m in fit)
+        if (m.attorneyId != me) m,
+    ];
+    // Only with someone else who fits is the firm read.
+    final firm = others.isEmpty ? null : ref.watch(myFirmProvider).value;
+    final owner = me != null && firm != null && firm.ownerId == me;
+    if (!owner) {
+      // Nothing to pick (any more): the bid is mine, whatever was chosen.
+      if (value != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => onChanged(null));
+      }
       return const SizedBox.shrink();
     }
-    final current = value ?? (fit.any((m) => m.attorneyId == me) ? me : null);
+    if (value != null && !others.any((m) => m.attorneyId == value)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => onChanged(null));
+    }
+    api.FirmMemberDto? mine;
+    for (final m in firm.members) {
+      if (m.attorneyId == me) mine = m;
+    }
+    final myName = _name(mine?.firstName, mine?.lastName);
+    final you = t.t('chat.you');
+    final selected = others.any((m) => m.attorneyId == value) ? value! : me;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.lg),
       child: DropdownButtonFormField<String>(
-        initialValue: current ?? fit.first.attorneyId,
+        key: const ValueKey('bid-send-as'),
+        initialValue: selected,
         decoration: InputDecoration(labelText: t.t('firm.sendAs')),
         items: [
-          for (final m in fit)
+          DropdownMenuItem(
+            value: me,
+            child: Text(myName.isEmpty ? you : '$myName ($you)'),
+          ),
+          for (final m in others)
             DropdownMenuItem(
               value: m.attorneyId,
-              child: Text(
-                [m.firstName, m.lastName].whereType<String>().join(' ').trim(),
-              ),
+              child: Text(_name(m.firstName, m.lastName)),
             ),
         ],
-        onChanged: onChanged,
+        // Me = no «send as» at all: the bid is simply mine.
+        onChanged: (v) => onChanged(v == me ? null : v),
       ),
     );
   }

@@ -159,4 +159,39 @@ describe('pnl rules', () => {
     expect(s.month.marginPercent).toBeNull();
     expect(s.month.profitUsd).toBe(-25);
   });
+
+  // Detective R3A-1 (14.11): Stripe-report style — a refund is a negative
+  // line on the day it happens; a day of refunds is a loss, not 0.
+  it('a refund booked on a later day makes that day negative', () => {
+    const s = buildPnl({
+      rows: [
+        row({ day: '2026-10-21' }),
+        row({
+          day: '2026-10-23',
+          subtotalCents: 0,
+          grossCents: 0,
+          payments: 0,
+          refundedCents: 10_000,
+        }),
+      ],
+      vendorDaily: [],
+      fixed: [],
+      now: NOW,
+    });
+    const day = (d: string) => s.days.find((x) => x.day === d)?.revenueUsd;
+    expect(day('2026-10-21')).toBe(96.8);
+    expect(day('2026-10-23')).toBe(-100);
+    expect(s.month.revenueUsd).toBe(-3.2);
+  });
+
+  it('the Stripe fee comes from the admin setting when given', () => {
+    const s = buildPnl({
+      rows: [row({})],
+      vendorDaily: [],
+      fixed: [],
+      now: NOW,
+      fee: { percent: 3.5, fixedCents: 0 },
+    });
+    expect(s.month.revenueUsd).toBe(96.5);
+  });
 });

@@ -46,6 +46,7 @@ PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
   hasBlockedMe: json['hasBlockedMe'] as bool,
   sponsored: json['sponsored'] as bool?,
   advertisingDisclaimer: json['advertisingDisclaimer'] as String?,
+  replyMinutesMedian: json['replyMinutesMedian'] as num?,
 );
 
 Map<String, dynamic> _$PublicAttorneyProfileDtoToJson(
@@ -76,6 +77,7 @@ Map<String, dynamic> _$PublicAttorneyProfileDtoToJson(
   'isSelf': instance.isSelf,
   'isFollowing': instance.isFollowing,
   'consultationEnabled': instance.consultationEnabled,
+  'replyMinutesMedian': ?instance.replyMinutesMedian,
   'isBlocked': instance.isBlocked,
   'hasBlockedMe': instance.hasBlockedMe,
 };

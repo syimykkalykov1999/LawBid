@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/strings/audit4_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_cases_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_chat_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_social_strings.dart';
+import 'package:lawbid/core/l10n/strings/bid_leave_strings.dart';
 import 'package:lawbid/core/l10n/strings/boost_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_billing_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_close_strings.dart';
@@ -62,6 +63,7 @@ import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/strings/role_switch_strings.dart';
 import 'package:lawbid/core/l10n/strings/saved_cards_strings.dart';
+import 'package:lawbid/core/l10n/strings/screens25_strings.dart';
 import 'package:lawbid/core/l10n/strings/seat_roles_strings.dart';
 import 'package:lawbid/core/l10n/strings/share_to_strings.dart';
 import 'package:lawbid/core/l10n/strings/stale_case_strings.dart';
@@ -1084,7 +1086,8 @@ class StaticTranslatorRu extends _MapTranslator {
         'profile.tab.posts': 'Посты',
         'profile.tab.reviews': 'Отзывы',
         'profile.posts.empty.title': 'Фото пока нет',
-        'profile.posts.empty.self': 'Опубликуйте фото или файл — они появятся здесь.',
+        'profile.posts.empty.self':
+            'Опубликуйте фото или файл — они появятся здесь.',
         'profile.posts.empty.other': 'Здесь пока нет постов с фото или файлом.',
         'profile.verifyBanner.body':
             'Получите синюю галочку и доступ к кейсам.',
@@ -1259,9 +1262,11 @@ class StaticTranslatorRu extends _MapTranslator {
         ...dealRecordRu,
         ...caseCloseRu,
         ...themeRu,
+        ...bidLeaveRu,
         ...postInnerRu,
         ...emailFlowsRu,
         ...storiesRu,
+        ...screens25Ru,
         ...channelsRu,
         ...casePreviewRu,
       };
@@ -2549,7 +2554,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'profile.tab.posts': 'Posts',
         'profile.tab.reviews': 'Reviews',
         'profile.posts.empty.title': 'No photos yet',
-        'profile.posts.empty.self': 'Post a photo or file and it will appear here.',
+        'profile.posts.empty.self':
+            'Post a photo or file and it will appear here.',
         'profile.posts.empty.other': 'No posts with a photo or file here yet.',
         'profile.verifyBanner.body': 'Get the blue check and access to cases.',
         'profile.error': "Couldn't load the profile.",
@@ -2724,8 +2730,10 @@ class StaticTranslatorEn extends _MapTranslator {
         ...dealRecordEn,
         ...caseCloseEn,
         ...themeEn,
+        ...bidLeaveEn,
         ...postInnerEn,
         ...storiesEn,
+        ...screens25En,
         ...channelsEn,
         ...emailFlowsEn,
         ...casePreviewEn,

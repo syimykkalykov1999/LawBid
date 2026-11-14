@@ -464,6 +464,11 @@ export class PublicAttorneyProfileDto {
   @ApiProperty()
   consultationEnabled!: boolean;
 
+  // Owner row 112: median minutes to the attorney's first reply in chats
+  // (nightly snapshot); null = not enough chats yet or switched off.
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  replyMinutesMedian?: number | null;
+
   /** OQ-028: the viewer blocked this user. */
   @ApiProperty()
   isBlocked!: boolean;

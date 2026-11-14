@@ -25,6 +25,13 @@ abstract final class AppCallColors {
   /// The «end» / «decline» button.
   static const Color end = Color(0xFFE53935);
 
+  /// Row 166: words on the call stage, the soft pill under them
+  /// («Poor connection», «X muted»; white 14 %) and the ended screen's
+  /// Cancel button (white 18 %).
+  static const Color onStage = Color(0xFFFFFFFF);
+  static const Color pill = Color(0x24FFFFFF);
+  static const Color cancel = Color(0x2EFFFFFF);
+
   /// Voice calls: the background gradient, top to bottom.
   static const Color audioTop = Color(0xFF0F3B2E);
   static const Color audioBottom = Color(0xFF07211A);

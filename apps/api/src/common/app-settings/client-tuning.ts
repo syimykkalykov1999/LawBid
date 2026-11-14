@@ -67,6 +67,21 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'How often an ongoing call re-checks its state with the server (a safety net next to the socket), seconds.',
   },
+  // Row 166 (WhatsApp): the end of a call on the phone.
+  'client.call_ended_ms': {
+    default: 1600,
+    min: 500,
+    max: 10_000,
+    description:
+      'How long the short «Call ended» screen stays after a normal hang-up, milliseconds.',
+  },
+  'client.call_ended_hold_s': {
+    default: 0,
+    min: 0,
+    max: 600,
+    description:
+      'How long «No answer» / «Busy» / a refusal stays with its Cancel · Call again (or Settings) buttons, seconds. 0 = until the person taps (WhatsApp).',
+  },
   'client.qr_poll_s': {
     default: 10,
     min: 5,
@@ -191,6 +206,23 @@ export const CLIENT_TUNING_DEFS = {
     max: 30_000,
     description:
       'While the realtime connection is up, the server tells the app when the virus check of an upload ended; the app asks itself only this often, in milliseconds, as a safety net (without the connection it asks every 700 ms as before).',
+  },
+  // Owner row 109 (Telegram / Gmail): «Undo» after a delete, an archive or
+  // an unfollow; the deleted comment reaches the server when it ends.
+  'client.undo_window_s': {
+    default: 5,
+    min: 2,
+    max: 30,
+    description:
+      'How long, in seconds, the «Undo» button stays after deleting or archiving a chat, deleting a comment, unfollowing or hiding a post. A deleted comment is removed on the server when this time ends.',
+  },
+  // Owner row 112 (Instagram «Not interested»): kept on the phone.
+  'client.not_interested_keep_days': {
+    default: 90,
+    min: 1,
+    max: 3650,
+    description:
+      'Posts a person marked «Not interested» stay hidden on that phone or browser for this many days.',
   },
   'client.resume_refresh_min_away_s': {
     default: 30,

@@ -47,14 +47,21 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
       if (mounted) Navigator.of(context).pop();
       return;
     }
-    // Owner 2026-10-15: no saved draft any more — just «Exit without
-    // saving?» with [Exit] / [Continue].
-    final leave = await showAppBottomSheet<bool>(
-      context: context,
-      builder: (context) => CreateCaseExitSheet(t: t),
+    // Owner row 109 (14.11, Instagram / Thumbtack / Upwork): «Save draft?»
+    // again — [Save draft] keeps it (the next «New case» opens on it with
+    // the «Draft restored» banner), [Discard] drops it, [Keep editing]
+    // stays. Replaces the 2026-10-15 «Exit without saving?».
+    final choice = await showLeaveSheet(
+      context,
+      title: t.t('leave.draft.title'),
+      // The uploaded photos come back with the draft too.
+      message: t.t('leave.draft.message'),
+      saveLabel: t.t('leave.draft.save'),
+      discardLabel: t.t('chat.discard'),
+      stayLabel: t.t('cases.create.exitStay'),
     );
-    if (leave != true) return;
-    await _c.finishEditing(keepDraft: false);
+    if (choice == LeaveChoice.stay) return;
+    await _c.finishEditing(keepDraft: choice == LeaveChoice.save);
     if (mounted) Navigator.of(context).pop();
   }
 

@@ -20,8 +20,12 @@ abstract final class ClientTuning {
   static bool _eventsEnabled = true;
   static int _eventsFlushS = 60;
   static int _callSyncS = 30;
+  static int _callEndedMs = 1600;
+  static int _callEndedHoldS = 0;
   static int _qrPollS = 10;
   static int _resumeMinAwayS = 30;
+  static int _undoWindowS = 5;
+  static int _notInterestedKeepDays = 90;
   static int _videoPrefetchAhead = 3;
   static int _videoPrefetchCellular = 1;
   static int _videoCacheMb = 100;
@@ -85,8 +89,25 @@ abstract final class ClientTuning {
   static bool get eventsEnabled => _eventsEnabled;
   static Duration get eventsFlush => Duration(seconds: _eventsFlushS);
   static Duration get callSync => Duration(seconds: _callSyncS);
+
+  /// Row 166: how long the short «Call ended» screen stays
+  /// (`client.call_ended_ms`).
+  static Duration get callEndedLinger => Duration(milliseconds: _callEndedMs);
+
+  /// Row 166 (WhatsApp): how long «No answer» · Cancel · Call again waits
+  /// for a tap (`client.call_ended_hold_s`); zero = until the person taps.
+  static Duration get callEndedHold => Duration(seconds: _callEndedHoldS);
   static Duration get qrPoll => Duration(seconds: _qrPollS);
   static Duration get resumeMinAway => Duration(seconds: _resumeMinAwayS);
+
+  /// Row 109 (Telegram / Gmail): how long «Undo» stays after a delete,
+  /// an archive or an unfollow (`client.undo_window_s`).
+  static Duration get undoWindow => Duration(seconds: _undoWindowS);
+
+  /// Row 112: posts marked «Not interested» stay hidden on this device for
+  /// this many days (`client.not_interested_keep_days`).
+  static Duration get notInterestedKeep =>
+      Duration(days: _notInterestedKeepDays);
 
   /// Reels warmed ahead of the one on screen: `client.video_prefetch_ahead`
   /// on Wi-Fi, `client.video_prefetch_cellular` on mobile data (S20-9; the
@@ -262,8 +283,13 @@ abstract final class ClientTuning {
     _eventsEnabled = config['client.events_enabled'] != 'false';
     _eventsFlushS = pick('client.events_flush_s', 60, 15, 3600);
     _callSyncS = pick('client.call_sync_s', 30, 10, 300);
+    _callEndedMs = pick('client.call_ended_ms', 1600, 500, 10000);
+    _callEndedHoldS = pick('client.call_ended_hold_s', 0, 0, 600);
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
+    _undoWindowS = pick('client.undo_window_s', 5, 2, 30);
+    _notInterestedKeepDays =
+        pick('client.not_interested_keep_days', 90, 1, 3650);
     _videoPrefetchAhead = pick('client.video_prefetch_ahead', 3, 0, 6);
     _videoPrefetchCellular = pick('client.video_prefetch_cellular', 1, 0, 6);
     _videoCacheMb = pick('client.video_cache_mb', 100, 0, 1000);

@@ -127,9 +127,10 @@ class _ClientBody extends ConsumerWidget {
     final avatarUrl = ref
         .watch(currentUserControllerProvider.select((s) => s.user?.avatarUrl));
     // Owner 2026-11-08: the photo just picked is shown at once, while it
-    // still goes up (and if that failed, until the retry).
+    // still goes up. A failed upload goes back to the old photo; the
+    // failure and Retry stay on the photo field (Detective R2-A #6).
     final picked =
-        ref.watch(avatarUploadControllerProvider.select((s) => s.preview));
+        ref.watch(avatarUploadControllerProvider.select((s) => s.shownPreview));
     final showReviewEntry = !ref.watch(appEnvironmentProvider).isProd;
     final name = profile.fullName;
 
