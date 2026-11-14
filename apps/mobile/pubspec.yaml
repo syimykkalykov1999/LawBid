@@ -51,7 +51,11 @@ dependencies:
   http: ^1.5.0
   # Browser file save (core/platform/web_download_web.dart).
   web: ^1.1.2
-  flutter_secure_storage: ^9.2.4
+  # Row 149 (14.11): 9 -> 11. 11 no longer reads Android's
+  # EncryptedSharedPreferences (where 9 kept the tokens); the app moves them
+  # itself before the first read (core/session/legacy_secure_storage.dart,
+  # android .../LegacySecureStorage.kt). Needs win32 6 (row 118 first).
+  flutter_secure_storage: ^11.2.0
 
   crypto: ^3.0.8
   flutter_contacts: ^2.6.0
