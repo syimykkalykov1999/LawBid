@@ -86,7 +86,10 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
       }
       final controller = CameraController(
         camera,
-        ResolutionPreset.high,
+        // Media audit 13.11 (C7): 1080p for an ID / bar card (720p was weak
+        // for reading it; ID-check vendors ask for 1080p or more). The
+        // selfie screen keeps 720p for its live face detection.
+        ResolutionPreset.veryHigh,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );

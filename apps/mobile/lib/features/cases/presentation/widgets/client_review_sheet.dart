@@ -12,6 +12,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/profile/application/review_outbox.dart';
@@ -151,13 +152,14 @@ class _SheetState extends ConsumerState<_Sheet> {
       maxWidth: limits.maxPx,
       maxHeight: limits.maxPx,
       limit: room > 1 ? room : null,
+      requestFullMetadata: false,
     );
     // Owner 2026-11-08: every picked photo starts at once (the app-wide
     // limit spaces them), so «Сохранить» can take them all along at any
     // moment — the queued review waits for them, not the sheet.
     final all = <Uint8List>[];
     for (final x in picked.take(room)) {
-      all.add(await x.readAsBytes());
+      all.add(await readPickedPhoto(x));
     }
     if (!mounted) return;
     final actions = ref.read(socialActionsProvider);

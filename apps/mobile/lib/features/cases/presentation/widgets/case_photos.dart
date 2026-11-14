@@ -1,4 +1,3 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,9 +5,12 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart'
     show blurhashStandIn;
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/pick_files.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/application/case_media_picker.dart';
@@ -61,11 +63,8 @@ class CasePhotosPicker extends ConsumerWidget {
     Future<void> pickFiles() async {
       final left = maxFiles - fileCount;
       if (left <= 0) return;
-      final result = await FilePicker.pickFiles(
-        // Web: a big file from iCloud or a HEIC to convert arrives after the
-        // window gets focus back; don't drop it.
-        cancelUploadOnWindowBlur: false,
-        type: FileType.custom,
+      // Audit D8: read one by one from disk on a phone (no withData).
+      final picked = await pickFilesRead(
         // Owner 2026-10-19: a video from a computer too (counts with the
         // photos).
         allowedExtensions: [
@@ -73,13 +72,13 @@ class CasePhotosPicker extends ConsumerWidget {
           if (upload.allowsVideo) ...kCaseVideoExtensions,
         ],
         allowMultiple: true,
-        withData: true,
+        maxBytes: upload.fileBytes,
+        maxCount: left,
+        photos: photoLimitsOf(ref.read(featureFlagsControllerProvider)),
       );
-      final files = [
-        for (final f in result?.files ?? const <PlatformFile>[])
-          if (f.bytes != null) (bytes: f.bytes!, name: f.name),
-      ];
-      c.addFiles(files.take(left).toList());
+      c.addFiles([
+        for (final f in picked.files) (bytes: f.bytes, name: f.name),
+      ]);
     }
 
     return Column(

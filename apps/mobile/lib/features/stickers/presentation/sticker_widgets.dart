@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/text/search_fold.dart';
@@ -661,9 +662,10 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
       source: ImageSource.gallery,
       maxWidth: 512,
       maxHeight: 512,
+      requestFullMetadata: false,
     );
     if (x == null || !mounted) return;
-    final bytes = await x.readAsBytes();
+    final bytes = await readPickedPhoto(x);
     final mime = sniffImageMime(bytes);
     if (mime == null) {
       if (mounted) showAppSnackBar(context, t.t('stickers.badImage'));

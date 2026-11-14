@@ -159,14 +159,20 @@ void main() {
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     final bytes = data!.buffer.asUint8List();
 
-    expect(identical(await shrinkDroppedPhoto(bytes, 400), bytes), isTrue);
-    final small = await shrinkDroppedPhoto(bytes, 100);
+    expect(
+      identical(await shrinkDroppedPhoto(bytes, 400, quality: 90), bytes),
+      isTrue,
+    );
+    final small = await shrinkDroppedPhoto(bytes, 100, quality: 90);
     final codec = await ui.instantiateImageCodec(small);
     final frame = await codec.getNextFrame();
     expect(frame.image.width, 100);
     expect(frame.image.height, 50);
     expect(
-      identical(await shrinkDroppedPhoto(Uint8List(4), 100), small),
+      identical(
+        await shrinkDroppedPhoto(Uint8List(4), 100, quality: 90),
+        small,
+      ),
       isFalse,
       reason: 'what cannot be decoded stays as it is',
     );

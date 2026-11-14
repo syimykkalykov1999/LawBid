@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,11 +8,13 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/file_types.dart';
+import 'package:lawbid/core/files/pick_files.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart'
@@ -251,21 +252,19 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
 
   Future<void> _attach({required bool sample}) async {
     final upload = ref.read(uploadLimitsProvider)[UploadPlace.kase];
-    final result = await FilePicker.pickFiles(
-      // Web: a big file from iCloud or a HEIC to convert arrives after the
-      // window gets focus back; don't drop it.
-      cancelUploadOnWindowBlur: false,
-      type: FileType.custom,
+    final room = 20 - _files.length - _kept.length;
+    // Audit D8: read one by one from disk on a phone (no withData).
+    final result = await pickFilesRead(
       allowedExtensions: upload.documentExtensions,
       allowMultiple: true,
-      withData: true,
+      maxBytes: upload.fileBytes,
+      maxCount: room,
+      photos: photoLimitsOf(ref.read(featureFlagsControllerProvider)),
     );
-    final room = 20 - _files.length - _kept.length;
     final add = [
-      for (final f in result?.files ?? const <PlatformFile>[])
-        if (f.bytes != null)
-          PickedCaseFile(bytes: f.bytes!, name: f.name, sample: sample),
-    ].take(room);
+      for (final f in result.files)
+        PickedCaseFile(bytes: f.bytes, name: f.name, sample: sample),
+    ];
     if (mounted) setState(() => _files.addAll(add));
   }
 
@@ -279,11 +278,12 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
       maxHeight: photo.maxPx,
       imageQuality: photo.quality,
       limit: room > 1 ? room : null,
+      requestFullMetadata: false,
     );
     final add = <PickedCaseFile>[
       for (final f in picked.take(room))
         PickedCaseFile(
-          bytes: await f.readAsBytes(),
+          bytes: await readPickedPhoto(f),
           name: f.name,
           sample: sample,
         ),
@@ -668,22 +668,20 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                                       autofocus: i == 0 && !_task,
                                       minLines: 1,
                                       maxLines: null,
-                                      maxLength:
-                                          TextLimits.of(
-                                            TextLimit.workspaceUpdate,
-                                          ),
+                                      maxLength: TextLimits.of(
+                                        TextLimit.workspaceUpdate,
+                                      ),
                                       keyboardType: TextInputType.multiline,
                                       textCapitalization:
-                                        TextCapitalization.sentences,
+                                          TextCapitalization.sentences,
                                       onChanged: (v) {
                                         _onLineChanged(i, v);
                                         setState(() {});
                                       },
-                                      style:
-                                          type.body.copyWith(
-                                            fontSize: 14,
-                                            height: 1.4,
-                                          ),
+                                      style: type.body.copyWith(
+                                        fontSize: 14,
+                                        height: 1.4,
+                                      ),
                                       decoration: InputDecoration(
                                         hintText: i == 0
                                             ? t.t(
@@ -702,9 +700,9 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                                         counterText: '',
                                         isDense: true,
                                         contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                          ),
+                                            const EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -727,8 +725,8 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                                       ),
                                       label: Text(
                                         ref
-                                          .read(l10nFormatsProvider)
-                                          .dateTime(_due!),
+                                            .read(l10nFormatsProvider)
+                                            .dateTime(_due!),
                                       ),
                                       onPressed: _pickDue,
                                       onDeleted: () => setState(() {
@@ -746,7 +744,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                                       label: Text(taskRemindLabel(t, _remind)),
                                       onPressed: _pickRemind,
                                       onDeleted: () =>
-                                        setState(() => _remind = null),
+                                          setState(() => _remind = null),
                                     ),
                                 ],
                               ),
