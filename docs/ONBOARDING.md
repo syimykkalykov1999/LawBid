@@ -61,6 +61,35 @@ docker compose up -d        # PostgreSQL 16, Redis 7, versitygw (local S3), Mail
 # docker compose --profile calls up -d livekit   # optional: LiveKit SFU in dev mode
 ```
 
+**Once, on a machine that ran the old MinIO (row 120, 14.11).** The local S3 service is now `s3`
+(versitygw) instead of `minio`, on the same port 9000 and with the same dev keys. A plain
+`docker compose up -d` leaves the old `lawbid-minio-1` running on 9000, and `s3` then fails with
+«port is already allocated». Remove the old container once (its volume `lawbid_minio-data` stays
+until you delete it yourself):
+
+```sh
+docker compose up -d --remove-orphans      # or: docker rm -f lawbid-minio-1 && docker compose up -d
+```
+
+The files uploaded to the old MinIO are not in the new store (MinIO's on-disk format is not plain
+files), so local avatars and photos from before show as missing. Optional one-time copy with the
+AWS CLI, starting the old data once more on another port:
+
+```sh
+docker run -d --name minio-old -p 9100:9000 -v lawbid_minio-data:/data \
+  -e MINIO_ROOT_USER=lawbid -e MINIO_ROOT_PASSWORD=lawbid_dev_only \
+  quay.io/minio/minio:latest server /data   # the image the old compose used, already pulled
+export AWS_ACCESS_KEY_ID=lawbid AWS_SECRET_ACCESS_KEY=lawbid_dev_only AWS_DEFAULT_REGION=us-east-1
+for b in $(aws --endpoint-url http://localhost:9100 s3 ls | awk '{print $3}'); do
+  aws --endpoint-url http://localhost:9000 s3 mb "s3://$b" 2>/dev/null || true
+  aws --endpoint-url http://localhost:9100 s3 sync "s3://$b" "./minio-copy/$b"
+  aws --endpoint-url http://localhost:9000 s3 sync "./minio-copy/$b" "s3://$b"
+done
+docker rm -f minio-old    # then delete ./minio-copy
+```
+
+Skip it if the local files do not matter (`npm run seed:demo` uploads fresh demo pictures).
+
 API (`apps/api`):
 
 ```sh

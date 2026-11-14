@@ -60,7 +60,12 @@ services:
       VGW_WEBUI_PORT: ":9001"
       VGW_WEBUI_NO_TLS: "true"
       VGW_WEBUI_GATEWAYS: http://localhost:9000
-      VGW_CORS_ALLOW_ORIGIN: http://localhost:9001
+      # Dev only: any origin, as MinIO answered before. This is the default
+      # Access-Control-Allow-Origin of every bucket without its own CORS
+      # config (versitygw --cors-allow-origin), and the API never sets one:
+      # the local web app (localhost:<port>, http://<mac-ip>) and the admin
+      # read and upload files here from the browser. Never on a shared host.
+      VGW_CORS_ALLOW_ORIGIN: "*"
       VGW_QUIET: "true"
     ports:
       - "9000:9000" # S3 API
