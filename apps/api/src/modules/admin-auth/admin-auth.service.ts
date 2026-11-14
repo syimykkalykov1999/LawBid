@@ -84,8 +84,12 @@ const RECOVERY_CODES = 10;
 const LOGIN_PASSWORD_PER_LOGIN_PER_HOUR = 10;
 const NEUTRAL_QUESTION = 'Secret question';
 const TOTP_ISSUER = 'LawBid Admin';
-/** Owner 2026-10-01: a step-up stays valid for 5 minutes of the session. */
+/** Owner 2026-10-01: a step-up stays valid for 5 minutes of the session.
+ * Owner 14.11 (row 179, B8): this is only the default — the owner sets the
+ * window in Настройки (`admin.step_up_ttl_seconds`, owner-only + 2FA). */
 export const STEP_UP_TTL_SECONDS = 300;
+/** The staff default of `admin.bulk_select_cap` (row 179). */
+const BULK_SELECT_CAP_DEFAULT = 2000;
 
 export const ADMIN_AUDIT = {
   login: 'admin.login',
@@ -390,7 +394,7 @@ export class AdminAuthService {
       targetType: 'admin',
       targetId: adminId,
       after: ok
-        ? { validForSeconds: STEP_UP_TTL_SECONDS, method: 'passkey' }
+        ? { validForSeconds: await this.stepUpTtl(), method: 'passkey' }
         : { method: 'passkey' },
       ip,
     });
@@ -400,12 +404,15 @@ export class AdminAuthService {
         message: 'The passkey could not be verified.',
       });
     }
-    await this.redis.set(stepUpKey(sessionId), '1', 'EX', STEP_UP_TTL_SECONDS);
+    const ttl = await this.stepUpTtl();
+    // The value is the moment of the code (ms): assertFreshStepUp counts the
+    // code's age from it, whatever the window is set to.
+    await this.redis.set(stepUpKey(sessionId), String(Date.now()), 'EX', ttl);
     // Owner 2026-11-12: only wrong codes count toward the 5 per 15 min; a
     // good code clears them, so the owner is never locked out of his own
     // panel for confirming often.
     await this.rateLimit.resetFixedWindow(['admin-stepup', adminId]);
-    return { validForSeconds: STEP_UP_TTL_SECONDS };
+    return { validForSeconds: ttl };
   }
 
   async passkeyRegistrationOptions(
@@ -738,6 +745,8 @@ export class AdminAuthService {
         role === 'super_admin' || !this.settings
           ? []
           : await this.settings.stringList('admin.reason_required_areas'),
+      // Owner 14.11 (row 179): «select all by filter» — none for the owner.
+      bulkSelectCap: await this.bulkSelectCapFor(role),
       hasSecurityQuestion: Boolean(c?.security_answer_hash),
       securityQuestion:
         role === 'super_admin' ? (c?.security_question ?? null) : null,
@@ -1359,7 +1368,7 @@ export class AdminAuthService {
       action: ok ? ADMIN_AUDIT.stepUp : ADMIN_AUDIT.stepUpFailed,
       targetType: 'admin',
       targetId: adminId,
-      after: ok ? { validForSeconds: STEP_UP_TTL_SECONDS } : undefined,
+      after: ok ? { validForSeconds: await this.stepUpTtl() } : undefined,
       ip,
     });
     if (!ok) {
@@ -1368,15 +1377,39 @@ export class AdminAuthService {
         message: 'Wrong code.',
       });
     }
-    await this.redis.set(stepUpKey(sessionId), '1', 'EX', STEP_UP_TTL_SECONDS);
+    const ttl = await this.stepUpTtl();
+    // The value is the moment of the code (ms): assertFreshStepUp counts the
+    // code's age from it, whatever the window is set to.
+    await this.redis.set(stepUpKey(sessionId), String(Date.now()), 'EX', ttl);
     // Owner 2026-11-12: only wrong codes count toward the 5 per 15 min; a
     // good code clears them, so the owner is never locked out of his own
     // panel for confirming often.
     await this.rateLimit.resetFixedWindow(['admin-stepup', adminId]);
-    return { validForSeconds: STEP_UP_TTL_SECONDS };
+    return { validForSeconds: ttl };
   }
 
-  /** Throws unless [sessionId] passed a step-up in the last 5 minutes. */
+  /** Owner 14.11 (row 179, B6): how many rows «select all» may collect for
+   * this admin; null = no cap (always the owner; staff when the setting is 0). */
+  private async bulkSelectCapFor(role: string): Promise<number | null> {
+    if (role === 'super_admin') return null;
+    const n = this.settings
+      ? await this.settings.number('admin.bulk_select_cap')
+      : BULK_SELECT_CAP_DEFAULT;
+    return Number.isInteger(n) && n > 0 ? n : null;
+  }
+
+  /** Owner 14.11 (row 179, B8): the step-up window, seconds — the owner's
+   * setting `admin.step_up_ttl_seconds`; 300 when unset or unreadable. */
+  private async stepUpTtl(): Promise<number> {
+    const n = await this.settings
+      ?.number('admin.step_up_ttl_seconds')
+      .catch(() => STEP_UP_TTL_SECONDS);
+    return typeof n === 'number' && Number.isInteger(n) && n > 0
+      ? n
+      : STEP_UP_TTL_SECONDS;
+  }
+
+  /** Throws unless [sessionId] passed a step-up within the window. */
   async assertStepUp(sessionId: string): Promise<void> {
     if (!(await this.redis.exists(stepUpKey(sessionId)))) {
       throw new ForbiddenException({
@@ -1395,8 +1428,11 @@ export class AdminAuthService {
     sessionId: string,
     maxAgeSeconds: number,
   ): Promise<void> {
-    const ttl = await this.redis.ttl(stepUpKey(sessionId));
-    if (ttl < 0 || STEP_UP_TTL_SECONDS - ttl > maxAgeSeconds) {
+    const raw = await this.redis.get(stepUpKey(sessionId));
+    const at = Number(raw);
+    // A key written before 14.11 holds '1' (no moment): not fresh.
+    const age = raw && Number.isFinite(at) && at > 1 ? Date.now() - at : NaN;
+    if (!(age >= 0 && age <= maxAgeSeconds * 1000)) {
       throw new ForbiddenException({
         code: ErrorCode.ADMIN_STEP_UP_REQUIRED,
         message: 'Confirm with a fresh authenticator code first.',
