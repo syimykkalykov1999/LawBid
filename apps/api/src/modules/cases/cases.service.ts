@@ -1536,7 +1536,12 @@ export class CasesService {
     const stages = [...CASE_STAGES]
       .reverse()
       .filter((s) => !query.stages?.length || query.stages.includes(s));
-    const { items, hasMore } = await pageByStages<CaseRow>({
+    // Prisma 7 (KNOWN_ERRORS 147): a findMany with `include` sends its
+    // relation queries even when it found no rows (`… IN (NULL)`), so one
+    // include per stage made every empty stage cost three more statements
+    // (perf guard: practice_areas 9× per request). The stages are walked
+    // with ids only, the page's relations are loaded once.
+    const { items: keys, hasMore } = await pageByStages<{ id: string }>({
       stages,
       cursor,
       limit,
@@ -1551,7 +1556,7 @@ export class CasesService {
           },
           orderBy: [{ last_activity_at: 'desc' }, { id: 'desc' }],
           take,
-          include: CASE_DETAIL_INCLUDE,
+          select: { id: true },
         }),
       hasAny: async (rest) =>
         (await this.prisma.case.findFirst({
@@ -1559,6 +1564,19 @@ export class CasesService {
           select: { id: true },
         })) !== null,
     });
+    const byId = new Map(
+      keys.length === 0
+        ? []
+        : (
+            await this.prisma.case.findMany({
+              where: { id: { in: keys.map((k) => k.id) } },
+              include: CASE_DETAIL_INCLUDE,
+            })
+          ).map((row) => [row.id, row] as const),
+    );
+    const items = keys
+      .map((k) => byId.get(k.id))
+      .filter((row): row is CaseRow => row !== undefined);
     const last = items[items.length - 1];
     return {
       page: items,
