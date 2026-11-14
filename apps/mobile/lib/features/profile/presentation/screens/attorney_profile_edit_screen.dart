@@ -295,9 +295,6 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
             if (patch.bio != null) 'bio': patch.bio!.trim(),
             if (patch.firms != null) 'firms': patch.firms,
             if (patch.languages != null) 'languages': patch.languages,
-            // Detective R2-A #8: a username change goes with the request
-            // (the attorney's approval applies it via updateOwn).
-            if (patch.username != null) 'username': patch.username,
           },
         );
         if (!mounted) return;
@@ -343,6 +340,11 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final now = ref.watch(clockProvider)();
+    // Detective R2-A #8: the public @username is the attorney's identity —
+    // an assistant cannot change it (the API refuses it in an edit request,
+    // `assistant-request-payload.ts`), so the field is read-only for them
+    // instead of being silently dropped from the request.
+    final assistant = ref.watch(isAssistantProvider);
     final usernameLocked = p.usernameLocked(now);
 
     String? required(TextEditingController c) =>
@@ -353,12 +355,14 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     final (String? usernameHelper, String? usernameError) =
         switch (_usernameStatus) {
       UsernameStatus.unchanged => (
-          usernameLocked
-              ? t.t(
-                  'profile.username.cooldown',
-                  {'date': formats.date(p.usernameNextChangeAt!)},
-                )
-              : t.t('profile.username.hint'),
+          assistant
+              ? null
+              : usernameLocked
+                  ? t.t(
+                      'profile.username.cooldown',
+                      {'date': formats.date(p.usernameNextChangeAt!)},
+                    )
+                  : t.t('profile.username.hint'),
           null,
         ),
       UsernameStatus.checking => (t.t('profile.username.checking'), null),
@@ -410,7 +414,7 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
             key: const ValueKey('username-field'),
             controller: _username,
             label: t.t('profile.username.label'),
-            enabled: !usernameLocked,
+            enabled: !usernameLocked && !assistant,
             leading: Text(
               '@',
               style: typography.body.copyWith(color: colors.textSecondary),

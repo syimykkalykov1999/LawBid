@@ -193,7 +193,7 @@ void main() {
     await _teardown(tester);
   });
 
-  testWidgets("#8: an assistant's @username change goes into the edit request",
+  testWidgets('#8: an assistant cannot edit the @username (read-only field)',
       (tester) async {
     final repo = FakeAttorneyRepo(profile: attorneyProfile(), own: _own());
     final team = _FakeTeam();
@@ -207,19 +207,24 @@ void main() {
         teamRepositoryProvider.overrideWithValue(team),
       ],
     );
+    final field = tester.widget<AppTextField>(
+      find.byKey(const ValueKey('username-field')),
+    );
+    expect(field.enabled, isFalse);
+    // Other fields still go into the request.
     await tester.enterText(
       find.descendant(
-        of: find.byKey(const ValueKey('username-field')),
+        of: find.byWidgetPredicate(
+          (w) => w is AppTextField && w.label == 'First name',
+        ),
         matching: find.byType(TextField),
       ),
-      'jane_new',
+      'Janet',
     );
-    await tester.pump(const Duration(milliseconds: 500));
-    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('profile-save')));
     await tester.pumpAndSettle();
     expect(team.sent.single.$1, RequestKind.profileEdit);
-    expect(team.sent.single.$2, {'username': 'jane_new'});
+    expect(team.sent.single.$2, {'firstName': 'Janet'});
     expect(repo.patches, isEmpty);
     await _teardown(tester);
   });
