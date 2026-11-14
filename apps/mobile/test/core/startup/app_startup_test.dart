@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,6 +81,57 @@ class _SeqSession extends SessionController {
       );
     }
     return r;
+  }
+}
+
+/// Perf batch 4 (row 127): the phone has the last claims; the background
+/// refresh answers when the test says so.
+class _CachedSession extends SessionController {
+  _CachedSession({this.sub = 'u1'});
+
+  final String sub;
+  final refresh = Completer<SessionBootstrapResult>();
+  int bootstraps = 0;
+  int revalidations = 0;
+
+  SessionState _real() => SessionState(
+        accessToken: 'at',
+        sub: sub,
+        role: 'client',
+        sid: 's1',
+        verified: false,
+        subscriptionStatus: 'none',
+        accessTokenExpiresAt: DateTime.utc(2030),
+      );
+
+  @override
+  SessionState? build() => null;
+
+  @override
+  Future<SessionState?> cachedSession() async => SessionState(
+        accessToken: '',
+        sub: sub,
+        role: 'client',
+        sid: 's1',
+        verified: false,
+        subscriptionStatus: 'none',
+        accessTokenExpiresAt: DateTime.now(),
+      );
+
+  @override
+  Future<SessionBootstrapResult> revalidate() async {
+    revalidations++;
+    final r = await refresh.future;
+    if (r == SessionBootstrapResult.signedIn) state = _real();
+    if (r == SessionBootstrapResult.signedOut) state = null;
+    return r;
+  }
+
+  @override
+  Future<SessionBootstrapResult> bootstrap() async {
+    bootstraps++;
+    state = _real();
+    return SessionBootstrapResult.signedIn;
   }
 }
 
@@ -241,6 +294,83 @@ void main() {
     expect(l10n.refreshes, 0);
     await Future<void>.delayed(const Duration(milliseconds: 60));
     expect(l10n.refreshes, 1);
+  });
+
+  group('perf batch 4: open from the phone, refresh behind', () {
+    test('ready from the copy with the refresh still on the way', () async {
+      final cached = _CachedSession();
+      final c = await make(session: () => cached);
+      // Measured start path: no network await before ready — the refresh
+      // below never answers until the test completes it.
+      await c.read(appStartupProvider.notifier).run();
+      expect(c.read(appStartupProvider), StartupStatus.ready);
+      expect(cached.bootstraps, 0, reason: 'no blocking /auth/refresh');
+      expect(cached.revalidations, 1);
+      expect(c.read(sessionControllerProvider)?.awaitsRefresh, isTrue);
+      expect(c.read(currentUserControllerProvider).user?.firstName, 'Ann');
+      expect(c.read(appSessionProvider)?.unreadSupport, 1);
+      expect(loader.calls, 1, reason: 'the phone copy of /me/session');
+      expect(meRepo.fetches, 0);
+
+      cached.refresh.complete(SessionBootstrapResult.signedIn);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(c.read(sessionControllerProvider)?.awaitsRefresh, isFalse);
+      expect(loader.calls, 2, reason: 'the live /me/session after it');
+      expect(c.read(startupProvidesMeProvider), isFalse);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+    });
+
+    test('revoked in the background: signed out, nothing of the account kept',
+        () async {
+      final cached = _CachedSession();
+      final c = await make(session: () => cached);
+      await c.read(appStartupProvider.notifier).run();
+      expect(c.read(currentUserControllerProvider).user, isNotNull);
+      cached.refresh.complete(SessionBootstrapResult.signedOut);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(c.read(sessionControllerProvider), isNull);
+      expect(c.read(appSessionProvider), isNull);
+      expect(
+        c.read(currentUserControllerProvider).status,
+        CurrentUserStatus.idle,
+      );
+      expect(c.read(currentUserControllerProvider).user, isNull);
+      // The guard now routes to sign-in (startup ready, no session).
+      expect(c.read(appStartupProvider), StartupStatus.ready);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+    });
+
+    test('offline in the background: the cached session stays', () async {
+      final cached = _CachedSession();
+      final c = await make(session: () => cached);
+      await c.read(appStartupProvider.notifier).run();
+      cached.refresh.complete(SessionBootstrapResult.offline);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(c.read(sessionControllerProvider)?.awaitsRefresh, isTrue);
+      expect(c.read(currentUserControllerProvider).user?.firstName, 'Ann');
+      expect(c.read(appStartupProvider), StartupStatus.ready);
+      expect(loader.calls, 1);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+    });
+
+    test('a copy of another account is never shown: the old start', () async {
+      final cached = _CachedSession(sub: 'someone-else');
+      final c = await make(session: () => cached);
+      await c.read(appStartupProvider.notifier).run();
+      expect(cached.revalidations, 0);
+      expect(cached.bootstraps, 1);
+      expect(c.read(sessionControllerProvider)?.awaitsRefresh, isFalse);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+    });
+
+    test('no copy on the phone: the old start', () async {
+      final cached = _CachedSession();
+      final c = await make(session: () => cached, sessionFails: true);
+      await c.read(appStartupProvider.notifier).run();
+      expect(cached.revalidations, 0);
+      expect(cached.bootstraps, 1);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+    });
   });
 
   test('the badges come from the session, GET /badges is not asked', () async {

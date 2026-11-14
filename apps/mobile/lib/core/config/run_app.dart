@@ -9,6 +9,7 @@ import 'package:lawbid/app.dart';
 import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
+import 'package:lawbid/core/cache/memory_pressure.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
@@ -26,6 +27,7 @@ import 'package:lawbid/core/platform/web_gate.dart';
 import 'package:lawbid/core/platform/web_lifecycle.dart';
 import 'package:lawbid/core/security/app_check.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/core/startup/startup_idle_queue.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -224,6 +226,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // it empties itself when the account signs out. No-op off iOS.
   if (spotlightSupported) container.read(spotlightIndexerProvider);
 
+  // Perf batch 4 (row 127): the phone's low-memory warning frees the app's
+  // own memory copies too (core/cache/memory_pressure.dart).
+  container.read(memoryPressureProvider);
+
   // docs/ops/demo-world.md: Android Play install referrer → pending referral
   // code (first launch only). Fire-and-forget, never delays first paint.
   unawaited(captureInstallReferrer(container));
@@ -232,7 +238,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // the first screens (finished files stay until someone deletes them).
   if (!kIsWeb) {
     unawaited(
-      Future<void>.delayed(const Duration(seconds: 20), CaseFileCache.cleanUp),
+      Future<void>.delayed(
+        StartupDelays.caseFileCleanUp,
+        CaseFileCache.cleanUp,
+      ),
     );
   }
 

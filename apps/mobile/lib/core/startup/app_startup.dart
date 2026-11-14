@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/realtime/app_signals.dart';
@@ -35,6 +36,13 @@ enum StartupStatus {
 /// critical path. Guests keep the old bootstrap + translations pair.
 class AppStartupController extends Notifier<StartupStatus> {
   static const remoteConfigTimeout = Duration(seconds: 4);
+
+  /// Perf batch 4 (row 127): the longest the cached start looks for the
+  /// phone's `/me/session` copy (memory, then disk — milliseconds as a rule)
+  /// before it falls back to the start over the network.
+  static const phoneCopyTimeout = Duration(seconds: 1);
+
+  Future<void>? _revalidating;
 
   Future<void>? _running;
   Timer? _offlineRetry;
@@ -82,11 +90,13 @@ class AppStartupController extends Notifier<StartupStatus> {
   void _onSignal(AppSignal signal) {
     switch (signal) {
       case AppSignal.resumed:
+        _revalidateIfCached();
         unawaited(refreshConfigIfStale());
       case AppSignal.networkBack:
         // The offline splash does not wait for its timer once the network
         // is back.
         if (state == StartupStatus.offline) unawaited(run());
+        _revalidateIfCached();
       case AppSignal.paused:
         break;
     }
@@ -138,6 +148,15 @@ class AppStartupController extends Notifier<StartupStatus> {
   Future<void> _run() async {
     state = StartupStatus.running;
     ref.read(startupProvidesMeProvider.notifier).set(true);
+    if (await _openFromCache()) {
+      // Perf batch 4 (row 127): the first screens open now from the phone's
+      // copies; the token refresh and the live `/me/session` follow.
+      _offlineRetries = 0;
+      state = StartupStatus.ready;
+      unawaited(revalidateCachedStart());
+      _l10nLater();
+      return;
+    }
     try {
       final session =
           await ref.read(sessionControllerProvider.notifier).bootstrap();
@@ -168,7 +187,94 @@ class AppStartupController extends Notifier<StartupStatus> {
     _l10nLater();
   }
 
-  Future<void> _signedIn() async {
+  /// Perf batch 4 (row 127), «stale-while-revalidate start» (WhatsApp /
+  /// Telegram open from the local copy and sync behind it): when the phone
+  /// has the last session's claims for the stored refresh token AND its last
+  /// `GET /me/session` copy of that same account, the session, the user,
+  /// the badges and the flags come from them with no request. Nothing from
+  /// another account: the claims are bound to the stored token, the HTTP
+  /// copy is keyed by the account, and its `me.id` must be the claims' `sub`.
+  Future<bool> _openFromCache() async {
+    final session = ref.read(sessionControllerProvider.notifier);
+    final cached = await session.cachedSession();
+    if (cached == null || !ref.mounted) return false;
+    final loader = ref.read(appSessionLoaderProvider);
+    final api.AppSessionDto? copy;
+    try {
+      copy = await readFromPhoneOnly(loader.load, asUser: cached.sub)
+          .timeout(phoneCopyTimeout);
+    } on Object catch (e) {
+      debugPrint('cached start: no copy of me/session: $e');
+      return false;
+    }
+    if (copy == null || copy.me.id != cached.sub || !ref.mounted) return false;
+    session.openCached(cached);
+    ref.read(appSessionProvider.notifier).set(copy);
+    ref
+        .read(currentUserControllerProvider.notifier)
+        .apply(CurrentUserMapper.fromDto(copy.me));
+    // The flags of the copy at once; the live ones come with the refresh.
+    unawaited(
+      _flags(copy)
+          .timeout(remoteConfigTimeout, onTimeout: () {})
+          .catchError((Object e) => debugPrint('cached start flags: $e')),
+    );
+    return true;
+  }
+
+  void _revalidateIfCached() {
+    if (state != StartupStatus.ready) return;
+    if (ref.read(sessionControllerProvider)?.awaitsRefresh ?? false) {
+      unawaited(revalidateCachedStart());
+    }
+  }
+
+  /// The cached start's background half (single-flight): the token refresh,
+  /// then the live `GET /me/session`. Revoked / expired → the session ends
+  /// and the guard shows the sign-in (the account's data leaves the phone
+  /// with it); no network → the cached session stays with the offline UI,
+  /// and the network coming back or a resume tries again.
+  Future<void> revalidateCachedStart() =>
+      _revalidating ??= _revalidate().whenComplete(() => _revalidating = null);
+
+  Future<void> _revalidate() async {
+    final before = ref.read(sessionControllerProvider)?.sub;
+    ref.read(startupProvidesMeProvider.notifier).set(true);
+    try {
+      final result =
+          await ref.read(sessionControllerProvider.notifier).revalidate();
+      if (!ref.mounted) return;
+      switch (result) {
+        case SessionBootstrapResult.signedIn:
+          final now = ref.read(sessionControllerProvider)?.sub;
+          if (now != before) {
+            // A demo session gave way to the parked real account.
+            ref.read(appSessionProvider.notifier).set(null);
+            ref
+                .read(currentUserControllerProvider.notifier)
+                .resetForNewSession();
+            await _refreshConfig();
+            return;
+          }
+          await _signedIn(live: true);
+          _sinceConfig
+            ..reset()
+            ..start();
+        case SessionBootstrapResult.offline:
+          break;
+        case SessionBootstrapResult.signedOut:
+          ref.read(appSessionProvider.notifier).set(null);
+      }
+    } finally {
+      if (ref.mounted) {
+        ref.read(startupProvidesMeProvider.notifier).set(false);
+      }
+    }
+  }
+
+  /// [live]: the user on screen came from the phone's copy, so the fallback
+  /// asks `GET /users/me` again instead of keeping it.
+  Future<void> _signedIn({bool live = false}) async {
     final loaded = await _loadSession();
     if (loaded != null) {
       ref.read(appSessionProvider.notifier).set(loaded);
@@ -180,9 +286,10 @@ class AppStartupController extends Notifier<StartupStatus> {
     }
     // The one-answer start failed (an older server, a timeout): the old
     // three requests, as before.
+    final users = ref.read(currentUserControllerProvider.notifier);
     await Future.wait<void>([
       _flags(null).timeout(remoteConfigTimeout, onTimeout: () {}),
-      ref.read(currentUserControllerProvider.notifier).ensureLoaded(),
+      if (live) users.load() else users.ensureLoaded(),
     ]);
   }
 
