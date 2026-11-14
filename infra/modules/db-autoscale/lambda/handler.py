@@ -8,6 +8,14 @@ Manual:
   {"action": "force", "class": "db.t4g.medium"}   resize now (guards apply)
   {"action": "status"}                            print what it sees
 Kill switch: SSM parameter MODE_PARAM = on | dry-run | off.
+
+Read copies (owner row 6, 13.11): our own replicas `<DB_ID>-replica-N` keep
+the primary's class (AWS RDS User Guide, "Working with DB instance read
+replicas": a replica should be at least the source's class and storage; Aurora
+readers are the same class). Grow: the replicas are resized first, then the
+primary. Shrink: the primary first; the replicas follow on a later tick, once
+the primary is `available` again, so a replica is never smaller than its
+primary for longer than one resize.
 """
 
 import json
@@ -97,15 +105,25 @@ def read_mode(name):
 # --- facts ------------------------------------------------------------------
 
 
+def own_replicas(db_id, ids):
+    """Only the copies modules/growth creates (`<db>-replica-N`, same Region).
+    A cross-Region copy is listed by ARN and anything else by another name:
+    neither is ours to resize (the IAM policy allows only this name pattern)."""
+    prefix = db_id + "-replica-"
+    return tuple(sorted(x for x in ids or () if ":" not in x and x.startswith(prefix)))
+
+
 def describe(db_id):
     r = client("rds").describe_db_instances(DBInstanceIdentifier=db_id)
     i = r["DBInstances"][0]
+    ids = i.get("ReadReplicaDBInstanceIdentifiers") or []
     return d.Instance(
         cls=i["DBInstanceClass"],
         status=i["DBInstanceStatus"],
         multi_az=bool(i.get("MultiAZ")),
         pending=bool(i.get("PendingModifiedValues")),
-        has_replicas=bool(i.get("ReadReplicaDBInstanceIdentifiers")),
+        has_replicas=bool(ids),
+        replica_ids=own_replicas(db_id, ids),
     )
 
 
@@ -230,6 +248,57 @@ def resize(db_id, target):
     )
 
 
+# A read-copy resize that failed is reported at most once a day.
+REPLICA_FAIL_NOTICE_H = 24
+
+
+def follow_replicas(inst, target, switch, state, topic, now):
+    """Moves every own read copy that is idle (`available`, nothing pending)
+    and not already at `target` to `target`. Never raises: a copy that cannot
+    be resized (missing IAM right, wrong state) must not stop the primary's
+    own resize; the owner gets one notice a day instead. Returns
+    (changes, state)."""
+    changes = []
+    for rid in inst.replica_ids:
+        try:
+            rep = describe(rid)
+            if rep.cls == target:
+                continue
+            if rep.status != "available" or rep.pending:
+                log(event="replica_wait", replica=rid, status=rep.status, pending=rep.pending)
+                continue
+            if switch == "dry-run":
+                log(event="replica_would_follow", replica=rid, frm=rep.cls, to=target)
+                changes.append((rid, rep.cls, target, "dry-run"))
+                continue
+            resize(rid, target)
+            log(event="replica_follow", replica=rid, frm=rep.cls, to=target)
+            changes.append((rid, rep.cls, target, "done"))
+        except Exception as e:  # noqa: BLE001 - see docstring
+            log(event="replica_follow_failed", replica=rid, to=target, error=str(e)[:300])
+            if due(state, "replica_fail", now, REPLICA_FAIL_NOTICE_H):
+                notify(topic, f"Не удалось изменить размер копии базы для чтения {rid} → {target}: {str(e)[:300]}. "
+                              "Основная база не затронута, попробую на следующей проверке.")
+                state = stamp(state, "replica_fail", now)
+    done = [c for c in changes if c[3] == "done"]
+    if done:
+        notify(topic, "Копия базы для чтения подстроена под основную: "
+                      + "; ".join(f"{rid} {a} → {b}" for rid, a, b, _ in done)
+                      + ". Пока копия перезапускается (несколько минут), чтение идёт с основной базы.")
+    elif changes and due(state, "dry-replica", now, 6):
+        notify(topic, "ПРОБНЫЙ РЕЖИМ: копия базы для чтения была бы подстроена под основную: "
+                      + "; ".join(f"{rid} {a} → {b}" for rid, a, b, _ in changes) + ".")
+        state = stamp(state, "dry-replica", now)
+    return changes, state
+
+
+def replicas_may_follow(inst, guards):
+    """The copies follow only a settled primary and never during a rollout or
+    a one-off task (same guards as the primary's own resize)."""
+    return (inst.status == "available" and not inst.pending and not guards.deploying
+            and not guards.oneoff_tasks and not guards.ecs_unknown)
+
+
 SKIP_NOTICE_RU = {
     "not_multi_az": "база не в режиме Multi-AZ: увеличение днём дало бы простой на несколько минут, поэтому вверх сама не растёт; уменьшение идёт только ночью",
 }
@@ -249,16 +318,20 @@ def handler(event, context=None, now=None):
     state = read_state(state_name)
 
     if action == "status":
-        log(event="status", switch=switch, instance=inst.cls, status=inst.status, state=state.__dict__)
-        return {"switch": switch, "class": inst.cls, "status": inst.status}
+        log(event="status", switch=switch, instance=inst.cls, status=inst.status,
+            replicas=list(inst.replica_ids), state=state.__dict__)
+        return {"switch": switch, "class": inst.cls, "status": inst.status,
+                "replicas": list(inst.replica_ids)}
 
     if action == "force":
         target = event["class"]
         if cfg.index(target) < 0 or inst.status != "available" or inst.pending:
             log(event="force_refused", target=target, status=inst.status, pending=inst.pending)
             return {"result": "refused"}
-        resize(db_id, target)
         a, b = cfg.index(inst.cls), cfg.index(target)
+        if b > a:  # grow: the copies first (owner row 6)
+            _, state = follow_replicas(inst, target, "on", state, topic, now)
+        resize(db_id, target)
         s = replace(state, cls=target, last_change=now,
                     last_up=now if b > a else state.last_up,
                     last_down=now if b < a else state.last_down)
@@ -291,6 +364,15 @@ def handler(event, context=None, now=None):
     log(event="decision", mode=mode, switch=switch, cls=inst.cls, action=dec.action,
         reason=dec.reason, target=dec.target, facts=dec.facts)
 
+    # Owner row 6: when the primary itself stays as it is this tick, its read
+    # copies catch up with its class (this also brings a copy created smaller,
+    # or left behind by a night shrink or the admin button, back in line).
+    if dec.action == "none" and inst.replica_ids and replicas_may_follow(inst, guards):
+        before = state
+        _, state = follow_replicas(inst, inst.cls, switch, state, topic, now)
+        if state != before:
+            write_state(state_name, state)
+
     if dec.reason in SKIP_NOTICE_RU:
         if due(state, dec.reason, now, 168):
             notify(topic, "Автомасштабирование базы стоит на паузе: " + SKIP_NOTICE_RU[dec.reason] + ".")
@@ -313,6 +395,10 @@ def handler(event, context=None, now=None):
             write_state(state_name, stamp(state, "dry-" + dec.action, now))
         return {"result": "dry-run", "would": dec.target}
 
+    if dec.action == "up" and inst.replica_ids:
+        # Grow: the copies first, so none is smaller than the primary (owner
+        # row 6). A copy that fails never blocks the primary under load.
+        _, state = follow_replicas(inst, dec.target, switch, state, topic, now)
     try:
         resize(db_id, dec.target)
     except Exception as e:

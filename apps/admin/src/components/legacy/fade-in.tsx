@@ -1,6 +1,7 @@
 'use client';
 
 import * as m from 'motion/react-m';
+import { cn } from '@/lib/utils';
 
 /**
  * Card wrapper. Owner row 88 (2026-11-13): no entrance on navigation, the
@@ -54,7 +55,9 @@ export function MotionRow({
       initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(i, 12) * 0.03, ease: [0.16, 1, 0.3, 1] }}
-      className={className}
+      // Owner row 88 (2026-11-13): a row that opens something dims while a
+      // finger is on it (touch screens only), so the tap is answered at once.
+      className={onClick ? cn(className, 'pointer-coarse:active:opacity-70') : className}
       onClick={onClick}
     >
       {children}
