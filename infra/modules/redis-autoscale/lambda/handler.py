@@ -138,7 +138,10 @@ def ecs_guards(cluster, services):
     deploying = False
     if services:
         r = ecs.describe_services(cluster=cluster, services=services)
-        if r.get("failures"):
+        # D1-42: every service of the cluster is listed (pgbouncer, api-admin
+        # and admin too); one that does not exist right now (the pooler
+        # switched off) is not deploying. Any other failure = unknown.
+        if any(f.get("reason") != "MISSING" for f in r.get("failures", [])):
             return False, False, True
         # 13.11: the deploy job keeps checking prod (smoke, synthetic user)
         # for minutes AFTER ECS reports the rollout complete; the night DB

@@ -39,6 +39,16 @@ variable "deploy_trust_main_branch" {
   default     = true
   description = "S4-9: also trust plain main-branch workflow runs (no GitHub environment) for the deploy role. true = today's behaviour. false = only jobs that declare environment: production (approval gate) can assume it; first add `environment: production` to deploy.yml build, web-deploy, seo-deploy and self-check."
 }
+variable "deploy_max_session_seconds" {
+  description = "Longest session the GitHub deploy role allows (seconds, 3600-43200). D1-37: 14400 covers plan + owner wait + a long apply."
+  type        = number
+  default     = 14400
+  validation {
+    condition     = var.deploy_max_session_seconds >= 3600 && var.deploy_max_session_seconds <= 43200
+    error_message = "AWS allows 3600 to 43200 seconds."
+  }
+}
+
 variable "env" {
   type    = string
   default = "prod"
@@ -252,6 +262,11 @@ data "aws_iam_policy_document" "deploy_trust" {
 resource "aws_iam_role" "deploy" {
   name               = "${local.name}-github-deploy"
   assume_role_policy = data.aws_iam_policy_document.deploy_trust.json
+  # D1-37: a session long enough for plan + the owner's 2FA wait + a long
+  # apply (Multi-AZ, OpenSearch, a read copy: 20-60 min) or a deploy with
+  # two rolling waits. The workflows ask for less unless the repository
+  # variable AWS_APPLY_SESSION_SECONDS / AWS_DEPLOY_SESSION_SECONDS is set.
+  max_session_duration = var.deploy_max_session_seconds
   lifecycle {
     # AWS refuses a trust policy longer than 2048 characters (whitespace
     # removed): stop at plan time instead of half-way through an apply.

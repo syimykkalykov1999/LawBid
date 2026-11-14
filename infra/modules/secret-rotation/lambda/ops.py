@@ -103,14 +103,59 @@ def current_version(arn):
     return None
 
 
-def roll_services():
+MISSING_SERVICE = ("ServiceNotFoundException", "ServiceNotActiveException")
+
+
+def roll_services(state, why):
+    """Restart every listed service that exists now (D1-39).
+
+    The restart is recorded as owed BEFORE it starts and cleared only after
+    every update_service succeeded, so a failed one is tried again on the
+    next tick (before, the new version was saved and the restart was never
+    retried, while the old Redis token was still dropped on schedule).
+    """
+    state["roll_owed"] = {"since": state.get("roll_owed", {}).get("since", now()), "why": why}
     for svc in CFG["services"]:
         try:
             ecs.update_service(cluster=CFG["cluster"], service=svc, forceNewDeployment=True)
             log.info("rolling %s", svc)
         except ClientError as e:
-            log.warning("cannot roll %s: %s", svc, e.response["Error"]["Code"])
+            code = e.response["Error"]["Code"]
+            if code in MISSING_SERVICE:
+                log.info("skip %s: %s (not running now)", svc, code)
+                continue
+            log.warning("cannot roll %s: %s", svc, code)
             raise
+    state.pop("roll_owed", None)
+    state["rolled_at"] = now()
+
+
+def retry_owed_roll(state):
+    owed = state.get("roll_owed")
+    if owed:
+        roll_services(state, owed.get("why", "retry"))
+
+
+def services_rolled_since(t):
+    """True when every existing listed service runs ONE deployment, created
+    after `t` and COMPLETED (D1-39: the old Redis token is dropped only then).
+    """
+    names = list(CFG["services"])
+    for i in range(0, len(names), 10):
+        out = ecs.describe_services(cluster=CFG["cluster"], services=names[i : i + 10])
+        for svc in out.get("services", []):
+            if svc.get("status") != "ACTIVE":
+                continue
+            deps = svc.get("deployments", [])
+            primary = [d for d in deps if d.get("status") == "PRIMARY"]
+            if len(deps) != 1 or len(primary) != 1:
+                return False
+            d = primary[0]
+            created = d.get("createdAt")
+            created = created.timestamp() if hasattr(created, "timestamp") else float(created or 0)
+            if created < t or d.get("rolloutState") != "COMPLETED":
+                return False
+    return True
 
 
 # --- database -----------------------------------------------------------------
@@ -149,7 +194,7 @@ def reconcile_db(state):
     new_url = kl.db_url_with_credentials(secret_text(db["url_arn"]), js["username"], js["password"])
     sm.put_secret_value(SecretId=db["url_arn"], SecretString=new_url)
     state["db"] = {"version": ver, "at": now()}
-    roll_services()
+    roll_services(state, "db")
     notify("Ротация пароля базы", "Пароль базы данных сменён, сервисы перезапускаются без простоя.")
 
 
@@ -164,10 +209,18 @@ def reconcile_redis(state):
             continue
         if ver != st["version"]:
             st["version"] = ver
+            st["rotated_at"] = now()
             st["strict_at"] = now() + CFG["strict_hours"] * 3600
-            roll_services()
+            roll_services(state, f"redis:{short}")
             notify("Ротация токена Redis", f"{short}: новый токен принят, старый отключится через {CFG['strict_hours']} ч.")
         elif st.get("strict_at") and now() >= st["strict_at"]:
+            # D1-39: never drop the old token while a restart is owed or a
+            # service still runs tasks started before the rotation.
+            if state.get("roll_owed") or not services_rolled_since(st.get("rotated_at", st["strict_at"] - CFG["strict_hours"] * 3600)):
+                if not st.get("strict_wait_told"):
+                    st["strict_wait_told"] = True
+                    notify("Ротация токена Redis", f"{short}: старый токен пока не отключён — не все сервисы перезапущены с новым.")
+                continue
             token = kl.redis_url_token(secret_text(r["arn"]))
             ec.modify_replication_group(
                 ReplicationGroupId=r["group"],
@@ -176,6 +229,7 @@ def reconcile_redis(state):
                 AuthTokenUpdateStrategy="SET",  # only the new token stays valid
             )
             st.pop("strict_at")
+            st.pop("strict_wait_told", None)
             st["strict_done_at"] = now()
             notify("Ротация токена Redis", f"{short}: старый токен отключён.")
 
@@ -194,13 +248,13 @@ def reconcile_keys(state):
         if newest != active:
             if "seen_at" not in st or st.get("seen_kid") != newest:
                 st["seen_at"], st["seen_kid"] = now(), newest
-                roll_services()  # every task now knows the new kid
+                roll_services(state, f"keys:{short}")  # every task now knows the new kid
                 notify("Ротация ключей", f"{short}: добавлен ключ {newest}, активным станет через {CFG['grace_hours']} ч.")
-            elif kl.should_promote(st["seen_at"], now(), CFG["grace_hours"] * 3600):
+            elif not state.get("roll_owed") and kl.should_promote(st["seen_at"], now(), CFG["grace_hours"] * 3600):
                 sm.put_secret_value(SecretId=k["active_arn"], SecretString=newest)
                 st["retired_at"][active] = now()
                 st.pop("seen_at", None)
-                roll_services()
+                roll_services(state, f"keys:{short}")
                 notify("Ротация ключей", f"{short}: активный ключ {newest}, прежний {active} ещё принимается.")
         if short == "JWT_KEYS":
             pruned = kl.prune_expired(
@@ -266,7 +320,7 @@ def check_status():
 
 def tick(state):
     result = {}
-    for name, fn in (("db", reconcile_db), ("redis", reconcile_redis), ("keys", reconcile_keys)):
+    for name, fn in (("roll", retry_owed_roll), ("db", reconcile_db), ("redis", reconcile_redis), ("keys", reconcile_keys)):
         try:
             fn(state)
         except Exception as e:  # one broken part must not stop the others

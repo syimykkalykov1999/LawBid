@@ -432,3 +432,20 @@ output "monthly_usd" {
   description = "Approximate on-demand price per month of the whole group (primary + replicas), by node type."
   value       = { for s in local.ladder_json : s.name => s.monthly_usd }
 }
+
+# D1-41 (13.11): EventBridge Scheduler invokes the function asynchronously, so
+# Lambda's own async retries (default 2, events kept up to 6 h) came on top of
+# the Scheduler's retry_policy = 0: a refused change was tried 3 times in
+# about 3 minutes, and a throttled event could run long after its tick. No
+# retries here: the next tick really is the only retry.
+variable "async_event_max_age_seconds" {
+  type        = number
+  default     = 300
+  description = "Oldest async event the function still runs (60-21600 s); older ones are dropped, the next tick decides again."
+}
+
+resource "aws_lambda_function_event_invoke_config" "this" {
+  function_name                = aws_lambda_function.this.function_name
+  maximum_retry_attempts       = 0
+  maximum_event_age_in_seconds = var.async_event_max_age_seconds
+}

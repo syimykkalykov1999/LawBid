@@ -35,7 +35,7 @@ import {
   type InfraSuggestion,
   type SuggestionSignals,
 } from './infra-change.logic';
-import { SYSTEM_ACTOR_ID, autoApplyOk } from './infra-auto.logic';
+import { SYSTEM_ACTOR_ID, autoApplyBlockers } from './infra-auto.logic';
 import { InfraGithubClient, type WorkflowCaller } from './infra-github.client';
 
 export class InfraRequestError extends Error {
@@ -567,17 +567,25 @@ export class InfraChangeService {
     // Automation audit 2026-11-08: nobody pressed anything, so nobody has to
     // confirm: a safe plan of an automatic request is applied at once (the
     // waiting workflow sees «apply» on its next poll). A plan that removes or
-    // adds more than the item needs stays «planned» for the owner.
+    // adds more than the item needs (D1-34: any address outside the item's
+    // AUTO_SCOPE, any delete of serving infrastructure) stays «planned» for
+    // the owner's 2FA.
     if (
       !r.dry_run &&
       r.requested_by === SYSTEM_ACTOR_ID &&
-      (r.to_state === 'on' || r.to_state === 'off') &&
-      autoApplyOk(r.to_state, plan.resources, r.item_id)
+      (r.to_state === 'on' || r.to_state === 'off')
     ) {
-      row = await this.move(row, 'confirm', {
-        confirmed_by: SYSTEM_ACTOR_ID,
-        confirmed_at: now,
-      });
+      const blockers = autoApplyBlockers(r.to_state, plan.resources, r.item_id);
+      if (blockers.length === 0) {
+        row = await this.move(row, 'confirm', {
+          confirmed_by: SYSTEM_ACTOR_ID,
+          confirmed_at: now,
+        });
+      } else {
+        this.log.warn(
+          `infra auto ${r.id} (${r.item_id} -> ${r.to_state}) waits for the owner: ${blockers.slice(0, 5).join('; ')}`,
+        );
+      }
     }
     return this.view(row);
   }
@@ -586,16 +594,21 @@ export class InfraChangeService {
   async decision(
     id: string,
     caller: WorkflowCaller,
-  ): Promise<{ decision: 'wait' | 'apply' | 'stop'; status: InfraStatus }> {
+  ): Promise<{
+    decision: 'wait' | 'apply' | 'stop';
+    status: InfraStatus;
+    auto: boolean;
+  }> {
     await this.sweep();
     const r = await this.find(id);
     if (r.run_id !== caller.runId) {
       throw new InfraRequestError('wrong_status', 'another run');
     }
     const status = asStatus(r.status);
-    if (status === 'planned') return { decision: 'wait', status };
-    if (status === 'confirmed') return { decision: 'apply', status };
-    return { decision: 'stop', status };
+    const auto = r.confirmed_by === SYSTEM_ACTOR_ID;
+    if (status === 'planned') return { decision: 'wait', status, auto };
+    if (status === 'confirmed') return { decision: 'apply', status, auto };
+    return { decision: 'stop', status, auto };
   }
 
   /** applying / done / failed / plan_failed from the workflow. */

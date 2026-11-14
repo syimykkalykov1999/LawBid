@@ -133,7 +133,7 @@ jobs:
             || { grep -E '^(Error|│ Error)' plan.log | cut -c1-200 | head -10; exit 1; }
           terraform show -json plan.bin > plan.json
           set +e
-          node ../../../scripts/infra/plan-summary.mjs plan.json ../../../changes.json > ../../../summary.json
+          SERVING_OUT=../../../serving.txt node ../../../scripts/infra/plan-summary.mjs plan.json ../../../changes.json > ../../../summary.json
           RC=$?
           set -e
           rm -f plan.json plan.log init.log
@@ -159,15 +159,43 @@ jobs:
         run: |
           deadline=$(( $(date +%s) + 31 * 60 ))
           while [ "$(date +%s)" -lt "$deadline" ]; do
-            D=$(scripts/infra/api.sh GET "$REQUEST_ID" decision | jq -r '.data.decision')
+            scripts/infra/api.sh GET "$REQUEST_ID" decision > decision.json
+            D=$(jq -r '.data.decision' decision.json)
             case "$D" in
-              apply) echo "go=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+              apply)
+                # D1-34: a plan confirmed by «Авто» (nobody tapped) never
+                # deletes or replaces serving infrastructure (load balancer,
+                # services, CDN, DNS, network). The API refuses it too; this
+                # is the second lock. The owner's own 2FA confirm still goes.
+                if [ "$(jq -r '.data.auto // false' decision.json)" = "true" ] && [ -s serving.txt ]; then
+                  jq -n --arg e "«Авто» не применяет план, который удаляет работающую часть ($(head -3 serving.txt | tr '\n' ' ')). Нужно подтверждение владельца. Журнал: $RUN_URL" \
+                    '{status:"failed", error:$e}' > fail.json
+                  scripts/infra/api.sh POST "$REQUEST_ID" status @fail.json > /dev/null || true
+                  echo "::error::automatic confirm of a plan that deletes serving infrastructure; refused"
+                  echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+                fi
+                echo "go=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
               stop)  echo "go=false" >> "$GITHUB_OUTPUT"; echo "Stopped (cancelled or expired)." >> "$GITHUB_STEP_SUMMARY"; exit 0 ;;
             esac
             sleep 20
           done
           echo "go=false" >> "$GITHUB_OUTPUT"
           echo "No confirm within 30 minutes; the plan is thrown away." >> "$GITHUB_STEP_SUMMARY"
+
+      # D1-37: the first session was taken before init + plan + up to 31
+      # minutes of waiting; a long apply (Multi-AZ, OpenSearch, a read copy:
+      # 20-60 min) would hit ExpiredToken half-way and leave the state lock
+      # held. A fresh session right before the apply. Its length is the
+      # repository variable AWS_APPLY_SESSION_SECONDS (default 3600, the
+      # role's current maximum; owner: raise the deploy role's
+      # max_session_duration in infra/bootstrap, then set it to 10800).
+      - name: Fresh AWS session for the apply
+        if: steps.wait.outputs.go == 'true'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
 
       - name: Apply exactly the confirmed plan
         id: apply
@@ -232,4 +260,4 @@ jobs:
         if: always()
         run: |
           rm -f infra/envs/prod/terraform.tfvars infra/envs/prod/current-images.auto.tfvars \
-            infra/envs/prod/plan.bin infra/envs/prod/plan.json infra/envs/prod/*.log job.json
+            infra/envs/prod/plan.bin infra/envs/prod/plan.json infra/envs/prod/*.log job.json decision.json serving.txt

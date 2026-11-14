@@ -10,8 +10,15 @@
 #   wait-earlier-prod-change.sh infra-active     (deploy.yml, prod job): wait
 #       while an infra-apply.yml run has passed its own wait step (it plans,
 #       waits for the owner's code or applies).
-# The cloud change waits only BEFORE it plans and the deploy waits only for a
-# cloud change that is PAST that point, so the two never wait for each other.
+#   wait-earlier-prod-change.sh rollback-active  (deploy.yml, prod job,
+#       D1-38): wait while a rollback.yml «Roll production back» job runs.
+#   wait-earlier-prod-change.sh deploy-past-wait (rollback.yml, D1-38): wait
+#       while a deploy.yml «Deploy production» job is PAST its own
+#       «Wait for an earlier rollback» step (it rolls prod now).
+# deploy-rolling also counts a running rollback (D1-38: a cloud plan made
+# before a rollback would roll prod forward to the bad release again).
+# Each pair waits one way only BEFORE and the other way only for a run PAST
+# that point, so no two runs ever wait for each other (a rollback goes first).
 #
 # Env: GITHUB_REPOSITORY, GH_TOKEN (actions: read), WAIT_PROD_TIMEOUT
 # (seconds, default 3000), WAIT_PROD_POLL (default 30); offline test mode:
@@ -38,25 +45,34 @@ jobs_of() {
   else fetch "repos/$GITHUB_REPOSITORY/actions/runs/$1/jobs"; fi
 }
 
+DEPLOY_ROLLING='[.jobs[] | select((.name|startswith("Deploy production")) and .status=="in_progress")] | length'
+ROLLBACK_ROLLING='[.jobs[] | select((.name|startswith("Roll production back")) and .status=="in_progress")] | length'
+INFRA_PAST='[.jobs[] | select(.status=="in_progress") | .steps[]? | select(.name=="Wait for an earlier code deploy" and .status=="completed")] | length'
+DEPLOY_PAST='[.jobs[] | select((.name|startswith("Deploy production")) and .status=="in_progress") | .steps[]? | select(.name=="Wait for an earlier rollback" and .status=="completed")] | length'
+# "<workflow file> <jq filter>" per line.
 case "$MODE" in
-  deploy-rolling) OTHER=deploy.yml
-    BUSY='[.jobs[] | select((.name|startswith("Deploy production")) and .status=="in_progress")] | length' ;;
-  infra-active) OTHER=infra-apply.yml
-    BUSY='[.jobs[] | select(.status=="in_progress") | .steps[]? | select(.name=="Wait for an earlier code deploy" and .status=="completed")] | length' ;;
+  deploy-rolling) CHECKS="deploy.yml	$DEPLOY_ROLLING
+rollback.yml	$ROLLBACK_ROLLING" ;;
+  infra-active) CHECKS="infra-apply.yml	$INFRA_PAST" ;;
+  rollback-active) CHECKS="rollback.yml	$ROLLBACK_ROLLING" ;;
+  deploy-past-wait) CHECKS="deploy.yml	$DEPLOY_PAST" ;;
   *) echo "::error::unknown mode $MODE"; exit 2 ;;
 esac
 
 while :; do
   busy=""
-  for id in $(runs_of "$OTHER" | jq -r --arg me "${GITHUB_RUN_ID:-0}" \
-      '.workflow_runs[] | select(.status=="in_progress" and (.id|tostring)!=$me) | .id'); do
-    n=$(jobs_of "$id" | jq "$BUSY")
-    [ "$n" -gt 0 ] && busy="$busy $id"
-  done
-  if [ -z "$busy" ]; then echo "No $OTHER run is changing prod now: go."; exit 0; fi
+  while IFS=$'\t' read -r OTHER BUSY; do
+    [ -n "$OTHER" ] || continue
+    for id in $(runs_of "$OTHER" | jq -r --arg me "${GITHUB_RUN_ID:-0}" \
+        '.workflow_runs[] | select(.status=="in_progress" and (.id|tostring)!=$me) | .id'); do
+      n=$(jobs_of "$id" | jq "$BUSY")
+      [ "$n" -gt 0 ] && busy="$busy $OTHER#$id"
+    done
+  done <<< "$CHECKS"
+  if [ -z "$busy" ]; then echo "Nothing else is changing prod now ($MODE): go."; exit 0; fi
   if [ $(( $(date +%s) - start )) -ge "$TIMEOUT" ]; then
-    echo "::error::$OTHER still changing prod after ${TIMEOUT}s:$busy"; exit 1
+    echo "::error::still changing prod after ${TIMEOUT}s:$busy"; exit 1
   fi
-  echo "Waiting for $OTHER:$busy"
+  echo "Waiting for:$busy"
   sleep "$POLL"
 done

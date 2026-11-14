@@ -353,6 +353,8 @@ jobs:
           python3 -m unittest discover -s infra/modules/signing-guard/lambda/tests
           python3 -m unittest discover -s infra/modules/spot-fallback/lambda/tests
           python3 -m unittest discover -s infra/modules/db-autoscale/lambda/tests
+          python3 -m unittest discover -s infra/modules/secret-rotation/lambda/tests
+          python3 -m unittest discover -s infra/modules/redis-autoscale/lambda/tests
           python3 -m unittest discover -s loadtest/local-docker -p 'test_*.py'
           python3 -m unittest discover -s loadtest/scripts/tests
 

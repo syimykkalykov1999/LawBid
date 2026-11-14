@@ -29,7 +29,7 @@ variable "name" { type = string }
 variable "cluster_name" { type = string }
 variable "service_names" {
   type        = list(string)
-  description = "ECS services rolled after a rotation (api, worker, pgbouncer when it exists)."
+  description = "ECS services rolled after a rotation (api, api-admin, worker, pgbouncer). Services that do not exist right now are skipped."
 }
 variable "alerts_topic_arn" { type = string }
 variable "kms_key_arn" {
@@ -374,7 +374,7 @@ data "aws_iam_policy_document" "ops" {
   }
   statement {
     sid       = "RollTheServices"
-    actions   = ["ecs:UpdateService"]
+    actions   = ["ecs:UpdateService", "ecs:DescribeServices"]
     resources = [for s in var.service_names : "arn:aws:ecs:${local.region}:${local.acct}:service/${var.cluster_name}/${s}"]
   }
   dynamic "statement" {

@@ -18,6 +18,16 @@ check "$(run infra-active)" 0 "a cloud change still waiting does not hold the de
 echo '{"jobs":[{"name":"apply","status":"in_progress","steps":[{"name":"Wait for an earlier code deploy","status":"completed"},{"name":"Plan","status":"in_progress"}]}]}' > "$T/7.json"
 check "$(run infra-active)" 1 "a cloud change that plans or applies holds the deploy"
 
+# D1-38: rollback is serialized with deploy and cloud changes.
+echo '{"jobs":[{"name":"Roll production back (abc1234)","status":"in_progress"}]}' > "$T/7.json"
+check "$(run deploy-rolling)" 1 "a running rollback holds the cloud change"
+check "$(run rollback-active)" 1 "a running rollback holds the deploy"
+echo '{"jobs":[{"name":"Deploy production (manual approval)","status":"in_progress","steps":[{"name":"Wait for an earlier rollback","status":"in_progress"}]}]}' > "$T/7.json"
+check "$(run deploy-past-wait)" 0 "a deploy still waiting does not hold the rollback (no deadlock)"
+check "$(run rollback-active)" 0 "a deploy job is not a rollback"
+echo '{"jobs":[{"name":"Deploy production (manual approval)","status":"in_progress","steps":[{"name":"Wait for an earlier rollback","status":"completed"},{"name":"Rolling deploy api","status":"in_progress"}]}]}' > "$T/7.json"
+check "$(run deploy-past-wait)" 1 "a deploy rolling prod holds the rollback"
+
 echo '{"workflow_runs":[{"id":7,"status":"completed"}]}' > "$T/runs.json"
 check "$(run infra-active)" 0 "finished runs hold nothing"
 

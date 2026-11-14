@@ -575,28 +575,178 @@ export const OWNER_CONFIRM_OFF: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The plan of an automatic request is applied without a tap only when a
- * switch-on removes nothing but replaced task definitions (a new revision
- * is how ECS rolls a service), and a switch-off creates nothing but those
- * and does not remove something live services use (OWNER_CONFIRM_OFF).
+ * D1-34 (detective round 1, 13.11): serving infrastructure an automatic plan
+ * may never delete or replace, whatever item it belongs to. Losing one of
+ * these takes the site down (load balancer, services, CDN, DNS, network).
+ * The owner still can, with his 2FA tap.
+ */
+export const NEVER_AUTO_DESTROY: readonly string[] = [
+  'aws_lb',
+  'aws_lb_listener',
+  'aws_lb_listener_rule',
+  'aws_lb_target_group',
+  'aws_ecs_service',
+  'aws_ecs_cluster',
+  'aws_cloudfront_distribution',
+  'aws_route53_record',
+  'aws_route53_zone',
+  'aws_nat_gateway',
+  'aws_vpc',
+  'aws_subnet',
+  'aws_internet_gateway',
+  'aws_route_table',
+  'aws_route',
+  'aws_service_discovery_service',
+  'aws_service_discovery_private_dns_namespace',
+];
+
+/** Resource types any automatic plan may change in place (never create or
+ * delete outside its item): how a switch reaches the running services
+ * (new task revision, service update, policy, function settings) and the
+ * alarms / dashboards that watch them. */
+const ROLL_THROUGH_UPDATE: readonly string[] = [
+  'aws_ecs_service',
+  'aws_iam_role_policy',
+  'aws_iam_policy',
+  'aws_lambda_function',
+  'aws_scheduler_schedule',
+  'aws_cloudwatch_dashboard',
+  'aws_cloudwatch_metric_alarm',
+  'aws_cloudwatch_composite_alarm',
+];
+
+/** New alarms for anything an item adds are always fine. */
+const ROLL_THROUGH_CREATE: readonly string[] = [
+  'aws_cloudwatch_metric_alarm',
+  'aws_cloudwatch_composite_alarm',
+];
+
+const S = 'module\\.stack\\.';
+const end = '(\\[|$)';
+const re = (body: string) => new RegExp(`^${S}${body}`);
+const REPLICAS: readonly RegExp[] = [
+  re(
+    `module\\.growth(_shard\\[\\d+\\])?\\.(aws_db_instance\\.replica|aws_cloudwatch_metric_alarm\\.replica_lag|aws_iam_role\\.replica_monitoring|aws_iam_role_policy_attachment\\.replica_monitoring)${end}`,
+  ),
+  re(
+    `(aws_iam_role|aws_iam_role_policy_attachment)\\.db_replica_monitoring${end}`,
+  ),
+];
+const SHARDS: readonly RegExp[] = [
+  re(`module\\.postgres_shard\\[\\d+\\]\\.`),
+  re(`module\\.growth_shard\\[\\d+\\]\\.`),
+];
+const SEARCH: readonly RegExp[] = [
+  re(
+    `module\\.growth\\.(aws_security_group\\.opensearch|aws_opensearch_domain\\.search|aws_cloudwatch_metric_alarm\\.opensearch)${end}`,
+  ),
+];
+const WAF_ALB: readonly RegExp[] = [
+  re(`module\\.alb\\.aws_wafv2_[a-z0-9_]+\\.`),
+];
+
+/**
+ * D1-34: what the plan of each automatic item may touch (Terraform
+ * addresses). An item that is not here is never applied without the owner.
+ * Leader: AWS Aurora Auto Scaling "only removes Aurora Replicas that it
+ * created" (AWS docs, read 13.11.2026).
+ */
+export const AUTO_SCOPE: Readonly<Record<string, readonly RegExp[]>> = {
+  'aws.rds_replicas': REPLICAS,
+  'aws.rds_replicas_2': REPLICAS,
+  'aws.rds_replicas_3': REPLICAS,
+  'aws.rds_replicas_4': REPLICAS,
+  'aws.rds_replicas_5': REPLICAS,
+  'aws.db_shards': SHARDS,
+  'aws.db_shards_2': SHARDS,
+  'aws.db_shards_3': SHARDS,
+  'aws.opensearch': SEARCH,
+  'aws.opensearch_nodes_2': SEARCH,
+  'aws.opensearch_nodes_4': SEARCH,
+  'aws.events_stream': [
+    re(
+      `(aws_kinesis_stream\\.events|aws_iam_role_policy\\.events_stream_put)${end}`,
+    ),
+  ],
+  'aws.redis_cache': [re(`module\\.redis_cache\\[0\\]\\.`)],
+  'aws.pgbouncer': [
+    re(`module\\.pgbouncer\\[0\\]\\.`),
+    re(`module\\.postgres\\.aws_security_group\\.db${end}`),
+  ],
+  'aws.partition_role': [
+    re(
+      `(random_password\\.partition|aws_secretsmanager_secret\\.partition_db_password|aws_secretsmanager_secret_version\\.partition_db_password)${end}`,
+    ),
+  ],
+  'aws.waf_alb': WAF_ALB,
+  'aws.waf_bot_control': WAF_ALB,
+  'aws.waf_extra_rules': WAF_ALB,
+};
+
+/** Terraform resource type of a plan address
+ * (`module.a[0].aws_db_instance.replica[1]` -> `aws_db_instance`). */
+export function resourceType(address: string): string {
+  const parts = address.replace(/\[[^\]]*\]/g, '').split('.');
+  return parts.length >= 2 ? parts[parts.length - 2] : '';
+}
+
+/**
+ * Why the plan of an automatic request must wait for the owner's 2FA
+ * (empty = it may be applied without a tap). Rules, all at once:
+ *  - a switch-on removes nothing but replaced task definitions (a new
+ *    revision is how ECS rolls a service), a switch-off creates nothing but
+ *    those;
+ *  - a switch-off of something live services use waits (OWNER_CONFIRM_OFF);
+ *  - serving infrastructure is never deleted or replaced (NEVER_AUTO_DESTROY);
+ *  - every changed address belongs to the switched item (AUTO_SCOPE), or is
+ *    a task definition, or an in-place update / new alarm that only rolls
+ *    the change through (ROLL_THROUGH_*).
  * Protected data (database, buckets, keys, backups) is refused earlier for
  * every request by forbiddenDestroys. Pure.
  */
+export function autoApplyBlockers(
+  to: InfraTarget,
+  resources: readonly { address: string; action: string }[],
+  itemId?: string,
+): string[] {
+  if (itemId === undefined) return ['no item'];
+  if (to === 'off' && OWNER_CONFIRM_OFF.has(itemId)) {
+    return [`${itemId}: switch-off waits for the owner`];
+  }
+  const scope = AUTO_SCOPE[itemId];
+  if (!scope) return [`${itemId}: no automatic scope`];
+  const out: string[] = [];
+  for (const r of resources) {
+    const type = resourceType(r.address);
+    const rolling = type === 'aws_ecs_task_definition';
+    const deletes = r.action.includes('delete');
+    const creates = r.action.includes('create');
+    if (rolling) continue;
+    if (deletes && NEVER_AUTO_DESTROY.includes(type)) {
+      out.push(`${r.address}: ${r.action} of serving infrastructure`);
+      continue;
+    }
+    if (to === 'on' && deletes) {
+      out.push(`${r.address}: ${r.action} in a switch-on`);
+      continue;
+    }
+    if (to === 'off' && creates) {
+      out.push(`${r.address}: ${r.action} in a switch-off`);
+      continue;
+    }
+    if (scope.some((x) => x.test(r.address))) continue;
+    if (r.action === 'update' && ROLL_THROUGH_UPDATE.includes(type)) continue;
+    if (r.action === 'create' && ROLL_THROUGH_CREATE.includes(type)) continue;
+    out.push(`${r.address}: ${r.action} outside ${itemId}`);
+  }
+  return out;
+}
+
+/** The plan of an automatic request may be applied without a tap. */
 export function autoApplyOk(
   to: InfraTarget,
   resources: readonly { address: string; action: string }[],
   itemId?: string,
 ): boolean {
-  const rolling = (a: string) => /(^|\.)aws_ecs_task_definition\./.test(a);
-  if (to === 'off' && (itemId === undefined || OWNER_CONFIRM_OFF.has(itemId))) {
-    return false;
-  }
-  if (to === 'on') {
-    return resources.every(
-      (r) => !r.action.includes('delete') || rolling(r.address),
-    );
-  }
-  return resources.every(
-    (r) => !r.action.includes('create') || rolling(r.address),
-  );
+  return autoApplyBlockers(to, resources, itemId).length === 0;
 }

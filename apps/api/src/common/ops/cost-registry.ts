@@ -1099,6 +1099,8 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ceService: 'AWS Lambda',
     awsTypes: [
       'aws_lambda_function',
+      // D1-41: async retries 0 / max event age — free configuration.
+      'aws_lambda_function_event_invoke_config',
       'aws_lambda_permission',
       'aws_scheduler_schedule',
       'aws_ssm_parameter',

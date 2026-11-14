@@ -6,7 +6,11 @@
 # purpose: migrations are expand/contract only (docs/02 §7.1), so the
 # previous release still runs against the current schema.
 # S11-8/9: its OWN concurrency group (`rollback`): an unapproved Deploy waiting
-# for a click must never block a rollback in an incident. With an empty
+# for a click must never block a rollback in an incident. D1-38 (13.11): it is
+# still serialized with what really changes prod: it waits for a cloud change
+# from the admin that already plans or applies, and for a deploy that already
+# rolls (scripts/ci/wait-earlier-prod-change.sh); a deploy and a cloud change
+# that start later wait for the rollback. With an empty
 # image_tag it goes back to the last release that passed deploy's smoke +
 # synthetic check (SSM /lawbid-prod/deploy/last_good_tag; if that one is the
 # release running now, the one before it). `services` limits the roll to the
@@ -58,11 +62,26 @@ jobs:
     # Web-only rollback (web_release set, no image_tag) leaves the services alone.
     if: ${{ vars.DEPLOY_ENABLED == 'true' && (inputs.image_tag != '' || inputs.web_release == '') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     environment:
       name: production
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # D1-38: one change to prod at a time (KNOWN_ERRORS 90).
+      - name: Wait for a cloud change from the admin that already plans or applies
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WAIT_PROD_TIMEOUT: ${{ vars.ROLLBACK_WAIT_SECONDS || '3000' }}
+        run: scripts/ci/wait-earlier-prod-change.sh infra-active
+      - name: Wait for a deploy that already rolls
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WAIT_PROD_TIMEOUT: ${{ vars.ROLLBACK_WAIT_SECONDS || '3000' }}
+        run: scripts/ci/wait-earlier-prod-change.sh deploy-past-wait
       - name: Required secrets are set
         env:
           AWS_DEPLOY_ROLE_PROD: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}

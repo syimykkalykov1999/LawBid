@@ -72,6 +72,29 @@ for SVC in $SERVICES; do
   fi
 done
 
+# D1-35 (13.11): api-admin runs api's revision. When api's rollout fails
+# (ECS rolled api back) or is replaced, api-admin must not stay on the
+# rejected release: put it on whatever api runs now and wait for that.
+align_api_admin() {
+  case " $REVS " in *" api-admin="*) ;; *) return 0 ;; esac
+  CUR=$(aws ecs describe-services --cluster "$CLUSTER" --services api \
+    --query 'services[0].taskDefinition' --output text 2>/dev/null || true)
+  [ -n "$CUR" ] && [ "$CUR" != None ] || { echo "::warning::api-admin: could not read api's revision"; return 0; }
+  aws ecs update-service --cluster "$CLUSTER" --service api-admin --task-definition "$CUR" >/dev/null \
+    || { echo "::error::api-admin: could not move back to $CUR"; return 0; }
+  echo "api-admin -> $CUR (api's current revision, after the api rollback)"
+  t0=$(date +%s)
+  while [ $(( $(date +%s) - t0 )) -lt "$ROLL_TIMEOUT_SECONDS" ]; do
+    ST=$(aws ecs describe-services --cluster "$CLUSTER" --services api-admin \
+      --query "services[0].deployments[?taskDefinition=='${CUR}'].rolloutState|[0]" --output text 2>/dev/null || true)
+    N=$(aws ecs describe-services --cluster "$CLUSTER" --services api-admin --query 'length(services[0].deployments)' --output text 2>/dev/null || echo 0)
+    if [ "$ST" = COMPLETED ] && [ "$N" = "1" ]; then echo "api-admin: back on $CUR"; return 0; fi
+    if [ "$ST" = FAILED ]; then echo "::error::api-admin: moving back to $CUR FAILED"; return 0; fi
+    sleep "$ROLL_POLL_SECONDS"
+  done
+  echo "::error::api-admin: still moving back to $CUR after ${ROLL_TIMEOUT_SECONDS}s"
+}
+
 # Wait until every service has OUR revision as COMPLETED, nothing else left.
 start=$(date +%s)
 for pair in $REVS; do
@@ -91,11 +114,13 @@ for pair in $REVS; do
         echo "::error::$SVC: rollout FAILED and was rolled back by ECS ($OUT)"
         aws ecs describe-services --cluster "$CLUSTER" --services "$SVC" \
           --query 'services[0].events[0:8].message' --output text || true
+        [ "$SVC" = api ] && align_api_admin
         exit 1
         ;;
       "" | None)
         # Our deployment is gone: replaced by a rollback or a newer deploy.
         echo "::error::$SVC: revision $REV is no longer deploying (rolled back or replaced)"
+        [ "$SVC" = api ] && align_api_admin
         exit 1
         ;;
     esac

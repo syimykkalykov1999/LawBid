@@ -216,3 +216,34 @@ class DeployQuietTests(unittest.TestCase):
         import time as t
         old = datetime.fromtimestamp(t.time() - h.DEPLOY_QUIET_SEC - 60, timezone.utc)
         self.assertFalse(self.guards_with(old)[0])
+
+
+class AllServicesGuardTests(unittest.TestCase):
+    """D1-42: every service of the cluster is watched; a missing one (the
+    pooler switched off) is not a failure, any other failure is unknown."""
+
+    def guards(self, found, failures):
+        class Ecs:
+            def describe_services(self, cluster, services):
+                return {"services": found, "failures": failures}
+
+            def list_tasks(self, **kw):
+                return {"taskArns": []}
+
+        old = h.client
+        h.client = lambda name: Ecs()
+        try:
+            return h.ecs_guards("c", ["api", "api-admin", "worker", "admin", "pgbouncer"])
+        finally:
+            h.client = old
+
+    def test_missing_pooler_is_skipped(self):
+        done = [{"deployments": [{"rolloutState": "COMPLETED"}]}]
+        self.assertEqual(self.guards(done, [{"arn": "x/pgbouncer", "reason": "MISSING"}]), (False, False, False))
+
+    def test_a_pooler_rollout_counts_as_deploying(self):
+        rolling = [{"deployments": [{"rolloutState": "COMPLETED"}, {"rolloutState": "IN_PROGRESS"}]}]
+        self.assertTrue(self.guards(rolling, [])[0])
+
+    def test_other_failures_are_unknown(self):
+        self.assertTrue(self.guards([], [{"arn": "x/api", "reason": "AccessDenied"}])[2])

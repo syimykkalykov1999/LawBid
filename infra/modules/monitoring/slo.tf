@@ -285,6 +285,87 @@ resource "aws_cloudwatch_metric_alarm" "admin_5xx_deploy" {
   tags                = var.tags
 }
 
+# D1-35 (13.11): the admin panel's API service (api-admin) runs the same
+# revision as api but had no alarms: a release that started fine and then
+# answered 5xx or failed health checks was rolled back by ECS on api only,
+# and api-admin kept serving it. Deploy-only alarms (no notification) on the
+# api-admin target group, the same shape as the api ones.
+variable "api_admin_deploy_alarms" {
+  type        = bool
+  default     = false
+  description = "Create the api-admin deploy alarms (5xx ratio, unhealthy hosts). Needs api_admin_target_group_arn_suffix."
+}
+variable "api_admin_target_group_arn_suffix" {
+  type        = string
+  default     = ""
+  description = "arn_suffix of the api-admin ALB target group (modules/alb)."
+}
+variable "api_admin_5xx_ratio_percent" {
+  type        = number
+  default     = 1
+  description = "api-admin deploy alarm: 5xx share of requests (%) over 5 minutes that rolls a release back (same as the api alarm)."
+}
+
+resource "aws_cloudwatch_metric_alarm" "api_admin_5xx_ratio_deploy" {
+  count               = var.api_admin_deploy_alarms ? 1 : 0
+  alarm_name          = "${var.name}-api-admin-5xx-ratio-deploy"
+  alarm_description   = "Used only by the ECS api-admin deployment rollback (no notification): api-admin 5xx above ${var.api_admin_5xx_ratio_percent} % of requests for 5 minutes."
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = var.api_admin_5xx_ratio_percent
+  treat_missing_data  = "notBreaching"
+  metric_query {
+    id          = "ratio"
+    expression  = "IF(req > 0, 100 * err / req, 0)"
+    label       = "5xx %"
+    return_data = true
+  }
+  metric_query {
+    id = "err"
+    metric {
+      metric_name = "HTTPCode_Target_5XX_Count"
+      namespace   = "AWS/ApplicationELB"
+      period      = 300
+      stat        = "Sum"
+      dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_admin_target_group_arn_suffix }
+    }
+  }
+  metric_query {
+    id = "req"
+    metric {
+      metric_name = "RequestCount"
+      namespace   = "AWS/ApplicationELB"
+      period      = 300
+      stat        = "Sum"
+      dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_admin_target_group_arn_suffix }
+    }
+  }
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "api_admin_unhealthy_deploy" {
+  count               = var.api_admin_deploy_alarms ? 1 : 0
+  alarm_name          = "${var.name}-api-admin-unhealthy-deploy"
+  alarm_description   = "Used only by the ECS api-admin deployment rollback (no notification): an api-admin task fails the ALB health check for 2 minutes."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  period              = 60
+  threshold           = 1
+  statistic           = "Maximum"
+  metric_name         = "UnHealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  dimensions          = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_admin_target_group_arn_suffix }
+  treat_missing_data  = "notBreaching"
+  tags                = var.tags
+}
+
+output "api_admin_deployment_alarm_names" {
+  value = concat(
+    aws_cloudwatch_metric_alarm.api_admin_5xx_ratio_deploy[*].alarm_name,
+    aws_cloudwatch_metric_alarm.api_admin_unhealthy_deploy[*].alarm_name,
+  )
+}
+
 output "api_deployment_alarm_names" {
   value = concat(
     [

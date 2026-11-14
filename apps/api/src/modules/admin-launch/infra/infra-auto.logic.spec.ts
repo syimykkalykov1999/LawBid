@@ -1,5 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
+  autoApplyBlockers,
   autoApplyOk,
+  NEVER_AUTO_DESTROY,
+  resourceType,
   autoRefusal,
   autoWants,
   dueWants,
@@ -336,26 +341,51 @@ describe('autoRefusal', () => {
 
 describe('autoApplyOk', () => {
   const td = 'module.stack.module.ecs.aws_ecs_task_definition.worker';
+  const svc = {
+    address: 'module.stack.module.ecs.aws_ecs_service.api',
+    action: 'update',
+  };
+  const replica = 'module.stack.module.growth.aws_db_instance.replica[0]';
   it('switch-on: creates and task-definition replacements only', () => {
     expect(
-      autoApplyOk('on', [
-        { address: 'x.aws_db_instance.r[0]', action: 'create' },
-      ]),
+      autoApplyOk(
+        'on',
+        [{ address: replica, action: 'create' }],
+        'aws.rds_replicas',
+      ),
     ).toBe(true);
-    expect(autoApplyOk('on', [{ address: td, action: 'delete-create' }])).toBe(
-      true,
-    );
     expect(
-      autoApplyOk('on', [
-        { address: 'x.aws_cloudwatch_metric_alarm.a', action: 'delete' },
-      ]),
+      autoApplyOk(
+        'on',
+        [{ address: td, action: 'delete-create' }, svc],
+        'aws.events_stream',
+      ),
+    ).toBe(true);
+    expect(
+      autoApplyOk(
+        'on',
+        [
+          {
+            address:
+              'module.stack.module.growth.aws_cloudwatch_metric_alarm.replica_lag[0]',
+            action: 'delete',
+          },
+        ],
+        'aws.rds_replicas',
+      ),
     ).toBe(false);
   });
   it('switch-off: deletes and task-definition replacements only', () => {
     expect(
       autoApplyOk(
         'off',
-        [{ address: 'x.aws_db_instance.r[0]', action: 'delete' }],
+        [
+          {
+            address:
+              'module.stack.module.postgres_shard[0].aws_db_instance.this',
+            action: 'delete',
+          },
+        ],
         'aws.db_shards',
       ),
     ).toBe(true);
@@ -369,7 +399,12 @@ describe('autoApplyOk', () => {
     expect(
       autoApplyOk(
         'off',
-        [{ address: 'x.aws_lb.n', action: 'create' }],
+        [
+          {
+            address: 'module.stack.aws_kinesis_stream.events[0]',
+            action: 'create',
+          },
+        ],
         'aws.events_stream',
       ),
     ).toBe(false);
@@ -386,20 +421,168 @@ describe('autoApplyOk', () => {
     expect(
       autoApplyOk(
         'off',
-        [{ address: 'x.aws_db_instance.replica[1]', action: 'delete' }],
+        [
+          {
+            address: 'module.stack.module.growth.aws_db_instance.replica[1]',
+            action: 'delete',
+          },
+        ],
         'aws.rds_replicas_2',
       ),
     ).toBe(true);
     // no item = not known to be safe
     expect(autoApplyOk('off', plan)).toBe(false);
+    expect(autoApplyOk('on', [{ address: replica, action: 'create' }])).toBe(
+      false,
+    );
     // switching ON is unchanged
     expect(
       autoApplyOk(
         'on',
-        [{ address: `${pgb}.aws_ecs_service.this`, action: 'create' }],
+        [
+          { address: `${pgb}.aws_ecs_service.this`, action: 'create' },
+          {
+            address: 'module.stack.module.postgres.aws_security_group.db',
+            action: 'update',
+          },
+          svc,
+        ],
         'aws.pgbouncer',
       ),
     ).toBe(true);
+  });
+  it('D1-34: one unrelated delete keeps the plan for the owner', () => {
+    const plan = [
+      { address: replica, action: 'delete' },
+      {
+        address: 'module.stack.module.opensearch_x.aws_sns_topic.t',
+        action: 'delete',
+      },
+    ];
+    expect(autoApplyOk('off', plan, 'aws.rds_replicas')).toBe(false);
+    expect(autoApplyBlockers('off', plan, 'aws.rds_replicas')).toEqual([
+      'module.stack.module.opensearch_x.aws_sns_topic.t: delete outside aws.rds_replicas',
+    ]);
+    // the search engine is in the same Terraform module as the copies,
+    // but not in their scope
+    expect(
+      autoApplyOk(
+        'off',
+        [
+          {
+            address:
+              'module.stack.module.growth.aws_opensearch_domain.search[0]',
+            action: 'delete',
+          },
+        ],
+        'aws.rds_replicas',
+      ),
+    ).toBe(false);
+  });
+  it('D1-34: serving infrastructure is never deleted or replaced by «Авто»', () => {
+    for (const address of [
+      'module.stack.module.alb.aws_lb.this',
+      'module.stack.module.alb.aws_lb_listener.https',
+      'module.stack.module.alb.aws_lb_target_group.api',
+      'module.stack.module.ecs.aws_ecs_service.api',
+      'module.stack.module.ecs.aws_ecs_cluster.this',
+      'module.stack.module.web.aws_cloudfront_distribution.this',
+      'module.stack.aws_route53_record.hosts["api"]',
+      'module.stack.module.network.aws_nat_gateway.this[0]',
+    ]) {
+      expect(
+        autoApplyOk('off', [{ address, action: 'delete' }], 'aws.waf_alb'),
+      ).toBe(false);
+      expect(
+        autoApplyOk(
+          'on',
+          [{ address, action: 'create-delete' }],
+          'aws.waf_alb',
+        ),
+      ).toBe(false);
+    }
+    // the WAF's own resources go
+    expect(
+      autoApplyOk(
+        'off',
+        [
+          {
+            address: 'module.stack.module.alb.aws_wafv2_web_acl.this[0]',
+            action: 'delete',
+          },
+          {
+            address:
+              'module.stack.module.alb.aws_wafv2_web_acl_association.this[0]',
+            action: 'delete',
+          },
+        ],
+        'aws.waf_alb',
+      ),
+    ).toBe(true);
+  });
+  it('D1-34: an in-place update outside the item waits unless it only rolls the change through', () => {
+    expect(
+      autoApplyOk(
+        'on',
+        [
+          {
+            address: 'module.stack.module.postgres.aws_db_instance.this',
+            action: 'update',
+          },
+        ],
+        'aws.rds_replicas',
+      ),
+    ).toBe(false);
+    expect(
+      autoApplyOk(
+        'on',
+        [
+          {
+            address:
+              'module.stack.module.db_autoscale.aws_lambda_function.this',
+            action: 'update',
+          },
+          {
+            address:
+              'module.stack.module.monitoring.aws_cloudwatch_dashboard.slo',
+            action: 'update',
+          },
+          {
+            address:
+              'module.stack.module.monitoring.aws_cloudwatch_metric_alarm.x',
+            action: 'create',
+          },
+          { address: replica, action: 'create' },
+        ],
+        'aws.rds_replicas',
+      ),
+    ).toBe(true);
+  });
+  it('an item without a scope is never applied without the owner', () => {
+    expect(
+      autoApplyOk(
+        'on',
+        [{ address: td, action: 'delete-create' }],
+        'aws.livekit',
+      ),
+    ).toBe(false);
+  });
+  it('the workflow guard uses the same serving list', () => {
+    const src = readFileSync(
+      join(__dirname, '../../../../../../scripts/infra/plan-summary.mjs'),
+      'utf8',
+    );
+    const list = /NEVER_AUTO_DESTROY = \[([\s\S]*?)\]/.exec(src)![1];
+    const names = [...list.matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
+    expect(names).toEqual([...NEVER_AUTO_DESTROY]);
+  });
+  it('resourceType reads the type of a plan address', () => {
+    expect(resourceType('module.a[0].aws_db_instance.replica[1]')).toBe(
+      'aws_db_instance',
+    );
+    expect(resourceType('module.stack.aws_route53_record.hosts["a.b"]')).toBe(
+      'aws_route53_record',
+    );
   });
 });
 
