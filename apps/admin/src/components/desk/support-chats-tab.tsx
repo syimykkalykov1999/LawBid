@@ -33,7 +33,7 @@ export function SupportChatsTab({ settings }: { settings: DeskSettingsView }) {
       </Card>
       {q.isPending ? (
         <Skeleton className="h-24 w-full" />
-      ) : rows.length === 0 ? (
+      ) : rows.length === 0 && !q.isError ? (
         <EmptyState icon={ChatCircleDots} title="Открытых диалогов нет" text="Откройте вкладку «Обращения» и нажмите «Следующий»." />
       ) : (
         rows.map((r) => (

@@ -185,7 +185,7 @@ export function StickersPanel() {
                 <tr key={p.id} className="cursor-pointer" onClick={() => setOpenId(p.id)}>
                   {canWrite ? (
                     <Td onClick={(e) => e.stopPropagation()}>
-                      <RowSelectBox selected={sel.selected} id={p.id} onToggle={sel.toggle} />
+                      <RowSelectBox selected={sel.selected} id={p.id} onToggle={sel.toggle} order={() => rows.map((x) => x.id)} />
                     </Td>
                   ) : null}
                   <Td>

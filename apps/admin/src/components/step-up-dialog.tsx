@@ -1,7 +1,7 @@
 'use client';
 
 import { Fingerprint } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -38,11 +38,14 @@ export function StepUpDialog({
 
   const ready = code.length === 6;
 
-  const submit = async () => {
+  // Detective D1-12 (13.11): the 6th digit confirms by itself, once per code
+  // (input-otp `onComplete`, MIT); «Подтвердить» stays for a paste or a retry.
+  const autoSent = useRef('');
+  const submit = async (value = code) => {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.POST('/admin/auth/step-up', { body: { code } });
+      const r = await api.POST('/admin/auth/step-up', { body: { code: value } });
       if (r.error) throw r.error;
       setCode('');
       onDone();
@@ -100,7 +103,14 @@ export function StepUpDialog({
           placeholder="123456"
           className="h-14 text-center font-mono text-2xl tracking-[0.5em]"
           value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+          onChange={(e) => {
+            const next = e.target.value.replace(/\D/g, '').slice(0, 6);
+            setCode(next);
+            if (next.length === 6 && !busy && !passkeyBusy && autoSent.current !== next) {
+              autoSent.current = next;
+              void submit(next);
+            }
+          }}
         />
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         <div className="flex justify-end gap-2">

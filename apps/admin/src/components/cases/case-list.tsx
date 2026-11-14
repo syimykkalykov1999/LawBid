@@ -211,7 +211,7 @@ export function CaseList() {
                 <tr key={c.id} {...vp} className="cursor-pointer" onClick={() => router.push(`/cases/${c.id}`)}>
                   {canWrite ? (
                     <Td>
-                      <RowSelectBox selected={sel.selected} id={c.id} onToggle={sel.toggle} />
+                      <RowSelectBox selected={sel.selected} id={c.id} onToggle={sel.toggle} order={() => rows.map((x) => x.id)} />
                     </Td>
                   ) : null}
                   <Td className="max-w-[340px]">

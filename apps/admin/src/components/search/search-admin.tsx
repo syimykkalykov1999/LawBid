@@ -422,7 +422,7 @@ function QueriesPanel({ kind }: { kind: 'no-results' | 'top' }) {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={6} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={6}>{kind === 'no-results' ? 'Всё находилось. Пока пусто.' : 'Запросов пока нет.'}</TableEmpty>
           ) : (
             rows.map((r) => (
@@ -536,7 +536,7 @@ function LearnedPanel() {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={3} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={3}>Пока ничему не научился: нужны открытые результаты после запросов.</TableEmpty>
           ) : (
             rows.map((r) => (

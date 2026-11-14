@@ -209,7 +209,7 @@ export function ClientReviewsPanel() {
                 <tr key={r.id}>
                   {canWrite ? (
                     <Td>
-                      <RowSelectBox selected={sel.selected} id={r.id} onToggle={sel.toggle} />
+                      <RowSelectBox selected={sel.selected} id={r.id} onToggle={sel.toggle} order={() => rows.map((x) => x.id)} />
                     </Td>
                   ) : null}
                   <Td className="max-w-md">

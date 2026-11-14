@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Label } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
-import { type BulkResult, count, type Noun, pageState, resultText, runInBatches, SELECT_ALL_CAP, toggleId, togglePage } from '@/lib/bulk';
+import { type BulkResult, count, type Noun, pageState, resultText, runInBatches, SELECT_ALL_CAP, toggleId, togglePage, toggleRange } from '@/lib/bulk';
 
 /**
  * Owner 2026-10-04 — bulk moderation building blocks shared by «Посты и
@@ -17,13 +17,25 @@ import { type BulkResult, count, type Noun, pageState, resultText, runInBatches,
  * author / date filter and the confirm-with-count + reason step.
  */
 
-/** Selected ids; cleared whenever [resetKey] (the list's filter) changes. */
+/**
+ * Selected ids; cleared whenever [resetKey] (the list's filter) changes.
+ * `toggle(id, order)` with the rows' order (RowSelectBox passes it on
+ * Shift+click) ticks the range from the last clicked row (lib/bulk toggleRange).
+ */
 export function useSelection(resetKey: string) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  useEffect(() => setSelected(new Set()), [resetKey]);
+  const anchor = useRef<string | null>(null);
+  useEffect(() => {
+    setSelected(new Set());
+    anchor.current = null;
+  }, [resetKey]);
   return {
     selected,
-    toggle: (id: string) => setSelected((s) => toggleId(s, id)),
+    toggle: (id: string, order?: readonly string[]) => {
+      const from = anchor.current;
+      anchor.current = id;
+      setSelected((s) => (order ? toggleRange(s, from, id, order) : toggleId(s, id)));
+    },
     togglePage: (ids: string[]) => setSelected((s) => togglePage(s, ids)),
     replace: (ids: string[]) => setSelected(new Set(ids)),
     clear: () => setSelected(new Set()),
@@ -37,7 +49,8 @@ function SelectBox({
   disabled,
 }: {
   state: 'none' | 'some' | 'all';
-  onChange: () => void;
+  /** [shift]: the click held Shift (a checkbox's change comes from its click event). */
+  onChange: (shift: boolean) => void;
   label: string;
   disabled?: boolean;
 }) {
@@ -53,7 +66,7 @@ function SelectBox({
       className="h-4 w-4 cursor-pointer accent-gold disabled:cursor-default"
       checked={state === 'all'}
       disabled={disabled}
-      onChange={onChange}
+      onChange={(e) => onChange(!!(e.nativeEvent as MouseEvent).shiftKey)}
       onClick={(e) => e.stopPropagation()}
     />
   );
@@ -64,8 +77,25 @@ export function PageSelectBox({ selected, ids, onToggle }: { selected: ReadonlyS
   return <SelectBox state={pageState(selected, ids)} disabled={ids.length === 0} label="Выбрать всё на странице" onChange={() => onToggle(ids)} />;
 }
 
-export function RowSelectBox({ selected, id, onToggle }: { selected: ReadonlySet<string>; id: string; onToggle: (id: string) => void }) {
-  return <SelectBox state={selected.has(id) ? 'all' : 'none'} label="Выбрать" onChange={() => onToggle(id)} />;
+/** One row's checkbox; with [order] (the ids as shown, read only on a Shift+click) Shift+click selects a range. */
+export function RowSelectBox({
+  selected,
+  id,
+  onToggle,
+  order,
+}: {
+  selected: ReadonlySet<string>;
+  id: string;
+  onToggle: (id: string, order?: readonly string[]) => void;
+  order?: () => readonly string[];
+}) {
+  return (
+    <SelectBox
+      state={selected.has(id) ? 'all' : 'none'}
+      label="Выбрать"
+      onChange={(shift) => onToggle(id, shift ? order?.() : undefined)}
+    />
+  );
 }
 
 /**

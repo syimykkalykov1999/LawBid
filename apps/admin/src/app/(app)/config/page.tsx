@@ -19,6 +19,7 @@ import { useMe } from "@/lib/hooks";
 import { CONFIG_TYPE, label } from "@/lib/labels";
 import { can } from "@/lib/rbac";
 import { formatDateTime } from "@/lib/utils";
+import { useNavigationGuard } from "@/lib/vendor/navigation-guard";
 
 /** Russian explanations for the known keys (most server descriptions are null or English). */
 const KEY_TEXT: Record<string, string> = {
@@ -1429,6 +1430,8 @@ function FullConfigPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // Detective D1-7 (13.11): unsaved edits ask before a link or a reload drops them.
+  useNavigationGuard({ enabled: Object.keys(drafts).length > 0 });
   const [filter, setFilter] = useState("");
   const q = useQuery({
     queryKey: ["config"],

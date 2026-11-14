@@ -84,6 +84,13 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
   }, [q, me, resolved, router, setOpen, toggle]);
 
   useEffect(() => setIdx(0), [q]);
+  // Detective D1-10 (13.11): the highlighted row stays in view, as cmdk
+  // (MIT, pacocoursey/cmdk `scrollSelectedIntoView`) does: the list box is
+  // max 50vh, so arrow keys used to move the highlight below the edge.
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    listRef.current?.querySelector<HTMLElement>(`[data-palette-idx="${idx}"]`)?.scrollIntoView?.({ block: 'nearest' });
+  }, [idx]);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
@@ -113,6 +120,8 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => {
+                  // cmdk: keys that finish an IME composition are not commands.
+                  if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                   if (e.key === 'ArrowDown') {
                     e.preventDefault();
                     setIdx((i) => Math.min(i + 1, items.length - 1));
@@ -130,7 +139,7 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
               />
               <kbd className="rounded-md border border-line px-1.5 py-0.5 text-[10px] text-faint">Esc</kbd>
             </div>
-            <div className="max-h-[50vh] overflow-y-auto p-2">
+            <div ref={listRef} className="max-h-[50vh] overflow-y-auto p-2">
               {items.length === 0 ? (
                 <div className="px-3 py-8 text-center text-sm text-muted">Ничего не найдено</div>
               ) : (
@@ -138,6 +147,7 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
                   <button
                     key={it.id}
                     type="button"
+                    data-palette-idx={i}
                     onMouseEnter={() => setIdx(i)}
                     onClick={it.run}
                     className={cn(
