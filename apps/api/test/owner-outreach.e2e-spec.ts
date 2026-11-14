@@ -1,5 +1,5 @@
 import type { AddressInfo, Server } from 'node:net';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -341,9 +341,17 @@ describe('Outreach (e2e)', () => {
     expect(sent[0].to).toBe(email(1));
     expect(sent[0].text).toContain(code); // the employee's partner link
     expect(sent[0].text).toContain('Olga Sales');
-    expect(sent[0].text).toContain(
-      `https://api.lawbid.test/api/v1/outreach/unsubscribe/${ivan.unsubscribe_token}`,
-    );
+    // R2B-14 (14.11): the link is signed (no secret in the row).
+    const link =
+      /https:\/\/api\.lawbid\.test\/api\/v1\/outreach\/unsubscribe\/([A-Za-z0-9_.-]+)/.exec(
+        sent[0].text,
+      );
+    expect(link?.[1]).toMatch(/^u1\./);
+    const signed = link![1];
+    expect(
+      (await prisma.outreachLead.findUniqueOrThrow({ where: { id: ivan.id } }))
+        .unsubscribe_token,
+    ).toBeNull();
     expect(sent[0].text).toContain('Schaumburg');
     const afterMail = await prisma.outreachLead.findUniqueOrThrow({
       where: { id: ivan.id },
@@ -353,15 +361,19 @@ describe('Outreach (e2e)', () => {
     // Unsubscribe is public and final. R2B-14 (14.11): opening the link
     // only shows the confirm page (link scanners); the button POSTs.
     const page = await api()
-      .get(`/api/v1/outreach/unsubscribe/${ivan.unsubscribe_token}`)
+      .get(`/api/v1/outreach/unsubscribe/${signed}`)
       .expect(200);
     expect(page.text).toContain('method="post"');
     expect(
       (await prisma.outreachLead.findUniqueOrThrow({ where: { id: ivan.id } }))
         .unsubscribed_at,
     ).toBeNull();
+    // Forged: the same id under another MAC finds nothing.
+    await api()
+      .post(`/api/v1/outreach/unsubscribe/${signed.slice(0, -4)}AAAA`)
+      .expect(404);
     const unsub = await api()
-      .post(`/api/v1/outreach/unsubscribe/${ivan.unsubscribe_token}`)
+      .post(`/api/v1/outreach/unsubscribe/${signed}`)
       .expect(200);
     expect(unsub.headers['content-type']).toContain('text/html');
     await api().get('/api/v1/outreach/unsubscribe/nope').expect(404);
@@ -413,6 +425,19 @@ describe('Outreach (e2e)', () => {
       .send({ templateId })
       .expect(429);
     expect(limited.body.error.code).toBe('OUTREACH_EMAIL_LIMIT');
+
+    // R2B-14: a link sent before the signed format (raw token, row not
+    // hashed yet) still unsubscribes; afterwards the row holds its sha256.
+    await api()
+      .post(`/api/v1/outreach/unsubscribe/${third.unsubscribe_token}`)
+      .expect(200);
+    const thirdAfter = await prisma.outreachLead.findUniqueOrThrow({
+      where: { id: third.id },
+    });
+    expect(thirdAfter.unsubscribed_at).not.toBeNull();
+    expect(thirdAfter.unsubscribe_token_hash).toBe(
+      createHash('sha256').update(third.unsubscribe_token!).digest('hex'),
+    );
 
     // Conversion: Anna signs up with the employee's code → registered;
     // her first paid invoice → commission → paid.
