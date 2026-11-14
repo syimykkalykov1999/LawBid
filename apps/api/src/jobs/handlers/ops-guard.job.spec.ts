@@ -31,7 +31,11 @@ function setup(
       return [{ '?column?': 1 }];
     }),
   };
+  let streak = 0;
   const state = {
+    dbSlowStreak: jest.fn(
+      async (slow: boolean) => (streak = slow ? streak + 1 : 0),
+    ),
     setDbProbe: jest.fn(),
     setHeavyPaused: jest.fn(),
     syncQueues: jest.fn(),
@@ -53,6 +57,7 @@ function setup(
   const values: Record<string, unknown> = {
     'ops.auto_pause_heavy_jobs': true,
     'ops.db_slow_ms': 800,
+    'ops.db_slow_probes': 3,
     'ops.auto_scale_down_on_budget': true,
     'ops.backup_max_age_hours': 26,
     ...over.settings,
@@ -82,7 +87,7 @@ function setup(
     capacity as unknown as AwsCapacityService,
     logger as unknown as PinoLogger,
   );
-  return { job, state, aws, logger };
+  return { job, state, aws, logger, prisma, values };
 }
 
 describe('OpsGuardJob.guard', () => {
@@ -114,13 +119,16 @@ describe('OpsGuardJob.guard', () => {
     );
   });
 
-  it('slow database: pauses; switch off: does not', async () => {
+  it('slow database: pauses after ops.db_slow_probes in a row; switch off: does not', async () => {
     const slow = setup({ dbDelayMs: 30, settings: { 'ops.db_slow_ms': 5 } });
+    await slow.job.guard();
+    await slow.job.guard();
+    expect(slow.state.setHeavyPaused).not.toHaveBeenCalled();
     await slow.job.guard();
     expect(slow.state.setHeavyPaused).toHaveBeenCalledWith(
       true,
       'auto',
-      expect.stringMatching(/^db \d+ ms > 5 ms$/),
+      expect.stringMatching(/^db \d+ ms > 5 ms \(3 in a row\)$/),
       expect.any(Date),
     );
 
@@ -130,6 +138,64 @@ describe('OpsGuardJob.guard', () => {
     });
     await off.job.guard();
     expect(off.state.setHeavyPaused).not.toHaveBeenCalled();
+  });
+});
+
+describe('OpsGuardJob.guard slow streak (14.11 F4)', () => {
+  it('one slow probe (a worker stall) does not pause; a fast probe resets the count', async () => {
+    const t = setup({ settings: { 'ops.db_slow_ms': 5 } });
+    const slowOnce = () =>
+      t.prisma.$queryRaw.mockImplementationOnce(async () => {
+        await new Promise((r) => setTimeout(r, 30));
+        return [{ '?column?': 1 }];
+      });
+    slowOnce();
+    await t.job.guard();
+    slowOnce();
+    await t.job.guard();
+    await t.job.guard(); // fast: resets
+    slowOnce();
+    await t.job.guard();
+    slowOnce();
+    await t.job.guard();
+    expect(t.state.setHeavyPaused).not.toHaveBeenCalled();
+    expect(t.state.dbSlowStreak.mock.calls.map((c) => c[0])).toEqual([
+      true,
+      true,
+      false,
+      true,
+      true,
+    ]);
+  });
+
+  it('ops.db_slow_probes = 1 keeps the old one-probe pause', async () => {
+    const t = setup({
+      dbDelayMs: 30,
+      settings: { 'ops.db_slow_ms': 5, 'ops.db_slow_probes': 1 },
+    });
+    await t.job.guard();
+    expect(t.state.setHeavyPaused).toHaveBeenCalledTimes(1);
+  });
+
+  it('the setting is read live on every probe', async () => {
+    const t = setup({
+      dbDelayMs: 30,
+      settings: { 'ops.db_slow_ms': 5, 'ops.db_slow_probes': 10 },
+    });
+    await t.job.guard();
+    await t.job.guard();
+    await t.job.guard();
+    expect(t.state.setHeavyPaused).not.toHaveBeenCalled();
+    t.values['ops.db_slow_probes'] = 4;
+    await t.job.guard();
+    expect(t.state.setHeavyPaused).toHaveBeenCalledTimes(1);
+  });
+
+  it('unreachable database still pauses on the first probe', async () => {
+    const t = setup({ dbFails: true });
+    await t.job.guard();
+    expect(t.state.setHeavyPaused).toHaveBeenCalledTimes(1);
+    expect(t.state.dbSlowStreak).toHaveBeenCalledWith(false);
   });
 });
 

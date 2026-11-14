@@ -12,6 +12,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/video_prefetch.dart';
 import 'package:lawbid/core/media/web_video_warm.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dart';
@@ -451,7 +452,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     children: [
                       IconButton(
                         tooltip: t.t('common.back'),
-                        onPressed: () => Navigator.of(context).maybePop(),
+                        onPressed: () => context.safeBack(),
                         icon: const AppIcon(
                           AppIcons.arrowBackRounded,
                           color: Colors.white,

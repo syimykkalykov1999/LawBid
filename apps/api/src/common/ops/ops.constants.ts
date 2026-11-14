@@ -21,6 +21,9 @@ export const OPS_KEYS = {
   scaleMode: 'ops:scale-mode',
   /** JSON {ok, latencyMs, at}: the last database probe of the ops guard. */
   dbProbe: 'ops:db-probe',
+  /** Counter: database probes in a row slower than ops.db_slow_ms (14.11
+   * F4). Reset by the first fast probe; TTL so a stopped guard forgets it. */
+  dbSlowStreak: 'ops:db-slow-streak',
   /** JSON EconomyState: the economy guard (owner 2026-10-16). */
   economy: 'ops:economy',
   /** JSON {api, worker, mode, at}: the autoscaling ceilings the economy

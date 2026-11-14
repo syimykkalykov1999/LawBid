@@ -140,6 +140,26 @@ export class OpsStateService implements OnModuleDestroy {
     await this.redis.set(OPS_KEYS.lastBackup, JSON.stringify(b));
   }
 
+  /**
+   * 14.11 F4: how many database probes in a row were slow, counting this one
+   * (Kubernetes probe `failureThreshold` model: act only after N consecutive
+   * failures). A fast probe resets it to 0. Redis trouble returns 1, so a
+   * threshold of 1 keeps the old one-probe behaviour.
+   */
+  async dbSlowStreak(slow: boolean): Promise<number> {
+    try {
+      if (!slow) {
+        await this.redis.del(OPS_KEYS.dbSlowStreak);
+        return 0;
+      }
+      const n = await this.redis.incr(OPS_KEYS.dbSlowStreak);
+      await this.redis.expire(OPS_KEYS.dbSlowStreak, 600);
+      return Number(n) || 1;
+    } catch {
+      return slow ? 1 : 0;
+    }
+  }
+
   async dbProbe(): Promise<DbProbe | null> {
     return parseJson<DbProbe>(await this.redis.get(OPS_KEYS.dbProbe));
   }

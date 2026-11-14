@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
 
 /// Owner 2026-10-05: invites from clients (opened from the notification).
@@ -18,7 +18,7 @@ class InvitesScreen extends ConsumerWidget {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => context.pop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('invites.title')),
       ),

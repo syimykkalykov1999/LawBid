@@ -136,6 +136,8 @@ export class ChatActionsService {
     rawBody: string,
   ): Promise<MessageDto> {
     const { conv, m } = await this.own(user, id, messageId);
+    // R2B-5: not while one side blocks the other (as for send).
+    await this.chat.assertNotBlockedIn(user.sub, conv);
     if (m.sender_id !== user.sub || m.type !== 'text' || m.revoked_at) {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
@@ -207,7 +209,8 @@ export class ChatActionsService {
       user.sub === conv.client_id ? conv.attorney_id : conv.client_id,
       conv.id,
       m.id,
-      { event: 'edit' },
+      // The actor lets the push dispatcher apply its block filter too.
+      { event: 'edit', actorId: user.sub },
     );
     return this.view(user, conv, m.id);
   }
@@ -344,6 +347,8 @@ export class ChatActionsService {
     emoji: string | null | undefined,
   ): Promise<MessageDto> {
     const { conv, m } = await this.own(user, id, messageId);
+    // R2B-5: not while one side blocks the other (as for send).
+    await this.chat.assertNotBlockedIn(user.sub, conv);
     if (m.revoked_at || m.type === 'system') {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
@@ -402,6 +407,8 @@ export class ChatActionsService {
     on: boolean,
   ): Promise<MessageDto> {
     const { conv, m } = await this.own(user, id, messageId);
+    // R2B-5: not while one side blocks the other (as for send).
+    await this.chat.assertNotBlockedIn(user.sub, conv);
     if (!on) {
       await this.prisma.messagePin.deleteMany({ where: { message_id: m.id } });
     } else {

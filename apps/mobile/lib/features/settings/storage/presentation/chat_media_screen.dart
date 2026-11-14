@@ -4,6 +4,7 @@ import 'package:lawbid/core/cache/chat_media_index.dart';
 import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/text/byte_size.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -35,7 +36,7 @@ class ChatMediaScreen extends ConsumerWidget {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('storage.cat.chat_media')),
       ),

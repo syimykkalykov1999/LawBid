@@ -48,6 +48,29 @@ export interface EngineCreds {
   kind: EngineKind;
 }
 
+/** 14.11 F5: per-request tuning, read live from admin settings
+ * (`search.engine_request_timeout_ms`, `search.engine_max_retries`). Same
+ * meaning as the OpenSearch JS client's `requestTimeout` / `maxRetries`
+ * (Apache-2.0): the timeout of one try, and how many more tries a request
+ * gets after a timeout or a dropped connection. */
+export interface EngineTuning {
+  requestTimeoutMs: number;
+  maxRetries: number;
+}
+
+/** Today's values: 5 s per call, no retry. */
+export const ENGINE_TUNING_DEFAULTS: EngineTuning = {
+  requestTimeoutMs: 5000,
+  maxRetries: 0,
+};
+
+/** A repeat can never do a write twice: reads, PUT/DELETE (idempotent by
+ * HTTP), and `_bulk` (external versions: an older write never wins). */
+function retrySafe(method: string, path: string): boolean {
+  if (method !== 'POST') return true;
+  return /\/(_search|_mget|_count|_bulk|_refresh)(\?|$)/.test(path);
+}
+
 export class EngineError extends Error {
   constructor(
     message: string,
@@ -89,6 +112,8 @@ export class OpenSearchClient {
       Promise.resolve('domain'),
     private readonly awsCreds: CredentialsProvider = awsCredentialsProvider(),
     private readonly now: () => Date = () => new Date(),
+    private readonly tuning: () => Promise<EngineTuning> = () =>
+      Promise.resolve(ENGINE_TUNING_DEFAULTS),
   ) {}
 
   async creds(): Promise<EngineCreds | null> {
@@ -146,8 +171,39 @@ export class OpenSearchClient {
     method: string,
     path: string,
     body?: string,
-    timeoutMs = 5000,
+    timeoutMs?: number,
     contentType = 'application/json',
+  ): Promise<{ status: number; json: unknown }> {
+    const t = await this.tuning().catch(() => ENGINE_TUNING_DEFAULTS);
+    const tries =
+      1 +
+      (retrySafe(method, path)
+        ? Math.max(0, Math.floor(t.maxRetries) || 0)
+        : 0);
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.callOnce(
+          method,
+          path,
+          body,
+          timeoutMs ?? t.requestTimeoutMs,
+          contentType,
+        );
+      } catch (e) {
+        // Only a timeout or a dropped connection is repeated; an HTTP
+        // answer (any status) is returned as it is.
+        if (attempt >= tries || !(e instanceof EngineError) || e.status)
+          throw e;
+      }
+    }
+  }
+
+  private async callOnce(
+    method: string,
+    path: string,
+    body: string | undefined,
+    timeoutMs: number,
+    contentType: string,
   ): Promise<{ status: number; json: unknown }> {
     const c = await this.creds();
     if (!c) throw new EngineError('search engine is not configured');
@@ -771,10 +827,32 @@ export class OpenSearchClient {
 export function createOpenSearchClient(
   secrets: Pick<SecretsService, 'get'> | undefined,
   config: Pick<ConfigService, 'get'> | undefined,
-  settings?: Pick<AppSettingsService, 'string'>,
+  settings?: Pick<AppSettingsService, 'string'> &
+    Partial<Pick<AppSettingsService, 'number'>>,
 ): OpenSearchClient {
-  return new OpenSearchClient(secrets, config, fetch, async () =>
-    parseEngineKind(await settings?.string('search.engine_kind')),
+  return new OpenSearchClient(
+    secrets,
+    config,
+    fetch,
+    async () => parseEngineKind(await settings?.string('search.engine_kind')),
+    awsCredentialsProvider(),
+    () => new Date(),
+    async () => {
+      const [timeout, retries] = await Promise.all([
+        settings?.number?.('search.engine_request_timeout_ms'),
+        settings?.number?.('search.engine_max_retries'),
+      ]);
+      return {
+        requestTimeoutMs:
+          timeout && timeout > 0
+            ? timeout
+            : ENGINE_TUNING_DEFAULTS.requestTimeoutMs,
+        maxRetries:
+          retries !== undefined && retries >= 0
+            ? retries
+            : ENGINE_TUNING_DEFAULTS.maxRetries,
+      };
+    },
   );
 }
 
