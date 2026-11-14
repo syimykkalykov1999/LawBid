@@ -96,6 +96,8 @@ class MainActivity : FlutterFragmentActivity() {
                 result.notImplemented()
             }
         }
+        // Owner row 106: chat video tiles draw a first-frame picture.
+        VideoFrameChannel.register(flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "lawbid/call_pip",

@@ -118,6 +118,9 @@ class RealtimeClient {
     'notification:new',
     // Owner 2026-10-24: somebody opened a file of mine («Просмотры»).
     'file:viewed',
+    // Owner row 106: the check of my upload ended (the uploader stops
+    // polling, core/uploads/file_ready.dart).
+    'file:ready',
     'badge:update',
     'conversation:update',
     // Owner 2026-10-01: a chat partner came online / left.

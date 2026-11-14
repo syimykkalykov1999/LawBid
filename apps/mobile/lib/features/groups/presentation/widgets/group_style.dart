@@ -62,4 +62,5 @@ ChatAttachment groupChatAttachment(api.ChatAttachmentDto a) => ChatAttachment(
       previewUrl: a.previewUrl,
       width: a.width,
       height: a.height,
+      blurhash: a.blurhash,
     );

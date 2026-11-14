@@ -194664,6 +194664,10 @@
           "height": {
             "type": "integer",
             "nullable": true
+          },
+          "blurhash": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [

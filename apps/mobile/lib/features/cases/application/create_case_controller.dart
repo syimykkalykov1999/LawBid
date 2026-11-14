@@ -28,10 +28,15 @@ class CasePhotoUpload {
     this.fileId,
     this.failed = false,
     this.name,
+    this.path,
   });
 
   final int key;
   final Uint8List bytes;
+
+  /// Owner row 100 (media audit R2): a phone video on disk (then [bytes]
+  /// is empty); it is streamed to storage, never held in memory.
+  final String? path;
 
   /// OQ-034: set for a document (PDF / Word) — shown as a file tile.
   final String? name;
@@ -190,7 +195,12 @@ class CreateCaseController extends Notifier<CreateCaseState> {
 
   /// OQ-034 / owner 2026-10-19: photos (no `name`) and documents have
   /// their own admin limits.
-  void addFiles(List<({Uint8List bytes, String? name})> picked) {
+  void addFiles(List<({Uint8List bytes, String? name})> picked) => addPicked([
+        for (final f in picked) (bytes: f.bytes, name: f.name, path: null),
+      ]);
+
+  /// [addFiles] for picked media that may be a phone file on disk.
+  void addPicked(List<CasePickedFile> picked) {
     final limits = ref.read(uploadLimitsProvider)[UploadPlace.kase];
     bool doc(String? name) => name != null && !isCaseVideoName(name);
     var media = state.photos.where((p) => !p.isDocument).length;
@@ -203,8 +213,12 @@ class CreateCaseController extends Notifier<CreateCaseState> {
         if (media >= limits.maxPhotos) continue;
         media++;
       }
-      final item =
-          CasePhotoUpload(key: _photoKey++, bytes: f.bytes, name: f.name);
+      final item = CasePhotoUpload(
+        key: _photoKey++,
+        bytes: f.bytes,
+        name: f.name,
+        path: f.path,
+      );
       state = state.copyWith(photos: [...state.photos, item]);
       unawaited(_upload(item));
     }
@@ -229,12 +243,14 @@ class CreateCaseController extends Notifier<CreateCaseState> {
             casePhoto: true,
             fileName: item.name,
             maxBytes: limits.fileBytes,
+            path: item.path,
           );
       done = CasePhotoUpload(
         key: item.key,
         bytes: item.bytes,
         fileId: id,
         name: item.name,
+        path: item.path,
       );
     } on Object {
       done = CasePhotoUpload(
@@ -242,6 +258,7 @@ class CreateCaseController extends Notifier<CreateCaseState> {
         bytes: item.bytes,
         failed: true,
         name: item.name,
+        path: item.path,
       );
     }
     if (!ref.mounted) return;
@@ -278,7 +295,12 @@ class CreateCaseController extends Notifier<CreateCaseState> {
   void retryPhoto(int key) {
     final p = state.photos.where((x) => x.key == key).firstOrNull;
     if (p == null || !p.failed) return;
-    final again = CasePhotoUpload(key: p.key, bytes: p.bytes, name: p.name);
+    final again = CasePhotoUpload(
+      key: p.key,
+      bytes: p.bytes,
+      name: p.name,
+      path: p.path,
+    );
     state = state.copyWith(
       photos: [
         // ignore: prefer_if_elements_to_conditional_expressions

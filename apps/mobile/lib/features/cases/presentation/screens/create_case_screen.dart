@@ -74,7 +74,7 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
   /// Files dragged onto the «essence» step in the browser.
   Future<void> _drop(List<XFile> dropped) async {
     final limits = ref.read(uploadLimitsProvider)[UploadPlace.kase];
-    _c.addFiles(await droppedCaseFiles(dropped, limits));
+    _c.addPicked(await droppedCaseFiles(dropped, limits));
   }
 
   @override

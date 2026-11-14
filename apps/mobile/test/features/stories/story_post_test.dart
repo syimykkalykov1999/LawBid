@@ -41,6 +41,7 @@ class _Social extends FakeSocialRepository {
     bool reviewPhoto = false,
     String? fileName,
     int? maxBytes,
+    String? path,
   }) async {
     uploads.add(bytes);
     return 'file-1';

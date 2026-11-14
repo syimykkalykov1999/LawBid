@@ -48,6 +48,7 @@ class _Photos extends FakeSocialRepository {
     bool reviewPhoto = false,
     String? fileName,
     int? maxBytes,
+    String? path,
   }) async =>
       'photo-1';
 }
@@ -83,11 +84,11 @@ void main() {
     );
     await tester.runAsync(
       () => c.read(reviewOutboxProvider).submit(
-        (kind: ReviewTargetKind.attorney, id: 'att-1'),
-        rating: 5,
-        body: 'Great',
-        photos: const [],
-      ),
+            (kind: ReviewTargetKind.attorney, id: 'att-1'),
+            rating: 5,
+            body: 'Great',
+            photos: const [],
+          ),
     );
     for (var i = 0; i < 40; i++) {
       await tester.runAsync(

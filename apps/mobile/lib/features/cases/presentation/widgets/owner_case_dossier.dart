@@ -56,7 +56,7 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
       widget.kase.photos.where((p) => !_media(p.mime)).length;
 
   Future<void> _pickPhotos() async {
-    await _add(
+    await _addPicked(
       await pickCaseMedia(
         ref,
         left: _photosLeft,
@@ -111,7 +111,13 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
 
   /// Uploads [files] (antivirus-checked case files) and saves the case's
   /// full file list: the existing ones first, then the new ones.
-  Future<void> _add(List<({Uint8List bytes, String? name})> files) async {
+  Future<void> _add(List<({Uint8List bytes, String? name})> files) =>
+      _addPicked([
+        for (final f in files) (bytes: f.bytes, name: f.name, path: null),
+      ]);
+
+  /// [_add] for picked media that may be a phone video on disk (streamed).
+  Future<void> _addPicked(List<CasePickedFile> files) async {
     if (files.isEmpty || !mounted || _busy) return;
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
@@ -124,6 +130,7 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
             casePhoto: true,
             fileName: f.name,
             maxBytes: _limits.fileBytes,
+            path: f.path,
           ),
       ];
       await ref.read(casesRepositoryProvider).setCaseFiles(widget.kase.id, [

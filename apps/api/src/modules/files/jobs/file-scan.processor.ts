@@ -30,6 +30,8 @@ import {
 } from '../processing/image-processor';
 import { MediaModerationQueue } from '../../media-moderation/media-moderation.queue';
 import { ReadBudget, SCAN_READ_BUDGET_MB } from '../read-budget';
+import { RealtimePublisher } from '../../realtime/realtime-publisher.service';
+import { ScanHandoff } from './scan-handoff';
 import { readUploadLimits } from '../upload-limits';
 
 /** files.scan_skipped: over the antivirus size limit (R1). */
@@ -85,6 +87,10 @@ export class FileScanProcessor {
     // Owner 2026-10-22 (audit #4 §5): clean public pictures go on to the
     // image moderation check (post photos, avatars, review photos).
     @Optional() private readonly moderation?: MediaModerationQueue,
+    // Owner row 106: the bytes `confirm` already read, and the `file:ready`
+    // push that replaces the app's polling of the scan.
+    @Optional() private readonly handoff?: ScanHandoff,
+    @Optional() private readonly realtime?: RealtimePublisher,
   ) {
     this.logger.setContext(FileScanProcessor.name);
   }
@@ -124,6 +130,7 @@ export class FileScanProcessor {
       file.source_sha256 = file.sha256;
     }
     if (await this.deduplicate(file)) {
+      this.ready(file, 'clean');
       await this.moderation?.enqueueFile(file.id, file.purpose);
       return 'deduplicated';
     }
@@ -143,7 +150,10 @@ export class FileScanProcessor {
 
     let data: Buffer;
     try {
-      data = held ?? (await this.storage.read(file.s3_bucket, file.s3_key));
+      data =
+        held ??
+        (await this.handoff?.take(file)) ??
+        (await this.storage.read(file.s3_bucket, file.s3_key));
       lap('read');
       const verdict = await this.scanner.scan(data);
       lap('scan');
@@ -193,6 +203,7 @@ export class FileScanProcessor {
           file.purpose === 'ai_attachment',
         format: await this.imageFormat(),
         quality: await imageQuality(this.settings),
+        keepSmallOriginal: await this.keepSmallOriginals(),
       });
     } catch (err) {
       // Undecodable image: permanent, retrying won't help.
@@ -238,6 +249,7 @@ export class FileScanProcessor {
             : {}),
         },
       });
+      this.ready(file, 'clean');
       await this.moderation?.enqueueFile(fileId, file.purpose);
       // Owner 2026-11-08 (R2 speed): where a slow check spends its time.
       const totalMs = Date.now() - started;
@@ -369,6 +381,31 @@ export class FileScanProcessor {
     return true;
   }
 
+  /** Owner row 106: `images.keep_small_originals` (see ImageProcessor). */
+  private async keepSmallOriginals(): Promise<boolean> {
+    if (!this.settings) return false;
+    try {
+      return await this.settings.boolean('images.keep_small_originals');
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Owner row 106 (media audit 13.11, batch F item 14): the owner's app
+   * hears at once that the check of an upload ended (`file:ready`) instead
+   * of asking every 700 ms. Best effort: the app still asks now and then.
+   */
+  private ready(
+    file: Pick<File, 'id' | 'owner_user_id'>,
+    scanStatus: 'clean' | 'infected' | 'failed',
+  ): void {
+    this.realtime?.toUsers([file.owner_user_id], 'file:ready', {
+      fileId: file.id,
+      scanStatus,
+    });
+  }
+
   /**
    * R1: too big for the antivirus. The object stays where it is; the row
    * turns `failed` (never attachable, so nothing unscanned reaches anybody)
@@ -384,6 +421,8 @@ export class FileScanProcessor {
       where: { id: file.id, scan_status: 'pending' },
       data: { scan_status: 'failed', scan_skipped: SCAN_SKIPPED_TOO_LARGE },
     });
+    // The uploader's app stops waiting at once (row 106, `file:ready`).
+    this.ready(file, 'failed');
     this.logger.warn(
       {
         alert: 'scan_skipped_too_large',
@@ -424,9 +463,15 @@ export class FileScanProcessor {
     fileId: string,
     status: 'infected' | 'failed',
   ): Promise<void> {
-    await this.prisma.file.updateMany({
+    const done = await this.prisma.file.updateMany({
       where: { id: fileId, scan_status: 'pending' },
       data: { scan_status: status },
     });
+    if (!this.realtime || !(done?.count > 0)) return;
+    const row = await this.prisma.file.findUnique({
+      where: { id: fileId },
+      select: { id: true, owner_user_id: true },
+    });
+    if (row) this.ready(row, status);
   }
 }

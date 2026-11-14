@@ -2565,6 +2565,7 @@ export class ChatService {
       previewUrl: f?.previewUrl ?? null,
       width: f?.width ?? null,
       height: f?.height ?? null,
+      blurhash: f?.blurhash ?? null,
     };
   }
 

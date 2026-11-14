@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/session/session_providers.dart';
@@ -542,12 +543,36 @@ final uploadQueueUploaderProvider = Provider<StorageUploader>((ref) {
     handsOff: backgroundHandsOff,
   );
   ref.onDispose(gate.dispose);
+  // Owner row 100 (batch E item 10): Android keeps background uploads in a
+  // foreground service with a progress notification (flag
+  // `uploads_android_foreground`), titled in the person's language.
+  void configureNotice() => unawaited(
+        configureBackgroundUploads(
+          foreground: ref
+              .read(featureFlagsControllerProvider)
+              .isEnabled('uploads_android_foreground'),
+          title: ref.read(translatorProvider).t('chat.state.sending'),
+        ),
+      );
+  if (backgroundHandsOff) {
+    configureNotice();
+    ref
+      ..listen(featureFlagsControllerProvider, (_, __) => configureNotice())
+      ..listen(translatorProvider, (_, __) => configureNotice());
+  }
   final storage = ref.watch(storageDioProvider);
   return StorageUploader(
     apiDio: ref.watch(dioProvider),
     transport: queueTransport(fallback: DioStorageTransport(storage)),
     storageDio: storage,
     partsGate: gate,
+    // Owner row 100 (batch E item 11): parts left when the app leaves the
+    // screen go on as OS transfers (flag `uploads_background_parts`).
+    backgroundParts: backgroundParts(
+      enabled: () => ref.read(featureFlagsControllerProvider).isEnabled(
+            'uploads_background_parts',
+          ),
+    ),
     forgetTransfer: forgetBackgroundUpload,
   );
 });

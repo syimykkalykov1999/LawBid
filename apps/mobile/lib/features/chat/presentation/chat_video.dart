@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show File;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -13,6 +14,8 @@ import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
+import 'package:lawbid/features/chat/data/chat_media_seed.dart';
+import 'package:lawbid/features/chat/data/chat_video_frames.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -54,16 +57,25 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
   VideoPlayerController? _c;
   bool _ready = false;
 
-  @override
-  void initState() {
-    super.initState();
-  }
+  /// Owner row 106 (WhatsApp / Telegram): the video's first frame as a
+  /// picture ([ChatVideoFrames]); while it is there no player is opened for
+  /// the tile. Null: not made yet, or it cannot be (the browser) — then the
+  /// tile opens its player as before.
+  ChatVideoFrame? _frame;
+  bool _frameAsked = false;
+
+  /// Your own sent video, still on the phone: played from disk.
+  File? _own;
 
   @override
   void didUpdateWidget(ChatVideoTile old) {
     super.didUpdateWidget(old);
-    if (old.attachment.url != widget.attachment.url && _c == null && _seen) {
-      _open();
+    if (old.attachment.url != widget.attachment.url &&
+        _c == null &&
+        _frame == null &&
+        _seen) {
+      _frameAsked = false;
+      _show();
     }
   }
 
@@ -78,13 +90,40 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
     if (on == _seen) return;
     _seen = on;
     if (on) {
-      if (_c == null) _open();
+      if (_c == null && _frame == null) _show();
     } else if (_c != null) {
       final c = _c;
       _c = null;
       if (mounted) setState(() => _ready = false);
       unawaited(c?.dispose());
     }
+  }
+
+  /// The kept or newly made first frame; the player only when there is none.
+  void _show() {
+    final a = widget.attachment;
+    final url = a.url;
+    if (url == null) return;
+    if (_frameAsked) {
+      if (_c == null) _open();
+      return;
+    }
+    _frameAsked = true;
+    unawaited(() async {
+      final own = await ownChatVideo(a.fileId);
+      final frame =
+          await ChatVideoFrames.instance.load(a.fileId, own?.path ?? url);
+      if (!mounted || widget.attachment.fileId != a.fileId) return;
+      if (frame != null) {
+        setState(() {
+          _frame = frame;
+          _own = own;
+        });
+      } else {
+        _own = own;
+        if (_seen && _c == null) _open();
+      }
+    }());
   }
 
   /// The first frame and the length (only the start of the file loads).
@@ -120,6 +159,10 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
     final a = widget.attachment;
     final c = _c;
     final size = _ready ? c!.value.size : Size.zero;
+    final frame = _frame;
+    final length = frame != null && frame.length > Duration.zero
+        ? frame.length
+        : (_ready ? c!.value.duration : null);
     // Owner 2026-10-18: the bubble's shape never changes once shown — the
     // server's size of the video (width/height), else a phone-portrait
     // 3:4; the loaded video fills that box (cover) instead of resizing it.
@@ -140,7 +183,7 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
               : () => Navigator.of(context, rootNavigator: true).push(
                     MaterialPageRoute<void>(
                       fullscreenDialog: true,
-                      builder: (_) => ChatVideoScreen(url: url),
+                      builder: (_) => ChatVideoScreen(url: url, file: _own),
                     ),
                   ),
           child: ClipRRect(
@@ -157,7 +200,13 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                   fit: StackFit.expand,
                   children: [
                     const ColoredBox(color: Colors.black),
-                    if (_ready)
+                    if (frame != null)
+                      Image.memory(
+                        frame.jpeg,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                      )
+                    else if (_ready)
                       FittedBox(
                         fit: BoxFit.cover,
                         clipBehavior: Clip.hardEdge,
@@ -207,7 +256,7 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                               size: widget.fill ? 32 : 48,
                             ),
                     ),
-                    if (_ready)
+                    if (length != null)
                       PositionedDirectional(
                         start: widget.fill ? 4 : 8,
                         bottom: widget.fill ? 4 : 8,
@@ -230,7 +279,7 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                voiceClock(c!.value.duration),
+                                voiceClock(length),
                                 style: type.caption.copyWith(
                                   color: Colors.white,
                                   fontFeatures: const [
@@ -256,9 +305,13 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
 /// A chat video full screen: plays at once; tap shows / hides the controls
 /// (play / pause, a seek bar, time); the close button or a swipe back.
 class ChatVideoScreen extends StatefulWidget {
-  const ChatVideoScreen({required this.url, super.key});
+  const ChatVideoScreen({required this.url, this.file, super.key});
 
   final String url;
+
+  /// Owner row 106: your own sent video still on the phone — played from
+  /// the file, nothing is downloaded.
+  final File? file;
 
   @override
   State<ChatVideoScreen> createState() => _ChatVideoScreenState();
@@ -371,10 +424,16 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
     _inCall = container.read(callControllerProvider).phase != CallPhase.idle;
     _muted = _inCall;
     _vol = _inCall ? 0 : 1;
-    _c = VideoPlayerController.networkUrl(
-      Uri.parse(VideoCache.resolve(widget.url)),
-      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: _inCall),
-    );
+    final own = widget.file;
+    _c = own != null && own.existsSync()
+        ? VideoPlayerController.file(
+            own,
+            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: _inCall),
+          )
+        : VideoPlayerController.networkUrl(
+            Uri.parse(VideoCache.resolve(widget.url)),
+            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: _inCall),
+          );
     if (_inCall) unawaited(_c.setVolume(0));
     // A call that comes in meanwhile silences the video at once.
     _callSub = container.listen(

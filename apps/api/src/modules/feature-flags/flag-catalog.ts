@@ -315,6 +315,28 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Chat files go in parallel parts while the app is on screen',
   },
   {
+    // Owner row 100 (media audit 13.11, batch E item 10): on, an upload the
+    // Android phone's background service carries runs as a foreground
+    // service with a progress notification (WorkManager otherwise stops a
+    // task after about 9 minutes). On by default.
+    key: 'uploads_android_foreground',
+    enabled: true,
+    app: true,
+    description:
+      'Android: background uploads keep going with a progress notification',
+  },
+  {
+    // Owner row 100 (batch E item 11): on, when the app leaves the screen in
+    // the middle of a big file, every part still missing becomes its own OS
+    // background transfer, so a closed or killed app continues the upload
+    // instead of sending the whole file again. Needs `chat_upload_parallel`.
+    key: 'uploads_background_parts',
+    enabled: true,
+    app: true,
+    description:
+      'Big uploads continue part by part in the background, never from zero',
+  },
+  {
     // R-251: on, a document over 4 MB comes down in parallel HTTP Range
     // pieces. A server without Range falls back by itself. On by default
     // (owner 2026-11-06).

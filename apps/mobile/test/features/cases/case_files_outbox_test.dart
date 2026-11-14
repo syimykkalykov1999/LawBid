@@ -28,6 +28,7 @@ class _Files extends FakeSocialRepository {
     bool reviewPhoto = false,
     String? fileName,
     int? maxBytes,
+    String? path,
   }) async {
     final e = failWith;
     if (e != null) throw e;

@@ -467,6 +467,11 @@ export class ChatAttachmentDto {
 
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   height!: number | null;
+
+  // Owner row 106: the photo's tiny blurred stand-in (BlurHash), drawn
+  // while the picture loads instead of a grey box; null for non-images.
+  @ApiPropertyOptional({ type: String, nullable: true })
+  blurhash?: string | null;
 }
 
 /** OQ-041: a call in the chat log; senderId is the caller. */

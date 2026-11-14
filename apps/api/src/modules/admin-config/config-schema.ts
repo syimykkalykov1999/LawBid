@@ -665,6 +665,21 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'off | on | auto (default). Who other than the owner opened a confidential file: off = nothing recorded, on = every view, auto = the share set in files.access_log_sample_percent.',
     pattern: /^(off|on|auto)$/,
   };
+  // Owner row 106: Redis holds at most this much per waiting scan.
+  out['files.scan_handoff_max_kb'] = {
+    ...out['files.scan_handoff_max_kb'],
+    description:
+      'KB of a small upload handed from confirm to the virus check through Redis, so the worker does not read it from storage again (0 = off, default 8192, max 32768).',
+    min: 0,
+    max: 32_768,
+  };
+  out['files.scan_handoff_ttl_s'] = {
+    ...out['files.scan_handoff_ttl_s'],
+    description:
+      'Seconds such bytes wait in Redis for the check (10-3600, default 120); after that the worker reads the file from storage.',
+    min: 10,
+    max: 3600,
+  };
   out['files.access_log_sample_percent'] = {
     ...out['files.access_log_sample_percent'],
     min: 0,

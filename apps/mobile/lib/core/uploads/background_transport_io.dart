@@ -8,6 +8,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/core/uploads/upload_files.dart';
+import 'package:path_provider/path_provider.dart';
 
 StorageTransport queueTransport({required StorageTransport fallback}) =>
     !kIsWeb && (Platform.isAndroid || Platform.isIOS)
@@ -127,6 +128,8 @@ class BackgroundStorageTransport implements StorageTransport {
         fields: target.isPut ? null : target.fields,
         updates: Updates.statusAndProgress,
         retries: 3,
+        // Owner row 100: its notification (configureBackgroundUploads).
+        group: uploadsGroup,
       ),
       onProgress: (p) {
         if (p >= 0) onProgress?.call(p);
@@ -171,6 +174,232 @@ class BackgroundStorageTransport implements StorageTransport {
     } on Object {
       // Lost track of it: start it again (S3 just overwrites the object).
       return null;
+    }
+  }
+}
+
+/// Owner row 100: the background_downloader group of the queue's whole-file
+/// uploads (their progress notification).
+const uploadsGroup = 'lawbid-uploads';
+
+/// Owner row 100 (media audit 13.11, batch E item 10; R3): background
+/// uploads on Android run as a foreground service with a progress
+/// notification — WorkManager alone stops a task after about 9 minutes
+/// (background_downloader README, «Android: … limited to 9 minutes»), so a
+/// big video sent from a closed app restarted or failed. Config copied from
+/// the package's doc/CONFIG.md («run task in foreground») and
+/// doc/notifications.md. Android 14+ needs the `dataSync` service type
+/// (AndroidManifest.xml). iOS runs them in its background URLSession and
+/// shows no running notification; nothing to change there.
+Future<void> configureBackgroundUploads({
+  required bool foreground,
+  required String title,
+}) async {
+  if (!backgroundHandsOff) return;
+  try {
+    final d = FileDownloader();
+    if (Platform.isAndroid) {
+      await d.configure(
+        androidConfig: [
+          (Config.runInForeground, foreground ? Config.always : Config.never),
+        ],
+      );
+    }
+    final running = foreground ? TaskNotification(title, '{progress}') : null;
+    d
+      ..configureNotificationForGroup(
+        uploadsGroup,
+        running: running,
+        progressBar: foreground,
+      )
+      // The parts of one file: ONE notification, finished / all parts.
+      ..configureNotificationForGroup(
+        OsBackgroundParts.group,
+        running: foreground
+            ? TaskNotification(title, '{numFinished}/{numTotal}')
+            : null,
+        progressBar: foreground,
+        groupNotificationId: foreground ? OsBackgroundParts.group : '',
+      );
+  } on Object catch (e) {
+    debugPrint('background uploads config: $e');
+  }
+}
+
+BackgroundParts? backgroundParts({required bool Function() enabled}) =>
+    backgroundHandsOff ? OsBackgroundParts(enabled: enabled) : null;
+
+/// Owner row 100 (media audit 13.11, batch E item 11; R4): the parts of a big
+/// queued file still missing when the app leaves the screen, each as its own
+/// OS background transfer (Android WorkManager, iOS background URLSession):
+/// a 5 MiB part is short, so no OS time limit stops it, and after a kill
+/// only the parts storage does not have go again. The pattern is
+/// background_downloader's own parallel download (BSD-3, lib/src/chunk.dart:
+/// one task per piece in a reserved group, the parent collecting their final
+/// states), turned around for an upload: each part's bytes are written to
+/// their own file (the OS sends files, not ranges) and PUT to the part's
+/// presigned link; the server lists what storage has (ListParts), so no
+/// ETags are collected here.
+class OsBackgroundParts implements BackgroundParts {
+  OsBackgroundParts({required bool Function() enabled}) : _enabled = enabled;
+
+  final bool Function() _enabled;
+
+  /// The reserved group of part transfers.
+  static const group = 'lawbid-parts';
+
+  /// Where part files wait (inside the queue's own folder).
+  static const folder = '${UploadFiles.folder}/parts';
+
+  static final _waiting = <String, Completer<bool>>{};
+  static bool _listening = false;
+
+  static String partId(String taskId, int number) => '$taskId.p$number';
+
+  @override
+  bool get enabled => backgroundHandsOff && _enabled();
+
+  static void _listen() {
+    if (_listening) return;
+    _listening = true;
+    FileDownloader().registerCallbacks(
+      group: group,
+      taskStatusCallback: (u) {
+        if (!u.status.isFinalState) return;
+        _waiting.remove(u.task.taskId)?.complete(
+              u.status == TaskStatus.complete,
+            );
+      },
+    );
+  }
+
+  @override
+  Future<bool> send(
+    String taskId,
+    UploadBody body,
+    List<StoragePart> parts, {
+    void Function(int bytes)? onPartDone,
+    CancelToken? cancel,
+  }) async {
+    if (parts.isEmpty) return true;
+    await BackgroundStorageTransport._start();
+    _listen();
+    final root = await getApplicationSupportDirectory();
+    final dir = Directory('${root.path}/$folder');
+    await dir.create(recursive: true);
+    final ids = <String>[];
+    final results = <Future<bool>>[];
+    var failed = false;
+    Future<void> stopAll() async {
+      try {
+        await FileDownloader().cancelTasksWithIds(ids);
+      } on Object catch (e) {
+        debugPrint('parts cancel: $e');
+      }
+    }
+
+    unawaited(cancel?.whenCancel.then((_) => stopAll()));
+    // One part at a time is written and handed over, so whatever was handed
+    // over before the OS suspends the app keeps going.
+    for (final p in parts) {
+      if (failed || (cancel?.isCancelled ?? false)) break;
+      final id = partId(taskId, p.number);
+      final file = File('${dir.path}/$id');
+      try {
+        final sink = file.openWrite();
+        await sink.addStream(body.openRange(p.start, p.end));
+        await sink.close();
+      } on Object catch (e) {
+        debugPrint('part file $id: $e');
+        failed = true;
+        break;
+      }
+      final done = Completer<bool>();
+      _waiting[id] = done;
+      ids.add(id);
+      final queued = await FileDownloader().enqueue(
+        UploadTask(
+          taskId: id,
+          url: p.url,
+          filename: id,
+          directory: folder,
+          baseDirectory: BaseDirectory.applicationSupport,
+          httpRequestMethod: 'PUT',
+          post: 'binary',
+          // An empty Content-Disposition keeps the plugin from adding one.
+          headers: const {'Content-Disposition': ''},
+          group: group,
+          retries: 3,
+        ),
+      );
+      if (!queued) {
+        _waiting.remove(id);
+        done.complete(false);
+      }
+      results.add(
+        done.future.then((ok) async {
+          await _drop(file);
+          if (ok) {
+            onPartDone?.call(p.end - p.start);
+          } else if (!failed) {
+            // One failed part fails the file: the rest stop at once.
+            failed = true;
+            await stopAll();
+          }
+          return ok;
+        }),
+      );
+    }
+    final oks = await Future.wait(results);
+    await _forget(ids);
+    return !failed &&
+        oks.length == parts.length &&
+        oks.every((ok) => ok) &&
+        !(cancel?.isCancelled ?? false);
+  }
+
+  @override
+  Future<void> settle(String taskId) async {
+    if (!backgroundHandsOff) return;
+    try {
+      await BackgroundStorageTransport._start();
+      final records = [
+        for (final r in await FileDownloader().database.allRecords(
+              group: group,
+            ))
+          if (r.taskId.startsWith('$taskId.p')) r,
+      ];
+      if (records.isEmpty) return;
+      final ids = [for (final r in records) r.taskId];
+      final open = [
+        for (final r in records)
+          if (r.status.isNotFinalState) r.taskId,
+      ];
+      if (open.isNotEmpty) await FileDownloader().cancelTasksWithIds(open);
+      final root = await getApplicationSupportDirectory();
+      for (final id in ids) {
+        await _drop(File('${root.path}/$folder/$id'));
+      }
+      await _forget(ids);
+    } on Object catch (e) {
+      debugPrint('parts settle $taskId: $e');
+    }
+  }
+
+  static Future<void> _drop(File f) async {
+    try {
+      if (f.existsSync()) await f.delete();
+    } on Object {
+      // The queue's folder cleanup takes it later.
+    }
+  }
+
+  static Future<void> _forget(List<String> ids) async {
+    if (ids.isEmpty) return;
+    try {
+      await FileDownloader().database.deleteRecordsWithIds(ids);
+    } on Object {
+      // autoCleanDatabase removes old records anyway.
     }
   }
 }

@@ -371,6 +371,7 @@ class ChatAttachment {
     this.height,
     this.localBytes,
     this.progress = 0,
+    this.blurhash,
   });
 
   final String fileId;
@@ -390,6 +391,10 @@ class ChatAttachment {
 
   /// Upload progress 0–1 while sending.
   final double progress;
+
+  /// Owner row 106 (Telegram): the photo's tiny blurred stand-in from the
+  /// server, drawn while the picture loads instead of a grey box.
+  final String? blurhash;
 
   /// Lowercase extension of [name] ("pdf", "xlsx"…), '' when none.
   /// Owner 2026-10-17: a video (MP4 / MOV).
@@ -417,6 +422,7 @@ class ChatAttachment {
         height: height,
         localBytes: localBytes,
         progress: progress ?? this.progress,
+        blurhash: blurhash,
       );
 }
 

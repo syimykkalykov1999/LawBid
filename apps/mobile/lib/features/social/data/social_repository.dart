@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
@@ -298,6 +299,9 @@ abstract interface class SocialRepository {
   /// Presign → upload → confirm → wait for a clean scan; returns the file
   /// id to attach to a post (docs/05 §3.2). [fileName] names a case
   /// document by extension; [maxBytes] is the admin's MB per file.
+  ///
+  /// Owner row 100 (media audit R2): with [path] (a phone file on disk;
+  /// [bytes] then empty) the file is streamed to storage, never read whole.
   Future<String> uploadPostPhoto(
     Uint8List bytes, {
     void Function(double progress)? onProgress,
@@ -305,6 +309,7 @@ abstract interface class SocialRepository {
     bool reviewPhoto = false,
     String? fileName,
     int? maxBytes,
+    String? path,
   });
 
   /// Owner 2026-10-05: a post document (PDF, Word, text) through the same
@@ -1013,13 +1018,19 @@ class ApiSocialRepository implements SocialRepository {
     bool reviewPhoto = false,
     String? fileName,
     int? maxBytes,
+    String? path,
   }) async {
+    // Owner row 100 (media audit R2): a file on disk is looked at by its
+    // start only and sent from disk; nothing is read whole into memory.
+    final disk = path == null ? null : XFile(path);
+    final head = disk == null ? bytes : await _headOf(disk);
+    final size = disk == null ? bytes.length : await disk.length();
     // OQ-034: a case also takes documents next to photos; owner
     // 2026-10-07 (bug 17): any format the admin turned on, by its name.
-    final image = sniffImageMime(bytes);
+    final image = sniffImageMime(head);
     final named = fileName == null ? null : uploadMimeForName(fileName);
     final doc = casePhoto && image == null
-        ? sniffDocumentMime(bytes) ??
+        ? sniffDocumentMime(head) ??
             (named != null && !named.startsWith('image/') ? named : null)
         : null;
     final mime = image ?? doc;
@@ -1029,7 +1040,7 @@ class ApiSocialRepository implements SocialRepository {
         message: 'type',
       );
     }
-    if (bytes.length > (maxBytes ?? kPostPhotoMaxBytes)) {
+    if (size > (maxBytes ?? kPostPhotoMaxBytes)) {
       throw const ApiException(
         code: ApiErrorCodes.fileTooLarge,
         message: 'size',
@@ -1038,6 +1049,7 @@ class ApiSocialRepository implements SocialRepository {
     return _upload(
       bytes,
       mime,
+      body: disk == null ? null : UploadBody.file(disk.path),
       purpose: doc != null
           ? api.FilePurpose.caseAttachment
           : casePhoto
@@ -1084,6 +1096,15 @@ class ApiSocialRepository implements SocialRepository {
     );
   }
 
+  /// The first bytes of a file on disk: enough for every type sniffer.
+  static Future<Uint8List> _headOf(XFile f) async {
+    final out = BytesBuilder(copy: false);
+    await for (final chunk in f.openRead(0, 64 * 1024)) {
+      out.add(chunk);
+    }
+    return out.takeBytes();
+  }
+
   /// Owner 2026-10-19: every document format the admin may turn on for a
   /// post (xls, pptx, csv, … too — not only PDF / Word / text).
   static String _extOf(String mime) {
@@ -1105,10 +1126,11 @@ class ApiSocialRepository implements SocialRepository {
     required api.FilePurpose purpose,
     required String filename,
     void Function(double progress)? onProgress,
+    UploadBody? body,
   }) =>
       _uploader.upload(
         purpose: purpose,
-        body: UploadBody.bytes(bytes),
+        body: body ?? UploadBody.bytes(bytes),
         mime: mime,
         filename: filename,
         onProgress: onProgress,

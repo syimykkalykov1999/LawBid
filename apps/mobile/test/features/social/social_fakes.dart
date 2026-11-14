@@ -280,6 +280,7 @@ class FakeSocialRepository implements SocialRepository {
     bool reviewPhoto = false,
     String? fileName,
     int? maxBytes,
+    String? path,
   }) async =>
       'file-1';
 

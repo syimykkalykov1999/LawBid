@@ -18,6 +18,7 @@ class ChatAttachmentDto {
     this.previewUrl,
     this.width,
     this.height,
+    this.blurhash,
   });
 
   factory ChatAttachmentDto.fromJson(Map<String, Object?> json) =>
@@ -36,6 +37,7 @@ class ChatAttachmentDto {
   final String? previewUrl;
   final int? width;
   final int? height;
+  final String? blurhash;
 
   Map<String, Object?> toJson() => _$ChatAttachmentDtoToJson(this);
 }
