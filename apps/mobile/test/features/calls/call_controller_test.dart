@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/audio/proximity_screen.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -17,6 +18,7 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
+import 'package:lawbid/features/calls/application/call_screen_awake.dart';
 import 'package:lawbid/features/calls/application/call_sound_prefs.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -565,6 +567,9 @@ class _Harness {
         callMyIdProvider.overrideWithValue(me),
         callMicPermissionProvider.overrideWithValue(() async => micOk),
         networkInterfaceMonitorProvider.overrideWithValue(net),
+        callScreenAwakeProvider.overrideWithValue(({required on}) async {
+          awake.add(on);
+        }),
         callSignalSenderProvider.overrideWithValue((id, data, {to}) async {
           signals.add(data);
           signalTargets.add(to);
@@ -600,6 +605,9 @@ class _Harness {
   /// Row 36: the microphone permission answer and the phone's network.
   bool micOk = true;
   final net = FakeNetworkMonitor();
+
+  /// Row 166: every «keep the screen on» switch, in order.
+  final awake = <bool>[];
   late final ProviderContainer container;
   late final ProviderSubscription<CallSession> sub;
 
@@ -3281,7 +3289,8 @@ void main() {
       expect(text, isNot('error.api.USER_BLOCKED'));
     });
 
-    test('S-push-busy: a push ring while talking in another call is declined '
+    test(
+        'S-push-busy: a push ring while talking in another call is declined '
         '(the caller hears busy) and the running call is untouched', () async {
       final h = _Harness();
       addTearDown(h.dispose);
@@ -3327,7 +3336,8 @@ void main() {
       await h.c.hangUp();
     });
 
-    test('S-net-switch: Wi-Fi → 4G mid-call takes a fresh relay list and new '
+    test(
+        'S-net-switch: Wi-Fi → 4G mid-call takes a fresh relay list and new '
         'routes after the 1 s settle, the call goes on', () {
       fakeAsync((async) {
         final h = _Harness();
@@ -3357,6 +3367,204 @@ void main() {
         async.flushMicrotasks();
         h.close();
       });
+    });
+  });
+
+  group('row 166 (WhatsApp call screens)', () {
+    Future<_Harness> talking({bool video = false}) async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer, video: video);
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true, video: video)),
+      );
+      await _settle();
+      h.media.onState!(CallMediaState.connected);
+      await _settle();
+      return h;
+    }
+
+    tearDown(ClientTuning.reset);
+
+    test('1:1: our mute reaches the other phone over the call signal',
+        () async {
+      final h = await talking();
+      h.signals.clear();
+      h.c.toggleMute();
+      h.c.toggleMute();
+      await _settle();
+      expect(h.signals, [
+        {'type': 'mute', 'on': true},
+        {'type': 'mute', 'on': false},
+      ]);
+      expect(h.signalTargets.last, isNull);
+      // A group call keeps the server's member list instead.
+      expect(h.repo.muteStates, isEmpty);
+      await h.c.hangUp();
+    });
+
+    test('1:1: their mute shows here, and goes with the call', () async {
+      final h = await talking();
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'mute', 'on': true},
+      });
+      await _settle();
+      expect(h.container.read(callMicsOffProvider), {'p1'});
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'mute', 'on': false},
+      });
+      await _settle();
+      expect(h.container.read(callMicsOffProvider), isEmpty);
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'mute', 'on': true},
+      });
+      await _settle();
+      await h.c.hangUp();
+      expect(h.container.read(callMicsOffProvider), isEmpty);
+    });
+
+    test('a video call keeps the screen on; a voice call does not', () async {
+      final h = await talking(video: true);
+      expect(h.awake, [true]);
+      await h.c.hangUp();
+      expect(h.awake, [true, false]);
+
+      final v = await talking();
+      expect(v.awake, isEmpty);
+      // The camera switched on mid-call: on; back to voice: off.
+      await v.c.toggleVideo();
+      expect(v.awake, [true]);
+      await v.c.toggleVideo();
+      expect(v.awake, [true, false]);
+      await v.c.hangUp();
+    });
+
+    test('ended actions: the WhatsApp buttons per outcome', () {
+      const base = CallSession(phase: CallPhase.ended, conversationId: 'conv');
+      List<CallEndedAction> of(CallSession s) => callEndedActions(s);
+      const again = [CallEndedAction.cancel, CallEndedAction.callAgain];
+      for (final o in [
+        CallStatus.missed,
+        CallStatus.busy,
+        CallStatus.declined,
+        CallStatus.failed,
+      ]) {
+        expect(of(base.copyWith(outcome: o)), again, reason: '$o');
+      }
+      // A normal end or our own cancel closes by itself.
+      expect(of(base.copyWith(outcome: CallStatus.ended)), isEmpty);
+      expect(of(base.copyWith(outcome: CallStatus.canceled)), isEmpty);
+      // A call that rang in here: nothing to ring back from this screen.
+      expect(
+        of(
+          const CallSession(
+            phase: CallPhase.ended,
+            outcome: CallStatus.missed,
+          ),
+        ),
+        isEmpty,
+      );
+      expect(
+        of(base.copyWith(outcome: CallStatus.failed, errorCode: kMicDenied)),
+        [CallEndedAction.cancel, CallEndedAction.settings],
+      );
+      expect(
+        of(
+          base.copyWith(
+            outcome: CallStatus.failed,
+            errorCode: 'CALL_NOT_ALLOWED',
+          ),
+        ),
+        [CallEndedAction.cancel],
+      );
+      expect(
+        of(
+          base.copyWith(
+            outcome: CallStatus.failed,
+            errorCode: ApiErrorCodes.entitlementRequired,
+          ),
+        ),
+        isEmpty,
+      );
+      expect(
+        of(base.copyWith(outcome: CallStatus.missed, staleCallId: 'x')),
+        isEmpty,
+      );
+      expect(
+        of(const CallSession(phase: CallPhase.active, conversationId: 'c')),
+        isEmpty,
+      );
+    });
+
+    test('busy: «Call again» waits for a tap while the screen shows it',
+        () async {
+      ClientTuning.apply(const {'client.call_ended_ms': '500'});
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.container.read(callScreenVisibleProvider.notifier).set(visible: true);
+      h.repo.startStatus = CallStatus.busy;
+      await h.c.call('conv', peer: _peer);
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(h.s.phase, CallPhase.ended);
+      expect(h.s.outcome, CallStatus.busy);
+      expect(callEndedActions(h.s), contains(CallEndedAction.callAgain));
+
+      h.repo.startStatus = CallStatus.ringing;
+      await h.c.callAgain();
+      expect(h.s.phase, CallPhase.outgoing);
+      expect(h.s.conversationId, 'conv');
+      expect(h.repo.startedVideo, [false, false]);
+      await h.c.hangUp();
+    });
+
+    test('«Cancel» and leaving the screen close a waiting ended call',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      final visible = h.container.read(callScreenVisibleProvider.notifier)
+        ..set(visible: true);
+      h.repo.startStatus = CallStatus.busy;
+      await h.c.call('conv', peer: _peer);
+      await _settle();
+      expect(h.s.phase, CallPhase.ended);
+      h.c.dismissEnded();
+      expect(h.s.phase, CallPhase.idle);
+
+      await h.c.call('conv', peer: _peer);
+      await _settle();
+      expect(h.s.phase, CallPhase.ended);
+      visible.set(visible: false);
+      expect(h.s.phase, CallPhase.idle);
+    });
+
+    test('the admin hold time closes a waiting ended call by itself', () async {
+      ClientTuning.apply(const {'client.call_ended_hold_s': '1'});
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.container.read(callScreenVisibleProvider.notifier).set(visible: true);
+      h.repo.startStatus = CallStatus.busy;
+      await h.c.call('conv', peer: _peer);
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      expect(h.s.phase, CallPhase.ended);
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      expect(h.s.phase, CallPhase.idle);
+    });
+
+    test('no screen on top: the short «Call ended» as before', () async {
+      ClientTuning.apply(const {'client.call_ended_ms': '500'});
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.repo.startStatus = CallStatus.busy;
+      await h.c.call('conv', peer: _peer);
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(h.s.phase, CallPhase.idle);
     });
   });
 }
