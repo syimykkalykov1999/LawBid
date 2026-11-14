@@ -2016,9 +2016,14 @@ module "secret_rotation" {
   count  = local.rot_any ? 1 : 0
   source = "../secret-rotation"
 
-  name                  = local.name
-  cluster_name          = module.ecs.cluster_name
-  service_names         = concat([module.ecs.api_service_name, module.ecs.worker_service_name], var.db_pooler_enabled ? ["pgbouncer"] : [])
+  name         = local.name
+  cluster_name = module.ecs.cluster_name
+  # D1-39 (13.11): every service that reads the rotated secrets. api-admin
+  # (same task definition as api) was missing, so it would lose Redis when
+  # the old token is dropped. pgbouncer is always listed: the function asks
+  # ECS which of these exist right now (the live pooler state, not the
+  # Terraform switch) and skips the rest. The admin web reads none of them.
+  service_names         = [module.ecs.api_service_name, "api-admin", module.ecs.worker_service_name, "pgbouncer"]
   alerts_topic_arn      = module.monitoring.alerts_topic_arn
   kms_key_arn           = module.kms.key_arn
   data_keys_kms_key_arn = aws_kms_key.data_keys.arn
@@ -2193,6 +2198,8 @@ module "ecs" {
   api_deployment_alarm_names    = module.monitoring.api_deployment_alarm_names
   worker_deployment_alarm_names = module.monitoring.worker_deployment_alarm_names
   admin_deployment_alarm_names  = module.monitoring.admin_deployment_alarm_names
+  # D1-35: api-admin watches its own target group's alarms.
+  api_admin_deployment_alarm_names = module.monitoring.api_admin_deployment_alarm_names
 
   # Same namespace as modules/monitoring (QueueWaitingTotal).
   metrics_namespace    = "LawBid/${local.name}"
@@ -2644,25 +2651,28 @@ module "monitoring" {
     { web = module.web.web_distribution_id, media = module.s3.media_distribution_id },
     var.documents_cdn_public_key_pem != "" ? { documents = module.s3.documents_distribution_id } : {},
   )
-  api_target_group_arn_suffix      = module.alb.api_target_group_arn_suffix
-  media_cdn_distribution_id        = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.name == "us-east-1" ? module.s3.media_distribution_id : ""
-  admin_target_group_arn_suffix    = module.alb.admin_target_group_arn_suffix
-  deploy_rollback_on_slo           = var.deploy_rollback_on_slo
-  cluster_name                     = module.ecs.cluster_name
-  api_service_name                 = module.ecs.api_service_name
-  worker_service_name              = module.ecs.worker_service_name
-  redis_replication_group_id       = "${local.name}-redis"
-  redis_replicas                   = var.redis_replicas
-  redis_node_type                  = var.redis_node_type
-  redis_cache_replication_group_id = var.redis_cache_node ? "${local.name}-cache-redis" : ""
-  db_instance_id                   = var.create_database ? "${local.name}-postgres" : ""
-  db_max_connections               = local.db_max_connections
-  acm_certificate_arns             = [var.certificate_arn]
-  api_log_group                    = module.ecs.log_group_names["api"]
-  worker_log_group                 = module.ecs.log_group_names["worker"]
-  p95_target_ms                    = var.p95_target_ms
-  runbook_base_url                 = var.runbook_base_url
-  kms_key_arn                      = module.kms.key_arn
+  api_target_group_arn_suffix   = module.alb.api_target_group_arn_suffix
+  media_cdn_distribution_id     = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.name == "us-east-1" ? module.s3.media_distribution_id : ""
+  admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
+  # D1-35: same switch as module.ecs api_admin_enabled (a literal, known at plan).
+  api_admin_deploy_alarms           = true
+  api_admin_target_group_arn_suffix = module.alb.api_admin_target_group_arn_suffix
+  deploy_rollback_on_slo            = var.deploy_rollback_on_slo
+  cluster_name                      = module.ecs.cluster_name
+  api_service_name                  = module.ecs.api_service_name
+  worker_service_name               = module.ecs.worker_service_name
+  redis_replication_group_id        = "${local.name}-redis"
+  redis_replicas                    = var.redis_replicas
+  redis_node_type                   = var.redis_node_type
+  redis_cache_replication_group_id  = var.redis_cache_node ? "${local.name}-cache-redis" : ""
+  db_instance_id                    = var.create_database ? "${local.name}-postgres" : ""
+  db_max_connections                = local.db_max_connections
+  acm_certificate_arns              = [var.certificate_arn]
+  api_log_group                     = module.ecs.log_group_names["api"]
+  worker_log_group                  = module.ecs.log_group_names["worker"]
+  p95_target_ms                     = var.p95_target_ms
+  runbook_base_url                  = var.runbook_base_url
+  kms_key_arn                       = module.kms.key_arn
   # Owner 2026-10-22 (audit #4 §7): external uptime canary + SLO alarms.
   canary_url             = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
   uptime_check           = var.uptime_check
@@ -2682,13 +2692,22 @@ module "monitoring" {
 }
 
 # Owner 2026-10-24: database size follows the load (up fast, down at night).
+locals {
+  # D1-42: what the DB / Redis autoscalers watch for a rollout (at most 10:
+  # one DescribeServices call).
+  autoscale_guard_services = [module.ecs.api_service_name, "api-admin", module.ecs.worker_service_name, module.ecs.admin_service_name, "pgbouncer"]
+}
+
 module "db_autoscale" {
-  count            = local.db_autoscale_on ? 1 : 0
-  source           = "../db-autoscale"
-  name             = local.name
-  db_instance_id   = local.db_identifier
-  cluster_name     = module.ecs.cluster_name
-  service_names    = [module.ecs.api_service_name, module.ecs.worker_service_name]
+  count          = local.db_autoscale_on ? 1 : 0
+  source         = "../db-autoscale"
+  name           = local.name
+  db_instance_id = local.db_identifier
+  cluster_name   = module.ecs.cluster_name
+  # D1-42: every service of the cluster counts as «deploying» (a pooler task
+  # swap or an api-admin rollout is a connection-path change too); a missing
+  # one (pooler off) is skipped by the function.
+  service_names    = local.autoscale_guard_services
   alerts_topic_arn = module.monitoring.alerts_topic_arn
   kms_key_arn      = module.kms.key_arn
   ladder           = var.db_autoscale_ladder
@@ -2710,7 +2729,7 @@ module "redis_autoscale" {
   replication_group_id = "${local.name}-redis"
   replicas             = max(var.redis_replicas, 1) # price shown for the HA size
   cluster_name         = module.ecs.cluster_name
-  service_names        = [module.ecs.api_service_name, module.ecs.worker_service_name]
+  service_names        = local.autoscale_guard_services # D1-42
   alerts_topic_arn     = module.monitoring.alerts_topic_arn
   kms_key_arn          = module.kms.key_arn
   min_node_type        = var.redis_autoscale_min_class

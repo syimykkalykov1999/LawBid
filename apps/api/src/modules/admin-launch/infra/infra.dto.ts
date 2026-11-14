@@ -150,4 +150,7 @@ export class InfraJobDto {
 export class InfraDecisionDto {
   @ApiProperty({ enum: ['wait', 'apply', 'stop'] }) decision!: string;
   @ApiProperty({ enum: STATUSES }) status!: string;
+  // D1-34: true when nobody tapped (an automatic «Авто» confirm); the
+  // workflow then refuses a plan that deletes serving infrastructure.
+  @ApiProperty() auto!: boolean;
 }

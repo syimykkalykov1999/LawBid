@@ -169,7 +169,10 @@ describe('InfraChangeService', () => {
     expect((await svc.decision(r.id, RUN)).decision).toBe('wait');
 
     await svc.confirm('admin-1', null, r.id);
-    expect((await svc.decision(r.id, RUN)).decision).toBe('apply');
+    expect(await svc.decision(r.id, RUN)).toMatchObject({
+      decision: 'apply',
+      auto: false,
+    });
     await svc.report(r.id, RUN, { status: 'applying' });
     const done = await svc.report(r.id, RUN, {
       status: 'done',
@@ -214,7 +217,10 @@ describe('InfraChangeService', () => {
     await svc.jobStart(r.id, RUN);
     const planned = await svc.planReady(r.id, RUN, PLAN);
     expect(planned.status).toBe('confirmed');
-    expect((await svc.decision(r.id, RUN)).decision).toBe('apply');
+    expect(await svc.decision(r.id, RUN)).toMatchObject({
+      decision: 'apply',
+      auto: true,
+    });
     // No admin, so no audit row with a fake admin id (the request row is the log).
     expect(audit.record).not.toHaveBeenCalled();
   });

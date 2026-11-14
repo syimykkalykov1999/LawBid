@@ -345,8 +345,9 @@ jobs:
     runs-on: ubuntu-latest
     # The GitHub environment `production` carries the required reviewers:
     # docs/06 §7.3 "ручное подтверждение".
-    # Rollout + alarm bake time (ROLL_TIMEOUT_SECONDS) + migrations + smoke.
-    timeout-minutes: 90
+    # Rollout + alarm bake time (ROLL_TIMEOUT_SECONDS) + migrations + smoke
+    # (+ the automatic rollback, D1-36).
+    timeout-minutes: 150
     environment:
       name: production
     permissions:
@@ -365,6 +366,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: scripts/ci/wait-earlier-prod-change.sh infra-active
+      # D1-38: a rollback that is running finishes first (a rollback never
+      # waits for a deploy that is still here, so the two cannot deadlock).
+      - name: Wait for an earlier rollback
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/wait-earlier-prod-change.sh rollback-active
       - name: OIDC diagnostics (prints the token's sub, never the token)
         continue-on-error: true
         run: scripts/deploy/oidc-sub.sh
@@ -372,6 +379,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_DEPLOY_SESSION_SECONDS || 3600 }}
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Verify the image signatures (cosign, identity = this workflow on main)
         continue-on-error: ${{ vars.SIGN_REQUIRED != 'true' }}
@@ -407,6 +415,13 @@ jobs:
           CLUSTER: lawbid-prod
           SECRET_PREFIX: lawbid-prod
         run: scripts/deploy/prod-admin-ecs.sh "$IMAGE_TAG" config
+      # D1-40: never migrate or roll while the autoscaler resizes the
+      # database or Redis (it waits, then fails clearly).
+      - name: No database or Redis resize in progress
+        env:
+          DATA_STORES_WAIT_SECONDS: ${{ vars.DATA_STORES_WAIT_SECONDS || '1800' }}
+          DATA_STORES_STRICT: ${{ vars.DATA_STORES_STRICT }}
+        run: scripts/deploy/wait-data-stores-idle.sh lawbid-prod
       - name: Migrations (expand/contract only, docs/02 §7.1)
         env:
           # fail (default) | warn | off — prisma/verify-schema.mjs
@@ -422,27 +437,40 @@ jobs:
       # (not just "stable") and goes red on FAILED. S11-14: api first, smoked
       # against the tag, then worker and admin, so one bad shared change does not
       # hit all three services at once.
-      # Canary (OFF unless repository variable CANARY_ENABLED=true): one extra task
+      # Canary (D1-36: ON unless repository variable CANARY_ENABLED=false): one extra task
       # with the new image takes a little live traffic for CANARY_BAKE_MINUTES while
       # the api alarms are watched; a bad release stops here, before the real api.
       - name: Canary (1 task, watch alarms)
         env:
-          CANARY_ENABLED: ${{ vars.CANARY_ENABLED }}
-          CANARY_BAKE_MINUTES: ${{ vars.CANARY_BAKE_MINUTES }}
+          CANARY_ENABLED: ${{ vars.CANARY_ENABLED || 'true' }}
+          CANARY_BAKE_MINUTES: ${{ vars.CANARY_BAKE_MINUTES || '5' }}
         run: scripts/deploy/canary.sh lawbid-prod "$IMAGE_TAG"
       - name: Rolling deploy api
+        id: roll_api
         env:
           ROLL_TIMEOUT_SECONDS: "2400"
         run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG" api
       - name: Smoke api (the answering tasks run this tag)
+        id: smoke_api
         run: scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}" "$IMAGE_TAG"
+      # D1-37: the first session was taken before migrations, the canary and
+      # up to 40 minutes of the api roll: a fresh one for the rest.
+      - name: Fresh AWS session for the second roll
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_DEPLOY_SESSION_SECONDS || 3600 }}
       - name: Rolling deploy worker and admin
+        id: roll_rest
         env:
           ROLL_TIMEOUT_SECONDS: "2400"
         run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG" "worker admin"
       - name: Smoke (all services)
+        id: smoke_all
         run: scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}" "$IMAGE_TAG"
       - name: Synthetic user flow (scripts/ops/synthetic-check.mjs)
+        id: synthetic
         env:
           SYNTHETIC_IDENTIFIER: ${{ secrets.SYNTHETIC_IDENTIFIER }}
           SYNTHETIC_PASSWORD: ${{ secrets.SYNTHETIC_PASSWORD }}
@@ -465,6 +493,29 @@ jobs:
             exit 1
           fi
           echo "last_good_tag = $IMAGE_TAG (was ${LAST_GOOD_TAG:-none})" | tee -a "$GITHUB_STEP_SUMMARY"
+      # D1-36 (13.11): ECS judged the api good, but a check after the roll
+      # failed (api smoke, the worker / admin roll, the full smoke or the
+      # synthetic user flow): put api, worker and admin (api-admin follows
+      # api) back on the release that ran before, then smoke it. Migrations
+      # stay (expand/contract keeps the old code working). The job stays red
+      # and the owner is told. Off with repository variable AUTO_ROLLBACK=false.
+      - name: Fresh AWS session for the rollback
+        if: ${{ failure() && vars.AUTO_ROLLBACK != 'false' && steps.roll_api.outcome == 'success' && env.LAST_GOOD_TAG != '' && env.LAST_GOOD_TAG != env.IMAGE_TAG && (steps.smoke_api.outcome == 'failure' || steps.roll_rest.outcome == 'failure' || steps.smoke_all.outcome == 'failure' || steps.synthetic.outcome == 'failure') }}
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_DEPLOY_SESSION_SECONDS || 3600 }}
+      - name: Automatic rollback to the release that ran before
+        if: ${{ failure() && vars.AUTO_ROLLBACK != 'false' && steps.roll_api.outcome == 'success' && env.LAST_GOOD_TAG != '' && env.LAST_GOOD_TAG != env.IMAGE_TAG && (steps.smoke_api.outcome == 'failure' || steps.roll_rest.outcome == 'failure' || steps.smoke_all.outcome == 'failure' || steps.synthetic.outcome == 'failure') }}
+        env:
+          ROLL_TIMEOUT_SECONDS: "2400"
+        run: |
+          echo "::error::release $IMAGE_TAG failed a check after the roll; rolling back to $LAST_GOOD_TAG"
+          echo "❌ $IMAGE_TAG failed after the roll; automatic rollback to **$LAST_GOOD_TAG**" >> "$GITHUB_STEP_SUMMARY"
+          scripts/deploy/roll-services.sh lawbid-prod "$LAST_GOOD_TAG" "api worker admin"
+          scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}" "$LAST_GOOD_TAG"
+          echo "✅ production is back on $LAST_GOOD_TAG" >> "$GITHUB_STEP_SUMMARY"
 
   notify:
     name: Tell the owner

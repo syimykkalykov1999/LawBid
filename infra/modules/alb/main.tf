@@ -929,5 +929,6 @@ output "api_target_group_arn" { value = aws_lb_target_group.api.arn }
 output "api_admin_target_group_arn" { value = var.admin_api_target_group_enabled ? aws_lb_target_group.api_admin[0].arn : "" }
 output "api_ws_target_group_arn" { value = var.ws_target_group_enabled ? aws_lb_target_group.api_ws[0].arn : "" }
 output "api_target_group_arn_suffix" { value = aws_lb_target_group.api.arn_suffix }
+output "api_admin_target_group_arn_suffix" { value = var.admin_api_target_group_enabled ? aws_lb_target_group.api_admin[0].arn_suffix : "" }
 output "admin_target_group_arn" { value = aws_lb_target_group.admin.arn }
 output "admin_target_group_arn_suffix" { value = aws_lb_target_group.admin.arn_suffix }

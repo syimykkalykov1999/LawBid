@@ -296,6 +296,11 @@ variable "worker_deployment_alarm_names" {
   default     = []
   description = "Alarms watched while the worker rolls out. Empty = circuit breaker only."
 }
+variable "api_admin_deployment_alarm_names" {
+  type        = list(string)
+  default     = []
+  description = "D1-35: alarms watched while api-admin rolls out (its own target group: 5xx ratio, unhealthy hosts). Empty = circuit breaker only."
+}
 variable "admin_deployment_alarm_names" {
   type        = list(string)
   default     = []
@@ -944,6 +949,15 @@ resource "aws_ecs_service" "api_admin" {
   deployment_circuit_breaker {
     enable   = true
     rollback = true
+  }
+  # D1-35: roll back on its own alarms too, like api.
+  dynamic "alarms" {
+    for_each = var.deployment_alarm_rollback && length(var.api_admin_deployment_alarm_names) > 0 ? [1] : []
+    content {
+      alarm_names = var.api_admin_deployment_alarm_names
+      enable      = true
+      rollback    = true
+    }
   }
   # The spot-fallback Lambda changes the strategy at run time (no Spot
   # capacity -> regular Fargate, and back); an apply must not undo that.
