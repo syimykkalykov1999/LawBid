@@ -100093,6 +100093,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Required: a retry returns the first refund, never a second.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -100117,7 +100126,7 @@
             }
           },
           "400": {
-            "description": "Bad request: VALIDATION_ERROR, PAYMENT_AMOUNT_INVALID",
+            "description": "Bad request: VALIDATION_ERROR, PAYMENT_AMOUNT_INVALID, IDEMPOTENCY_KEY_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -100157,7 +100166,7 @@
             }
           },
           "409": {
-            "description": "Conflict: PAYMENT_INVALID_STATE",
+            "description": "Conflict: PAYMENT_INVALID_STATE, REFUND_AMOUNT_EXCEEDED, IDEMPOTENCY_KEY_CONFLICT",
             "content": {
               "application/json": {
                 "schema": {

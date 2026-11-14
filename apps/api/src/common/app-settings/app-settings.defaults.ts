@@ -1592,6 +1592,11 @@ export const OWNER_OPS_SETTINGS = {
   /** S9-4: the global daily money brake = allowed spend / 30 × this many
    * days (3 → about $15 a day at the $150 floor; it grows with revenue). */
   'economy.daily_brake_days': 3,
+  /** R3A-9 (14.11): the Stripe card fee the profit and economy pages
+   * subtract (Stripe US standard 2.9 % + 30 ¢); the owner changes it when
+   * his Stripe pricing differs. */
+  'economy.stripe_fee_percent': 2.9,
+  'economy.stripe_fee_fixed_cents': 30,
   /** S9-6 (owner 2026-10-25): the VPC interface endpoints (≈ $29 a month)
    * are created and removed by a Lambda. auto = by the NAT traffic signal
    * (default); on = keep them always; off = never. The economy job copies
