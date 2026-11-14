@@ -185,8 +185,18 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
 
   Future<void> _cancelRequest(PaymentRequest r) async {
     if (_busy) return;
-    _busy = true;
     final t = ref.read(translatorProvider);
+    // Row 109 (Stripe «Cancel invoice?»): withdrawing asks first.
+    final ok = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('cpay.req.cancel.title'),
+      message: t.t('cpay.req.cancel.message'),
+      confirmLabel: t.t('cpay.req.cancel'),
+      destructive: true,
+    );
+    if (!ok || !mounted || _busy) return;
+    _busy = true;
     try {
       await ref.read(casePaymentsRepositoryProvider).cancelRequest(r.id);
       _refresh();
