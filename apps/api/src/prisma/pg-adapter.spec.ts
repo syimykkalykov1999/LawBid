@@ -52,7 +52,11 @@ describe('pgAdapterConfig (Prisma 6 URL → node-pg, Prisma 7)', () => {
   });
 
   it.each([
-    ['no sslmode', '', false],
+    [
+      'no sslmode, remote host (v6 prefer: encrypted, not checked)',
+      '',
+      { rejectUnauthorized: false },
+    ],
     ['sslmode=disable', '?sslmode=disable', false],
     [
       'sslmode=disable wins over sslaccept=strict',
@@ -84,6 +88,27 @@ describe('pgAdapterConfig (Prisma 6 URL → node-pg, Prisma 7)', () => {
     // The plain-Node migrate scripts use the same rule (prisma/pg-client.mjs).
     const { pgClientConfig } = await import('../../prisma/pg-client.mjs');
     expect(pgClientConfig(`${BASE}${query}`).ssl).toEqual(ssl);
+  });
+
+  it.each([
+    'postgresql://u:p@localhost:5432/db',
+    'postgresql://u:p@127.0.0.1:5432/db',
+    'postgresql://u:p@[::1]:5432/db',
+    'postgresql://u:p@postgres:5432/db',
+  ])('TLS: no sslmode on a local / compose host %s → plain', async (u) => {
+    expect(pgAdapterConfig(u).pool.ssl).toBe(false);
+    const { pgClientConfig } = await import('../../prisma/pg-client.mjs');
+    expect(pgClientConfig(u).ssl).toBe(false);
+  });
+
+  it('TLS: no sslmode on an RDS / pooler host → encrypted (RDS force_ssl, 14.11)', () => {
+    for (const h of [
+      'lawbid-prod-postgres.abc.us-east-1.rds.amazonaws.com',
+      'pgbouncer.lawbid-prod.internal',
+    ])
+      expect(pgAdapterConfig(`postgresql://u:p@${h}:5432/db`).pool.ssl).toEqual(
+        { rejectUnauthorized: false },
+      );
   });
 
   it('TLS: the pooler URL with its private CA → certificate and host checked against that CA', async () => {

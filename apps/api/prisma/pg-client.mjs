@@ -7,7 +7,8 @@
 // for the statements after it) with the three calls they used.
 //
 // TLS keeps the Prisma 6 behaviour, exactly as src/prisma/pg-adapter.ts:
-// `sslmode=disable` or none → no TLS; any other sslmode → TLS without
+// `sslmode=disable`, or none on a local host → no TLS; none on a remote
+// host → TLS without certificate check; any other sslmode → TLS without
 // certificate check; `sslaccept=strict` → certificate and host checked, CA
 // from `sslcert`. pg-adapter.spec.ts checks both stay the same.
 import { readFileSync } from 'node:fs';
@@ -33,6 +34,19 @@ const PRISMA_ONLY = [
   'sslrootcert',
 ];
 
+/** Same rule as isLocalHost in src/prisma/pg-adapter.ts. */
+export function isLocalHost(host) {
+  const h = host.replace(/^\[|\]$/g, '').toLowerCase();
+  return (
+    h === '' ||
+    h === 'localhost' ||
+    h === '::1' ||
+    h.startsWith('127.') ||
+    h === 'host.docker.internal' ||
+    !h.includes('.')
+  );
+}
+
 /** node-pg client config for a Prisma 6 style URL (one connection). */
 export function pgClientConfig(raw) {
   if (!raw) throw new Error('database URL is not set');
@@ -40,7 +54,11 @@ export function pgClientConfig(raw) {
   const q = url.searchParams;
   const mode = q.get('sslmode')?.trim().toLowerCase();
   let ssl = false;
-  if (mode && mode !== 'disable') {
+  if (!mode && !isLocalHost(url.hostname)) {
+    // 14.11 (KE 146): a remote server without sslmode keeps Prisma 6
+    // "prefer" — TLS, certificate not checked (RDS refuses clear text).
+    ssl = { rejectUnauthorized: false };
+  } else if (mode && mode !== 'disable') {
     if (q.get('sslaccept')?.trim().toLowerCase() === 'strict') {
       const cert = q.get('sslcert')?.trim();
       ssl = cert

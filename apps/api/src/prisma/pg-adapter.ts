@@ -30,9 +30,10 @@ import type { PoolConfig } from 'pg';
  * modes such as verify-full fell back to `prefer`). node-pg would verify for
  * `require`/`verify-*`, so the RDS and pooler connections would fail. Here:
  *   sslmode=disable                → no TLS
- *   no sslmode                     → no TLS (node-pg cannot "prefer"; staging
- *                                    and production URLs must carry sslmode,
- *                                    env.schema.ts enforces it)
+ *   no sslmode, local host         → no TLS (localhost, 127.x, ::1, compose
+ *                                    service names without a dot)
+ *   no sslmode, remote host        → TLS, certificate not checked (Prisma 6
+ *                                    "prefer"; RDS refuses clear connections)
  *   any other sslmode              → TLS, certificate not checked
  *   … + sslaccept=strict           → TLS, certificate and host name checked;
  *                                    `sslcert` = the CA file (Prisma resolved a
@@ -70,6 +71,20 @@ function seconds(v: string | null, fallback: number): number {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 }
 
+/** A database on this machine or a compose/CI service name (no dot):
+ * plain connection, as before. Anything else is a remote server. */
+export function isLocalHost(host: string): boolean {
+  const h = host.replace(/^\[|\]$/g, '').toLowerCase();
+  return (
+    h === '' ||
+    h === 'localhost' ||
+    h === '::1' ||
+    h.startsWith('127.') ||
+    h === 'host.docker.internal' ||
+    !h.includes('.')
+  );
+}
+
 export function pgAdapterConfig(raw: string): PgAdapterConfig {
   let url: URL;
   try {
@@ -96,7 +111,13 @@ export function pgAdapterConfig(raw: string): PgAdapterConfig {
 
   const mode = q.get('sslmode')?.trim().toLowerCase();
   let ssl: PoolConfig['ssl'] = false;
-  if (mode && mode !== 'disable') {
+  if (!mode && !isLocalHost(url.hostname)) {
+    // 14.11 (KE 146): Prisma 6 "prefer" encrypted a remote server without
+    // sslmode; node-pg would connect in clear and RDS (rds.force_ssl = 1 by
+    // default on PostgreSQL 16) would refuse it. A remote host without
+    // sslmode keeps Prisma 6's behaviour: TLS, certificate not checked.
+    ssl = { rejectUnauthorized: false };
+  } else if (mode && mode !== 'disable') {
     if (q.get('sslaccept')?.trim().toLowerCase() === 'strict') {
       const cert = q.get('sslcert')?.trim();
       ssl = cert
