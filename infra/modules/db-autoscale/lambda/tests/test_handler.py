@@ -150,6 +150,111 @@ class HandlerTests(unittest.TestCase):
         self.assertEqual(self.run_with(f)["to"], "db.t4g.small")
 
 
+class ReplicaFake(Fake):
+    """A primary with read copies (owner row 6): each id has its own class."""
+
+    def __init__(self, primary="db.t4g.micro", replicas=None, foreign=(), fail=False, **kw):
+        super().__init__(**kw)
+        self.classes = {"db": primary, **(replicas or {"db-replica-1": "db.t4g.micro"})}
+        self.rstatus = {}
+        self.foreign, self.fail = list(foreign), fail
+
+    def describe_db_instances(self, DBInstanceIdentifier):
+        i = DBInstanceIdentifier
+        row = {"DBInstanceClass": self.classes[i], "MultiAZ": True,
+               "DBInstanceStatus": self.status if i == "db" else self.rstatus.get(i, "available")}
+        if i == "db":
+            row["ReadReplicaDBInstanceIdentifiers"] = [k for k in self.classes if k != "db"] + self.foreign
+        return {"DBInstances": [row]}
+
+    def modify_db_instance(self, **kw):
+        if self.fail and kw["DBInstanceIdentifier"] != "db":
+            raise RuntimeError("AccessDenied")
+        self.calls.append(("modify", kw))
+
+    def modified(self):
+        return [(c[1]["DBInstanceIdentifier"], c[1]["DBInstanceClass"]) for c in self.calls if c[0] == "modify"]
+
+
+class ReplicaFollowTests(HandlerTests):
+    """Owner row 6 (13.11): read copies keep the primary's class; grow = copies
+    first, shrink = primary first and the copies on a later tick."""
+
+    def test_grow_resizes_the_copy_first_then_the_primary(self):
+        f = ReplicaFake()
+        self.assertEqual(self.run_with(f)["to"], "db.t4g.small")
+        self.assertEqual(f.modified(), [("db-replica-1", "db.t4g.small"), ("db", "db.t4g.small")])
+
+    def test_calm_tick_brings_a_smaller_copy_up_to_the_primary(self):
+        f = ReplicaFake(primary="db.t4g.medium", cpu=10.0)
+        self.run_with(f)
+        self.assertEqual(f.modified(), [("db-replica-1", "db.t4g.medium")])
+        self.assertTrue(any("подстроена" in c[1]["Message"] for c in f.calls if c[0] == "publish"))
+
+    def test_copy_follows_the_primary_down_only_after_it_settled(self):
+        f = ReplicaFake(primary="db.t4g.micro", replicas={"db-replica-1": "db.t4g.small"}, cpu=10.0, status="modifying")
+        self.run_with(f)
+        self.assertEqual(f.modified(), [])  # primary still resizing: the copy waits
+        f.status = "available"
+        self.run_with(f)
+        self.assertEqual(f.modified(), [("db-replica-1", "db.t4g.micro")])
+
+    def test_copy_already_equal_is_left_alone(self):
+        f = ReplicaFake(cpu=10.0)
+        self.run_with(f)
+        self.assertEqual(f.calls, [])
+
+    def test_busy_copy_is_not_touched(self):
+        f = ReplicaFake(primary="db.t4g.small", cpu=10.0)
+        f.rstatus["db-replica-1"] = "modifying"
+        self.run_with(f)
+        self.assertEqual(f.modified(), [])
+
+    def test_foreign_and_cross_region_copies_are_never_resized(self):
+        f = ReplicaFake(primary="db.t4g.small", cpu=10.0,
+                        foreign=["arn:aws:rds:us-west-2:1:db:db-replica-9", "reporting-copy"])
+        self.run_with(f)
+        self.assertEqual(f.modified(), [("db-replica-1", "db.t4g.small")])
+
+    def test_deploy_holds_the_copy_too(self):
+        f = ReplicaFake(primary="db.t4g.small", cpu=10.0, deploying=True)
+        self.run_with(f)
+        self.assertEqual(f.modified(), [])
+
+    def test_switch_off_holds_the_copy(self):
+        f = ReplicaFake(primary="db.t4g.small", cpu=10.0, mode="off")
+        self.run_with(f)
+        self.assertEqual(f.calls, [])
+
+    def test_dry_run_only_tells_the_owner(self):
+        f = ReplicaFake(primary="db.t4g.small", cpu=10.0, mode="dry-run")
+        self.run_with(f)
+        self.assertEqual(f.modified(), [])
+        self.assertTrue(any("ПРОБНЫЙ" in c[1]["Message"] for c in f.calls if c[0] == "publish"))
+
+    def test_failing_copy_never_blocks_the_primary_and_notifies_once_a_day(self):
+        f = ReplicaFake(fail=True)
+        self.assertEqual(self.run_with(f)["to"], "db.t4g.small")
+        self.assertEqual(f.modified(), [("db", "db.t4g.small")])
+        fails = [c for c in f.calls if c[0] == "publish" and "копии базы" in c[1]["Message"]]
+        self.assertEqual(len(fails), 1)
+        self.assertIn("replica_fail", json.loads(f.param["/x/state"])["notified"])
+
+    def test_force_up_moves_the_copy_first(self):
+        f = ReplicaFake()
+        self.run_with(f, {"action": "force", "class": "db.t4g.medium"})
+        self.assertEqual(f.modified(), [("db-replica-1", "db.t4g.medium"), ("db", "db.t4g.medium")])
+
+    def test_force_down_moves_only_the_primary(self):
+        f = ReplicaFake(primary="db.t4g.medium", replicas={"db-replica-1": "db.t4g.medium"})
+        self.run_with(f, {"action": "force", "class": "db.t4g.micro"})
+        self.assertEqual(f.modified(), [("db", "db.t4g.micro")])
+
+    def test_status_lists_the_copies(self):
+        f = ReplicaFake()
+        self.assertEqual(self.run_with(f, {"action": "status"})["replicas"], ["db-replica-1"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

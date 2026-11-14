@@ -1,14 +1,17 @@
 'use client';
 
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, useMotionValue, useTransform } from 'motion/react';
 import * as m from 'motion/react-m';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, ViewTransition } from 'react';
 import { deskHome, outsideDesk } from '@/lib/desk';
 import { useDeskSettings } from '@/lib/desk-data';
-import { useMe } from '@/lib/hooks';
+import { useDragDismiss } from '@/lib/drag-dismiss';
+import { type Me, useMe } from '@/lib/hooks';
+import { useEscapeLayer } from '@/lib/layers';
+import { NAV_TRANSITION } from '@/lib/nav-transition';
 import { useTabTitle } from './use-tab-title';
 import { canOpen, navModeFor, sectionFor } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
@@ -114,22 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
       )}
 
-      <AnimatePresence>
-        {drawer && !desk ? (
-          <m.div className="fixed inset-0 z-50 lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0 bg-[#05060a]/50 backdrop-blur-sm" onClick={() => setDrawer(false)} />
-            <m.aside
-              initial={{ x: -300 }}
-              animate={{ x: 0 }}
-              exit={{ x: -300 }}
-              transition={{ type: 'spring', stiffness: 420, damping: 40 }}
-              className="absolute inset-y-0 left-0 w-[min(284px,85vw)] border-r border-line bg-canvas shadow-pop"
-            >
-              <Sidebar me={me} collapsed={false} mobile onNavigate={() => setDrawer(false)} />
-            </m.aside>
-          </m.div>
-        ) : null}
-      </AnimatePresence>
+      <AnimatePresence>{drawer && !desk ? <MobileDrawer me={me} onClose={() => setDrawer(false)} /> : null}</AnimatePresence>
 
       <div className={cn('relative min-w-0 overflow-x-clip transition-[padding] duration-200 ease-linear', desk ? '' : collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]')}>
         <Topbar me={me} onMenu={() => setDrawer(true)} onSearch={openPalette} />
@@ -145,15 +133,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ) : (
             <SectionTabs me={me} />
           )}
-          {/* Owner row 88 (2026-11-13): a short opacity-only swap. No `y`, so
-              the wrapper never becomes a transform containing block and sticky
-              / fixed parts inside a page no longer jump (was y 8 + 0.4 s). */}
-          <m.div
+          {/* Owner row 88 (2026-11-13): the page swap is a React
+              <ViewTransition> crossfade (Next.js guide «Designing view
+              transitions», 2026-10-15: same-route crossfade recipe; 120 ms
+              out / 150 ms in, globals.css). Only the menu links (sidebar,
+              section tabs, bottom bar) carry the `admin-nav` type, so the
+              browser's back / forward and the iPhone edge swipe swap at once
+              (no second animation after Safari's own). Browsers without View
+              Transitions swap at once, like Instagram and Telegram web. No
+              transform on the wrapper, so sticky / fixed parts never jump. */}
+          <ViewTransition
             key={pathname}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
+            name="admin-page"
+            share={{ [NAV_TRANSITION]: 'admin-page', default: 'none' }}
+            enter={{ [NAV_TRANSITION]: 'admin-page', default: 'none' }}
+            exit={{ [NAV_TRANSITION]: 'admin-page', default: 'none' }}
+            default="none"
           >
+            <div>
             {hidden ? (
               <div className="py-24 text-center">
                 <div className="text-5xl font-semibold text-faint">404</div>
@@ -170,12 +167,54 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {children}
               </div>
             )}
-          </m.div>
+            </div>
+          </ViewTransition>
         </main>
       </div>
       {desk ? null : <BottomNav me={me} onMore={() => setDrawer(true)} />}
       {paletteMounted ? <CommandPalette me={me} open={palette} setOpen={setPalette} /> : null}
     </div>
+  );
+}
+
+/**
+ * Phone menu (☰ / «Ещё»). Owner row 88 (2026-11-13): it follows the finger
+ * and closes with a swipe to the left, like the Telegram / Instagram side
+ * menus — vaul's drag logic, thresholds and curve (MIT, lib/drag-dismiss.ts);
+ * Esc closes it when it is the top layer. The backdrop dims with the swipe.
+ * Look unchanged.
+ */
+function MobileDrawer({ me, onClose }: { me: Me | undefined; onClose: () => void }) {
+  const x = useMotionValue<number | string>(0);
+  const width = useRef(284);
+  const dim = useTransform(x, (v) => (typeof v === 'number' ? Math.min(1, Math.max(0, 1 + v / width.current)) : 1));
+  const drag = useDragDismiss({ offset: x, direction: 'left', enabled: true, onClose });
+  useEscapeLayer(true, onClose);
+  const { ref: dragRef } = drag;
+  const setPanel = useCallback(
+    (node: HTMLElement | null) => {
+      dragRef(node);
+      if (node) width.current = node.getBoundingClientRect().width || 284;
+    },
+    [dragRef],
+  );
+  return (
+    <m.div className="fixed inset-0 z-50 lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <m.div className="absolute inset-0 bg-[#05060a]/50 backdrop-blur-sm" style={{ opacity: dim }} onClick={onClose} />
+      <m.aside
+        ref={setPanel}
+        {...drag.handlers}
+        style={{ x }}
+        initial={{ x: -300 }}
+        animate={{ x: 0 }}
+        exit={{ x: -300 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 40 }}
+        onAnimationStart={drag.markOpened}
+        className="absolute inset-y-0 left-0 w-[min(284px,85vw)] border-r border-line bg-canvas shadow-pop"
+      >
+        <Sidebar me={me} collapsed={false} mobile onNavigate={onClose} />
+      </m.aside>
+    </m.div>
   );
 }
 

@@ -7,6 +7,7 @@ import type {
   VerificationProvider,
 } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
+import { VerificationMediaPurgeService } from './verification-media-purge.service';
 import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -73,6 +74,8 @@ export class VerificationChecksService {
     // 2026-10-24 (abuse batch B, item 13): a paid identity check (Persona /
     // Stripe Identity) counts against the daily `id_check` cap.
     @Optional() private readonly costGuard?: CostGuardService,
+    // Owner 2026-11-13 (row 52): the pictures go once it is approved.
+    @Optional() private readonly media?: VerificationMediaPurgeService,
   ) {
     this.logger.setContext(VerificationChecksService.name);
   }
@@ -306,6 +309,9 @@ export class VerificationChecksService {
     });
     this.logger.info({ requestId, note }, 'Verification request auto-approved');
     await this.trustRecompute(requestId);
+    // Row 52: approved = final; the selfie and ID pictures are deleted now
+    // (no-op when the request was not approved here; never throws).
+    await this.media?.afterDecision(requestId, now);
   }
 
   /**
