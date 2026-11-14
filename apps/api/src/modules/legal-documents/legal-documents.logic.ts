@@ -105,3 +105,52 @@ export function computePending(input: {
   }
   return out;
 }
+
+/**
+ * D1-50 (13.11): admin settings a legal text may name, written in the text as
+ * `{{key}}` and filled in on every public read with the live value, so a
+ * retention period the owner changes in the admin is never stale in the
+ * policy (strict rule 11: user-facing numbers come from the settings).
+ */
+export const LEGAL_LIVE_SETTINGS = [
+  'verification.face_match.retention_days',
+  'verification.media.abandoned_days',
+] as const;
+export type LegalLiveSetting = (typeof LEGAL_LIVE_SETTINGS)[number];
+
+/** [md] with every `{{key}}` of [LEGAL_LIVE_SETTINGS] replaced by its value;
+ * unknown or missing keys stay as written. */
+export function fillLiveSettings(
+  md: string,
+  values: Partial<Record<LegalLiveSetting, number | string>>,
+): string {
+  return md.replace(/\{\{([a-z0-9_.]+)\}\}/g, (all, key: string) => {
+    const v = values[key as LegalLiveSetting];
+    return v === undefined || v === null ? all : String(v);
+  });
+}
+
+/** The live values the text of [md] names (only the keys it uses). */
+export function liveSettingKeys(md: string): LegalLiveSetting[] {
+  return LEGAL_LIVE_SETTINGS.filter((k) => md.includes(`{{${k}}}`));
+}
+
+/** D1-50: the heading of the biometric section (en / ru, numbered or not). */
+export const BIOMETRIC_HEADING =
+  /^##\s+(\d+\.\s+)?(Biometric information|Биометрические данные)/i;
+
+/**
+ * D1-50: the "Biometric information" section of a privacy text (heading up
+ * to the next `## ` heading), or null. Numbered headings ("## 6. …") and the
+ * Russian heading are recognised; the returned heading has no number, so it
+ * fits any older text it is appended to.
+ */
+export function biometricSection(md: string): string | null {
+  const lines = md.split('\n');
+  const start = lines.findIndex((l) => BIOMETRIC_HEADING.test(l));
+  if (start < 0) return null;
+  let end = lines.findIndex((l, i) => i > start && /^## /.test(l));
+  if (end < 0) end = lines.length;
+  const heading = lines[start].replace(/^##\s+(\d+\.\s+)?/, '## ');
+  return [heading, ...lines.slice(start + 1, end)].join('\n').trimEnd();
+}

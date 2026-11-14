@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type {
   VerificationDocType,
   VerificationRequestStatus,
@@ -92,6 +93,25 @@ export const ATTESTATION_VERSION = '2026-10-04';
  * result is kept and that it is deleted). Bump it whenever the wording
  * changes; the request stores the version it was given in. */
 export const BIOMETRIC_CONSENT_VERSION = '2026-11-12';
+
+/** D1-53 (13.11): the English wording of that consent, exactly as the app and
+ * the seed carry it (`{days}` = `verification.face_match.retention_days`,
+ * filled in by the app). A spec keeps it equal to the seed's en text, so a
+ * changed wording changes the hash in [biometricConsentVersion]. */
+export const BIOMETRIC_CONSENT_TEXT_EN =
+  'I agree that LawBid automatically compares my selfie with the photo on my ID (Amazon Rekognition) only to confirm my identity for this verification. The result is kept until my request is decided plus {days} days, then deleted.';
+
+/** D1-53 (13.11): the version stored with an accepted biometric consent:
+ * date + the retention days the text promised + a hash of the wording, e.g.
+ * `2026-11-12.30d.1a2b3c4d`. A new admin retention value or a new wording
+ * gives a new version, so each stored consent shows which text it covered. */
+export function biometricConsentVersion(retentionDays: number): string {
+  const hash = createHash('sha256')
+    .update(BIOMETRIC_CONSENT_TEXT_EN)
+    .digest('hex')
+    .slice(0, 8);
+  return `${BIOMETRIC_CONSENT_VERSION}.${retentionDays}d.${hash}`;
+}
 
 /** admin_note prefix of a request created by a verifier's license
  * re-check (§2.5 recheck → manual review queue). */

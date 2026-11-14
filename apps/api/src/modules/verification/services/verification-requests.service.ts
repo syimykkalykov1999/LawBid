@@ -41,7 +41,7 @@ import type {
 import { VerificationHandoffStatus } from '../dto/verification-responses.dto';
 import {
   ATTESTATION_VERSION,
-  BIOMETRIC_CONSENT_VERSION,
+  biometricConsentVersion,
   EDITABLE_REQUEST_STATUSES,
   IDENTITY_DOC_TYPES,
   IDENTITY_NEEDS_BACK,
@@ -657,8 +657,25 @@ export class VerificationRequestsService {
       }
     }
     const captureMeta = selfie ? selfieCaptureMeta(dto, grant) : Prisma.DbNull;
+    // D1-53: the version names the retention days the consent text showed
+    // (the admin value, read live) and the wording's hash.
+    const consentVersion =
+      selfie && dto.biometricConsent === true
+        ? biometricConsentVersion(
+            await this.settings.number(
+              'verification.face_match.retention_days',
+            ),
+          )
+        : null;
     try {
-      await this.attachInTx(userId, requestId, dto, shape, captureMeta);
+      await this.attachInTx(
+        userId,
+        requestId,
+        dto,
+        shape,
+        captureMeta,
+        consentVersion,
+      );
     } catch (e) {
       if (grant && dto.captureToken) {
         await this.captureTokens
@@ -698,6 +715,7 @@ export class VerificationRequestsService {
     dto: AttachDocumentDto,
     shape: ReturnType<typeof documentShape>,
     captureMeta: Prisma.InputJsonValue | typeof Prisma.DbNull,
+    consentVersion: string | null,
   ): Promise<void> {
     await withTxRetry(this.prisma, async (tx) => {
       const req = await this.load(tx, userId, requestId);
@@ -751,9 +769,7 @@ export class VerificationRequestsService {
           where: { id: req.id },
           data: {
             biometric_consent_at: consent ? new Date() : null,
-            biometric_consent_version: consent
-              ? BIOMETRIC_CONSENT_VERSION
-              : null,
+            biometric_consent_version: consent ? consentVersion : null,
           },
         });
       }

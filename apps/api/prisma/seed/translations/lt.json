@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Norėdami siųsti, pažymėkite priesaikos patvirtinimą.",
   "verification.attest.text": "Prisiekiu, kad esu advokatas su aukščiau nurodyto numerio licencija ir kad licencija galioja. Melagingi duomenys reiškia užblokavimą, o visa atsakomybė tenka man.",
   "verification.biometricConsent.required": "Pažymėkite sutikimą palyginti veidą, kad galėtumėte nusifotografuoti asmenukę.",
-  "verification.biometricConsent.text": "Sutinku, kad LawBid automatiškai palygintų mano asmenukę su nuotrauka mano asmens dokumente (Amazon Rekognition) tik tam, kad patvirtintų mano tapatybę šiame patikrinime. Rezultatas saugomas, kol bus priimtas sprendimas dėl mano prašymo, ir dar 30 dienų, tada ištrinamas.",
+  "verification.biometricConsent.text": "Sutinku, kad LawBid automatiškai palygintų mano asmenukę su nuotrauka mano asmens dokumente (Amazon Rekognition) tik tam, kad patvirtintų mano tapatybę šiame patikrinime. Rezultatas saugomas, kol bus priimtas sprendimas dėl mano prašymo, ir dar {days} dienų, tada ištrinamas.",
   "verification.camera.denied.body": "Telefono nustatymuose leiskite LawBid naudoti fotoaparatą ir bandykite dar kartą.",
   "verification.camera.denied.title": "Nėra prieigos prie fotoaparato",
   "verification.camera.hint.card": "Sutalpinkite kortelę kadre",

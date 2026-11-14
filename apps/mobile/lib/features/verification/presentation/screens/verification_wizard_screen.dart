@@ -450,6 +450,7 @@ class _VerificationWizardScreenState
           needsPhone: ref.watch(selfieNeedsPhoneProvider),
           handoffToken: widget.handoffToken,
           biometricConsent: _biometricConsent,
+          biometricRetentionDays: ref.watch(biometricRetentionDaysProvider),
           onBiometricConsentChanged: (v) => setState(() {
             _biometricConsent = v;
             if (v) _stepError = null;

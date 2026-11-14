@@ -878,7 +878,7 @@ class StaticTranslatorRu extends _MapTranslator {
         'verification.attest.required':
             'Отметьте подтверждение лицензии, чтобы отправить.',
         'verification.biometricConsent.text':
-            'Согласен(на), что LawBid автоматически сравнит моё селфи с фото на удостоверении (Amazon Rekognition) только для проверки моей личности при этой верификации. Результат хранится до решения по заявке и ещё 30 дней, затем удаляется.',
+            'Согласен(на), что LawBid автоматически сравнит моё селфи с фото на удостоверении (Amazon Rekognition) только для проверки моей личности при этой верификации. Результат хранится до решения по заявке и ещё {days} дней, затем удаляется.',
         'verification.biometricConsent.required':
             'Отметьте согласие на сравнение лица, чтобы сделать селфи.',
         'verification.missing.notClean':
@@ -2343,7 +2343,7 @@ class StaticTranslatorEn extends _MapTranslator {
             'I swear that I am the attorney licensed under the number entered above and that the license is active. False information means a ban, and I alone am responsible for it.',
         'verification.attest.required': 'Tick the sworn statement to submit.',
         'verification.biometricConsent.text':
-            'I agree that LawBid automatically compares my selfie with the photo on my ID (Amazon Rekognition) only to confirm my identity for this verification. The result is kept until my request is decided plus 30 days, then deleted.',
+            'I agree that LawBid automatically compares my selfie with the photo on my ID (Amazon Rekognition) only to confirm my identity for this verification. The result is kept until my request is decided plus {days} days, then deleted.',
         'verification.biometricConsent.required':
             'Tick the face comparison consent to take the selfie.',
         'verification.missing.notClean':

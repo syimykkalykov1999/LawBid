@@ -9,6 +9,19 @@ function hideBoot() {
     }
     window.addEventListener('flutter-first-frame', hideBoot);
 
+/* D1-49 (13.11): the visually hidden <main id="seo"> (landing heading and
+   links for search engines) must not be read by a screen reader or reached
+   with Tab on every app screen once the app is drawn. It stays in the page
+   for crawlers; aria-hidden + inert take it out of the accessibility tree
+   and the focus order. */
+function hideSeo() {
+      var s = document.getElementById('seo');
+      if (!s) return;
+      s.setAttribute('aria-hidden', 'true');
+      s.setAttribute('inert', '');
+    }
+    window.addEventListener('flutter-first-frame', hideSeo, { once: true });
+
 /* Owner 2026-10-23: the passkeys bridge (corbado flutter-passkeys 2.4.0
        bundle.js, sha256 dd06b085…c0be49, BSD-3) is served from our own
        domain, so the page's CSP needs only 'self'. It is added after the

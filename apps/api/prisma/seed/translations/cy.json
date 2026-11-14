@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Ticiwch y datganiad llw i anfon.",
   "verification.attest.text": "Rwy'n tyngu mai fi yw'r cyfreithiwr sydd â'r drwydded gyda'r rhif uchod a bod y drwydded yn ddilys. Mae gwybodaeth ffug yn golygu gwaharddiad a fi yn unig sy'n gyfrifol.",
   "verification.biometricConsent.required": "Ticiwch y caniatâd i gymharu wynebau i dynnu'r hunlun.",
-  "verification.biometricConsent.text": "Rwy'n cytuno bod LawBid yn cymharu fy hunlun yn awtomatig â'r llun ar fy nogfen adnabod (Amazon Rekognition) dim ond i gadarnhau pwy ydw i yn y dilysiad hwn. Cedwir y canlyniad nes gwneir penderfyniad ar fy nghais a 30 diwrnod arall, ac yna caiff ei ddileu.",
+  "verification.biometricConsent.text": "Rwy'n cytuno bod LawBid yn cymharu fy hunlun yn awtomatig â'r llun ar fy nogfen adnabod (Amazon Rekognition) dim ond i gadarnhau pwy ydw i yn y dilysiad hwn. Cedwir y canlyniad nes gwneir penderfyniad ar fy nghais a {days} diwrnod arall, ac yna caiff ei ddileu.",
   "verification.camera.denied.body": "Caniatewch fynediad i'r camera ar gyfer LawBid yng ngosodiadau eich ffôn, yna rhowch gynnig arall arni.",
   "verification.camera.denied.title": "Dim mynediad i'r camera",
   "verification.camera.hint.card": "Rhowch y cerdyn o fewn y ffrâm",

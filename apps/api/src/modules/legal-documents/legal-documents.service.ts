@@ -2,8 +2,10 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, type LegalDocType, type LegalDocument } from '@prisma/client';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -27,7 +29,11 @@ import type {
   PublishLegalDto,
   SaveLegalDraftDto,
 } from './legal-documents.dto';
-import { nextVersion } from './legal-documents.logic';
+import {
+  fillLiveSettings,
+  liveSettingKeys,
+  nextVersion,
+} from './legal-documents.logic';
 
 export const LEGAL_DOCS_AUDIT = {
   draft: 'legal.document.draft',
@@ -64,6 +70,7 @@ export class LegalDocumentsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
     private readonly bootstrap: BootstrapService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   // ---- public ------------------------------------------------------------
@@ -113,9 +120,23 @@ export class LegalDocumentsService {
     if (!row) throw notFound('Legal document');
     return {
       ...brief(row),
-      contentMd: row.content_md ?? '',
+      contentMd: await this.withLiveSettings(row.content_md ?? ''),
       requiresReacceptance: row.requires_reacceptance,
     };
+  }
+
+  /** D1-50: `{{key}}` of the admin settings a text names, with today's
+   * values (an admin change bumps the config version, so the ETag follows). */
+  private async withLiveSettings(md: string): Promise<string> {
+    const keys = liveSettingKeys(md);
+    if (keys.length === 0 || !this.settings) return md;
+    const settings = this.settings;
+    const values = Object.fromEntries(
+      await Promise.all(
+        keys.map(async (k) => [k, await settings.number(k)] as const),
+      ),
+    );
+    return fillLiveSettings(md, values);
   }
 
   // ---- admin: read ---------------------------------------------------------

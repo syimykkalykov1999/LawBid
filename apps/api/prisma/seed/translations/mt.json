@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Immarka d-dikjarazzjoni bil-ġurament biex tibgħat.",
   "verification.attest.text": "Nwiegħed bil-ġurament li jien l-avukat bil-liċenzja bin-numru mniżżel hawn fuq u li l-liċenzja hija valida. Informazzjoni falza tfisser imblukkar u r-responsabbiltà hija tiegħi biss.",
   "verification.biometricConsent.required": "Immarka l-kunsens għat-tqabbil tal-wiċċ biex tieħu s-selfie.",
-  "verification.biometricConsent.text": "Naqbel li LawBid iqabbel awtomatikament is-selfie tiegħi mar-ritratt fuq id-dokument tal-identità tiegħi (Amazon Rekognition) biss biex tikkonferma l-identità tiegħi f'din il-verifika. Ir-riżultat jinżamm sakemm tittieħed deċiżjoni dwar it-talba tiegħi u 30 jum oħra, imbagħad jitħassar.",
+  "verification.biometricConsent.text": "Naqbel li LawBid iqabbel awtomatikament is-selfie tiegħi mar-ritratt fuq id-dokument tal-identità tiegħi (Amazon Rekognition) biss biex tikkonferma l-identità tiegħi f'din il-verifika. Ir-riżultat jinżamm sakemm tittieħed deċiżjoni dwar it-talba tiegħi u {days} jum oħra, imbagħad jitħassar.",
   "verification.camera.denied.body": "Ippermetti l-aċċess għall-kamera għal LawBid fis-settings tat-telefon tiegħek, imbagħad erġa’ pprova.",
   "verification.camera.denied.title": "Ebda aċċess għall-kamera",
   "verification.camera.hint.card": "Poġġi l-karta ġewwa l-qafas",

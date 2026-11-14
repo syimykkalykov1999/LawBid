@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Marca a declaración xurada para enviar.",
   "verification.attest.text": "Xuro que son o avogado coa licenza do número indicado e que a licenza está vixente. Os datos falsos supoñen o bloqueo e a responsabilidade é só miña.",
   "verification.biometricConsent.required": "Marca o consentimento de comparación facial para facer o selfie.",
-  "verification.biometricConsent.text": "Acepto que LawBid compare automaticamente o meu selfie coa foto do meu documento de identidade (Amazon Rekognition) só para confirmar a miña identidade nesta verificación. O resultado gárdase ata que se resolva a miña solicitude e 30 días máis, e despois elimínase.",
+  "verification.biometricConsent.text": "Acepto que LawBid compare automaticamente o meu selfie coa foto do meu documento de identidade (Amazon Rekognition) só para confirmar a miña identidade nesta verificación. O resultado gárdase ata que se resolva a miña solicitude e {days} días máis, e despois elimínase.",
   "verification.camera.denied.body": "Permita o acceso á cámara para LawBid na configuración do teléfono e ténteo de novo.",
   "verification.camera.denied.title": "Sen acceso á cámara",
   "verification.camera.hint.card": "Axuste a tarxeta dentro do marco",

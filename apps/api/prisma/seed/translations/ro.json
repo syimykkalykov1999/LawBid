@@ -6368,7 +6368,7 @@
   "verification.attest.required": "Bifează declarația pe propria răspundere pentru a trimite.",
   "verification.attest.text": "Jur că sunt avocatul cu licența al cărei număr este indicat și că licența este activă. Datele false duc la blocare, iar răspunderea îmi aparține numai mie.",
   "verification.biometricConsent.required": "Bifați acordul pentru compararea feței ca să faceți selfie-ul.",
-  "verification.biometricConsent.text": "Sunt de acord ca LawBid să compare automat selfie-ul meu cu fotografia din actul meu de identitate (Amazon Rekognition) doar pentru a-mi confirma identitatea la această verificare. Rezultatul se păstrează până la decizia privind cererea mea și încă 30 de zile, apoi se șterge.",
+  "verification.biometricConsent.text": "Sunt de acord ca LawBid să compare automat selfie-ul meu cu fotografia din actul meu de identitate (Amazon Rekognition) doar pentru a-mi confirma identitatea la această verificare. Rezultatul se păstrează până la decizia privind cererea mea și încă {days} de zile, apoi se șterge.",
   "verification.camera.denied.body": "Permiteți accesul la cameră pentru LawBid în setările telefonului, apoi încercați din nou.",
   "verification.camera.denied.title": "Fără acces la cameră",
   "verification.camera.hint.card": "Încadrați cardul în chenar",
