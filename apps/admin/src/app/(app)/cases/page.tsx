@@ -3,7 +3,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
 import { CaseList } from '@/components/cases/case-list';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { VirtualRows } from '@/components/ui/virtual-rows';
@@ -16,10 +15,13 @@ import { api, errorText } from '@/lib/api/client';
 import { CASE_STATUS, CONTACT_ISSUE_STATUS, ISSUE_TYPE, label, PARTY_ROLE, partyName, StatusPill } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { caseTabFrom, type CaseTab as Tab } from '@/lib/case-tabs';
+import { replaceSearch, useSearch, useUrlState } from '@/lib/url-state';
 
-type Tab = 'cases' | 'disputes' | 'contact-issues';
 type DisputeStatus = 'open' | 'resolved';
 type IssueStatus = 'open' | 'confirmed' | 'rejected';
+const DISPUTE_TABS: readonly DisputeStatus[] = ['open', 'resolved'];
+const ISSUE_TABS: readonly IssueStatus[] = ['open', 'confirmed', 'rejected'];
 
 const DISPUTE_STATUS: Record<string, string> = { open: 'открыт', resolved: 'решён' };
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
@@ -28,9 +30,12 @@ const ISSUE_SORT = ['case', 'attorney', 'client', 'reason', 'confirmed', 'status
 
 /** docs/06 §2.3 item 5: the two support queues. */
 export default function CasesQueuesPage() {
-  const [tab, setTab] = useState<Tab>('cases');
-  const [disputeStatus, setDisputeStatus] = useState<DisputeStatus>('open');
-  const [issueStatus, setIssueStatus] = useState<IssueStatus>('open');
+  const tab = caseTabFrom(new URLSearchParams(useSearch()).get('tab'));
+  // Another tab starts clean: the list filters of «Все кейсы» do not follow it.
+  const setTab = (t: Tab) =>
+    replaceSearch({ tab: t === 'cases' ? null : t, dstatus: null, istatus: null, status: null, q: null, reports: null, state: null, deadline: null, sort: null, disputesSort: null, issuesSort: null });
+  const [disputeStatus, setDisputeStatus] = useUrlState<DisputeStatus>('dstatus', 'open', DISPUTE_TABS);
+  const [issueStatus, setIssueStatus] = useUrlState<IssueStatus>('istatus', 'open', ISSUE_TABS);
   return (
     <>
       <PageHeader eyebrow="Кейсы" title="Кейсы" subtitle="Все кейсы с модерацией, споры и обращения «Не могу связаться»." />

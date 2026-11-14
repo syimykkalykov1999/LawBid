@@ -16,8 +16,11 @@ import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useUrlDraft, useUrlState } from '@/lib/url-state';
 
 type Status = 'all' | 'published' | 'hidden' | 'removed';
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const STATUSES: readonly Status[] = ['all', 'published', 'hidden', 'removed'];
 type Action = 'hide' | 'remove' | 'restore';
 
 const STATUS_LABEL: Record<string, string> = { published: 'виден', hidden: 'скрыт', removed: 'удалён' };
@@ -39,9 +42,8 @@ export default function LegalQaPage() {
   const { data: me } = useMe();
   const canWrite = can(me, 'moderation', 'manage');
   const { ask, dialog } = useReason();
-  const [search, setSearch] = useState('');
-  const [term, setTerm] = useState('');
-  const [status, setStatus] = useState<Status>('all');
+  const { draft: search, setDraft: setSearch, value: term, apply: setTerm } = useUrlDraft('q');
+  const [status, setStatus] = useUrlState<Status>('status', 'all', STATUSES);
   const [open, setOpen] = useState<string | null>(null);
 
   const list = useInfiniteQuery({

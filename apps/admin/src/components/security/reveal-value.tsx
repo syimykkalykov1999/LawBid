@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { CopyButton } from '@/components/ui/copy-button';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
 
@@ -41,8 +42,15 @@ export function RevealValue({
   }, [full]);
 
   if (!value) return <>—</>;
-  if (full) return <>{full}</>;
-  if (!isMasked(value)) return <>{value}</>;
+  // Scout 13.11 (row 96): a whole value gets the copy icon; a masked one has nothing worth copying.
+  const copy = (v: string) => (
+    <>
+      {v}
+      <CopyButton text={v} label={field === 'email' ? 'Скопировать email' : field === 'phone' ? 'Скопировать телефон' : 'Скопировать'} className="ml-1 align-middle" />
+    </>
+  );
+  if (full) return copy(full);
+  if (!isMasked(value)) return copy(value);
   return (
     <span>
       {value}{' '}

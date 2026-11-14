@@ -3,7 +3,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { HoverPrefetchLink as Link } from "@/components/ui/hover-prefetch-link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { MotionRow } from "@/components/legacy/fade-in";
 import { VirtualRows } from "@/components/ui/virtual-rows";
 import { MoreButton } from "@/components/legacy/more-button";
@@ -28,19 +27,23 @@ import { canOpen } from "@/lib/rbac";
 import { MODERATION_REVIEW_PATH } from "@/lib/review-flow";
 import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
+import { useUrlFlag, useUrlState } from "@/lib/url-state";
 
 type QStatus = "open" | "actioned" | "dismissed";
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's, oldest first). */
 const SORT_KEYS = ["target", "reports", "reasons", "author", "targetStatus", "first"] as const;
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const Q_STATUSES: readonly QStatus[] = ["open", "actioned", "dismissed"];
+const TARGET_VALUES: readonly (ModerationTargetType | "")[] = ["", ...MODERATION_TARGET_TYPES];
 
 /** docs/06 §3.2: reports grouped by object, oldest first. */
 export default function ModerationQueuePage() {
   const router = useRouter();
   const { data: me } = useMe();
   const canSeeUsers = canOpen(me, "/users");
-  const [status, setStatus] = useState<QStatus>("open");
-  const [targetType, setTargetType] = useState<ModerationTargetType | "">("");
-  const [priority, setPriority] = useState(false);
+  const [status, setStatus] = useUrlState<QStatus>("status", "open", Q_STATUSES);
+  const [targetType, setTargetType] = useUrlState<ModerationTargetType | "">("type", "", TARGET_VALUES);
+  const [priority, setPriority] = useUrlFlag("priority");
   const filters = { status, targetType, priority };
   const q = useInfiniteQuery({
     queryKey: ["moderation-queue", filters],
