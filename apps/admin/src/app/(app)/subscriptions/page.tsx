@@ -21,8 +21,11 @@ import { PAYMENT_STATUS, PLAN, StatusPill, SUBSCRIPTION_STATUS, usd } from '@/li
 import { Reason } from '@/lib/reasons';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useUrlDraft, useUrlState } from '@/lib/url-state';
 
 type Status = 'all' | 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'incomplete';
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const STATUSES: readonly Status[] = ['all', 'active', 'trialing', 'past_due', 'canceled', 'expired', 'incomplete'];
 type Plan = '' | 'monthly' | 'yearly';
 type GrantFilter = '' | 'yes' | 'no';
 type Seats = '' | 'none' | 'some' | 'full';
@@ -35,7 +38,7 @@ const SEAT_SORT_KEYS = ['created', 'attorney', 'seats', 'amount', 'status', 'inv
 /** Subscriptions: KPIs, list by status / plan / search, details with extend and contract grant. */
 export default function SubscriptionsPage() {
   const { canWrite, canOpenUsers, me } = useBillingRole();
-  const [status, setStatus] = useState<Status>('all');
+  const [status, setStatus] = useUrlState<Status>('status', 'all', STATUSES);
   const [plan, setPlan] = useState<Plan>('');
   const [grant, setGrant] = useState<GrantFilter>('');
   const [trialEnds, setTrialEnds] = useState('');
@@ -43,8 +46,7 @@ export default function SubscriptionsPage() {
   const [seats, setSeats] = useState<Seats>('');
   const [cancelling, setCancelling] = useState<YesNo>('');
   const [hadTrial, setHadTrial] = useState<YesNo>('');
-  const [draft, setDraft] = useState('');
-  const [q, setQ] = useState('');
+  const { draft, setDraft, value: q, apply: setQ } = useUrlDraft('q');
   const [selected, setSelected] = useState<SubscriptionRow | null>(null);
   const [grantFor, setGrantFor] = useState<PickedAttorney | null>(null);
 

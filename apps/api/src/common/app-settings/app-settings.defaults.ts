@@ -474,6 +474,11 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   // photo (the sign-up profile step already asks for it). Requests already
   // sent are never touched. Off = no photo check on submit.
   'verification.require_photo': true,
+  // Scout 13.11 (row 96): the admin's verification queue colours the
+  // «Ожидает» column amber from this many hours of waiting and red from the
+  // second number (Zendesk SLA badge pattern). Display only, nothing else.
+  'verification.queue_warn_hours': 24,
+  'verification.queue_late_hours': 48,
   // Owner 2026-11-12 (row 52): automatic selfie ↔ ID photo comparison with
   // Amazon Rekognition CompareFaces («Сравнение лица (Amazon)»). off
   // (default) = no call, a person compares as before; on / auto = compared

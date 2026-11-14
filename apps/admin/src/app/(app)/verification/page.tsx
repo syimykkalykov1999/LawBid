@@ -1,13 +1,11 @@
 'use client';
 
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { MoreButton } from '@/components/legacy/more-button';
 import { RegistryFlags } from '@/components/registries/registry-flags';
-import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
@@ -20,17 +18,30 @@ import { queueSearch } from '@/lib/registry-conveyor';
 import { VERIFICATION_REVIEW_PATH } from '@/lib/review-flow';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime, formatDuration } from '@/lib/utils';
+import { useUrlSearchText, useUrlState } from '@/lib/url-state';
+import { WAIT_TONE_CLASS, waitThresholds, waitTone, waitToneTitle } from '@/lib/verification-sla';
 
 type QueueStatus = '' | 'submitted' | 'needs_more_info' | 'in_review' | 'registry';
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's, old first). */
 const SORT_KEYS = ['attorney', 'states', 'status', 'submitted', 'waiting', 'reviewer'] as const;
+const QUEUE_STATUSES: readonly QueueStatus[] = ['', 'submitted', 'needs_more_info', 'in_review', 'registry'];
 
 /** docs/06 §2.3 item 2 — the verifier queue over the file-03 API. */
 export default function VerificationQueuePage() {
   const router = useRouter();
-  const [status, setStatus] = useState<QueueStatus>('');
-  const [stateText, setStateText] = useState('');
-  const stateCode = useDebounced(stateText.trim().toUpperCase(), 300);
+  // Scout 13.11 (row 96): the tab and the state live in the address — the
+  // same `?status=…&stateCode=…` the card carries — so «Назад» from a card
+  // and «К списку» come back to this filter.
+  const [status, setStatus] = useUrlState<QueueStatus>('status', '', QUEUE_STATUSES);
+  const { text: stateText, setText: setStateText, value: stateRaw } = useUrlSearchText('stateCode');
+  const stateCode = stateRaw.toUpperCase();
+  // The amber / red thresholds (settings; the shared ['config'] cache, kept 10 minutes).
+  const config = useQuery({
+    queryKey: ['config'],
+    queryFn: async () => (await api.GET('/admin/config')).data!.data,
+    staleTime: 10 * 60_000,
+  });
+  const sla = waitThresholds(config.data);
   const registry = status === 'registry';
   const filters = { status: registry ? '' : status, stateCode };
   const q = useInfiniteQuery({
@@ -159,11 +170,17 @@ export default function VerificationQueuePage() {
                       <StatusPill map={REQUEST_STATUS} value={r.status} />
                     </Td>
                     <Td className="whitespace-nowrap text-muted">{formatDateTime(r.submittedAt)}</Td>
-                    <Td className="whitespace-nowrap tabular-nums">
-                      {r.submittedAt
-                        ? formatDuration(Math.floor((now - new Date(r.submittedAt).getTime()) / 1000))
-                        : '—'}
-                    </Td>
+                    {(() => {
+                      const waited = r.submittedAt ? Math.floor((now - new Date(r.submittedAt).getTime()) / 1000) : null;
+                      const tone = waitTone(waited, sla);
+                      return (
+                        <Td className={`whitespace-nowrap tabular-nums ${WAIT_TONE_CLASS[tone]}`}>
+                          <span title={waitToneTitle(tone, sla)} data-wait-tone={tone}>
+                            {waited === null ? '—' : formatDuration(waited)}
+                          </span>
+                        </Td>
+                      );
+                    })()}
                     <Td className="font-mono text-xs text-muted">{r.reviewerId ? r.reviewerId.slice(0, 8) : '—'}</Td>
                   </MotionRow>
                 ))

@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useMemo } from 'react';
+import { replaceSearch, useSearch } from './url-state';
 
 /**
  * Owner 2026-11-12 (row 57): click-to-sort column headers in the admin lists.
@@ -24,7 +25,6 @@ export interface SortState<K extends string> {
 }
 
 const NONE = { key: null, dir: 'asc' } as const;
-const EVENT = 'lawbid:table-sort';
 
 /** `"submitted.desc"` → `{ key: 'submitted', dir: 'desc' }`; anything unknown = the default order. */
 export function parseSort<K extends string>(raw: string | null | undefined, keys: readonly K[]): SortState<K> {
@@ -82,17 +82,6 @@ export function sortRows<T, K extends string>(rows: readonly T[], s: SortState<K
     .map((x) => x.row);
 }
 
-function subscribe(cb: () => void): () => void {
-  window.addEventListener('popstate', cb);
-  window.addEventListener(EVENT, cb);
-  return () => {
-    window.removeEventListener('popstate', cb);
-    window.removeEventListener(EVENT, cb);
-  };
-}
-const clientSearch = () => window.location.search;
-const serverSearch = () => '';
-
 /** What a sortable header needs: its direction (null = not sorted by it) and the click. */
 export interface SortHeaderProps {
   sorted: SortDir | null;
@@ -104,15 +93,15 @@ export interface SortHeaderProps {
  * `keys` must be a constant (module-level) list of the sortable columns.
  */
 export function useTableSort<K extends string>(keys: readonly K[], param = 'sort') {
-  const search = useSyncExternalStore(subscribe, clientSearch, serverSearch);
+  // One store with the list filters (lib/url-state.ts).
+  const search = useSearch();
   const raw = new URLSearchParams(search).get(param);
   const sort = useMemo(() => parseSort(raw, keys), [raw, keys]);
   const toggle = useCallback(
     (key: K) => {
       const cur = parseSort(new URLSearchParams(window.location.search).get(param), keys);
-      const qs = withSort(window.location.search, param, nextSort(cur, key));
-      window.history.replaceState(window.history.state, '', `${window.location.pathname}${qs}${window.location.hash}`);
-      window.dispatchEvent(new Event(EVENT));
+      const next = nextSort(cur, key);
+      replaceSearch({ [param]: next.key ? `${next.key}.${next.dir}` : null });
     },
     [keys, param],
   );

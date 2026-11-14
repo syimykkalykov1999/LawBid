@@ -41,8 +41,11 @@ import { api, errorText } from '@/lib/api/client';
 import { usd } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { cn, formatDateTime } from '@/lib/utils';
+import { useUrlDraft, useUrlState } from '@/lib/url-state';
 
 type Filter = 'active' | 'expired' | 'inactive' | 'archived';
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const FILTERS: readonly Filter[] = ['active', 'expired', 'inactive', 'archived'];
 
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
 const REDEMPTION_SORT_KEYS = ['user', 'discount', 'created'] as const;
@@ -52,9 +55,8 @@ export default function PromoCodesPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const { canWrite } = useBillingRole();
-  const [filter, setFilter] = useState<Filter>('active');
-  const [draft, setDraft] = useState('');
-  const [q, setQ] = useState('');
+  const [filter, setFilter] = useUrlState<Filter>('filter', 'active', FILTERS);
+  const { draft, setDraft, value: q, apply: setQ } = useUrlDraft('q');
   const [creating, setCreating] = useState(false);
   const [open, setOpen] = useState<PromoCode | null>(null);
 
@@ -68,13 +70,16 @@ export default function PromoCodesPage() {
   const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
 
   const toggle = useMutation({
-    mutationFn: async ({ p, on }: { p: PromoCode; on: boolean }) => {
+    mutationFn: async ({ p, on }: { p: PromoCode; on: boolean; undo?: boolean }) => {
       if (on) await api.PATCH('/admin/billing/promo-codes/{id}', { params: { path: { id: p.id } }, body: { active: true } });
       else await api.POST('/admin/billing/promo-codes/{id}/deactivate', { params: { path: { id: p.id } } });
       return { p, on };
     },
-    onSuccess: ({ p, on }) => {
-      toast.success(`${p.code}: ${on ? 'включён' : 'выключен'}`);
+    // Scout 13.11 (row 96): «Отменить» flips it back (the undo itself offers none).
+    onSuccess: ({ p, on }, vars) => {
+      const text = `${p.code}: ${on ? 'включён' : 'выключен'}`;
+      if (vars.undo) toast.success(text);
+      else toast.undo(text, () => toggle.mutate({ p, on: !on, undo: true }));
       void qc.invalidateQueries({ queryKey: ['promo-codes'] });
     },
     onError: (e) => toast.error(e),

@@ -3,7 +3,6 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { MoreButton } from '@/components/legacy/more-button';
-import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { Badge, type Tone } from '@/components/ui/card';
@@ -19,10 +18,14 @@ import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useUrlSearchText, useUrlState } from '@/lib/url-state';
 
 type Ban = components['schemas']['AdminBanDto'];
 type Tab = 'active' | 'ended' | 'all';
 type Kind = '' | 'user' | 'phone' | 'email' | 'device';
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const TABS: readonly Tab[] = ['active', 'ended', 'all'];
+const KINDS: readonly Kind[] = ['', 'user', 'phone', 'email', 'device'];
 
 const KIND_RU: Record<string, string> = {
   user: 'Пользователь',
@@ -54,10 +57,9 @@ export default function SanctionsPage() {
   const me = useMe();
   const canManage = me.data ? can(me.data, 'sanctions', 'manage') : false;
   const { ask, dialog } = useReason();
-  const [tab, setTab] = useState<Tab>('active');
-  const [kind, setKind] = useState<Kind>('');
-  const [text, setText] = useState('');
-  const search = useDebounced(text.trim(), 300);
+  const [tab, setTab] = useUrlState<Tab>('tab', 'active', TABS);
+  const [kind, setKind] = useUrlState<Kind>('kind', '', KINDS);
+  const { text, setText, value: search } = useUrlSearchText('q');
   const [form, setForm] = useState<{ userId?: string } | null>(null);
 
   // Deep link from a user card: /sanctions?user=<id>

@@ -756,6 +756,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 50,
     max: 100,
   };
+  out['verification.queue_warn_hours'] = {
+    ...out['verification.queue_warn_hours'],
+    description:
+      'Hours a verification request waits before the admin queue shows its waiting time in amber (default 24). Display only.',
+    min: 1,
+    max: 720,
+  };
+  out['verification.queue_late_hours'] = {
+    ...out['verification.queue_late_hours'],
+    description:
+      'Hours a verification request waits before the admin queue shows its waiting time in red (default 48). Display only.',
+    min: 1,
+    max: 720,
+  };
   out['verification.face_match.retention_days'] = {
     ...out['verification.face_match.retention_days'],
     description:
