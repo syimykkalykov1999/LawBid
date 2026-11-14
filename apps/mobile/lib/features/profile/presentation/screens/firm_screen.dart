@@ -69,12 +69,11 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
       appBar: AppBar(title: Text(t.t('firm.title'))),
       body: firm.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => Center(
-          child: AppButton(
-            label: t.t('common.retry'),
-            variant: AppButtonVariant.secondary,
-            onPressed: () => ref.invalidate(myFirmProvider),
-          ),
+        // Detective R2-A #24: what went wrong, then Retry.
+        error: (e, _) => AppErrorState(
+          message: errorText(t, e),
+          retryLabel: t.t('error.retry'),
+          onRetry: () => ref.invalidate(myFirmProvider),
         ),
         data: (f) => ListView(
           padding: const EdgeInsets.all(AppSpacing.screenSide),
@@ -102,16 +101,23 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
           maxLength: 120,
         ),
         const SizedBox(height: AppSpacing.sm),
-        AppButton(
-          label: t.t('firm.create'),
-          isLoading: _busy,
-          onPressed: () => _run(() async {
-            await guardApiCall(
-              () => _client.createFirm(
-                body: api.CreateFirmDto(name: _name.text.trim()),
-              ),
-            );
-          }),
+        // Detective R2-A #24: no firm without a name.
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _name,
+          builder: (context, name, _) => AppButton(
+            key: const ValueKey('firm-create'),
+            label: t.t('firm.create'),
+            isLoading: _busy,
+            onPressed: name.text.trim().isEmpty
+                ? null
+                : () => _run(() async {
+                      await guardApiCall(
+                        () => _client.createFirm(
+                          body: api.CreateFirmDto(name: _name.text.trim()),
+                        ),
+                      );
+                    }),
+          ),
         ),
       ];
 
@@ -176,15 +182,8 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
               ),
               if (isOwner && m.role.json != 'owner')
                 TextButton(
-                  onPressed: _busy
-                      ? null
-                      : () => _run(() async {
-                            await guardApiCall(
-                              () => _client.removeFirmMember(
-                                attorneyId: m.attorneyId,
-                              ),
-                            );
-                          }),
+                  key: ValueKey('firm-remove-${m.attorneyId}'),
+                  onPressed: _busy ? null : () => _remove(m, t),
                   child: Text(t.t('firm.remove')),
                 ),
             ],
@@ -230,6 +229,39 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
           onPressed: _busy ? null : () => _leave(me),
         ),
     ];
+  }
+
+  /// Detective R2-A #24 (HIG: a destructive action is confirmed) — the
+  /// same dialog as removing a team member (`team_screen.dart`).
+  Future<void> _remove(api.FirmMemberDto m, Translator t) async {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final name = [m.firstName, m.lastName].whereType<String>().join(' ').trim();
+    final ok = await showAppDialog<bool>(
+      context: context,
+      builder: (ctx) => AppAlertDialog(
+        content: Text(t.t('team.remove.confirm', {'name': name})),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(t.t('common.cancel')),
+          ),
+          TextButton(
+            key: const ValueKey('firm-remove-confirm'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              t.t('firm.remove'),
+              style: TextStyle(color: colors.dangerText),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!(ok ?? false) || !mounted) return;
+    await _run(() async {
+      await guardApiCall(
+        () => _client.removeFirmMember(attorneyId: m.attorneyId),
+      );
+    });
   }
 
   Future<void> _leave(String? me) => _run(() async {

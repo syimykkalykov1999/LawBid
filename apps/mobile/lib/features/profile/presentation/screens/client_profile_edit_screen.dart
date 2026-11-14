@@ -202,7 +202,10 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
   Future<void> _save(Translator t) async {
     setState(() => _attempted = true);
     if (_first.text.trim().isEmpty || _last.text.trim().isEmpty) return;
+    // Detective R2-A #19: not while the @username check is still running
+    // (a failed check is fine: the server's answer decides, as Instagram).
     if (const {
+      UsernameStatus.checking,
       UsernameStatus.invalid,
       UsernameStatus.taken,
       UsernameStatus.reserved,
