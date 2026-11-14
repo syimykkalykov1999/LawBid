@@ -109,6 +109,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 100,
     max: 5000,
   };
+  out['search.engine_request_timeout_ms'] = {
+    type: 'integer',
+    defaultValue: 5000,
+    description:
+      'Search engine service calls (index layout, counts, index creation, task status): how long one try waits, milliseconds. User searches use search.engine_timeout_ms.',
+    min: 500,
+    max: 120_000,
+  };
+  out['search.engine_max_retries'] = {
+    type: 'integer',
+    defaultValue: 0,
+    description:
+      'Search engine: extra tries after a timeout or a dropped connection (reads and bulk writes only, never reindex). 0 = no retry.',
+    min: 0,
+    max: 10,
+  };
   out['search.reindex_keep_days'] = {
     type: 'integer',
     defaultValue: 7,
@@ -1087,6 +1103,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Database answer time (ms) above which heavy background jobs pause on their own for 15 minutes.',
     min: 100,
     max: 60_000,
+  };
+  out['ops.db_slow_probes'] = {
+    ...out['ops.db_slow_probes'],
+    description:
+      'How many slow database probes in a row (one a minute) pause heavy background jobs. 1 = pause on the first slow probe.',
+    min: 1,
+    max: 60,
   };
   out['today.sentry_enabled'] = {
     type: 'boolean',
