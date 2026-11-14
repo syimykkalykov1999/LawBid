@@ -14,6 +14,16 @@ const base: SearchAutoInput = {
 const step = (p: Partial<SearchAutoInput>) => searchAutoStep({ ...base, ...p });
 
 describe('search.engine follows the search engine domain («Авто»)', () => {
+  it('row 9: a spare domain (on, not needed) drains search to the database at once and never climbs', () => {
+    const a = step({ mode: 'engine', spare: true });
+    expect(a).toMatchObject({ kind: 'set_mode', to: 'postgres' });
+    expect(a && searchActionImmediate(a)).toBe(true);
+    expect(step({ mode: 'shadow', spare: true })).toMatchObject({
+      to: 'postgres',
+    });
+    expect(step({ mode: 'postgres', spare: true })).toBeNull();
+  });
+
   it('walks postgres → shadow → reindex → swap reads → swap writes → engine', () => {
     expect(step({})).toMatchObject({ kind: 'set_mode', to: 'shadow' });
     expect(step({ mode: 'shadow' })).toMatchObject({ kind: 'start_reindex' });

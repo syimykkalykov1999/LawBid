@@ -11,6 +11,7 @@ import {
   type DealRecordRunnerOptions,
 } from './deal-record.runner';
 import { DealRecordPreview } from './deal-record.preview';
+import { DealRecordPdfCache } from './deal-record-pdf-cache';
 import { DealRecordTexts } from './deal-record-texts';
 import {
   AdminDealRecordController,
@@ -47,6 +48,7 @@ export class DealsModule {
       providers: [
         { provide: DEAL_RECORD_OPTIONS, useValue: options },
         DealRecordTexts,
+        DealRecordPdfCache,
         DealRecordRunner,
         ...(options.mode === 'api'
           ? [DealRecordsService, DealRecordPreview]

@@ -68,6 +68,8 @@ const CLUSTER_BROADCAST = 3;
 const PACKET_EVENT = 2;
 /** socket.io-adapter's EMITTER_UID: a sender that is not a server. */
 const EMITTER_UID = 'emitter';
+/** socket.io-adapter ClusterAdapter MessageType.SOCKETS_LEAVE. */
+const CLUSTER_SOCKETS_LEAVE = 5;
 
 /**
  * The sharded adapter's broadcast to [rooms] (createShardedAdapter,
@@ -234,6 +236,35 @@ export class RealtimePublisher {
         return;
       }
       this.emitter.to(userIds.map(userRoom)).emit(event, data);
+    } catch {
+      // best-effort (see class doc)
+    }
+  }
+
+  /**
+   * Detective R2B-6 (14.11): every socket of [userIds] leaves [room] on
+   * every instance — a removed group member stops hearing and sending
+   * «печатает…». Same wire format the adapters' own `socketsLeave` uses
+   * (socket.io-adapter ClusterAdapter `SOCKETS_LEAVE`; redis-emitter in
+   * classic mode). Best-effort like the other publishes.
+   */
+  leaveRoom(userIds: string[], room: string): void {
+    if (userIds.length === 0 || this.redis.status !== 'ready') return;
+    const rooms = [...new Set(userIds)].map(userRoom);
+    try {
+      if (this.sharded) {
+        const message = JSON.stringify({
+          uid: EMITTER_UID,
+          nsp: REALTIME_NAMESPACE,
+          type: CLUSTER_SOCKETS_LEAVE,
+          data: { opts: { rooms, except: [] }, rooms: [room] },
+        });
+        void this.redis
+          .spublish(`${CHANNEL_PREFIX}#${REALTIME_NAMESPACE}#`, message)
+          .catch(() => undefined);
+        return;
+      }
+      this.emitter.in(rooms).socketsLeave(room);
     } catch {
       // best-effort (see class doc)
     }

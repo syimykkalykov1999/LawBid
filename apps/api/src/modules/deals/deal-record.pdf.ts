@@ -10,6 +10,7 @@ import QRCode from 'qrcode';
 import {
   newPdfLayoutCache,
   type PdfLayoutCache,
+  type PdfWordCache,
 } from '../../common/pdf-fonts/pdf-fonts';
 import sharp from 'sharp';
 import { describePaymentTerms } from '../bids/bids.public';
@@ -64,6 +65,9 @@ export interface RenderDealRecordInput {
   local?: Record<string, DealRecordLocalTexts>;
   /** v2: the authenticity-check page the QR opens (deal-record.verify.ts). */
   verifyUrl?: string;
+  /** Row 145: shaped words kept between records (DealRecordPdfCache);
+   * absent = shaped once per record, as before. Never changes the bytes. */
+  wordCache?: PdfWordCache;
 }
 
 const BORDER = '#B9C0CF';
@@ -223,7 +227,8 @@ export async function renderDealRecordPdf(
   // split (keep-together below), so a long record is two whole pages.
   // The passes print the same words: each word is shaped once (fontkit
   // shaping was ~2/3 of the render time, profile 13.11).
-  const layoutCache = newPdfLayoutCache();
+  // The next record reuses them too (row 145: [wordCache], admin-bounded).
+  const layoutCache = input.wordCache?.forRender() ?? newPdfLayoutCache();
   let best: { pdf: Buffer; pages: number } | null = null;
   for (const scale of TYPE_SCALES) {
     const out = await renderFlattened(

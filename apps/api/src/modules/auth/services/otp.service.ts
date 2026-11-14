@@ -12,6 +12,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import type Redis from 'ioredis';
 import {
   createHash,
@@ -74,8 +75,12 @@ export interface OtpScope {
 
 /** Wrong guesses at one identifier from ALL sources in 24 h; past it every
  * wrong guess burns the outstanding code (the code is locked, the sign-in
- * method is not): an attacker rotating IPs gets one guess per code. */
+ * method is not): an attacker rotating IPs gets one guess per code.
+ * The default of the admin setting `auth.otp_global_failure_cap`
+ * (R2B-9, 14.11; 0 = no cap). */
 export const OTP_GLOBAL_FAILURE_CAP = 20;
+/** «No cap»: more wrong guesses than a day can hold. */
+const OTP_NO_CAP = 2_147_483_647;
 export const OTP_GLOBAL_FAILURE_WINDOW_SECONDS = 24 * 3600;
 
 export type OtpVerifyResult = 'ok' | 'invalid' | 'expired' | 'locked';
@@ -199,6 +204,8 @@ export class OtpService {
     @Optional() private readonly slo?: SloMetricsService,
     // 2026-10-24 (abuse batch B, item 10): prefix velocity + sign-up cap.
     @Optional() private readonly smsAbuse?: SmsAbuseGuardService,
+    // R2B-9 / rule 11 (14.11): `auth.otp_global_failure_cap`.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.codeTtlSeconds = this.config.getOrThrow<number>(
       'OTP_CODE_TTL_SECONDS',
@@ -323,6 +330,16 @@ export class OtpService {
     }
   }
 
+  /** The admin's cap (missing or broken → 20; 0 → no cap). */
+  private async globalFailureCap(): Promise<number> {
+    const n = await this.settings
+      ?.number('auth.otp_global_failure_cap')
+      .catch(() => NaN);
+    if (typeof n !== 'number' || !Number.isFinite(n) || n < 0)
+      return OTP_GLOBAL_FAILURE_CAP;
+    return n === 0 ? OTP_NO_CAP : Math.floor(n);
+  }
+
   async verifyOtp(
     channel: OtpChannel,
     identifier: string,
@@ -352,7 +369,7 @@ export class OtpService {
       candidateHash,
       this.maxAttempts,
       OTP_LOCKOUT_MEMORY_SECONDS,
-      OTP_GLOBAL_FAILURE_CAP,
+      await this.globalFailureCap(),
       OTP_GLOBAL_FAILURE_WINDOW_SECONDS,
       sourceTag ? '1' : '0',
       ...OTP_LOCKOUT_SCHEDULE_SECONDS,

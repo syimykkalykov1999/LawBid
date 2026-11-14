@@ -300,7 +300,7 @@ jobs:
         with:
           # Pinned: `dart format` output (part of the generated client)
           # depends on the SDK's formatter version.
-          sdk: "3.13.4"
+          sdk: "3.13.7"
 
       - name: OpenAPI has no breaking changes against the base branch (docs/06 §7.2)
         if: github.event_name == 'pull_request'

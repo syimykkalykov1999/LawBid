@@ -8,9 +8,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/login_identifier.dart';
-import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart'
-    show SwitchChannelLink;
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
+import 'package:lawbid/features/auth/presentation/widgets/resend_countdown.dart';
 
 /// `/auth/forgot-password` (owner 2026-10-13): step 1 asks for the phone
 /// number and sends the code by SMS (owner 2026-10-14: never to an e-mail);
@@ -45,14 +44,18 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   bool get _codeStep => _sentTo != null;
 
-  Future<void> _sendCode() async {
+  /// True when the code went out (the Resend countdown restarts only then).
+  Future<bool> _sendCode() async {
+    // Detective R2-A #17: Go / a second tap while the first request runs
+    // must not send a second paid SMS.
+    if (_busy) return false;
     final t = ref.read(translatorProvider);
     // Owner 2026-10-14: a forgotten password is reset by SMS to the phone
     // number only — no e-mail anywhere on this screen.
     final id = LoginIdentifier.tryParse(_identifier.text);
     if (id == null || id.isEmail) {
       setState(() => _error = t.t('auth.forgot.error.phone'));
-      return;
+      return false;
     }
     setState(() {
       _busy = true;
@@ -60,7 +63,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     });
     final result =
         await ref.read(authRepositoryProvider).requestPasswordReset(id.value);
-    if (!mounted) return;
+    if (!mounted) return false;
     setState(() {
       _busy = false;
       if (result.isSuccess) {
@@ -70,6 +73,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         _error = passwordErrorText(t, result);
       }
     });
+    return result.isSuccess;
   }
 
   Future<void> _save() async {
@@ -83,6 +87,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           code: _code.text,
           newPassword: _password.text,
         );
+    // Detective R2-A #14: save the new password with the phone number.
+    if (result.isSuccess) TextInput.finishAutofillContext();
     if (!mounted) return;
     // Success: the session exists, the router guard moves on.
     setState(() {
@@ -115,6 +121,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       },
       fields: _codeStep
           ? [
+              AutofillUsernameField(username: _sentTo!.value),
               AppTextField(
                 controller: _code,
                 hintText: t.t('auth.forgot.code.hint'),
@@ -143,9 +150,12 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 onChanged: (_) => setState(() => _error = null),
               ),
               const SizedBox(height: AppSpacing.md),
-              SwitchChannelLink(
+              // Detective R2-A #17 (WhatsApp «Resend in 0:59»): the same
+              // countdown as the code screen, the admin's wait.
+              ResendCountdown(
+                t: t,
                 label: t.t('auth.forgot.resend'),
-                onTap: _busy ? () {} : _sendCode,
+                onResend: _sendCode,
               ),
             ]
           : [

@@ -298,6 +298,30 @@ void main() {
     });
   });
 
+  testWidgets(
+      'Detective R2-A #15: the spinner shows while «is this number '
+      'registered» is asked', (tester) async {
+    final slow = _SlowStatusRepository();
+    repo = slow;
+    final c = await container();
+    final router =
+        GoRouter(initialLocation: AuthRoutes.phone, routes: authRoutes());
+    addTearDown(router.dispose);
+    await tester.pumpWidget(routedApp(c, router));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText).first, '2025550123');
+    await tester.pump();
+    GavelStrikeButton gavel() =>
+        tester.widget<GavelStrikeButton>(find.byType(GavelStrikeButton));
+    expect(gavel().isLoading, isFalse);
+    await tester.tap(find.byType(AppButton).first);
+    await tester.pump();
+    expect(gavel().isLoading, isTrue, reason: 'phoneStatus still pending');
+    slow.status.complete((registered: false, hasPassword: false));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+  });
+
   group('double submit (owner bug 2026-10-16)', () {
     testWidgets('two quick taps on Continue push the code screen once',
         (tester) async {

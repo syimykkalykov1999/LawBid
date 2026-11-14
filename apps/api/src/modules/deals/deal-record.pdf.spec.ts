@@ -4,7 +4,11 @@ import { join } from 'node:path';
 import jsQR from 'jsqr';
 import { PDFDocument } from '@cantoo/pdf-lib';
 import PDFKitDocument from 'pdfkit';
-import { INTER_PATH, parsedFont } from '../../common/pdf-fonts/pdf-fonts';
+import {
+  INTER_PATH,
+  parsedFont,
+  PdfWordCache,
+} from '../../common/pdf-fonts/pdf-fonts';
 import {
   documentLanguages,
   footerStamp,
@@ -716,6 +720,61 @@ describe('deal record PDF speed (13.11: 1.2–1.5 s per record, CI timeouts)', (
     } finally {
       spy.mockRestore();
     }
+    expect(shaped.length).toBeGreaterThan(100);
+    expect(shaped.length).toBe(new Set(shaped).size);
+  });
+
+  const hex = (x: Buffer) => createHash('sha256').update(x).digest('hex');
+  /** Every word fontkit shapes in Inter while [fn] runs. */
+  async function shapedDuring(fn: () => Promise<unknown>): Promise<string[]> {
+    const inter = parsedFont(INTER_PATH as string);
+    const shaped: string[] = [];
+    const real = inter.layout.bind(inter);
+    const spy = jest
+      .spyOn(inter, 'layout')
+      .mockImplementation((text: string, features?: unknown) => {
+        shaped.push(text);
+        return real(text, features);
+      });
+    try {
+      await fn();
+    } finally {
+      spy.mockRestore();
+    }
+    return shaped;
+  }
+
+  it('row 145: with the process-wide word cache the next record shapes no word again, and the bytes do not change', async () => {
+    // Profile 14.11 (52 warm renders): 59 % of the CPU was still fontkit
+    // shaping, because the word cache lived for one render only and every
+    // record re-shaped the same headings, labels and legal texts.
+    const plain = await renderDealRecordPdf(v2);
+    const wordCache = new PdfWordCache(20_000);
+    const first = await renderDealRecordPdf({ ...v2, wordCache });
+    let second: Buffer = Buffer.alloc(0);
+    const shaped = await shapedDuring(async () => {
+      second = await renderDealRecordPdf({ ...v2, wordCache });
+    });
+    expect(shaped).toEqual([]);
+    expect(hex(first)).toBe(hex(plain));
+    expect(hex(second)).toBe(hex(plain));
+    // A different record reuses the words it shares with the first one.
+    const other = { ...v2, snapshot: snapshot(shortHistory.slice(0, 2)) };
+    const otherPlain = await renderDealRecordPdf(other);
+    const otherShaped = await shapedDuring(async () => {
+      expect(hex(await renderDealRecordPdf({ ...other, wordCache }))).toBe(
+        hex(otherPlain),
+      );
+    });
+    expect(otherShaped.length).toBeLessThan(10);
+  });
+
+  it('row 145: a word cache of 0 words keeps nothing between records (each record shapes its words as before)', async () => {
+    const wordCache = new PdfWordCache(0);
+    await renderDealRecordPdf({ ...v2, wordCache });
+    const shaped = await shapedDuring(() =>
+      renderDealRecordPdf({ ...v2, wordCache }),
+    );
     expect(shaped.length).toBeGreaterThan(100);
     expect(shaped.length).toBe(new Set(shaped).size);
   });

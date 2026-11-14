@@ -228,9 +228,16 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
       }.contains(_usernameStatus);
 
   /// The handle to send: what is on the form unless it is empty or was
-  /// never checked (the server keeps / derives one then).
-  String get _usernameToSend =>
-      _usernameStatus == UsernameStatus.available ? _username.text.trim() : '';
+  /// never checked (the server keeps / derives one then). Detective R2-A
+  /// #19: when the check itself failed (network), the typed handle is kept
+  /// and the server's answer on save decides (Instagram; the field already
+  /// says «We'll check when you save») — it is no longer swapped for ''.
+  String get _usernameToSend => const {
+        UsernameStatus.available,
+        UsernameStatus.error,
+      }.contains(_usernameStatus)
+          ? _username.text.trim()
+          : '';
 
   /// Flag required fields after Continue, or when the server sent the
   /// user back here because something is missing (OnboardingBlocker).

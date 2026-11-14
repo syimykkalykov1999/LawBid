@@ -40,10 +40,13 @@
    download (a single download, still streamed into the compiler).
 
    The deploy (scripts/deploy/web-immutable.py) fills in the folder that holds
-   the app; a local build leaves the placeholder and nothing is pre-started.
+   the app (V, per release) and the one that holds the engine (E, per
+   engine revision, row 170: it outlives our releases); a local build leaves
+   the placeholders and nothing is pre-started.
    window.__lbBoot is read by boot_end.js (splash, stall detection). */
 (function () {
   var V = '__LB_V__';
+  var E = '__LB_E__';
   var B = window.__lbBoot = { last: Date.now(), bytes: 0, retries: 0, early: 0, jsPending: false, failed: false };
   function touch(n) { B.bytes += n; B.last = Date.now(); }
   try {
@@ -125,16 +128,18 @@
     // A tiny module with a GC struct type: valid only with WasmGC.
     gc = WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 95, 1, 120, 0]));
   } catch (e) { /* no WebAssembly */ }
+  /* canvaskit/... lives in the engine's folder, everything else in the app's. */
+  function at(href) { return (href.indexOf('canvaskit/') === 0 && E.indexOf('__') !== 0 ? E : V) + '/' + href; }
   function add(rel, href, as, cors) {
     var l = document.createElement('link');
     l.rel = rel;
-    l.href = V + '/' + href;
+    l.href = at(href);
     if (as) l.as = as;
     if (cors) l.crossOrigin = 'anonymous';
     document.head.appendChild(l);
   }
   function start(href, mime) {
-    var url = abs(V + '/' + href);
+    var url = abs(at(href));
     try {
       early[url] = resilient(url, mime);
       early[url].catch(function () { delete early[url]; B.failed = true; });
