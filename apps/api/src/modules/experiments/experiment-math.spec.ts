@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   assignVariant,
   chiSquareSurvival,
@@ -12,6 +12,14 @@ import {
   srmCheck,
   wilsonInterval,
 } from './experiment-math';
+
+/** A fixed, random-looking unit id for sample [i] of set [tag] (SHA-256,
+ * like real random UUIDs): the statistical tests below give the same result
+ * every run; random ids made the SRM check (p < 0.001) fail now and then. */
+const unit = (i: number, tag = 0) => {
+  const h = createHash('sha256').update(`${tag}:${i}`).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+};
 
 const VARIANTS = [
   { key: 'control', weight: 50 },
@@ -30,8 +38,11 @@ describe('assignVariant', () => {
   it('splits 50/50 within sampling noise and passes its own SRM check', () => {
     const n = 40_000;
     const counts: Record<string, number> = { control: 0, new_formula: 0 };
+    // Fixed unit ids, not randomUUID(): the SRM check flags p < 0.001 by
+    // design, so random ids made this test fail ~1 run in 1000 (CI 14.11).
     for (let i = 0; i < n; i++) {
-      const v = assignVariant(randomUUID(), 'split_test', VARIANTS, 100);
+      const id = unit(i);
+      const v = assignVariant(id, 'split_test', VARIANTS, 100);
       counts[v as string]++;
     }
     expect(Math.abs(counts.control / n - 0.5)).toBeLessThan(0.01);
@@ -46,7 +57,7 @@ describe('assignVariant', () => {
     const n = 40_000;
     let b = 0;
     for (let i = 0; i < n; i++) {
-      if (assignVariant(randomUUID(), 'uneven', vs, 100) === 'b') b++;
+      if (assignVariant(unit(i, 1), 'uneven', vs, 100) === 'b') b++;
     }
     expect(Math.abs(b / n - 0.1)).toBeLessThan(0.01);
   });
@@ -55,13 +66,13 @@ describe('assignVariant', () => {
     const n = 40_000;
     let inside = 0;
     for (let i = 0; i < n; i++) {
-      if (assignVariant(randomUUID(), 'small', VARIANTS, 10) !== null) inside++;
+      if (assignVariant(unit(i, 2), 'small', VARIANTS, 10) !== null) inside++;
     }
     expect(Math.abs(inside / n - 0.1)).toBeLessThan(0.01);
   });
 
   it('keeps everyone who was inside when the share is raised', () => {
-    const ids = Array.from({ length: 5000 }, () => randomUUID());
+    const ids = Array.from({ length: 5000 }, (_, i) => unit(i, 3));
     const at5 = ids.map((id) => assignVariant(id, 'ramp', VARIANTS, 5));
     const at50 = ids.map((id) => assignVariant(id, 'ramp', VARIANTS, 50));
     ids.forEach((_, i) => {
@@ -70,7 +81,7 @@ describe('assignVariant', () => {
   });
 
   it('is independent between experiments', () => {
-    const ids = Array.from({ length: 20_000 }, () => randomUUID());
+    const ids = Array.from({ length: 20_000 }, (_, i) => unit(i, 4));
     let both = 0;
     for (const id of ids) {
       const a = assignVariant(id, 'exp_a', VARIANTS, 100);
@@ -92,13 +103,13 @@ describe('inRollout / inImpressionSample', () => {
     expect(inRollout('f', id, 100)).toBe(true);
     const n = 30_000;
     let on = 0;
-    for (let i = 0; i < n; i++) if (inRollout('flag_x', randomUUID(), 30)) on++;
+    for (let i = 0; i < n; i++) if (inRollout('flag_x', unit(i, 5), 30)) on++;
     expect(Math.abs(on / n - 0.3)).toBeLessThan(0.01);
     expect(inRollout('flag_x', id, 30)).toBe(inRollout('flag_x', id, 30));
   });
 
   it('raising the percent keeps the users already in', () => {
-    const ids = Array.from({ length: 4000 }, () => randomUUID());
+    const ids = Array.from({ length: 4000 }, (_, i) => unit(i, 6));
     for (const id of ids) {
       if (inRollout('grow', id, 10))
         expect(inRollout('grow', id, 30)).toBe(true);
