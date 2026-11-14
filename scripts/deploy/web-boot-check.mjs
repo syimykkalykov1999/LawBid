@@ -33,6 +33,14 @@ const checks = [
   ['loader runs wasm only on blink by default (gecko/webkit off)', /\{blink:!0,gecko:!1,webkit:!1/.test(loader) || /blink:\s*true,\s*gecko:\s*false,\s*webkit:\s*false/.test(loader)],
   ['loader detects blink by vendor/UA like boot_head.js', loader.includes('navigator.vendor==="Google Inc."') && loader.includes('Edg/') && head.includes("'Google Inc.'") && head.includes("'Edg/'")],
   ['loader picks wasm by supportsWasmGC', loader.includes('supportsWasmGC')],
+  // Row 170: our apps/mobile/web/flutter_bootstrap.js template is the one in
+  // the build (no deprecated serviceWorkerSettings step), and its engine
+  // revision is declared (web-immutable.py keys the engine folder on it).
+  // (flutter.js itself has `load({serviceWorkerSettings:...})` as its own
+  // parameter list, so only the last call, the template's, is looked at.)
+  ['the build uses our flutter_bootstrap.js template (load({}), no service-worker step)', /_flutter\.loader\.load\(\{\}\);\s*$/.test(loader.slice(loader.lastIndexOf('_flutter.loader.load(')))],
+  ['the build declares its engineRevision (40 hex)', /"engineRevision"\s*:\s*"[0-9a-f]{40}"/.test(loader)],
+  ['boot_head.js has the engine folder placeholder', head.includes("'__LB_E__'")],
 ];
 // A newer loader that also needs more features must be mirrored in boot_head.js.
 const newer = /string[-_ ]?builtins|exnref|jsStringBuiltins/i.test(loader);
