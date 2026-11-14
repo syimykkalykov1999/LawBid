@@ -6,6 +6,7 @@
 -- limit is kept (never deleted) and set aside for a person to look at:
 -- scan_status stays 'failed' (not attachable) and scan_skipped says why
 -- ('too_large'). The automatic storage cleanup leaves such rows alone.
+SET LOCAL lock_timeout = '5s';
 ALTER TABLE "files" ADD COLUMN IF NOT EXISTS "scan_skipped" VARCHAR(16);
 
 -- R11: the MP4 fallback rendition Bunny really stored for this video

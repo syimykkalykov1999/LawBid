@@ -3,6 +3,7 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo, Server } from 'node:net';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import sharp from 'sharp';
 import request from 'supertest';
 import type Redis from 'ioredis';
 import { AppModule } from '../src/app.module';
@@ -31,6 +32,11 @@ describe('Link preview (e2e)', () => {
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
+    const png = await sharp({
+      create: { width: 8, height: 8, channels: 3, background: '#3366ff' },
+    })
+      .png()
+      .toBuffer();
     site = createServer((req, res) => {
       hits++;
       if (req.url?.startsWith('/og')) {
@@ -40,6 +46,10 @@ describe('Link preview (e2e)', () => {
             '<meta property="og:description" content="Hello">' +
             '<meta property="og:image" content="/a.png"></head></html>',
         );
+      }
+      if (req.url === '/a.png') {
+        res.setHeader('content-type', 'image/png');
+        return void res.end(png);
       }
       res.statusCode = 500;
       res.end();
@@ -71,7 +81,7 @@ describe('Link preview (e2e)', () => {
       where: { key: { startsWith: 'chat.link_preview' } },
     });
     await dropAppConfigCache(redis);
-    const keys = await redis.keys('lp:v1:*');
+    const keys = await redis.keys('lp:v2:*');
     if (keys.length) await redis.del(...keys);
     site.closeAllConnections();
     await new Promise((r) => site.close(r));
@@ -122,14 +132,17 @@ describe('Link preview (e2e)', () => {
     expect(a.body.data).toMatchObject({
       title: 'Fake site',
       description: 'Hello',
-      imageUrl: `${siteUrl}/a.png`,
     });
+    // R7: the picture is re-hosted by us, never the third-party link.
+    expect(a.body.data.imageUrl).toContain('link-preview/');
+    expect(a.body.data.imageUrl).not.toContain(siteUrl);
     await api()
       .get('/api/v1/link-preview')
       .set('Authorization', u.Authorization)
       .query({ url })
       .expect(200);
-    expect(hits - before).toBe(1);
+    // The page and its picture once each; the second call is the cache.
+    expect(hits - before).toBe(2);
   });
 
   it('caches a failing site briefly (negative cache) and answers empty', async () => {
