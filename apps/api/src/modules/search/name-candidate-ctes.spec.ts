@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { NAME_SCAN_CAP, nameCandidateCtes } from './postgres-search.provider';
 
 describe('nameCandidateCtes (load test 2026-11-02)', () => {

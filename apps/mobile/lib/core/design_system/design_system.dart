@@ -4,6 +4,7 @@
 export 'icons/app_icon.dart';
 export 'icons/app_icons.dart';
 export 'theme/app_color_tokens.dart';
+export 'theme/app_overlay_colors.dart';
 export 'theme/app_theme.dart';
 export 'theme/app_theme_id.dart';
 export 'theme/app_theme_providers.dart';
@@ -61,6 +62,7 @@ export 'widgets/inputs/field_counter.dart';
 export 'widgets/lists/app_paginated_list_view.dart';
 export 'widgets/lists/app_picker_row.dart';
 export 'widgets/motion/app_entrance.dart';
+export 'widgets/motion/app_motion_bits.dart';
 export 'widgets/motion/app_pressable.dart';
 export 'widgets/motion/app_tap_target.dart';
 export 'widgets/motion/hover_surface.dart';

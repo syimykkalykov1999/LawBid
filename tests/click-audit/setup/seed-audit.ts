@@ -11,10 +11,11 @@
 //   app can sign in the way users do (phone + password).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../../apps/api/src/generated/prisma/client';
 import { hashSecret } from '../../../apps/api/src/modules/admin-auth/admin-password.util';
 import { defaultPermissionsForRole } from '../../../apps/api/src/modules/admin-auth/admin-permissions';
 import { PasswordService } from '../../../apps/api/src/modules/auth/services/password.service';
+import { pgAdapter } from '../../../apps/api/src/prisma/pg-adapter';
 
 interface Fixtures {
   admin: { email: string; login: string; password: string };
@@ -30,7 +31,7 @@ async function main(): Promise<void> {
   const fx = JSON.parse(
     readFileSync(join(__dirname, 'fixtures.json'), 'utf8'),
   ) as Fixtures;
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({ adapter: pgAdapter(process.env.DATABASE_URL) });
   try {
     const admin = await prisma.user.upsert({
       where: { email: fx.admin.email },

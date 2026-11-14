@@ -46,6 +46,59 @@ describe('RealtimeGateway typing cap (big rooms)', () => {
   });
 });
 
+/** D1-1 / D1-3: who gets «печатает…» and the throttle per chat. */
+describe('RealtimeGateway typing relay', () => {
+  const A = '11111111-1111-4111-8111-111111111111';
+  const B = '22222222-2222-4222-8222-222222222222';
+  function make() {
+    const gw = Object.create(RealtimeGateway.prototype) as Record<
+      string,
+      unknown
+    >;
+    gw.timing = { typingBigRoomSockets: 0, typingBigRoomMaxTypers: 3 };
+    gw.recentTypers = new Map();
+    const sent: { to: string[]; except: string; payload: unknown }[] = [];
+    const socket = {
+      data: { user: { sub: 'me' }, viewing: new Set([A, B]), peers: new Map() },
+      to(rooms: string[]) {
+        return {
+          except: (room: string) => ({
+            volatile: {
+              emit: (_e: string, payload: unknown) =>
+                sent.push({ to: rooms, except: room, payload }),
+            },
+          }),
+        };
+      },
+    } as unknown as Socket;
+    const relay = (id: string, typing = true) =>
+      (
+        gw as unknown as {
+          relayTyping: (s: Socket, b: unknown, t: boolean) => void;
+        }
+      ).relayTyping(socket, { conversationId: id }, typing);
+    return { relay, sent };
+  }
+
+  it("never goes to the typer's own devices and says who types", () => {
+    const { relay, sent } = make();
+    relay(A);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].except).toBe('user:me');
+    expect(sent[0].payload).toMatchObject({ conversationId: A, userId: 'me' });
+  });
+
+  it('typing in chat B right after chat A is not swallowed', () => {
+    const { relay, sent } = make();
+    relay(A);
+    relay(B);
+    relay(A); // same chat within the gap: throttled
+    expect(
+      sent.map((x) => (x.payload as { conversationId: string }).conversationId),
+    ).toEqual([A, B]);
+  });
+});
+
 describe('RealtimeGateway call:signal', () => {
   it('a phone told `relay`: its direct candidates never reach the other phone', async () => {
     let filterOn = true;

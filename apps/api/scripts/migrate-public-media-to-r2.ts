@@ -26,12 +26,13 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { FilePurpose, PrismaClient } from '@prisma/client';
+import { FilePurpose, PrismaClient } from '../src/generated/prisma/client';
 import {
   ALL_VARIANT_PX,
   PURPOSE_RULES,
   variantKey,
 } from '../src/modules/files/files.policy';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 const args = process.argv.slice(2);
 const APPLY = args.includes('--apply');
@@ -151,7 +152,9 @@ async function main(): Promise<void> {
     }),
   };
   const [from, to] = ROLLBACK ? [r2, aws] : [aws, r2];
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   const purposes = publicPurposes();
   // Belt and braces: no private purpose can be in this list.
   if (purposes.some((p) => PURPOSE_RULES[p].bucket !== 'media')) {

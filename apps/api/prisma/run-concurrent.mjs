@@ -121,10 +121,12 @@ export function singleConnectionUrl(url) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const { PrismaClient } = await import('@prisma/client');
+  const { rawClient } = await import('./pg-client.mjs');
   const arg = process.argv.find((a) => a.startsWith('--dir='));
   const dir = arg ? arg.slice(6) : join(import.meta.dirname, 'concurrent');
-  const prisma = new PrismaClient({ datasourceUrl: singleConnectionUrl(process.env.DATABASE_URL) });
+  // One pg connection (Prisma 7: see pg-client.mjs); the session settings
+  // above must hold for every statement after them.
+  const prisma = rawClient(process.env.DATABASE_URL);
   try {
     await runConcurrent({ prisma, dir });
   } catch (e) {

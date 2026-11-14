@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 
 /**
  * Owner 2026-10-02: free subscriptions under a contract (blogger

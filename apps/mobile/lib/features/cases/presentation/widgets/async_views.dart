@@ -100,6 +100,7 @@ class PagedListBody<T> extends ConsumerWidget {
     this.header,
     this.edgeToEdge = false,
     this.prefetch,
+    this.animateChanges = false,
     super.key,
   });
 
@@ -110,6 +111,10 @@ class PagedListBody<T> extends ConsumerWidget {
   /// Owner 2026-09-30: feed cards span the full screen width (Instagram
   /// style); the header keeps the usual side padding.
   final bool edgeToEdge;
+
+  /// Row 95: rows grow in, collapse and slide (see
+  /// [AppPaginatedListView.animateChanges]).
+  final bool animateChanges;
 
   final AsyncValue<PaginatedList<T>> value;
   final Translator t;
@@ -171,6 +176,7 @@ class PagedListBody<T> extends ConsumerWidget {
           ),
         ),
       AsyncData(:final value) => AppPaginatedListView<T>(
+          animateChanges: animateChanges,
           key: const ValueKey('data'),
           items: value.items,
           // Owner 2026-10-15: the last card clears the floating nav bar

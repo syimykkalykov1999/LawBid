@@ -1,4 +1,8 @@
-import { Prisma, type ChatGroupMessage, type Message } from '@prisma/client';
+import {
+  Prisma,
+  type ChatGroupMessage,
+  type Message,
+} from '../../generated/prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 
 /**

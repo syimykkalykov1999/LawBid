@@ -1,4 +1,5 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
+import { datamodel as prismaDatamodel } from '../generated/prisma-dmmf';
 
 /**
  * docs/02_DATABASE.md §1.4: "Soft delete: колонка `deleted_at`. Все
@@ -97,7 +98,7 @@ export function buildSoftDeleteMeta(
 /** Built from the generated client's DMMF: adding `deleted_at` to a model
  * in schema.prisma is all it takes to get it filtered. */
 export const SOFT_DELETE_META: SoftDeleteMeta = buildSoftDeleteMeta(
-  Prisma.dmmf.datamodel.models,
+  prismaDatamodel.models,
 );
 
 type Where = Record<string, unknown>;

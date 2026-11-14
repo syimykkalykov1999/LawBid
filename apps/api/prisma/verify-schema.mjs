@@ -46,9 +46,10 @@ if (pull.status !== 0 || models === 0) {
 const diff = prisma([
   'migrate',
   'diff',
-  '--from-schema-datasource',
-  'prisma/schema.prisma',
-  '--to-schema-datamodel',
+  // Prisma 7 (upgrade guide, "Migrate diff changes"): the database comes from
+  // prisma.config.ts (DATABASE_URL), the datamodel from --to-schema.
+  '--from-config-datasource',
+  '--to-schema',
   'prisma/schema.prisma',
   '--exit-code',
 ]);

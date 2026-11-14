@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { forEachDatabase } from '../../../sharding/for-each-database';
 import { HIDDEN_TAG_PREFIX } from '../../posts/hidden-tags';

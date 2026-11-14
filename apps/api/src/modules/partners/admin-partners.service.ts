@@ -4,7 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type Partner, type PartnerCommission } from '@prisma/client';
+import {
+  Prisma,
+  type Partner,
+  type PartnerCommission,
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,

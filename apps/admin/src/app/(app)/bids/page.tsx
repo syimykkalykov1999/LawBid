@@ -86,7 +86,7 @@ export default function BidsPage() {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={6} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={6}>{text || status ? 'Ничего не найдено' : 'Ставок пока нет'}</TableEmpty>
           ) : (
             rows.map((b, i) => (

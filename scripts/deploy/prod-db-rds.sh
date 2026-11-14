@@ -28,6 +28,8 @@ SG="$(aws ec2 describe-security-groups --filters "Name=group-name,Values=${CLUST
 IMAGE="${ECR_REGISTRY:-047754151252.dkr.ecr.us-east-1.amazonaws.com}/lawbid-api:${TAG}"
 
 # sql_task <label> <admin db> <sql> : runs `prisma db execute` in the VPC.
+# Prisma 7 has no `db execute --url`: the URL goes in DATABASE_URL, which
+# prisma.config.ts reads (upgrade guide, "Removed db execute flags").
 sql_task() {
   local label="$1" db="$2" sql="$3" td overrides arn exit
   td="$(aws ecs describe-task-definition --task-definition "${CLUSTER}-migrate" --query taskDefinition)"
@@ -40,7 +42,7 @@ sql_task() {
   td="$(aws ecs register-task-definition --cli-input-json file:///tmp/prod-db-td.new.json --query taskDefinition.taskDefinitionArn --output text)"
   overrides="$(SQL="$sql" ADMIN_URL="$(url "$db")" node -e '
     process.stdout.write(JSON.stringify({containerOverrides:[{name:"migrate",
-      command:["sh","-c","printf \"%s\" \"$SQL\" | npx prisma db execute --url \"$ADMIN_URL\" --stdin"],
+      command:["sh","-c","printf \"%s\" \"$SQL\" | DATABASE_URL=\"$ADMIN_URL\" npx prisma db execute --stdin"],
       environment:[{name:"SQL",value:process.env.SQL},{name:"ADMIN_URL",value:process.env.ADMIN_URL}]}]}));')"
   arn="$(aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE --task-definition "$td" \
     --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SG}],assignPublicIp=DISABLED}" \

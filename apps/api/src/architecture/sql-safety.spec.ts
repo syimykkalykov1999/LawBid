@@ -34,6 +34,8 @@ const SRC = resolve(__dirname, '..');
 function walk(dir: string, out: string[] = []): string[] {
   for (const n of readdirSync(dir)) {
     const f = join(dir, n);
+    // src/generated: Prisma 7's generated client (not our SQL).
+    if (n === 'generated' && dir === SRC) continue;
     if (statSync(f).isDirectory()) walk(f, out);
     else if (n.endsWith('.ts') && !n.endsWith('.spec.ts')) out.push(f);
   }

@@ -5,7 +5,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { CasePromotion, Prisma } from '@prisma/client';
+import type { CasePromotion, Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,

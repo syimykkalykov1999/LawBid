@@ -1,4 +1,4 @@
-import type { File } from '@prisma/client';
+import type { File } from '../../../generated/prisma/client';
 import type { PinoLogger } from 'nestjs-pino';
 import { avifKey, variantKey } from '../files.policy';
 import type { ImageProcessor } from './image-processor';

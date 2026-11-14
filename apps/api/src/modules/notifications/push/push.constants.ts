@@ -1,4 +1,4 @@
-import type { NotificationType } from '@prisma/client';
+import type { NotificationType } from '../../../generated/prisma/client';
 
 /** docs/06 §6: BullMQ queue `push`. */
 export const PUSH_QUEUE = 'push';

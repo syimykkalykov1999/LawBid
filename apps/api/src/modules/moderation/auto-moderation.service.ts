@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ReportTargetType } from '@prisma/client';
+import type { ReportTargetType } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { StrikeGate } from '../../common/usage-limits/strike-gate.service';
 import { PrismaService } from '../../prisma/prisma.service';

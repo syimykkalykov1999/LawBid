@@ -8,7 +8,7 @@ import {
   type ExecutionContext,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader } from '@nestjs/swagger';
-import type { AdminRole, AdminWorkspace } from '@prisma/client';
+import type { AdminRole, AdminWorkspace } from '../../generated/prisma/client';
 import type { Request } from 'express';
 import { ApiErrors, COMMON_ERRORS } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';

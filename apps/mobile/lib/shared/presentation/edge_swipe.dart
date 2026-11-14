@@ -1,5 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
+import 'package:lawbid/core/design_system/tokens/app_motion.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 
 /// Width of the zone at each side of a row where a swipe belongs to the row.
 const double kEdgeSwipeZone = 32;
@@ -110,6 +116,8 @@ class _EdgeSwipeState extends State<EdgeSwipe>
 
   void _update(DragUpdateDetails d) {
     final next = _offset + (_rtl ? -d.delta.dx : d.delta.dx);
+    final wasArmed = _offset.abs() >= _kTrigger;
+    final wasFar = _isFar;
     setState(() {
       _offset = _fromStart
           ? next.clamp(0, _kRevealMax).toDouble()
@@ -120,6 +128,12 @@ class _EdgeSwipeState extends State<EdgeSwipe>
               )
               .toDouble();
     });
+    // Row 95 (motion catalog G1, iOS Mail `UIContextualAction` / Telegram):
+    // a tick when the action is armed (or disarmed), a firmer one when the
+    // long swipe reaches the destructive action.
+    final armed = _offset.abs() >= _kTrigger;
+    if (armed != wasArmed) unawaited(AppHaptics.selection());
+    if (_isFar && !wasFar) unawaited(AppHaptics.light());
   }
 
   void _end(DragEndDetails d, {bool cancelled = false}) {
@@ -134,13 +148,21 @@ class _EdgeSwipeState extends State<EdgeSwipe>
         widget.onEnd?.call();
       }
     }
-    _back
-      ..value = _offset
-      ..animateTo(
-        0,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-      );
+    _back.value = _offset;
+    if (context.reduceMotion) {
+      _back.value = 0;
+      return;
+    }
+    // Row 95 (G1): the row glides back on the Material 3 fast spatial
+    // spring, carrying the finger's release speed (WWDC18 «Designing Fluid
+    // Interfaces»: every motion keeps the gesture's momentum), instead of
+    // a fixed 180 ms ease-out. Flutter `SpringSimulation` (BSD-3).
+    final release = (d.primaryVelocity ?? 0) * (_rtl ? -1 : 1);
+    unawaited(
+      _back.animateWith(
+        SpringSimulation(AppMotion.snapBackSpring, _offset, 0, release),
+      ),
+    );
   }
 
   @override

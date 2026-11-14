@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { ROLE_ITEM_KINDS } from '../staff-rating/staff-sampling.service';
 import type { LeaseQueueSource } from '../work-lease/lease-queue-sources';
 import { PEER_PREFIX, REVIEW_LEASE_KIND } from './staff-review.constants';

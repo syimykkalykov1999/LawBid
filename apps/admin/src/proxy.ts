@@ -45,5 +45,6 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  // D1-11: the tab / home-screen icons and the manifest load before sign-in too.
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|manifest.webmanifest).*)'],
 };

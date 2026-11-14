@@ -1,6 +1,6 @@
-import { Prisma } from '@prisma/client';
 import { hashShard, isShardedId, shardOf } from './shard-id';
 import { SHARDED_MODELS } from './shard-manifest';
+import { datamodel as prismaDatamodel } from '../generated/prisma-dmmf';
 
 /**
  * Shard-ready steps 4 and 7: finds the logical shard of a query from the
@@ -31,7 +31,7 @@ let cache: Map<string, Meta> | null = null;
 function metaOf(model: string): Meta | undefined {
   if (!cache) {
     cache = new Map();
-    for (const m of Prisma.dmmf.datamodel.models) {
+    for (const m of prismaDatamodel.models) {
       const spec = SHARDED_MODELS[m.name];
       if (!spec) continue;
       const relationOf = new Map<string, string>();

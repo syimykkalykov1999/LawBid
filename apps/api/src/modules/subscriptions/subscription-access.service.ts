@@ -1,5 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';

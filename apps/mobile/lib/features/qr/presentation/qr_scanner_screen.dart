@@ -57,7 +57,8 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
   Future<void> _pickFromGallery() async {
     if (_handling) return;
     final t = ref.read(translatorProvider);
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, requestFullMetadata: false);
     if (picked == null || !mounted) return;
     BarcodeCapture? capture;
     try {
@@ -83,7 +84,8 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
 
   Future<void> _handle(String raw) async {
     _handling = true;
-    unawaited(AppHaptics.medium());
+    // Row 95 (catalog F4, Wallet): a code read is a success.
+    unawaited(AppHaptics.success());
     final t = ref.read(translatorProvider);
     final host = ref.read(appEnvironmentProvider).deepLinkHost;
     final target = classifyQr(raw, host: host);

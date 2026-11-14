@@ -7,6 +7,10 @@ import {
   stamp,
 } from '../cases/cases.public';
 import QRCode from 'qrcode';
+import {
+  newPdfLayoutCache,
+  type PdfLayoutCache,
+} from '../../common/pdf-fonts/pdf-fonts';
 import sharp from 'sharp';
 import { describePaymentTerms } from '../bids/bids.public';
 import {
@@ -217,9 +221,16 @@ export async function renderDealRecordPdf(
   // One page is the goal (owner 2026-11-08): the same layout at up to three
   // type scales; the fewest pages wins, then the largest type. Blocks never
   // split (keep-together below), so a long record is two whole pages.
+  // The passes print the same words: each word is shaped once (fontkit
+  // shaping was ~2/3 of the render time, profile 13.11).
+  const layoutCache = newPdfLayoutCache();
   let best: { pdf: Buffer; pages: number } | null = null;
   for (const scale of TYPE_SCALES) {
-    const out = await renderFlattened({ ...input, signatures }, scale);
+    const out = await renderFlattened(
+      { ...input, signatures },
+      scale,
+      layoutCache,
+    );
     if (!best || out.pages < best.pages) best = out;
     if (out.pages === 1) break;
   }
@@ -261,6 +272,7 @@ const distinct = (xs: readonly (string | null | undefined)[]): string[] => {
 async function renderFlattened(
   input: RenderDealRecordInput,
   scale: number,
+  layoutCache: PdfLayoutCache,
 ): Promise<{ pdf: Buffer; pages: number }> {
   const { snapshot: s, signatures } = input;
   const title = input.title ?? 'Deal record — LawBid';
@@ -278,6 +290,7 @@ async function renderFlattened(
     bufferPages: true,
     creationDate: input.generatedAt,
     lang: langs[0],
+    layoutCache,
   });
   if (scale !== 1) {
     const setSize = doc.fontSize.bind(doc);

@@ -1,7 +1,7 @@
 import { shardContext } from '../../sharding/shard-context';
 import { inShardTx } from '../../sharding/tx-global-facade';
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashShard } from '../../sharding/shard-id';
 import { PLATFORM_OWNER, typeOf } from './ledger.chart';

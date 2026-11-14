@@ -47,7 +47,8 @@ url_for() {
     process.stdout.write(u.toString());
   ' "$MIGRATOR_URL" "$@"
 }
-sql() { npx prisma db execute --url "$1" --stdin >/dev/null; }
+# Prisma 7: no `db execute --url`; prisma.config.ts reads DATABASE_URL.
+sql() { DATABASE_URL="$1" npx prisma db execute --stdin >/dev/null; }
 put() {
   printf '%s' "$2" | aws secretsmanager put-secret-value \
     --secret-id "$PREFIX/$1" --secret-string file:///dev/stdin >/dev/null
@@ -70,8 +71,8 @@ DEMO_URL="$(url_for lawbid_demo)"
 # or "used". Prints nothing secret.
 migration_state() {
   node -e '
-    const { PrismaClient } = require("@prisma/client");
-    const p = new PrismaClient({ datasourceUrl: process.argv[1] });
+    const { rawClient } = require("./prisma/pg-client.mjs");
+    const p = rawClient(process.argv[1]);
     const has = async (t) => Number((await p.$queryRawUnsafe(
       "SELECT count(*)::INT AS n FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2",
       "public", t))[0].n) > 0;
@@ -93,10 +94,10 @@ migration_state() {
 # script, so each runs as its own statement.
 db_admin() {
   node -e '
-    const { PrismaClient } = require("@prisma/client");
+    const { rawClient } = require("./prisma/pg-client.mjs");
     const [url, op, name] = process.argv.slice(1);
     if (!/^[a-z0-9_]+$/.test(name)) process.exit(2);
-    const p = new PrismaClient({ datasourceUrl: url });
+    const p = rawClient(url);
     (async () => {
       if (op === "recreate") await p.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
       const found = await p.$queryRawUnsafe("SELECT 1 FROM pg_database WHERE datname = $1", name);

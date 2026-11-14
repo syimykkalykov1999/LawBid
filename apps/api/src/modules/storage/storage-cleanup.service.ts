@@ -1,6 +1,6 @@
 import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { Inject, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -122,7 +122,9 @@ const EMPTY: CleanupResult = {
  *    Rows other paths deleted without removing the object (older code)
  *    are purged the same way.
  * Identity documents, data exports and video are never touched
- * (CLEANUP_EXEMPT_PURPOSES). S3 versioning keeps a recovery copy of a
+ * (CLEANUP_EXEMPT_PURPOSES), nor a file the antivirus could not scan
+ * because it is too large (`scan_skipped`, media batch A R1: kept for a
+ * person to decide). S3 versioning keeps a recovery copy of a
  * removed object (documents 90 days, media 30 days).
  */
 @Injectable()
@@ -356,6 +358,7 @@ export class StorageCleanupService {
       FROM files f
       WHERE ${where}
         AND f.purpose::TEXT <> ALL(${exempt}::TEXT[])
+        AND f.scan_skipped IS NULL
         AND NOT ${held('file', Prisma.sql`f.id`)}
         AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM verification_documents v WHERE v.file_id = f.id)
@@ -424,6 +427,7 @@ export class StorageCleanupService {
         FROM files f
         WHERE ${where} ${paging}
           AND f.purpose::TEXT <> ALL(${exempt}::TEXT[])
+          AND f.scan_skipped IS NULL
           AND NOT ${held('file', Prisma.sql`f.id`)}
           AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM verification_documents v WHERE v.file_id = f.id)

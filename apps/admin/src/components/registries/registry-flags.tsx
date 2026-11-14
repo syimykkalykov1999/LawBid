@@ -87,7 +87,7 @@ export function RegistryFlags() {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={6} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={6}>Расхождений с реестрами нет.</TableEmpty>
           ) : (
             rows.map(({ attorney, license: l, latestRequestId }) => {

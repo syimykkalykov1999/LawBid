@@ -6,7 +6,7 @@ import {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { Queue, Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import {

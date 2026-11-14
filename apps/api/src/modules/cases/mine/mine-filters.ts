@@ -2,7 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { readsAreSplit } from '../../../sharding/split-reads';
 import { forEachDatabase } from '../../../sharding/for-each-database';
 import { shardContext } from '../../../sharding/shard-context';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../generated/prisma/client';
 import { nameKeys, nameMatchSql } from '../../../common/search/name-match.sql';
 import { Transform } from 'class-transformer';
 import type { PrismaService } from '../../../prisma/prisma.service';

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await -- in-memory fakes */
-import type { Call } from '@prisma/client';
+import type { Call } from '../../generated/prisma/client';
 import { UnauthorizedException } from '@nestjs/common';
 import { callPollKey, signCallPoll } from '../../common/calls/call-poll-token';
 import { CALL_RING_TIMEOUT_MS, CallsService } from './calls.service';

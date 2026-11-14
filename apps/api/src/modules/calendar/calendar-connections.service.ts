@@ -6,7 +6,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import type { CalendarConnection } from '@prisma/client';
+import type { CalendarConnection } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';

@@ -159,6 +159,23 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'Auto mode: the fewest parts of uploads at once after a failed or timed-out part.',
   },
+  // Media audit 13.11 (C7): a verification document picked through «Files»
+  // (ID, bar card) is shrunk on the phone to this long side and quality; the
+  // verification camera shoots 1080p. Readable for OCR, no 12 MP originals.
+  'client.verification_photo_max_px': {
+    default: 2048,
+    min: 1024,
+    max: 4096,
+    description:
+      'Longest side (px) of a verification document photo picked from the phone (ID, bar card), shrunk and turned into JPEG before upload.',
+  },
+  'client.verification_photo_quality': {
+    default: 90,
+    min: 50,
+    max: 100,
+    description:
+      'JPEG quality (50–100) of a verification document photo picked from the phone.',
+  },
   'client.downloads_at_once': {
     default: 4,
     min: 1,

@@ -1,5 +1,5 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { NotificationsService } from '../notifications/notifications.service';

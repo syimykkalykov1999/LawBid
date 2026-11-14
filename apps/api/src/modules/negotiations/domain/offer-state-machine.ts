@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { OfferStatus } from '@prisma/client';
+import type { OfferStatus } from '../../../generated/prisma/client';
 
 /**
  * docs/02_DATABASE.md §4.D bid_offers: append-only except the single

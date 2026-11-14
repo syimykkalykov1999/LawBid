@@ -1,12 +1,13 @@
 import 'dart:convert' show jsonDecode;
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show MethodChannel;
+import 'package:flutter/services.dart' show MethodCall, MethodChannel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/media/browser_video_compressor.dart';
 import 'package:lawbid/core/media/browser_video_encoder_stub.dart'
@@ -26,6 +27,41 @@ VideoLimits videoLimitsOf(FeatureFlagsState flags) {
     maxHeight: h <= 0 ? 0 : h.clamp(540, 2160),
     frameRate: flags.configInt('media.video_frame_rate', 30).clamp(24, 60),
   );
+}
+
+/// Owner row 42 (review 13.11): the target video bitrate of the phone's
+/// re-encode, by height, in kbit/s at 30 fps — the admin's ladder
+/// (Система → Настройки: `media.video_bitrate_1080_kbps` 4500,
+/// `media.video_bitrate_720_kbps` 2000, `media.video_bitrate_540_kbps`
+/// 1200), Telegram-like: a Full HD reel ≈ half of what the old encoder
+/// wrote (≈ 8.7 Mbit/s), no visible loss on a phone. Android (Media3) only;
+/// the encoder never goes above the source's own bitrate.
+typedef VideoBitrateLadder = ({int kbps1080, int kbps720, int kbps540});
+
+VideoBitrateLadder videoBitrateLadderOf(FeatureFlagsState flags) => (
+      kbps1080: flags
+          .configInt('media.video_bitrate_1080_kbps', 4500)
+          .clamp(300, 50000),
+      kbps720: flags
+          .configInt('media.video_bitrate_720_kbps', 2000)
+          .clamp(300, 50000),
+      kbps540: flags
+          .configInt('media.video_bitrate_540_kbps', 1200)
+          .clamp(300, 50000),
+    );
+
+/// The rung for a target short side; above 1080 (the admin allows up to
+/// 2160) the 1080 rung grows with the pixel count. More than 30 fps gets
+/// more bits in proportion (60 fps = ×2).
+int videoBitrateKbpsFor(VideoLimits limits, VideoBitrateLadder ladder) {
+  final h = limits.maxHeight;
+  final base = h <= 540
+      ? ladder.kbps540
+      : h <= 720
+          ? ladder.kbps720
+          : (ladder.kbps1080 * (h / 1080) * (h / 1080)).round();
+  final fps = limits.frameRate > 30 ? limits.frameRate / 30 : 1.0;
+  return (base * fps).round();
 }
 
 /// Above this a video is re-encoded even at a small size (~8 Mbit/s; a
@@ -75,9 +111,42 @@ const kLowPowerKeepOriginalBytes = 30 * 1024 * 1024;
 bool keepOriginalForPower({required bool lowPower, required int bytes}) =>
     lowPower && bytes <= kLowPowerKeepOriginalBytes;
 
-/// The free open-source `video_compress` plugin (AVFoundation on iOS,
-/// MediaCodec on Android) — no paid service, nothing leaves the phone.
+/// The phone's hardware encoder, nothing leaves the phone, no paid service.
+///
+/// Owner row 42 (13.11, «медленно, качество ниже»): on Android the re-encode
+/// runs on AndroidX Media3 Transformer (`lawbid/video_encoder`,
+/// android/.../VideoEncoder.kt): H.264 High profile where the phone has it,
+/// HDR tone-mapped to normal colours, AAC audio copied as it is. When that
+/// path fails (an old phone, an odd file) the `video_compress` plugin
+/// (Transcoder / MediaCodec) runs as before. iOS keeps `video_compress`'s
+/// AVAssetExportSession (Apple's hardware encoder, HDR → SDR in its H.264
+/// presets). Same output as before: H.264 + AAC MP4, at most the admin's
+/// height and frame rate.
 class PluginVideoCompressor implements VideoCompressor {
+  PluginVideoCompressor({
+    MethodChannel hardwareChannel = const MethodChannel('lawbid/video_encoder'),
+    TargetPlatform? platform,
+    Future<XFile?> Function(XFile source, VideoLimits limits)? fallback,
+    VideoBitrateLadder Function()? ladder,
+  })  : _hw = hardwareChannel,
+        _platform = platform,
+        _fallback = fallback,
+        _ladder = ladder;
+
+  final MethodChannel _hw;
+  final TargetPlatform? _platform;
+  final Future<XFile?> Function(XFile source, VideoLimits limits)? _fallback;
+  final VideoBitrateLadder Function()? _ladder;
+
+  /// The videos this compressor runs now, by id: each its own progress
+  /// (the encoder queues them, one hardware encoder at a time).
+  final _progress = <String, void Function(double progress)?>{};
+  final _cancelledIds = <String>{};
+  var _seq = 0;
+
+  bool get _android =>
+      (_platform ?? defaultTargetPlatform) == TargetPlatform.android;
+
   @override
   Future<XFile?> compress(
     XFile source, {
@@ -92,6 +161,64 @@ class PluginVideoCompressor implements VideoCompressor {
     )) {
       return null;
     }
+    if (_android) {
+      final id = '${identityHashCode(this)}-${_seq++}';
+      final r = await _compressMedia3(id, source, limits, onProgress);
+      final cancelled = _cancelledIds.remove(id);
+      // Encoded (kept or not), or cancelled: the plugin does not run again.
+      if (r.ran || cancelled) return r.file;
+    }
+    final fallback = _fallback;
+    if (fallback != null) return fallback(source, limits);
+    return _compressPlugin(source, limits, onProgress);
+  }
+
+  /// Media3 Transformer. `ran` false = it failed (then the plugin runs);
+  /// `file` null = keep the original (cancelled, not smaller, black).
+  Future<({bool ran, XFile? file})> _compressMedia3(
+    String id,
+    XFile source,
+    VideoLimits limits,
+    void Function(double progress)? onProgress,
+  ) async {
+    _progress[id] = onProgress;
+    _hw.setMethodCallHandler(_onCall);
+    try {
+      final ladder =
+          _ladder?.call() ?? (kbps1080: 4500, kbps720: 2000, kbps540: 1200);
+      final path = await _hw.invokeMethod<String>('compress', {
+        'id': id,
+        'path': source.path,
+        'maxShortSide': limits.maxHeight,
+        'frameRate': limits.frameRate,
+        'bitrateKbps': videoBitrateKbpsFor(limits, ladder),
+      });
+      if (path == null) return (ran: true, file: null);
+      final out = XFile(path, mimeType: 'video/mp4');
+      return (ran: true, file: await _acceptOrNull(source, out));
+    } on Object {
+      return (ran: false, file: null);
+    } finally {
+      _progress.remove(id);
+      if (_progress.isEmpty) _hw.setMethodCallHandler(null);
+    }
+  }
+
+  /// `progress` {id, progress} from the encoder → that video's listener.
+  Future<void> _onCall(MethodCall call) async {
+    if (call.method != 'progress') return;
+    final a = call.arguments;
+    if (a is! Map) return;
+    final p = a['progress'];
+    if (p is num) _progress[a['id']]?.call(p.toDouble().clamp(0, 1));
+  }
+
+  /// The `video_compress` plugin (iOS, and Android's fallback).
+  Future<XFile?> _compressPlugin(
+    XFile source,
+    VideoLimits limits,
+    void Function(double progress)? onProgress,
+  ) async {
     final sub = VideoCompress.compressProgress$.subscribe(
       (p) => onProgress?.call((p / 100).clamp(0, 1)),
     );
@@ -106,13 +233,10 @@ class PluginVideoCompressor implements VideoCompressor {
             );
       final out = info?.file;
       if (out == null || (info!.isCancel ?? false)) return null;
-      if (await out.length() >= await source.length()) return null;
-      // Safety net: a black result of a picture that isn't black → keep
-      // the original.
-      if (await _isBlack(out.path) && !await _isBlack(source.path)) {
-        return null;
-      }
-      return XFile(out.path, mimeType: 'video/mp4');
+      return await _acceptOrNull(
+        source,
+        XFile(out.path, mimeType: 'video/mp4'),
+      );
     } on Object {
       return null;
     } finally {
@@ -120,9 +244,45 @@ class PluginVideoCompressor implements VideoCompressor {
     }
   }
 
+  /// The encoded file, or null when it is not smaller or comes out black
+  /// (then the encoded temp file is deleted; the source never is).
+  static Future<XFile?> _acceptOrNull(XFile source, XFile out) async {
+    if (await out.length() < await source.length() &&
+        // Safety net: a black result of a picture that isn't black → keep
+        // the original.
+        !(await _isBlack(out.path) && !await _isBlack(source.path))) {
+      return out;
+    }
+    if (out.path != source.path) {
+      try {
+        await File(out.path).delete();
+      } on Object {
+        // already gone
+      }
+    }
+    return null;
+  }
+
   @override
   Future<void> cancel() async {
-    if (!kIsWeb) await VideoCompress.cancelCompression();
+    if (kIsWeb) return;
+    // This compressor's videos only (queued or running).
+    final ids = _progress.keys.toList();
+    _cancelledIds.addAll(ids);
+    if (_android) {
+      for (final id in ids) {
+        try {
+          await _hw.invokeMethod<void>('cancel', {'id': id});
+        } on Object {
+          // no Media3 encoder on this build: only the plugin can be running
+        }
+      }
+    }
+    try {
+      await VideoCompress.cancelCompression();
+    } on Object {
+      // nothing of the plugin running
+    }
   }
 
   static const _channel = MethodChannel('video_compress');
@@ -181,5 +341,8 @@ class PluginVideoCompressor implements VideoCompressor {
 final videoCompressorProvider = Provider<VideoCompressor>(
   (ref) => kIsWeb
       ? BrowserVideoCompressor(createBrowserVideoEncoder())
-      : PluginVideoCompressor(),
+      : PluginVideoCompressor(
+          ladder: () =>
+              videoBitrateLadderOf(ref.read(featureFlagsControllerProvider)),
+        ),
 );

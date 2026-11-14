@@ -1,9 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { expectedPhysicalDb } from './support/e2e-two-db';
 import { PrismaService, routingOf } from '../src/prisma/prisma.service';
 import { shardContext } from '../src/sharding/shard-context';
 import { hashShard, newShardedId } from '../src/sharding/shard-id';
 import { shardStats } from '../src/sharding/shard-stats';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * Shard-ready steps 3 to 5: the router and the per-database clients on real
@@ -15,12 +16,14 @@ import { shardStats } from '../src/sharding/shard-stats';
 describe('shard routing (real PostgreSQL)', () => {
   const twoDb = !!process.env.DATABASE_URL_SHARDS;
   const prisma = new PrismaService();
-  const primaryRaw = new PrismaClient();
+  const primaryRaw = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   const shardsUrl = process.env.DATABASE_URL_SHARDS
     ? (JSON.parse(process.env.DATABASE_URL_SHARDS) as Record<string, string>)
     : {};
   const db1Raw = twoDb
-    ? new PrismaClient({ datasourceUrl: shardsUrl.db1 })
+    ? new PrismaClient({ adapter: pgAdapter(shardsUrl.db1) })
     : primaryRaw;
   let userId: string;
 

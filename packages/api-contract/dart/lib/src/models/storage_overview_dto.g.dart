@@ -15,6 +15,8 @@ StorageOverviewDto _$StorageOverviewDtoFromJson(
   dedupSavedBytes: json['dedupSavedBytes'] as num,
   pendingRemovalCount: json['pendingRemovalCount'] as num,
   pendingRemovalBytes: json['pendingRemovalBytes'] as num,
+  scanSkippedCount: json['scanSkippedCount'] as num,
+  scanSkippedBytes: json['scanSkippedBytes'] as num,
   byPurpose: (json['byPurpose'] as List<dynamic>)
       .map((e) => StoragePurposeUsageDto.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -48,6 +50,8 @@ Map<String, dynamic> _$StorageOverviewDtoToJson(StorageOverviewDto instance) =>
       'dedupSavedBytes': instance.dedupSavedBytes,
       'pendingRemovalCount': instance.pendingRemovalCount,
       'pendingRemovalBytes': instance.pendingRemovalBytes,
+      'scanSkippedCount': instance.scanSkippedCount,
+      'scanSkippedBytes': instance.scanSkippedBytes,
       'byPurpose': instance.byPurpose.map((e) => e.toJson()).toList(),
       'tables': instance.tables.map((e) => e.toJson()).toList(),
       'topUsers': instance.topUsers.map((e) => e.toJson()).toList(),

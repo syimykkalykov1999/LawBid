@@ -19,6 +19,7 @@ import 'package:lawbid/features/chat/presentation/chat_translation.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
     show kContactMask;
+import 'package:lawbid/features/chat/presentation/message_context_menu.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
@@ -269,13 +270,20 @@ DateTime? _readAt(WidgetRef ref, String conversationId, ChatMessage m) {
   return m.createdAt.isAfter(upTo) ? null : at;
 }
 
-/// The long-press sheet: quick reactions, then the actions that apply.
+/// The long-press menu: quick reactions, then the actions that apply.
+///
+/// Owner row 95 (2026-11-13): in place, not a sheet — the bubble ([bubble],
+/// the context of its `RepaintBoundary`) lifts over the blurred chat with
+/// the reactions above it and the actions below (Telegram / WhatsApp /
+/// iMessage), see [showMessageContextMenu]. Every action of the old sheet
+/// is still here, with the same keys.
 Future<void> showMessageMenu(
   BuildContext context,
   WidgetRef ref,
   String conversationId,
-  ChatMessage m,
-) async {
+  ChatMessage m, {
+  BuildContext? bubble,
+}) async {
   final t = ref.read(translatorProvider);
   final thread = ref.read(chatThreadProvider(conversationId).notifier);
   final colors = Theme.of(context).extension<AppColorTokens>()!;
@@ -295,6 +303,7 @@ Future<void> showMessageMenu(
       : null;
   if (!context.mounted) return;
   unawaited(AppHaptics.medium());
+  final shot = snapshotBubble(bubble);
 
   Future<void> guarded(Future<void> Function() run, {int? price}) async {
     try {
@@ -311,223 +320,314 @@ Future<void> showMessageMenu(
     }
   }
 
-  await showAppBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (sheet) {
-      void close() => Navigator.of(sheet).pop();
-      Widget row(
-        String key,
-        IconData icon,
-        String label,
-        VoidCallback onTap, {
-        bool destructive = false,
-      }) =>
-          AppListRow(
-            key: ValueKey('msg-act-$key'),
-            icon: icon,
-            label: label,
-            destructive: destructive,
-            showChevron: false,
-            onTap: () {
-              close();
-              onTap();
-            },
-          );
-      return SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const AppSheetHandle(),
-              if (live)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      for (final e in kQuickReactions)
-                        _ReactionButton(
-                          emoji: e,
-                          selected: e == myEmoji,
-                          onTap: () {
-                            close();
-                            unawaited(
-                              guarded(
-                                () => thread.react(m, e == myEmoji ? null : e),
-                              ),
-                            );
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              if (live &&
-                  premium != null &&
-                  premium.premiumReactions.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                  ),
-                  // Even rows (7 at most), the same column width in each, so
-                  // a last emoji never hangs alone on its own line.
-                  child: Column(
-                    key: const ValueKey('msg-premium-reactions'),
-                    children: [
-                      for (final row in _evenRows(premium.premiumReactions, 7))
-                        Row(
-                          children: [
-                            for (final e in row)
-                              Expanded(
-                                child: Center(
-                                  child: _ReactionButton(
-                                    emoji: e,
-                                    selected: e == myEmoji,
-                                    price: premium.reactionStars,
-                                    onTap: () {
-                                      close();
-                                      unawaited(
-                                        guarded(
-                                          () => thread.react(
-                                            m,
-                                            e == myEmoji ? null : e,
-                                          ),
-                                          price: premium.reactionStars,
-                                        ),
-                                      );
-                                    },
+  void react(String e, {int? price}) {
+    unawaited(AppHaptics.selection());
+    unawaited(
+      guarded(() => thread.react(m, e == myEmoji ? null : e), price: price),
+    );
+  }
+
+  try {
+    await showMessageContextMenu(
+      context,
+      anchor: shot?.rect,
+      preview: shot == null ? null : RawImage(image: shot.image),
+      alignEnd: mine,
+      reactions: !live
+          ? null
+          : (menu) {
+              void close() => Navigator.of(menu).pop();
+              return _ReactionBarHost(
+                moreLabel: t.t('channel.react.add'),
+                quick: [
+                  for (final e in kQuickReactions)
+                    _ReactionButton(
+                      emoji: e,
+                      selected: e == myEmoji,
+                      onTap: () {
+                        close();
+                        react(e);
+                      },
+                    ),
+                ],
+                premium: premium == null || premium.premiumReactions.isEmpty
+                    ? null
+                    : Column(
+                        key: const ValueKey('msg-premium-reactions'),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Even rows (7 at most), the same column width in
+                          // each, so a last emoji never hangs alone.
+                          for (final row
+                              in _evenRows(premium.premiumReactions, 7))
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                for (final e in row)
+                                  SizedBox(
+                                    width: 50,
+                                    child: Center(
+                                      child: _ReactionButton(
+                                        emoji: e,
+                                        selected: e == myEmoji,
+                                        price: premium.reactionStars,
+                                        onTap: () {
+                                          close();
+                                          react(
+                                            e,
+                                            price: premium.reactionStars,
+                                          );
+                                        },
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-              if (readAt != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
-                  ),
-                  child: Row(
-                    key: const ValueKey('msg-read-at'),
-                    children: [
-                      AppIcon(AppIcons.doneAllRounded, color: colors.iconTint),
-                      const SizedBox(width: AppSpacing.sm),
-                      Text(
-                        [
-                          t.t('chat.seen'),
-                          if (!_sameDay(readAt, DateTime.now()))
-                            f.dayMonth(readAt),
-                          f.time(readAt),
-                        ].join(' · '),
-                        style: Theme.of(context)
-                            .extension<AppTypographyTokens>()!
-                            .body
-                            .copyWith(color: colors.textSecondary),
+                              ],
+                            ),
+                        ],
                       ),
-                    ],
+              );
+            },
+      actions: (menu) {
+        void close() => Navigator.of(menu).pop();
+        Widget row(
+          String key,
+          IconData icon,
+          String label,
+          VoidCallback onTap, {
+          bool destructive = false,
+        }) =>
+            AppListRow(
+              key: ValueKey('msg-act-$key'),
+              icon: icon,
+              label: label,
+              destructive: destructive,
+              showChevron: false,
+              onTap: () {
+                close();
+                onTap();
+              },
+            );
+        return MessageMenuCard(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (readAt != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
+                    ),
+                    child: Row(
+                      key: const ValueKey('msg-read-at'),
+                      children: [
+                        AppIcon(
+                          AppIcons.doneAllRounded,
+                          color: colors.iconTint,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          [
+                            t.t('chat.seen'),
+                            if (!_sameDay(readAt, DateTime.now()))
+                              f.dayMonth(readAt),
+                            f.time(readAt),
+                          ].join(' · '),
+                          style: Theme.of(context)
+                              .extension<AppTypographyTokens>()!
+                              .body
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              if (live)
-                row(
-                  'reply',
-                  AppIcons.replyRounded,
-                  t.t('chat.act.reply'),
-                  () => compose.reply(m),
-                ),
-              if (text)
-                row(
-                  'copy',
-                  AppIcons.copyOutlined,
-                  t.t('chat.act.copy'),
-                  () => unawaited(copyMessages(context, ref, [m])),
-                ),
-              if (canTranslateChatMessage(ref, m, mine: mine))
-                row(
-                  'translate',
-                  AppIcons.translateRounded,
-                  t.t(
-                    ref.read(chatTranslationsProvider).containsKey(m.id)
-                        ? 'chat.translate.original'
-                        : 'chat.translate',
+                if (live)
+                  row(
+                    'reply',
+                    AppIcons.replyRounded,
+                    t.t('chat.act.reply'),
+                    () => compose.reply(m),
                   ),
+                if (text)
+                  row(
+                    'copy',
+                    AppIcons.copyOutlined,
+                    t.t('chat.act.copy'),
+                    () => unawaited(copyMessages(context, ref, [m])),
+                  ),
+                if (canTranslateChatMessage(ref, m, mine: mine))
+                  row(
+                    'translate',
+                    AppIcons.translateRounded,
+                    t.t(
+                      ref.read(chatTranslationsProvider).containsKey(m.id)
+                          ? 'chat.translate.original'
+                          : 'chat.translate',
+                    ),
+                    () => unawaited(
+                      toggleChatTranslation(context, ref, conversationId, m),
+                    ),
+                  ),
+                if (live && MessageMenuTarget.savable(m))
+                  row(
+                    'save',
+                    saved
+                        ? AppIcons.bookmarkRounded
+                        : AppIcons.bookmarkBorderRounded,
+                    t.t(saved ? 'saved.remove' : 'common.save'),
+                    () => unawaited(
+                      guarded(() async {
+                        final notifier =
+                            ref.read(savedChatIdsProvider.notifier);
+                        await notifier.toggle(m.id);
+                        if (context.mounted) {
+                          showAppSnackBar(
+                            context,
+                            t.t(saved ? 'saved.removed' : 'cases.saved.added'),
+                          );
+                        }
+                      }),
+                    ),
+                  ),
+                if (canForward(m))
+                  row(
+                    'forward',
+                    AppIcons.forwardRounded,
+                    t.t('chat.act.forward'),
+                    () => unawaited(pickForwardTargets(context, ref, [m])),
+                  ),
+                if (live && m.kind != MessageKind.system)
+                  row(
+                    'pin',
+                    AppIcons.pushPinOutlined,
+                    t.t(m.pinned ? 'chat.act.unpin' : 'chat.act.pin'),
+                    () => unawaited(
+                      guarded(() => thread.setPinned(m, pinned: !m.pinned)),
+                    ),
+                  ),
+                if (mine && thread.canEdit(m))
+                  row(
+                    'edit',
+                    AppIcons.editOutlined,
+                    t.t('chat.act.edit'),
+                    () => compose.edit(m),
+                  ),
+                row(
+                  'select',
+                  AppIcons.selectChecksRounded,
+                  t.t('chat.act.select'),
+                  () => selection.start(m.id),
+                ),
+                row(
+                  'delete',
+                  AppIcons.deleteOutlineRounded,
+                  t.t('chat.act.delete'),
                   () => unawaited(
-                    toggleChatTranslation(context, ref, conversationId, m),
+                    confirmDelete(context, ref, conversationId, [m]),
                   ),
+                  destructive: true,
                 ),
-              if (live && MessageMenuTarget.savable(m))
-                row(
-                  'save',
-                  saved
-                      ? AppIcons.bookmarkRounded
-                      : AppIcons.bookmarkBorderRounded,
-                  t.t(saved ? 'saved.remove' : 'common.save'),
-                  () => unawaited(
-                    guarded(() async {
-                      final notifier = ref.read(savedChatIdsProvider.notifier);
-                      await notifier.toggle(m.id);
-                      if (context.mounted) {
-                        showAppSnackBar(
-                          context,
-                          t.t(saved ? 'saved.removed' : 'cases.saved.added'),
-                        );
-                      }
-                    }),
-                  ),
-                ),
-              if (canForward(m))
-                row(
-                  'forward',
-                  AppIcons.forwardRounded,
-                  t.t('chat.act.forward'),
-                  () => unawaited(pickForwardTargets(context, ref, [m])),
-                ),
-              if (live && m.kind != MessageKind.system)
-                row(
-                  'pin',
-                  AppIcons.pushPinOutlined,
-                  t.t(m.pinned ? 'chat.act.unpin' : 'chat.act.pin'),
-                  () => unawaited(
-                    guarded(() => thread.setPinned(m, pinned: !m.pinned)),
-                  ),
-                ),
-              if (mine && thread.canEdit(m))
-                row(
-                  'edit',
-                  AppIcons.editOutlined,
-                  t.t('chat.act.edit'),
-                  () => compose.edit(m),
-                ),
-              row(
-                'select',
-                AppIcons.selectChecksRounded,
-                t.t('chat.act.select'),
-                () => selection.start(m.id),
-              ),
-              row(
-                'delete',
-                AppIcons.deleteOutlineRounded,
-                t.t('chat.act.delete'),
-                () => unawaited(
-                  confirmDelete(context, ref, conversationId, [m]),
-                ),
-                destructive: true,
-              ),
-              SizedBox(
-                height: AppSpacing.md,
-                child: ColoredBox(color: colors.bg),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
-    },
-  );
+        );
+      },
+    );
+  } finally {
+    shot?.image.dispose();
+  }
+}
+
+/// The reactions bar of the long-press menu; the chevron at its end opens
+/// the premium emojis under the quick ones (Telegram's expanding bar).
+class _ReactionBarHost extends StatefulWidget {
+  const _ReactionBarHost({
+    required this.quick,
+    required this.moreLabel,
+    this.premium,
+  });
+
+  final List<Widget> quick;
+
+  /// The chevron's tooltip («Add a reaction»).
+  final String moreLabel;
+  final Widget? premium;
+
+  @override
+  State<_ReactionBarHost> createState() => _ReactionBarHostState();
+}
+
+class _ReactionBarHostState extends State<_ReactionBarHost> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final premium = widget.premium;
+    return MessageReactionBar(
+      below: _open ? premium : null,
+      children: [
+        ...widget.quick,
+        if (premium != null)
+          Semantics(
+            button: true,
+            expanded: _open,
+            child: IconButton(
+              key: const ValueKey('msg-react-more'),
+              tooltip: widget.moreLabel,
+              onPressed: () => setState(() => _open = !_open),
+              icon: AnimatedRotation(
+                turns: _open ? 0.5 : 0,
+                duration: context.reduceMotion
+                    ? Duration.zero
+                    : AppMotion.stateChange,
+                child: AppIcon(
+                  AppIcons.expandMoreRounded,
+                  color: colors.iconTint,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Row 95 (owner «Конечно», catalog G13): the reaction a double tap puts
+/// on a message. The app has no per-user default reaction, so it is
+/// Instagram's ❤️ (one of [kQuickReactions], so it never costs stars).
+const kDoubleTapReaction = '❤️';
+
+/// A double tap on a message: the heart pops where the finger was and the
+/// reaction is set. Like Instagram, a second double tap never takes it
+/// away (the chip under the bubble or the menu does).
+Future<void> quickReactToMessage(
+  BuildContext context,
+  WidgetRef ref,
+  String conversationId,
+  ChatMessage m, {
+  Offset? at,
+  BuildContext? bubble,
+}) async {
+  final t = ref.read(translatorProvider);
+  unawaited(AppHaptics.selection());
+  var where = at;
+  if (where == null && bubble != null && bubble.mounted) {
+    final box = bubble.findRenderObject();
+    if (box is RenderBox && box.hasSize) {
+      where = box.localToGlobal(box.size.center(Offset.zero));
+    }
+  }
+  if (where != null) showQuickReactionPop(context, kDoubleTapReaction, where);
+  final mineNow = m.reactions.where((r) => r.mine).firstOrNull?.emoji;
+  if (mineNow == kDoubleTapReaction) return;
+  try {
+    await ref
+        .read(chatThreadProvider(conversationId).notifier)
+        .react(m, kDoubleTapReaction);
+  } on Object catch (e) {
+    if (context.mounted) showAppSnackBar(context, _errorOf(t, e));
+  }
 }
 
 /// [items] in the fewest rows of at most [max], filled evenly (8 → 4 + 4).
@@ -822,7 +922,12 @@ class EditBar extends ConsumerWidget {
 }
 
 /// Emoji chips under a bubble; a tap toggles my own reaction.
-class ReactionChips extends ConsumerWidget {
+///
+/// Row 95 (catalog M6, Telegram / WhatsApp / the iOS tapback badge): a
+/// chip that lands while the chat is open pops in (scale 0.6 → 1 on
+/// `easeOutBack`, [AppPopIn]); chips that were there when the bubble was
+/// built stay still, so scrolling never pops anything.
+class ReactionChips extends ConsumerStatefulWidget {
   const ReactionChips({
     required this.message,
     required this.conversationId,
@@ -835,7 +940,21 @@ class ReactionChips extends ConsumerWidget {
   final bool mine;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReactionChips> createState() => _ReactionChipsState();
+}
+
+class _ReactionChipsState extends ConsumerState<ReactionChips> {
+  /// The chips of the last build (`emoji` + mine): new ones pop.
+  Set<String>? _shown;
+
+  ChatMessage get message => widget.message;
+  String get conversationId => widget.conversationId;
+  bool get mine => widget.mine;
+
+  @override
+  Widget build(BuildContext context) {
+    final before = _shown;
+    _shown = {for (final r in message.reactions) '${r.emoji}${r.mine}'};
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
@@ -847,35 +966,40 @@ class ReactionChips extends ConsumerWidget {
         alignment: mine ? WrapAlignment.end : WrapAlignment.start,
         children: [
           for (final r in message.reactions)
-            Semantics(
-              button: true,
-              selected: r.mine,
-              label: '${r.emoji} ${r.count}',
-              child: GestureDetector(
-                onTap: () async {
-                  final n =
-                      ref.read(chatThreadProvider(conversationId).notifier);
-                  try {
-                    await n.react(message, r.mine ? null : r.emoji);
-                  } on Object catch (e) {
-                    if (context.mounted) {
-                      showAppSnackBar(context, _errorOf(t, e));
+            AppPopIn(
+              key: ValueKey('chip-${r.emoji}${r.mine}'),
+              animate:
+                  before != null && !before.contains('${r.emoji}${r.mine}'),
+              child: Semantics(
+                button: true,
+                selected: r.mine,
+                label: '${r.emoji} ${r.count}',
+                child: GestureDetector(
+                  onTap: () async {
+                    final n =
+                        ref.read(chatThreadProvider(conversationId).notifier);
+                    try {
+                      await n.react(message, r.mine ? null : r.emoji);
+                    } on Object catch (e) {
+                      if (context.mounted) {
+                        showAppSnackBar(context, _errorOf(t, e));
+                      }
                     }
-                  }
-                },
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: r.mine ? colors.goldTint : colors.surface,
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                    border: Border.all(
-                      color: r.mine ? colors.gold : colors.border,
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: r.mine ? colors.goldTint : colors.surface,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                      border: Border.all(
+                        color: r.mine ? colors.gold : colors.border,
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    r.count > 1 ? '${r.emoji} ${r.count}' : r.emoji,
-                    style: type.caption.copyWith(color: colors.text),
+                    child: Text(
+                      r.count > 1 ? '${r.emoji} ${r.count}' : r.emoji,
+                      style: type.caption.copyWith(color: colors.text),
+                    ),
                   ),
                 ),
               ),

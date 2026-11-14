@@ -3,7 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type Sticker, type StickerPack } from '@prisma/client';
+import {
+  Prisma,
+  type Sticker,
+  type StickerPack,
+} from '../../generated/prisma/client';
 import { randomBytes } from 'node:crypto';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';

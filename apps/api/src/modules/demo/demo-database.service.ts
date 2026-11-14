@@ -4,7 +4,7 @@ import {
   OnApplicationBootstrap,
   Optional,
 } from '@nestjs/common';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -27,6 +27,7 @@ import { S3StorageService } from '../files/storage/s3-storage.service';
 import { REQUIRED_CONSENTS } from '../users/services/onboarding.service';
 import { DEMO_AVATAR_SIZE, renderDemoAvatarPng } from './demo-avatar';
 import { seedDemoWorld } from './demo-seed';
+import { sqlStateOf } from '../../common/resilience/transient-errors';
 
 /**
  * Owner 2026-10-05 («Продвижение»): keeps the DEMO database alive without
@@ -89,11 +90,12 @@ export const ALREADY_EXISTS_CODES: ReadonlySet<string> = new Set([
   '42723',
 ]);
 
-/** The SQLSTATE of a raw-query error (Prisma P2010 keeps it in meta.code). */
+/** The SQLSTATE of a raw-query error (Prisma 6 P2010: meta.code; Prisma 7:
+ * meta.driverAdapterError.cause.originalCode, see sqlStateOf). */
 export function pgErrorCode(e: unknown): string {
-  const err = e as { meta?: { code?: unknown }; code?: unknown } | null;
-  const meta = err?.meta?.code;
-  if (typeof meta === 'string') return meta;
+  const state = sqlStateOf(e);
+  if (state) return state;
+  const err = e as { code?: unknown } | null;
   return typeof err?.code === 'string' ? err.code : '';
 }
 const MIGRATE_LOCK_TTL_SECONDS = 15 * 60;

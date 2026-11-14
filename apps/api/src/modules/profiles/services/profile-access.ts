@@ -4,7 +4,7 @@ import {
   HttpStatus,
   NotFoundException,
 } from '@nestjs/common';
-import type { VerificationStatus } from '@prisma/client';
+import type { VerificationStatus } from '../../../generated/prisma/client';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 

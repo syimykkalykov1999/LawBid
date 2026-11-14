@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import type { Request } from 'express';
 import { catchError, from, mergeMap, throwError, type Observable } from 'rxjs';
 import { ErrorCode } from '../../common/errors/error-code.enum';

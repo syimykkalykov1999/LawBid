@@ -13,6 +13,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/media/video_frames.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -319,6 +320,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         imageQuality: limits.quality,
         // image_picker refuses a limit under 2.
         limit: left > 1 ? left : null,
+        requestFullMetadata: false,
       );
       final video = picked.where(_isVideo).firstOrNull;
       if (video != null) {
@@ -332,10 +334,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         imageQuality: limits.quality,
         // image_picker refuses a limit under 2.
         limit: left > 1 ? left : null,
+        requestFullMetadata: false,
       );
     }
     final added = <Uint8List>[
-      for (final file in picked.take(left)) await file.readAsBytes(),
+      for (final file in picked.take(left)) await readPickedPhoto(file),
     ];
     if (!mounted) return;
     await _frameAndAdd(added);
@@ -391,7 +394,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (left <= 0 || photos.isEmpty) return;
     final added = <Uint8List>[
       for (final f in photos.take(left))
-        await shrinkDroppedPhoto(await f.readAsBytes(), limits.maxPx.round()),
+        await shrinkDroppedPhoto(
+          await f.readAsBytes(),
+          limits.maxPx.round(),
+          quality: limits.quality,
+        ),
     ];
     if (!mounted) return;
     await _frameAndAdd(added);
@@ -631,10 +638,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       maxWidth: limits.maxPx,
       maxHeight: limits.maxPx,
       imageQuality: limits.quality,
+      requestFullMetadata: false,
     );
     if (x == null || !mounted) return;
     setState(() => _video = null);
-    final bytes = await x.readAsBytes();
+    final bytes = await readPickedPhoto(x);
     if (!mounted) return;
     await _frameAndAdd([bytes]);
   }

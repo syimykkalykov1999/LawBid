@@ -716,7 +716,8 @@ class TaskStepCheck extends StatelessWidget {
       ),
       child: AnimatedSwitcher(
         duration: dur,
-        transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
+        // Row 95 (catalog F6): the check pops (0.6 → 1, easeOutBack).
+        transitionBuilder: AppMotionBits.pop,
         child: done
             ? const AppIcon(
                 AppIcons.checkRounded,
@@ -861,7 +862,8 @@ class TaskMark extends StatelessWidget {
           child: Center(
             child: AnimatedSwitcher(
               duration: dur,
-              transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
+              // Row 95 (catalog F6): the mark pops in.
+              transitionBuilder: AppMotionBits.pop,
               child: inner,
             ),
           ),

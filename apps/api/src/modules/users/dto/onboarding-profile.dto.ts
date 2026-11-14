@@ -12,7 +12,7 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
-import { ContactMethod } from '@prisma/client';
+import { ContactMethod } from '../../../generated/prisma/client';
 import { ISO_639_1_CODES } from '../iso-639-1';
 import { tidy } from '../../../common/utils/tidy-text';
 import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';

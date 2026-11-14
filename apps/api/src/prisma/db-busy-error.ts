@@ -1,4 +1,5 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
+import { PG_POOL_TIMEOUT } from '../common/resilience/transient-errors';
 
 /**
  * «The database pool is out of room right now» (not a bad query): Prisma
@@ -13,8 +14,19 @@ import { Prisma } from '@prisma/client';
  * before it expired, and «try again» would repeat it.
  *
  * Load test 2026-11-02 (docs/perf/LOAD_RESILIENCE_2026-11-02.md §2).
+ *
+ * Prisma 7: the pool is node-pg's; when it has no free connection within
+ * `connectionTimeoutMillis` Prisma passes node-pg's own Error through
+ * («timeout exceeded when trying to connect») instead of P2024.
  */
 export function isDbBusyError(error: unknown): boolean {
+  if (
+    error instanceof Error &&
+    !(error instanceof Prisma.PrismaClientKnownRequestError) &&
+    PG_POOL_TIMEOUT.test(error.message)
+  ) {
+    return true;
+  }
   if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
   return (
     error.code === 'P2024' ||

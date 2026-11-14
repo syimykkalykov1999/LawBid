@@ -3,6 +3,9 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/uploads/upload_hash_io.dart'
+    if (dart.library.js_interop) 'package:lawbid/core/uploads/upload_hash_web.dart'
+    as hash;
 
 /// Owner 2026-10-22 (audit #4 §3): what is sent to storage — bytes in memory
 /// (a picked photo, a sticker) or a file on the device (a recorded note, a
@@ -19,7 +22,8 @@ sealed class UploadBody {
 
   Future<int> length();
 
-  /// Lowercase hex SHA-256 (the presign requires it).
+  /// Lowercase hex SHA-256 (the presign requires it), off the UI thread
+  /// (media audit D9: an isolate on a phone, the browser's own digest).
   Future<String> sha256Hex();
 
   /// A fresh stream of the content (one per attempt: a retried POST cannot
@@ -53,7 +57,7 @@ final class BytesUploadBody extends UploadBody {
   Future<int> length() async => bytes.length;
 
   @override
-  Future<String> sha256Hex() async => sha256.convert(bytes).toString();
+  Future<String> sha256Hex() => hash.sha256OfBytes(bytes);
 
   @override
   Stream<List<int>> open() => Stream.value(bytes);
@@ -78,8 +82,7 @@ final class FileUploadBody extends UploadBody {
   Future<int> length() => _file.length();
 
   @override
-  Future<String> sha256Hex() async =>
-      (await sha256.bind(_file.openRead()).first).toString();
+  Future<String> sha256Hex() => hash.sha256OfFile(path);
 
   @override
   Stream<List<int>> open() => _file.openRead();

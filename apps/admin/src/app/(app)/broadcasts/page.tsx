@@ -15,9 +15,11 @@ import { SortTh, Table, TableEmpty, Td } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { StatesPicker } from '@/components/states-picker';
 import { api, errorText } from '@/lib/api/client';
+import { useDraft } from '@/lib/draft';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { statesText } from '@/lib/us-states';
 import { cn, formatDateTime } from '@/lib/utils';
+import { useNavigationGuard } from '@/lib/vendor/navigation-guard';
 
 type Audience = 'all' | 'attorneys' | 'clients' | 'assistants';
 
@@ -49,8 +51,11 @@ const BODY_MAX = 1000;
 export default function BroadcastsPage() {
   const qc = useQueryClient();
   const toast = useToast();
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  // Detective D1-7 (13.11): a half-written broadcast is kept in this tab
+  // (lib/draft.ts) until sent, and a reload / tab close with text asks first.
+  const [title, setTitle, clearTitle] = useDraft('broadcast:title');
+  const [body, setBody, clearBody] = useDraft('broadcast:body');
+  useNavigationGuard({ enabled: !!title.trim() || !!body.trim(), links: false });
   const [audience, setAudience] = useState<Audience>('all');
   const [stateMode, setStateMode] = useState<'all' | 'pick'>('all');
   const [states, setStates] = useState<string[]>([]);
@@ -73,8 +78,8 @@ export default function BroadcastsPage() {
       return r.data!.data;
     },
     onSuccess: (b) => {
-      setTitle('');
-      setBody('');
+      clearTitle();
+      clearBody();
       setConfirming(false);
       toast.success(`Рассылка отправлена · получателей: ${b.recipients.toLocaleString('ru-RU')}`);
       void qc.invalidateQueries({ queryKey: ['admin-broadcasts'] });
@@ -219,7 +224,9 @@ export default function BroadcastsPage() {
 
       <Dialog
         open={confirming}
-        onClose={() => (send.isPending ? undefined : setConfirming(false))}
+        // D1-4: the dialog always closes; a send in flight keeps its spinner on
+        // the page's «Отправить» and still reports its result as a toast.
+        onClose={() => setConfirming(false)}
         eyebrow="Рассылка"
         title="Отправить сейчас?"
         description={`Получат: ${audienceText}. Отменить после отправки нельзя.`}
@@ -229,7 +236,7 @@ export default function BroadcastsPage() {
           <div className="mt-1 line-clamp-4 whitespace-pre-wrap text-muted">{body}</div>
         </div>
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setConfirming(false)} disabled={send.isPending}>
+          <Button variant="ghost" onClick={() => setConfirming(false)}>
             Отмена
           </Button>
           <Button variant="gold" loading={send.isPending} onClick={() => send.mutate()}>

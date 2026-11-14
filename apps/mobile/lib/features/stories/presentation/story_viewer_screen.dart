@@ -25,6 +25,7 @@ import 'package:lawbid/features/stories/application/story_playback.dart';
 import 'package:lawbid/features/stories/application/story_reply.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
 import 'package:lawbid/features/stories/presentation/story_frame.dart';
+import 'package:lawbid/features/stories/presentation/story_hero.dart';
 import 'package:lawbid/features/stories/presentation/story_navigation.dart';
 import 'package:lawbid/features/stories/presentation/story_video.dart';
 import 'package:lawbid/features/stories/presentation/story_viewer_sheets.dart';
@@ -32,9 +33,12 @@ import 'package:lawbid/features/stories/presentation/story_viewer_sheets.dart';
 /// The full-screen viewer of one person's live stories; when they end it
 /// goes on to the next person in the tray who has something unseen.
 class StoryViewerScreen extends ConsumerStatefulWidget {
-  const StoryViewerScreen({required this.userId, super.key});
+  const StoryViewerScreen({required this.userId, this.heroTag, super.key});
 
   final String userId;
+
+  /// Row 95: the ring it was opened from ([StoryHero]); null: no zoom.
+  final String? heroTag;
 
   @override
   ConsumerState<StoryViewerScreen> createState() => _StoryViewerScreenState();
@@ -97,53 +101,73 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen> {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: StoryPeopleSlide(
-          step: _step,
-          child: KeyedSubtree(
-            key: ValueKey('story-user-$_userId'),
-            child: stories.when(
-              loading: () => _Plain(
-                onClose: _close,
-                t: t,
-                child: const CircularProgressIndicator(color: Colors.white),
-              ),
-              error: (e, _) => _Plain(
-                onClose: _close,
-                t: t,
-                child: AppErrorState(
-                  message: errorText(t, e),
-                  retryLabel: t.t('common.retry'),
-                  onRetry: () => ref.invalidate(userStoriesProvider(_userId)),
+        body: _withHero(
+          StoryPeopleSlide(
+            step: _step,
+            child: KeyedSubtree(
+              key: ValueKey('story-user-$_userId'),
+              child: stories.when(
+                loading: () => _Plain(
+                  onClose: _close,
+                  t: t,
+                  child: const CircularProgressIndicator(color: Colors.white),
                 ),
-              ),
-              data: (list) => list.isEmpty
-                  ? _Plain(
-                      onClose: _close,
-                      t: t,
-                      child: AppEmptyState(
-                        message: t.t('story.viewer.empty'),
-                        icon: AppIcons.imageNotSupportedOutlined,
+                error: (e, _) => _Plain(
+                  onClose: _close,
+                  t: t,
+                  child: AppErrorState(
+                    message: errorText(t, e),
+                    retryLabel: t.t('common.retry'),
+                    onRetry: () => ref.invalidate(userStoriesProvider(_userId)),
+                  ),
+                ),
+                data: (list) => list.isEmpty
+                    ? _Plain(
+                        onClose: _close,
+                        t: t,
+                        child: AppEmptyState(
+                          message: t.t('story.viewer.empty'),
+                          icon: AppIcons.imageNotSupportedOutlined,
+                        ),
+                      )
+                    : StoryPlaybackView(
+                        key: ValueKey(_userId),
+                        stories: list,
+                        startIndex: _firstUnseen(list),
+                        onClose: _close,
+                        onFinished: () => _move(1),
+                        onBeforeFirst: () => _move(-1),
+                        onNextUser: () => _move(1),
+                        onPreviousUser: () => _move(-1),
+                        onDeleted: (_) {
+                          ref
+                            ..invalidate(userStoriesProvider(_userId))
+                            ..invalidate(storyTrayProvider);
+                        },
                       ),
-                    )
-                  : StoryPlaybackView(
-                      key: ValueKey(_userId),
-                      stories: list,
-                      startIndex: _firstUnseen(list),
-                      onClose: _close,
-                      onFinished: () => _move(1),
-                      onBeforeFirst: () => _move(-1),
-                      onNextUser: () => _move(1),
-                      onPreviousUser: () => _move(-1),
-                      onDeleted: (_) {
-                        ref
-                          ..invalidate(userStoriesProvider(_userId))
-                          ..invalidate(storyTrayProvider);
-                      },
-                    ),
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Row 95 (catalog ME5): the black frame that flew out of the ring sits
+  /// under the story; only for the person it was opened on, so a close
+  /// after moving to someone else slides away as before.
+  Widget _withHero(Widget body) {
+    final tag = widget.heroTag;
+    if (tag == null || _userId != widget.userId) return body;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        StoryHero(
+          tag: tag,
+          child: const ColoredBox(color: AppOverlayColors.storyBackdrop),
+        ),
+        body,
+      ],
     );
   }
 

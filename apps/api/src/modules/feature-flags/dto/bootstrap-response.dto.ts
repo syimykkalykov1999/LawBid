@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { LegalDocType } from '@prisma/client';
+import { LegalDocType } from '../../../generated/prisma/client';
 import { ClientTimingsDto } from '../../../common/dto/client-timings.dto';
 import { I18nLanguageDto } from '../../i18n/dto/i18n-responses.dto';
 

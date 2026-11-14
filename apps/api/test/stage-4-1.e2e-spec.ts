@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { withTxRetry } from '../src/prisma/tx-retry.util';
@@ -7,6 +7,7 @@ import { BidStateMachine } from '../src/modules/bids/domain/bid-state-machine';
 import { CaseJournalService } from '../src/modules/journal/case-journal.service';
 import { CaseAccessPolicy } from '../src/modules/cases/policies/case-access.policy';
 import { SubscriptionAccessService } from '../src/modules/subscriptions/subscription-access.service';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.1 acceptance against PostgreSQL:
@@ -19,13 +20,15 @@ import { SubscriptionAccessService } from '../src/modules/subscriptions/subscrip
  */
 describe('Stage 4.1 — state machines, journal, access policy (e2e)', () => {
   jest.setTimeout(60_000);
-  const root = new PrismaClient();
+  const root = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   const prisma = new PrismaService();
   const appRole = (() => {
     const url = new URL(process.env.DATABASE_URL ?? '');
     url.username = 'lawbid_app';
     url.password = '';
-    return new PrismaClient({ datasourceUrl: url.toString() });
+    return new PrismaClient({ adapter: pgAdapter(url.toString()) });
   })();
   // The services only use the transaction client they are handed (and
   // `this.prisma` for verifyChain), so the lawbid_app client can stand in.

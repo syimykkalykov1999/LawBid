@@ -7,7 +7,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { EmailTemplate } from '@prisma/client';
+import type { EmailTemplate } from '../../generated/prisma/client';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';

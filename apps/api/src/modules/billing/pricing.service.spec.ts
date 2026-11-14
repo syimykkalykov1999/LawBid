@@ -1,5 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
-import type { PlanPrice } from '@prisma/client';
+import type { PlanPrice } from '../../generated/prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { FakePaymentProvider } from './fake-payment.provider';
 import { discountOf, PricingService } from './pricing.service';

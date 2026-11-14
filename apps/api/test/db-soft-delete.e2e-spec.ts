@@ -1,6 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { Logger } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
@@ -17,6 +17,8 @@ import { withTxRetry } from '../src/prisma/tx-retry.util';
 import { readsAreSplit } from '../src/sharding/split-reads';
 import { shardContext } from '../src/sharding/shard-context';
 import { IdentityService } from '../src/modules/auth/services/identity.service';
+import { datamodel as prismaDatamodel } from '../src/generated/prisma-dmmf';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * docs/02_DATABASE.md §1.4: reads exclude soft-deleted rows by default via
@@ -30,7 +32,9 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
 
   let app: INestApplication;
   let prisma: PrismaService;
-  const raw = new PrismaClient(); // unfiltered view of the same DB
+  const raw = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  }); // unfiltered view of the same DB
   const deletedAt = new Date('2026-01-01T00:00:00Z');
   const tag = randomUUID().slice(0, 8);
 
@@ -403,6 +407,7 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
   it('every model with deleted_at (from the DMMF) is filtered at the SQL level', async () => {
     const queries: string[] = [];
     const logged = new PrismaClient({
+      adapter: pgAdapter(process.env.DATABASE_URL),
       log: [{ emit: 'event', level: 'query' }],
     });
     logged.$on('query', (e) => queries.push(e.query));
@@ -416,7 +421,7 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
         ] as { count: () => Promise<number> };
         queries.length = 0;
         await delegate.count();
-        const table = Prisma.dmmf.datamodel.models.find(
+        const table = prismaDatamodel.models.find(
           (m) => m.name === model,
         )?.dbName;
         expect(queries.join('\n')).toContain(`"${table}"."deleted_at" IS NULL`);

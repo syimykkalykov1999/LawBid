@@ -1,4 +1,6 @@
 import { ConflictException } from '@nestjs/common';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   PLACE_SPECS,
   UPLOAD_PLACES,
@@ -70,5 +72,39 @@ describe('case limits saved while counted together (owner 2026-10-19)', () => {
     expect(l.case.maxFiles).toBe(3);
     expect(l.case.fileMb).toBe(20);
     expect(l.case.formats).toEqual(['jpeg', 'pdf']);
+  });
+});
+
+/** Media batch A (R1, audit 13.11): clamd scanned up to 55 MB while an admin
+ * could allow 100 MB a file; a bigger file was deleted after its upload. The
+ * scanner's limit (Terraform) must cover every ceiling here. */
+describe('the antivirus limit covers every upload ceiling', () => {
+  const tf = readFileSync(
+    join(__dirname, '../../../../../infra/modules/ecs/main.tf'),
+    'utf8',
+  );
+
+  it('clamav_max_file_mb ≥ the largest MB per file an admin can set', () => {
+    const m = /variable "clamav_max_file_mb" \{[^}]*?default\s*=\s*(\d+)/.exec(
+      tf,
+    );
+    expect(m).not.toBeNull();
+    const scannerMb = Number(m![1]);
+    const ceiling = Math.max(
+      ...UPLOAD_PLACES.map((p) => PLACE_SPECS[p].ceiling.fileMb),
+    );
+    expect(ceiling).toBeGreaterThan(0);
+    expect(scannerMb).toBeGreaterThanOrEqual(ceiling);
+  });
+
+  it('clamd and the worker read that same variable', () => {
+    for (const opt of ['StreamMaxLength', 'MaxFileSize']) {
+      expect(tf).toContain(
+        `{ name = "CLAMD_CONF_${opt}", value = "\${var.clamav_max_file_mb}M" }`,
+      );
+    }
+    expect(tf).toContain(
+      '{ name = "CLAMAV_MAX_MB", value = tostring(var.clamav_max_file_mb) }',
+    );
   });
 });

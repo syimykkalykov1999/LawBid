@@ -1,4 +1,3 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,10 +6,12 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart'
     show showAppDatePicker;
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/pick_files.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart'
     show ActionSheetItem, showActionSheet;
 import 'package:lawbid/features/cases/tools/billing_logic.dart';
@@ -367,9 +368,10 @@ class _ExpenseSheetState extends ConsumerState<_ExpenseSheet> {
       maxWidth: photo.maxPx,
       maxHeight: photo.maxPx,
       imageQuality: photo.quality,
+      requestFullMetadata: false,
     );
     if (f == null) return;
-    final bytes = await f.readAsBytes();
+    final bytes = await readPickedPhoto(f);
     if (mounted) {
       setState(() => _receipt = PickedCaseFile(bytes: bytes, name: f.name));
     }
@@ -377,16 +379,17 @@ class _ExpenseSheetState extends ConsumerState<_ExpenseSheet> {
 
   Future<void> _file() async {
     final upload = ref.read(uploadLimitsProvider)[UploadPlace.kase];
-    final r = await FilePicker.pickFiles(
-      cancelUploadOnWindowBlur: false,
-      type: FileType.custom,
+    // Audit D8: read from disk on a phone (no withData).
+    final r = await pickFilesRead(
       allowedExtensions: upload.documentExtensions,
-      withData: true,
+      maxBytes: upload.fileBytes,
+      maxCount: 1,
+      photos: photoLimitsOf(ref.read(featureFlagsControllerProvider)),
     );
-    final f = r?.files.firstOrNull;
-    if (f?.bytes == null) return;
+    final f = r.files.firstOrNull;
+    if (f == null) return;
     if (mounted) {
-      setState(() => _receipt = PickedCaseFile(bytes: f!.bytes!, name: f.name));
+      setState(() => _receipt = PickedCaseFile(bytes: f.bytes, name: f.name));
     }
   }
 

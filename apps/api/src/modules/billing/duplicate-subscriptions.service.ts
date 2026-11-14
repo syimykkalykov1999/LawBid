@@ -5,7 +5,10 @@ import {
   type OnModuleInit,
   Optional,
 } from '@nestjs/common';
-import type { BillingDuplicateFix, Prisma } from '@prisma/client';
+import type {
+  BillingDuplicateFix,
+  Prisma,
+} from '../../generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';

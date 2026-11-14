@@ -7,7 +7,7 @@ import type {
   ChatGroupMessage,
   ChatGroupPoll,
   ChatGroupPollOption,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { groupMessagesByPairs } from '../chat/messages-by-pairs';
 import { ongoingCalls } from '../../common/calls/ongoing-call';

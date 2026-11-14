@@ -23,6 +23,8 @@ class StorageOverviewDto {
     required this.dedupSavedBytes,
     required this.pendingRemovalCount,
     required this.pendingRemovalBytes,
+    required this.scanSkippedCount,
+    required this.scanSkippedBytes,
     required this.byPurpose,
     required this.tables,
     required this.topUsers,
@@ -46,6 +48,10 @@ class StorageOverviewDto {
   final num dedupSavedBytes;
   final num pendingRemovalCount;
   final num pendingRemovalBytes;
+
+  /// Media batch A (R1): files kept but not scanned by the antivirus because they are over its size limit (never attachable, never auto-removed).
+  final num scanSkippedCount;
+  final num scanSkippedBytes;
   final List<StoragePurposeUsageDto> byPurpose;
   final List<StorageTableUsageDto> tables;
   final List<StorageUserUsageDto> topUsers;

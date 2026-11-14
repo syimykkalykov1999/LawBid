@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import jsQR from 'jsqr';
 import { PDFDocument } from 'pdf-lib';
 import PDFKitDocument from 'pdfkit';
+import { INTER_PATH, parsedFont } from '../../common/pdf-fonts/pdf-fonts';
 import {
   documentLanguages,
   footerStamp,
@@ -681,6 +682,51 @@ describe('deal record PDF v2', () => {
     expect(until).toBeGreaterThan(0);
     expect(run.slice(0, until)).not.toContain('<page>');
     expect(last.length).toBeGreaterThan(0);
+  });
+});
+
+describe('deal record PDF speed (13.11: 1.2–1.5 s per record, CI timeouts)', () => {
+  const s = snapshot(shortHistory);
+  const sha = snapshotSha256(s);
+  const v2 = {
+    snapshot: s,
+    recordCode: recordCodeOf(s.recordId, sha),
+    snapshotSha256: sha,
+    generatedAt: new Date('2026-10-27T20:02:00Z'),
+    signatures: v2Sigs,
+    local: { ru: localOf('ru'), ky: localOf('ky') },
+    verifyUrl: VERIFY_URL,
+  };
+
+  it('every PDF draws with the one parsed Inter, and each word is shaped once across the type-scale passes', async () => {
+    // The cause of the slow record: fontkit shaping (Inter's GSUB/GPOS) of
+    // the same words in a fresh font for each of the up-to-three passes.
+    const inter = parsedFont(INTER_PATH as string);
+    const shaped: string[] = [];
+    const real = inter.layout.bind(inter);
+    const spy = jest
+      .spyOn(inter, 'layout')
+      .mockImplementation((text: string, features?: unknown) => {
+        shaped.push(text);
+        return real(text, features);
+      });
+    try {
+      // This record needs all three passes (it is two pages at every scale).
+      expect(await pages(await renderDealRecordPdf(v2))).toBe(2);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(shaped.length).toBeGreaterThan(100);
+    expect(shaped.length).toBe(new Set(shaped).size);
+  });
+
+  it('a warm three-pass record renders well under a second (measured 0.2–0.5 s; was 1.2–1.5 s)', async () => {
+    await renderDealRecordPdf(v2); // fonts parsed once per process
+    const t0 = performance.now();
+    await renderDealRecordPdf(v2);
+    // Generous (~5x the measured time) so a loaded CI runner stays green;
+    // the shaping count above is the exact guard.
+    expect(performance.now() - t0).toBeLessThan(2_500);
   });
 });
 

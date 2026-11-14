@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import type { Prisma, StripeReviewItem } from '@prisma/client';
+import type { Prisma, StripeReviewItem } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';

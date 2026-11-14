@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
@@ -31,8 +32,9 @@ final avatarImagePickerProvider =
       maxHeight: limits.maxPx,
       imageQuality: limits.quality,
       preferredCameraDevice: CameraDevice.front,
+      requestFullMetadata: false,
     );
-    return file?.readAsBytes();
+    return file == null ? null : readPickedPhoto(file);
   },
 );
 

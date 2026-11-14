@@ -1,4 +1,4 @@
-import type { AdminRole, AdminWorkspace } from '@prisma/client';
+import type { AdminRole, AdminWorkspace } from '../../generated/prisma/client';
 import { WORKSPACE_AREAS } from '../staff-core/workspace-scope';
 
 /**

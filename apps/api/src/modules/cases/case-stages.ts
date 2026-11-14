@@ -1,4 +1,4 @@
-import type { CaseStatus, Prisma } from '@prisma/client';
+import type { CaseStatus, Prisma } from '../../generated/prisma/client';
 import {
   decodeRankedCursor,
   encodeRankedCursor,

@@ -7,7 +7,7 @@ import type {
   CaseJournalEvent,
   Prisma,
   UserRole,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { caseNotFound } from '../cases/domain/case-state-machine';
 import { canonicalJson } from './canonical-json';

@@ -33,6 +33,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('pay'));
     await tester.pump();
+    // Row 95: it rises in over 250 ms (Material 3 floating SnackBar motion).
+    await tester.pump(const Duration(milliseconds: 300));
     final message = find.byKey(const ValueKey('app-overlay-message'));
     expect(message, findsOneWidget);
     expect(find.text('Payment failed'), findsOneWidget);
@@ -45,6 +47,8 @@ void main() {
       isTrue,
     );
     await tester.pump(const Duration(seconds: 5));
+    // …and slides away before it is removed.
+    await tester.pumpAndSettle();
     expect(message, findsNothing);
   });
 

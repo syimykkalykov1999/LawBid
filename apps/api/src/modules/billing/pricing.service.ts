@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { PlanPrice } from '@prisma/client';
+import type { PlanPrice } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { maxAssistantSeats, getAssistantLimit } from './seat-limit';
 import { ErrorCode } from '../../common/errors/error-code.enum';

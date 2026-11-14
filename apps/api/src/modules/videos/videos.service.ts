@@ -12,7 +12,11 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { Prisma, VideoAsset, VideoAssetStatus } from '@prisma/client';
+import type {
+  Prisma,
+  VideoAsset,
+  VideoAssetStatus,
+} from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { EntitlementsService } from '../plans/entitlements.service';
@@ -67,6 +71,38 @@ export function mapBunnyStatus(
 /** "360p,720p" → 2; null / "" → 0. */
 function playableRenditions(list: string | null | undefined): number {
   return (list ?? '').split(',').filter((r) => r.trim().length > 0).length;
+}
+
+/** Bunny writes MP4 fallbacks only up to 720p (Stream «MP4 fallback»);
+ * the web plays the best of them. */
+const MP4_FALLBACK_MAX_P = 720;
+const RENDITION = /^(\d{3,4})p$/;
+
+/**
+ * Media batch A (R11): the MP4 fallback to serve from the renditions Bunny
+ * really stored: the tallest up to 720p, else the shortest one there is;
+ * '' = there is none (the clients then play the HLS playlist).
+ */
+export function pickMp4Fallback(list: readonly string[]): string {
+  const ps = list
+    .map((r) => RENDITION.exec(r.trim())?.[1])
+    .filter((x): x is string => x !== undefined)
+    .map(Number)
+    .sort((x, y) => x - y);
+  if (ps.length === 0) return '';
+  const fit = ps.filter((p) => p <= MP4_FALLBACK_MAX_P);
+  return `${fit.length > 0 ? fit[fit.length - 1] : ps[0]}p`;
+}
+
+/** File name of the MP4 fallback of [a], or null when there is none. A row
+ * never checked (before batch A) keeps the former play_720p.mp4. */
+export function mp4FallbackFile(
+  a: Pick<VideoAsset, 'mp4_fallback'>,
+): string | null {
+  if (a.mp4_fallback === null || a.mp4_fallback === undefined) {
+    return 'play_720p.mp4';
+  }
+  return RENDITION.test(a.mp4_fallback) ? `play_${a.mp4_fallback}.mp4` : null;
 }
 
 /** Called once per stored status change of a video asset. */
@@ -359,6 +395,64 @@ export class VideosService {
     }
   }
 
+  /**
+   * Media batch A (R10): fresh TUS credentials for an upload already
+   * started. Bunny checks `AuthorizationSignature` / `AuthorizationExpire`
+   * on every TUS request (Bunny Stream «TUS resumable uploads»), so a phone
+   * resuming after the first signature expired (`video.upload_ttl_min`,
+   * 60 min, while a video may be 1000 MB) asks for a new one for the SAME
+   * `videoId` and continues from Bunny's offset instead of failing with 401
+   * and starting over. The asset's upload deadline moves with it, so the
+   * sweep does not mark a long upload `upload_expired` meanwhile. Only the
+   * owner, only while the upload is still open.
+   */
+  async renewUpload(userId: string, id: string): Promise<VideoUploadDto> {
+    await this.assertAvailable();
+    const a = await this.own(userId, id);
+    if (a.status !== 'awaiting_upload') {
+      throw new ConflictException({
+        code: ErrorCode.VIDEO_NOT_READY,
+        message: 'This upload is no longer open.',
+        details: { status: a.status },
+      });
+    }
+    const keys = (await this.bunny.keys())!;
+    const ttlMin = await this.settings.number('video.upload_ttl_min');
+    const expire = Math.floor(Date.now() / 1000) + ttlMin * 60;
+    const until = new Date(expire * 1000);
+    const { count } = await this.prisma.videoAsset.updateMany({
+      where: { id: a.id, status: 'awaiting_upload' },
+      data: {
+        upload_expires_at:
+          a.upload_expires_at && a.upload_expires_at > until
+            ? a.upload_expires_at
+            : until,
+      },
+    });
+    if (count !== 1) {
+      throw new ConflictException({
+        code: ErrorCode.VIDEO_NOT_READY,
+        message: 'This upload is no longer open.',
+      });
+    }
+    const reelSec = await this.reelMaxSec();
+    const isPost = (a.duration_sec ?? 0) > reelSec;
+    return {
+      videoAssetId: a.id,
+      tusEndpoint: this.bunny.tusEndpoint(),
+      libraryId: a.library_id,
+      videoId: a.external_id,
+      authorizationSignature: tusSignature(
+        a.library_id,
+        keys.apiKey,
+        expire,
+        a.external_id,
+      ),
+      authorizationExpire: expire,
+      maxDurationSec: isPost ? await this.postMaxSec(reelSec) : reelSec,
+    };
+  }
+
   /** Per-person lock around "count pending -> create asset" (fails open
    * without Redis; auto-expires in 20 s). */
   private async lockUploadStart(userId: string): Promise<() => Promise<void>> {
@@ -504,7 +598,9 @@ export class VideosService {
       // Owner 2026-10-22 (audit #4 §5): its thumbnail is checked.
       if (ready.status === 'ready')
         await this.moderation?.enqueueVideo(ready.id);
-      return ready;
+      // R11: which MP4 fallback Bunny really has (none yet is fine: Bunny's
+      // «Finished» webhook asks again, see refreshMp4Fallback).
+      return ready.status === 'ready' ? this.refreshMp4Fallback(ready) : ready;
     }
     return this.store(a, {
       data: {
@@ -512,6 +608,33 @@ export class VideosService {
         ...(next === 'failed' ? { failure_reason: 'encoding_failed' } : {}),
       },
     });
+  }
+
+  /**
+   * Media batch A (R11): the MP4 fallback is the rendition Bunny really
+   * stored (`GET …/videos/{id}/resolutions` → `mp4Resolutions`), not a
+   * hard-coded play_720p.mp4 — that was a 404 for a source under 720p or a
+   * library without MP4 fallback. Asked when the video turns ready and on
+   * every later Bunny webhook (the MP4 files appear when encoding
+   * finishes). Best effort: a failed look keeps what is stored.
+   */
+  async refreshMp4Fallback(a: VideoAsset): Promise<VideoAsset> {
+    if (a.status !== 'ready') return a;
+    let picked: string;
+    try {
+      picked = pickMp4Fallback(
+        await this.bunny.getMp4Resolutions(a.external_id),
+      );
+    } catch (e) {
+      this.logger.warn(`Bunny resolutions of ${a.id} not read: ${String(e)}`);
+      return a;
+    }
+    if (picked === a.mp4_fallback) return a;
+    await this.prisma.videoAsset.updateMany({
+      where: { id: a.id },
+      data: { mp4_fallback: picked },
+    });
+    return { ...a, mp4_fallback: picked };
   }
 
   /**
@@ -597,7 +720,7 @@ export class VideosService {
       out.set(a.id, {
         status: a.status,
         playbackUrl: sign('playlist.m3u8'),
-        fallbackUrl: sign('play_720p.mp4'),
+        fallbackUrl: ((f) => (f ? sign(f) : null))(mp4FallbackFile(a)),
         thumbnailUrl: sign('thumbnail.jpg'),
         durationSec: playedSec(a),
         width: a.width,

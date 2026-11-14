@@ -1,4 +1,4 @@
-import type { ContactMethod } from '@prisma/client';
+import type { ContactMethod } from '../../../generated/prisma/client';
 
 /** docs/02 §4.C contact_disclosures.fields: `name`, `phone`, `email`,
  * `preferred_contact`. */

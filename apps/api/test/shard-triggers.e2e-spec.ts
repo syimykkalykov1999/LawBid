@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { expectedPhysicalDb } from './support/e2e-two-db';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * Shard-ready step 4 (docs/architecture/SHARDING_READY.md §4): the BEFORE
@@ -10,7 +11,9 @@ import { PrismaService } from '../src/prisma/prisma.service';
  * extension, so everything here is the database's own work.
  */
 describe('shard_id trigger (real PostgreSQL)', () => {
-  const raw = new PrismaClient();
+  const raw = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   const app = new PrismaService();
   // Owner ids with a known last byte (= their shard).
   const U_A7 = '00000000-0000-4000-8000-0000000000a7';

@@ -3,7 +3,7 @@ import type {
   VerificationDocType,
   VerificationRequestStatus,
   VerificationStatus,
-} from '@prisma/client';
+} from '../../generated/prisma/client';
 
 /** docs/03 §2.3: an attorney has at most one request in these statuses. */
 export const OPEN_REQUEST_STATUSES = [

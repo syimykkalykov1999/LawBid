@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Composer, type ComposerSubmit } from '@/components/support/composer';
 import { DeviceCard } from '@/components/support/device-card';
 import { MessageBubble } from '@/components/support/message-bubble';
+import { ThreadScroller } from '@/components/support/thread-scroller';
 import { canWriteSupport, CategoryBadge, PriorityBadge, SlaBadge } from '@/components/support/support-labels';
 import { UserSummaryCard } from '@/components/support/user-summary-card';
 import { Button } from '@/components/ui/button';
@@ -86,6 +87,8 @@ export function SupportReview() {
     void qc.invalidateQueries({ queryKey: ['support-stats'] });
   };
 
+  // D1-6: a saved note brings the thread to its bottom (ThreadScroller).
+  const [sent, setSent] = useState(0);
   const reply = useMutation({
     mutationFn: async (v: ComposerSubmit) => {
       await api.POST('/admin/support/tickets/{id}/messages', {
@@ -102,6 +105,7 @@ export function SupportReview() {
     },
     onSuccess: (v) => {
       if (!cur) return;
+      setSent((n) => n + 1);
       toast.success(v.internal ? 'Заметка сохранена' : `Ответ отправлен · ${TICKET_STATUS[v.status ?? 'waiting_user']}`);
       invalidate(cur);
       if (v.macroId) void qc.invalidateQueries({ queryKey: ['support-macros'] });
@@ -140,14 +144,6 @@ export function SupportReview() {
   const sendRef = useRef<(() => void) | null>(null);
   const [replyReady, setReplyReady] = useState(false);
   const onReadyChange = useCallback((r: boolean) => setReplyReady(r), []);
-
-  // Scroll the conversation to the newest message.
-  const scroller = useRef<HTMLDivElement>(null);
-  const count = t?.messages.length ?? 0;
-  useEffect(() => {
-    const el = scroller.current;
-    if (el && count > 0) el.scrollTop = el.scrollHeight;
-  }, [count, cur]);
 
   const open = !!t && t.status !== 'closed';
   const busy = reply.isPending || patch.isPending;
@@ -221,7 +217,8 @@ export function SupportReview() {
       {t ? (
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           <Card className="flex flex-col overflow-hidden">
-            <div ref={scroller} className="max-h-[55vh] min-h-60 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6" data-testid="support-review-messages">
+            {/* D1-6: follows new messages only at the bottom; a new ticket starts at its end. */}
+            <ThreadScroller key={cur} followKey={sent} className="max-h-[55vh] min-h-60 flex-1 p-4 sm:p-6" testId="support-review-messages">
               {t.messages.length === 0 ? (
                 <EmptyState icon={ChatsCircle} title="Сообщений пока нет" className="border-none" />
               ) : (
@@ -231,10 +228,11 @@ export function SupportReview() {
                   ))}
                 </AnimatePresence>
               )}
-            </div>
+            </ThreadScroller>
             {canWrite && open ? (
               <Composer
                 key={cur}
+                draftKey={cur ? `support:${cur}` : undefined}
                 busy={reply.isPending}
                 macros={macros.data ?? []}
                 hideReplyButton

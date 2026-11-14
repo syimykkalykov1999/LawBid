@@ -7,7 +7,7 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../generated/prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import {
   assertExpectedVersion,

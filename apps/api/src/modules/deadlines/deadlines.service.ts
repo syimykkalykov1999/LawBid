@@ -5,7 +5,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { CourtHoliday, DeadlineRule, Prisma } from '@prisma/client';
+import type {
+  CourtHoliday,
+  DeadlineRule,
+  Prisma,
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { parseIsoDate } from '../../common/utils/zoned-wall';
 import { PrismaService } from '../../prisma/prisma.service';

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/client';
 import { createRedisClient } from '../redis/redis-connection';
 import { unwrapKmsWrappedKeys } from '../common/secrets/kms-env';
 import {
@@ -13,6 +13,7 @@ import {
 import { runBackfill } from '../common/backfill/backfill.runner';
 import { BACKFILLS, findBackfill } from '../common/backfill/backfill.registry';
 import { PgBackfillStore } from '../common/backfill/backfill.store';
+import { pgAdapter } from '../prisma/pg-adapter';
 
 // `node dist/src/cli/backfill-runner.js <command>` (after `nest build`), as a
 // one-off task: scripts/deploy/prod-run.sh node dist/src/cli/backfill-runner.js <name>
@@ -37,7 +38,7 @@ async function main(): Promise<number> {
   const cmd = known.includes(rest[0] ?? '') ? rest[0] : 'run';
   const name = known.includes(rest[0] ?? '') ? rest[1] : rest[0];
 
-  const db = new PrismaClient();
+  const db = new PrismaClient({ adapter: pgAdapter(process.env.DATABASE_URL) });
   const store = new PgBackfillStore(db);
   const redis = process.env.REDIS_URL
     ? createRedisClient(process.env.REDIS_URL, { maxRetriesPerRequest: 1 })

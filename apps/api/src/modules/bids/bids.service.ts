@@ -14,7 +14,12 @@ import {
   Optional,
   NotFoundException,
 } from '@nestjs/common';
-import { Bid, BidOffer, PartyRole, Prisma } from '@prisma/client';
+import {
+  Bid,
+  BidOffer,
+  PartyRole,
+  Prisma,
+} from '../../generated/prisma/client';
 import { BUMP_VERSION } from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';

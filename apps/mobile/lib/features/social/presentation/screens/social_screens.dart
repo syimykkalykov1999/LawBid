@@ -454,11 +454,15 @@ List<Widget> commentThreadSlivers(
                   .addPostFrameCallback((_) => notifier.loadMore());
             }
             final c = value.items[i];
-            return CommentTile(
+            // Row 95 (catalog C4): a comment just posted grows in.
+            return AppInsertMotion(
               key: ValueKey(c.id),
-              comment: c,
-              threads: threads,
-              onReply: onReply,
+              animate: AppInsertMotion.fresh(c.createdAt),
+              child: CommentTile(
+                comment: c,
+                threads: threads,
+                onReply: onReply,
+              ),
             );
           },
         ),

@@ -5,7 +5,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { Prisma, type StaffReward } from '@prisma/client';
+import { Prisma, type StaffReward } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AppSettingsWriter } from '../../common/app-settings/app-settings.writer';

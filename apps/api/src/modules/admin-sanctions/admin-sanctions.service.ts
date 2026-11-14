@@ -5,7 +5,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
-import type { AccountBan } from '@prisma/client';
+import type { AccountBan } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';

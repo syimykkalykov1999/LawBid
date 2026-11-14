@@ -1,4 +1,4 @@
-import type { Plan } from '@prisma/client';
+import type { Plan } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { EntitlementsService, seatsOf } from './entitlements.service';
