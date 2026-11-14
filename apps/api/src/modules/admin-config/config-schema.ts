@@ -925,6 +925,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'An attorney who loses verification (rejected / suspended): the subscription ends now and the unused part of the period, offer packs and Boost is refunded. Off: nothing is canceled automatically.',
   };
+  out['billing.verification_loss_overlap_minutes'] = {
+    ...out['billing.verification_loss_overlap_minutes'],
+    description:
+      'Verification-loss sweep: each run re-reads the attorneys changed since the previous run minus this many minutes (late commits are not missed).',
+    min: 1,
+    max: 24 * 60,
+  };
+  out['billing.verification_loss_full_scan_hours'] = {
+    ...out['billing.verification_loss_full_scan_hours'],
+    description:
+      'Verification-loss sweep: the whole rejected / suspended list is checked once per this many hours as a safety net; between, only attorneys changed since the last run. 0 = the whole list every run.',
+    min: 0,
+    max: 24 * 30,
+  };
   out['billing.duplicate_subscription_autofix'] = {
     ...out['billing.duplicate_subscription_autofix'],
     description:
@@ -1159,6 +1173,52 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Minutes between runs of an idle sweep. Ceiling 30: nothing waits longer than that.',
     min: 2,
     max: 30,
+  };
+  // Batch D (14.11): cron run time limits, skip log, last-good-run alarm.
+  triState(
+    'ops.cron_timeout_mode',
+    'Time limit of one background job run: auto (default) = 10x the longest of its last good runs, at least an hour, no limit before its first good run (a job that works is never cut); on = the minutes in «ops.cron_timeout_minutes», auto for the jobs not listed; off = no limit. A run past its limit is stopped and frees its lane for the next job.',
+  );
+  out['ops.cron_timeout_auto_factor'] = {
+    ...out['ops.cron_timeout_auto_factor'],
+    description:
+      'Auto time limit = this many times the longest recent good run of the job.',
+    min: 2,
+    max: 1000,
+  };
+  out['ops.cron_timeout_auto_min_minutes'] = {
+    ...out['ops.cron_timeout_auto_min_minutes'],
+    description:
+      'The auto time limit of a background job is never below this many minutes.',
+    min: 1,
+    max: 7 * 24 * 60,
+  };
+  out['ops.cron_timeout_history_runs'] = {
+    ...out['ops.cron_timeout_history_runs'],
+    description:
+      'How many recent good runs of each job the auto time limit looks at.',
+    min: 1,
+    max: 1000,
+  };
+  out['ops.cron_timeout_minutes'] = {
+    ...out['ops.cron_timeout_minutes'],
+    description:
+      'Mode on: fixed time limits, `job=minutes` separated by commas (e.g. `feed.reco=30, legal.exports=10`). Empty = auto for every job.',
+    pattern: /^\s*([a-z0-9.-]+\s*=\s*\d+\s*(,\s*[a-z0-9.-]+\s*=\s*\d+\s*)*)?$/,
+  };
+  out['ops.cron_skip_log_every'] = {
+    ...out['ops.cron_skip_log_every'],
+    description:
+      'A frequent job skipped tick after tick (previous run still going, paused, idle) is logged at the first skip, then every this-many skips, and when it runs again.',
+    min: 1,
+    max: 100_000,
+  };
+  out['ops.cron_stale_periods'] = {
+    ...out['ops.cron_stale_periods'],
+    description:
+      'System health «Queues» turns red when a background job had no good run for this many of its periods (0 = off).',
+    min: 0,
+    max: 1000,
   };
   out['ops.reencrypt_rows_per_min'] = {
     ...out['ops.reencrypt_rows_per_min'],

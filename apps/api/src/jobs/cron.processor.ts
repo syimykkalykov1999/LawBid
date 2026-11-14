@@ -4,12 +4,14 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import {
   CRON_JOBS,
+  CRON_HEAVY_FREQUENT_QUEUE,
   CRON_HEAVY_QUEUE,
   CRON_SCHEDULES,
   cronLaneOf,
   isSubHourly,
 } from './jobs.constants';
-import { withJobLock } from './handlers/job-lock';
+import { CronRunStats, runUnderLock, timeLimitMs } from './cron-run';
+import { JobStoppedError } from '../common/queues/job-signal';
 import { REDIS_CLIENT } from '../redis/redis.constants';
 import { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import { PromotionsService } from '../modules/promotions/promotions.service';
@@ -129,6 +131,32 @@ import { StaffWeeklyDigestJob } from './handlers/staff-weekly-digest.job';
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
 /** A cron run at least this long is logged as `cron_slow` (G8). */
 export const CRON_SLOW_MS = 60_000;
+
+function patternOf(name: string): string {
+  return CRON_SCHEDULES.find((s) => s.name === name)?.pattern ?? '';
+}
+
+/** Why a run did not do its work (`{ skipped }` / `{ stopped }`), or null. */
+export function skipReason(result: unknown): string | null {
+  if (!result || typeof result !== 'object') return null;
+  const r = result as { skipped?: unknown; stopped?: unknown };
+  if (typeof r.stopped === 'string') return r.stopped;
+  if (typeof r.skipped === 'string') return r.skipped;
+  return null;
+}
+
+/**
+ * Batch D: a run that counts as «the job works» for the last-good-run
+ * alarm. A skip the owner or the system chose (heavy pause, idle back-off,
+ * mode off) is fine; a run that could not start because the previous one
+ * still holds the lock, or that was stopped, is not.
+ */
+export function isGoodRun(result: unknown): boolean {
+  if (!result || typeof result !== 'object') return true;
+  const r = result as { skipped?: unknown; stopped?: unknown };
+  if (r.stopped !== undefined) return false;
+  return r.skipped !== 'previous run still active';
+}
 
 @Injectable()
 export class CronProcessor {
@@ -283,15 +311,28 @@ export class CronProcessor {
    * holder: a sub-hourly job is blocked for at most 3 minutes after a kill,
    * a heavy one for 60.
    */
-  async process(name: string): Promise<unknown> {
+  /**
+   * [outer] is BullMQ's per-job AbortSignal (the worker cancels it when its
+   * job lock could not be renewed, see JobsRunner).
+   */
+  async process(name: string, outer?: AbortSignal): Promise<unknown> {
     // G8 (2026-11-08): the `cron` lane runs one job at a time per worker
     // task, and on prod its oldest waiting job reached 3599 s, flapping the
     // queue-backlog alarm all day, with no way to tell which job held the
     // lane. A run longer than [CRON_SLOW_MS] is logged with its name
     // (`metric: cron_slow`), so the slow one can be moved to `cron-heavy`.
     const started = Date.now();
+    await this.quietly(() => this.stats?.attempt(name, started));
     try {
-      return await this.locked(name);
+      const result = await this.locked(name, outer);
+      if (isGoodRun(result)) {
+        const keep = await this.setting('ops.cron_timeout_history_runs', 20);
+        await this.quietly(() =>
+          this.stats?.success(name, Date.now() - started, Date.now(), keep),
+        );
+      }
+      await this.quietly(() => this.noteSkip(name, result));
+      return result;
     } finally {
       const ms = Date.now() - started;
       if (ms >= CRON_SLOW_MS) {
@@ -303,24 +344,147 @@ export class CronProcessor {
     }
   }
 
-  private async locked(name: string): Promise<unknown> {
-    if (!this.redis) return this.guarded(name);
-    const pattern = CRON_SCHEDULES.find((s) => s.name === name)?.pattern ?? '';
-    const ttlMs =
-      cronLaneOf(name) === CRON_HEAVY_QUEUE
-        ? 60 * 60_000
-        : isSubHourly(pattern)
-          ? 3 * 60_000
-          : 30 * 60_000;
-    const ran = await withJobLock(
-      this.redis,
-      `cron:${name}`,
-      ttlMs,
-      async () => ({
-        value: await this.guarded(name),
-      }),
+  /** Batch D: last good run per job (status probes, auto time limit). */
+  private get stats(): CronRunStats | undefined {
+    if (!this.redis) return undefined;
+    this.runStats ??= new CronRunStats(this.redis);
+    return this.runStats;
+  }
+  private runStats?: CronRunStats;
+  /** Batch D: current skip streak of each sub-hourly job (this process). */
+  private skipStreaks?: Map<string, number>;
+
+  /** Bookkeeping must never fail or block a job. */
+  private async quietly(fn: () => Promise<unknown> | undefined) {
+    try {
+      await fn();
+    } catch (err) {
+      this.logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'cron bookkeeping failed',
+      );
+    }
+  }
+
+  private async setting(
+    key:
+      | 'ops.cron_timeout_history_runs'
+      | 'ops.cron_timeout_auto_factor'
+      | 'ops.cron_timeout_auto_min_minutes'
+      | 'ops.cron_skip_log_every',
+    fallback: number,
+  ): Promise<number> {
+    const v = await this.appSettings?.number(key).catch(() => undefined);
+    return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+  }
+
+  /**
+   * Batch D (14.11): a sub-hourly job skipped tick after tick (previous run
+   * still going, heavy pause, idle back-off) used to leave no trace — the
+   * runner logs only hourly-and-slower runs. The first skip of a streak,
+   * every `ops.cron_skip_log_every`-th one and the run that ends it are
+   * logged (`metric: cron_skipped` / `cron_resumed`).
+   */
+  private async noteSkip(name: string, result: unknown): Promise<void> {
+    if (!isSubHourly(patternOf(name))) return;
+    const reason = skipReason(result);
+    const streaks = (this.skipStreaks ??= new Map<string, number>());
+    const streak = streaks.get(name) ?? 0;
+    if (reason === null) {
+      if (streak > 0) {
+        streaks.delete(name);
+        this.logger.log(
+          { metric: 'cron_resumed', job: name, skipped: streak },
+          'cron job runs again after skips',
+        );
+      }
+      return;
+    }
+    const now = streak + 1;
+    streaks.set(name, now);
+    const every = Math.max(
+      1,
+      await this.setting('ops.cron_skip_log_every', 10),
     );
-    return ran ? ran.value : { skipped: 'previous run still active' };
+    if (now === 1 || now % every === 0) {
+      this.logger.warn(
+        {
+          metric: 'cron_skipped',
+          job: name,
+          lane: cronLaneOf(name),
+          reason,
+          streak: now,
+        },
+        'cron job skipped',
+      );
+    }
+  }
+
+  /** Lock TTL of one run (renewed at 1/3 while it runs). */
+  private lockTtlMs(name: string): number {
+    return cronLaneOf(name) === CRON_HEAVY_QUEUE ||
+      cronLaneOf(name) === CRON_HEAVY_FREQUENT_QUEUE
+      ? 60 * 60_000
+      : isSubHourly(patternOf(name))
+        ? 3 * 60_000
+        : 30 * 60_000;
+  }
+
+  /** Batch D: the time limit of one run of [name] (`ops.cron_timeout_*`). */
+  private async timeLimit(name: string): Promise<number | null> {
+    if (!this.appSettings) return null;
+    const mode =
+      (await this.appSettings
+        .string('ops.cron_timeout_mode')
+        .catch(() => 'auto')) || 'auto';
+    if (mode === 'off') return null;
+    const record = await this.stats?.get(name).catch(() => null);
+    return timeLimitMs(
+      name,
+      {
+        mode,
+        factor: await this.setting('ops.cron_timeout_auto_factor', 10),
+        minMinutes: await this.setting('ops.cron_timeout_auto_min_minutes', 60),
+        list:
+          (await this.appSettings
+            .string('ops.cron_timeout_minutes')
+            .catch(() => '')) ?? '',
+      },
+      record?.okMs ?? [],
+    );
+  }
+
+  private async locked(name: string, outer?: AbortSignal): Promise<unknown> {
+    try {
+      const ran = await runUnderLock({
+        redis: this.redis,
+        key: `lock:job:cron:${name}`,
+        ttlMs: this.lockTtlMs(name),
+        timeLimitMs: await this.timeLimit(name),
+        outer,
+        fn: () => this.guarded(name),
+      });
+      return ran.acquired
+        ? ran.value
+        : { skipped: 'previous run still active' };
+    } catch (err) {
+      if (!(err instanceof JobStoppedError)) throw err;
+      const lane = cronLaneOf(name);
+      if (err.reason === 'lock lost') {
+        // Another copy may own the job now: end this one quietly (no retry,
+        // no failed-job alarm), loudly in the log.
+        this.logger.warn(
+          { metric: 'cron_lock_lost', job: name, lane },
+          'cron job stopped: lock lost',
+        );
+        return { stopped: 'lock lost' };
+      }
+      this.logger.warn(
+        { metric: 'cron_timeout', job: name, lane, reason: err.reason },
+        'cron job stopped: time limit',
+      );
+      throw err;
+    }
   }
 
   /** Pause of heavy jobs + idle back-off (S20-6) around [dispatch]. */

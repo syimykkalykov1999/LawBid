@@ -30,16 +30,31 @@ describe('VerificationLossBillingJob', () => {
       credit?: { balance: number } | null;
       purchases?: Record<string, unknown>[];
       lost?: string[];
+      redis?: unknown;
+      numbers?: Record<string, number>;
     } = {},
   ) {
     const now = Date.now();
     const prisma = {
       attorneyProfile: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue(
-            (opts.lost ?? ['u1']).map((user_id) => ({ user_id })),
-          ),
+        // Batch E: paged by user_id (keyset) — the fake keeps list order.
+        findMany: jest.fn(
+          (q?: {
+            where?: { user_id?: { gt?: string; in?: string[] } };
+            take?: number;
+          }) => {
+            const all = opts.lost ?? ['u1'];
+            const gt = q?.where?.user_id?.gt;
+            const only = q?.where?.user_id?.in;
+            let rows = gt ? all.slice(all.indexOf(gt) + 1) : all;
+            if (only) rows = rows.filter((id) => only.includes(id));
+            return Promise.resolve(
+              rows
+                .slice(0, q?.take ?? rows.length)
+                .map((user_id) => ({ user_id })),
+            );
+          },
+        ),
       },
       subscription: {
         // 13.11: the set-based pre-check (u1 has a live Stripe subscription).
@@ -107,6 +122,15 @@ describe('VerificationLossBillingJob', () => {
     const sync = { apply: jest.fn().mockResolvedValue(null) };
     const settings = {
       boolean: jest.fn().mockResolvedValue(opts.enabled ?? true),
+      number: jest.fn((k: string) =>
+        Promise.resolve(
+          {
+            'billing.verification_loss_overlap_minutes': 15,
+            'billing.verification_loss_full_scan_hours': 6,
+            ...opts.numbers,
+          }[k] ?? 0,
+        ),
+      ),
     };
     const logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
     const job = new VerificationLossBillingJob(
@@ -115,6 +139,7 @@ describe('VerificationLossBillingJob', () => {
       sync as never,
       provider as never,
       logger as never,
+      opts.redis as never,
     );
     return { job, prisma, provider, sync };
   }
@@ -199,6 +224,125 @@ describe('VerificationLossBillingJob', () => {
     expect(prisma.bidCredit.updateMany).toHaveBeenNthCalledWith(2, {
       where: { user_id: 'u1', balance: { gt: 0 } },
       data: { balance: 0 },
+    });
+  });
+
+  // Batch E (14.11): the rejected / suspended list only grows; every 10
+  // minutes the job read all of it. Now only rows changed since the last
+  // run (watermark), the whole list once per full-scan period.
+  describe('watermark', () => {
+    function memRedis() {
+      const kv = new Map<string, string>();
+      return {
+        kv,
+        get: jest.fn((k: string) => Promise.resolve(kv.get(k) ?? null)),
+        set: jest.fn((k: string, v: string) => {
+          kv.set(k, v);
+          return Promise.resolve('OK');
+        }),
+      };
+    }
+    const whereOf = (call: unknown[]) =>
+      (call[0] as { where: Record<string, unknown> }).where;
+
+    it('the first run reads the whole list; the next only what changed since it (minus the overlap)', async () => {
+      const redis = memRedis();
+      const { job, prisma } = make({ redis });
+      const first = Date.now();
+      await job.run();
+      expect(whereOf(prisma.attorneyProfile.findMany.mock.calls[0])).toEqual({
+        verification_status: { in: ['rejected', 'suspended'] },
+      });
+      jest.setSystemTime(first + 10 * 60_000);
+      await job.run();
+      expect(whereOf(prisma.attorneyProfile.findMany.mock.calls[1])).toEqual({
+        verification_status: { in: ['rejected', 'suspended'] },
+        updated_at: { gte: new Date(first - 15 * 60_000) },
+      });
+    });
+
+    it('the whole list again once the full-scan period passed', async () => {
+      const redis = memRedis();
+      const { job, prisma } = make({ redis });
+      const first = Date.now();
+      await job.run();
+      jest.setSystemTime(first + 6 * 3_600_000);
+      await job.run();
+      expect(whereOf(prisma.attorneyProfile.findMany.mock.calls[1])).toEqual({
+        verification_status: { in: ['rejected', 'suspended'] },
+      });
+    });
+
+    it('full-scan period 0 = the whole list every run (old behaviour)', async () => {
+      const redis = memRedis();
+      const { job, prisma } = make({
+        redis,
+        numbers: { 'billing.verification_loss_full_scan_hours': 0 },
+      });
+      await job.run();
+      await job.run();
+      expect(
+        whereOf(prisma.attorneyProfile.findMany.mock.calls[1]).updated_at,
+      ).toBeUndefined();
+    });
+
+    it('an attorney whose handling failed is tried again next run even if unchanged', async () => {
+      const redis = memRedis();
+      const { job, prisma, provider } = make({ redis });
+      provider.cancelNow.mockRejectedValueOnce(new Error('stripe down'));
+      await job.run();
+      // second run: u1 did not change, the changed-rows read finds nobody
+      prisma.attorneyProfile.findMany.mockResolvedValueOnce([]);
+      jest.setSystemTime(Date.now() + 10 * 60_000);
+      await job.run();
+      expect(provider.cancelNow).toHaveBeenCalledTimes(2);
+    });
+
+    it('reads the list in pages (never the whole list at once)', async () => {
+      const ids = Array.from(
+        { length: 1500 },
+        (_, i) => `u${String(i).padStart(4, '0')}`,
+      );
+      const { job, prisma } = make({ lost: [] });
+      prisma.attorneyProfile.findMany
+        .mockResolvedValueOnce(
+          ids.slice(0, 1000).map((user_id) => ({ user_id })),
+        )
+        .mockResolvedValueOnce(ids.slice(1000).map((user_id) => ({ user_id })));
+      await job.run();
+      const calls = prisma.attorneyProfile.findMany.mock.calls as [
+        { take: number; where: { user_id?: { gt: string } } },
+      ][];
+      expect(calls).toHaveLength(2);
+      expect(calls[0][0].take).toBe(1000);
+      expect(calls[1][0].where.user_id).toEqual({ gt: 'u0999' });
+    });
+
+    it('the changed-rows read pages by (updated_at, user_id), the order its index serves', async () => {
+      const redis = memRedis();
+      const { job, prisma } = make({ redis });
+      await job.run(); // full read, sets the mark
+      const at = new Date();
+      const page = Array.from({ length: 1000 }, (_, i) => ({
+        user_id: `c${String(i).padStart(4, '0')}`,
+        updated_at: at,
+      }));
+      prisma.attorneyProfile.findMany
+        .mockResolvedValueOnce(page)
+        .mockResolvedValueOnce([]);
+      jest.setSystemTime(Date.now() + 10 * 60_000);
+      await job.run();
+      const calls = prisma.attorneyProfile.findMany.mock.calls as [
+        { orderBy: unknown; where: Record<string, unknown> },
+      ][];
+      expect(calls[1][0].orderBy).toEqual([
+        { updated_at: 'asc' },
+        { user_id: 'asc' },
+      ]);
+      expect(calls[2][0].where.OR).toEqual([
+        { updated_at: { gt: at } },
+        { updated_at: at, user_id: { gt: 'c0999' } },
+      ]);
     });
   });
 });

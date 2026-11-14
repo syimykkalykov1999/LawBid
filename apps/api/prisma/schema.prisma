@@ -1806,6 +1806,9 @@ model AttorneyProfile {
   // migration; declared so Prisma's diff matches the DB.
   @@index([languages], map: "attorney_profiles_languages_idx", type: Gin)
   @@index([trust_level(sort: Desc), rating_avg(sort: Desc), username_lower], map: "attorney_profiles_directory_idx")
+  /// Batch E (14.11): billing.verification-loss reads only the rejected /
+  /// suspended attorneys changed since its last run.
+  @@index([verification_status, updated_at])
   @@map("attorney_profiles")
 }
 

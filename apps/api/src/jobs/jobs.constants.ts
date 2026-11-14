@@ -20,19 +20,34 @@ export const CRON_QUEUE = 'cron';
  */
 export const CRON_FAST_QUEUE = 'cron-fast';
 export const CRON_HEAVY_QUEUE = 'cron-heavy';
+/**
+ * Batch D (14.11): the DB-heavy jobs that run more often than hourly
+ * (legal.exports every minute, admin.summaries every 2, feed.reco and
+ * search.trending-tags every 10, the 5-minute backfills) shared the
+ * one-at-a-time `cron-heavy` lane with the multi-hour nightly jobs, so one
+ * nightly recompute held them for hours. BullMQ has no per-job-name
+ * concurrency; its answer ("Queues", "Going to production": a queue per
+ * latency class, as Sidekiq / Stripe do) is a separate queue. Every
+ * HEAVY_JOBS member with a sub-hourly schedule runs here, still one at a
+ * time per worker task (the database load of the heavy lane stays the same).
+ */
+export const CRON_HEAVY_FREQUENT_QUEUE = 'cron-heavy-frequent';
 export const CRON_LANES = [
   CRON_FAST_QUEUE,
   CRON_QUEUE,
+  CRON_HEAVY_FREQUENT_QUEUE,
   CRON_HEAVY_QUEUE,
 ] as const;
 export type CronLane = (typeof CRON_LANES)[number];
 
 /** Parallel jobs per lane and process. Fast: independent short sweeps
- * (each also guarded by a per-name lock); default/heavy stay one at a
- * time so the database sees at most 5 maintenance statements per task. */
+ * (each also guarded by a per-name lock); default and both heavy lanes stay
+ * one at a time so the database sees at most 6 maintenance statements per
+ * task. */
 export const CRON_LANE_CONCURRENCY: Record<CronLane, number> = {
   [CRON_FAST_QUEUE]: 3,
   [CRON_QUEUE]: 1,
+  [CRON_HEAVY_FREQUENT_QUEUE]: 1,
   [CRON_HEAVY_QUEUE]: 1,
 };
 
@@ -504,7 +519,12 @@ export const HEAVY_JOBS: readonly CronJobName[] = [
 
 export function cronLaneOf(name: string): CronLane {
   if ((FAST_JOBS as readonly string[]).includes(name)) return CRON_FAST_QUEUE;
-  if ((HEAVY_JOBS as readonly string[]).includes(name)) return CRON_HEAVY_QUEUE;
+  if ((HEAVY_JOBS as readonly string[]).includes(name)) {
+    const pattern = CRON_SCHEDULES.find((s) => s.name === name)?.pattern;
+    return pattern && isSubHourly(pattern)
+      ? CRON_HEAVY_FREQUENT_QUEUE
+      : CRON_HEAVY_QUEUE;
+  }
   return CRON_QUEUE;
 }
 
