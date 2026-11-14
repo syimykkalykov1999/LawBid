@@ -1337,10 +1337,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Bids: after the client changes the description, budget or urgency of an open case, active bids wait for the attorney (keep, change or withdraw) and cannot be accepted until then. Switch on only once attorneys have an app version with the «Changes» section. Off = as before.',
     'bids.confirmation_reminder_days':
       'Bids: days until the one reminder to an attorney whose bid waits for confirmation. There is no automatic withdrawal.',
+    'deal_record.pdf_word_cache_words':
+      'Deal record PDF: how many shaped words (per font) the server keeps between records, so the next PDF is built faster (~3.6 KB of memory each). The PDF itself never changes. 0 = keep none: each PDF shapes its words again (slower).',
   };
   for (const [k, description] of Object.entries(dealRecordText)) {
     out[k] = { ...out[k], description };
   }
+  out['deal_record.pdf_word_cache_words'] = {
+    ...out['deal_record.pdf_word_cache_words'],
+    min: 0,
+    max: 200_000,
+  };
   for (const [k, description] of Object.entries(seoText)) {
     out[k] = { ...out[k], description };
   }
