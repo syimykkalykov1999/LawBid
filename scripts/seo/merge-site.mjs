@@ -36,6 +36,10 @@ const SKIP_TOP = new Set([
   'sitemap.xml',
   'robots.txt',
   'CNAME',
+  // D1-48 (13.11): the app-link files come only from scripts/seo/well-known.mjs.
+  // A copy committed in the site (it once held a REPLACE_WITH_SHA256
+  // placeholder) must never fill the gap when ANDROID_APP_SHA256 is unset.
+  '.well-known',
 ]);
 
 async function exists(p) {

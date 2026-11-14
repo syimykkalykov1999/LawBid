@@ -139,9 +139,20 @@ jobs:
           repository: syimykkalykov1999/LawBidSite
           path: site
 
+      # D1-52 (13.11): every provider of apps/api provider-registry.ts that
+      # receives user data is listed on the site's Third-Party Services page
+      # (its `registry: [...]` fields); a new provider fails the publish.
+      - name: Check the Third-Party Services page against the provider registry
+        run: node scripts/seo/vendors-check.mjs --page "site/src/app/(site)/(legal)/third-party-services/page.tsx"
+
       # The prices the last successful build used (fallback when the API is down).
       - name: Read the last known prices
         run: aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/seo-pricing.json" site-pricing-last.json || echo "no last known prices yet"
+
+      # D1-50/51 (13.11): the privacy text of the last successful build (fallback
+      # when the API is down; the site then shows the admin's published text).
+      - name: Read the last known privacy text
+        run: aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/seo-legal-privacy.json" site-legal-last.json || echo "no last known privacy text yet"
 
       # PRICING_API_URL: the public GET /pricing (admin prices; Cache-Control
       # 5 min, no auth). The site's scripts/fetch-pricing.mjs also accepts the
@@ -156,16 +167,28 @@ jobs:
           NEXT_PUBLIC_SUPPORT_EMAIL: ${{ vars.NEXT_PUBLIC_SUPPORT_EMAIL }}
           PRICING_API_URL: ${{ secrets.WEB_SEO_API_URL }}/pricing
           PRICING_LAST_KNOWN: ${{ github.workspace }}/site-pricing-last.json
+          # D1-50/51: lawbid.dev/privacy = the text published in the admin
+          # (GET /legal/documents/privacy, the same one the app shows).
+          LEGAL_API_URL: ${{ secrets.WEB_SEO_API_URL }}
+          LEGAL_LAST_KNOWN: ${{ github.workspace }}/site-legal-last.json
         run: |
           npm ci
           npm run build:static
           test -s out/about/index.html
+          # D1-51: the built page carries the version the API published.
+          if [ -f src/content/legal/privacy.json ]; then
+            v="$(node -e 'const d=require("./src/content/legal/privacy.json");process.stdout.write(d?d.version:"")')"
+            if [ -n "$v" ] && ! grep -q "Version $v" out/privacy/index.html; then
+              echo "::error::out/privacy/index.html does not show the published privacy version $v"; exit 1
+            fi
+          fi
 
       # Published with the pages (root file, listed in public-paths.txt so
       # web-deploy.yml keeps it): the next run reads it back as the fallback.
-      - name: Keep the prices this build used (seo-pricing.json)
+      - name: Keep the prices and the privacy text this build used (seo-pricing.json, seo-legal-privacy.json)
         run: |
           if [ -s site-pricing-last.json ]; then cp site-pricing-last.json dist-seo/seo-pricing.json; fi
+          if [ -s site-legal-last.json ]; then cp site-legal-last.json dist-seo/seo-legal-privacy.json; fi
 
       # App links (iOS + Android): written before the merge so that
       # public-paths.txt lists .well-known and web-deploy.yml never deletes it.
@@ -181,6 +204,13 @@ jobs:
           node scripts/seo/merge-site.mjs
           --seo dist-seo --site site/out
           --site-url "${{ secrets.WEB_SITE_URL }}"
+
+      # D1-48 (13.11): never publish a placeholder or half app-links file.
+      # Fails the run when .well-known/assetlinks.json holds REPLACE_… or
+      # <SHA-256…>, lacks delegate_permission/common.get_login_creds (passkeys)
+      # or handle_all_urls, or the iOS file is not the generated one.
+      - name: Check the app-link files before the publish
+        run: node scripts/seo/well-known.mjs --check dist-seo
 
       # What changed since the last published run (content hashes). Always
       # computed so the log shows it; only used to publish when

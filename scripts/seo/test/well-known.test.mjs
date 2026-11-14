@@ -10,7 +10,9 @@ import {
   normalizeFingerprint,
   parseFingerprints,
   writeWellKnown,
+  checkPublished,
 } from '../well-known.mjs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 const FP = Array.from({ length: 32 }, (_, i) => (i * 7 + 1).toString(16).padStart(2, '0').toUpperCase()).join(':');
 
@@ -84,4 +86,31 @@ test('security.txt: RFC 9116 fields, Expires one year ahead', () => {
   assert.match(txt, /^Contact: mailto:support@lawbid\.dev$/m);
   assert.match(txt, /^Expires: 2027-11-01T00:00:00Z$/m);
   assert.match(txt, /^Canonical: https:\/\/lawbid\.dev\/\.well-known\/security\.txt$/m);
+});
+
+test('publish gate: generated files pass, placeholders and a missing relation fail (D1-48)', async () => {
+  const out = mkdtempSync(join(tmpdir(), 'wk-check-'));
+  await writeWellKnown({ out, androidSha256: '' });
+  assert.deepEqual(await checkPublished(out), [], 'no fingerprint yet: no Android file is fine');
+  await writeWellKnown({ out, androidSha256: FP });
+  assert.deepEqual(await checkPublished(out), []);
+
+  const put = (body) => writeFileSync(join(out, '.well-known/assetlinks.json'), body);
+  put(
+    JSON.stringify([
+      {
+        relation: ['delegate_permission/common.handle_all_urls'],
+        target: { namespace: 'android_app', package_name: 'com.lawbid.lawbid', sha256_cert_fingerprints: ['REPLACE_WITH_SHA256'] },
+      },
+    ]),
+  );
+  const bad = await checkPublished(out);
+  assert.ok(bad.some((p) => p.includes('placeholder')), bad.join('; '));
+  assert.ok(bad.some((p) => p.includes('get_login_creds')), bad.join('; '));
+  put('[{"relation":[],"target":{"package_name":"com.lawbid.lawbid","sha256_cert_fingerprints":["<SHA-256 of the key>"]}}]');
+  assert.ok((await checkPublished(out)).some((p) => p.includes('placeholder')));
+
+  const empty = mkdtempSync(join(tmpdir(), 'wk-none-'));
+  mkdirSync(join(empty, '.well-known'));
+  assert.deepEqual(await checkPublished(empty), ['apple-app-site-association is missing']);
 });
