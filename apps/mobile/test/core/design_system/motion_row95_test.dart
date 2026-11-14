@@ -88,7 +88,9 @@ void main() {
       );
       expect(
         find.ancestor(
-            of: find.text('x'), matching: find.byType(ScaleTransition)),
+          of: find.text('x'),
+          matching: find.byType(ScaleTransition),
+        ),
         findsNothing,
       );
     });
@@ -448,8 +450,10 @@ void main() {
           updatedAt: DateTime(2026),
           mutedUntil: muted ? DateTime(2100) : null,
         );
-    ChatMessage msg(
-            {String sender = 'u1', MessageKind kind = MessageKind.text}) =>
+    ChatMessage msg({
+      String sender = 'u1',
+      MessageKind kind = MessageKind.text,
+    }) =>
         ChatMessage(
           id: 'm1',
           conversationId: 'c1',
