@@ -5,6 +5,7 @@ import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/text/byte_size.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/consent_check_tile.dart';
 import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
@@ -49,7 +50,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('settings.storage.title')),
       ),

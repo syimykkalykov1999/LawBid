@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 import 'package:lawbid/features/support/presentation/support_attach_controller.dart';
@@ -176,7 +177,7 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
         title: Text(async.value?.subject ?? t.t('support.title')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         actions: [
           if (async.value?.isOpen ?? false)

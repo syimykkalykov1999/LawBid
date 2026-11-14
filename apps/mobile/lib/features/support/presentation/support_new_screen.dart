@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/support/data/support_context.dart';
@@ -110,7 +111,7 @@ class _SupportNewScreenState extends ConsumerState<SupportNewScreen> {
         title: Text(t.t('support.new')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
       ),
       body: SafeArea(

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
 import 'package:lawbid/features/stories/presentation/story_backgrounds.dart';
@@ -67,7 +67,7 @@ class _StoryArchiveScreenState extends ConsumerState<StoryArchiveScreen> {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('story.close'),
-          onPressed: () => context.pop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('story.archive.title')),
       ),
