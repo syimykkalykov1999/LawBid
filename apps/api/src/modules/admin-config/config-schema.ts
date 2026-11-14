@@ -1040,6 +1040,42 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 20_000,
   };
+  // Perf batch 2 (13.11, row 125).
+  out['ops.i18n_bundle_cache_ttl_sec'] = {
+    ...out['ops.i18n_bundle_cache_ttl_sec'],
+    description:
+      'Seconds a built translation bundle stays in the shared cache (a new translation version is a new copy at once). 0 = each server keeps it in memory only.',
+    min: 0,
+    max: 7 * 86_400,
+  };
+  out['ops.i18n_bundle_cache_langs'] = {
+    ...out['ops.i18n_bundle_cache_langs'],
+    description:
+      'How many recent translation bundles (language + version) each server keeps in memory. 0 = none.',
+    min: 0,
+    max: 200,
+  };
+  out['ops.bootstrap_cache_sec'] = {
+    ...out['ops.bootstrap_cache_sec'],
+    description:
+      'Seconds the app start answer (/config/bootstrap) is reused while no setting changed; any setting change makes a new one at once. 0 = built on every request.',
+    min: 0,
+    max: 300,
+  };
+  out['ops.db_lost_exit_min'] = {
+    ...out['ops.db_lost_exit_min'],
+    description:
+      'A server that cannot reach the database for this many minutes, while another server can, restarts itself. 0 = never. Never when the whole database is down.',
+    min: 0,
+    max: 120,
+  };
+  out['ops.db_lost_exit_jitter_sec'] = {
+    ...out['ops.db_lost_exit_jitter_sec'],
+    description:
+      'Random wait (0..N seconds) before such a restart, so two servers never restart together.',
+    min: 0,
+    max: 600,
+  };
   triState(
     'log.ws_events',
     'WebSocket connect / disconnect log lines: auto = a weighted sample, every line for 30 minutes while reconnects spike; on = every line; off = the sample only (the counters on the status board are always complete).',

@@ -94,6 +94,8 @@ interface CachedBootstrapContent {
  * publishing a new ToS version, file 6), where ≤30s propagation is fine. */
 export const BOOTSTRAP_CACHE_TTL_SECONDS = 30;
 export const BOOTSTRAP_CACHE_KEY = 'config:bootstrap:content';
+/** Perf batch 2: the assembled answer per ETag (BootstrapService.buildFor). */
+export const BOOTSTRAP_BODY_KEY_PREFIX = 'config:bootstrap:body:v1:';
 
 /** Types whose text travels in the bootstrap payload (the old four). */
 const BOOTSTRAP_TEXT_TYPES: ReadonlySet<string> = new Set([
@@ -398,10 +400,111 @@ export class BootstrapService {
     };
   }
 
-  async build(): Promise<BootstrapResponse> {
+  /**
+   * Perf batch 2 (13.11, row 125; prod 7 d p50 378 ms, p95 1.19 s, the slow
+   * ones ~1 s on a task's first builds): the answer for [tag] (the cheap
+   * ETag: config version + 5-minute bucket, see [etag]) is built once and
+   * reused for `ops.bootstrap_cache_sec` (admin, 0 = build every time) -
+   * in this process and through a shared Redis copy, so a fresh task does
+   * not build it either. Concurrent misses share one build (single-flight).
+   * What it could break and how it is guarded:
+   * - a setting change not seen: every writer bumps the config version, so
+   *   [tag] changes and the old copy is never served for it; a build after
+   *   a miss reads flags and app_config past this process's few-second
+   *   copies (`fresh`), so it cannot store a value older than its version;
+   * - inputs the version does not cover (a saved integration key, the
+   *   Bunny usage level) were already bounded by the 5-minute bucket of the
+   *   ETag (a client 304s that long); the copy lives at most as long;
+   * - a translation edit (bumps the bundle version, not the config one):
+   *   `translations_version` is overlaid live on every answer as before.
+   */
+  async buildFor(tag: string): Promise<BootstrapResponse> {
+    const ttlMs = (await this.memoSeconds()) * 1000;
+    if (ttlMs <= 0) return this.build();
+    const now = Date.now();
+    let base =
+      this.memo && this.memo.tag === tag && now - this.memo.at < ttlMs
+        ? this.memo.value
+        : undefined;
+    if (!base) {
+      base = await singleFlight(BOOTSTRAP_BODY_KEY_PREFIX + tag, async () => {
+        const shared = await this.readShared(tag);
+        if (shared) return shared;
+        const built = await this.build(true);
+        await this.safeRedis(() =>
+          this.redis.set(
+            BOOTSTRAP_BODY_KEY_PREFIX + tag,
+            JSON.stringify(built),
+            'EX',
+            Math.max(1, Math.round(ttlMs / 1000)),
+          ),
+        );
+        return built;
+      });
+      this.memo = { tag, at: Date.now(), value: base };
+    }
+    return {
+      ...base,
+      translations_version: await this.overlayImportedVersions(
+        base.translations_version,
+        base.languages.map((l) => l.code),
+      ),
+    };
+  }
+
+  private memo?: { tag: string; at: number; value: BootstrapResponse };
+
+  private async memoSeconds(): Promise<number> {
+    try {
+      const v = await this.settings?.number('ops.bootstrap_cache_sec');
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return v;
+    } catch {
+      // settings unreadable: the built-in default
+    }
+    return APP_SETTINGS['ops.bootstrap_cache_sec'];
+  }
+
+  /** The shared copy for [tag], or null (missing, corrupt, Redis away). */
+  private async readShared(tag: string): Promise<BootstrapResponse | null> {
+    const raw = await this.safeRedis(() =>
+      this.redis.get(BOOTSTRAP_BODY_KEY_PREFIX + tag),
+    );
+    if (typeof raw !== 'string') return null;
+    try {
+      const v = JSON.parse(raw) as Partial<BootstrapResponse>;
+      if (
+        typeof v.flags !== 'object' ||
+        v.flags === null ||
+        typeof v.app_config !== 'object' ||
+        v.app_config === null ||
+        !Array.isArray(v.languages) ||
+        !Array.isArray(v.legal_documents) ||
+        typeof v.translations_version !== 'object' ||
+        v.translations_version === null ||
+        typeof v.client !== 'object' ||
+        v.client === null
+      ) {
+        return null;
+      }
+      return {
+        ...(v as BootstrapResponse),
+        legal_documents: v.legal_documents.map((doc) => ({
+          ...doc,
+          published_at:
+            doc.published_at === null ? null : new Date(doc.published_at),
+        })),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** [fresh]: read flags and app_config past this process's few-second
+   * copies (see [buildFor]). */
+  async build(fresh = false): Promise<BootstrapResponse> {
     const [flags, appConfig, content] = await Promise.all([
-      this.flags.getFlags(),
-      this.appConfig.getConfig(),
+      fresh ? this.flags.getFlags(true) : this.flags.getFlags(),
+      fresh ? this.appConfig.getConfig(true) : this.appConfig.getConfig(),
       this.getContent(),
     ]);
 
