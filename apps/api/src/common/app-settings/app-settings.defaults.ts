@@ -1209,6 +1209,13 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'chat.link_preview_enabled': 'auto',
   'chat.link_preview_per_user_per_day': 1000,
   'chat.link_preview_denylist': [] as string[],
+  /** Media batch A (R7): the card's picture is fetched by the server and
+   * re-hosted as our own WebP (the reader never contacts the site). Off =
+   * cards without pictures. Caps of that one download and its size. */
+  'chat.link_preview_images': true,
+  'chat.link_preview_image_max_kb': 5120,
+  'chat.link_preview_image_timeout_ms': 5000,
+  'chat.link_preview_image_px': 600,
   /** BUG-1 (package N-12b): chat text search through the blind index.
    * prefix_tokens: also index 3..12-letter word beginnings («докум» finds
    * «документ»); ~4× the index rows, so off by default; only new / edited

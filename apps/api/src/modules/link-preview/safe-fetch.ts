@@ -155,13 +155,26 @@ function makeLookup(opts: SafeFetchOptions) {
 
 type Hop =
   | { kind: 'redirect'; location: string }
-  | { kind: 'page'; status: number; html: string };
+  | { kind: 'page'; status: number; body: Buffer; contentType: string };
+
+/** What a fetch is for: the page (HTML) or its preview picture (R7). */
+type Want = 'html' | 'image';
+const ACCEPT: Record<Want, string> = {
+  html: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
+  image: 'image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9',
+};
+/** Raster formats sharp decodes. No SVG (scripts), no HEIC/TIFF. */
+const WANTED_TYPE: Record<Want, RegExp> = {
+  html: /^(text\/html|application\/xhtml\+xml)\b/,
+  image: /^image\/(jpeg|png|webp|gif|avif)\b/,
+};
 
 function once(
   url: URL,
   opts: SafeFetchOptions,
   deadline: number,
   maxBytes: number,
+  want: Want = 'html',
 ): Promise<Hop> {
   return new Promise((resolve, reject) => {
     const left = deadline - Date.now();
@@ -182,7 +195,7 @@ function once(
         lookup: makeLookup(opts),
         headers: {
           'User-Agent': USER_AGENT,
-          Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
+          Accept: ACCEPT[want],
           'Accept-Language': 'en,*;q=0.5',
           'Accept-Encoding': 'gzip, deflate, br',
         },
@@ -202,7 +215,7 @@ function once(
           return done(() => reject(new SafeFetchError('http_status')));
         }
         const type = String(res.headers['content-type'] ?? '').toLowerCase();
-        if (!/^(text\/html|application\/xhtml\+xml)\b/.test(type)) {
+        if (!WANTED_TYPE[want].test(type)) {
           res.resume();
           return done(() => reject(new SafeFetchError('not_html')));
         }
@@ -242,7 +255,8 @@ function once(
             resolve({
               kind: 'page',
               status,
-              html: Buffer.concat(chunks).toString('utf8'),
+              body: Buffer.concat(chunks),
+              contentType: type,
             }),
           ),
         );
@@ -281,13 +295,56 @@ export async function safeFetchHtml(
   raw: string,
   opts: SafeFetchOptions,
 ): Promise<SafeFetchResult> {
+  const r = await safeFetch(raw, opts, 'html');
+  return {
+    finalUrl: r.finalUrl,
+    html: r.body.toString('utf8'),
+    status: r.status,
+  };
+}
+
+export interface SafeFetchImageResult {
+  finalUrl: URL;
+  body: Buffer;
+  contentType: string;
+}
+
+/**
+ * Media batch A (R7): the preview picture, fetched by the server with the
+ * same safeguards as the page (https, checked DNS on the socket, every
+ * redirect re-checked, time and size caps), and only a raster image type.
+ * The reader's phone never contacts the third-party site.
+ */
+export async function safeFetchImage(
+  raw: string,
+  opts: SafeFetchOptions,
+): Promise<SafeFetchImageResult> {
+  const r = await safeFetch(raw, opts, 'image');
+  return { finalUrl: r.finalUrl, body: r.body, contentType: r.contentType };
+}
+
+async function safeFetch(
+  raw: string,
+  opts: SafeFetchOptions,
+  want: Want,
+): Promise<{
+  finalUrl: URL;
+  body: Buffer;
+  contentType: string;
+  status: number;
+}> {
   const deadline = Date.now() + (opts.timeoutMs ?? PREVIEW_TIMEOUT_MS);
   const maxBytes = opts.maxBytes ?? PREVIEW_MAX_BYTES;
   let url = checkPreviewUrl(raw, opts);
   for (let hop = 0; hop <= PREVIEW_MAX_REDIRECTS; hop++) {
-    const r = await once(url, opts, deadline, maxBytes);
+    const r = await once(url, opts, deadline, maxBytes, want);
     if (r.kind === 'page') {
-      return { finalUrl: url, html: r.html, status: r.status };
+      return {
+        finalUrl: url,
+        body: r.body,
+        contentType: r.contentType,
+        status: r.status,
+      };
     }
     // Every hop is a brand-new, fully checked URL.
     let next: URL;

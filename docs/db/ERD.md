@@ -65,6 +65,7 @@ erDiagram
     String blurhash "nullable"
     Boolean avif_twins
     enum_ScanStatus scan_status
+    String scan_skipped "nullable"
     Boolean is_public
     DateTime deleted_at "nullable"
     String deleted_reason "nullable"
@@ -2008,6 +2009,7 @@ erDiagram
     Int cover_time_ms "nullable"
     String cover_file_id "nullable"
     DateTime upload_expires_at
+    String mp4_fallback "nullable"
     DateTime created_at
     DateTime ready_at "nullable"
     DateTime deleted_at "nullable"

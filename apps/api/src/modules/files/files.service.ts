@@ -1685,6 +1685,13 @@ export class FilesService {
     return out;
   }
 
+  /** Media batch A (R7): the served link of a public media object this
+   * server stored itself (link-preview pictures): R2's own domain, else the
+   * media CDN, else a short signed link (dev). */
+  publicMediaLink(bucket: string, key: string): Promise<string> {
+    return this.mediaLink(bucket, key);
+  }
+
   /** docs/06 §6.1: media (avatars, post images) come from CloudFront in
    * deployed environments (`MEDIA_CDN_BASE_URL`, private bucket behind an
    * origin access control); dev/e2e without a CDN keep short-lived signed
