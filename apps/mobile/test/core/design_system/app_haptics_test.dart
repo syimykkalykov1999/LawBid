@@ -39,6 +39,19 @@ void main() {
     ]);
   });
 
+  test(
+      'row 95: success / warning / error are the iOS notification '
+      'haptics', () async {
+    await AppHaptics.success();
+    await AppHaptics.warning();
+    await AppHaptics.error();
+    expect(calls, [
+      'HapticFeedbackType.successNotification',
+      'HapticFeedbackType.warningNotification',
+      'HapticFeedbackType.errorNotification',
+    ]);
+  });
+
   test('lib/ calls HapticFeedback only through AppHaptics', () {
     final offenders = <String>[];
     for (final f in Directory('lib').listSync(recursive: true)) {

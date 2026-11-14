@@ -32,10 +32,21 @@ List<RouteBase> storiesRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: StoriesRoutes.viewPattern,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) => AppPageTransitions.push(
-          state,
-          StoryViewerScreen(userId: state.pathParameters['userId'] ?? ''),
-        ),
+        pageBuilder: (context, state) {
+          final userId = state.pathParameters['userId'] ?? '';
+          final hero = state.extra;
+          // Row 95: from a ring the story zooms out of it (StoryHero) while
+          // the page fades; from anywhere else it slides in as before.
+          return hero is String
+              ? AppPageTransitions.fade(
+                  state,
+                  StoryViewerScreen(userId: userId, heroTag: hero),
+                )
+              : AppPageTransitions.push(
+                  state,
+                  StoryViewerScreen(userId: userId),
+                );
+        },
       ),
       GoRoute(
         path: StoriesRoutes.create,

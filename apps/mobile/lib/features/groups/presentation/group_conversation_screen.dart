@@ -1191,6 +1191,8 @@ class _MessageList extends ConsumerWidget {
     return CustomScrollView(
       reverse: true,
       controller: controller,
+      // Row 95 (catalog K2): dragging the chat hides the keyboard.
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       semanticChildCount: pending.length + messages.length,
       slivers: [
         SliverPadding(
