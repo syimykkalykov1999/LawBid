@@ -12,6 +12,7 @@ import type {
 } from './handlers/tasks-planner.jobs';
 import {
   CRON_FAST_QUEUE,
+  CRON_HEAVY_FREQUENT_QUEUE,
   CRON_LANES,
   CRON_HEAVY_QUEUE,
   CRON_JOBS,
@@ -81,7 +82,11 @@ jest.mock('bullmq', () => {
     add: jest.fn(() => Promise.resolve({ id: '1' })),
     close: jest.fn(() => Promise.resolve()),
   };
-  const worker = { on: jest.fn(), close: jest.fn(() => Promise.resolve()) };
+  const worker = {
+    on: jest.fn(),
+    close: jest.fn(() => Promise.resolve()),
+    cancelJob: jest.fn(() => true),
+  };
   return {
     Queue: jest.fn(() => queue),
     Worker: jest.fn(() => worker),
@@ -221,6 +226,38 @@ function processor() {
 describe('JobsRunner', () => {
   beforeEach(() => jest.clearAllMocks());
 
+  // Batch D (14.11), BullMQ "Cancelling jobs": the processor takes the
+  // per-job AbortSignal (BullMQ passes it only to a processor with ≥ 3
+  // parameters), and a failed lock renewal cancels the run.
+  it("hands BullMQ's signal to the run and cancels a run whose lock renewal failed", async () => {
+    const { processor: proc } = processor();
+    const process = jest.spyOn(proc, 'process').mockResolvedValue({ ok: true });
+    const runner = new JobsRunner(
+      { mode: 'worker' },
+      config({ REDIS_URL: 'redis://x' }),
+      proc,
+      logger,
+    );
+    await runner.onApplicationBootstrap();
+    const fn = (Worker as unknown as jest.Mock).mock.calls[0][1] as (
+      job: unknown,
+      token?: string,
+      signal?: AbortSignal,
+    ) => Promise<unknown>;
+    expect(fn.length).toBeGreaterThanOrEqual(3);
+    const signal = new AbortController().signal;
+    await fn({ name: 'feed.reco' }, 'tok', signal);
+    expect(process).toHaveBeenCalledWith('feed.reco', signal);
+
+    const onLost = mocked.__worker.on.mock.calls.find(
+      ([event]) => event === 'lockRenewalFailed',
+    )?.[1] as ((ids: string[]) => void) | undefined;
+    expect(onLost).toBeDefined();
+    onLost!(['42']);
+    expect(mocked.__worker.cancelJob).toHaveBeenCalledWith('42', 'lock lost');
+    await runner.onApplicationShutdown();
+  });
+
   it('schedules every cron job under a fixed id (daily cleanups, monthly refresh, UTC)', async () => {
     const runner = new JobsRunner(
       { mode: 'api' },
@@ -298,9 +335,15 @@ describe('JobsRunner', () => {
       mocked.__queue.removeJobScheduler.mock.calls.filter(
         ([k]) => k === 'legacy.job.removed-in-this-release',
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(CRON_LANES.length);
     // S10-2: one worker per lane; the signal lane runs three at a time.
-    expect(Worker).toHaveBeenCalledTimes(3);
+    expect(Worker).toHaveBeenCalledTimes(CRON_LANES.length);
+    // Batch D: the frequent heavy jobs have their own one-at-a-time lane.
+    expect(Worker).toHaveBeenCalledWith(
+      CRON_HEAVY_FREQUENT_QUEUE,
+      expect.any(Function),
+      expect.objectContaining({ concurrency: 1, lockDuration: 300_000 }),
+    );
     expect(Worker).toHaveBeenCalledWith(
       CRON_FAST_QUEUE,
       expect.any(Function),
@@ -380,15 +423,18 @@ describe('JobsRunner', () => {
       logger,
     );
     await runner.onApplicationBootstrap();
-    expect(Worker).toHaveBeenCalledTimes(3);
+    expect(Worker).toHaveBeenCalledTimes(CRON_LANES.length);
     await runner.onApplicationShutdown();
   });
 
   it('puts the autoscaling/alarm signal on its own fast lane, away from the heavy jobs (S10-2)', () => {
     expect(cronLaneOf(CRON_JOBS.opsQueueMetrics)).toBe(CRON_FAST_QUEUE);
     expect(cronLaneOf(CRON_JOBS.callsSweep)).toBe(CRON_FAST_QUEUE);
-    expect(cronLaneOf(CRON_JOBS.feedReco)).toBe(CRON_HEAVY_QUEUE);
-    expect(cronLaneOf(CRON_JOBS.messagesReencrypt)).toBe(CRON_HEAVY_QUEUE);
+    // Batch D: the sub-hourly heavy jobs moved to cron-heavy-frequent.
+    expect(cronLaneOf(CRON_JOBS.feedReco)).toBe(CRON_HEAVY_FREQUENT_QUEUE);
+    expect(cronLaneOf(CRON_JOBS.messagesReencrypt)).toBe(
+      CRON_HEAVY_FREQUENT_QUEUE,
+    );
     expect(cronLaneOf(CRON_JOBS.privacyAnonymize)).toBe(CRON_HEAVY_QUEUE);
     expect(cronLaneOf(CRON_JOBS.sessionsCleanup)).toBe(CRON_QUEUE);
     // every minute-job that is not a quick sweep must not sit with the signal

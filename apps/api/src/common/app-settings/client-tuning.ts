@@ -67,6 +67,21 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'How often an ongoing call re-checks its state with the server (a safety net next to the socket), seconds.',
   },
+  // Row 166 (WhatsApp): the end of a call on the phone.
+  'client.call_ended_ms': {
+    default: 1600,
+    min: 500,
+    max: 10_000,
+    description:
+      'How long the short «Call ended» screen stays after a normal hang-up, milliseconds.',
+  },
+  'client.call_ended_hold_s': {
+    default: 0,
+    min: 0,
+    max: 600,
+    description:
+      'How long «No answer» / «Busy» / a refusal stays with its Cancel · Call again (or Settings) buttons, seconds. 0 = until the person taps (WhatsApp).',
+  },
   'client.qr_poll_s': {
     default: 10,
     min: 5,

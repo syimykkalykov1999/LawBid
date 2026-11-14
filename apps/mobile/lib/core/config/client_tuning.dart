@@ -20,6 +20,8 @@ abstract final class ClientTuning {
   static bool _eventsEnabled = true;
   static int _eventsFlushS = 60;
   static int _callSyncS = 30;
+  static int _callEndedMs = 1600;
+  static int _callEndedHoldS = 0;
   static int _qrPollS = 10;
   static int _resumeMinAwayS = 30;
   static int _loadAheadPercent = 100;
@@ -91,6 +93,14 @@ abstract final class ClientTuning {
   static bool get eventsEnabled => _eventsEnabled;
   static Duration get eventsFlush => Duration(seconds: _eventsFlushS);
   static Duration get callSync => Duration(seconds: _callSyncS);
+
+  /// Row 166: how long the short «Call ended» screen stays
+  /// (`client.call_ended_ms`).
+  static Duration get callEndedLinger => Duration(milliseconds: _callEndedMs);
+
+  /// Row 166 (WhatsApp): how long «No answer» · Cancel · Call again waits
+  /// for a tap (`client.call_ended_hold_s`); zero = until the person taps.
+  static Duration get callEndedHold => Duration(seconds: _callEndedHoldS);
   static Duration get qrPoll => Duration(seconds: _qrPollS);
   static Duration get resumeMinAway => Duration(seconds: _resumeMinAwayS);
 
@@ -293,6 +303,8 @@ abstract final class ClientTuning {
     _eventsEnabled = config['client.events_enabled'] != 'false';
     _eventsFlushS = pick('client.events_flush_s', 60, 15, 3600);
     _callSyncS = pick('client.call_sync_s', 30, 10, 300);
+    _callEndedMs = pick('client.call_ended_ms', 1600, 500, 10000);
+    _callEndedHoldS = pick('client.call_ended_hold_s', 0, 0, 600);
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
     _loadAheadPercent = pick('client.load_ahead_percent', 100, 10, 1000);

@@ -50,7 +50,7 @@ describe('RealtimeGateway typing cap (big rooms)', () => {
 describe('RealtimeGateway typing relay', () => {
   const A = '11111111-1111-4111-8111-111111111111';
   const B = '22222222-2222-4222-8222-222222222222';
-  function make() {
+  function make(rooms: string[] = [A, B]) {
     const gw = Object.create(RealtimeGateway.prototype) as Record<
       string,
       unknown
@@ -60,6 +60,7 @@ describe('RealtimeGateway typing relay', () => {
     const sent: { to: string[]; except: string; payload: unknown }[] = [];
     const socket = {
       data: { user: { sub: 'me' }, viewing: new Set([A, B]), peers: new Map() },
+      rooms: new Set(rooms.map((r) => `conversation:${r}`)),
       to(rooms: string[]) {
         return {
           except: (room: string) => ({
@@ -77,7 +78,7 @@ describe('RealtimeGateway typing relay', () => {
           relayTyping: (s: Socket, b: unknown, t: boolean) => void;
         }
       ).relayTyping(socket, { conversationId: id }, typing);
-    return { relay, sent };
+    return { relay, sent, socket };
   }
 
   it("never goes to the typer's own devices and says who types", () => {
@@ -96,6 +97,19 @@ describe('RealtimeGateway typing relay', () => {
     expect(
       sent.map((x) => (x.payload as { conversationId: string }).conversationId),
     ).toEqual([A, B]);
+  });
+  // Detective R2B-6 (14.11): a member removed from a group is taken out of
+  // the room (RealtimePublisher.leaveRoom); its socket still lists the chat
+  // as open, but «печатает…» is no longer relayed from it.
+  it('a socket no longer in the room relays nothing and forgets the chat', () => {
+    const { relay, sent, socket } = make([B]);
+    relay(A);
+    expect(sent).toHaveLength(0);
+    expect((socket.data as { viewing: Set<string> }).viewing.has(A)).toBe(
+      false,
+    );
+    relay(B);
+    expect(sent).toHaveLength(1);
   });
 });
 
