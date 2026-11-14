@@ -1,4 +1,5 @@
 import { FeatureFlagsService } from './feature-flags.service';
+import { inRollout } from '../../experiments/experiment-math';
 
 function buildFakeRedis(store: Map<string, string> = new Map()) {
   return {
@@ -134,5 +135,56 @@ describe('rollout_percent (owner 2026-10-25)', () => {
 
   it('falls back to the default for an unknown flag', async () => {
     expect(await make().isEnabledFor('missing', true, 'u1')).toBe(true);
+  });
+});
+
+describe('hash_version of a partial rollout (owner row 150)', () => {
+  const ids = Array.from({ length: 300 }, (_, i) => `user-${i}`);
+  const make = (
+    rows: Record<string, unknown>[],
+    store = new Map<string, string>(),
+  ) => {
+    const findMany = jest.fn().mockResolvedValue(rows);
+    const svc = new FeatureFlagsService(
+      { featureFlag: { findMany } } as never,
+      buildFakeRedis(store) as never,
+    );
+    return { svc, findMany };
+  };
+
+  it('uses the version stored on the flag; a row without one is version 1', async () => {
+    const v2 = make([
+      { key: 'p', enabled: true, rollout_percent: 30, hash_version: 2 },
+    ]).svc;
+    const v1 = make([
+      { key: 'p', enabled: true, rollout_percent: 30, hash_version: 1 },
+    ]).svc;
+    const none = make([{ key: 'p', enabled: true, rollout_percent: 30 }]).svc;
+    let differ = 0;
+    for (const id of ids) {
+      const a2 = await v2.isEnabledFor('p', false, id);
+      const a1 = await v1.isEnabledFor('p', false, id);
+      expect(a2).toBe(inRollout('p', id, 30, 2));
+      expect(a1).toBe(inRollout('p', id, 30, 1));
+      expect(await none.isEnabledFor('p', false, id)).toBe(a1);
+      if (a1 !== a2) differ++;
+    }
+    expect(differ).toBeGreaterThan(30);
+  });
+
+  it('the version survives the shared Redis copy (another pod, no table read)', async () => {
+    const store = new Map<string, string>();
+    const rows = [
+      { key: 'p', enabled: true, rollout_percent: 30, hash_version: 2 },
+    ];
+    const first = make(rows, store);
+    await first.svc.getFlagsFor('warm-up');
+    const second = make(rows, store);
+    for (const id of ids) {
+      expect(await second.svc.isEnabledFor('p', false, id)).toBe(
+        inRollout('p', id, 30, 2),
+      );
+    }
+    expect(second.findMany).not.toHaveBeenCalled();
   });
 });

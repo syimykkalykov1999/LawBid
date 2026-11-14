@@ -45,12 +45,33 @@ export class UpdateFlagDto {
   @Min(0)
   @Max(100)
   rolloutPercent?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 2,
+    description:
+      'Bucketing hash of the partial rollout: 1 = old FNV-1a, 2 = GrowthBook v2. Changing it re-picks who has the flag.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(2)
+  hashVersion?: number;
 }
 
 export class FeatureFlagAdminDto {
   @ApiProperty() key!: string;
   @ApiProperty() enabled!: boolean;
   @ApiProperty({ type: 'integer' }) rolloutPercent!: number;
+  @ApiProperty({
+    type: 'integer',
+    minimum: 1,
+    maximum: 2,
+    description: '1 = old FNV-1a, 2 = GrowthBook v2 (row 150).',
+  })
+  hashVersion!: number;
   @ApiProperty({ type: String, nullable: true }) description!: string | null;
   @ApiProperty({
     description: 'Uses a paid third-party service (§2.3 item 7).',

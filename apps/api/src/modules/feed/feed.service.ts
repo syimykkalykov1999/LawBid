@@ -90,6 +90,34 @@ function badCursor(): BadRequestException {
  * viewer's recently shown recommendations; followed posts are never
  * hidden by "seen" (the feed must still open on them next time).
  */
+/**
+ * Posts strictly after the keyset cursor in (created_at DESC, id DESC)
+ * order. Row 126 (EXPLAIN ANALYZE on 300 000 posts): the tie-break OR alone
+ * is only a Filter, so the index was read from the newest post down to the
+ * cursor on every page (290 001 rows removed, 259 ms at depth 290 000, and
+ * growing with the table). `created_at <= t` beside it is an Index Cond
+ * range on posts_visible_created_idx / the author index: the same rows,
+ * read from the cursor on (2.2 ms). Prisma has no row comparison
+ * `(created_at, id) < (t, id)`, so this is its equivalent.
+ */
+export function postsBefore(after: {
+  t: string;
+  id: string;
+}): Prisma.PostWhereInput {
+  const t = new Date(after.t);
+  return {
+    AND: [
+      { created_at: { lte: t } },
+      {
+        OR: [
+          { created_at: { lt: t } },
+          { created_at: t, id: { lt: after.id } },
+        ],
+      },
+    ],
+  };
+}
+
 @Injectable()
 export class FeedService implements FeedProvider {
   private readonly log = new Logger(FeedService.name);
@@ -327,14 +355,7 @@ export class FeedService implements FeedProvider {
             ...POST_VISIBLE_WHERE,
             ...only,
             author_id: { in: shownAuthors },
-            ...(after
-              ? {
-                  OR: [
-                    { created_at: { lt: new Date(after.t) } },
-                    { created_at: new Date(after.t), id: { lt: after.id } },
-                  ],
-                }
-              : {}),
+            ...(after ? postsBefore(after) : {}),
           },
           orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
           take: limit + 1,
@@ -728,16 +749,7 @@ export class FeedService implements FeedProvider {
           only,
           ...(authors.size > 0 ? [{ author_id: { notIn: [...authors] } }] : []),
           ...(ids.size > 0 ? [{ id: { notIn: [...ids] } }] : []),
-          ...(after
-            ? [
-                {
-                  OR: [
-                    { created_at: { lt: new Date(after.t) } },
-                    { created_at: new Date(after.t), id: { lt: after.id } },
-                  ],
-                },
-              ]
-            : []),
+          ...(after ? [postsBefore(after)] : []),
         ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
