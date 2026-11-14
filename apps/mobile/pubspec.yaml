@@ -200,7 +200,9 @@ dependencies:
   fl_chart: ^1.3.0
   desktop_drop: ^0.8.4
   battery_plus: ^7.1.2
-  wakelock_plus: ^1.5.2
+  # Row 149: 1.8.0, the newest on win32 6 that desktop_drop 0.8.4 allows
+  # (wakelock_plus >=1.8.1 needs dbus 0.8, desktop_drop 0.8.4 dbus 0.7).
+  wakelock_plus: 1.8.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

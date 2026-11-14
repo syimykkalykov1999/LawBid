@@ -56,10 +56,10 @@ class TokenSecureStore {
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
     ),
-    // Row 149: version 11 has no EncryptedSharedPreferences; what version 9
-    // kept there is moved by LegacySecureStorage before the first read. Its
-    // defaults are the old hardened ones (`resetOnError: true`).
-    aOptions: AndroidOptions.defaultOptions,
+    // Row 149: Android uses version 11's defaults (custom AES-GCM ciphers,
+    // `resetOnError: true`); there is no EncryptedSharedPreferences any more,
+    // and what version 9 kept there is moved by LegacySecureStorage before
+    // the first read.
   );
 
   /// Stored in place of a refresh token that lives in the web cookie.

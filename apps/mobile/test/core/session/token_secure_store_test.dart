@@ -60,15 +60,16 @@ class _MemoryStorage implements FlutterSecureStorage {
 void main() {
   group('TokenSecureStore (S3-8)', () {
     test(
-      'hardened storage: this-device Keychain class and encrypted prefs',
+      'hardened storage: this-device Keychain class, Android resets on error',
       () {
         expect(
           TokenSecureStore.hardenedStorage.iOptions.toMap()['accessibility'],
           'first_unlock_this_device',
         );
+        // Row 149: flutter_secure_storage 11 has no EncryptedSharedPreferences.
         expect(
           TokenSecureStore.hardenedStorage.aOptions.toMap(),
-          containsPair('encryptedSharedPreferences', 'true'),
+          isNot(contains('encryptedSharedPreferences')),
         );
         expect(
           TokenSecureStore.hardenedStorage.aOptions.toMap(),
