@@ -109,14 +109,14 @@ export class I18nController {
       return;
     }
 
-    const translations = await this.bundle.getTranslations(
-      lang,
-      version,
-      query.since,
-    );
+    // Perf batch 2 (row 125): the answer is serialized once per (language,
+    // version, since) and kept (I18nBundleService.getBody), so a 200 is a
+    // memory or Redis read plus compression, not a table read + stringify.
+    const body = await this.bundle.getBody(lang, version, query.since);
     res
       .status(200)
       .set('ETag', etag)
-      .json({ data: { lang, version, translations } });
+      .type('application/json; charset=utf-8')
+      .send(body);
   }
 }

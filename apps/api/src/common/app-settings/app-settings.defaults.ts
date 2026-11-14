@@ -1495,6 +1495,20 @@ export const OWNER_OPS_SETTINGS = {
   // S20-8: ceiling of the message re-encryption pass, rows per minute
   // (0 = paused; the pass keeps its place).
   'ops.reencrypt_rows_per_min': 800,
+  // Perf batch 2 (13.11, row 125): the built translation bundle is kept in
+  // the shared cache Redis this many seconds (0 = this task's memory only)
+  // and in each task's memory for this many recent (language, version)
+  // answers (0 = not kept, every answer is read again).
+  'ops.i18n_bundle_cache_ttl_sec': 86_400,
+  'ops.i18n_bundle_cache_langs': 8,
+  // The assembled GET /config/bootstrap body is reused this many seconds
+  // for the same config version (0 = built on every request as before).
+  'ops.bootstrap_cache_sec': 30,
+  // A task that cannot reach the database for this many minutes while
+  // another task can exits so ECS starts a fresh one (0 = never); the exit
+  // waits a random 0..jitter seconds first.
+  'ops.db_lost_exit_min': 10,
+  'ops.db_lost_exit_jitter_sec': 60,
   // Owner 2026-10-27 («Сегодня» as the owner's desk): the Sentry line on
   // «Сегодня» (one Sentry request per 5 minutes, needs the `sentry` keys in
   // «Ключи и сервисы») and the guided «Разделить базу» card on «Масштаб».

@@ -46,7 +46,9 @@ export class BootstrapController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<BootstrapResponse | undefined> {
-    if (notModified(req, res, await this.bootstrap.etag())) return undefined;
-    return this.bootstrap.build();
+    const tag = await this.bootstrap.etag();
+    if (notModified(req, res, tag)) return undefined;
+    // Perf batch 2 (row 125): built once per tag, see BootstrapService.buildFor.
+    return this.bootstrap.buildFor(tag);
   }
 }

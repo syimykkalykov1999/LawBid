@@ -152,7 +152,8 @@ export class SessionService {
   async build(user: RequestUser, known?: SessionInputs): Promise<SessionView> {
     const [me, boot, i] = await Promise.all([
       this.onboarding.getMe(user.sub),
-      this.bootstrap.build(),
+      // Perf batch 2 (row 125): the same per-tag copy /config/bootstrap uses.
+      this.bootstrap.etag().then((tag) => this.bootstrap.buildFor(tag)),
       known ?? this.inputs(user),
     ]);
     return {
