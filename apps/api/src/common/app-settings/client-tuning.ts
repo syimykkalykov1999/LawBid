@@ -209,6 +209,39 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'Posts a person marked «Not interested» stay hidden on that phone or browser for this many days.',
   },
+  // Owner row 38 (Instagram / TikTok): the next page of a list is asked for
+  // while this much of the list is still ahead, in screens (percent of the
+  // visible height: 100 = one screen before the end).
+  'client.load_ahead_percent': {
+    default: 100,
+    min: 10,
+    max: 1000,
+    description:
+      'Lists (chats, cases, notifications, search, channels, profiles): the next page is asked for while this much of the list is still below the screen, in percent of the screen height (100 = one screen before the end).',
+  },
+  'client.feed_load_ahead_percent': {
+    default: 200,
+    min: 10,
+    max: 1000,
+    description:
+      'The feed and other full-width card lists: the next page is asked for this far before the end, in percent of the screen height (200 = two screens).',
+  },
+  // Messages are counted in rows: the older page is asked for this many rows
+  // before the oldest one loaded (Telegram-style).
+  'client.load_ahead_rows': {
+    default: 8,
+    min: 1,
+    max: 100,
+    description:
+      'Chats and groups: the older messages are asked for when the person is this many messages away from the oldest one loaded.',
+  },
+  'client.media_prefetch_ahead': {
+    default: 3,
+    min: 0,
+    max: 10,
+    description:
+      'Lists: pictures of this many next rows are downloaded and decoded before they scroll in (0 = off). The data saver turns it off.',
+  },
   'client.resume_refresh_min_away_s': {
     default: 30,
     min: 5,
