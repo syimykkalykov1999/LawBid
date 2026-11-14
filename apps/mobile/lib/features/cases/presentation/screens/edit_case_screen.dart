@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
@@ -37,7 +38,7 @@ class EditCaseScreen extends ConsumerWidget {
             appBar: AppTopBar(
               leading: AppBackButton(
                 semanticLabel: t.t('common.back'),
-                onPressed: () => context.pop(),
+                onPressed: () => context.safeBack(),
               ),
               title: Text(t.t('cases.edit.title')),
             ),

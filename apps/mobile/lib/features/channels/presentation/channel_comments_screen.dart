@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
@@ -100,7 +101,7 @@ class _ChannelCommentsScreenState extends ConsumerState<ChannelCommentsScreen> {
         appBar: AppTopBar(
           leading: AppBackButton(
             semanticLabel: t.t('common.back'),
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: () => context.safeBack(),
           ),
           title: Text(t.t('channel.comments')),
         ),

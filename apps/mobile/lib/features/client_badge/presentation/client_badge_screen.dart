@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/client_badge/application/client_badge_providers.dart';
@@ -492,7 +493,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
         title: Text(t.t('cbadge.title')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
       ),
       body: SafeArea(
