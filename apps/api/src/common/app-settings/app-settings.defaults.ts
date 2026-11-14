@@ -432,6 +432,12 @@ export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-19 (Instagram): 1080 p again — 720 p looked soft.
   'media.video_max_height': 1080,
   'media.video_frame_rate': 30,
+  // Owner row 42 (13.11): the target bitrate (kbit/s at 30 fps) of the
+  // phone's re-encode by height (Android Media3; never above the source).
+  // Telegram-like: Full HD ≈ half of the old encoder's ≈ 8.7 Mbit/s.
+  'media.video_bitrate_1080_kbps': 4500,
+  'media.video_bitrate_720_kbps': 2000,
+  'media.video_bitrate_540_kbps': 1200,
   // Owner 2026-10-05: document templates the admin uploads (PDF, Word).
   'files.document_template_max_size_mb': 10,
 } as const;

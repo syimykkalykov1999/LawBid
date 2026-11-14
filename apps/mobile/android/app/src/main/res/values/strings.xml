@@ -13,4 +13,7 @@
     <string name="chat_action_read">Mark as read</string>
     <string name="chat_reply_hint">Message</string>
     <string name="chat_reply_failed">Not sent. Open the chat to try again.</string>
+    <!-- Owner row 42: the notification while a video is re-encoded. -->
+    <string name="channel_uploads">Uploads</string>
+    <string name="video_preparing">Preparing video…</string>
 </resources>

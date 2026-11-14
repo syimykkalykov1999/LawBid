@@ -13,4 +13,7 @@
     <string name="chat_action_read">Прочитано</string>
     <string name="chat_reply_hint">Сообщение</string>
     <string name="chat_reply_failed">Не отправлено. Откройте чат, чтобы повторить.</string>
+    <!-- Owner row 42: the notification while a video is re-encoded. -->
+    <string name="channel_uploads">Загрузки</string>
+    <string name="video_preparing">Готовим видео…</string>
 </resources>
