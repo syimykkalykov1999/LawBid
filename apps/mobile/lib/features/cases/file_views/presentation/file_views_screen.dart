@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/file_views/application/file_views_providers.dart';
 import 'package:lawbid/features/cases/file_views/domain/file_view.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -52,7 +53,7 @@ class FileViewsScreen extends ConsumerWidget {
         title: Text(t.t('fileViews.title')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
       ),
       body: switch (async) {

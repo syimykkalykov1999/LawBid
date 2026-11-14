@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payments_history_screen.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
@@ -59,7 +60,7 @@ class _PaymentsHubScreenState extends ConsumerState<PaymentsHubScreen> {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('payments.hub.title')),
         actions: [

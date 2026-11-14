@@ -327,6 +327,11 @@ export const OWNER_MEDIA_SETTINGS = {
   // OpenSearch, default) or serverless (Amazon OpenSearch Serverless, SigV4).
   'search.engine_kind': 'domain',
   'search.engine_timeout_ms': 800,
+  // 14.11 F5: engine calls without their own time (index layout, counts,
+  // index creation, task status) wait this long per try, ms; and retry this
+  // many times after a timeout / dropped connection (reads and _bulk only).
+  'search.engine_request_timeout_ms': 5000,
+  'search.engine_max_retries': 0,
   // Owner 2026-10-25 (zero-downtime reindex, docs/runbooks/search-reindex.md):
   // the old index generation is kept this many days for a rollback, and the
   // backfill pauses this long between batches so it never hogs the database.
@@ -1500,6 +1505,9 @@ export const OWNER_OPS_SETTINGS = {
    * for 15 minutes on their own (renewed while it stays slow). */
   'ops.auto_pause_heavy_jobs': true,
   'ops.db_slow_ms': 800,
+  /** 14.11 F4: the pause needs this many slow probes in a row (one per
+   * minute), like a Kubernetes probe failureThreshold; 1 = old behaviour. */
+  'ops.db_slow_probes': 3,
   // Perf review 2026-10-26 (R-25): nightly bloat check «Выкл / Вкл / Авто»
   // and the biggest table the heap estimate may read (indexes are never read).
   'db.bloat_mode': 'auto',
@@ -1540,6 +1548,11 @@ export const OWNER_OPS_SETTINGS = {
   // waits a random 0..jitter seconds first.
   'ops.db_lost_exit_min': 10,
   'ops.db_lost_exit_jitter_sec': 60,
+  // 14.11 (detective F3): a server whose event loop stood still for at
+  // least this many ms in one second writes one «event loop stall» line
+  // naming the garbage collections and the open requests / jobs of that
+  // second (common/ops/loop-stall.ts). 0 = off.
+  'ops.loop_stall_log_ms': 500,
   // Owner 2026-10-27 («Сегодня» as the owner's desk): the Sentry line on
   // «Сегодня» (one Sentry request per 5 minutes, needs the `sentry` keys in
   // «Ключи и сервисы») and the guided «Разделить базу» card on «Масштаб».

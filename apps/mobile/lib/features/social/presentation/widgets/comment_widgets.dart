@@ -192,15 +192,18 @@ class _CommentTileState extends ConsumerState<CommentTile> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppPressable(
-                  onTap: _openAuthor,
-                  child: GoldRingAvatar(
-                    url: a.avatarUrl,
-                    initials: a.displayName.isEmpty
-                        ? '?'
-                        : avatarInitials(a.displayName),
-                    size: avatarSize,
-                    ring: a.verified,
+                // Owner row 111: a 48 pt touch area, same look.
+                AppTapTarget(
+                  child: AppPressable(
+                    onTap: _openAuthor,
+                    child: GoldRingAvatar(
+                      url: a.avatarUrl,
+                      initials: a.displayName.isEmpty
+                          ? '?'
+                          : avatarInitials(a.displayName),
+                      size: avatarSize,
+                      ring: a.verified,
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -211,23 +214,26 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                       Row(
                         children: [
                           Flexible(
-                            child: GestureDetector(
-                              onTap: _openAuthor,
-                              child: Text(
-                                // OQ-034: the client is anonymous under a
-                                // case — "Case owner" / "Client".
-                                a.isCaseOwner
-                                    ? t.t('cases.comments.owner')
-                                    : a.isAttorney
-                                        ? a.displayName
-                                        : (isCaseRef(_c.id)
-                                            ? t.t('person.client')
-                                            : a.displayName),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: type.bodySmall.copyWith(
-                                  color: colors.text,
-                                  fontWeight: FontWeight.w600,
+                            // Owner row 111: a 48 pt touch area, same look.
+                            child: AppTapTarget(
+                              child: GestureDetector(
+                                onTap: _openAuthor,
+                                child: Text(
+                                  // OQ-034: the client is anonymous under a
+                                  // case — "Case owner" / "Client".
+                                  a.isCaseOwner
+                                      ? t.t('cases.comments.owner')
+                                      : a.isAttorney
+                                          ? a.displayName
+                                          : (isCaseRef(_c.id)
+                                              ? t.t('person.client')
+                                              : a.displayName),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.bodySmall.copyWith(
+                                    color: colors.text,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ),
@@ -412,15 +418,19 @@ class _CommentTileState extends ConsumerState<CommentTile> {
             end: AppSpacing.sm,
             top: AppSpacing.md,
           ),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: 36,
-                  child: Column(
-                    children: [
-                      AppPressable(
+          // Owner row 128: the thread line is a positioned layer from under
+          // the avatar to the bottom of the row (was IntrinsicHeight +
+          // stretch: a second, speculative layout pass per comment).
+          child: Stack(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 36,
+                    // Owner row 111: a 48 pt touch area, same look.
+                    child: AppTapTarget(
+                      child: AppPressable(
                         onTap: _openAuthor,
                         child: GoldRingAvatar(
                           url: a.avatarUrl,
@@ -431,142 +441,151 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                           ring: a.verified,
                         ),
                       ),
-                      if (line)
-                        Expanded(
-                          child: Container(
-                            width: 2,
-                            margin: const EdgeInsets.only(top: AppSpacing.xs),
-                            decoration: BoxDecoration(
-                              color: colors.border,
-                              borderRadius: BorderRadius.circular(1),
-                            ),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Flexible(
-                                  child: GestureDetector(
-                                    onTap: _openAuthor,
-                                    child: Text(
-                                      name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: type.bodySmall.copyWith(
-                                        color: colors.text,
-                                        fontWeight: FontWeight.w700,
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Flexible(
+                                    // Owner row 111: 48 pt touch area.
+                                    child: AppTapTarget(
+                                      child: GestureDetector(
+                                        onTap: _openAuthor,
+                                        child: Text(
+                                          name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: type.bodySmall.copyWith(
+                                            color: colors.text,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                if (a.verified) ...[
-                                  const SizedBox(width: 3),
-                                  VerifiedCheck(
-                                    label: t.t('post.verified'),
-                                    size: 13,
-                                    gold: !a.isAttorney,
+                                  if (a.verified) ...[
+                                    const SizedBox(width: 3),
+                                    VerifiedCheck(
+                                      label: t.t('post.verified'),
+                                      size: 13,
+                                      gold: !a.isAttorney,
+                                    ),
+                                  ],
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Text(
+                                    SocialFormat.ago(t, f, _c.createdAt),
+                                    maxLines: 1,
+                                    style: type.caption
+                                        .copyWith(color: colors.textSecondary),
                                   ),
                                 ],
-                                const SizedBox(width: AppSpacing.sm),
-                                Text(
-                                  SocialFormat.ago(t, f, _c.createdAt),
-                                  maxLines: 1,
-                                  style: type.caption
-                                      .copyWith(color: colors.textSecondary),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
-                          AppIconButton(
-                            icon: const AppIcon(
-                              AppIcons.moreHorizRounded,
-                              size: 18,
+                            AppIconButton(
+                              icon: const AppIcon(
+                                AppIcons.moreHorizRounded,
+                                size: 18,
+                              ),
+                              semanticLabel: t.t('post.menu'),
+                              onPressed: _menu,
                             ),
-                            semanticLabel: t.t('post.menu'),
-                            onPressed: _menu,
-                          ),
-                        ],
-                      ),
-                      TranslatableText(
-                        kind: TranslatableKind.comment,
-                        id: _c.id,
-                        text: _c.body,
-                        enabled: !_c.isMine,
-                        builder: (context, body) => PostBodyText(
-                          body: body,
-                          expanded: true,
-                          mentions: _c.mentions,
-                          height: 1.4,
+                          ],
                         ),
-                      ),
-                      Row(
-                        children: [
-                          action(
-                            BounceIcon(
-                              active: _c.likedByMe,
-                              icon: AppIcons.favoriteBorderRounded,
-                              activeIcon: AppIcons.favoriteRounded,
-                              activeColor: colors.danger,
-                              size: 20,
-                              label: t.t(
-                                _c.likedByMe ? 'post.unlike' : 'post.like',
+                        TranslatableText(
+                          kind: TranslatableKind.comment,
+                          id: _c.id,
+                          text: _c.body,
+                          enabled: !_c.isMine,
+                          builder: (context, body) => PostBodyText(
+                            body: body,
+                            expanded: true,
+                            mentions: _c.mentions,
+                            height: 1.4,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            action(
+                              BounceIcon(
+                                active: _c.likedByMe,
+                                icon: AppIcons.favoriteBorderRounded,
+                                activeIcon: AppIcons.favoriteRounded,
+                                activeColor: colors.danger,
+                                size: 20,
+                                label: t.t(
+                                  _c.likedByMe ? 'post.unlike' : 'post.like',
+                                ),
+                                onTap: _toggleLike,
                               ),
-                              onTap: _toggleLike,
+                              _c.likeCount,
                             ),
-                            _c.likeCount,
-                          ),
-                          action(
-                            BounceIcon(
-                              active: false,
-                              icon: AppIcons.modeCommentOutlined,
-                              activeIcon: AppIcons.modeCommentOutlined,
-                              size: 20,
-                              label: t.t('comment.reply'),
-                              onTap: _replyToThis,
+                            action(
+                              BounceIcon(
+                                active: false,
+                                icon: AppIcons.modeCommentOutlined,
+                                activeIcon: AppIcons.modeCommentOutlined,
+                                size: 20,
+                                label: t.t('comment.reply'),
+                                onTap: _replyToThis,
+                              ),
+                              0,
                             ),
-                            0,
-                          ),
-                        ],
-                      ),
-                      if (hasReplies)
-                        Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: TextButton(
-                            onPressed: () =>
-                                setState(() => _showReplies = !_showReplies),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(0, AppSizes.touchTarget),
-                              textStyle: type.bodySmall,
-                              foregroundColor: colors.textSecondary,
-                            ),
-                            child: FitText(
-                              t.t(
-                                _showReplies
-                                    ? 'comment.hideReplies'
-                                    : 'comment.showReplies',
-                                {'count': SocialFormat.count(f, _c.replyCount)},
+                          ],
+                        ),
+                        if (hasReplies)
+                          Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: TextButton(
+                              onPressed: () =>
+                                  setState(() => _showReplies = !_showReplies),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize:
+                                    const Size(0, AppSizes.touchTarget),
+                                textStyle: type.bodySmall,
+                                foregroundColor: colors.textSecondary,
+                              ),
+                              child: FitText(
+                                t.t(
+                                  _showReplies
+                                      ? 'comment.hideReplies'
+                                      : 'comment.showReplies',
+                                  {
+                                    'count':
+                                        SocialFormat.count(f, _c.replyCount),
+                                  },
+                                ),
                               ),
                             ),
-                          ),
-                        )
-                      else
-                        const SizedBox(height: AppSpacing.sm),
-                    ],
+                          )
+                        else
+                          const SizedBox(height: AppSpacing.sm),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (line)
+                PositionedDirectional(
+                  start: 17,
+                  width: 2,
+                  top: 36 + AppSpacing.xs,
+                  bottom: 0,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.border,
+                      borderRadius: BorderRadius.circular(1),
+                    ),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
         ),
         if (_showReplies)

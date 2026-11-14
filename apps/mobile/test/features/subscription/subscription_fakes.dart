@@ -333,9 +333,13 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
     return portal;
   }
 
+  /// Set to hold `resume()` open (the button's busy state).
+  Future<void>? holdResume;
+
   @override
   Future<SubscriptionOverview> resume() async {
     calls.add('resume');
+    await holdResume;
     final s = current.subscription!;
     return current = makeOverview(
       subscription: makeInfo(

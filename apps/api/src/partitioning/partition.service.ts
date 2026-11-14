@@ -414,6 +414,13 @@ export class PartitionService implements OnModuleDestroy {
   private async jobs(): Promise<Map<string, JobRow>> {
     const m = new Map<string, JobRow>();
     try {
+      // 14.11 prod F8: without this check every admin partitions view logged
+      // `relation "public._partition_job" does not exist` (328 Postgres
+      // ERROR lines a day). Same guard as PartitionRunner.job().
+      const exists = await this.prisma.$queryRawUnsafe<{ t: string | null }[]>(
+        `SELECT to_regclass('public._partition_job')::text AS t`,
+      );
+      if (!exists[0]?.t) return m;
       const res = await this.prisma.$queryRawUnsafe<JobRow[]>(
         `SELECT tbl, phase, paused, cursor_at::text, cursor_id, rows_total::int, rows_copied::int,
                 started_at::text, swapped_at::text, updated_at::text, error, error_count,

@@ -1272,14 +1272,7 @@ export class ChatService {
         message: 'This person does not accept your messages.',
       });
     }
-    // OQ-028: no messages either way while one side blocks the other —
-    // except the chat of a case in progress (blocks leave it untouched).
-    if (!(await caseWorkOngoing(this.prisma, conv))) {
-      await this.blocks.assertNotBlocked(
-        user.sub,
-        user.sub === conv.attorney_id ? conv.client_id : conv.attorney_id,
-      );
-    }
+    await this.assertNotBlockedIn(user.sub, conv);
     // Only an attorney writing to a client pays (owner 2026-10-17).
     if (
       conv.pair_kind === 'attorney_client' &&
@@ -2051,6 +2044,29 @@ export class ChatService {
   }
 
   /**
+   * OQ-028: nothing goes from one side of a chat to the other while one
+   * blocks the other — except the chat of a case in progress (blocks leave
+   * it untouched). R2B-5 (14.11): send, edit, react, pin and the
+   * disappearing timer all go through this one check.
+   */
+  async assertNotBlockedIn(
+    userId: string,
+    conv: {
+      client_id: string;
+      attorney_id: string;
+      case_id: string | null;
+      contacts_unlocked: boolean;
+      status: string;
+    },
+  ): Promise<void> {
+    if (await caseWorkOngoing(this.prisma, conv)) return;
+    await this.blocks.assertNotBlocked(
+      userId,
+      userId === conv.attorney_id ? conv.client_id : conv.attorney_id,
+    );
+  }
+
+  /**
    * PATCH …/disappearing (owner 2026-10-21, WhatsApp): either side of a
    * direct chat switches the timer for new messages (null = off). Case chats
    * keep their history (the case journal and the attorney's file rely on it),
@@ -2070,6 +2086,8 @@ export class ChatService {
       });
     }
     if (conv.status === 'closed') throw closed();
+    // R2B-5: not while one side blocks the other (as for send).
+    await this.assertNotBlockedIn(user.sub, conv);
     if (conv.disappear_after_s === afterS) {
       return (await this.present([conv], user.sub))[0];
     }

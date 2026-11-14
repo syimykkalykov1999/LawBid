@@ -209,7 +209,7 @@ class _AppOtpFieldState extends State<AppOtpField> {
                 const SizedBox(height: 4),
                 Text(
                   widget.errorText!,
-                  style: typography.caption.copyWith(color: colors.danger),
+                  style: typography.caption.copyWith(color: colors.dangerText),
                 ),
               ],
             ],

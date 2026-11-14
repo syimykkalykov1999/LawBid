@@ -1,5 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:lawbid/core/design_system/widgets/text/full_text_scale.dart';
+import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -142,6 +144,12 @@ class _GroupRichTextState extends State<GroupRichText> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      Text.rich(TextSpan(children: _spans), style: widget.style);
+  // Owner row 111: a group message follows the phone's font size in full
+  // (past the app shell's 1.3x cap), like a chat message and a post.
+  // Owner row 113: on the website the text can be selected and copied.
+  Widget build(BuildContext context) => FullTextScale(
+        child: WebSelectableText(
+          child: Text.rich(TextSpan(children: _spans), style: widget.style),
+        ),
+      );
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/screens/create_case_screen.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -149,7 +150,7 @@ class _Chooser extends ConsumerWidget {
         leading: AppIconButton(
           icon: const AppIcon(AppIcons.closeRounded),
           semanticLabel: t.t('common.close'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('create.title')),
       ),

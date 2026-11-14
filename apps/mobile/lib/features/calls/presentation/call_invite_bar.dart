@@ -100,7 +100,7 @@ class _CallInviteBarState extends ConsumerState<CallInviteBar> {
                         t.t('group.call.join'),
                         maxLines: 1,
                         style: type.body.copyWith(
-                          color: colors.gold,
+                          color: colors.goldText,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

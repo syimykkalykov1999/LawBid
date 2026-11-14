@@ -19,7 +19,9 @@ List<RouteBase> clientPlanRoutes(GlobalKey<NavigatorState> root) => [
           DeferredScreen(
             id: 'client_plan_screen',
             load: d_client_plan_screen.loadLibrary,
-            builder: (_) => d_client_plan_screen.ClientPlanScreen(),
+            builder: (_) => d_client_plan_screen.ClientPlanScreen(
+              checkoutSessionId: state.uri.queryParameters['session_id'],
+            ),
           ),
         ),
       ),

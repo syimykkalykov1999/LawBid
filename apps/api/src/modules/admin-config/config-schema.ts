@@ -109,6 +109,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 100,
     max: 5000,
   };
+  out['search.engine_request_timeout_ms'] = {
+    type: 'integer',
+    defaultValue: 5000,
+    description:
+      'Search engine service calls (index layout, counts, index creation, task status): how long one try waits, milliseconds. User searches use search.engine_timeout_ms.',
+    min: 500,
+    max: 120_000,
+  };
+  out['search.engine_max_retries'] = {
+    type: 'integer',
+    defaultValue: 0,
+    description:
+      'Search engine: extra tries after a timeout or a dropped connection (reads and bulk writes only, never reindex). 0 = no retry.',
+    min: 0,
+    max: 10,
+  };
   out['search.reindex_keep_days'] = {
     type: 'integer',
     defaultValue: 7,
@@ -1088,6 +1104,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 100,
     max: 60_000,
   };
+  out['ops.db_slow_probes'] = {
+    ...out['ops.db_slow_probes'],
+    description:
+      'How many slow database probes in a row (one a minute) pause heavy background jobs. 1 = pause on the first slow probe.',
+    min: 1,
+    max: 60,
+  };
   out['today.sentry_enabled'] = {
     type: 'boolean',
     defaultValue: false,
@@ -1158,6 +1181,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'How many recent translation bundles (language + version) each server keeps in memory. 0 = none.',
     min: 0,
     max: 200,
+  };
+  out['ops.loop_stall_log_ms'] = {
+    ...out['ops.loop_stall_log_ms'],
+    description:
+      'A server whose event loop stood still at least this many ms writes one log line naming the garbage collections and open requests/jobs of that moment. 0 = off.',
+    min: 0,
+    max: 60_000,
   };
   out['ops.bootstrap_cache_sec'] = {
     ...out['ops.bootstrap_cache_sec'],
