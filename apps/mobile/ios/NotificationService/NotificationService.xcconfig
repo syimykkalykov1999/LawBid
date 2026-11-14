@@ -3,3 +3,14 @@
 // extension's version matches the app's (App Store requires it). No Pods:
 // the extension links nothing but the system frameworks.
 #include? "../Flutter/Generated.xcconfig"
+
+// D1-31 (13.11): the App Group of the app this extension belongs to
+// (group.<app bundle id>, the same id AppGroup.id computes at run time),
+// for NotificationService.entitlements.
+LAWBID_APP_GROUP = group.com.lawbid.lawbid
+LAWBID_APP_GROUP[config=Debug-dev] = group.com.lawbid.lawbid.dev
+LAWBID_APP_GROUP[config=Profile-dev] = group.com.lawbid.lawbid.dev
+LAWBID_APP_GROUP[config=Release-dev] = group.com.lawbid.lawbid.dev
+LAWBID_APP_GROUP[config=Debug-staging] = group.com.lawbid.lawbid.staging
+LAWBID_APP_GROUP[config=Profile-staging] = group.com.lawbid.lawbid.staging
+LAWBID_APP_GROUP[config=Release-staging] = group.com.lawbid.lawbid.staging

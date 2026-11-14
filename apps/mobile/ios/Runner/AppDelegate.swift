@@ -36,15 +36,26 @@ import flutter_callkit_incoming
     UNUserNotificationCenter.current().delegate = self
     registerChatCategory()
     let launched = super.application(application, didFinishLaunchingWithOptions: launchOptions)
-    paintWindowBackground()
+    // D1-32 (13.11): a UIScene app — UIKit makes the window per scene,
+    // after this method, and never hands it to `window` here, so painting
+    // `window` did nothing. Each scene's windows are painted as the scene
+    // comes to the front (its first frame too, and after a theme change).
+    sceneForegroundObserver = NotificationCenter.default.addObserver(
+      forName: UIScene.willEnterForegroundNotification, object: nil, queue: .main
+    ) { note in
+      guard let scene = note.object as? UIWindowScene else { return }
+      for window in scene.windows { AppDelegate.paintWindowBackground(window) }
+    }
     return launched
   }
+
+  private var sceneForegroundObserver: NSObjectProtocol?
 
   /// R-112 (owner 28.10): the window behind Flutter is the chosen theme's
   /// background, not the system's white. Dart writes `#AARRGGBB` under
   /// `flutter.design_system.window_bg` (shared_preferences keeps its keys in
   /// UserDefaults with the `flutter.` prefix) when the theme changes.
-  private func paintWindowBackground() {
+  static func paintWindowBackground(_ window: UIWindow) {
     guard let raw = UserDefaults.standard.string(forKey: "flutter.design_system.window_bg"),
       raw.hasPrefix("#"), raw.count == 9, let value = UInt32(raw.dropFirst(), radix: 16)
     else { return }
@@ -53,8 +64,8 @@ import flutter_callkit_incoming
       green: CGFloat((value >> 8) & 0xFF) / 255,
       blue: CGFloat(value & 0xFF) / 255,
       alpha: CGFloat((value >> 24) & 0xFF) / 255)
-    window?.backgroundColor = color
-    window?.rootViewController?.view.backgroundColor = color
+    window.backgroundColor = color
+    window.rootViewController?.view.backgroundColor = color
   }
 
   // MARK: - Chat notification buttons
@@ -116,6 +127,13 @@ import flutter_callkit_incoming
       let device = defaults.string(forKey: AppDelegate.deviceKey),
       let url = URL(string: api + "/push-actions")
     else {
+      // D1-30: signed out on this phone (or no server yet) — say so.
+      if action == AppDelegate.replyAction,
+        let text = (response as? UNTextInputNotificationResponse)?.userText
+          .trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
+      {
+        AppDelegate.postReplyFailed(response.notification, text: text)
+      }
       completionHandler()
       return
     }
@@ -146,7 +164,9 @@ import flutter_callkit_incoming
     }
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
-    request.timeoutInterval = 15
+    // D1-30: two tries (12 + 1 + 12 s) fit the ~30 s iOS gives a
+    // background button, so the «not sent» notice still gets out.
+    request.timeoutInterval = 12
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.httpBody = try? JSONSerialization.data(withJSONObject: body)
     // iOS gives a background button a few seconds; keep the app alive
@@ -155,12 +175,62 @@ import flutter_callkit_incoming
     task = UIApplication.shared.beginBackgroundTask {
       UIApplication.shared.endBackgroundTask(task)
     }
-    URLSession.shared.dataTask(with: request) { _, _, _ in
-      DispatchQueue.main.async {
-        completionHandler()
-        UIApplication.shared.endBackgroundTask(task)
+    let reply = action == AppDelegate.replyAction ? (body["text"] as? String) : nil
+    let original = response.notification
+    sendPushAction(request, attempt: 1) { ok in
+      // D1-30 (13.11): a reply that did not reach the server (signed out
+      // there, its limit, no network, a server error after one retry) was
+      // lost without a word. Now the chat gets a notice in its own thread,
+      // with the text and the same «Ответить» button to send it again —
+      // like Android's «Не отправлено» line and WhatsApp's «not sent».
+      if !ok, let reply = reply {
+        AppDelegate.postReplyFailed(original, text: reply)
+      }
+      completionHandler()
+      UIApplication.shared.endBackgroundTask(task)
+    }
+  }
+
+  /// `POST /push-actions`: true on a 2xx. One retry when the network
+  /// fails or the server errs (like declineOnServer); done on the main queue.
+  private func sendPushAction(
+    _ request: URLRequest,
+    attempt: Int,
+    done: @escaping (Bool) -> Void
+  ) {
+    URLSession.shared.dataTask(with: request) { [weak self] _, response, error in
+      let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+      let ok = error == nil && (200..<300).contains(status)
+      let retry = !ok && attempt < 2 && (error != nil || status >= 500)
+      DispatchQueue.main.asyncAfter(deadline: .now() + (retry ? 1 : 0)) {
+        if retry, let self = self {
+          self.sendPushAction(request, attempt: attempt + 1, done: done)
+        } else {
+          done(ok)
+        }
       }
     }.resume()
+  }
+
+  /// D1-30: «Не отправлено» in the chat's thread. The push's own data is
+  /// kept, so a tap opens the chat (firebase_messaging, as for the push)
+  /// and «Ответить» on it tries again.
+  private static func postReplyFailed(_ original: UNNotification, text: String) {
+    let ru = (Locale.preferredLanguages.first ?? "").hasPrefix("ru")
+    let source = original.request.content
+    let content = UNMutableNotificationContent()
+    content.title = source.title
+    content.body =
+      (ru ? "Не отправлено. Откройте чат, чтобы повторить." : "Not sent. Open the chat to try again.")
+      + "\n" + text
+    content.threadIdentifier = source.threadIdentifier
+    content.userInfo = source.userInfo
+    content.categoryIdentifier = AppDelegate.chatCategory
+    let request = UNNotificationRequest(
+      identifier: "lawbid.replyFailed.\(UUID().uuidString)", content: content, trigger: nil)
+    UNUserNotificationCenter.current().add(request) { error in
+      if let error = error { NSLog("reply failed notice: \(error)") }
+    }
   }
 
   private static func setPushActions(url: String?, token: String?) {
@@ -189,6 +259,25 @@ import flutter_callkit_incoming
       try session.setCategory(.playback, mode: .moviePlayback, options: [])
     } catch {
       NSLog("audio session: \(error)")
+    }
+  }
+
+  /// D1-29 (13.11): after a call the session stayed playAndRecord /
+  /// voiceChat (the call plugin and WebRTC set it; flutter_webrtc only
+  /// deactivates it at the end, and video_player keeps a category that
+  /// already «covers» playback) — so reels and videos then played from the
+  /// earpiece with call processing until the app was killed. When no call
+  /// is left, the launch category comes back (LiveKit does the same: back
+  /// to its media configuration after a call). Asked again a moment later:
+  /// CallKit lists the ending call as live for a short while.
+  private func restoreMediaAudioSession(retry: Bool = true) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+      guard let self = self else { return }
+      if self.callObserver.calls.contains(where: { !$0.hasEnded }) {
+        if retry { self.restoreMediaAudioSession(retry: false) }
+        return
+      }
+      self.configureAudioSessionOnce()
     }
   }
 
@@ -582,12 +671,21 @@ import flutter_callkit_incoming
     data.maximumCallsPerCallGroup = 1
     data.isShowMissedCallNotification = false
     data.ringtonePath = "silence"
-    callkit.showCallkitIncoming(data, fromPushKit: true) { [weak self] in
-      if let uuid = UUID(uuidString: callId) {
-        self?.callController.request(
-          CXTransaction(action: CXEndCallAction(call: uuid))
-        ) { _ in }
-      }
+    // D1-29 (13.11): a call that never rings must not switch the audio
+    // session to a call's (the plugin does it, and activates it, on every
+    // report): a reel playing meanwhile went to the earpiece.
+    data.configureAudioSession = false
+    callkit.showCallkitIncoming(data, fromPushKit: true) {
+      // D1-28 (13.11): end it through the plugin's own endCall. The
+      // plugin keeps ONE «current PushKit call» (flutter_callkit_incoming
+      // 3.1.6: `isFromPushKit` + `data`, set by the report above) and, while
+      // it is set, its endCall / callConnected ignore the id Dart passes.
+      // So after a throw-away the in-app Answer went to this dead call and
+      // the real call rang on, and the in-app Decline / hang-up ended this
+      // one and left the real call alive. The plugin's endCall in that
+      // state ends exactly this call (its stored data) and clears the slot,
+      // so Dart's next endCall / setCallConnected go by id again.
+      callkit.endCall(data)
       completion()
     }
   }
@@ -647,6 +745,9 @@ import flutter_callkit_incoming
   /// CXProvider guidance: fulfill promptly, do the network work aside).
   func onDecline(_ call: Call, _ action: CXEndCallAction) {
     action.fulfill()
+    // D1-29: a ring declined before its audio was ever activated sends no
+    // didDeactivate, but the plugin switched the category at the ring.
+    restoreMediaAudioSession()
     // iOS gives a background launch a few seconds; keep it until the
     // request (and its one retry) is done.
     var task: UIBackgroundTaskIdentifier = .invalid
@@ -765,9 +866,12 @@ import flutter_callkit_incoming
 
   func onEnd(_ call: Call, _ action: CXEndCallAction) {
     action.fulfill()
+    restoreMediaAudioSession()
   }
 
-  func onTimeOut(_ call: Call) {}
+  func onTimeOut(_ call: Call) {
+    restoreMediaAudioSession()
+  }
 
   func didActivateAudioSession(_ audioSession: AVAudioSession) {
     webrtcAudioSession(activated: true, audioSession)
@@ -775,6 +879,7 @@ import flutter_callkit_incoming
 
   func didDeactivateAudioSession(_ audioSession: AVAudioSession) {
     webrtcAudioSession(activated: false, audioSession)
+    restoreMediaAudioSession()
   }
 
   func providerDidReset() {}

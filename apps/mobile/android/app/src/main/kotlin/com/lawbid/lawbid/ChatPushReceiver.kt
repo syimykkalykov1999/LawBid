@@ -38,6 +38,8 @@ class ChatPushReceiver : BroadcastReceiver() {
                 if (chat) ChatNotifications.show(app, data) else ActorNotifications.show(app, data)
             } catch (e: Exception) {
                 // A broken push must never crash the app.
+            } catch (e: OutOfMemoryError) {
+                // D1-20: nor a low-RAM phone (the next push tries again).
             } finally {
                 pending.finish()
             }
@@ -45,6 +47,9 @@ class ChatPushReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        private val executor = Executors.newSingleThreadExecutor()
+        /** D1-17 (13.11): a few pushes at once — a slow photo of one chat
+         * no longer holds every following message (was one thread for
+         * all). ChatNotifications keeps the stacks consistent itself. */
+        private val executor = Executors.newFixedThreadPool(3)
     }
 }

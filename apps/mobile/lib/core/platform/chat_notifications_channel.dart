@@ -55,9 +55,18 @@ class ChatNotificationsChannel {
     }
   }
 
-  /// userId → the name saved in the phone book.
-  Future<void> setContactNames(Map<String, String> names) =>
-      _call('setContactNames', {'names': names});
+  /// The names last handed to the platform (D1-21).
+  Map<String, String>? _sentNames;
+
+  /// userId → the name saved in the phone book. D1-21 (13.11): an
+  /// unchanged map does not cross the channel again (it was sent, and the
+  /// native side rewrote its file, on every step of a contacts sync).
+  Future<void> setContactNames(Map<String, String> names) {
+    final last = _sentNames;
+    if (last != null && mapEquals(last, names)) return Future.value();
+    _sentNames = Map.of(names);
+    return _call('setContactNames', {'names': names});
+  }
 
   /// The chat is open: its notification is taken away.
   Future<void> clearChat(String conversationId) =>

@@ -239,6 +239,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 600,
   };
+  out['calls.ring_status_rate_limit_per_minute'] = {
+    type: 'integer',
+    defaultValue: 60,
+    description:
+      'How often one ringing phone may ask whether its call still rings, per minute (counted per call and person, not per address). 0 = no limit.',
+    min: 0,
+    max: 10000,
+  };
   for (const provider of COST_PROVIDERS) {
     for (const window of ['per_minute_max', 'daily_max', 'monthly_max']) {
       out[`budget.${provider}.${window}`] = {

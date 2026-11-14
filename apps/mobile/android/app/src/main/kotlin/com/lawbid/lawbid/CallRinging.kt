@@ -54,8 +54,15 @@ object CallRinging {
         val s = data["ringSeconds"]?.toLongOrNull() ?: return RING_DEFAULT_MS
         return if (s in 10L..120L) s * 1000 else RING_DEFAULT_MS
     }
-    private const val POLL_EVERY_MS = 3_000L
     private const val FIRST_POLL_MS = 2_000L
+    /** D1-19 (13.11): the waits between asks — 5, 8, then every 13 s
+     * (was every 3 s, ~20 asks a minute per rung phone). The «call ended»
+     * push and the timeout alarm already end the ring; the ask is only the
+     * fallback, so a slower ask changes nothing the person sees. */
+    private val POLL_BACKOFF_MS = longArrayOf(5_000L, 8_000L, 13_000L)
+
+    /** The wait before ask number [n] (0-based) after the first one. */
+    fun pollDelayMs(n: Int): Long = POLL_BACKOFF_MS[minOf(n, POLL_BACKOFF_MS.size - 1)]
     private const val ACTION_TIMEOUT = "com.lawbid.lawbid.CALL_RING_TIMEOUT"
     private const val EXTRA_CALL = "callId"
     /** CallkitIncomingActivity's own action (its runtime receiver). */
@@ -241,6 +248,7 @@ object CallRinging {
         executor.execute {
             try {
                 Thread.sleep(FIRST_POLL_MS)
+                var asked = 0
                 while (pollers.containsKey(callId) &&
                     SystemClock.elapsedRealtime() - started < ringMs
                 ) {
@@ -249,14 +257,15 @@ object CallRinging {
                     when (val state = askState(api, callId, pollToken)) {
                         // No answer (network): ask again.
                         null, "ringing" -> Unit
-                        // An expired / refused ticket: the alarm stays.
+                        // An expired / refused ticket, or the server's
+                        // limit (429): the alarm and the push remain.
                         REFUSED -> break
                         else -> {
                             stop(app, callId)
                             break
                         }
                     }
-                    Thread.sleep(POLL_EVERY_MS)
+                    Thread.sleep(pollDelayMs(asked++))
                 }
             } catch (e: Exception) {
                 // Never crash the app over a ring.
@@ -283,6 +292,9 @@ object CallRinging {
             // A call the server no longer knows does not ring.
             if (code == 404) return "ended"
             if (code == 400 || code == 401 || code == 403) return REFUSED
+            // D1-19: over the server's limit — stop asking (was: ask again
+            // every 3 s, hammering the address's bucket).
+            if (code == 429) return REFUSED
             if (code !in 200..299) return null
             val body = conn.inputStream.bufferedReader().use { it.readText() }
             stateOf(body)
