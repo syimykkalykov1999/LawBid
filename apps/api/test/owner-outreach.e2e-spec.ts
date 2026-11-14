@@ -350,9 +350,18 @@ describe('Outreach (e2e)', () => {
     });
     expect(afterMail.status).toBe('replied'); // contacted < replied: stays
 
-    // Unsubscribe is public and final.
-    const unsub = await api()
+    // Unsubscribe is public and final. R2B-14 (14.11): opening the link
+    // only shows the confirm page (link scanners); the button POSTs.
+    const page = await api()
       .get(`/api/v1/outreach/unsubscribe/${ivan.unsubscribe_token}`)
+      .expect(200);
+    expect(page.text).toContain('method="post"');
+    expect(
+      (await prisma.outreachLead.findUniqueOrThrow({ where: { id: ivan.id } }))
+        .unsubscribed_at,
+    ).toBeNull();
+    const unsub = await api()
+      .post(`/api/v1/outreach/unsubscribe/${ivan.unsubscribe_token}`)
       .expect(200);
     expect(unsub.headers['content-type']).toContain('text/html');
     await api().get('/api/v1/outreach/unsubscribe/nope').expect(404);
