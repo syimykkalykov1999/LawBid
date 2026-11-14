@@ -50,11 +50,13 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     Translator t,
   ) async {
     if (_submitting) return;
-    _submitting = true;
+    // Detective R2-A #15 (WhatsApp/Telegram): the spinner shows at once,
+    // also while «is this number registered» is asked.
+    setState(() => _submitting = true);
     try {
       await _submitOnce(context, ref, t);
     } finally {
-      _submitting = false;
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
@@ -196,7 +198,8 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                               children: [
                                 GavelStrikeButton(
                                   label: t.t('auth.phone.submit'),
-                                  isLoading: flowState.isSubmitting,
+                                  isLoading:
+                                      _submitting || flowState.isSubmitting,
                                   // Grey until the number is complete.
                                   isEnabled: UsPhone.isValid(
                                     _controller.text,

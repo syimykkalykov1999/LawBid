@@ -5801,7 +5801,8 @@ model OutreachLead {
   // row is migrated (null for new leads, whose links are signed HMAC
   // tokens); the database keeps its sha256 in unsubscribe_token_hash.
   unsubscribe_token           String?   @unique @db.VarChar(48)
-  unsubscribe_token_hash      String?   @unique @db.VarChar(64)
+  /// Unique partial index built online (prisma/concurrent/20261129120100_…).
+  unsubscribe_token_hash      String?   @db.VarChar(64)
   /// When the raw token was turned into its hash (the raw one is cleared
   /// after `outreach.raw_unsubscribe_token_keep_days`).
   unsubscribe_token_hashed_at DateTime? @db.Timestamptz

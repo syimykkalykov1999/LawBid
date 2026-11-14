@@ -17,6 +17,17 @@ import {
  */
 type Row = Record<string, unknown>;
 
+function applyData(row: Row | undefined, data: Row): Row {
+  const next: Row = { ...row };
+  for (const [k, v] of Object.entries(data)) {
+    next[k] =
+      v && typeof v === 'object' && 'increment' in v
+        ? ((row?.[k] as number) ?? 0) + (v as { increment: number }).increment
+        : v;
+  }
+  return next;
+}
+
 function make(payment: Row, over: { appConfig?: Row } = {}) {
   const rows = new Map<string, Row>([[payment.id as string, payment]]);
   const refunds = new Map<string, Row>();
@@ -61,7 +72,7 @@ function make(payment: Row, over: { appConfig?: Row } = {}) {
       ),
       update: jest.fn(
         ({ where, data }: { where: { id: string }; data: Row }) => {
-          const next = { ...rows.get(where.id), ...data };
+          const next = applyData(rows.get(where.id), data);
           rows.set(where.id, next);
           return Promise.resolve(next);
         },
@@ -101,8 +112,28 @@ function make(payment: Row, over: { appConfig?: Row } = {}) {
           return Promise.resolve(next);
         },
       ),
-      updateMany: jest.fn(() => Promise.resolve({ count: 0 })),
+      updateMany: jest.fn(({ where, data }: { where: Row; data: Row }) => {
+        let count = 0;
+        for (const [id, r] of refunds) {
+          if (matches(r, where)) {
+            refunds.set(id, { ...r, ...data });
+            count += 1;
+          }
+        }
+        return Promise.resolve({ count });
+      }),
+      aggregate: jest.fn(({ where }: { where: Row }) =>
+        Promise.resolve({
+          _sum: {
+            amount_cents: [...refunds.values()]
+              .filter((r) => matches(r, where))
+              .reduce((n, r) => n + (r.amount_cents as number), 0),
+          },
+        }),
+      ),
     },
+    // Row lock (`SELECT … FOR UPDATE`): a no-op in memory.
+    $queryRaw: jest.fn(() => Promise.resolve([])),
     payoutAccount: {
       findUnique: jest.fn(({ where }: { where: Row }) =>
         Promise.resolve(

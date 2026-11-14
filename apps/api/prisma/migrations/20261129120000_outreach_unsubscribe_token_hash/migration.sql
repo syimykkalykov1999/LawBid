@@ -18,4 +18,5 @@ UPDATE "outreach_leads"
  WHERE "unsubscribe_token" IS NOT NULL
    AND "unsubscribe_token_hash" IS NULL;
 
-CREATE UNIQUE INDEX "outreach_leads_unsubscribe_token_hash_key" ON "outreach_leads"("unsubscribe_token_hash");
+-- The unique lookup index is built online, outside this transaction:
+-- prisma/concurrent/20261129120100_outreach_unsubscribe_token_hash_key.sql.

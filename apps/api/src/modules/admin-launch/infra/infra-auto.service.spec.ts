@@ -273,6 +273,9 @@ describe('InfraAutoService.searchPass: search.engine follows the engine («Ав�
     configured?: boolean;
     phase?: string | null;
     seen?: string;
+    /** Row 9: people in the database and the items «Авто» switched on. */
+    people?: number;
+    owned?: string[];
   }) {
     const store = new Map<string, string>();
     if (o.seen) store.set('ops:infra-auto:search-seen', o.seen);
@@ -312,9 +315,13 @@ describe('InfraAutoService.searchPass: search.engine follows the engine («Ав�
       liveStates: jest.fn(
         async () => new Map([['aws.opensearch', o.domain ?? 'on']]),
       ),
+      autoOwned: jest.fn(async () => new Set(o.owned ?? [])),
     };
     const upsert = jest.fn(async () => ({}));
-    const prisma = { appConfig: { upsert } };
+    const prisma = {
+      appConfig: { upsert },
+      $queryRaw: jest.fn(async () => [{ n: o.people ?? 0 }]),
+    };
     const reindex = {
       status: jest.fn(async () => ({
         engineConfigured: o.configured ?? true,
@@ -380,6 +387,34 @@ describe('InfraAutoService.searchPass: search.engine follows the engine («Ав�
       seen: seenOf('search:set_mode:engine'),
     });
     expect(await r3.svc.searchPass(later)).toMatchObject({ to: 'engine' });
+  });
+
+  it('row 9 (prod 14.11): a domain «Авто» switched on itself and does not need drains search to the database at once', async () => {
+    // Prod: search auto reached `engine` 14.11 04:51 UTC; people are far
+    // below infra.search_engine_on_people. KEEP_ON kept the domain because
+    // search.engine = engine, which «Авто» had set itself.
+    const a = search({ mode: 'engine', people: 3, owned: ['aws.opensearch'] });
+    expect(await a.svc.searchPass(T0)).toMatchObject({
+      kind: 'set_mode',
+      to: 'postgres',
+    });
+    expect(a.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { value: 'postgres' } }),
+    );
+    // and it does not climb back toward the engine
+    const b = search({
+      mode: 'postgres',
+      people: 3,
+      owned: ['aws.opensearch'],
+      seen: `search:set_mode:shadow@${T0.getTime()}`,
+    });
+    expect(await b.svc.searchPass(later)).toBeNull();
+    // enough people (on line 30 here, off line 24): the engine stays
+    const c = search({ mode: 'engine', people: 25, owned: ['aws.opensearch'] });
+    expect(await c.svc.searchPass(T0)).toBeNull();
+    // a domain the owner switched on by hand is his: search follows it
+    const d = search({ mode: 'engine', people: 3, owned: [] });
+    expect(await d.svc.searchPass(T0)).toBeNull();
   });
 
   it('domain off: back to postgres at once (no waiting)', async () => {

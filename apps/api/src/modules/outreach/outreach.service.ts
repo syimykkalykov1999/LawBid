@@ -605,7 +605,7 @@ export class OutreachService {
       return id ? this.prisma.outreachLead.findUnique({ where: { id } }) : null;
     }
     const hash = hashLegacyToken(token);
-    const byHash = await this.prisma.outreachLead.findUnique({
+    const byHash = await this.prisma.outreachLead.findFirst({
       where: { unsubscribe_token_hash: hash },
     });
     if (byHash) return byHash;
