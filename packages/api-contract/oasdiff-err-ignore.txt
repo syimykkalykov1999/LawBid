@@ -694,3 +694,4 @@ PATCH /admin/system-health/settings added the new `email` enum value to the `dat
 GET /admin/system-health/db-replica added the new `managed` enum value to the `data/state` response property for the response status `200`
 POST /admin/system-health/db-replica added the new `managed` enum value to the `data/state` response property for the response status `200`
 POST /admin/billing/plans the request property `amountCents` became required
+POST /admin/case-payments/{id}/refund added the new required `header` request parameter `idempotency-key`

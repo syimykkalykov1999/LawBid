@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/design_system/widgets/feedback/app_confirm_sheet.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -141,6 +142,24 @@ class _SheetState extends ConsumerState<_Sheet> {
   PlaceUploadLimits get _limits =>
       ref.read(uploadLimitsProvider)[UploadPlace.review];
   int get _maxPhotos => _limits.maxPhotos;
+
+  /// Row 109 (Apple HIG): removing a photo from the review asks first.
+  Future<void> _removePhoto(int i) async {
+    final t = ref.read(translatorProvider);
+    final ok = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('review.photo.remove.title'),
+      message: t.t('review.photo.remove.message'),
+      confirmLabel: t.t('common.remove'),
+      destructive: true,
+    );
+    if (!ok || !mounted || i >= _photos.length) return;
+    setState(() {
+      _photos.removeAt(i);
+      if (i < _local.length) _local.removeAt(i);
+    });
+  }
 
   Future<void> _addPhotos() async {
     final t = ref.read(translatorProvider);
@@ -420,10 +439,7 @@ class _SheetState extends ConsumerState<_Sheet> {
                             top: 2,
                             end: 2,
                             child: GestureDetector(
-                              onTap: () => setState(() {
-                                _photos.removeAt(i);
-                                if (i < _local.length) _local.removeAt(i);
-                              }),
+                              onTap: () => _removePhoto(i),
                               child: const CircleAvatar(
                                 radius: 11,
                                 backgroundColor: Colors.black54,

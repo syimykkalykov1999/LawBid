@@ -31,3 +31,26 @@ describe('PnlService button', () => {
     expect(none.summary.refresh).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('PnlService payment rows (R3A-1)', () => {
+  it('keeps refunded payments and books refunds on the day they happen', async () => {
+    const calls: string[] = [];
+    const prisma: Record<string, jest.Mock> = {
+      $queryRaw: jest.fn((parts: TemplateStringsArray) => {
+        calls.push(parts.join('?'));
+        return Promise.resolve([]);
+      }),
+      $transaction: jest.fn(
+        (fn: (tx: unknown) => Promise<unknown>): Promise<unknown> => fn(prisma),
+      ),
+      $executeRaw: jest.fn(() => Promise.resolve(0)),
+      $executeRawUnsafe: jest.fn(() => Promise.resolve(0)),
+    };
+    const svc = new PnlService(prisma as never, undefined, undefined);
+    await svc.compute(new Date('2026-10-25T12:00:00Z'));
+    const sql = calls.join('\n');
+    expect(sql).toMatch(/p\.status IN \('succeeded', 'refunded'\)/);
+    expect(sql).toMatch(/r\.created_at AT TIME ZONE 'UTC'/);
+    expect(sql).toMatch(/r\.status IN \('pending', 'succeeded'\)/);
+  });
+});
