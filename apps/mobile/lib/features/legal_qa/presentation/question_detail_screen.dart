@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
@@ -209,7 +210,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
         title: Text(t.t('qa.title')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         actions: [
           if (q != null)

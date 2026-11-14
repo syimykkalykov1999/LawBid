@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -39,7 +40,7 @@ class _SavedScreenState extends ConsumerState<SavedScreen> {
         title: Text(t.t('mine.tab.saved')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
       ),
       body: SafeArea(

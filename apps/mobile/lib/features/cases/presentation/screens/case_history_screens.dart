@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/case_history_controller.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
@@ -40,7 +41,7 @@ class CaseHistoryScreen extends ConsumerWidget {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => context.pop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('history.title')),
         actions: [
@@ -219,7 +220,7 @@ class CaseHistoryDetailScreen extends ConsumerWidget {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => context.pop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('history.detailTitle')),
       ),

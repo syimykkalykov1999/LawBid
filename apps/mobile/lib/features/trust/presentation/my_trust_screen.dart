@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/trust/application/trust_providers.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
@@ -34,7 +35,7 @@ class MyTrustScreen extends ConsumerWidget {
         title: Text(t.t('trust.me.title')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
       ),
       body: SafeArea(

@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/legal/domain/legal_models.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/consent_check_tile.dart';
@@ -173,7 +174,7 @@ class _DmcaNoticeScreenState extends ConsumerState<DmcaNoticeScreen> {
         title: Text(t.t('dmca.title')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
       ),
       body: SafeArea(

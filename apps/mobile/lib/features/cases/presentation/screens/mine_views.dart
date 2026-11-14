@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_list_filter_store.dart';
@@ -714,7 +715,7 @@ class CompletedWorkScreen extends ConsumerWidget {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => context.pop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('mine.work.completedTitle')),
       ),

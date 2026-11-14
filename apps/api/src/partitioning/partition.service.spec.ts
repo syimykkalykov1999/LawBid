@@ -382,3 +382,39 @@ describe('PartitionService buttons when only the worker has the login (owner 202
     expect(redis.lists.get(COMMANDS_KEY)).toBeUndefined();
   });
 });
+
+describe('PartitionService.jobs: no query on a missing state table (14.11 F8)', () => {
+  function withTable(exists: boolean) {
+    const sql: string[] = [];
+    const prisma = {
+      $queryRawUnsafe: (q: string) => {
+        sql.push(q);
+        if (q.includes('to_regclass'))
+          return Promise.resolve([{ t: exists ? '_partition_job' : null }]);
+        return Promise.resolve([{ tbl: 'messages', phase: 'backfill' }]);
+      },
+    } as unknown as PrismaService;
+    const svc = new PartitionService(
+      prisma,
+      { get: () => undefined } as unknown as ConfigService,
+      {} as AppSettingsService,
+    );
+    const jobs = () =>
+      (svc as unknown as { jobs(): Promise<Map<string, unknown>> }).jobs();
+    return { jobs, sql };
+  }
+
+  it('table missing: only to_regclass, never FROM public._partition_job', async () => {
+    const { jobs, sql } = withTable(false);
+    expect((await jobs()).size).toBe(0);
+    expect(sql).toHaveLength(1);
+    expect(sql[0]).toMatch(/to_regclass\('public\._partition_job'\)/);
+    expect(sql.some((q) => /FROM public\._partition_job/.test(q))).toBe(false);
+  });
+
+  it('table present: reads the jobs as before', async () => {
+    const { jobs, sql } = withTable(true);
+    expect((await jobs()).get('messages')).toMatchObject({ phase: 'backfill' });
+    expect(sql).toHaveLength(2);
+  });
+});

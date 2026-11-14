@@ -397,11 +397,12 @@ export class CallsService {
   async livekitToken(user: RequestUser, id: string): Promise<LiveKitJoinDto> {
     const call = await this.prisma.call.findUnique({ where: { id } });
     if (!call) throw notFound();
-    const row = await this.rowOf(call.id, user.sub);
-    const member =
-      call.caller_id === user.sub ||
-      call.callee_id === user.sub ||
-      row?.status === 'joined';
+    // R2B-3 (14.11): in a group call only a `joined` row counts — also for
+    // the original caller and callee, so a removed member cannot mint a
+    // new token and rejoin (the Cloudflare SFU path checks the same).
+    const member = call.is_group
+      ? (await this.rowOf(call.id, user.sub))?.status === 'joined'
+      : call.caller_id === user.sub || call.callee_id === user.sub;
     if (!member) throw notFound();
     if (!LIVE.includes(call.status)) throw conflict();
     if ((await this.activeVideoProvider()).name !== 'livekit') {
@@ -1440,6 +1441,8 @@ export class CallsService {
   async peerForSignal(userId: string, callId: string): Promise<string | null> {
     const call = await this.prisma.call.findUnique({ where: { id: callId } });
     if (!call || !LIVE.includes(call.status)) return null;
+    // R2B-3: a group call has no single peer (and a removed member none).
+    if (call.is_group) return null;
     if (call.caller_id === userId) return call.callee_id;
     if (call.callee_id === userId) return call.caller_id;
     return null;

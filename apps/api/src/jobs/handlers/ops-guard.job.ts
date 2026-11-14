@@ -55,21 +55,37 @@ export class OpsGuardJob {
       'database health',
     );
 
-    const [auto, slowMs] = await Promise.all([
+    const [auto, slowMs, slowProbes] = await Promise.all([
       this.settings.boolean('ops.auto_pause_heavy_jobs'),
       this.settings.number('ops.db_slow_ms'),
+      this.settings.number('ops.db_slow_probes'),
     ]);
-    const slow = !ok || (latencyMs ?? 0) > slowMs;
+    // 14.11 F4: one slow `SELECT 1` was enough to pause heavy jobs, and a
+    // single sample is often the worker's own event-loop stall, not the
+    // database. Like a Kubernetes probe's `failureThreshold`, a slow answer
+    // pauses only after ops.db_slow_probes slow probes in a row; an
+    // unreachable database still pauses at once.
+    const tooSlow = ok && (latencyMs ?? 0) > slowMs;
+    const streak = await this.state.dbSlowStreak(tooSlow);
+    const slow = !ok || (tooSlow && streak >= Math.max(1, slowProbes));
+    if (auto && !slow && tooSlow) {
+      this.logger.info(
+        { latencyMs, streak, slowProbes },
+        'database probe slow, waiting for more slow probes in a row',
+      );
+    }
     if (auto && slow) {
       // Renews the 15-minute auto pause while the database stays slow.
       await this.state.setHeavyPaused(
         true,
         'auto',
-        ok ? `db ${latencyMs} ms > ${slowMs} ms` : 'db unreachable',
+        ok
+          ? `db ${latencyMs} ms > ${slowMs} ms (${streak} in a row)`
+          : 'db unreachable',
         now,
       );
       this.logger.warn(
-        { alert: 'heavy_jobs_auto_paused', latencyMs },
+        { alert: 'heavy_jobs_auto_paused', latencyMs, streak },
         'heavy background jobs paused: database is slow',
       );
     } else {

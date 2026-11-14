@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -129,7 +130,7 @@ class _ConsultationDetailScreenState
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(t.t('consult.one')),
         actions: [

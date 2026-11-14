@@ -27,6 +27,28 @@ const MESSAGE_JOB_OPTS = {
 } as const;
 
 /**
+ * Job id of one on-call alert (14.11 prod F1). BullMQ rejects a custom job id
+ * with ':' unless it splits into exactly 3 parts ("Custom Id cannot contain :",
+ * `Job.validateOptions`; docs "Job Ids": custom ids must not contain ':'), and
+ * incident ids such as `search:<step>:<ISO time>` carry 4-6 of them, so those
+ * alerts were never queued. Every ':' becomes '-' (the separator the id
+ * already uses): ids without ':' stay byte-for-byte the same, and one
+ * incident/event/seq/recipient still maps to one id, so a retry never alerts
+ * twice.
+ */
+export function opsAlertJobId(
+  incidentId: string,
+  event: string,
+  seq: number,
+  recipientId: string,
+): string {
+  return `ops-${incidentId}-${event}-${seq}-${recipientId}`.replaceAll(
+    ':',
+    '-',
+  );
+}
+
+/**
  * Producer side of the `push` queue (docs/04 stage 4.8 "постановка push в
  * очередь", docs/05 §9.3 step 4). Never fails the caller: a Redis outage
  * loses only the push, the notification row (the list, the badge) stays.
@@ -270,7 +292,12 @@ export class PushQueueService
           ...PUSH_JOB_OPTS,
           delay: 0,
           priority: PUSH_PRIORITY.urgent,
-          jobId: `ops-${data.incidentId}-${data.event}-${seq}-${data.recipientId}`,
+          jobId: opsAlertJobId(
+            data.incidentId,
+            data.event,
+            seq,
+            data.recipientId,
+          ),
         },
       );
     } catch (error) {
