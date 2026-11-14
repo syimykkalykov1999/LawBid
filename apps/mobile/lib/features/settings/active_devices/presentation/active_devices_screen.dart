@@ -46,7 +46,7 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
   }) async {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.read(translatorProvider);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AppAlertDialog(
         backgroundColor: colors.sheet,

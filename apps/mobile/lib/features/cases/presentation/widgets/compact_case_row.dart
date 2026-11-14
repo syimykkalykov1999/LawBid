@@ -135,6 +135,10 @@ class CompactCaseRow extends StatelessWidget {
       label: semanticLabel,
       child: AppPressable(
         onTap: onTap,
+        // Owner 13.11 (row 93): the case card lights up while pressed.
+        highlight: true,
+        highlightOver: true,
+        highlightRadius: BorderRadius.circular(AppRadii.card),
         child: Container(
           padding: const EdgeInsets.all(AppSpacing.sm + 2),
           decoration: BoxDecoration(
