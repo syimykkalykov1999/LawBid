@@ -17,6 +17,11 @@ function make(
     configured?: boolean;
     autoMode?: string;
     seen?: Record<string, number>;
+    /** Task environment (ConfigService). */
+    env?: Record<string, string>;
+    live?: Record<string, 'on' | 'off'>;
+    autoOwned?: string[];
+    strings?: Record<string, string>;
   } = {},
 ) {
   const store = new Map<string, string>();
@@ -46,8 +51,8 @@ function make(
       configured: o.configured ?? true,
       inQuietWindow: true,
     })),
-    liveStates: jest.fn(async () => new Map()),
-    autoOwned: jest.fn(async () => new Set<string>()),
+    liveStates: jest.fn(async () => new Map(Object.entries(o.live ?? {}))),
+    autoOwned: jest.fn(async () => new Set<string>(o.autoOwned ?? [])),
     sweep: jest.fn(async () => undefined),
     create: jest.fn(async () => ({ id: 'req-1', status: 'requested' })),
   };
@@ -61,11 +66,13 @@ function make(
   const settings = {
     raw: jest.fn(async () => undefined),
     string: jest.fn(async (k: string) =>
-      k === 'infra.auto_mode'
-        ? (o.autoMode ?? 'auto')
-        : k === 'db.replica_provision'
-          ? 'auto'
-          : 'off',
+      o.strings?.[k] !== undefined
+        ? o.strings[k]
+        : k === 'infra.auto_mode'
+          ? (o.autoMode ?? 'auto')
+          : k === 'db.replica_provision'
+            ? 'auto'
+            : 'off',
     ),
     number: jest.fn(async (k: string) =>
       k === 'infra.auto_on_minutes'
@@ -86,7 +93,9 @@ function make(
     },
     $queryRaw: jest.fn(async () => []),
   };
-  const config = { get: jest.fn(() => undefined) };
+  const config = {
+    get: jest.fn((k: string): string | undefined => o.env?.[k]),
+  };
   const incidents = {
     recipients: jest.fn(async () => [
       { userId: 'owner-1', email: 'o@example.test', lang: 'ru' },
@@ -110,6 +119,72 @@ const T0 = new Date('2026-11-08T12:00:00Z');
 const later = (min: number) => new Date(T0.getTime() + min * 60_000);
 
 describe('InfraAutoService (dry run with fakes)', () => {
+  it('13.11 replay: the pooler «Авто» switched on is NOT switched off while the tasks use it', async () => {
+    // Prod 13.11 21:33 UTC: aws.pgbouncer on (switched on by itself), the
+    // api tasks connect through it (DB_POOLER_HOST, DB_POOL_SIZE 10), no
+    // pressure. poolSmall is false with a pooler, so the old KEEP_ON saw no
+    // need and requested «on -> off» after infra.auto_off_hours.
+    const { svc, infra, store } = make({
+      env: {
+        DB_POOLER_HOST: 'pgbouncer.lawbid-prod.internal',
+        DB_POOL_SIZE: '10',
+      },
+      live: { 'aws.pgbouncer': 'on' },
+      autoOwned: ['aws.pgbouncer'],
+    });
+    expect((await svc.check(T0)).started).toBeNull();
+    store.delete('ops:infra-auto:lock');
+    expect((await svc.check(later(73 * 60))).started).toBeNull();
+    expect(infra.create).not.toHaveBeenCalled();
+  });
+
+  it('13.11: without a pooler in the task env (drained) the off request may start', async () => {
+    const { svc, store } = make({
+      env: { DB_POOL_SIZE: '20' },
+      live: { 'aws.pgbouncer': 'on' },
+      autoOwned: ['aws.pgbouncer'],
+    });
+    await svc.check(T0);
+    store.delete('ops:infra-auto:lock');
+    expect((await svc.check(later(73 * 60))).started).toMatchObject({
+      id: 'aws.pgbouncer',
+      to: 'off',
+    });
+  });
+
+  it.each([
+    ['auto', true],
+    ['on', false],
+    ['off', true],
+  ])(
+    '13.11: the read copy goes by itself unless reads are forced onto it (db.replica_reads = %s)',
+    async (reads, starts) => {
+      const { svc, infra, store } = make({
+        env: { DB_REPLICA_HOST: 'replica-1.example.internal' },
+        live: { 'aws.rds_replicas': 'on' },
+        autoOwned: ['aws.rds_replicas'],
+        strings: { 'db.replica_reads': reads },
+      });
+      await svc.check(T0);
+      store.delete('ops:infra-auto:lock');
+      await svc.check(later(73 * 60));
+      expect(infra.create.mock.calls.length > 0).toBe(starts);
+    },
+  );
+
+  it('13.11: the Kinesis stream is not switched off while events.sink writes to it', async () => {
+    const { svc, infra, store } = make({
+      env: { EVENTS_STREAM_NAME: 'lawbid-prod-events' },
+      live: { 'aws.events_stream': 'on' },
+      autoOwned: ['aws.events_stream'],
+      strings: { 'events.sink': 'stream' },
+    });
+    await svc.check(T0);
+    store.delete('ops:infra-auto:lock');
+    await svc.check(later(73 * 60));
+    expect(infra.create).not.toHaveBeenCalled();
+  });
+
   it('a signal that held 30 minutes switches the item on by itself and tells the owner', async () => {
     const { svc, infra, push, store } = make({
       pressures: ['db_connections'],

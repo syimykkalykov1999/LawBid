@@ -112,6 +112,51 @@ describe('autoWants', () => {
     ).toEqual([]);
   });
 
+  it('13.11 replay: a pooler the tasks connect through is never wanted off (poolSmall is false with a pooler)', () => {
+    const on = () => 'on' as const;
+    // prod 13.11: switched on by itself, DB_POOLER_HOST set, no pressure
+    expect(
+      autoWants(
+        { ...calm, poolSmall: false, poolerLive: true },
+        on,
+        new Set(['aws.pgbouncer']),
+      ),
+    ).toEqual([]);
+    expect(
+      autoWants(
+        { ...calm, poolerLive: true, pickedAuto: new Set(['aws.pgbouncer']) },
+        on,
+        new Set(),
+      ),
+    ).toEqual([]);
+  });
+
+  it('13.11: the read copy stays while reads are forced onto it, the stream while events.sink writes to it', () => {
+    const one = (id: string) => (i: string) =>
+      i === id ? ('on' as const) : ('off' as const);
+    const live = one('aws.rds_replicas');
+    expect(
+      autoWants(
+        { ...calm, replicaReadsForced: true },
+        live,
+        new Set(['aws.rds_replicas']),
+      ),
+    ).toEqual([]);
+    expect(
+      autoWants(calm, live, new Set(['aws.rds_replicas'])).map(
+        (x) => `${x.id}:${x.to}`,
+      ),
+    ).toEqual(['aws.rds_replicas:off']);
+    const on = one('aws.events_stream');
+    expect(
+      autoWants(
+        { ...calm, eventsStreamInUse: true },
+        on,
+        new Set(['aws.events_stream']),
+      ),
+    ).toEqual([]);
+  });
+
   it('a small direct pool switches the pooler on, and keeps it on', () => {
     expect(
       autoWants({ ...calm, poolSmall: true }, offAll, new Set()).map(
@@ -308,16 +353,53 @@ describe('autoApplyOk', () => {
   });
   it('switch-off: deletes and task-definition replacements only', () => {
     expect(
-      autoApplyOk('off', [
-        { address: 'x.aws_db_instance.r[0]', action: 'delete' },
-      ]),
+      autoApplyOk(
+        'off',
+        [{ address: 'x.aws_db_instance.r[0]', action: 'delete' }],
+        'aws.db_shards',
+      ),
     ).toBe(true);
-    expect(autoApplyOk('off', [{ address: td, action: 'create-delete' }])).toBe(
-      true,
-    );
     expect(
-      autoApplyOk('off', [{ address: 'x.aws_lb.n', action: 'create' }]),
+      autoApplyOk(
+        'off',
+        [{ address: td, action: 'create-delete' }],
+        'aws.events_stream',
+      ),
+    ).toBe(true);
+    expect(
+      autoApplyOk(
+        'off',
+        [{ address: 'x.aws_lb.n', action: 'create' }],
+        'aws.events_stream',
+      ),
     ).toBe(false);
+  });
+  it('13.11: switching off what live services connect to always waits for the owner', () => {
+    const pgb = 'module.stack.module.pgbouncer[0]';
+    const plan = [
+      { address: `${pgb}.aws_ecs_service.this`, action: 'delete' },
+      { address: `${pgb}.aws_security_group.svc`, action: 'delete' },
+      { address: td, action: 'create-delete' },
+    ];
+    expect(autoApplyOk('off', plan, 'aws.pgbouncer')).toBe(false);
+    // owner rows 8 / 85: the read copies still go without a tap
+    expect(
+      autoApplyOk(
+        'off',
+        [{ address: 'x.aws_db_instance.replica[1]', action: 'delete' }],
+        'aws.rds_replicas_2',
+      ),
+    ).toBe(true);
+    // no item = not known to be safe
+    expect(autoApplyOk('off', plan)).toBe(false);
+    // switching ON is unchanged
+    expect(
+      autoApplyOk(
+        'on',
+        [{ address: `${pgb}.aws_ecs_service.this`, action: 'create' }],
+        'aws.pgbouncer',
+      ),
+    ).toBe(true);
   });
 });
 
