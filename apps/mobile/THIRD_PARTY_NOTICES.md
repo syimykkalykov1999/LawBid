@@ -887,6 +887,33 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## Tinycon 0.6.8 — MIT
+
+Copied whole and unmodified as `web/tinycon.js` (owner row 113: the unread
+number on the browser tab icon), npm `tinycon@0.6.8`,
+https://github.com/tommoor/tinycon. sha256
+bff4e437f134efc6fc6d6ce627e44445ce1f5bcee33b08594020ffcd9088096d.
+
+Copyright (c) 2015 Tom Moor
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
 ## go_router 17.5.0 — BSD-3-Clause
 
 https://github.com/flutter/packages/tree/main/packages/go_router. Row 148 (go_router 18): `lib/core/navigation/router_error_screen.dart` is go_router 17's `MaterialErrorScreen`, and `AppPageTransitions.material` passes the same `MaterialPage` arguments as its `pageBuilderForMaterialApp`.

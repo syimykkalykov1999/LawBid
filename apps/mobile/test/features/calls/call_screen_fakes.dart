@@ -25,7 +25,9 @@ class FakeCallMedia extends Fake implements CallMedia {
     MediaStream? local,
     Map<String, MediaStream> remotes = const {},
     Set<String> speaking = const {},
-  })  : remoteVideo = ValueNotifier(remote),
+    LinkQuality quality = LinkQuality.good,
+  })  : quality = ValueNotifier(quality),
+        remoteVideo = ValueNotifier(remote),
         localVideo = ValueNotifier(local),
         remoteStreams = ValueNotifier(remotes),
         speaking = ValueNotifier(speaking);
@@ -43,7 +45,7 @@ class FakeCallMedia extends Fake implements CallMedia {
   final ValueListenable<Set<String>> speaking;
 
   @override
-  final ValueListenable<LinkQuality> quality = ValueNotifier(LinkQuality.good);
+  final ValueListenable<LinkQuality> quality;
 
   @override
   Set<String> get peers => remoteStreams.value.keys.toSet();
