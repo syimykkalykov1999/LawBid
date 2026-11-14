@@ -31,28 +31,58 @@ export function allowedSpendUsd(
   return Math.max(byRule, Math.max(thresholdUsd, 0));
 }
 
-/** Stripe card fee (2.9 % + 30 ¢ per payment) — the cut Stripe keeps. */
+/** Stripe card fee (2.9 % + 30 ¢ per payment) — the cut Stripe keeps.
+ * The defaults of the admin settings `economy.stripe_fee_percent` /
+ * `economy.stripe_fee_fixed_cents` (R3A-9, 14.11: rule 11, no fixed number). */
 export const STRIPE_FEE_PERCENT = 2.9;
 export const STRIPE_FEE_FIXED_CENTS = 30;
 
+export interface StripeFee {
+  percent: number;
+  fixedCents: number;
+}
+
+export const DEFAULT_STRIPE_FEE: StripeFee = {
+  percent: STRIPE_FEE_PERCENT,
+  fixedCents: STRIPE_FEE_FIXED_CENTS,
+};
+
+/** The admin's numbers, or the default for a missing / broken one. */
+export function stripeFeeFrom(
+  percent: unknown,
+  fixedCents: unknown,
+): StripeFee {
+  const ok = (v: unknown): v is number =>
+    typeof v === 'number' && Number.isFinite(v) && v >= 0;
+  return {
+    percent: ok(percent) ? percent : STRIPE_FEE_PERCENT,
+    fixedCents: ok(fixedCents) ? fixedCents : STRIPE_FEE_FIXED_CENTS,
+  };
+}
+
 export interface RevenueInput {
-  /** Σ price before tax of succeeded payments (cents). */
+  /** Σ price before tax of paid payments, a later full refund included (cents). */
   subtotalCents: number;
   /** Σ amount charged, tax included (cents) — the fee is taken on this. */
   grossCents: number;
-  /** Σ succeeded refunds of payments still counted above (cents). */
+  /** Σ live refunds made in the period, whatever day the payment was (cents). */
   refundedCents: number;
   payments: number;
 }
 
 /** S9-3: the money the company keeps — price before tax, minus refunds,
- * minus the estimated Stripe fee. Never negative. */
-export function netRevenueUsd(i: RevenueInput): number {
-  const fee =
-    (Math.max(i.grossCents, 0) * STRIPE_FEE_PERCENT) / 100 +
-    Math.max(i.payments, 0) * STRIPE_FEE_FIXED_CENTS;
-  const net = i.subtotalCents - Math.max(i.refundedCents, 0) - fee;
-  return Math.max(net, 0) / 100;
+ * minus the Stripe fee. R3A-1 (14.11): like Stripe's balance reports, a
+ * period where refunds and fees are bigger than sales is a loss (negative),
+ * not 0; Stripe keeps its fee on a refunded charge, so the fee stays. */
+export function netRevenueUsd(
+  i: RevenueInput,
+  fee: StripeFee = DEFAULT_STRIPE_FEE,
+): number {
+  const cut =
+    (Math.max(i.grossCents, 0) * fee.percent) / 100 +
+    Math.max(i.payments, 0) * fee.fixedCents;
+  const net = i.subtotalCents - Math.max(i.refundedCents, 0) - cut;
+  return net / 100;
 }
 
 /** S9-4: global daily money brake in cents = allowed spend / 30 × days.

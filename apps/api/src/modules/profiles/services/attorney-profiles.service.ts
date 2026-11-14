@@ -126,6 +126,7 @@ type PublicCore = Pick<
   | 'qa'
   | 'rating'
   | 'counters'
+  | 'replyMinutesMedian'
 > & {
   userId: string;
   consultationBookable: boolean;
@@ -644,6 +645,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       isFollowing: follow !== null,
       consultationEnabled:
         core.userId !== viewerId && core.consultationBookable,
+      // Owner row 112: an older cached body has no field (undefined → null).
+      replyMinutesMedian: core.replyMinutesMedian ?? null,
       ...relation,
     };
   }
@@ -678,6 +681,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
         name_mismatch: true,
         trust_level: true,
         trust_badge: true,
+        reply_minutes_median: true,
         updated_at: true,
         rating_avg: true,
         rating_count: true,
@@ -769,6 +773,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       },
       consultationBookable:
         (await this.consultations?.isBookable(row.user_id)) ?? false,
+      replyMinutesMedian: row.reply_minutes_median,
     };
   }
 

@@ -1,4 +1,8 @@
-import { netRevenueUsd } from '../economy/economy.rules';
+import {
+  DEFAULT_STRIPE_FEE,
+  netRevenueUsd,
+  type StripeFee,
+} from '../economy/economy.rules';
 
 /**
  * Owner 2026-10-25 («Прибыль»): the P&L math as pure functions.
@@ -19,9 +23,10 @@ export const PNL_KINDS = [
 ] as const;
 export type PnlKind = (typeof PNL_KINDS)[number];
 
-/** One (day, kind) group of succeeded payments, in cents. */
+/** One (day, kind) group, in cents: the payments paid that day (a later
+ * full refund included) and the refunds MADE that day (R3A-1, 14.11). */
 export interface PaymentDayRow {
-  /** UTC day, YYYY-MM-DD, of paid_at. */
+  /** UTC day, YYYY-MM-DD, of paid_at (sales) / of the refund (refunds). */
   day: string;
   kind: PnlKind;
   subtotalCents: number;
@@ -129,6 +134,8 @@ export function buildPnl(input: {
   vendorDaily: { date: string; usd: number }[];
   fixed: FixedCostInput[];
   now: Date;
+  /** The Stripe fee from the admin settings (default 2.9 % + 30 ¢). */
+  fee?: StripeFee;
 }): PnlSnapshot {
   const today = isoDay(input.now.getTime());
   const week = weekStart(today);
@@ -137,12 +144,15 @@ export function buildPnl(input: {
   const revenueByDay = new Map<string, number>();
   const monthByKind = new Map<PnlKind, number>();
   for (const r of input.rows) {
-    const net = netRevenueUsd({
-      subtotalCents: r.subtotalCents,
-      grossCents: r.grossCents,
-      refundedCents: r.refundedCents,
-      payments: r.payments,
-    });
+    const net = netRevenueUsd(
+      {
+        subtotalCents: r.subtotalCents,
+        grossCents: r.grossCents,
+        refundedCents: r.refundedCents,
+        payments: r.payments,
+      },
+      input.fee ?? DEFAULT_STRIPE_FEE,
+    );
     revenueByDay.set(r.day, (revenueByDay.get(r.day) ?? 0) + net);
     if (r.day >= monthFirst && r.day <= today) {
       monthByKind.set(r.kind, (monthByKind.get(r.kind) ?? 0) + net);
@@ -211,7 +221,7 @@ export function buildPnl(input: {
     days,
     byKind: [...monthByKind.entries()]
       .map(([kind, v]) => ({ kind, revenueUsd: r2(v) }))
-      .filter((k) => k.revenueUsd > 0)
+      .filter((k) => k.revenueUsd !== 0)
       .sort((a, b) => b.revenueUsd - a.revenueUsd),
     vendorDataFrom: dates[0] ?? null,
   };

@@ -21,6 +21,7 @@ import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
+import { useUrlSearchText, useUrlState } from '@/lib/url-state';
 import {
   CASE_PAYMENT_KIND,
   CASE_PAYMENT_STATUS,
@@ -51,6 +52,10 @@ const REQUEST_STATUSES: RequestStatus[] = ['open', 'paid', 'canceled', 'expired'
 type StatusTab = 'all' | PaymentStatus | 'disputes';
 
 const STATUSES: PaymentStatus[] = ['succeeded', 'pending_payment', 'partially_refunded', 'refunded', 'disputed', 'canceled', 'failed'];
+// R3A-10 (14.11): the tab and the filters live in the address, as on the
+// other money lists (a reload or a shared link keeps them).
+const TABS: readonly Tab[] = ['payments', 'requests', 'accounts', 'settings'];
+const STATUS_TABS: readonly StatusTab[] = ['all', ...STATUSES, 'disputes'];
 const ACCOUNT_STATUSES: AccountStatus[] = ['active', 'onboarding', 'restricted', 'disabled', 'pending'];
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
 const PAYMENT_SORT = ['case', 'parties', 'kind', 'attorney', 'fee', 'client', 'status', 'when'] as const;
@@ -77,7 +82,7 @@ function PartyCell({ p, id }: { p: Party | null; id: string }) {
 export default function CasePaymentsPage() {
   const { data: me } = useMe();
   const canWrite = me?.role === 'super_admin' || me?.role === 'finance';
-  const [tab, setTab] = useState<Tab>('payments');
+  const [tab, setTab] = useUrlState<Tab>('tab', 'payments', TABS);
 
   const stats = useQuery({
     queryKey: ['case-payments-stats'],
@@ -130,9 +135,11 @@ export default function CasePaymentsPage() {
 
 function PaymentsTab({ canWrite }: { canWrite: boolean }) {
   const qc = useQueryClient();
-  const [status, setStatus] = useState<StatusTab>('all');
-  const [userId, setUserId] = useState('');
-  const [caseId, setCaseId] = useState('');
+  const [status, setStatus] = useUrlState<StatusTab>('status', 'all', STATUS_TABS);
+  const userBox = useUrlSearchText('userId');
+  const caseBox = useUrlSearchText('caseId');
+  const userId = userBox.value;
+  const caseId = caseBox.value;
   const [refunding, setRefunding] = useState<Payment | null>(null);
   const userOk = userId.trim() === '' || /^[0-9a-f-]{36}$/i.test(userId.trim());
   const caseOk = caseId.trim() === '' || /^[0-9a-f-]{36}$/i.test(caseId.trim());
@@ -186,8 +193,8 @@ function PaymentsTab({ canWrite }: { canWrite: boolean }) {
             { value: 'disputes' as StatusTab, label: 'Споры' },
           ]}
         />
-        <Input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="ID клиента или адвоката" className="w-64 font-mono text-xs" />
-        <Input value={caseId} onChange={(e) => setCaseId(e.target.value)} placeholder="ID кейса" className="w-64 font-mono text-xs" />
+        <Input value={userBox.text} onChange={(e) => userBox.setText(e.target.value)} placeholder="ID клиента или адвоката" className="w-64 font-mono text-xs" />
+        <Input value={caseBox.text} onChange={(e) => caseBox.setText(e.target.value)} placeholder="ID кейса" className="w-64 font-mono text-xs" />
       </div>
       <ErrorNote text={list.error ? errorText(list.error) : null} />
       {!list.isPending && !list.error && rows.length === 0 ? (
@@ -283,6 +290,15 @@ function RefundDialog({ payment, onClose, onDone }: { payment: Payment | null; o
   const toast = useToast();
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
+  // One key per refund attempt (R3A-2): a double click or a retry after a
+  // timeout returns the first refund; a new payment or a sent refund gets a
+  // fresh key. Same as components/billing/refund-dialog.tsx.
+  const [key, setKey] = useState(() => crypto.randomUUID());
+  const [keyFor, setKeyFor] = useState(payment?.id);
+  if (keyFor !== payment?.id) {
+    setKeyFor(payment?.id);
+    setKey(crypto.randomUUID());
+  }
   const left = payment ? payment.clientTotalCents - payment.refundedCents : 0;
   const cents = amount.trim() === '' ? left : dollarsToCents(amount);
   const amountOk = cents != null && cents >= 50 && cents <= left;
@@ -292,12 +308,13 @@ function RefundDialog({ payment, onClose, onDone }: { payment: Payment | null; o
     mutationFn: async () =>
       (
         await api.POST('/admin/case-payments/{id}/refund', {
-          params: { path: { id: payment!.id } },
+          params: { path: { id: payment!.id }, header: { 'Idempotency-Key': key } },
           body: { amountCents: amount.trim() === '' ? undefined : cents!, reason: reason.trim() },
         })
       ).data!.data,
     onSuccess: () => {
       toast.success('Возврат отправлен клиенту');
+      setKey(crypto.randomUUID());
       setAmount('');
       setReason('');
       onDone();

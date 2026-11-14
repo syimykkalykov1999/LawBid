@@ -1803,6 +1803,13 @@ model AttorneyProfile {
   // (level >= trust.min_level_badge, verified, no name mismatch).
   trust_level                 Int                    @default(0) @db.SmallInt
   trust_badge                 Boolean                @default(false)
+  // Owner row 112 (Airbnb «Typically responds within an hour»): median
+  // minutes from a client's first message in a chat to the attorney's first
+  // reply, over profile.reply_time_window_days. Written by the nightly
+  // `profiles.reply-time` job (never computed on a profile open); null =
+  // too few chats or switched off.
+  reply_minutes_median        Int?
+  reply_stats_at              DateTime?              @db.Timestamptz
   trust                       AttorneyTrust?
   trust_events                AttorneyTrustEvent[]
 

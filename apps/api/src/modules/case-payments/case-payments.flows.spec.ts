@@ -16,6 +16,17 @@ import {
  */
 type Row = Record<string, unknown>;
 
+function applyData(row: Row | undefined, data: Row): Row {
+  const next: Row = { ...row };
+  for (const [k, v] of Object.entries(data)) {
+    next[k] =
+      v && typeof v === 'object' && 'increment' in v
+        ? ((row?.[k] as number) ?? 0) + (v as { increment: number }).increment
+        : v;
+  }
+  return next;
+}
+
 function make(payment: Row) {
   const rows = new Map<string, Row>([[payment.id as string, payment]]);
   const refunds: Row[] = [];
@@ -41,7 +52,7 @@ function make(payment: Row) {
       ),
       update: jest.fn(
         ({ where, data }: { where: { id: string }; data: Row }) => {
-          const next = { ...rows.get(where.id), ...data };
+          const next = applyData(rows.get(where.id), data);
           rows.set(where.id, next);
           return Promise.resolve(next);
         },
@@ -58,7 +69,22 @@ function make(payment: Row) {
         refunds.push(data);
         return Promise.resolve(data);
       }),
+      aggregate: jest.fn(({ where }: { where: Row }) =>
+        Promise.resolve({
+          _sum: {
+            amount_cents: refunds
+              .filter(
+                (r) =>
+                  r.payment_id === where.payment_id &&
+                  ['pending', 'succeeded'].includes(r.status as string),
+              )
+              .reduce((n, r) => n + (r.amount_cents as number), 0),
+          },
+        }),
+      ),
     },
+    // Row lock (`SELECT … FOR UPDATE`): a no-op in memory.
+    $queryRaw: jest.fn(() => Promise.resolve([])),
   };
   const prisma = {
     ...db,
