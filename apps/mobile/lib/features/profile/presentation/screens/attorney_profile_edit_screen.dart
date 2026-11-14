@@ -256,6 +256,17 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     }.contains(_usernameStatus)) {
       return;
     }
+    // Detective R2-A #7 (iOS Contacts / LinkedIn): a firm typed but not
+    // «added» is committed on Save, not silently dropped; a duplicate of
+    // one already listed is just cleared.
+    if (_firm.text.trim().isNotEmpty) {
+      final pending = _firm.text.trim().toLowerCase();
+      if (_firms.any((f) => f.toLowerCase() == pending)) {
+        _firm.clear();
+      } else {
+        _addFirm();
+      }
+    }
     final languagesChanged = _languages.length != p.languages.length ||
         !_languages.containsAll(p.languages);
     final patch = AttorneyProfilePatch(
@@ -284,6 +295,9 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
             if (patch.bio != null) 'bio': patch.bio!.trim(),
             if (patch.firms != null) 'firms': patch.firms,
             if (patch.languages != null) 'languages': patch.languages,
+            // Detective R2-A #8: a username change goes with the request
+            // (the attorney's approval applies it via updateOwn).
+            if (patch.username != null) 'username': patch.username,
           },
         );
         if (!mounted) return;
@@ -296,13 +310,22 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
       }
       return;
     }
+    // Detective R2-A #25 (as Audit C17 on the client editor): the cached
+    // profile is refreshed from the container even when the screen was
+    // left while the save was still running.
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await ref.read(attorneyProfileRepositoryProvider).updateOwn(patch);
-      if (!mounted) return;
-      ref
+      container
         ..invalidate(ownAttorneyProfileProvider)
         ..invalidate(publicAttorneyProfileProvider(p.username));
-      await ref.read(currentUserControllerProvider.notifier).load();
+      final reload =
+          container.read(currentUserControllerProvider.notifier).load();
+      if (!mounted) {
+        unawaited(reload);
+        return;
+      }
+      await reload;
       if (!mounted) return;
       showAppSnackBar(context, t.t('profile.edit.saved'));
       Navigator.of(context).maybePop();

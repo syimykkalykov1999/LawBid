@@ -30,6 +30,14 @@ class AvatarUploadState {
   final Uint8List? preview;
   final Object? error;
 
+  /// The picked photo as the profile header shows it: while it goes up
+  /// and once it is attached, but not after a failed upload — then the
+  /// account still has the old photo (what everyone else sees), and the
+  /// failure with its Retry is shown on the photo field (Detective R2-A #6;
+  /// WhatsApp/Telegram show only what really went through).
+  Uint8List? get shownPreview =>
+      stage == AvatarUploadStage.failed ? null : preview;
+
   bool get busy =>
       stage == AvatarUploadStage.preparing ||
       stage == AvatarUploadStage.uploading ||
