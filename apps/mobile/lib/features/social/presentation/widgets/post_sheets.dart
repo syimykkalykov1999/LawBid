@@ -834,7 +834,7 @@ class PostTextField extends ConsumerWidget {
                     child: Text(
                       limitHint!,
                       style: type.caption.copyWith(
-                        color: colors.danger,
+                        color: colors.dangerText,
                         fontSize: 11,
                       ),
                     ),

@@ -1240,8 +1240,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                             padding: const EdgeInsets.only(top: AppSpacing.xs),
                             child: Text(
                               t.t('post.create.empty'),
-                              style:
-                                  type.caption.copyWith(color: colors.danger),
+                              style: type.caption
+                                  .copyWith(color: colors.dangerText),
                             ),
                           )
                         : const SizedBox.shrink(),

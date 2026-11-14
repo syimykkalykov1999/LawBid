@@ -50,7 +50,6 @@ lib/features/calls/presentation/call_widgets.dart	? const ColoredBox(color: Colo
 lib/features/calls/presentation/call_widgets.dart	Shadow(color: Colors.black54, blurRadius: 6, offset: Offset(0, 1)),
 lib/features/calls/presentation/call_widgets.dart	color: Colors.white,
 lib/features/calls/presentation/call_widgets.dart	color: ring ?? Colors.transparent,
-lib/features/cases/presentation/screens/case_history_screens.dart	? Colors.transparent
 lib/features/cases/presentation/widgets/active_case_card.dart	color: Colors.black,
 lib/features/cases/presentation/widgets/case_cards.dart	Colors.black.withValues(alpha: 0.05),
 lib/features/cases/presentation/widgets/case_cards.dart	Colors.black.withValues(alpha: 0.55),
@@ -62,7 +61,6 @@ lib/features/cases/presentation/widgets/case_wizard_steps.dart	: (dense ? Colors
 lib/features/cases/presentation/widgets/client_review_sheet.dart	Colors.black,
 lib/features/cases/presentation/widgets/client_review_sheet.dart	backgroundColor: Colors.black54,
 lib/features/cases/presentation/widgets/client_review_sheet.dart	color: Colors.white,
-lib/features/cases/presentation/widgets/negotiation_timeline.dart	? Colors.transparent
 lib/features/cases/presentation/widgets/pill_tabs.dart	: Colors.white.withValues(alpha: 0.7))
 lib/features/cases/presentation/widgets/pill_tabs.dart	? Colors.white
 lib/features/cases/presentation/widgets/pill_tabs.dart	Colors.black,

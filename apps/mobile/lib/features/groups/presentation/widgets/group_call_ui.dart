@@ -394,7 +394,7 @@ class GroupCallJoinBar extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: type.body.copyWith(
-                        color: colors.gold,
+                        color: colors.goldText,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

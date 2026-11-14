@@ -166,7 +166,7 @@ class _PasskeyNudgeSheetState extends ConsumerState<PasskeyNudgeSheet> {
                 _error!,
                 key: const ValueKey('passkey-nudge-error'),
                 textAlign: TextAlign.center,
-                style: type.bodySmall.copyWith(color: colors.danger),
+                style: type.bodySmall.copyWith(color: colors.dangerText),
               ),
             ],
             const SizedBox(height: AppSpacing.lg),

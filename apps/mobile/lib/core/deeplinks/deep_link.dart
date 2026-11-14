@@ -226,10 +226,12 @@ String? _paymentReturn(String kind, String step, Uri uri) {
           : '/payment/$step';
     case 'payout' when step == 'return' || step == 'refresh':
       return '/payout/$step';
+    // Detective R2 item 1 (14.11): the paid session's id is kept, the
+    // screen confirms it on open (Stripe `{CHECKOUT_SESSION_ID}`).
     case 'subscription' when done:
-      return '/profile/settings/subscription';
+      return _withSession('/profile/settings/subscription', step, uri);
     case 'plan' when done:
-      return '/profile/settings/client-plan';
+      return _withSession('/profile/settings/client-plan', step, uri);
     case 'verification' when done:
       return '/profile/settings/verify-account';
     case 'bid-packs' when done:
@@ -244,6 +246,25 @@ String? _paymentReturn(String kind, String step, Uri uri) {
 }
 
 /// `?post=<id>` of a channel link, when it is a well-formed id.
+/// Stripe Checkout Session ids (`cs_test_…`, `cs_live_…`) and our own card
+/// page's (`own:…`); the server caps the id at 200 characters.
+final _checkoutSessionPattern = RegExp(r'^[A-Za-z0-9_:-]{1,200}$');
+
+/// [location] with `?session_id=` when [step] is a success and the return
+/// link carries a well-formed session id.
+String _withSession(String location, String step, Uri uri) {
+  if (step != 'success') return location;
+  final String id;
+  try {
+    id = uri.queryParameters['session_id'] ?? '';
+  } on FormatException {
+    return location;
+  }
+  return _checkoutSessionPattern.hasMatch(id)
+      ? '$location?session_id=${Uri.encodeQueryComponent(id)}'
+      : location;
+}
+
 String? _sharedPostId(Uri uri) {
   try {
     final post = uri.queryParameters['post'];

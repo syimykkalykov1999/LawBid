@@ -15,6 +15,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
+import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
     show callLogKey;
@@ -1306,290 +1307,300 @@ class ConversationRow extends ConsumerWidget {
     ];
     // Desktop: the chat open in the right pane stays highlighted.
     final open = DesktopChatScope.selectedIdOf(context) == c.id;
-    final row = AppPressable(
-      key: ValueKey('chat-organize-${c.id}'),
-      // Owner 13.11 (row 93): the row lights up while pressed.
-      highlight: true,
-      onTap: picking != null
-          ? startDirectWith != null
-              ? null
-              : () => ref.read(chatSelectionProvider.notifier).toggle(c.id)
-          : startDirectWith != null
-              ? () => unawaited(openDirectChat(context, ref, startDirectWith!))
-              // Desktop web plan 2026-10-28: on a desktop window the chat
-              // opens next to the list (pushed as before on a phone).
-              : () => openChat(context, c.id),
-      onLongPress: canOrganize ? peek : null,
-      child: Semantics(
-        customSemanticsActions: canOrganize
-            ? {
-                CustomSemanticsAction(label: t.t('chat.organize.title')):
-                    organize,
-              }
-            : const {},
-        child: Container(
-          color: picked || open ? colors.chip : null,
-          padding:
-              const EdgeInsetsDirectional.only(start: AppSpacing.screenSide),
-          child: Row(
-            children: [
-              if (picking != null) ...[
-                Semantics(
-                  checked: picked,
-                  label: who,
-                  excludeSemantics: true,
-                  child: AppIcon(
-                    picked
-                        ? AppIcons.checkCircleRounded
-                        : AppIcons.radioButtonUncheckedRounded,
-                    key: ValueKey('chat-pick-${c.id}'),
-                    color: picked ? colors.iconTint : colors.textSecondary,
+    // Owner row 113: the right-click (website) opens the chat's menu
+    // (Telegram Web / WhatsApp Web), the long press keeps its peek.
+    final row = WebRightClickMenu(
+      onMenu: canOrganize ? organize : null,
+      child: AppPressable(
+        key: ValueKey('chat-organize-${c.id}'),
+        // Owner 13.11 (row 93): the row lights up while pressed.
+        highlight: true,
+        onTap: picking != null
+            ? startDirectWith != null
+                ? null
+                : () => ref.read(chatSelectionProvider.notifier).toggle(c.id)
+            : startDirectWith != null
+                ? () =>
+                    unawaited(openDirectChat(context, ref, startDirectWith!))
+                // Desktop web plan 2026-10-28: on a desktop window the chat
+                // opens next to the list (pushed as before on a phone).
+                : () => openChat(context, c.id),
+        onLongPress: canOrganize ? peek : null,
+        child: Semantics(
+          customSemanticsActions: canOrganize
+              ? {
+                  CustomSemanticsAction(label: t.t('chat.organize.title')):
+                      organize,
+                }
+              : const {},
+          child: Container(
+            color: picked || open ? colors.chip : null,
+            padding:
+                const EdgeInsetsDirectional.only(start: AppSpacing.screenSide),
+            child: Row(
+              children: [
+                if (picking != null) ...[
+                  Semantics(
+                    checked: picked,
+                    label: who,
+                    excludeSemantics: true,
+                    child: AppIcon(
+                      picked
+                          ? AppIcons.checkCircleRounded
+                          : AppIcons.radioButtonUncheckedRounded,
+                      key: ValueKey('chat-pick-${c.id}'),
+                      color: picked ? colors.iconTint : colors.textSecondary,
+                    ),
                   ),
-                ),
+                  const SizedBox(width: AppSpacing.md),
+                ],
+                // Owner 2026-10-18 (WhatsApp): a tap on the photo opens it
+                // full screen; the rest of the row opens the chat.
+                if (picking == null &&
+                    !c.counterpart.hidden &&
+                    c.counterpart.avatarUrl != null)
+                  Semantics(
+                    button: true,
+                    label: t.t('chat.avatar.open'),
+                    child: AppPressable(
+                      key: ValueKey('chat-avatar-${c.id}'),
+                      onTap: () => showPhotoGallery(
+                        context,
+                        urls: [
+                          avatarFullUrlFor(
+                            c.counterpart.avatarUrl!,
+                            fullUrl: c.counterpart.avatarFullUrl,
+                          ),
+                        ],
+                        // R-405: the preview on screen while the full loads.
+                        previews: [c.counterpart.avatarUrl!],
+                        closeLabel: t.t('common.close'),
+                      ),
+                      child: CounterpartAvatar(
+                        counterpart: c.counterpart,
+                        size: _avatar,
+                      ),
+                    ),
+                  )
+                else
+                  CounterpartAvatar(counterpart: c.counterpart, size: _avatar),
                 const SizedBox(width: AppSpacing.md),
-              ],
-              // Owner 2026-10-18 (WhatsApp): a tap on the photo opens it
-              // full screen; the rest of the row opens the chat.
-              if (picking == null &&
-                  !c.counterpart.hidden &&
-                  c.counterpart.avatarUrl != null)
-                Semantics(
-                  button: true,
-                  label: t.t('chat.avatar.open'),
-                  child: AppPressable(
-                    key: ValueKey('chat-avatar-${c.id}'),
-                    onTap: () => showPhotoGallery(
-                      context,
-                      urls: [
-                        avatarFullUrlFor(
-                          c.counterpart.avatarUrl!,
-                          fullUrl: c.counterpart.avatarFullUrl,
-                        ),
-                      ],
-                      // R-405: the preview on screen while the full loads.
-                      previews: [c.counterpart.avatarUrl!],
-                      closeLabel: t.t('common.close'),
+                Expanded(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border(bottom: BorderSide(color: colors.border)),
                     ),
-                    child: CounterpartAvatar(
-                      counterpart: c.counterpart,
-                      size: _avatar,
-                    ),
-                  ),
-                )
-              else
-                CounterpartAvatar(counterpart: c.counterpart, size: _avatar),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: colors.border)),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsetsDirectional.only(
-                      top: AppSpacing.sm + 2,
-                      bottom: AppSpacing.sm + 2,
-                      end: AppSpacing.screenSide,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            // The name takes the free width, so the time
-                            // always sits at the right edge.
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      who,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: type.body.copyWith(
-                                        color: colors.text,
-                                        fontWeight: FontWeight.w700,
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        top: AppSpacing.sm + 2,
+                        bottom: AppSpacing.sm + 2,
+                        end: AppSpacing.screenSide,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              // The name takes the free width, so the time
+                              // always sits at the right edge.
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        who,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: type.body.copyWith(
+                                          color: colors.text,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  if (c.counterpart.verified) ...[
-                                    const SizedBox(width: 3),
-                                    VerifiedCheck(
-                                      label: t.t('post.verified'),
-                                      size: 14,
-                                      gold: !c.counterpart.isAttorney,
-                                    ),
+                                    if (c.counterpart.verified) ...[
+                                      const SizedBox(width: 3),
+                                      VerifiedCheck(
+                                        label: t.t('post.verified'),
+                                        size: 14,
+                                        gold: !c.counterpart.isAttorney,
+                                      ),
+                                    ],
                                   ],
-                                ],
-                              ),
-                            ),
-                            // Owner 2026-10-19: «Прочитать» — the chat's
-                            // note in a sheet, without opening the chat.
-                            if (hasNote && picking == null) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              _ReadNoteChip(
-                                key: ValueKey('chat-read-note-${c.id}'),
-                                label: t.t('chat.note.read'),
-                                onTap: () => showChatNoteSheet(context, ref, c),
-                              ),
-                            ],
-                            if (awaits) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              Container(
-                                key: ValueKey('chat-awaiting-${c.id}'),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 1,
                                 ),
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: colors.gold),
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadii.pill),
+                              ),
+                              // Owner 2026-10-19: «Прочитать» — the chat's
+                              // note in a sheet, without opening the chat.
+                              if (hasNote && picking == null) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                _ReadNoteChip(
+                                  key: ValueKey('chat-read-note-${c.id}'),
+                                  label: t.t('chat.note.read'),
+                                  onTap: () =>
+                                      showChatNoteSheet(context, ref, c),
                                 ),
-                                child: Text(
-                                  t.t('chat.awaitsMe'),
-                                  maxLines: 1,
-                                  style: type.caption.copyWith(
-                                    color: colors.text,
-                                    fontWeight: FontWeight.w600,
+                              ],
+                              if (awaits) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                Container(
+                                  key: ValueKey('chat-awaiting-${c.id}'),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: colors.gold),
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadii.pill),
+                                  ),
+                                  child: Text(
+                                    t.t('chat.awaitsMe'),
+                                    maxLines: 1,
+                                    style: type.caption.copyWith(
+                                      color: colors.text,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
-                              ),
+                              ],
+                              if (time != null) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                time,
+                              ],
                             ],
-                            if (time != null) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              time,
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            // Owner 2026-10-01: ✓ sent / ✓✓ read on my last
-                            // message, "typing…" while the other side types.
-                            if (!typing &&
-                                draft == null &&
-                                last != null &&
-                                last.senderId == me) ...[
-                              AppIcon(
-                                read
-                                    ? AppIcons.doneAllRounded
-                                    : AppIcons.doneRounded,
-                                key: ValueKey(
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              // Owner 2026-10-01: ✓ sent / ✓✓ read on my last
+                              // message, "typing…" while the other side types.
+                              if (!typing &&
+                                  draft == null &&
+                                  last != null &&
+                                  last.senderId == me) ...[
+                                AppIcon(
                                   read
-                                      ? 'chat-read-${c.id}'
-                                      : 'chat-sent-${c.id}',
+                                      ? AppIcons.doneAllRounded
+                                      : AppIcons.doneRounded,
+                                  key: ValueKey(
+                                    read
+                                        ? 'chat-read-${c.id}'
+                                        : 'chat-sent-${c.id}',
+                                  ),
+                                  size: 16,
+                                  color: read ? chat.tickRead : chat.tick,
                                 ),
-                                size: 16,
-                                color: read ? chat.tickRead : chat.tick,
-                              ),
-                              const SizedBox(width: 4),
-                            ],
-                            Expanded(
-                              child: typing
-                                  ? Text(
-                                      t.t(
-                                        typingVoice
-                                            ? 'chat.recordingVoice'
-                                            : 'chat.typing',
-                                      ),
-                                      key: ValueKey('chat-typing-${c.id}'),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: type.bodySmall.copyWith(
-                                        color: colors.goldAccent,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    )
-                                  : draft != null && highlight.isEmpty
-                                      ? Text.rich(
-                                          key: ValueKey('chat-draft-${c.id}'),
-                                          TextSpan(
-                                            children: [
-                                              TextSpan(
-                                                text:
-                                                    '${t.t('mine.tab.drafts')}: ',
-                                                style: TextStyle(
-                                                  color: colors.dangerText,
+                                const SizedBox(width: 4),
+                              ],
+                              Expanded(
+                                child: typing
+                                    ? Text(
+                                        t.t(
+                                          typingVoice
+                                              ? 'chat.recordingVoice'
+                                              : 'chat.typing',
+                                        ),
+                                        key: ValueKey('chat-typing-${c.id}'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: type.bodySmall.copyWith(
+                                          color: colors.goldAccent,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      )
+                                    : draft != null && highlight.isEmpty
+                                        ? Text.rich(
+                                            key: ValueKey('chat-draft-${c.id}'),
+                                            TextSpan(
+                                              children: [
+                                                TextSpan(
+                                                  text:
+                                                      '${t.t('mine.tab.drafts')}: ',
+                                                  style: TextStyle(
+                                                    color: colors.dangerText,
+                                                  ),
                                                 ),
-                                              ),
-                                              TextSpan(text: draft),
-                                            ],
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: secondary,
-                                        )
-                                      : (c.matchedMessage?.isNotEmpty ?? false)
-                                          ? Text.rich(
-                                              key: ValueKey(
-                                                'chat-match-${c.id}',
-                                              ),
-                                              boldWords(
-                                                c.matchedMessage!,
-                                                highlight,
-                                                secondary,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            )
-                                          : Text(
-                                              last == null
-                                                  ? ''
-                                                  : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
-                                                      '${messagePreview(t, last, me: me)}',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: unread
-                                                  ? secondary.copyWith(
-                                                      color: colors.text,
-                                                    )
-                                                  : secondary,
+                                                TextSpan(text: draft),
+                                              ],
                                             ),
-                            ),
-                            if (c.muted) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              AppIcon(
-                                AppIcons.notificationsOffOutlined,
-                                size: 16,
-                                color: colors.textSecondary,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: secondary,
+                                          )
+                                        : (c.matchedMessage?.isNotEmpty ??
+                                                false)
+                                            ? Text.rich(
+                                                key: ValueKey(
+                                                  'chat-match-${c.id}',
+                                                ),
+                                                boldWords(
+                                                  c.matchedMessage!,
+                                                  highlight,
+                                                  secondary,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              )
+                                            : Text(
+                                                last == null
+                                                    ? ''
+                                                    : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
+                                                        '${messagePreview(t, last, me: me)}',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: unread
+                                                    ? secondary.copyWith(
+                                                        color: colors.text,
+                                                      )
+                                                    : secondary,
+                                              ),
                               ),
-                            ],
-                            if (c.pinned) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              AppIcon(
-                                AppIcons.pushPin,
-                                size: 16,
-                                color: colors.textSecondary,
-                              ),
-                            ],
-                            // Row 95 (catalog C7, Telegram): the unread pill
-                            // pops in when it appears or its number changes.
-                            AnimatedSwitcher(
-                              duration: context.reduceMotion
-                                  ? Duration.zero
-                                  : AppMotion.popIn,
-                              transitionBuilder: AppMotionBits.pop,
-                              child: unread
-                                  ? Padding(
-                                      key: ValueKey('unread-${c.unreadCount}'),
-                                      padding: const EdgeInsetsDirectional.only(
-                                        start: AppSpacing.sm,
+                              if (c.muted) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                AppIcon(
+                                  AppIcons.notificationsOffOutlined,
+                                  size: 16,
+                                  color: colors.textSecondary,
+                                ),
+                              ],
+                              if (c.pinned) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                AppIcon(
+                                  AppIcons.pushPin,
+                                  size: 16,
+                                  color: colors.textSecondary,
+                                ),
+                              ],
+                              // Row 95 (catalog C7, Telegram): the unread pill
+                              // pops in when it appears or its number changes.
+                              AnimatedSwitcher(
+                                duration: context.reduceMotion
+                                    ? Duration.zero
+                                    : AppMotion.popIn,
+                                transitionBuilder: AppMotionBits.pop,
+                                child: unread
+                                    ? Padding(
+                                        key:
+                                            ValueKey('unread-${c.unreadCount}'),
+                                        padding:
+                                            const EdgeInsetsDirectional.only(
+                                          start: AppSpacing.sm,
+                                        ),
+                                        child: CountPill(count: c.unreadCount),
+                                      )
+                                    : const SizedBox.shrink(
+                                        key: ValueKey('unread-none'),
                                       ),
-                                      child: CountPill(count: c.unreadCount),
-                                    )
-                                  : const SizedBox.shrink(
-                                      key: ValueKey('unread-none'),
-                                    ),
-                            ),
-                          ],
-                        ),
-                        ...metas,
-                      ],
+                              ),
+                            ],
+                          ),
+                          ...metas,
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/money_input.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/time/resume_refresh_gate.dart';
@@ -543,9 +543,11 @@ class _PaySheetState extends ConsumerState<PaySheet> {
       _kind == CasePaymentKind.custom || _kind == CasePaymentKind.deposit;
 
   int? get _enteredCents {
-    final v = double.tryParse(_amount.text.replaceAll(',', '.').trim());
-    if (v == null || v <= 0) return null;
-    return (v * 100).round();
+    // Detective R2 item 3: «1,500» is $1,500.00, not $1.50.
+    return parseMoneyCents(
+      _amount.text,
+      locale: ref.read(l10nFormatsProvider).locale,
+    );
   }
 
   int? get _amountCents => _needsAmount
@@ -692,7 +694,7 @@ class _PaySheetState extends ConsumerState<PaySheet> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+                  moneyInputFormatter,
                 ],
                 onChanged: (_) {
                   setState(() {});
@@ -868,9 +870,11 @@ class _RefundSheetState extends ConsumerState<RefundSheet> {
 
   int? get _cents {
     if (_amount.text.trim().isEmpty) return _left;
-    final v = double.tryParse(_amount.text.replaceAll(',', '.').trim());
-    if (v == null || v <= 0) return null;
-    return (v * 100).round();
+    // Detective R2 item 3: «1,500» is $1,500.00, not $1.50.
+    return parseMoneyCents(
+      _amount.text,
+      locale: ref.read(l10nFormatsProvider).locale,
+    );
   }
 
   bool get _ok =>
@@ -943,7 +947,7 @@ class _RefundSheetState extends ConsumerState<RefundSheet> {
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+                moneyInputFormatter,
               ],
               onChanged: (_) => setState(() {}),
             ),

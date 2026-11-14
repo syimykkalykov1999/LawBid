@@ -23,6 +23,7 @@ import 'package:lawbid/core/navigation/shell/desktop_input.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
@@ -1933,31 +1934,36 @@ class _Bubble extends ConsumerWidget {
       ),
     );
     TapDownDetails? doubleAt;
-    final actionable = interactive && !m.isLocal
-        ? GestureDetector(
-            onDoubleTapDown: quickReact == null ? null : (d) => doubleAt = d,
-            onDoubleTap: quickReact == null ? null : () => quickReact(doubleAt),
-            onLongPress: selecting
-                ? () => ref
-                    .read(chatMsgSelectionProvider(threadId).notifier)
-                    .toggle(m.id)
-                : menu,
-            onTap: selecting
-                ? () => ref
-                    .read(chatMsgSelectionProvider(threadId).notifier)
-                    .toggle(m.id)
-                : null,
-            behavior: HitTestBehavior.deferToChild,
-            child: selecting || m.revoked
-                ? shown
-                : SwipeToReply(
-                    onReply: () => ref
-                        .read(chatComposeProvider(threadId).notifier)
-                        .reply(m),
-                    child: shown,
-                  ),
-          )
-        : shown;
+    // Owner row 113: a right-click on the website opens the same menu.
+    final actionable = WebRightClickMenu(
+      onMenu: interactive && !m.isLocal && !selecting ? menu : null,
+      child: interactive && !m.isLocal
+          ? GestureDetector(
+              onDoubleTapDown: quickReact == null ? null : (d) => doubleAt = d,
+              onDoubleTap:
+                  quickReact == null ? null : () => quickReact(doubleAt),
+              onLongPress: selecting
+                  ? () => ref
+                      .read(chatMsgSelectionProvider(threadId).notifier)
+                      .toggle(m.id)
+                  : menu,
+              onTap: selecting
+                  ? () => ref
+                      .read(chatMsgSelectionProvider(threadId).notifier)
+                      .toggle(m.id)
+                  : null,
+              behavior: HitTestBehavior.deferToChild,
+              child: selecting || m.revoked
+                  ? shown
+                  : SwipeToReply(
+                      onReply: () => ref
+                          .read(chatComposeProvider(threadId).notifier)
+                          .reply(m),
+                      child: shown,
+                    ),
+            )
+          : shown,
+    );
 
     final column = Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -2013,7 +2019,7 @@ class _Bubble extends ConsumerWidget {
                 Flexible(
                   child: FitText(
                     t.t('chat.notSent'),
-                    style: type.caption.copyWith(color: colors.danger),
+                    style: type.caption.copyWith(color: colors.dangerText),
                   ),
                 ),
                 Flexible(
@@ -2108,20 +2114,24 @@ class _MessageText extends ConsumerWidget {
     );
     // Owner 2026-10-22 (audit #12): a message follows the phone's font size
     // in full, past the app shell's 1.3x cap.
+    // Owner row 113: on the website the text can be selected and copied.
     return FullTextScale(
-      child: meta != null
-          ? Builder(
-              builder: (ctx) => ChatTextWithMeta(
-                spans:
-                    translation == null ? spans : [TextSpan(text: translation)],
-                style: style,
-                meta: meta!,
-                metaWidth: metaWidth?.call(ctx) ?? 0,
-              ),
-            )
-          : translation == null
-              ? Text.rich(TextSpan(children: spans), style: style)
-              : Text(translation, style: style),
+      child: WebSelectableText(
+        child: meta != null
+            ? Builder(
+                builder: (ctx) => ChatTextWithMeta(
+                  spans: translation == null
+                      ? spans
+                      : [TextSpan(text: translation)],
+                  style: style,
+                  meta: meta!,
+                  metaWidth: metaWidth?.call(ctx) ?? 0,
+                ),
+              )
+            : translation == null
+                ? Text.rich(TextSpan(children: spans), style: style)
+                : Text(translation, style: style),
+      ),
     );
   }
 }

@@ -22,6 +22,16 @@ install fonttools. Usage, from apps/mobile:
   tool/slim_fonts.py <upstream Inter-Variable.ttf> assets/fonts/Inter-Variable.ttf keep
   tool/slim_fonts.py <upstream SourceSerif4-Variable.ttf> assets/fonts/SourceSerif4-Variable.ttf keep
 (a number instead of `keep` pins the optical size at that value.)
+
+Web copies (owner row 128, 2026-11-14), run by web-deploy.yml on the built
+bundle only — the files in assets/ and the phones keep the full axis:
+  tool/slim_fonts.py web build/web/assets/assets/fonts
+pins the optical-size axis at the font's own default and stores the `post`
+table without glyph names. FreeType (CanvasKit / skwasm on the web) never
+moves `opsz` by itself and the app never sets it (no FontVariation in lib/),
+so the web always drew the default optical size: same outlines, same pixels.
+The weight axis stays (the engine does move it, w400..w900). Brotli of the
+two text fonts: 546 KB -> ~300 KB.
 """
 import sys
 
@@ -69,7 +79,29 @@ def main(src: str, dst: str, opsz: float | None, wght_min: float = 400) -> None:
     os.remove(tmp)
 
 
+def web(fonts_dir: str) -> None:
+    import os
+
+    for name in ('Inter-Variable.ttf', 'SourceSerif4-Variable.ttf'):
+        path = os.path.join(fonts_dir, name)
+        src = TTFont(path)
+        before = os.path.getsize(path)
+        cmap = sorted(src.getBestCmap())
+        opsz = next(a.defaultValue for a in src['fvar'].axes if a.axisTag == 'opsz')
+        font = instancer.instantiateVariableFont(src, {'opsz': opsz}, inplace=False)
+        font['post'].formatType = 3.0
+        font.save(path)
+        out = TTFont(path)
+        axes = [a.axisTag for a in out['fvar'].axes]
+        if sorted(out.getBestCmap()) != cmap or axes != ['wght']:
+            sys.exit(f'{name}: characters or axes changed ({axes})')
+        print(f'{name}: opsz pinned at {opsz:g}, {before} -> {os.path.getsize(path)} bytes')
+
+
 if __name__ == '__main__':
+    if len(sys.argv) == 3 and sys.argv[1] == 'web':
+        web(sys.argv[2])
+        sys.exit(0)
     if len(sys.argv) < 4:
         sys.exit(__doc__)
     main(
