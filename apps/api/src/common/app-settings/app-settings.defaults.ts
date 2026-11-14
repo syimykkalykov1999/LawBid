@@ -1512,6 +1512,11 @@ export const OWNER_OPS_SETTINGS = {
   // and the biggest table the heap estimate may read (indexes are never read).
   'db.bloat_mode': 'auto',
   'db.bloat_scan_max_mb': 256,
+  /** 14.11 (DB scale review, finding 1): the nightly `sessions.cleanup` walk
+   * — rows scanned per statement (one short transaction each) and how long
+   * a signed-out / blocked session row is kept before it is removed. */
+  'sessions.cleanup_batch': 1000,
+  'sessions.revoked_retention_days': 30,
   /** AWS spend reached the monthly budget → api/worker autoscaling capped
    * at the minimum until the next month (or until the owner lifts it).
    * Owner 2026-11-09: off — no money stop he did not order; the AWS Budgets

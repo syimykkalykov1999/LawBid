@@ -29,6 +29,15 @@ describe('cron lanes', () => {
   });
 });
 
+/** DB scale review (finding 1): the nightly sessions walk reads the whole
+ * sessions table; on the one-at-a-time `cron` lane it held the hourly
+ * case / bid jobs behind it. Long nightly jobs live on `cron-heavy`. */
+describe('sessions.cleanup lane', () => {
+  it('runs on cron-heavy, not on the default lane', () => {
+    expect(cronLaneOf('sessions.cleanup')).toBe(CRON_HEAVY_QUEUE);
+  });
+});
+
 describe('waitingAgeSeconds (backlog age)', () => {
   const now = new Date('2026-11-08T20:05:00.000Z');
 
