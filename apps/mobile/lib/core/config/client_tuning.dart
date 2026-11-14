@@ -30,6 +30,8 @@ abstract final class ClientTuning {
   static int _partsMax = 8;
   static int _partsMin = 2;
   static int _downloadsAtOnce = 4;
+  static double _verificationPhotoMaxPx = 2048;
+  static int _verificationPhotoQuality = 90;
 
   /// Whether a bootstrap answer (or [reset]) has set the numbers yet.
   static bool applied = false;
@@ -150,6 +152,11 @@ abstract final class ClientTuning {
   static double get chatPhotoMaxPx => _chatPhotoMaxPx;
   static int get chatPhotoQuality => _chatPhotoQuality;
 
+  /// Media audit 13.11 (C7): longest side / JPEG quality of a verification
+  /// document photo picked from «Files» (`client.verification_photo_*`).
+  static double get verificationPhotoMaxPx => _verificationPhotoMaxPx;
+  static int get verificationPhotoQuality => _verificationPhotoQuality;
+
   /// Share of sessions (percent) whose performance trace goes to Sentry
   /// (`client.sentry_traces_percent`); 0 = off. Also needs the person's
   /// analytics consent (core/diagnostics/sentry_native.dart).
@@ -266,6 +273,14 @@ abstract final class ClientTuning {
       4096,
     ).toDouble();
     _chatPhotoQuality = pick('media.chat_photo_quality', 82, 50, 100);
+    _verificationPhotoMaxPx = pick(
+      'client.verification_photo_max_px',
+      2048,
+      1024,
+      4096,
+    ).toDouble();
+    _verificationPhotoQuality =
+        pick('client.verification_photo_quality', 90, 50, 100);
     _sentryTracesPercent = pick('client.sentry_traces_percent', 0, 0, 100);
     _traceparentPercent = pick('client.traceparent_percent', 5, 0, 100);
   }

@@ -111,8 +111,13 @@ export class FeatureFlagsService implements OnModuleInit {
     }
   }
 
-  async getFlags(): Promise<Record<string, boolean>> {
-    return lockFlags(await this.readFlags());
+  /** [fresh]: skip this process's few-second copy (the shared Redis copy,
+   * which every writer drops before it bumps the config version, is still
+   * used) — for a caller that keeps what it builds (the bootstrap memo). */
+  async getFlags(fresh = false): Promise<Record<string, boolean>> {
+    return lockFlags(
+      await (fresh ? this.readFlagsFromRedis() : this.readFlags()),
+    );
   }
 
   private readFlags(): Promise<Record<string, boolean>> {

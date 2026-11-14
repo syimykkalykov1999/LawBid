@@ -246,7 +246,7 @@ export function DocumentTemplatesPanel() {
                 <tr key={t.id} className="cursor-pointer" onClick={() => setOpen(t)}>
                   {canWrite ? (
                     <Td onClick={(e) => e.stopPropagation()}>
-                      <RowSelectBox selected={sel.selected} id={t.id} onToggle={sel.toggle} />
+                      <RowSelectBox selected={sel.selected} id={t.id} onToggle={sel.toggle} order={() => rows.map((x) => x.id)} />
                     </Td>
                   ) : null}
                   <Td>

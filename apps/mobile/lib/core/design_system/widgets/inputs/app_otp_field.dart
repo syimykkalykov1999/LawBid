@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_motion_bits.dart';
 
 const int _kOtpLength = 6;
 
@@ -65,11 +66,24 @@ class _AppOtpFieldState extends State<AppOtpField> {
   final _focusNode = FocusNode();
   bool _completedFired = false;
 
+  /// Row 95 (motion catalog F3 / O4, Telegram's code field, the iOS
+  /// passcode): a wrong code shakes the boxes and buzzes the error haptic.
+  final _shake = AppShakeController();
+
   TextEditingController get _controller =>
       widget.controller ?? (_ownController ??= TextEditingController());
 
   @override
+  void didUpdateWidget(AppOtpField old) {
+    super.didUpdateWidget(old);
+    final was = old.errorText;
+    final now = widget.errorText;
+    if (now != null && now.isNotEmpty && now != was) _shake.shake();
+  }
+
+  @override
   void dispose() {
+    _shake.dispose();
     _ownController?.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -106,85 +120,89 @@ class _AppOtpFieldState extends State<AppOtpField> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                height: 46,
-                child: Stack(
-                  children: [
-                    // The one real input: invisible (opacity 0, which stays
-                    // hit-testable in Flutter), owns focus/keyboard/autofill.
-                    ExcludeSemantics(
-                      child: Opacity(
-                        opacity: 0,
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          autofocus: widget.autofocus,
-                          textAlign: TextAlign.center,
-                          keyboardType: TextInputType.number,
-                          maxLength: _kOtpLength,
-                          autofillHints: const [AutofillHints.oneTimeCode],
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          cursorWidth: 0,
-                          decoration: const InputDecoration(
-                            counterText: '',
-                            border: InputBorder.none,
+              AppShake(
+                controller: _shake,
+                child: SizedBox(
+                  height: 46,
+                  child: Stack(
+                    children: [
+                      // The one real input: invisible (opacity 0, which stays
+                      // hit-testable in Flutter), owns focus/keyboard/autofill.
+                      ExcludeSemantics(
+                        child: Opacity(
+                          opacity: 0,
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            autofocus: widget.autofocus,
+                            textAlign: TextAlign.center,
+                            keyboardType: TextInputType.number,
+                            maxLength: _kOtpLength,
+                            autofillHints: const [AutofillHints.oneTimeCode],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            cursorWidth: 0,
+                            decoration: const InputDecoration(
+                              counterText: '',
+                              border: InputBorder.none,
+                            ),
+                            onChanged: _handleChanged,
                           ),
-                          onChanged: _handleChanged,
                         ),
                       ),
-                    ),
-                    // Presentational overlay: 6 boxes, taps pass through to
-                    // the real field above via IgnorePointer.
-                    IgnorePointer(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: List.generate(_kOtpLength, (index) {
-                          final isFocused =
-                              _focusNode.hasFocus && index == caretIndex;
-                          final borderColor = hasError
-                              ? colors.danger
-                              : (isFocused ? colors.gold : colors.border);
-                          final digit = index < text.length ? text[index] : '';
-                          return Expanded(
-                            child: Padding(
-                              padding: EdgeInsetsDirectional.only(
-                                end: index == _kOtpLength - 1 ? 0 : 8,
-                              ),
-                              child: Container(
-                                height: 46,
-                                decoration: BoxDecoration(
-                                  color: colors.surface,
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadii.otpCell),
-                                  border: Border.all(
-                                    color: borderColor,
-                                    width: isFocused || hasError ? 1.5 : 1.0,
+                      // Presentational overlay: 6 boxes, taps pass through to
+                      // the real field above via IgnorePointer.
+                      IgnorePointer(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: List.generate(_kOtpLength, (index) {
+                            final isFocused =
+                                _focusNode.hasFocus && index == caretIndex;
+                            final borderColor = hasError
+                                ? colors.danger
+                                : (isFocused ? colors.gold : colors.border);
+                            final digit =
+                                index < text.length ? text[index] : '';
+                            return Expanded(
+                              child: Padding(
+                                padding: EdgeInsetsDirectional.only(
+                                  end: index == _kOtpLength - 1 ? 0 : 8,
+                                ),
+                                child: Container(
+                                  height: 46,
+                                  decoration: BoxDecoration(
+                                    color: colors.surface,
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadii.otpCell),
+                                    border: Border.all(
+                                      color: borderColor,
+                                      width: isFocused || hasError ? 1.5 : 1.0,
+                                    ),
+                                    boxShadow: isFocused && !hasError
+                                        ? [
+                                            BoxShadow(
+                                              color: colors.focusRingGlow,
+                                              blurRadius: 4,
+                                              spreadRadius: 1,
+                                            ),
+                                          ]
+                                        : null,
                                   ),
-                                  boxShadow: isFocused && !hasError
-                                      ? [
-                                          BoxShadow(
-                                            color: colors.focusRingGlow,
-                                            blurRadius: 4,
-                                            spreadRadius: 1,
-                                          ),
-                                        ]
-                                      : null,
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  digit,
-                                  style: typography.otpDigit
-                                      .copyWith(color: colors.text),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    digit,
+                                    style: typography.otpDigit
+                                        .copyWith(color: colors.text),
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
-                        }),
+                            );
+                          }),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               if (hasError) ...[

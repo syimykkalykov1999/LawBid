@@ -224,7 +224,7 @@ export function VideosPanel() {
             ) : (
               rows.map((v) => (
                 <tr key={v.id}>
-                  {canWrite ? <Td>{v.status !== 'deleted' ? <RowSelectBox selected={sel.selected} id={v.id} onToggle={sel.toggle} /> : null}</Td> : null}
+                  {canWrite ? <Td>{v.status !== 'deleted' ? <RowSelectBox selected={sel.selected} id={v.id} onToggle={sel.toggle} order={() => rows.filter((x) => x.status !== 'deleted').map((x) => x.id)} /> : null}</Td> : null}
                   <Td>
                     <button
                       type="button"

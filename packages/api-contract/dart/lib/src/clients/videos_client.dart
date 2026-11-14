@@ -37,6 +37,13 @@ abstract class VideosClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Fresh TUS credentials to resume an upload already started
+  @POST('/videos/{id}/upload-signature')
+  Future<VideoUploadEnvelope> renewVideoUpload({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Video posts, newest first (full-screen reels).
   ///
   /// [cursor] - meta.nextCursor of the previous page.

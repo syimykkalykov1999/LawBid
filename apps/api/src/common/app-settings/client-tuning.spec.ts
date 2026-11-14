@@ -63,6 +63,17 @@ describe('client tuning knobs (scale audit 2026-10-23)', () => {
     ).toBeNull();
   });
 
+  it('verification document photo size is tunable, inside sane bounds (media audit C7)', () => {
+    expect(APP_SETTINGS['client.verification_photo_max_px']).toBe(2048);
+    expect(APP_SETTINGS['client.verification_photo_quality']).toBe(90);
+    expect(
+      validateConfigValue(schema['client.verification_photo_max_px'], 640),
+    ).not.toBeNull();
+    expect(
+      validateConfigValue(schema['client.verification_photo_quality'], 101),
+    ).not.toBeNull();
+  });
+
   it('guest browsing: off in the apps, on for the website, both public', () => {
     // Owner 2026-10-23: no guest browsing in the iOS / Android apps unless
     // the admin switches it on; the website keeps today's behaviour.

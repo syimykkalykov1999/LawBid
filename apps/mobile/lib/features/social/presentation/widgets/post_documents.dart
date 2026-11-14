@@ -1,9 +1,9 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/pick_files.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -119,22 +119,17 @@ class PostDocumentsController extends ChangeNotifier {
     if (full) return;
     final extensions = limits.documentExtensions;
     if (extensions.isEmpty) return;
-    final result = await FilePicker.pickFiles(
-      // Web: a big file from iCloud or a HEIC to convert arrives after the
-      // window gets focus back; don't drop it.
-      cancelUploadOnWindowBlur: false,
-      type: FileType.custom,
+    // Audit D8: read one by one from disk on a phone (no withData); a file
+    // over the limit is counted as skipped without being read.
+    final result = await pickFilesRead(
       allowedExtensions: extensions,
       allowMultiple: true,
-      withData: true,
+      maxBytes: limits.fileMb * 1024 * 1024,
+      photos: postPhotoLimits(ref),
     );
-    final files = [
-      for (final f in result?.files ?? const <PlatformFile>[])
-        if (f.bytes != null) (bytes: f.bytes!, name: f.name),
-    ];
-    final unreadable = (result?.files.length ?? 0) - files.length;
+    final unreadable = result.skipped;
     final skipped = addAll(
-          files,
+          [for (final f in result.files) (bytes: f.bytes, name: f.name)],
           eachMb: limits.fileMb,
           totalMb: limits.totalMb,
         ) +

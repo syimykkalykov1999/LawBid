@@ -4,6 +4,7 @@ import { NotePencil } from '@phosphor-icons/react';
 import * as m from 'motion/react-m';
 import { cn, formatDateTime } from '@/lib/utils';
 import { AttachmentList } from './attachments';
+import { LinkifiedText } from './linkified-text';
 import { initials, relativeTime, type TicketMessage } from './support-labels';
 
 /**
@@ -48,7 +49,7 @@ export function MessageBubble({ m: msg }: { m: TicketMessage }) {
               <NotePencil size={12} weight="bold" /> Внутренняя заметка
             </div>
           ) : null}
-          {msg.body}
+          <LinkifiedText text={msg.body} />
           <AttachmentList items={msg.attachments ?? []} mine={mine} />
         </div>
       </div>

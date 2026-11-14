@@ -265,7 +265,7 @@ export default function UsersPage() {
         <tbody>
           {q.isPending ? (
             <TableEmpty colSpan={canWrite ? 6 : 5} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !q.isError ? (
             <TableEmpty colSpan={canWrite ? 6 : 5}>Никого не нашли. Измените запрос или фильтры.</TableEmpty>
           ) : (
             <VirtualRows rows={rows} colSpan={canWrite ? 6 : 5}>
@@ -273,9 +273,9 @@ export default function UsersPage() {
               <MotionRow key={u.id} i={i} {...vp} className="cursor-pointer" onClick={() => router.push(`/users/${u.id}`)}>
                 {canWrite ? (
                   <Td>
-                    <RowSelectBox selected={sel.selected} id={u.id} onToggle={(id) => {
+                    <RowSelectBox selected={sel.selected} id={u.id} order={() => rows.map((x) => x.id)} onToggle={(id, order) => {
                       setByFilter(null);
-                      sel.toggle(id);
+                      sel.toggle(id, order);
                     }}
                   />
                   </Td>

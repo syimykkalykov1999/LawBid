@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { readSwitchMode } from '../../common/app-settings/switch-mode';
 import { ConfigService } from '@nestjs/config';
@@ -14,6 +15,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { RateLimitService } from '../auth/auth.public';
 import { LinkPreviewDto } from './link-preview.dto';
+import { LinkPreviewImageService } from './link-preview-image.service';
 import { parsePreview } from './og-parser';
 import { checkPreviewUrl, safeFetchHtml, SafeFetchError } from './safe-fetch';
 
@@ -23,7 +25,9 @@ export const LINK_PREVIEW_NEGATIVE_TTL_SEC = 3600;
 export const LINK_PREVIEW_USER_PER_MINUTE = 30;
 /** Everybody together: real outbound fetches (cache misses) per minute. */
 export const LINK_PREVIEW_GLOBAL_PER_MINUTE = 300;
-const CACHE_PREFIX = 'lp:v1:';
+// v2 (media batch A, R7): cards cached before carried the third-party
+// picture URL; a new prefix drops them at deploy.
+const CACHE_PREFIX = 'lp:v2:';
 
 /**
  * Owner 2026-10-22: `GET /link-preview?url=` — the title / description /
@@ -41,6 +45,8 @@ export class LinkPreviewService {
     private readonly limiter: RateLimitService,
     private readonly settings: AppSettingsService,
     private readonly config: ConfigService,
+    // Media batch A (R7): the picture is re-hosted, never the site's URL.
+    @Optional() private readonly images?: LinkPreviewImageService,
   ) {}
 
   private get allowLocal(): boolean {
@@ -182,7 +188,16 @@ export class LinkPreviewService {
         isDenied,
       });
       const parsed = parsePreview(page.html, page.finalUrl);
-      const result: LinkPreviewDto = { url, ...parsed };
+      // R7: our copy of the picture or none — the reader's app never
+      // loads anything from the third-party site.
+      const imageUrl =
+        parsed.imageUrl && this.images
+          ? await this.images.rehost(parsed.imageUrl, {
+              allowLocal: this.allowLocal,
+              isDenied,
+            })
+          : null;
+      const result: LinkPreviewDto = { url, ...parsed, imageUrl };
       const useful = parsed.title || parsed.description || parsed.imageUrl;
       await this.writeCache(
         key,

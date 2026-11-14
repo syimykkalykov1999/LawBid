@@ -119,6 +119,15 @@ variable "clamav_memory" {
   default     = 2560
   description = "MiB reserved for clamd inside the worker task (signatures ≈ 1.2 GB, twice that while reloading)."
 }
+variable "clamav_max_file_mb" {
+  type        = number
+  default     = 110
+  description = "Media batch A (R1): the largest file clamd scans, MB (StreamMaxLength / MaxFileSize; MaxScanSize is twice it). Must stay ≥ the largest MB per file an admin can set (apps/api upload-limits.ts ceilings, 100 MB today; guarded by upload-limits.spec.ts). The worker gets the same number as CLAMAV_MAX_MB: a bigger file is kept and set aside as «not scanned», never deleted."
+  validation {
+    condition     = var.clamav_max_file_mb >= 25 && var.clamav_max_file_mb <= 2000
+    error_message = "clamav_max_file_mb must be between 25 and 2000."
+  }
+}
 variable "admin_cpu" {
   type    = number
   default = 256
@@ -682,7 +691,7 @@ resource "aws_ecs_task_definition" "worker" {
     command   = ["node", "dist/src/worker.js"]
     # Uploads are scanned by the clamd sidecar below (same task, localhost):
     # without a scanner every photo/document stays scan_status=pending.
-    environment = concat(local.worker_environment, local.app_version_env, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
+    environment = concat(local.worker_environment, local.app_version_env, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, { name = "CLAMAV_MAX_MB", value = tostring(var.clamav_max_file_mb) }, local.node_options["worker"]])
     secrets     = local.worker_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -714,10 +723,13 @@ resource "aws_ecs_task_definition" "worker" {
     # Default StreamMaxLength/MaxFileSize are 25M, but uploads go up to
     # 50 MB: bigger files were answered "size limit exceeded" and ended
     # "failed" (audit B-2). The official image maps CLAMD_CONF_<Option>.
+    # Media batch A (R1, 13.11): the limit follows the largest upload an
+    # admin can set (var.clamav_max_file_mb, the same number the worker
+    # reads as CLAMAV_MAX_MB); it was 55M against a 100 MB ceiling.
     environment = [
-      { name = "CLAMD_CONF_StreamMaxLength", value = "55M" },
-      { name = "CLAMD_CONF_MaxFileSize", value = "55M" },
-      { name = "CLAMD_CONF_MaxScanSize", value = "110M" },
+      { name = "CLAMD_CONF_StreamMaxLength", value = "${var.clamav_max_file_mb}M" },
+      { name = "CLAMD_CONF_MaxFileSize", value = "${var.clamav_max_file_mb}M" },
+      { name = "CLAMD_CONF_MaxScanSize", value = "${var.clamav_max_file_mb * 2}M" },
     ]
     healthCheck = {
       command     = ["CMD-SHELL", "clamdcheck.sh"]

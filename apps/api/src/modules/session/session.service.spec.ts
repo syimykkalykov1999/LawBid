@@ -29,7 +29,8 @@ describe('SessionService', () => {
       withIcon: jest.fn((_: string, b: unknown) => Promise.resolve(b)),
     };
     const bootstrap = {
-      build: jest.fn().mockResolvedValue({ flags: { video_posts: true } }),
+      etag: jest.fn().mockResolvedValue('W/"boot-7-1"'),
+      buildFor: jest.fn().mockResolvedValue({ flags: { video_posts: true } }),
     };
     const redis = { get: jest.fn().mockResolvedValue('7') };
     const service = new SessionService(
@@ -72,7 +73,7 @@ describe('SessionService', () => {
     expect(await service.etag(user, t0)).not.toBe(a);
     // The tag never builds the body.
     expect(onboarding.getMe).not.toHaveBeenCalled();
-    expect(bootstrap.build).not.toHaveBeenCalled();
+    expect(bootstrap.buildFor).not.toHaveBeenCalled();
   });
 
   it('reads the three stamps in one statement and the tag follows each', async () => {

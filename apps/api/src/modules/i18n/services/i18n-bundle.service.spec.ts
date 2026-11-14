@@ -181,3 +181,99 @@ describe('I18nBundleService.getTranslations', () => {
     expect(findMany).toHaveBeenCalledTimes(2);
   });
 });
+
+// Perf batch 2 (13.11, row 125): every slow 200 on prod was a fresh task's
+// first build; the serialized answer is shared through the cache Redis and
+// concurrent misses share one build.
+describe('I18nBundleService.getBody (shared copy, single-flight)', () => {
+  const rows = [
+    { lang: 'en', value: 'Cancel', i18n_key: { key: 'common.cancel' } },
+  ];
+  function make(store: Map<string, string>, settings?: Record<string, number>) {
+    const findMany = jest.fn().mockResolvedValue(rows);
+    const service = new I18nBundleService(
+      { i18nTranslation: { findMany } } as never,
+      buildFakeLanguages('en'),
+      buildFakeRedis(store) as never,
+      settings
+        ? ({
+            number: jest.fn((k: string) => Promise.resolve(settings[k])),
+          } as never)
+        : undefined,
+    );
+    return { service, findMany };
+  }
+
+  it('the exact answer body, built once and kept per (language, version, since)', async () => {
+    const { service, findMany } = make(new Map());
+    const body = await service.getBody('en', 5);
+    expect(JSON.parse(body)).toEqual({
+      data: {
+        lang: 'en',
+        version: 5,
+        translations: { 'common.cancel': 'Cancel' },
+      },
+    });
+    expect(await service.getBody('en', 5)).toBe(body);
+    expect(findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('a fresh task reads the shared copy instead of the table', async () => {
+    const store = new Map<string, string>();
+    const first = make(store);
+    const body = await first.service.getBody('en', 5);
+    expect(store.has('i18n:bundle:body:v1:en:5:full')).toBe(true);
+
+    const second = make(store);
+    expect(await second.service.getBody('en', 5)).toBe(body);
+    expect(second.findMany).not.toHaveBeenCalled();
+    // a delta of the same version is its own copy
+    await second.service.getBody('en', 5, 3);
+    expect(second.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('a new version is never answered from the old copy', async () => {
+    const store = new Map<string, string>();
+    const { service, findMany } = make(store);
+    await service.getBody('en', 5);
+    findMany.mockResolvedValue([
+      { lang: 'en', value: 'Abort', i18n_key: { key: 'common.cancel' } },
+    ]);
+    const next = JSON.parse(await service.getBody('en', 6)) as {
+      data: { version: number; translations: Record<string, string> };
+    };
+    expect(next.data.version).toBe(6);
+    expect(next.data.translations['common.cancel']).toBe('Abort');
+  });
+
+  it('concurrent misses in one process share one table read', async () => {
+    const { service, findMany } = make(new Map());
+    const bodies = await Promise.all(
+      Array.from({ length: 20 }, () => service.getBody('en', 7)),
+    );
+    expect(new Set(bodies).size).toBe(1);
+    expect(findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('a corrupt shared copy is a miss, never an answer', async () => {
+    const store = new Map([
+      ['i18n:bundle:body:v1:en:5:full', Buffer.from('nope').toString('base64')],
+    ]);
+    const { service, findMany } = make(store);
+    const body = await service.getBody('en', 5);
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(body.startsWith('{"data":')).toBe(true);
+  });
+
+  it('admin settings: TTL 0 keeps no shared copy, 0 languages keeps nothing in memory', async () => {
+    const store = new Map<string, string>();
+    const { service, findMany } = make(store, {
+      'ops.i18n_bundle_cache_ttl_sec': 0,
+      'ops.i18n_bundle_cache_langs': 0,
+    });
+    await service.getBody('en', 5);
+    await service.getBody('en', 5);
+    expect(store.size).toBe(0);
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
+});

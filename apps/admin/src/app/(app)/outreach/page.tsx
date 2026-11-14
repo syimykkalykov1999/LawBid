@@ -767,7 +767,7 @@ function Team({ manager }: { manager: boolean }) {
         <tbody>
           {stats.isPending ? (
             <TableEmpty colSpan={9} loading />
-          ) : !stats.data || stats.data.partners.length === 0 ? (
+          ) : (!stats.data || stats.data.partners.length === 0) && !stats.isError ? (
             <TableEmpty colSpan={9}>За период активности не было.</TableEmpty>
           ) : (
             <>

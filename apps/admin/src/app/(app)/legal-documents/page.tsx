@@ -18,6 +18,7 @@ import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { label, LEGAL_DOC_TYPE } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
+import { useNavigationGuard } from '@/lib/vendor/navigation-guard';
 
 type Row = components['schemas']['AdminLegalDocumentRowDto'];
 type LocaleState = components['schemas']['AdminLegalLocaleStateDto'];
@@ -156,6 +157,8 @@ function Editor({ docType, onClose }: { docType: DocType; onClose: () => void })
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const [dirty, setDirty] = useState(false);
+  // Detective D1-7 (13.11): unsaved edits ask before a link or a reload drops them.
+  useNavigationGuard({ enabled: dirty });
   const [preview, setPreview] = useState(false);
   const [publishing, setPublishing] = useState(false);
 

@@ -7,8 +7,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/file_types.dart';
+import 'package:lawbid/core/files/pick_files.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart'
     show kChatAttachmentMaxBytes, kChatFileExtensions;
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
@@ -115,13 +118,14 @@ Future<List<PickedChatFile>> pickGroupFiles(
         maxWidth: ClientTuning.chatPhotoMaxPx,
         maxHeight: ClientTuning.chatPhotoMaxPx,
         imageQuality: ClientTuning.chatPhotoQuality,
+        requestFullMetadata: false,
       );
       for (final f in picked) {
         if (await f.length() > maxBytes) {
           skipped++;
           continue;
         }
-        add(await f.readAsBytes(), f.name);
+        add(await readPickedPhoto(f), f.name);
       }
     case GroupAttachChoice.camera:
       final f = await ImagePicker().pickImage(
@@ -129,8 +133,9 @@ Future<List<PickedChatFile>> pickGroupFiles(
         maxWidth: ClientTuning.chatPhotoMaxPx,
         maxHeight: ClientTuning.chatPhotoMaxPx,
         imageQuality: ClientTuning.chatPhotoQuality,
+        requestFullMetadata: false,
       );
-      if (f != null) add(await f.readAsBytes(), f.name);
+      if (f != null) add(await readPickedPhoto(f), f.name);
     case GroupAttachChoice.files:
       final result = await FilePicker.pickFiles(
         cancelUploadOnWindowBlur: false,
@@ -142,9 +147,15 @@ Future<List<PickedChatFile>> pickGroupFiles(
       for (final f in result?.files ?? const <PlatformFile>[]) {
         final path = onDisk ? f.path : null;
         if (path != null) {
-          // Checked by name and size only: a picture is read as before.
+          // Checked by name and size only: a picture is read, shrunk like a
+          // gallery photo and without its location (audit C7).
           if (mimeFor(f.name)?.startsWith('image/') ?? false) {
-            add(await XFile(path).readAsBytes(), f.name);
+            final pic = await cleanPickedPicture(
+              await XFile(path).readAsBytes(),
+              f.name,
+              photos: chatPhotoLimits(),
+            );
+            add(pic.bytes, pic.name);
             continue;
           }
           final mime = mimeFor(f.name);

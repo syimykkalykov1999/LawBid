@@ -488,7 +488,7 @@ function RedemptionsDialog({ p, onClose }: { p: PromoCode; onClose: () => void }
         <tbody>
           {list.isPending ? (
             <TableEmpty colSpan={3} loading />
-          ) : rows.length === 0 ? (
+          ) : rows.length === 0 && !list.isError ? (
             <TableEmpty colSpan={3}>Кодом ещё никто не воспользовался</TableEmpty>
           ) : (
             rows.map((r) => (

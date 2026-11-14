@@ -446,6 +446,10 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.85,
+      // Row 95 (motion catalog N10, iOS `.medium` / `.large` detents):
+      // the sheet rests at its first height or full, never in between.
+      snap: true,
+      snapSizes: const [0.85],
       maxChildSize: 0.95,
       builder: (context, scroll) => ListView(
         controller: scroll,

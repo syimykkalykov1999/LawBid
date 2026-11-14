@@ -112,36 +112,82 @@ export interface FontRun {
 }
 
 type CoversFn = (cp: number) => boolean;
-type FontkitFont = { hasGlyphForCodePoint(cp: number): boolean };
+type FontkitFont = {
+  hasGlyphForCodePoint(cp: number): boolean;
+  layout(text: string, features?: unknown): unknown;
+};
 
+/**
+ * One parsed font per file for the whole process. Parsing a font and
+ * decoding its GSUB/GPOS tables is most of the work of a PDF (profile
+ * 13.11: Inter's shaping tables cost ~1 s per deal record when every
+ * PDFDocument parsed the 876 KB file again). fontkit decodes tables lazily
+ * and keeps them on the font object, and pdfkit's `registerFont` takes a
+ * parsed fontkit font as is (`PDFFontFactory.open`: `src.layout`), creating
+ * its own per-document subset from it, so the bytes of a PDF do not change.
+ */
+const parsedFonts = new Map<string, FontkitFont>();
 function openFont(path: string): FontkitFont {
-  // fontkit ships with pdfkit.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const fontkit = require('fontkit') as { create: (b: Buffer) => FontkitFont };
-  return fontkit.create(readFileSync(path));
+  let font = parsedFonts.get(path);
+  if (!font) {
+    // fontkit ships with pdfkit.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fontkit = require('fontkit') as {
+      create: (b: Buffer) => FontkitFont;
+    };
+    font = fontkit.create(readFileSync(path));
+    parsedFonts.set(path, font);
+  }
+  return font;
+}
+
+/** The process-wide parsed font of a file (the one every PDF draws with). */
+export const parsedFont = (path: string): { layout: FontkitFont['layout'] } =>
+  openFont(path);
+
+/** The parsed font as pdfkit's `registerFont` source (typed as a path). */
+const fontSource = (path: string): string =>
+  openFont(path) as unknown as string;
+
+/**
+ * Whether a font has a glyph, remembered per code point. splitRuns asks for
+ * every character of every printed string, and fontkit answers with a
+ * binary search through the lazily decoded cmap (profile 13.11: half the
+ * time of the 85-language test). The answer never changes for a font; the
+ * map holds at most one entry per distinct character ever printed.
+ */
+function coverage(font: FontkitFont): CoversFn {
+  const known = new Map<number, boolean>();
+  return (cp) => {
+    let has = known.get(cp);
+    if (has === undefined) {
+      has = font.hasGlyphForCodePoint(cp);
+      known.set(cp, has);
+    }
+    return has;
+  };
 }
 
 let interCovers: CoversFn | undefined;
 function loadInterCovers(): CoversFn {
   if (interCovers) return interCovers;
   if (!INTER_PATH) return (interCovers = () => true);
-  const font = openFont(INTER_PATH);
-  return (interCovers = (cp) => font.hasGlyphForCodePoint(cp));
+  return (interCovers = coverage(openFont(INTER_PATH)));
 }
 
-const scriptCovers = new Map<string, FontkitFont>();
+const scriptCovers = new Map<string, CoversFn>();
 /** Script font that has a glyph for a code point no Inter run can draw. */
 const hostCache = new Map<number, ScriptFont | undefined>();
 /** Whether the script font is on disk and has a glyph for [cp] (spaces, colons...). */
 function fontHasGlyph(f: ScriptFont, cp: number): boolean {
-  let font = scriptCovers.get(f.file);
-  if (!font) {
+  let covers = scriptCovers.get(f.file);
+  if (!covers) {
     const p = fontPath(f);
     if (!p) return false; // not on disk yet (CJK still downloading): ask again later
-    font = openFont(p);
-    scriptCovers.set(f.file, font);
+    covers = coverage(openFont(p));
+    scriptCovers.set(f.file, covers);
   }
-  return font.hasGlyphForCodePoint(cp);
+  return covers(cp);
 }
 
 const familyOf = (f: ScriptFont): string =>
@@ -355,9 +401,45 @@ function spacesOnInter(fragments: Fragment[]): Fragment[] {
 
 type TextFn = (...args: unknown[]) => unknown;
 
+/**
+ * pdfkit's word-layout cache, shared by the documents of one render.
+ * pdfkit shapes every word once per document and keeps the run in
+ * `EmbeddedFont.layoutCache` (keyed by the word; the run is in font units,
+ * independent of the font size, and pdfkit copies a run before it changes
+ * one). A renderer that lays the same text out several times (the deal
+ * record tries up to three type scales) passes one cache to all its
+ * documents, so each word is shaped once. Scoped to one render, never
+ * global: it only holds the words of that document.
+ */
+export type PdfLayoutCache = Map<object, Record<string, unknown>>;
+export const newPdfLayoutCache = (): PdfLayoutCache => new Map();
+
 export interface PdfFontOptions {
   /** Language of the document (ja, ko, zh...): picks the CJK face for Han. */
   lang?: string;
+  /** Shared word layouts of one render (see [PdfLayoutCache]). */
+  layoutCache?: PdfLayoutCache;
+}
+
+type EmbeddedFontLike = {
+  font?: object;
+  layoutCache?: Record<string, unknown>;
+};
+
+/** Points the current font's word cache at the render's shared one. */
+function shareLayoutCache(
+  doc: PDFKit.PDFDocument,
+  cache: PdfLayoutCache,
+): void {
+  const f = (doc as unknown as { _font?: EmbeddedFontLike })._font;
+  // Standard fonts have no layout; fontLayoutCache: false has no cache.
+  if (!f?.font || !f.layoutCache) return;
+  let shared = cache.get(f.font);
+  if (!shared) {
+    shared = f.layoutCache;
+    cache.set(f.font, shared);
+  }
+  f.layoutCache = shared;
 }
 
 /**
@@ -370,7 +452,17 @@ export function applyPdfFonts(
   options: PdfFontOptions = {},
 ): void {
   if (!INTER_PATH) return;
-  doc.registerFont('Inter', INTER_PATH);
+  const { layoutCache } = options;
+  if (layoutCache) {
+    // Every font pdfkit opens for this document (Inter, each Noto face).
+    const setFont = doc.font.bind(doc) as TextFn;
+    (doc as unknown as { font: TextFn }).font = (...args) => {
+      setFont(...args);
+      shareLayoutCache(doc, layoutCache);
+      return doc;
+    };
+  }
+  doc.registerFont('Inter', fontSource(INTER_PATH));
   doc.font('Inter');
 
   const registered = new Set<string>();
@@ -386,7 +478,7 @@ export function applyPdfFonts(
       );
       return 'Inter';
     }
-    doc.registerFont(family, p);
+    doc.registerFont(family, fontSource(p));
     registered.add(family);
     return family;
   };
