@@ -27,6 +27,7 @@ import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/features/groups/application/group_typing.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
@@ -95,6 +96,7 @@ class _GroupConversationScreenState
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
+    _text.addListener(_onTyping);
     // A call may start or end in the group while this chat is open:
     // groupRunningCallProvider follows the server's `call:ongoing` events
     // (owner 2026-10-22, load audit finding 3: no 10 s polling).
@@ -109,6 +111,13 @@ class _GroupConversationScreenState
         setState(() => _removed = true);
       }
     });
+  }
+
+  /// D1-2: my «typing…» to the group while the field has text (not while
+  /// editing an old message), at most every 2 s.
+  void _onTyping() {
+    if (_text.text.trim().isEmpty || _editing != null) return;
+    ref.read(groupTypingProvider(widget.groupId).notifier).send(true);
   }
 
   @override
@@ -230,8 +239,10 @@ class _GroupConversationScreenState
         return;
       }
       // Not built yet: go near it by an estimate and look again.
-      final target =
-          (index * 96.0).clamp(0.0, _scroll.position.maxScrollExtent);
+      final target = (index * 96.0).clamp(
+        0.0,
+        _scroll.position.maxScrollExtent,
+      );
       _scroll.jumpTo(target);
       await WidgetsBinding.instance.endOfFrame;
     }
@@ -253,6 +264,7 @@ class _GroupConversationScreenState
   }
 
   void _send(String text, List<String> mentionIds) {
+    ref.read(groupTypingProvider(widget.groupId).notifier).send(false);
     final reply = _replyTo;
     setState(() => _replyTo = null);
     unawaited(
@@ -347,8 +359,9 @@ class _GroupConversationScreenState
             path: f.path,
             name: f.name,
             mime: f.mime,
-            caption:
-                i == files.length - 1 && caption.isNotEmpty ? caption : null,
+            caption: i == files.length - 1 && caption.isNotEmpty
+                ? caption
+                : null,
             replyToId: i == 0 ? reply?.id : null,
           );
         }
@@ -359,7 +372,8 @@ class _GroupConversationScreenState
       // the flag off, one after another as before.
       await thread.uploadAndSend(
         items: files,
-        atOnce: ref
+        atOnce:
+            ref
                 .read(featureFlagsControllerProvider)
                 .isEnabled('chat_upload_parallel')
             ? ClientTuning.uploadsAtOnce
@@ -414,27 +428,24 @@ class _GroupConversationScreenState
     );
   }
 
-  Future<void> _forward(List<api.GroupMessageDto> messages) => forwardWithSheet(
-        context,
-        ref,
-        [
-          for (final m in messages)
-            if (m.canForward)
-              ForwardSource(ForwardSourceKind.groupMessage, m.id),
-        ],
-      );
+  Future<void> _forward(List<api.GroupMessageDto> messages) =>
+      forwardWithSheet(context, ref, [
+        for (final m in messages)
+          if (m.canForward) ForwardSource(ForwardSourceKind.groupMessage, m.id),
+      ]);
 
   /// A protected group shares its link instead of its messages.
   Future<void> _shareLink(api.GroupDetailDto detail) => forwardWithSheet(
-        context,
-        ref,
-        [ForwardSource(ForwardSourceKind.groupLink, detail.id)],
-      );
+    context,
+    ref,
+    [ForwardSource(ForwardSourceKind.groupLink, detail.id)],
+  );
 
   PreferredSizeWidget _selectionBar(api.GroupDetailDto detail) {
     final picked = _picked();
     final protected = detail.isProtected;
-    final canCopy = !protected &&
+    final canCopy =
+        !protected &&
         picked.any((m) => !m.deleted && !m.isPoll && m.body.trim().isNotEmpty);
     final canForward =
         !protected && picked.isNotEmpty && picked.every((m) => m.canForward);
@@ -586,7 +597,9 @@ class _GroupConversationScreenState
   }) async {
     final t = ref.read(translatorProvider);
     try {
-      final updated = await ref.read(groupRepositoryProvider).updateMine(
+      final updated = await ref
+          .read(groupRepositoryProvider)
+          .updateMine(
             detail.id,
             api.UpdateGroupMeDto(
               // The client cannot send an explicit null, so «unmute» is a
@@ -646,14 +659,14 @@ class _GroupConversationScreenState
   }
 
   Widget _plain(Translator t, Widget body) => Scaffold(
-        appBar: AppTopBar(
-          leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: _back,
-          ),
-        ),
-        body: body,
-      );
+    appBar: AppTopBar(
+      leading: AppBackButton(
+        semanticLabel: t.t('common.back'),
+        onPressed: _back,
+      ),
+    ),
+    body: body,
+  );
 
   bool _isGone(Object? e) =>
       e is ApiException &&
@@ -750,8 +763,9 @@ class _GroupConversationScreenState
                       icon: AppIcon(
                         AppIcons.callOutlined,
                         size: 22,
-                        color:
-                            Theme.of(context).extension<AppColorTokens>()!.text,
+                        color: Theme.of(context)
+                            .extension<AppColorTokens>()!
+                            .text,
                       ),
                       semanticLabel: t.t('call.button'),
                       onPressed: () => _startCall(detail, video: false),
@@ -760,8 +774,9 @@ class _GroupConversationScreenState
                   AppIconButton(
                     icon: AppIcon(
                       AppIcons.moreVertRounded,
-                      color:
-                          Theme.of(context).extension<AppColorTokens>()!.text,
+                      color: Theme.of(context)
+                          .extension<AppColorTokens>()!
+                          .text,
                     ),
                     semanticLabel: t.t('chat.menu'),
                     onPressed: () => _headerMenu(detail),
@@ -800,7 +815,8 @@ class _GroupConversationScreenState
     final closed = topic?.closed ?? false;
     final canWrite = detail.canPost && (!closed || detail.isAdmin);
     final pinned = detail.pinnedMessage;
-    final showPin = pinned != null &&
+    final showPin =
+        pinned != null &&
         !pinned.deleted &&
         (widget.topicId == null ||
             pinned.topicId == null ||
@@ -927,8 +943,22 @@ class _Header extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final topic = this.topic;
+    // D1-2: «Анна печатает…» as in Telegram / WhatsApp groups.
+    final typer = ref.watch(groupTypingProvider(detail.id));
+    final typerName = typer == null
+        ? null
+        : detail.members
+              .where((m) => m.userId == typer.userId)
+              .map((m) => m.displayName?.trim() ?? '')
+              .firstOrNull;
     final String subtitle;
-    if (topic != null) {
+    if (typer != null) {
+      final name = (typerName == null || typerName.isEmpty)
+          ? t.t('group.someone')
+          : typerName;
+      subtitle =
+          '$name ${t.t(typer.voice ? 'chat.recordingVoice' : 'chat.typing')}';
+    } else if (topic != null) {
       final emoji = topic.iconEmoji?.trim();
       final name = topic.isGeneral ? t.t('group.topic.general') : topic.title;
       subtitle = emoji == null || emoji.isEmpty ? name : '$emoji $name';
@@ -1084,18 +1114,17 @@ class _DownButton extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: AppIcon(
-                  AppIcons.expandMoreRounded,
-                  color: colors.text,
-                ),
+                child: AppIcon(AppIcons.expandMoreRounded, color: colors.text),
               ),
               if (count > 0)
                 PositionedDirectional(
                   top: 0,
                   end: 0,
                   child: Container(
-                    constraints:
-                        const BoxConstraints(minWidth: 20, minHeight: 20),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
@@ -1234,7 +1263,8 @@ class _MessageList extends ConsumerWidget {
               final m = messages[k];
               final older = k + 1 < messages.length ? messages[k + 1] : null;
               final newer = k > 0 ? messages[k - 1] : null;
-              final newDay = older == null ||
+              final newDay =
+                  older == null ||
                   !DateUtils.isSameDay(
                     older.createdAt.toLocal(),
                     m.createdAt.toLocal(),
