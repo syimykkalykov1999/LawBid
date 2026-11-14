@@ -15,12 +15,12 @@ describe('push tokens keyed on the sign-in chain', () => {
       session: {
         findFirst: jest.fn(async () => ({ id: 's2' })),
         findMany: jest.fn(async () => [{ id: 's1' }, { id: 's2' }]),
-        findUnique: jest.fn(async () => null),
+        findUnique: jest.fn((): Promise<unknown> => Promise.resolve(null)),
       },
       pushToken: {
         upsert: jest.fn(async () => ({})),
         findMany: jest.fn(async () => []),
-        findUnique: jest.fn(async () => null),
+        findUnique: jest.fn((): Promise<unknown> => Promise.resolve(null)),
         deleteMany: jest.fn(async () => ({ count: 0 })),
       },
       voipToken: {
