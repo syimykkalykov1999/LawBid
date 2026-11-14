@@ -20,7 +20,8 @@ function res() {
 }
 
 describe('outreach unsubscribe (R2B-14)', () => {
-  const TOKEN = 'AbCdEf0123456789xyz';
+  // A low-entropy stand-in (gitleaks generic-api-key, 14.11).
+  const TOKEN = 'u'.repeat(20);
   it('GET only shows a confirm page with a POST button', () => {
     const svc = { unsubscribe: jest.fn(() => Promise.resolve(true)) };
     const r = res();
