@@ -323,6 +323,15 @@ export class PasswordAuthService {
     if (meta.ip) {
       await this.limit(['pwd-reset-req', 'ip', meta.ip], RESET_REQUEST_PER_IP);
     }
+    // Detective R2-A #17 (14.11): one reset SMS per number per the admin's
+    // `sms.resend_cooldown_seconds` (the wait the app counts down). A double
+    // tap or a retried request inside it is answered with the same `sent`
+    // and sends nothing — idempotent, and no 429 that a known number would
+    // trigger differently from an unknown one (S14-1/S14-2).
+    if (await this.resetResendTooSoon(resetHash)) {
+      await simulateSend(this.uniformDelayMs());
+      return { sent: true, channel: 'phone' };
+    }
 
     const user =
       channel === 'phone' ? await this.findUser(channel, identifier) : null;
@@ -560,6 +569,20 @@ export class PasswordAuthService {
       code: ErrorCode.VALIDATION_ERROR,
       message: 'Password reset works with a phone number only.',
     });
+  }
+
+  /** True while the last reset code to this number is younger than
+   * `sms.resend_cooldown_seconds` (0 = no wait). */
+  private async resetResendTooSoon(resetHash: string): Promise<boolean> {
+    if (!this.settings) return false;
+    const cooldown = await this.settings.number('sms.resend_cooldown_seconds');
+    if (!(cooldown > 0)) return false;
+    const once = await this.rateLimit.consumeFixedWindow(
+      ['sms-reset-resend', resetHash],
+      1,
+      cooldown,
+    );
+    return !once.allowed;
   }
 
   private async limit(
