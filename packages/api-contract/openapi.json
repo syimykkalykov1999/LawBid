@@ -102991,6 +102991,16 @@
             "schema": {
               "$ref": "#/components/schemas/MessagesFilter"
             }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search inside this chat: every word must be in the text.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -110659,6 +110669,16 @@
               "maximum": 50,
               "default": 30,
               "type": "number"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search inside this group: every word must be in the text.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
             }
           }
         ],
@@ -195084,6 +195104,10 @@
             "type": "string",
             "nullable": true
           },
+          "markedUnread": {
+            "type": "boolean",
+            "description": "Row 110: I marked the chat unread myself (Telegram / WhatsApp); cleared when I read it."
+          },
           "kind": {
             "description": "OQ-043: a case chat or a direct chat from a profile.",
             "allOf": [
@@ -195569,6 +195593,10 @@
             "nullable": true,
             "maxLength": 280,
             "description": "A note pinned on the chat; \"\" or null clears it."
+          },
+          "unread": {
+            "type": "boolean",
+            "description": "Row 110 (Telegram / WhatsApp «Mark as unread»): my own unread mark; reading the chat takes it off."
           },
           "pinned": {
             "type": "boolean",

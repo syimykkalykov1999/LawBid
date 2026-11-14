@@ -1849,7 +1849,7 @@ class ChatThread extends Notifier<ChatThreadState> {
   Future<void> setMuted(bool muted) async {
     final updated = await _repo.mute(
       id,
-      muted ? DateTime.now().add(const Duration(days: 3650)) : null,
+      muted ? DateTime.now().add(kMuteForever) : null,
     );
     if (!ref.mounted) return;
     state = state.copyWith(conversation: updated);

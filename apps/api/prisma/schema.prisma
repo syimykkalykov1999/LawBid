@@ -2942,6 +2942,9 @@ model ConversationParticipant {
   /// Owner 2026-10-20: moved to my Archive (only for me); a new message does
   /// NOT bring it back.
   archived_at               DateTime?    @db.Timestamptz
+  /// Row 110 (Telegram / WhatsApp «Mark as unread»): I put the unread mark
+  /// back on myself; reading the chat clears it.
+  marked_unread_at          DateTime?    @db.Timestamptz
   created_at                DateTime     @default(now()) @db.Timestamptz
   updated_at                DateTime     @updatedAt @db.Timestamptz
 

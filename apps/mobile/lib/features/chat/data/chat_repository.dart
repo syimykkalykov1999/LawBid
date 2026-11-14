@@ -66,6 +66,7 @@ abstract interface class ChatRepository {
     bool? pinned,
     bool? hidden,
     bool? archived,
+    bool? unread,
   });
 
   /// Badges of the Waiting and Requests folders, and the Archive's size.
@@ -145,6 +146,14 @@ abstract interface class ChatRepository {
 
   /// OQ-047: only the chat's photos and documents (its "Files" screen).
   Future<CursorPage<ChatMessage>> attachments(String id, {String? cursor});
+
+  /// Row 110 (Telegram 🔍 in a chat): the messages holding every word of
+  /// [q], newest first, a page at a time.
+  Future<CursorPage<ChatMessage>> searchMessages(
+    String id,
+    String q, {
+    String? cursor,
+  });
 
   /// Owner 2026-10-05: what the chat's files take (the "Files" summary).
   Future<ChatStorageSummary> storage(String id);
@@ -421,6 +430,21 @@ class ApiChatRepository implements ChatRepository {
   }
 
   @override
+  Future<CursorPage<ChatMessage>> searchMessages(
+    String id,
+    String q, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _chat.listMessages(id: id, cursor: cursor, q: q.trim()),
+    );
+    return CursorPage(
+      items: env.data.map(ChatMappers.message).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
   Future<ChatStorageSummary> storage(String id) async {
     final d = (await guardApiCall(
       () => _chat.getConversationStorage(id: id),
@@ -500,7 +524,8 @@ class ApiChatRepository implements ChatRepository {
         cursor: cursor,
         q: query == null || query.isEmpty ? null : query,
         updatedSince: updatedSince?.toUtc().toIso8601String(),
-        folder: f == ChatListFolder.all
+        // Row 110: «Unread» is filtered on the device from «All».
+        folder: f == ChatListFolder.all || f == ChatListFolder.unread
             ? null
             : api.ConversationFolder.fromJson(f.name),
       ),
@@ -527,6 +552,7 @@ class ApiChatRepository implements ChatRepository {
     bool? pinned,
     bool? hidden,
     bool? archived,
+    bool? unread,
   }) async =>
       ChatMappers.conversation(
         (await guardApiCall(
@@ -545,6 +571,7 @@ class ApiChatRepository implements ChatRepository {
               pinned: pinned,
               hidden: hidden,
               archived: archived,
+              unread: unread,
             ),
           ),
         ))
@@ -971,6 +998,7 @@ abstract final class ChatMappers {
         waitingSince: d.waitingSince,
         note: d.note,
         pinnedAt: d.pinnedAt,
+        markedUnread: d.markedUnread ?? false,
         matchedMessage: d.matchedMessage,
         disappearAfterS: d.disappearAfterS?.toInt(),
       );

@@ -13,6 +13,8 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
 import 'package:lawbid/features/chat/application/awaiting_reply.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
+    show muteDuration, pickMute;
 
 /// Owner 2026-10-01: small Instagram-like sub-tabs inside Chats —
 /// All · Primary · General · Waiting · Requests (with counts).
@@ -322,21 +324,28 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
               key: const ValueKey('organize-mute'),
               icon: AppIcons.notificationsOffOutlined,
               label: t.t(c.muted ? 'chat.unmute' : 'chat.mute'),
+              // Row 110: how long, the same choice as in the chat's info.
               onTap: _busy
                   ? null
-                  : () => _run(
+                  : () async {
+                      Duration? span;
+                      if (!c.muted) {
+                        final pick = await pickMute(context, t, muted: false);
+                        if (pick == null || !mounted) return;
+                        span = muteDuration(pick);
+                      }
+                      await _run(
                         () => repo.mute(
                           c.id,
-                          c.muted
-                              ? null
-                              : DateTime.now().add(const Duration(days: 3650)),
+                          span == null ? null : DateTime.now().add(span),
                         ),
-                        done: c.muted
+                        done: span == null
                             ? 'chat.select.unmuted'
                             : 'chat.select.muted',
-                      ),
+                      );
+                    },
             ),
-            if (c.unreadCount > 0 && c.lastMessage != null)
+            if (c.hasUnread && c.lastMessage != null)
               AppListRow(
                 key: const ValueKey('organize-read'),
                 icon: AppIcons.doneAllRounded,
@@ -347,6 +356,17 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                           await repo.read(c.id, c.lastMessage!.id);
                           return c;
                         }),
+              )
+            // Row 110 (Telegram, WhatsApp «Mark as unread»): a read chat
+            // gets the unread mark back; opening it takes the mark off.
+            else if (c.lastMessage != null)
+              AppListRow(
+                key: const ValueKey('organize-unread'),
+                icon: AppIcons.markEmailUnreadOutlined,
+                label: t.t('chat.markUnread'),
+                onTap: _busy
+                    ? null
+                    : () => _run(() => repo.organize(c.id, unread: true)),
               ),
             AppListRow(
               key: const ValueKey('organize-archive'),

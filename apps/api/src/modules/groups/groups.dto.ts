@@ -380,6 +380,19 @@ export class GroupMessagesQueryDto {
   @Min(1)
   @Max(50)
   limit?: number;
+
+  /**
+   * Row 110 (Telegram 🔍 in a chat): only the text messages holding every
+   * typed word, newest first, paged by `cursor`.
+   */
+  @ApiPropertyOptional({
+    maxLength: 200,
+    description: 'Search inside this group: every word must be in the text.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
 }
 
 /** Sweep B-c1: a page of members / voters (keyset, like messages). */

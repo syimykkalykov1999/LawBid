@@ -172,7 +172,7 @@ export class ChatController {
     @Param() p: ConversationIdParamDto,
     @Query() q: MessagesQueryDto,
   ): Promise<MessagePage> {
-    return this.chat.messages(user, p.id, q.cursor, q.afterId, q.only);
+    return this.chat.messages(user, p.id, q.cursor, q.afterId, q.only, q.q);
   }
 
   @Get(':id/storage')
