@@ -120,6 +120,27 @@ re-fetched in this session, treat the numbers as approximate):
   another class. So since 12.11 (KNOWN_ERRORS 109) replicas do NOT pause the
   autoscaler; a primary grown above its replica only costs the replica one
   engine restart.
+- **Read replicas follow the primary's class (owner row 6, 13.11).** AWS:
+  "we recommend that you use the same DB instance class and storage type as the
+  source DB instance for the read replica" (RDS User Guide, *Working with DB
+  instance read replicas*); Aurora readers are sized like the writer for
+  failover and read-heavy work. Prod 11.11–13.11 (CloudWatch, read-only): the
+  primary went to `db.t4g.large` (8 GiB), `lawbid-prod-postgres-replica-1`
+  stayed `db.t4g.micro` (1 GiB): FreeableMemory 130–256 MB, SwapUsage growing
+  0.5 → 83 MB, ReadLatency avg 0.55 ms vs 0.13 ms on the primary, and RDS forced
+  its `max_connections` 79 → 1702 to match the primary on 1 GiB of memory. CPU
+  was not the problem (avg 4 %, credits full). So the Lambda now keeps every own
+  copy (`<db>-replica-N`, modules/growth; never a cross-Region or foreign one)
+  on the primary's class: **grow** = copies first, then the primary, in the same
+  tick (a copy that fails never blocks the primary; one notice a day);
+  **shrink** = the primary first, the copies on a later tick once the primary is
+  `available` with nothing pending. Any tick where the primary itself does not
+  change also brings a copy that differs (created smaller, admin button,
+  console) back to the primary's class. Same guards as the primary (switch off,
+  dry-run, rollout, one-off task, ECS unknown, copy busy). While a copy restarts
+  (a few minutes) the API reads from the primary (`PrismaReadService` marks the
+  copy down for 15 s on connection errors and retries later). IAM: the Lambda may
+  describe/modify only `db:<db>` and `db:<db>-replica-*`.
 - `FreeableMemory` on RDS includes reclaimable OS cache but not shared buffers;
   on a 1 GiB instance it normally sits at 15-40 % free, so the 10 % trigger is
   tight on micro. This is the likeliest source of a "too early" up-step and it is

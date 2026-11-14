@@ -5,6 +5,7 @@ import * as m from 'motion/react-m';
 import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { usePathname } from 'next/navigation';
 import type { Me } from '@/lib/hooks';
+import { NAV_TRANSITION_TYPES } from '@/lib/nav-transition';
 import { groupFor, groupsFor } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
 import { ICONS } from './icons';
@@ -64,6 +65,7 @@ export function Sidebar({
                 <Link
                   key={g.key}
                   href={first.href}
+                  transitionTypes={NAV_TRANSITION_TYPES}
                   onClick={onNavigate}
                   title={narrow ? g.label : undefined}
                   className={cn(
