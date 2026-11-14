@@ -5,10 +5,12 @@ import {
   HttpCode,
   HttpStatus,
   NotFoundException,
+  Optional,
   Post,
   Req,
 } from '@nestjs/common';
 import { ApiExcludeEndpoint } from '@nestjs/swagger';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { Public } from '../../auth/decorators/public.decorator';
 import {
@@ -34,7 +36,16 @@ export class PersonaWebhookController {
   constructor(
     private readonly persona: PersonaClient,
     private readonly service: PersonaVerificationService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  /** R2B-7: `verification.persona_webhook_tolerance_sec` (300; 0 = off). */
+  private async tolerance(): Promise<number> {
+    const n = await this.settings
+      ?.number('verification.persona_webhook_tolerance_sec')
+      .catch(() => NaN);
+    return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : 300;
+  }
 
   // flag: none a webhook with no effect until the Persona card has a key, template and webhook secret
   @Public()
@@ -50,7 +61,12 @@ export class PersonaWebhookController {
     if (
       !cfg ||
       !req.rawBody ||
-      !personaSignatureValid(req.rawBody, signature, cfg.webhookSecret)
+      !personaSignatureValid(
+        req.rawBody,
+        signature,
+        cfg.webhookSecret,
+        await this.tolerance(),
+      )
     ) {
       throw notFound();
     }

@@ -264,6 +264,15 @@ abstract class AdminContentClient {
   @GET('/admin/export/{entity}')
   Future<void> exportAdminCsv({
     @Path('entity') required ExportEntity entity,
+    @Query('q') String? q,
+    @Query('role') String? role,
+    @Query('status') String? status,
+    @Query('stateCode') String? stateCode,
+    @Query('userId') String? userId,
+    @Query('caseId') String? caseId,
+    @Query('kind') String? kind,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Header('X-Justification') String? xJustification,
     @Extras() Map<String, dynamic>? extras,
   });

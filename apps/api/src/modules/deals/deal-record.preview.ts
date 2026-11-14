@@ -6,6 +6,7 @@ import {
   type DealRecordSnapshot,
 } from './deal-record.snapshot';
 import { DealRecordTexts } from './deal-record-texts';
+import { DealRecordPdfCache } from './deal-record-pdf-cache';
 import { dealRecordVerifyUrl } from './deal-record.verify';
 
 /** A 1x1 transparent PNG: the sample "signature" of the admin preview. */
@@ -18,7 +19,10 @@ const SAMPLE_PNG = Buffer.from(
  * (v2: a Russian-speaking client, audit rows, consents and the QR). */
 @Injectable()
 export class DealRecordPreview {
-  constructor(private readonly texts: DealRecordTexts) {}
+  constructor(
+    private readonly texts: DealRecordTexts,
+    private readonly pdfCache: DealRecordPdfCache,
+  ) {}
 
   async sample(): Promise<Buffer> {
     const [texts, labels, local, clientConsents, attorneyConsents] =
@@ -115,6 +119,7 @@ export class DealRecordPreview {
     };
     const sha = snapshotSha256(snapshot);
     return renderDealRecordPdf({
+      wordCache: await this.pdfCache.current(),
       snapshot,
       recordCode: recordCodeOf(snapshot.recordId, sha),
       snapshotSha256: sha,

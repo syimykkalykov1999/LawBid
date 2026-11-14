@@ -34,6 +34,7 @@ class AdminMeDto {
     required this.countryTabs,
     required this.securityQuestion,
     required this.reasonRequiredAreas,
+    required this.bulkSelectCap,
     this.passkeyCount,
     this.onCallAvailable,
     this.onCallEnabled,
@@ -103,6 +104,9 @@ class AdminMeDto {
 
   /// Sections where this admin must write a reason (always empty for the super admin).
   final List<String> reasonRequiredAreas;
+
+  /// Owner 14.11 (row 179): most rows «select all by filter» collects for this admin; null = no cap (always the super admin).
+  final int? bulkSelectCap;
 
   Map<String, Object?> toJson() => _$AdminMeDtoToJson(this);
 }

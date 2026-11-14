@@ -136,11 +136,17 @@ export class JobsRunner
     if (this.stopping) return;
 
     for (const lane of CRON_LANES) {
+      const run = outageProof((job: Job, signal?: AbortSignal) =>
+        withWork(`job ${job.name}`, () =>
+          this.processor.process(job.name, signal),
+        ),
+      );
       const worker = new Worker(
         lane,
-        outageProof((job: Job) =>
-          withWork(`job ${job.name}`, () => this.processor.process(job.name)),
-        ),
+        // Batch D (14.11): three declared parameters — BullMQ hands a
+        // processor its per-job AbortSignal only when `processor.length`
+        // is ≥ 3 (worker.js `processorAcceptsSignal`).
+        (job: Job, _token?: string, signal?: AbortSignal) => run(job, signal),
         {
           // Required by BullMQ for the worker's blocking connection.
           ...bullOptions(lane, url, { worker: true }),
@@ -186,6 +192,16 @@ export class JobsRunner
       });
       worker.on('error', (error) => {
         this.logger.error({ lane, err: error.message }, 'cron worker error');
+      });
+      // Batch D (14.11), BullMQ "Cancelling jobs": a job whose BullMQ lock
+      // could not be renewed (Redis restarted, failover) will be handed to
+      // another worker as stalled — stop this copy instead of running both.
+      worker.on('lockRenewalFailed', (jobIds: string[]) => {
+        for (const id of jobIds) worker.cancelJob(id, 'lock lost');
+        this.logger.warn(
+          { lane, jobs: jobIds, metric: 'cron_lock_lost' },
+          'cron job lock renewal failed; run cancelled',
+        );
       });
       this.workers.push(worker);
     }

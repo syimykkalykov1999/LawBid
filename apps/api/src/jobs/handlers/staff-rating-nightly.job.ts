@@ -4,7 +4,7 @@ import { StaffRatingService } from '../../modules/staff-rating/staff-rating.serv
 import { STAFF_JOB_OFF, type StaffJobResult } from './staff-job-gate';
 
 /**
- * Staff package (plan B5): cron job `staff.rating-nightly` (40 1 * * * UTC, lane cron-heavy).
+ * Staff package (plan B5): cron job `staff.rating-nightly` (40 9 * * * UTC, lane cron-heavy).
  * Rating, flags, suggestions (samples / golden tasks are made by staff.daily-stats).
  * Owner of this file: T5 (staff-rating). While staff.rating_enabled is off
  * (the default) it returns at once without touching the database. The
