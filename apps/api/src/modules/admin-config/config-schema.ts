@@ -756,6 +756,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 50,
     max: 100,
   };
+  out['verification.queue_warn_hours'] = {
+    ...out['verification.queue_warn_hours'],
+    description:
+      'Hours a verification request waits before the admin queue shows its waiting time in amber (default 24). Display only.',
+    min: 1,
+    max: 720,
+  };
+  out['verification.queue_late_hours'] = {
+    ...out['verification.queue_late_hours'],
+    description:
+      'Hours a verification request waits before the admin queue shows its waiting time in red (default 48). Display only.',
+    min: 1,
+    max: 720,
+  };
   out['verification.face_match.retention_days'] = {
     ...out['verification.face_match.retention_days'],
     description:
@@ -776,6 +790,40 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['verification.auto_decision.enabled'],
     description:
       'Owner only, a fresh 2FA code to change. Off (default): every attorney request waits for a person. On: all checks matched (state registry number + full name + active, face match at or above the threshold, liveness, the AI employee confident) = approved; only the registry record itself saying the licence is disbarred, suspended or revoked = rejected with an appeal; anything uncertain (number not found, registry error or timeout, not active, faces apart) and anything else goes to the human queue with the reason. Never for an owner or staff account, never without the biometric consent.',
+  };
+  // Owner row 50 (13.11): health watch of the state bar registries.
+  out['verification.registry_health.enabled'] = {
+    ...out['verification.registry_health.enabled'],
+    description:
+      "On (default): every state bar registry lookup is counted per state; when the error or not-found rate jumps above the state's own baseline (baseline_days, default 7) the registry is marked degraded, the owner gets an alert and that state's checks go to a person. Off: no counting, no mark.",
+  };
+  out['verification.registry_health.window_hours'] = {
+    ...out['verification.registry_health.window_hours'],
+    description:
+      'Hours of the window (default 24) compared with the previous 7 days.',
+    min: 1,
+    max: 168,
+  };
+  out['verification.registry_health.baseline_days'] = {
+    ...out['verification.registry_health.baseline_days'],
+    description:
+      "Days before the window (default 7) that make the state's normal error / not-found rate (its baseline).",
+    min: 1,
+    max: 90,
+  };
+  out['verification.registry_health.min_checks'] = {
+    ...out['verification.registry_health.min_checks'],
+    description:
+      'Fewer lookups than this (default 5) in the window decide nothing.',
+    min: 1,
+    max: 1000,
+  };
+  out['verification.registry_health.jump_points'] = {
+    ...out['verification.registry_health.jump_points'],
+    description:
+      "Percentage points (default 50) the error / not-found rate must rise above the state's 7-day rate to count as degraded.",
+    min: 5,
+    max: 100,
   };
   out['verification.auto_decision.face_reject_below'] = {
     ...out['verification.auto_decision.face_reject_below'],

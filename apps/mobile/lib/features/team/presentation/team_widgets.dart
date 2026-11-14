@@ -560,7 +560,7 @@ Future<bool> askLiability(
   Translator t,
   String duty,
 ) async {
-  final ok = await showDialog<bool>(
+  final ok = await showAppDialog<bool>(
     context: context,
     builder: (_) => _LiabilityDialog(t: t, duty: duty),
   );

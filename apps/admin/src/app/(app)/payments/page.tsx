@@ -29,9 +29,13 @@ import { PAYMENT_STATUS, StatusPill, usd } from '@/lib/labels';
 import { Reason } from '@/lib/reasons';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useUrlState } from '@/lib/url-state';
 
 type Tab = 'payments' | 'refunds' | 'duplicates' | 'disputes';
 type PayStatus = '' | 'pending' | 'succeeded' | 'failed' | 'refunded';
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const TABS: readonly Tab[] = ['payments', 'refunds', 'duplicates', 'disputes'];
+const PAY_STATUSES: readonly PayStatus[] = ['', 'pending', 'succeeded', 'failed', 'refunded'];
 /** Row 57: click-to-sort headers, one address parameter per tab (the loaded rows; default order = the server's). */
 const PAY_SORT = ['user', 'amount', 'status', 'paid', 'refunded', 'error'] as const;
 const REFUND_SORT = ['user', 'amount', 'status', 'reason', 'admin', 'created'] as const;
@@ -40,7 +44,7 @@ const DISPUTE_SORT = ['user', 'status', 'amount', 'reason', 'created'] as const;
 
 /** Payments and refunds. */
 export default function PaymentsPage() {
-  const [tab, setTab] = useState<Tab>('payments');
+  const [tab, setTab] = useUrlState<Tab>('tab', 'payments', TABS);
   return (
     <>
       <PageHeader
@@ -68,7 +72,7 @@ export default function PaymentsPage() {
 
 function Payments() {
   const { canWrite, canOpenUsers } = useBillingRole();
-  const [status, setStatus] = useState<PayStatus>('');
+  const [status, setStatus] = useUrlState<PayStatus>('status', '', PAY_STATUSES);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [refundOf, setRefundOf] = useState<AdminPayment | null>(null);

@@ -259,4 +259,90 @@ void main() {
     await back(tester);
     expect(platformCalls, contains('SystemNavigator.pop'));
   });
+
+  // Owner row 88: Android predictive back moves the page with the swipe.
+  group('predictive back', () {
+    setUp(() => debugPredictiveBack = true);
+    tearDown(() => debugPredictiveBack = null);
+
+    Future<void> send(
+      WidgetTester tester,
+      String method, [
+      double? progress,
+    ]) async {
+      final args = progress == null
+          ? null
+          : <String, Object?>{
+              'touchOffset': <double>[5, 300],
+              'progress': progress,
+              'swipeEdge': 0,
+            };
+      await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+        SystemChannels.backGesture.name,
+        SystemChannels.backGesture.codec
+            .encodeMethodCall(MethodCall(method, args)),
+        (_) {},
+      );
+      await tester.pump();
+    }
+
+    double pageX(WidgetTester tester, String text) =>
+        tester.getTopLeft(find.text(text)).dx;
+
+    testWidgets('the page follows the swipe and closes on release',
+        (tester) async {
+      await pump(tester);
+      await tester.tap(find.text('pushed'));
+      await tester.pumpAndSettle();
+      expect(pageX(tester, 'post'), 0);
+      await send(tester, 'startBackGesture', 0);
+      await send(tester, 'updateBackGestureProgress', 0.5);
+      // Half way: the page has moved with the finger (this test app's
+      // default transition; the app's own is the iPhone slide), the
+      // profile shows under it.
+      expect(pageX(tester, 'post'), greaterThan(0));
+      expect(find.text('profile'), findsOneWidget);
+      await send(tester, 'commitBackGesture');
+      await tester.pumpAndSettle();
+      expect(find.text('post'), findsNothing);
+      expect(find.text('profile'), findsOneWidget);
+      expect(platformCalls, isNot(contains('SystemNavigator.pop')));
+    });
+
+    testWidgets('a cancelled swipe slides the page back', (tester) async {
+      await pump(tester);
+      await tester.tap(find.text('pushed'));
+      await tester.pumpAndSettle();
+      await send(tester, 'startBackGesture', 0);
+      await send(tester, 'updateBackGestureProgress', 0.4);
+      await send(tester, 'cancelBackGesture');
+      await tester.pumpAndSettle();
+      expect(find.text('post'), findsOneWidget);
+      expect(pageX(tester, 'post'), 0);
+    });
+
+    testWidgets('first tab: not taken, «press again to leave» stays',
+        (tester) async {
+      await pump(tester, at: '/feed');
+      await send(tester, 'startBackGesture', 0);
+      await send(tester, 'updateBackGestureProgress', 0.5);
+      await send(tester, 'commitBackGesture');
+      await tester.pumpAndSettle();
+      expect(find.text('press again'), findsOneWidget);
+      expect(platformCalls, isNot(contains('SystemNavigator.pop')));
+    });
+
+    testWidgets('a PopScope page is not dragged; back asks it as before',
+        (tester) async {
+      await pump(tester, at: '/feed');
+      await tester.tap(find.text('feed'));
+      await tester.pumpAndSettle();
+      expect(find.text('chatsPage'), findsOneWidget);
+      await send(tester, 'startBackGesture', 0);
+      await send(tester, 'commitBackGesture');
+      await tester.pumpAndSettle();
+      expect(find.text('chatsPage'), findsNothing);
+      expect(find.text('feed'), findsOneWidget);
+    });
+  });
 }

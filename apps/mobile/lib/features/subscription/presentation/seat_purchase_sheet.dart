@@ -48,7 +48,7 @@ Future<bool> buyAssistantSeats(
     return false;
   }
   if (s.status == SubscriptionStatus.trialing) {
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(t.t('seats.buy.title')),

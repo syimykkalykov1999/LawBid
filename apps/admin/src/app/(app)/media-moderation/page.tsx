@@ -2,7 +2,6 @@
 
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
-import { useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { PrefetchSentinel } from '@/components/legacy/prefetch-sentinel';
@@ -17,8 +16,11 @@ import { api, errorText } from '@/lib/api/client';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { LazyImg } from '@/components/ui/lazy-img';
+import { useUrlState } from '@/lib/url-state';
 
 type Filter = 'all' | 'hidden' | 'flagged' | 'csam_match' | 'skipped';
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const FILTERS: readonly Filter[] = ['all', 'hidden', 'flagged', 'csam_match', 'skipped'];
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
 const SORT_KEYS = ['purpose', 'verdict', 'created'] as const;
 
@@ -71,7 +73,7 @@ export default function MediaModerationPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = useUrlState<Filter>('filter', 'all', FILTERS);
   const q = useInfiniteQuery({
     queryKey: ['media-moderation', filter],
     initialPageParam: undefined as string | undefined,

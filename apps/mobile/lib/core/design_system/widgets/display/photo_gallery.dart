@@ -29,31 +29,111 @@ Future<void> showPhotoGallery(
   int initial = 0,
   String closeLabel = 'Close',
   List<String>? previews,
-}) =>
-    Navigator.of(context, rootNavigator: true).push(
-      PageRouteBuilder<void>(
-        opaque: false,
-        barrierColor: Colors.transparent,
-        pageBuilder: (_, __, ___) => _Gallery(
-          urls: urls,
-          previews: previews,
-          initial: initial,
-          closeLabel: closeLabel,
-        ),
-        // Owner row 88 (2026-11-13): the app's page timing and curves
-        // instead of Flutter's default 300 ms straight-line fade.
-        transitionDuration: AppMotion.pageEnter,
-        reverseTransitionDuration: AppMotion.pageExit,
-        transitionsBuilder: (_, a, __, child) => FadeTransition(
-          opacity: CurvedAnimation(
-            parent: a,
-            curve: AppMotion.enterCurve,
-            reverseCurve: AppMotion.exitCurve,
-          ),
-          child: child,
-        ),
+}) {
+  // Owner row 88: the photo grows out of the picture that was tapped
+  // (a [GalleryHero] around it), as in Telegram, WhatsApp and Instagram.
+  final heroes = context.reduceMotion
+      ? null
+      : [for (final u in urls) GalleryHero.tagFor(context, u)];
+  return Navigator.of(context, rootNavigator: true).push(
+    PageRouteBuilder<void>(
+      opaque: false,
+      barrierColor: Colors.transparent,
+      pageBuilder: (_, __, ___) => _Gallery(
+        urls: urls,
+        previews: previews,
+        initial: initial,
+        closeLabel: closeLabel,
+        heroes: heroes,
       ),
-    );
+      // Owner row 88 (2026-11-13): the app's page timing and curves
+      // instead of Flutter's default 300 ms straight-line fade.
+      transitionDuration: AppMotion.pageEnter,
+      reverseTransitionDuration: AppMotion.pageExit,
+      transitionsBuilder: (_, a, __, child) => FadeTransition(
+        opacity: CurvedAnimation(
+          parent: a,
+          curve: AppMotion.enterCurve,
+          reverseCurve: AppMotion.exitCurve,
+        ),
+        child: child,
+      ),
+    ),
+  );
+}
+
+/// Owner row 88 (2026-11-13): wrap a photo's thumbnail in this, and
+/// [showPhotoGallery] opened from the same screen with the same [url]
+/// zooms the photo out of it and back into it on close (Flutter `Hero`,
+/// BSD-3). Each thumbnail has its own tag, so two copies of one photo on a
+/// screen never clash; the newest one on screen wins.
+class GalleryHero extends StatefulWidget {
+  const GalleryHero({required this.url, required this.child, super.key});
+
+  /// The full photo's address, the one passed to [showPhotoGallery].
+  final String url;
+  final Widget child;
+
+  static final Map<Route<Object?>, Map<String, Object>> _byRoute = {};
+
+  /// The tag of the thumbnail of [url] on [context]'s screen, if any.
+  static Object? tagFor(BuildContext context, String url) {
+    final route = ModalRoute.of(context);
+    return route == null ? null : _byRoute[route]?[url];
+  }
+
+  @override
+  State<GalleryHero> createState() => _GalleryHeroState();
+}
+
+class _GalleryHeroState extends State<GalleryHero> {
+  final Object _tag = Object();
+  Route<Object?>? _route;
+  String? _url;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _register();
+  }
+
+  @override
+  void didUpdateWidget(GalleryHero oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) _register();
+  }
+
+  void _register() {
+    final route = ModalRoute.of(context);
+    if (identical(route, _route) && _url == widget.url) return;
+    _unregister();
+    _route = route;
+    _url = widget.url;
+    if (route != null) {
+      (GalleryHero._byRoute[route] ??= {})[widget.url] = _tag;
+    }
+  }
+
+  void _unregister() {
+    final route = _route;
+    if (route == null) return;
+    final map = GalleryHero._byRoute[route];
+    if (map != null && identical(map[_url], _tag)) {
+      map.remove(_url);
+      if (map.isEmpty) GalleryHero._byRoute.remove(route);
+    }
+    _route = null;
+  }
+
+  @override
+  void dispose() {
+    _unregister();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Hero(tag: _tag, child: widget.child);
+}
 
 class _Gallery extends StatefulWidget {
   const _Gallery({
@@ -61,9 +141,13 @@ class _Gallery extends StatefulWidget {
     required this.initial,
     required this.closeLabel,
     this.previews,
+    this.heroes,
   });
 
   final List<String> urls;
+
+  /// The [GalleryHero] tag of each photo's thumbnail (null = none).
+  final List<Object?>? heroes;
 
   /// Owner 2026-11-04 (R-405): the smaller picture already on screen for
   /// each of [urls] (an avatar's 256 px preview) — shown, fitted, while the
@@ -82,19 +166,22 @@ class _GalleryState extends State<_Gallery>
 
   /// Owner row 88: let go above the line, the photo springs back (Flutter
   /// SpringSimulation, BSD-3; AppMotion.snapBackSpring) instead of jumping.
+  /// The spring runs from 1 (where it was let go) to 0 (in place).
   late final AnimationController _snap = AnimationController.unbounded(
     vsync: this,
-  )..addListener(
-      () => setState(() => _drag = _snap.value.clamp(0.0, 2000.0)),
-    );
+  )..addListener(() => setState(() => _drag = _released * _snap.value));
+  Offset _released = Offset.zero;
+  Offset _start = Offset.zero;
   late int _page = widget.initial;
 
   /// The shown photo is zoomed in: no page swipes, no swipe-down close.
   bool _zoomed = false;
 
-  /// Swipe-down distance; the photo follows the finger and the black
-  /// fades, past a threshold it closes.
-  double _drag = 0;
+  /// Owner row 88 (Telegram, Instagram; `dismissible_page`, MIT, idea):
+  /// a vertical swipe starts it, then the photo follows the finger in
+  /// every direction, shrinks a little and the black fades; past a
+  /// threshold (or flung) it closes.
+  Offset _drag = Offset.zero;
 
   @override
   void dispose() {
@@ -104,26 +191,39 @@ class _GalleryState extends State<_Gallery>
   }
 
   void _dragEnd(DragEndDetails d) {
-    final velocity = d.primaryVelocity ?? 0;
-    if (_drag > 120 || velocity > 700) {
+    final velocity = d.velocity.pixelsPerSecond;
+    final distance = _drag.distance;
+    if (distance > 120 || velocity.distance > 700) {
       Navigator.of(context).pop();
-    } else if (context.reduceMotion || _drag == 0) {
-      setState(() => _drag = 0);
+    } else if (context.reduceMotion || distance == 0) {
+      setState(() => _drag = Offset.zero);
     } else {
-      _snap.value = _drag;
+      // The release speed towards the rest point, in units of the distance.
+      final toward = -(velocity.dx * _drag.dx + velocity.dy * _drag.dy) /
+          (distance * distance);
+      _released = _drag;
+      _snap.value = 1;
       _snap
           .animateWith(
-        SpringSimulation(AppMotion.snapBackSpring, _drag, 0, velocity),
+        SpringSimulation(AppMotion.snapBackSpring, 1, 0, -toward),
       )
           .whenCompleteOrCancel(() {
-        if (mounted && !_snap.isAnimating) setState(() => _drag = 0);
+        if (mounted && !_snap.isAnimating) {
+          setState(() => _drag = Offset.zero);
+        }
       });
     }
   }
 
+  /// Shrinks to 85 % at a third of the screen's height away.
+  double _scaleFor(double distance, double height) =>
+      (1 - 0.15 * distance / (height / 3)).clamp(0.85, 1.0);
+
   @override
   Widget build(BuildContext context) {
-    final fade = (1 - _drag / 400).clamp(0.3, 1.0);
+    final distance = _drag.distance;
+    final fade = (1 - distance / 400).clamp(0.3, 1.0);
+    final height = MediaQuery.sizeOf(context).height;
     return SystemNavBandColor(
       color: Colors.black,
       child: Scaffold(
@@ -131,33 +231,51 @@ class _GalleryState extends State<_Gallery>
         body: Stack(
           children: [
             GestureDetector(
-              onVerticalDragStart: _zoomed ? null : (_) => _snap.stop(),
+              onVerticalDragStart: _zoomed
+                  ? null
+                  : (d) {
+                      _snap.stop();
+                      _start = d.globalPosition - _drag;
+                    },
               onVerticalDragUpdate: _zoomed
                   ? null
-                  : (d) => setState(
-                        () => _drag = (_drag + d.delta.dy).clamp(0, 2000),
-                      ),
+                  : (d) => setState(() => _drag = d.globalPosition - _start),
               onVerticalDragEnd: _zoomed ? null : _dragEnd,
               child: Transform.translate(
-                offset: Offset(0, _drag),
-                child: PageView.builder(
-                  controller: _controller,
-                  physics: _zoomed
-                      ? const NeverScrollableScrollPhysics()
-                      : const PageScrollPhysics(),
-                  itemCount: widget.urls.length,
-                  onPageChanged: (i) => setState(() {
-                    _page = i;
-                    _zoomed = false;
-                  }),
-                  itemBuilder: (_, i) => _ZoomablePhoto(
-                    key: ValueKey('gallery-photo-$i'),
-                    url: widget.urls[i],
-                    preview: i < (widget.previews?.length ?? 0)
-                        ? widget.previews![i]
-                        : null,
-                    onZoomed: (z) {
-                      if (z != _zoomed) setState(() => _zoomed = z);
+                offset: _drag,
+                child: Transform.scale(
+                  scale: _scaleFor(distance, height),
+                  child: PageView.builder(
+                    controller: _controller,
+                    physics: _zoomed
+                        ? const NeverScrollableScrollPhysics()
+                        : const PageScrollPhysics(),
+                    itemCount: widget.urls.length,
+                    onPageChanged: (i) => setState(() {
+                      _page = i;
+                      _zoomed = false;
+                    }),
+                    itemBuilder: (_, i) {
+                      final photo = _ZoomablePhoto(
+                        key: ValueKey('gallery-photo-$i'),
+                        url: widget.urls[i],
+                        preview: i < (widget.previews?.length ?? 0)
+                            ? widget.previews![i]
+                            : null,
+                        onZoomed: (z) {
+                          if (z != _zoomed) setState(() => _zoomed = z);
+                        },
+                      );
+                      final tag = i < (widget.heroes?.length ?? 0)
+                          ? widget.heroes![i]
+                          : null;
+                      if (tag == null) return photo;
+                      // Only the photo that was opened flies back into its
+                      // thumbnail; after a swipe to another one, it fades.
+                      return HeroMode(
+                        enabled: i == _page && i == widget.initial,
+                        child: Hero(tag: tag, child: photo),
+                      );
                     },
                   ),
                 ),

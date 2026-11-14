@@ -3,7 +3,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { MoreButton } from '@/components/legacy/more-button';
-import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { Badge, type Tone } from '@/components/ui/card';
@@ -21,8 +20,11 @@ import { reelsClientMode } from '@/lib/reels-client-mode';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { LazyImg } from '@/components/ui/lazy-img';
+import { useUrlSearchText, useUrlState } from '@/lib/url-state';
 
 type Status = '' | 'pending' | 'approved' | 'rejected' | 'revoked';
+/** Scout 13.11 (row 96): the filters live in the address (lib/url-state.ts). */
+const STATUSES: readonly Status[] = ['', 'pending', 'approved', 'rejected', 'revoked'];
 type Sub = '' | 'none' | 'active' | 'past_due' | 'canceled' | 'comped';
 
 const STATUS_RU: Record<string, { text: string; tone: Tone }> = {
@@ -57,10 +59,9 @@ export default function ClientBadgesPage() {
   const me = useMe();
   const canManage = me.data ? can(me.data, 'verification', 'manage') : false;
   const { ask, dialog } = useReason();
-  const [status, setStatus] = useState<Status>('pending');
+  const [status, setStatus] = useUrlState<Status>('status', 'pending', STATUSES);
   const [sub, setSub] = useState<Sub>('');
-  const [text, setText] = useState('');
-  const search = useDebounced(text.trim(), 300);
+  const { text, setText, value: search } = useUrlSearchText('q');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
 

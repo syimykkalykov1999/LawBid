@@ -1289,6 +1289,8 @@ class ConversationRow extends ConsumerWidget {
     final open = DesktopChatScope.selectedIdOf(context) == c.id;
     final row = AppPressable(
       key: ValueKey('chat-organize-${c.id}'),
+      // Owner 13.11 (row 93): the row lights up while pressed.
+      highlight: true,
       onTap: picking != null
           ? startDirectWith != null
               ? null

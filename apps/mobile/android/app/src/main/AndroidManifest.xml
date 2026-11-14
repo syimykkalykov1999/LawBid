@@ -62,7 +62,9 @@
          generations — tokens, Drift stores and caches never reach a cloud
          backup or a device transfer (res/xml/backup_rules.xml,
          res/xml/data_extraction_rules.xml). -->
+    <!-- Owner row 88: Android predictive back (system back gesture preview, Flutter guide docs.flutter.dev/platform-integration/android/predictive-back); SystemBackGuard moves the page. -->
     <application
+        android:enableOnBackInvokedCallback="true"
         android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"

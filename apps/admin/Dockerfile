@@ -1,7 +1,7 @@
 # LawBid admin (Next.js, docs/06 §2.1) — standalone server image for the
 # `admin` ECS service. Built from the repository root:
 #   docker build -f apps/admin/Dockerfile -t lawbid-admin .
-FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS build
+FROM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS build
 # Same headroom as the API build: Node's default heap can run out on
 # `next build`. Build stage only.
 ENV NODE_OPTIONS=--max-old-space-size=4096
@@ -17,7 +17,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run generate --workspace apps/admin \
  && npm run build --workspace apps/admin
 
-FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS runtime
+FROM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS runtime
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3001 HOSTNAME=0.0.0.0
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app

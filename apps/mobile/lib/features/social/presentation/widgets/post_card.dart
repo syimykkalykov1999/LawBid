@@ -2547,11 +2547,15 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                         ),
                       // Owner 2026-10-23: the soft 320 px copy shows at once,
                       // the sharp one fades in over it.
-                      ProgressivePhoto(
-                        fileId: m.fileId,
-                        previewUrl: m.previewUrl,
-                        url: m.mediumUrl,
-                        blurhash: m.blurhash,
+                      // Owner row 88: the full-screen photo grows out of it.
+                      GalleryHero(
+                        url: m.url,
+                        child: ProgressivePhoto(
+                          fileId: m.fileId,
+                          previewUrl: m.previewUrl,
+                          url: m.mediumUrl,
+                          blurhash: m.blurhash,
+                        ),
                       ),
                     ],
                   ),
@@ -3004,13 +3008,17 @@ class _BounceIconState extends State<BounceIcon>
     vsync: this,
     duration: const Duration(milliseconds: 360),
   );
+  // Owner row 88: back down with one soft settle (Flutter's easeOutBack)
+  // instead of an elastic wobble squeezed into 216 ms that shook three
+  // times; Instagram's heart springs back once (spring physics, Instagram
+  // engineering blog).
   late final Animation<double> _scale = TweenSequence<double>([
     TweenSequenceItem(tween: Tween<double>(begin: 1, end: 1.28), weight: 40),
     TweenSequenceItem(
       tween: Tween<double>(
         begin: 1.28,
         end: 1,
-      ).chain(CurveTween(curve: Curves.elasticOut)),
+      ).chain(CurveTween(curve: Curves.easeOutBack)),
       weight: 60,
     ),
   ]).animate(_c);

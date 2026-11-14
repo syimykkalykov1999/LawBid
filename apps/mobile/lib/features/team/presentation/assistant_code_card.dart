@@ -61,7 +61,7 @@ class _AssistantCodeCardState extends ConsumerState<AssistantCodeCard> {
   Future<void> _newCode() async {
     final t = ref.read(translatorProvider);
     if (_m.status == MemberStatus.active || _m.joinCode != null) {
-      final ok = await showDialog<bool>(
+      final ok = await showAppDialog<bool>(
         context: context,
         builder: (ctx) => AppAlertDialog(
           content: Text(

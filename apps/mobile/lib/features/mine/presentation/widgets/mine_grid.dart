@@ -247,7 +247,7 @@ class MinePagedGrid<T> extends ConsumerWidget {
           child: NotificationListener<ScrollNotification>(
             onNotification: (n) {
               // The search and chips above hide on scroll down.
-              FeedChrome.maybeOf(context)?.onScroll(n);
+              FeedChrome.read(context)?.onScroll(n);
               if (n.metrics.extentAfter < 600 && value.canLoadMore) {
                 onLoadMore();
               }
