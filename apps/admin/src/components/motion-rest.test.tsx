@@ -191,7 +191,11 @@ describe('phone dialog = bottom sheet (vaul)', () => {
       </Dialog>,
     );
     await flush();
-    expect(screen.getByRole('dialog').style.transform).toContain('translateY(24px)');
+    // First frames of the rise: about 24 px below (the animation may have
+    // moved a fraction of a pixel by the time the test reads it, CI 14.11).
+    const rise = /translateY\(([\d.]+)px\)/.exec(screen.getByRole('dialog').style.transform);
+    expect(Number(rise?.[1])).toBeGreaterThan(20);
+    expect(Number(rise?.[1])).toBeLessThanOrEqual(24);
   });
 });
 
