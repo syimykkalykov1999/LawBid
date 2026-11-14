@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Consultation } from '@prisma/client';
+import type { Consultation } from '../../generated/prisma/client';
 import { CalendarBusyService } from './calendar-busy.service';
 import { CalendarConfig } from './calendar-config.service';
 import { buildLinks, type CalendarLinks } from './calendar-links';

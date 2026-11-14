@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 
 /**
  * Batched backfills (docs/architecture/ONLINE_DDL.md). Same shape as GitLab's

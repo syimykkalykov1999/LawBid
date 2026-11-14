@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { rawSqlIsGlobalOnly, rawSqlText } from './shard-delegates';
 
 describe('hand-written SQL routing on two databases (step 8)', () => {

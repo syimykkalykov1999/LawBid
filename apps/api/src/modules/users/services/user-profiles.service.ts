@@ -15,7 +15,7 @@ import {
   Prisma,
   type UserRole,
   type VerificationStatus,
-} from '@prisma/client';
+} from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';

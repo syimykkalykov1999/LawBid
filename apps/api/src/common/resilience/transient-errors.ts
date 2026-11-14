@@ -24,20 +24,79 @@ const PG_TRANSIENT_STATES = new Set([
   '53300', // too_many_connections
 ]);
 
+/** OS-level socket errors. Prisma 7 (driver adapter) puts them in `code`
+ * (`ECONNREFUSED` …) where Prisma 6 said P1001 / P1017. */
+const SOCKET_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EPIPE',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'EAI_AGAIN',
+  'ENOTFOUND',
+]);
+
+/** node-pg's pool when no connection frees up within
+ * `connectionTimeoutMillis` (Prisma 7's P2024; Prisma passes this plain
+ * Error through, measured 13.11 with @prisma/adapter-pg 7.10.1). */
+export const PG_POOL_TIMEOUT = /timeout exceeded when trying to connect/i;
+
 const MESSAGE_PATTERNS =
-  /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN|terminating connection|server closed the connection|connection (?:terminated|reset|closed)|can't reach database server|Connection is closed|Command timed out|Stream isn't writeable|read-only transaction|the database system is (?:starting up|shutting down)|Timed out fetching a new connection/i;
+  /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN|terminating connection|server closed the connection|connection (?:terminated|reset|closed)|can't reach database server|Connection is closed|Command timed out|Stream isn't writeable|read-only transaction|the database system is (?:starting up|shutting down)|Timed out fetching a new connection|timeout exceeded when trying to connect/i;
 
 interface ErrorLike {
   code?: unknown;
   message?: unknown;
-  meta?: { code?: unknown } | null;
+  meta?: {
+    code?: unknown;
+    driverAdapterError?: { cause?: { originalCode?: unknown } };
+  } | null;
   cause?: unknown;
 }
 
-function codeOf(e: ErrorLike): string | undefined {
-  if (typeof e.code === 'string') return e.code;
-  const m = e.meta?.code;
-  return typeof m === 'string' ? m : undefined;
+/**
+ * The PostgreSQL SQLSTATE behind a Prisma error. Prisma 6 put it in
+ * `meta.code`; Prisma 7 (driver adapter) in
+ * `meta.driverAdapterError.cause.originalCode` (P2010 raw queries) or, for a
+ * `DriverAdapterError` it passes through unwrapped (a failed COMMIT), in
+ * `cause.originalCode`. Measured 13.11 with @prisma/adapter-pg 7.10.1.
+ */
+export function sqlStateOf(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const e = error as ErrorLike;
+  const fromMeta =
+    e.meta?.code ?? e.meta?.driverAdapterError?.cause?.originalCode;
+  if (typeof fromMeta === 'string') return fromMeta;
+  const cause = e.cause as { originalCode?: unknown } | undefined;
+  if (
+    (error as { name?: unknown }).name === 'DriverAdapterError' &&
+    typeof cause?.originalCode === 'string'
+  ) {
+    return cause.originalCode;
+  }
+  return undefined;
+}
+
+/** The error's own code and, behind a Prisma code such as P2010, the
+ * SQLSTATE it wraps (Prisma 7 nests it; see sqlStateOf). */
+function codesOf(e: ErrorLike): string[] {
+  const out: string[] = [];
+  if (typeof e.code === 'string') out.push(e.code);
+  const state = sqlStateOf(e);
+  if (state) out.push(state);
+  return out;
+}
+
+/** A code that means the database / network connection was lost. */
+function isConnectionCode(e: ErrorLike): boolean {
+  return codesOf(e).some(
+    (code) =>
+      PRISMA_CONNECTION.has(code) ||
+      PG_TRANSIENT_STATES.has(code) ||
+      SOCKET_CODES.has(code) ||
+      /^08/.test(code), // SQLSTATE class 08: connection exception
+  );
 }
 
 /** A failed call that is worth repeating a moment later: the database,
@@ -48,11 +107,7 @@ export function isTransientInfraError(error: unknown, depth = 0): boolean {
   // A paused circuit (database or partner service) heals by itself.
   if ((error as { name?: unknown }).name === 'CircuitOpenError') return true;
   const e = error as ErrorLike;
-  const code = codeOf(e);
-  if (code && (PRISMA_CONNECTION.has(code) || PG_TRANSIENT_STATES.has(code))) {
-    return true;
-  }
-  if (code && /^08/.test(code)) return true; // SQLSTATE class 08: connection exception
+  if (isConnectionCode(e)) return true;
   if (typeof e.message === 'string' && MESSAGE_PATTERNS.test(e.message)) {
     return true;
   }
@@ -66,6 +121,13 @@ export function isUnreachableBeforeSend(error: unknown): boolean {
   // Only the OS-level «no connection could be made» errors. Prisma's P1001
   // is NOT trusted: the engine can also raise it for a connection that
   // dropped mid-query, and repeating a write that may have run doubles it.
+  // Prisma 7 puts the OS code in `code` (its message is empty).
+  if (
+    typeof e.code === 'string' &&
+    /^(?:ECONNREFUSED|ENOTFOUND|EAI_AGAIN)$/.test(e.code)
+  ) {
+    return true;
+  }
   return (
     typeof e.message === 'string' &&
     /ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(e.message)
@@ -139,14 +201,10 @@ export function isDatabaseOutageError(error: unknown, depth = 0): boolean {
   if (e.name === 'CircuitOpenError') {
     return typeof e.service === 'string' && e.service.startsWith('database');
   }
-  const code = codeOf(e);
-  if (code && (PRISMA_CONNECTION.has(code) || PG_TRANSIENT_STATES.has(code))) {
-    return true;
-  }
-  if (code && /^08/.test(code)) return true;
+  if (isConnectionCode(e)) return true;
   if (
     typeof e.message === 'string' &&
-    /terminating connection|server closed the connection|can't reach database server|read-only transaction|the database system is (?:starting up|shutting down)|Timed out fetching a new connection/i.test(
+    /terminating connection|server closed the connection|can't reach database server|read-only transaction|the database system is (?:starting up|shutting down)|Timed out fetching a new connection|timeout exceeded when trying to connect/i.test(
       e.message,
     )
   ) {

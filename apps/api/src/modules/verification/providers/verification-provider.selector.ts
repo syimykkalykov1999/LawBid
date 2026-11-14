@@ -1,5 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
-import type { VerificationProvider } from '@prisma/client';
+import type { VerificationProvider } from '../../../generated/prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { AutoBarLookupProvider } from './bar-lookup/auto-bar-lookup.provider';
 import { ManualIdVerificationProvider } from './manual.providers';

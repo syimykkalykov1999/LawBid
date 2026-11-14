@@ -1,4 +1,4 @@
-import type { CheckResult } from '@prisma/client';
+import type { CheckResult } from '../../../generated/prisma/client';
 
 /** docs/03_VERIFICATION_PROFILES.md §2.4: pluggable external checks.
  * Implementations are chosen per call by VerificationProviderSelector

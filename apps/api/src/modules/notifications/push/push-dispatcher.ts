@@ -1,4 +1,4 @@
-import type { NotificationQuietHours } from '@prisma/client';
+import type { NotificationQuietHours } from '../../../generated/prisma/client';
 import { readsAreSplit } from '../../../sharding/split-reads';
 import {
   ServerTextsService,
@@ -18,7 +18,10 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { NotificationCategory, NotificationType } from '@prisma/client';
+import type {
+  NotificationCategory,
+  NotificationType,
+} from '../../../generated/prisma/client';
 import { Worker, type Job } from 'bullmq';
 import {
   parseQueueMode,

@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../generated/prisma/client';
 import { ftsMatch } from '../../../common/search/fts-sql';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import { forEachDatabase } from '../../../sharding/for-each-database';

@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { shardContext } from '../../sharding/shard-context';
-import { Prisma, type Notification } from '@prisma/client';
+import { Prisma, type Notification } from '../../generated/prisma/client';
 import {
   allWordsSql,
   nameKeys,

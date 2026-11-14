@@ -1,5 +1,7 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../src/generated/prisma/client';
 import { familyOf } from '../../src/sharding/shard-manifest';
+import { datamodel as prismaDatamodel } from '../../src/generated/prisma-dmmf';
+import { pgAdapter } from '../../src/prisma/pg-adapter';
 
 /**
  * Shard-ready step 5 (docs/architecture/SHARDING_READY.md §6 "Tests"): the
@@ -58,7 +60,7 @@ export async function seedShardMap(
   url: string,
   mode: TwoDbMode,
 ): Promise<void> {
-  const db = new PrismaClient({ datasourceUrl: url });
+  const db = new PrismaClient({ adapter: pgAdapter(url) });
   try {
     await db.$executeRaw`DELETE FROM shard_map`;
     await db.$executeRaw`
@@ -76,11 +78,11 @@ export async function seedShardMap(
 /** Drops every foreign key whose two tables belong to different families. */
 export async function dropCrossFamilyForeignKeys(url: string): Promise<number> {
   const familyOfTable = new Map<string, string>();
-  for (const m of Prisma.dmmf.datamodel.models) {
+  for (const m of prismaDatamodel.models) {
     const family = familyOf(m.name);
     if (family) familyOfTable.set(m.dbName ?? m.name, family);
   }
-  const db = new PrismaClient({ datasourceUrl: url });
+  const db = new PrismaClient({ adapter: pgAdapter(url) });
   try {
     const fks = await db.$queryRaw<
       { conname: string; tbl: string; ref: string }[]

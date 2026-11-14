@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   CDN_INVALIDATOR,

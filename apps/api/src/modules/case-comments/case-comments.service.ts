@@ -9,7 +9,7 @@ import {
   Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { CaseComment } from '@prisma/client';
+import type { CaseComment } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,

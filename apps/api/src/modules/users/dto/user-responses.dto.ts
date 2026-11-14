@@ -8,7 +8,7 @@ import {
   UserRole,
   UserStatus,
   VerificationStatus,
-} from '@prisma/client';
+} from '../../../generated/prisma/client';
 
 /**
  * Response payloads of /users/me* (docs/01_FOUNDATION_AUTH.md §10.5, §11)

@@ -5,7 +5,11 @@ import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
 import type Redis from 'ioredis';
 import request from 'supertest';
-import type { AdminRole, FilePurpose, ScanStatus } from '@prisma/client';
+import type {
+  AdminRole,
+  FilePurpose,
+  ScanStatus,
+} from '../src/generated/prisma/client';
 import { AppModule } from '../src/app.module';
 import { adminSession } from './support/admin-login';
 import { PrismaService } from '../src/prisma/prisma.service';

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await -- in-memory fakes */
-import type { Call } from '@prisma/client';
+import type { Call } from '../../generated/prisma/client';
 import { CallsService } from './calls.service';
 
 /**

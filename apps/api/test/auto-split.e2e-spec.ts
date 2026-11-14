@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import type Redis from 'ioredis';
 import { AppModule } from '../src/app.module';
 import { AppSettingsService } from '../src/common/app-settings/app-settings.service';
@@ -11,6 +11,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { ShardMoveService } from '../src/sharding/move/shard-move.service';
 import { shardContext } from '../src/sharding/shard-context';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * Owner 2026-11-11 (db.shards_mode = Авто, «создавай условия и проверяй
@@ -38,14 +39,18 @@ const run = (process.env.E2E_TWO_DB ?? '').trim().toLowerCase() === 'empty';
       await app.init();
       prisma = app.get(PrismaService);
       raw = {
-        primary: new PrismaClient(),
+        primary: new PrismaClient({
+          adapter: pgAdapter(process.env.DATABASE_URL),
+        }),
         db1: new PrismaClient({
-          datasourceUrl: (
-            JSON.parse(process.env.DATABASE_URL_SHARDS!) as Record<
-              string,
-              string
-            >
-          ).db1,
+          adapter: pgAdapter(
+            (
+              JSON.parse(process.env.DATABASE_URL_SHARDS!) as Record<
+                string,
+                string
+              >
+            ).db1,
+          ),
         }),
       };
     }, 120_000);

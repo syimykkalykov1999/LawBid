@@ -1,5 +1,5 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { AdminsService } from './admins.service';

@@ -42,7 +42,7 @@ Owner steps:
 
 | Advisory | Where | The fix npm offers | Notes |
 | --- | --- | --- | --- |
-| `deepmerge-ts <8` (high, GHSA-ggr8-5vv4-36mx) | `prisma` → `@prisma/config` | Prisma 7 | Build-time CLI only, never in the running API. Already in `.github/npm-audit-allowlist.json` until 2027-01-31. |
+| ~~`deepmerge-ts <8` (high, GHSA-ggr8-5vv4-36mx)~~ | `prisma` → `@prisma/config` | Prisma 7 | Fixed 13.11 by the Prisma 7.10.1 upgrade (deepmerge-ts 8.0.2); allowlist and .trivyignore entries removed. |
 | `postcss ≤8.5.22` (high, GHSA-qx2v-qp2m-jg93 and the source-map ones) | `next/node_modules/postcss` (the admin build) | Next 16 | Next 15 pins its own postcss. It only runs on our own CSS at build time, never on user input. |
 | `js-yaml 5.0–5.4` (moderate) | `@nestjs/swagger` | `@nestjs/swagger` 12 | Swagger is off in prod. |
 | `uuid <11.1.1` (moderate) | `exceljs` (and `autocannon` in dev) | an older `exceljs` | Only v3/v5/v6 with a caller buffer are affected; exceljs uses v4. |

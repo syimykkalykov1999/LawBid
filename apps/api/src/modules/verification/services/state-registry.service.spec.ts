@@ -1,5 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
-import type { StateBarRegistry } from '@prisma/client';
+import type { StateBarRegistry } from '../../../generated/prisma/client';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import type { StateBarAdapter } from '../providers/bar-lookup/state-bar-adapter';
 import type { PaidBarVendorService } from '../providers/bar-lookup/paid-bar-vendors';

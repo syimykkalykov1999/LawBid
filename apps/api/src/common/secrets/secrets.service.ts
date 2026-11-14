@@ -10,7 +10,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { IntegrationCredential } from '@prisma/client';
+import type { IntegrationCredential } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { demoContext } from '../demo/demo-context';
 import { ErrorCode } from '../errors/error-code.enum';

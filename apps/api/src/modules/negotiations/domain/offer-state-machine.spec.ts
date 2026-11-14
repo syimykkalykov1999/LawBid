@@ -1,4 +1,4 @@
-import type { OfferStatus } from '@prisma/client';
+import type { OfferStatus } from '../../../generated/prisma/client';
 import {
   OFFER_STATUSES,
   OfferStateMachine,

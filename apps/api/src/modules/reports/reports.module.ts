@@ -19,7 +19,7 @@ import {
   ApiPropertyOptional,
   ApiTags,
 } from '@nestjs/swagger';
-import { ReportReason, ReportTargetType } from '@prisma/client';
+import { ReportReason, ReportTargetType } from '../../generated/prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsEnum,

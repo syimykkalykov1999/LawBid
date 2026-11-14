@@ -14,7 +14,11 @@ import {
 import { readsAreSplit } from '../../sharding/split-reads';
 import { shardContext } from '../../sharding/shard-context';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, type Gift, type GiftSend } from '@prisma/client';
+import {
+  Prisma,
+  type Gift,
+  type GiftSend,
+} from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,

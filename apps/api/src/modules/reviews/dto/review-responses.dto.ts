@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ReportReason, ReportStatus, ReviewStatus } from '@prisma/client';
+import {
+  ReportReason,
+  ReportStatus,
+  ReviewStatus,
+} from '../../../generated/prisma/client';
 
 /** A published review as anyone sees it on the attorney's "Reviews" tab
  * (docs/03 §7.4). No case id (attorney-client privilege: an attorney's

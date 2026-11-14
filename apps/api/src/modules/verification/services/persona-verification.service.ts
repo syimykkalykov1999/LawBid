@@ -4,7 +4,7 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
-import type { CheckResult, Prisma } from '@prisma/client';
+import type { CheckResult, Prisma } from '../../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';

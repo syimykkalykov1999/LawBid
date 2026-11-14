@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import Redis from 'ioredis';
 import { e2eRedisUrl } from './support/e2e-env';
@@ -11,6 +11,7 @@ import {
   GENERAL_PRACTICE_CODE,
   NOT_SURE_OR_OTHER_CODE,
 } from '../src/modules/cases/queries/cases-visible.sql';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.3 acceptance against PostgreSQL:
@@ -28,7 +29,9 @@ import {
  */
 describe('Stage 4.3 — attorney case feed, detail, views, save (e2e)', () => {
   jest.setTimeout(60_000);
-  const root = new PrismaClient();
+  const root = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   const prisma = new PrismaService();
   const redis = new Redis(e2eRedisUrl());
   const logger = {

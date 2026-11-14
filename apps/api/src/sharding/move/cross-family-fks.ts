@@ -1,7 +1,7 @@
-import { Prisma } from '@prisma/client';
 import { familyOf } from '../shard-manifest';
 import type { MoveDb } from './move-db';
 import { q } from './move-sql';
+import { datamodel as prismaDatamodel } from '../../generated/prisma-dmmf';
 
 /**
  * Shard-ready step 9: drops the foreign keys between DIFFERENT families
@@ -31,7 +31,7 @@ export interface FkRow {
 
 export function familyByTable(): Map<string, string> {
   const out = new Map<string, string>();
-  for (const m of Prisma.dmmf.datamodel.models) {
+  for (const m of prismaDatamodel.models) {
     const f = familyOf(m.name);
     if (f) out.set(m.dbName ?? m.name, f);
   }

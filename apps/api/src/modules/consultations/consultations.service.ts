@@ -7,7 +7,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Consultation, Prisma } from '@prisma/client';
+import type { Consultation, Prisma } from '../../generated/prisma/client';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';

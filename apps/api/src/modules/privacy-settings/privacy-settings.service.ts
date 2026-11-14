@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
-import type { PrivacyAudience } from '@prisma/client';
+import type { PrivacyAudience } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AnalyticsConsentService } from '../analytics/analytics-consent.service';

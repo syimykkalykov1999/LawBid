@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import type { FilePurpose } from '@prisma/client';
+import type { FilePurpose } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { FILE_MIME, type FileMime } from './files.policy';
 

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/require-await -- in-memory fakes */
 import { ForbiddenException } from '@nestjs/common';
-import type { Call } from '@prisma/client';
+import type { Call } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { CALLS_GROUP_FLAG, CallsService } from './calls.service';
 

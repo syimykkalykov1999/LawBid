@@ -2,7 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { maxAssistantSeats } from '../billing/seat-limit';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ASSISTANT_SEAT_PRICE_CENTS,

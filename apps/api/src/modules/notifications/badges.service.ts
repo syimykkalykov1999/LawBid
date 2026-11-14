@@ -1,7 +1,10 @@
 import { unreadMessagesSql } from '../groups/group-unread.sql';
 import { shardContext } from '../../sharding/shard-context';
 import { Inject, Injectable } from '@nestjs/common';
-import type { NotificationCategory, NotificationType } from '@prisma/client';
+import type {
+  NotificationCategory,
+  NotificationType,
+} from '../../generated/prisma/client';
 import {
   ALWAYS_PUSH,
   DEFAULT_PUSH,

@@ -1,6 +1,6 @@
 import { Controller, Get, Header, Query, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { Plan } from '@prisma/client';
+import type { Plan } from '../../generated/prisma/client';
 import type { Request, Response } from 'express';
 import {
   notModified,

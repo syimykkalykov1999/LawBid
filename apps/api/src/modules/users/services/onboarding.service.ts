@@ -12,7 +12,7 @@ import {
   Prisma,
   type LegalDocType,
   type User,
-} from '@prisma/client';
+} from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { startNameRecheckIfVerified } from './attorney-name-recheck';

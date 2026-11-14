@@ -1,4 +1,4 @@
-import type { VideoAsset } from '@prisma/client';
+import type { VideoAsset } from '../../generated/prisma/client';
 import {
   VideosService,
   mp4FallbackFile,

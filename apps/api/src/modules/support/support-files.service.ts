@@ -1,5 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import type { Prisma, SupportMessageFile } from '@prisma/client';
+import type { Prisma, SupportMessageFile } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from '../files/files.service';

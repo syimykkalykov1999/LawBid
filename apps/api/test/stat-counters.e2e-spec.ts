@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
  * Row 78 (1B messages): the admin overview's «messages in 7 days» and «users
@@ -12,7 +13,9 @@ import { randomUUID } from 'node:crypto';
  */
 describe('stat_counters (e2e)', () => {
   jest.setTimeout(60_000);
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
 
   afterAll(() => prisma.$disconnect());
 

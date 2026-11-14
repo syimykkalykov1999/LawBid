@@ -9,11 +9,12 @@
  *
  *   npx ts-node --transpile-only scripts/lhci-admin.ts   (DATABASE_URL, API_URL=http://localhost:3000)
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import { defaultPermissionsForRole } from '../src/modules/admin-auth/admin-permissions';
 import { hashSecret } from '../src/modules/admin-auth/admin-password.util';
 import { totpCode } from '../src/modules/admin-auth/totp.util';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 const PASSWORD = 'E2e-admin-pass-2026'; // test/support/admin-login.ts E2E_ADMIN_PASSWORD
 
@@ -25,14 +26,21 @@ async function post<T>(base: string, path: string, body: unknown): Promise<T> {
   });
   const json = (await r.json()) as { data?: T; error?: unknown };
   if (!r.ok || !json.data) {
-    throw new Error(`${path} → ${r.status} ${JSON.stringify(json.error ?? json)}`);
+    throw new Error(
+      `${path} → ${r.status} ${JSON.stringify(json.error ?? json)}`,
+    );
   }
   return json.data;
 }
 
 async function main(): Promise<void> {
-  const base = (process.env.API_URL ?? 'http://localhost:3000').replace(/\/$/, '');
-  const prisma = new PrismaClient();
+  const base = (process.env.API_URL ?? 'http://localhost:3000').replace(
+    /\/$/,
+    '',
+  );
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   try {
     const tag = randomUUID().slice(0, 8);
     const email = `lhci-${tag}@lawbid-e2e.test`;
@@ -59,15 +67,27 @@ async function main(): Promise<void> {
         password_hash: await hashSecret(PASSWORD),
       },
     });
-    const step = await post<{ ticket: string; totpSetupRequired: boolean }>(base, '/admin/auth/login/password', {
-      login,
-      password: PASSWORD,
-    });
-    const setup = await post<{ secret: string }>(base, '/admin/auth/login/totp-setup', { ticket: step.ticket });
-    const done = await post<{ session: { accessToken: string } }>(base, '/admin/auth/login/totp-confirm', {
-      ticket: step.ticket,
-      code: totpCode(setup.secret),
-    });
+    const step = await post<{ ticket: string; totpSetupRequired: boolean }>(
+      base,
+      '/admin/auth/login/password',
+      {
+        login,
+        password: PASSWORD,
+      },
+    );
+    const setup = await post<{ secret: string }>(
+      base,
+      '/admin/auth/login/totp-setup',
+      { ticket: step.ticket },
+    );
+    const done = await post<{ session: { accessToken: string } }>(
+      base,
+      '/admin/auth/login/totp-confirm',
+      {
+        ticket: step.ticket,
+        code: totpCode(setup.secret),
+      },
+    );
     process.stdout.write(`${done.session.accessToken}\n`);
   } finally {
     await prisma.$disconnect();

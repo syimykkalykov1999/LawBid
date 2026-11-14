@@ -114,7 +114,7 @@ export async function migrateShard({
   key,
   url,
   env,
-  PrismaClient,
+  rawClient,
   log = console.log,
 }) {
   const host = new URL(url).hostname;
@@ -122,7 +122,7 @@ export async function migrateShard({
   const childEnv = { ...env, DATABASE_URL: url };
   run('npx', ['prisma', 'migrate', 'deploy'], childEnv);
   run('node', ['prisma/run-concurrent.mjs'], childEnv);
-  const prisma = new PrismaClient({ datasourceUrl: url });
+  const prisma = rawClient(url);
   try {
     for (const name of ['APP_DATABASE_URL', 'RETENTION_DATABASE_URL']) {
       const login = loginOf(env[name]);
@@ -181,7 +181,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     console.error('shards: DATABASE_URL (the migrator) is not set');
     process.exit(1);
   }
-  const { PrismaClient } = await import('@prisma/client');
+  const { rawClient } = await import('./pg-client.mjs');
   try {
     for (const [key, host] of hosts) {
       await migrateShard({
@@ -194,7 +194,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
           process.env.DB_SHARD_PORT?.trim() || '5432',
         ),
         env: process.env,
-        PrismaClient,
+        rawClient,
       });
     }
   } catch (e) {

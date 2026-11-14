@@ -9,7 +9,10 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { CsamReport, MediaModerationCheck } from '@prisma/client';
+import type {
+  CsamReport,
+  MediaModerationCheck,
+} from '../../generated/prisma/client';
 import {
   ApiEnvelopeResponse,
   ApiErrors,

@@ -18,12 +18,13 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import sharp from 'sharp';
 import {
   AVATAR_VARIANT_PX,
   variantKey,
 } from '../src/modules/files/files.policy';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 const APPLY = process.argv.includes('--apply');
 const PAGE = 500;
@@ -55,7 +56,9 @@ async function main(): Promise<void> {
           }
         : undefined,
   });
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: pgAdapter(process.env.DATABASE_URL),
+  });
   let checked = 0;
   let missing = 0;
   let written = 0;

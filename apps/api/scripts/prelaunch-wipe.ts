@@ -27,7 +27,7 @@ import {
   ListObjectVersionsCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import Redis from 'ioredis';
 import { SecretEnvelope } from '../src/common/secrets/secret-envelope';
 import { r2WipeRefs } from '../src/ops/r2-wipe-refs';
@@ -42,6 +42,7 @@ import {
   SOFT_USER_REFS,
   type WipePlan,
 } from '../src/ops/prelaunch-wipe.plan';
+import { pgAdapter } from '../src/prisma/pg-adapter';
 
 const CONFIRM_PHRASE = 'wipe-beta-test-data';
 const PHASES = ['bunny', 'db', 's3', 'redis'] as const;
@@ -617,7 +618,7 @@ async function confirm(args: Args, dbName: string): Promise<void> {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const db = new PrismaClient();
+  const db = new PrismaClient({ adapter: pgAdapter(process.env.DATABASE_URL) });
   try {
     const dbName = (
       await db.$queryRawUnsafe<{ d: string }[]>(

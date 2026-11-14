@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { ContactIssueReport } from '@prisma/client';
+import type { ContactIssueReport } from '../../../generated/prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { SessionRevocationService } from '../../auth/services/session-revocation.service';
 import { CaseLifecycleService } from '../lifecycle/case-lifecycle.service';

@@ -1,10 +1,11 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '../../generated/prisma/client';
 import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
+import { pgAdapter } from '../../prisma/pg-adapter';
 
 /** Rows per statement: short transactions, no long locks. */
 const BATCH = 5000;
@@ -38,7 +39,7 @@ export class JournalRetentionService implements OnModuleDestroy {
       );
       return this.prisma;
     }
-    this.retention ??= new PrismaClient({ datasourceUrl: url });
+    this.retention ??= new PrismaClient({ adapter: pgAdapter(url) });
     return this.retention;
   }
 

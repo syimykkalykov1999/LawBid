@@ -1,4 +1,4 @@
-import type { Post, VideoAsset } from '@prisma/client';
+import type { Post, VideoAsset } from '../../generated/prisma/client';
 import { mapBunnyStatus, VideosService } from '../videos/videos.service';
 import { BunnyStreamClient } from '../videos/bunny-stream.client';
 import { PostVideosService } from './post-videos.service';

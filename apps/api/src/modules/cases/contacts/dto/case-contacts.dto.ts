@@ -3,7 +3,7 @@ import {
   ContactIssueStatus,
   ContactIssueType,
   ContactMethod,
-} from '@prisma/client';
+} from '../../../../generated/prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsEnum,

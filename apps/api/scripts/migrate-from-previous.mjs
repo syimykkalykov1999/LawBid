@@ -53,9 +53,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
-import prismaPkg from '@prisma/client';
-
-const { PrismaClient } = prismaPkg;
+import { rawClient } from '../prisma/pg-client.mjs';
 
 const API_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCHEMA = join(API_DIR, 'prisma', 'schema.prisma');
@@ -383,7 +381,7 @@ async function main() {
   const dbName = `${baseDb}${THROWAWAY_INFIX}${Date.now().toString(36)}${randomBytes(3).toString('hex')}`;
   if (!/^[a-z0-9_]+$/.test(dbName)) fail(`unsafe database name ${dbName}`);
   const url = withDatabase(baseUrl, dbName);
-  const admin = new PrismaClient({ datasourceUrl: baseUrl });
+  const admin = rawClient(baseUrl);
   const stageDir = mkdtempSync(join(tmpdir(), 'lawbid-prevmig-'));
   let created = false;
   let ok = false;
@@ -399,7 +397,7 @@ async function main() {
     });
     log('previous migration set applied');
 
-    const db = new PrismaClient({ datasourceUrl: url });
+    const db = rawClient(url);
     let seeded;
     try {
       seeded = await seedPrevious(db);
@@ -430,15 +428,16 @@ async function main() {
 
     const diff = prisma(
       [
+        // Prisma 7: --from-url → --from-config-datasource (upgrade guide,
+        // "Migrate diff changes"); prisma.config.ts reads DATABASE_URL.
         'migrate',
         'diff',
-        '--from-url',
-        url,
-        '--to-schema-datamodel',
+        '--from-config-datasource',
+        '--to-schema',
         SCHEMA,
         '--exit-code',
       ],
-      {},
+      { DATABASE_URL: url },
       { allowExit: [0, 2] },
     );
     if (diff.status !== 0) {
@@ -447,7 +446,7 @@ async function main() {
     }
     log('no drift between upgraded database and schema.prisma');
 
-    const check = new PrismaClient({ datasourceUrl: url });
+    const check = rawClient(url);
     try {
       for (const [table, n] of Object.entries(seeded)) {
         const [{ n: after }] = await check.$queryRawUnsafe(

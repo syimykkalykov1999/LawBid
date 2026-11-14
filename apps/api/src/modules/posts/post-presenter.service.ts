@@ -3,7 +3,7 @@ import { activeClientBadgeIds } from '../client-badge/client-badge.util';
 import { isHiddenTag } from './hidden-tags';
 import { Injectable, Optional } from '@nestjs/common';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
-import type { Post, Prisma } from '@prisma/client';
+import type { Post, Prisma } from '../../generated/prisma/client';
 import { MentionsService } from '../mentions/mentions.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CounterAggregator } from '../counters/counter-aggregator.service';

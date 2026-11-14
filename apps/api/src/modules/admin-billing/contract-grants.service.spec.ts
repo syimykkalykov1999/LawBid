@@ -1,4 +1,4 @@
-import type { ContractGrant } from '@prisma/client';
+import type { ContractGrant } from '../../generated/prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';

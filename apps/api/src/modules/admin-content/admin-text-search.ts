@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import type { PrismaService } from '../../prisma/prisma.service';
 
