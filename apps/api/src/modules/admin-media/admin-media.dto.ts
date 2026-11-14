@@ -1,6 +1,9 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsISO8601,
   IsIn,
   IsInt,
@@ -12,7 +15,11 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+import { OWNER_BULK_MAX } from '../../common/admin-bulk/admin-bulk';
+import { AdminReasonDto, BULK_MAX } from '../admin-content/admin-content.dto';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -86,6 +93,11 @@ export class AdminVideosQueryDto extends CursorQueryDto {
   to?: string;
 }
 
+/** Row 179 B6: the videos list filter of «select all by filter» (no paging). */
+export class AdminVideosFilterDto extends OmitType(AdminVideosQueryDto, [
+  'cursor',
+] as const) {}
+
 export class AdminVideoRowDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ enum: VIDEO_STATUSES }) status!: string;
@@ -158,6 +170,12 @@ export class AdminStickerPacksQueryDto extends CursorQueryDto {
   @MaxLength(64)
   q?: string;
 }
+
+/** Row 179 B6: the packs list filter of «select all by filter» (no paging). */
+export class AdminStickerPacksFilterDto extends OmitType(
+  AdminStickerPacksQueryDto,
+  ['cursor'] as const,
+) {}
 
 export class AdminStickerDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
@@ -282,4 +300,76 @@ export class AdminFileIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
   fileId!: string;
+}
+
+// --- Row 179 B6: «select all by filter» ----------------------------------------
+
+const IDS_DOC = `Exactly one of \`ids\` or \`filter\`. Staff: at most ${BULK_MAX}; the owner: any number (processed in chunks).`;
+const FILTER_DOC =
+  'Row 179 B6: «select all by filter» — the list filter; the server resolves the ids (staff: at most `admin.bulk_select_cap`) and audits the filter.';
+
+/** Take down many videos: explicit ids or the videos list filter. */
+export class AdminVideosBulkDto extends AdminReasonDto {
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    minItems: 1,
+    maxItems: OWNER_BULK_MAX,
+    description: IDS_DOC,
+  })
+  @ValidateIf((o: AdminVideosBulkDto) => o.filter === undefined)
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(OWNER_BULK_MAX)
+  @IsUUID('all', { each: true })
+  ids?: string[];
+
+  @ApiPropertyOptional({
+    type: () => AdminVideosFilterDto,
+    description: FILTER_DOC,
+  })
+  @ValidateIf((o: AdminVideosBulkDto) => o.ids === undefined)
+  @ValidateNested()
+  @Type(() => AdminVideosFilterDto)
+  filter?: AdminVideosFilterDto;
+}
+
+/** Hide / unhide many packs: explicit ids or the packs list filter. */
+export class AdminStickerPacksBulkDto extends AdminReasonDto {
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    minItems: 1,
+    maxItems: OWNER_BULK_MAX,
+    description: IDS_DOC,
+  })
+  @ValidateIf((o: AdminStickerPacksBulkDto) => o.filter === undefined)
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(OWNER_BULK_MAX)
+  @IsUUID('all', { each: true })
+  ids?: string[];
+
+  @ApiPropertyOptional({
+    type: () => AdminStickerPacksFilterDto,
+    description: FILTER_DOC,
+  })
+  @ValidateIf((o: AdminStickerPacksBulkDto) => o.ids === undefined)
+  @ValidateNested()
+  @Type(() => AdminStickerPacksFilterDto)
+  filter?: AdminStickerPacksFilterDto;
+}
+
+export class AdminVideosBulkPreviewDto {
+  @ApiProperty({ type: () => AdminVideosFilterDto })
+  @ValidateNested()
+  @Type(() => AdminVideosFilterDto)
+  filter!: AdminVideosFilterDto;
+}
+
+export class AdminStickerPacksBulkPreviewDto {
+  @ApiProperty({ type: () => AdminStickerPacksFilterDto })
+  @ValidateNested()
+  @Type(() => AdminStickerPacksFilterDto)
+  filter!: AdminStickerPacksFilterDto;
 }

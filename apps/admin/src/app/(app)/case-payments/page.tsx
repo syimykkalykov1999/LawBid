@@ -21,6 +21,7 @@ import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
+import { casePaymentsCsvQuery } from '@/lib/export-query';
 import { useUrlSearchText, useUrlState } from '@/lib/url-state';
 import {
   CASE_PAYMENT_KIND,
@@ -83,6 +84,10 @@ export default function CasePaymentsPage() {
   const { data: me } = useMe();
   const canWrite = me?.role === 'super_admin' || me?.role === 'finance';
   const [tab, setTab] = useUrlState<Tab>('tab', 'payments', TABS);
+  // Row 180 B7: the CSV is what the Платежи tab shows (its filters).
+  const [payStatus] = useUrlState<StatusTab>('status', 'all', STATUS_TABS);
+  const [csvUser] = useUrlState<string>('userId', '');
+  const [csvCase] = useUrlState<string>('caseId', '');
 
   const stats = useQuery({
     queryKey: ['case-payments-stats'],
@@ -95,7 +100,7 @@ export default function CasePaymentsPage() {
         eyebrow="Деньги"
         title="Оплаты адвокатам"
         subtitle="Клиент платит адвокату прямо из дела. Деньги идут на Stripe-аккаунт адвоката, минуя наш счёт; платформа получает только свою комиссию. Возвраты делает адвокат; здесь можно вернуть деньги за него."
-        actions={<CsvButton entity="case_payments" />}
+        actions={<CsvButton entity="case_payments" query={casePaymentsCsvQuery(tab, payStatus, csvUser, csvCase)} />}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -18,6 +18,11 @@ import {
   type PracticeArea,
 } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
+import {
+  type BulkFilterMatch,
+  idsByFilter,
+  NEWEST_FIRST,
+} from '../../common/admin-bulk/bulk-filter';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { US_STATES } from '../../common/reference-data/us-states';
 import { EXTRA_REGIONS } from '../../common/reference-data/countries';
@@ -150,15 +155,30 @@ export class DocumentTemplatesService {
   async adminList(
     q: AdminTemplatesQueryDto,
   ): Promise<Page<AdminDocumentTemplateDto>> {
-    const where: Prisma.DocumentTemplateWhereInput = {
-      AND: [
-        { deleted_at: null },
-        q.published === undefined ? {} : { is_published: q.published },
-        ...filters(q),
-      ],
-    };
-    const page = await this.page(where, { ...q, sort: q.sort ?? 'new' });
+    const page = await this.page(adminWhere(q), {
+      ...q,
+      sort: q.sort ?? 'new',
+    });
     return { ...page, items: page.items.map(adminDto) };
+  }
+
+  /** Row 179 B6: the template ids the admin list filter matches (ids only,
+   * keyset pages); [cap] null = every match. */
+  async adminIdsByFilter(
+    q: AdminTemplatesQueryDto,
+    cap: number | null,
+  ): Promise<BulkFilterMatch> {
+    const where = adminWhere(q);
+    return idsByFilter(
+      (p) =>
+        this.prisma.documentTemplate.findMany({
+          where,
+          select: { id: true },
+          orderBy: NEWEST_FIRST,
+          ...p,
+        }),
+      cap,
+    );
   }
 
   async adminGet(id: string): Promise<AdminDocumentTemplateDto> {
@@ -490,6 +510,19 @@ export class DocumentTemplatesService {
 /** Attorneys and the assistants working in an attorney's account. */
 function isLawyer(user: RequestUser): boolean {
   return user.role === 'attorney' || user.assistant !== undefined;
+}
+
+/** The admin list's filter (drafts and published, not deleted). */
+function adminWhere(
+  q: AdminTemplatesQueryDto,
+): Prisma.DocumentTemplateWhereInput {
+  return {
+    AND: [
+      { deleted_at: null },
+      q.published === undefined ? {} : { is_published: q.published },
+      ...filters(q),
+    ],
+  };
 }
 
 function filters(q: TemplatesQueryDto): Prisma.DocumentTemplateWhereInput[] {

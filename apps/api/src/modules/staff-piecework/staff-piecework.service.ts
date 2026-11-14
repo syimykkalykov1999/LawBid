@@ -3,9 +3,18 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { AdminWorkspace } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { reportTimeZone } from '../../common/utils/report-day';
+import {
+  currentSchedule,
+  dayWindow,
+  daysEndedIn,
+  labelDate,
+} from '../../common/utils/report-day-schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
@@ -13,7 +22,6 @@ import { PayrollAccrualsService } from '../admin-payroll/payroll-accruals.servic
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import {
   accrualRef,
-  dayBounds,
   dayStatus,
   effectiveRateCents,
   isDay,
@@ -35,6 +43,13 @@ const SNAPSHOT_LOOKBACK_DAYS = 14;
 const SAMPLE_WINDOW_DAYS = 14;
 /** One accrual currency for staff piecework (payroll is USD today). */
 export const PIECEWORK_CURRENCY = 'usd';
+/** app_config row of the piecework day schedule (row 180 B9: the zone
+ * changes, each from a day on — see common/utils/report-day-schedule). */
+export const PIECEWORK_DAYS_KEY = 'staff.piecework_day_zones';
+/** The nightly run counts every day that ended in the last 25 hours: one
+ * hour more than the cron step, so a late run never skips a day (a day
+ * counted twice is the same numbers again: no change). */
+const DUE_LOOKBACK_MS = 25 * 3_600_000;
 
 export interface DayRunResult {
   day: string;
@@ -98,14 +113,39 @@ export class StaffPieceworkService {
     private readonly staff: StaffSettingsService,
     private readonly payroll: PayrollAccrualsService,
     private readonly audit: AuditLogService,
+    // Row 180 B9: the owner's report time zone (`admin.report_timezone`).
+    @Optional() private readonly appSettings?: AppSettingsService,
   ) {}
 
-  /** Computes one UTC day for everyone who worked (or was overturned). */
+  /** Row 180 B9: the day schedule, with a new report zone recorded the
+   * first time it is seen (from the day after the running one). */
+  private async schedule(now: Date = new Date()) {
+    const tz = await reportTimeZone(this.appSettings);
+    return currentSchedule(this.prisma, PIECEWORK_DAYS_KEY, tz, now);
+  }
+
+  /** [start, end) of [day] in the piecework schedule. */
+  private async window(day: string): Promise<{ start: Date; end: Date }> {
+    const w = dayWindow(await this.schedule(), day);
+    return { start: w.from, end: w.to };
+  }
+
+  /** The days the nightly run counts at [now]: every day that ended in the
+   * last 25 hours, oldest first (normally one: yesterday). */
+  async dueDays(now: Date = new Date()): Promise<string[]> {
+    const s = await this.schedule(now);
+    return daysEndedIn(s, new Date(now.getTime() - DUE_LOOKBACK_MS), now);
+  }
+
+  /** Computes one day (its window in the schedule: the report time zone,
+   * row 180 B9) for everyone who worked (or was overturned). */
   async computeDay(
     day: string,
     opts: { onlyAdmin?: string; force?: boolean } = {},
   ): Promise<DayRunResult> {
-    const { start, end } = dayBounds(day);
+    const { start, end } = await this.window(day);
+    // The stored `day` is the label (DATE), not the window start.
+    const dayKey = labelDate(day);
     const cfg = await this.staff.get();
     const q = {
       p90: cfg.numbers['staff.piecework.mult_90_pct'],
@@ -129,7 +169,7 @@ export class StaffPieceworkService {
     const overturned = await this.overturnedByAdmin(start, end);
     const ids = opts.onlyAdmin
       ? [opts.onlyAdmin]
-      : await this.candidates(start, end, overturned);
+      : await this.candidates(dayKey, start, end, overturned);
     if (ids.length === 0) return result;
 
     // Rates in force at the end of the day, one query for the whole run.
@@ -171,7 +211,7 @@ export class StaffPieceworkService {
             select: { admin_id: true, rating: true, status: true },
           }),
           this.prisma.staffPieceworkDay.findMany({
-            where: { admin_id: { in: batch }, day: start },
+            where: { admin_id: { in: batch }, day: dayKey },
             select: {
               admin_id: true,
               kind: true,
@@ -252,7 +292,7 @@ export class StaffPieceworkService {
           noRating: quality.noRating,
           onPayroll: name !== undefined || settle.ref !== null,
         });
-        await this.replaceRows(adminId, start, lines, {
+        await this.replaceRows(adminId, dayKey, lines, {
           qualityPct: quality.pct,
           status,
           ref: settle.ref,
@@ -287,9 +327,9 @@ export class StaffPieceworkService {
     day: string,
     reason: string,
   ): Promise<{ status: 'disputed'; accrual: 'canceled' | 'paid' | 'none' }> {
-    const { start } = this.checkedDay(day, true);
+    const { dayKey } = await this.checkedDay(day, true);
     const rows = await this.prisma.staffPieceworkDay.findMany({
-      where: { admin_id: adminId, day: start },
+      where: { admin_id: adminId, day: dayKey },
       select: {
         admin_id: true,
         kind: true,
@@ -307,7 +347,7 @@ export class StaffPieceworkService {
     }
     await this.prisma.$transaction(async (tx) => {
       await tx.staffPieceworkDay.updateMany({
-        where: { admin_id: adminId, day: start },
+        where: { admin_id: adminId, day: dayKey },
         data: { status: 'disputed' },
       });
       await this.audit.record(
@@ -332,7 +372,7 @@ export class StaffPieceworkService {
     adminId: string,
     day: string,
   ): Promise<DayRunResult> {
-    this.checkedDay(day, true);
+    await this.checkedDay(day, true);
     const res = await this.computeDay(day, { onlyAdmin: adminId, force: true });
     if (res.admins === 0) throw notFound();
     await this.audit.record({
@@ -346,23 +386,28 @@ export class StaffPieceworkService {
     return res;
   }
 
-  /** Validates a YYYY-MM-DD path value; a day not yet finished (today or
-   * later) cannot be counted. */
-  private checkedDay(day: string, finished: boolean): { start: Date } {
+  /** Validates a YYYY-MM-DD path value; a day not yet finished (its window
+   * in the schedule has not ended) cannot be counted. */
+  private async checkedDay(
+    day: string,
+    finished: boolean,
+  ): Promise<{ dayKey: Date }> {
     if (!isDay(day)) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
         message: 'Day must be YYYY-MM-DD.',
       });
     }
-    const { start } = dayBounds(day);
-    if (finished && start.getTime() >= startOfTodayUtc().getTime()) {
-      throw new BadRequestException({
-        code: ErrorCode.VALIDATION_ERROR,
-        message: 'Only a finished day can be counted.',
-      });
+    if (finished) {
+      const { end } = await this.window(day);
+      if (end.getTime() > Date.now()) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'Only a finished day can be counted.',
+        });
+      }
     }
-    return { start };
+    return { dayKey: labelDate(day) };
   }
 
   /** Verdict «different» / «worse» that arrived in the day, per person and
@@ -393,30 +438,32 @@ export class StaffPieceworkService {
   }
 
   /** Who to count: the people with decisions in `staff_daily_stats` for the
-   * day plus anyone overturned that day. When the stats of the day are not
-   * there yet, the day's `done` lease events name the people instead. */
+   * day, everyone with a `done` lease event in the day's window (row 180
+   * B9: always — on the switch day the window is longer than the stats
+   * day, so the stats alone would miss someone) and anyone overturned. */
   private async candidates(
+    dayKey: Date,
     start: Date,
     end: Date,
     overturned: Map<string, unknown>,
   ): Promise<string[]> {
-    const stats = await this.prisma.staffDailyStat.findMany({
-      where: { day: start, decided: { gt: 0 } },
-      select: { admin_id: true },
-      take: 20_000,
-    });
-    const ids = new Set(stats.map((s) => s.admin_id));
-    if (ids.size === 0) {
-      const done = await this.prisma.workLeaseEvent.groupBy({
+    const [stats, done] = await Promise.all([
+      this.prisma.staffDailyStat.findMany({
+        where: { day: dayKey, decided: { gt: 0 } },
+        select: { admin_id: true },
+        take: 20_000,
+      }),
+      this.prisma.workLeaseEvent.groupBy({
         by: ['admin_id'],
         where: {
           event: 'done',
           admin_id: { not: null },
           created_at: { gte: start, lt: end },
         },
-      });
-      for (const d of done) if (d.admin_id) ids.add(d.admin_id);
-    }
+      }),
+    ]);
+    const ids = new Set(stats.map((s) => s.admin_id));
+    for (const d of done) if (d.admin_id) ids.add(d.admin_id);
     for (const id of overturned.keys()) ids.add(id);
     return [...ids];
   }
@@ -493,20 +540,20 @@ export class StaffPieceworkService {
   /** Re-run replaces: the person's rows of the day are swapped as a whole. */
   private async replaceRows(
     adminId: string,
-    start: Date,
+    dayKey: Date,
     lines: Line[],
     meta: { qualityPct: number; status: DayStatus; ref: string | null },
   ): Promise<void> {
     await this.prisma.$transaction([
       this.prisma.staffPieceworkDay.deleteMany({
-        where: { admin_id: adminId, day: start },
+        where: { admin_id: adminId, day: dayKey },
       }),
       ...(lines.length > 0
         ? [
             this.prisma.staffPieceworkDay.createMany({
               data: lines.map((l) => ({
                 admin_id: adminId,
-                day: start,
+                day: dayKey,
                 kind: l.kind,
                 units: l.units,
                 held_units: l.held,
@@ -573,13 +620,6 @@ function groupRows(rows: DayRow[]): Map<string, DayRow[]> {
     m.set(r.admin_id, list);
   }
   return m;
-}
-
-function startOfTodayUtc(): Date {
-  const n = new Date();
-  return new Date(
-    Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()),
-  );
 }
 
 function notFound(): NotFoundException {

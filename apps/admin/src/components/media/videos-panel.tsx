@@ -24,7 +24,7 @@ import { sortRows, useTableSort } from '@/lib/table-sort';
 import { CONTENT_STATUS, label, StatusPill, VIDEO_STATUS } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 import { formatBytes } from './media-utils';
-import { collectIds, dayBounds, type Noun } from '@/lib/bulk';
+import { dayBounds, type Noun } from '@/lib/bulk';
 import {
   AuthorFilterButton,
   BulkBar,
@@ -73,12 +73,9 @@ export function VideosPanel() {
     queryKey: ['media-video-stats'],
     queryFn: async () => (await api.GET('/admin/media/videos/stats')).data!.data,
   });
-  const fetchPage = async (cursor: string | undefined) =>
-    (
-      await api.GET('/admin/media/videos', {
-        params: { query: { cursor, status: status || undefined, ownerId: filter.author?.id, ...dayBounds(filter.from, filter.to) } },
-      })
-    ).data!;
+  // The list's filter; «select all by filter» sends it (row 179 B6).
+  const listQuery = { status: status || undefined, ownerId: filter.author?.id, ...dayBounds(filter.from, filter.to) };
+  const fetchPage = async (cursor: string | undefined) => (await api.GET('/admin/media/videos', { params: { query: { ...listQuery, cursor } } })).data!;
   const list = useInfiniteQuery({
     queryKey: ['media-videos', status, filterKey(filter)],
     initialPageParam: undefined as string | undefined,
@@ -87,7 +84,11 @@ export function VideosPanel() {
   });
   const bulkTakedown = () =>
     bulk.run({
-      ids: [...sel.selected],
+      ids: sel.byFilter ? [] : [...sel.selected],
+      count: sel.byFilter?.count,
+      sendAll: sel.byFilter
+        ? async (reason) => bulkData(await api.POST('/admin/media/videos/bulk-takedown', { body: { filter: listQuery, reason } }))
+        : undefined,
       verb: 'Снять',
       doneVerb: 'Снято',
       noun: VIDEOS,
@@ -170,21 +171,14 @@ export function VideosPanel() {
       {bulk.dialog}
       {canWrite ? (
         <BulkBar
-          selectedCount={sel.selected.size}
+          selectedCount={sel.count}
           noun={VIDEOS}
           onClear={sel.clear}
-          onSelectAll={async (cap) => {
-            // Already deleted assets can't be taken down again.
-            const r = await collectIds(
-              async (c) => {
-                const p = await fetchPage(c);
-                return { data: p.data, nextCursor: p.meta?.nextCursor };
-              },
-              (v) => v.status !== 'deleted',
-              cap,
-            );
-            sel.replace(r.ids);
-            return r.capped;
+          onSelectAll={async () => {
+            // Row 179 B6: the server counts the filter (no page walk).
+            const p = (await api.POST('/admin/media/videos/bulk/preview', { body: { filter: listQuery } })).data!.data;
+            sel.selectFilter(p);
+            return p.capped;
           }}
         >
           <Button size="sm" variant="danger" disabled={bulk.pending} onClick={bulkTakedown}>
