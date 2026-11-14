@@ -33,6 +33,7 @@ Rules
 | `app_open` | the app started (and on the web, the moment the person accepted the notice) | — |
 | `screen_view` | the router opened a screen (the same screen twice in a row counts once) | `screen` (normalised route) |
 | `review_prompted` | the store's in-app review dialog was requested (`in_app_review`, at most once in 90 days, flag `in_app_review`) | — |
+| `post_not_interested` | the person hid someone else's post with «Not interested» in the post's ⋯ menu (owner row 112; the post stays hidden on that device) | — |
 
 ## Authentication and onboarding (file 01)
 

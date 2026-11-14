@@ -13,6 +13,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
 import 'package:lawbid/features/chat/application/awaiting_reply.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/presentation/chat_undo.dart';
 
 /// Owner 2026-10-01: small Instagram-like sub-tabs inside Chats —
 /// All · Primary · General · Waiting · Requests (with counts).
@@ -235,6 +236,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
   Future<void> _run(
     Future<Conversation> Function() call, {
     String? done,
+    bool? undoArchived,
   }) async {
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
@@ -252,8 +254,19 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
       refreshChatFolders(ref);
       if (!mounted) return;
       final messenger = ScaffoldMessenger.maybeOf(context);
+      // Row 109: the «Undo» message is shown from the navigator, which
+      // outlives this sheet and the chat row.
+      final host = Navigator.of(context).context;
       Navigator.of(context).pop();
-      if (done != null && messenger != null && messenger.mounted) {
+      // Row 109 (Telegram / Gmail): a delete or an archive offers «Undo».
+      if (done != null && undoArchived != null && host.mounted) {
+        showChatMoveUndo(
+          host,
+          message: t.t(undoArchived ? 'chat.archived' : done),
+          chatIds: [widget.conversation.id],
+          archived: undoArchived,
+        );
+      } else if (done != null && messenger != null && messenger.mounted) {
         showAppSnackBar(messenger.context, t.t(done));
       }
     } on Object {
@@ -363,6 +376,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                         done: widget.inArchive
                             ? 'chat.unarchive'
                             : 'tasks.bulk.archive',
+                        undoArchived: widget.inArchive ? null : true,
                       ),
             ),
             AppListRow(
@@ -384,6 +398,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                       await _run(
                         () => repo.organize(c.id, hidden: true),
                         done: 'chat.select.deleted',
+                        undoArchived: false,
                       );
                     },
             ),
