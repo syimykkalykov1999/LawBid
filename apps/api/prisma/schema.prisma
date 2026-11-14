@@ -1082,6 +1082,10 @@ model File {
   /// (an AVIF no smaller than the WebP is not kept). Only then is a client
   /// that asked for AVIF given `.avif` links; false = WebP / JPEG links.
   avif_twins         Boolean            @default(false)
+  /// Owner row 146: a browser voice note (Opus in WebM) has its AAC/M4A
+  /// copy stored next to it (`<s3_key>.m4a`). Only then is `voice.m4aUrl`
+  /// given (the iPhone plays only that); the original object is unchanged.
+  voice_m4a          Boolean            @default(false)
   scan_status        ScanStatus         @default(pending)
   /// Media batch A (R1): why the antivirus did not scan this file
   /// ('too_large' = over clamd's size limit). The object is kept and the row

@@ -915,7 +915,7 @@ abstract final class ChatMappers {
         voice: d.voice == null
             ? null
             : VoiceNote(
-                url: d.voice!.url,
+                url: playableVoiceUrl(d.voice!.url, d.voice!.m4aUrl),
                 durationMs: d.voice!.durationMs,
                 waveform: [for (final v in d.voice!.waveform) v],
                 listened: d.voice!.listened,

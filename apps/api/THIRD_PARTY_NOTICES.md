@@ -54,3 +54,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+## FFmpeg 8.1 (Alpine package `ffmpeg`) — separate program, not linked
+
+https://ffmpeg.org — installed in the server image only with
+`--build-arg WITH_FFMPEG=1` (`apps/api/Dockerfile`; Alpine's build is
+GPL-2.0-or-later because it enables GPL parts such as x264). LawBid code does
+not include, copy or link any FFmpeg code: it starts the `ffmpeg` program as a
+separate process with files in a private temp folder and reads its output
+file — the video frame check (`src/modules/media-moderation/video-frames.ts`)
+and, owner row 146, the AAC/M4A copy of a browser voice note
+(`src/modules/files/processing/voice-transcode.ts`, FFmpeg's own LGPL `aac`
+encoder). The source of the exact build is Alpine's `ffmpeg` APKBUILD
+(https://gitlab.alpinelinux.org/alpine/aports, `community/ffmpeg`).

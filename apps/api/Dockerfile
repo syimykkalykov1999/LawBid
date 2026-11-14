@@ -39,6 +39,10 @@ RUN addgroup -S app && adduser -S app -G app
 # and the deploy scan must be run on that image first), and the feature itself
 # is the admin setting `moderation.video.frames_enabled`. Without the binary
 # the cover check stays as it is.
+# Owner row 146: the same binary makes the AAC/M4A copy of a browser
+# (WebM/Opus) voice note for the iPhone (src/modules/files/processing/
+# voice-transcode.ts, admin switch `media.voice_transcode_enabled`). Without
+# it the note stays WebM only (alert `voice_transcode_unavailable`).
 ARG WITH_FFMPEG=0
 RUN if [ "$WITH_FFMPEG" = "1" ]; then apk add --no-cache ffmpeg; fi
 WORKDIR /repo

@@ -152,6 +152,35 @@ const code = (p: Promise<unknown>) =>
   );
 
 describe('FilesService', () => {
+  // Owner row 146: the AAC/M4A copy of a browser voice note is offered next
+  // to the original link; a note without a copy gets null (and the WebM).
+  describe('voiceLinks (row 146)', () => {
+    it('gives the original and, when stored, the .m4a copy next to it', async () => {
+      const { service, deps } = make();
+      (deps.prisma.file as Record<string, unknown>).findMany = jest
+        .fn()
+        .mockResolvedValue([
+          { id: 'w', s3_bucket: 'docs', s3_key: 'voice/w', voice_m4a: true },
+          { id: 'a', s3_bucket: 'docs', s3_key: 'voice/a', voice_m4a: false },
+        ]);
+      deps.storage.signedGetUrl.mockImplementation((_b: string, k: string) =>
+        Promise.resolve(`https://s3/${k}`),
+      );
+      const links = await service.voiceLinks(['w', 'a']);
+      expect(links.get('w')).toEqual({
+        url: 'https://s3/voice/w',
+        m4aUrl: 'https://s3/voice/w.m4a',
+      });
+      expect(links.get('a')).toEqual({
+        url: 'https://s3/voice/a',
+        m4aUrl: null,
+      });
+      expect((await service.voiceUrls(['w'])).get('w')).toBe(
+        'https://s3/voice/w',
+      );
+    });
+  });
+
   describe('daily upload cap (2026-10-24, storage.daily_upload_mb_per_user)', () => {
     const MBYTES = 1024 * 1024;
     const png = (sizeBytes: number) => ({

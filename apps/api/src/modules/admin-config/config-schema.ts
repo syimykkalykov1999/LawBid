@@ -1785,9 +1785,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       8000,
       48000,
     ],
+    [
+      'media.voice_transcode_timeout_sec',
+      'Owner row 146: at most this many seconds of ffmpeg per browser (WebM/Opus) voice note while its AAC/M4A copy is made; slower = the note goes out as WebM only.',
+      5,
+      3600,
+    ],
   ] as const) {
     out[key] = { ...out[key], description, min, max };
   }
+  out['media.voice_transcode_enabled'] = {
+    ...out['media.voice_transcode_enabled'],
+    description:
+      'Owner row 146: a voice note recorded on the website in Firefox / Linux Chrome (Opus in WebM, which the iPhone cannot play) gets an AAC/M4A copy next to it in the scan worker (ffmpeg, the voice bitrate and sample rate above); the iPhone app plays the copy, the original is kept. Off: no new copies (copies already made are still served).',
+  };
   for (const platform of ['ios', 'android']) {
     // The "Update" button of the forced / soft update screen. Needed for
     // iOS before the first release: the App Store id exists only after the

@@ -60,6 +60,7 @@ import {
   storedKey,
   variantKey,
   avifKey,
+  voiceM4aKey,
   AVIF_PURPOSES,
   type FileMime,
   isImageMime,
@@ -431,6 +432,7 @@ export class FilesService {
         height: own.height,
         blurhash: own.blurhash,
         avif_twins: own.avif_twins,
+        voice_m4a: own.voice_m4a,
         scan_status: 'clean',
       },
     });
@@ -1531,6 +1533,7 @@ export class FilesService {
           width: src.width,
           height: src.height,
           avif_twins: src.avif_twins,
+          voice_m4a: src.voice_m4a,
           scan_status: 'clean',
         },
       });
@@ -1673,7 +1676,20 @@ export class FilesService {
    * never the CDN). The caller has already checked chat membership.
    */
   async voiceUrls(fileIds: string[]): Promise<Map<string, string>> {
-    const out = new Map<string, string>();
+    const links = await this.voiceLinks(fileIds);
+    return new Map([...links].map(([id, l]) => [id, l.url]));
+  }
+
+  /**
+   * Owner row 146: the link of each clean voice note and, for a browser
+   * (WebM/Opus) note whose AAC/M4A copy the scan worker stored
+   * (`files.voice_m4a`), the link of that copy — the iPhone plays only it.
+   * Both are signed locally (no storage call); null = no copy.
+   */
+  async voiceLinks(
+    fileIds: string[],
+  ): Promise<Map<string, { url: string; m4aUrl: string | null }>> {
+    const out = new Map<string, { url: string; m4aUrl: string | null }>();
     if (fileIds.length === 0 || !this.storage.configured) return out;
     const files = await this.prisma.file.findMany({
       where: {
@@ -1682,17 +1698,24 @@ export class FilesService {
         scan_status: 'clean',
         deleted_at: null,
       },
-      select: { id: true, s3_bucket: true, s3_key: true },
+      select: { id: true, s3_bucket: true, s3_key: true, voice_m4a: true },
     });
     for (const f of files) {
-      out.set(
-        f.id,
-        await this.storage.signedGetUrl(
+      const [url, m4aUrl] = await Promise.all([
+        this.storage.signedGetUrl(
           f.s3_bucket,
           f.s3_key,
           MEDIA_SIGNED_URL_TTL_SEC,
         ),
-      );
+        f.voice_m4a
+          ? this.storage.signedGetUrl(
+              f.s3_bucket,
+              voiceM4aKey(f.s3_key),
+              MEDIA_SIGNED_URL_TTL_SEC,
+            )
+          : null,
+      ]);
+      out.set(f.id, { url, m4aUrl });
     }
     return out;
   }

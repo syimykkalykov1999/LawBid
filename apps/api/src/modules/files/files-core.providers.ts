@@ -5,6 +5,7 @@ import { FileReleaseService } from './storage/file-release.service';
 import { ImageProcessor } from './processing/image-processor';
 import { FileScanProcessor } from './jobs/file-scan.processor';
 import { ScanHandoff } from './jobs/scan-handoff';
+import { VoiceTranscoder } from './processing/voice-transcode';
 import {
   FILES_JOBS_OPTIONS,
   FileScanRunner,
@@ -32,6 +33,7 @@ export function filesCoreProviders(options: FilesJobsOptions): Provider[] {
     FileReleaseService,
     ImageProcessor,
     FileScanProcessor,
+    VoiceTranscoder,
     ScanHandoff,
     FileScanRunner,
   ];

@@ -1,5 +1,6 @@
 import type { AddressInfo, Server } from 'node:net';
 import { createHash, randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
@@ -136,15 +137,19 @@ describe('Chat voice messages (e2e, OQ-040)', () => {
   }
 
   /** presign → MinIO → confirm → clean; returns the file id. */
-  async function voiceFile(auth: Record<string, string>): Promise<string> {
+  async function voiceFile(
+    auth: Record<string, string>,
+    bytes: Buffer = audio,
+    mime = 'audio/mp4',
+  ): Promise<string> {
     const pre = await api()
       .post('/api/v1/files/presign')
       .set(auth)
       .send({
         purpose: 'chat_voice',
-        mime: 'audio/mp4',
-        sizeBytes: audio.length,
-        sha256: createHash('sha256').update(audio).digest('hex'),
+        mime,
+        sizeBytes: bytes.length,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
       })
       .expect(201);
     const p = pre.body.data as {
@@ -153,10 +158,7 @@ describe('Chat voice messages (e2e, OQ-040)', () => {
     };
     const form = new FormData();
     for (const [k, v] of Object.entries(p.upload.fields)) form.append(k, v);
-    form.append(
-      'file',
-      new Blob([new Uint8Array(audio)], { type: 'audio/mp4' }),
-    );
+    form.append('file', new Blob([new Uint8Array(bytes)], { type: mime }));
     const up = await fetch(p.upload.url, { method: 'POST', body: form });
     expect(up.status).toBe(204);
     await api().post(`/api/v1/files/${p.fileId}/confirm`).set(auth).expect(200);
@@ -172,6 +174,69 @@ describe('Chat voice messages (e2e, OQ-040)', () => {
     }
     throw new Error('scan did not finish');
   }
+
+  // Owner row 146: a note recorded in Firefox / Linux Chrome is Opus in
+  // WebM, which the iPhone cannot play. The scan makes an AAC/M4A copy next
+  // to it before the file turns clean; the message gives both links.
+  it('a browser WebM note: the original stays, an AAC/M4A copy is linked as m4aUrl', async () => {
+    const hasFfmpeg =
+      spawnSync(process.env.FFMPEG_PATH || 'ffmpeg', ['-version']).status === 0;
+    const webm = readFileSync(join(__dirname, 'fixtures/sample.webm'));
+    const c = await chat();
+    const fileId = await voiceFile(c.client.auth, webm, 'audio/webm');
+    const row = await prisma.file.findUniqueOrThrow({ where: { id: fileId } });
+    expect(row.mime).toBe('audio/webm');
+    expect(row.voice_m4a).toBe(hasFfmpeg);
+    const sent = await api()
+      .post(`/api/v1/conversations/${c.id}/messages`)
+      .set(c.client.auth)
+      .send({
+        clientMessageId: randomUUID(),
+        type: 'voice',
+        fileId,
+        durationMs: 1500,
+      })
+      .expect(201);
+    const voice = (
+      sent.body.data as { voice: { url: string; m4aUrl: string | null } }
+    ).voice;
+    const original = Buffer.from(await (await fetch(voice.url)).arrayBuffer());
+    expect(original.equals(webm)).toBe(true);
+    if (!hasFfmpeg) {
+      expect(voice.m4aUrl).toBeNull();
+      return;
+    }
+    expect(voice.m4aUrl).toMatch(/^https?:\/\/.+\.m4a/);
+    const copy = Buffer.from(await (await fetch(voice.m4aUrl!)).arrayBuffer());
+    expect(copy.subarray(4, 11).toString('latin1')).toBe('ftypM4A');
+    // The other side's list gives the same copy.
+    const list = await api()
+      .get(`/api/v1/conversations/${c.id}/messages`)
+      .set(c.attorney.auth)
+      .expect(200);
+    const seen = (
+      list.body.data as { voice: { m4aUrl: string | null } | null }[]
+    ).find((m) => m.voice);
+    expect(seen?.voice?.m4aUrl).toMatch(/\.m4a/);
+  });
+
+  it('an AAC note from the app has no copy (m4aUrl null)', async () => {
+    const c = await chat();
+    const fileId = await voiceFile(c.client.auth);
+    const sent = await api()
+      .post(`/api/v1/conversations/${c.id}/messages`)
+      .set(c.client.auth)
+      .send({
+        clientMessageId: randomUUID(),
+        type: 'voice',
+        fileId,
+        durationMs: 2400,
+      })
+      .expect(201);
+    expect(
+      (sent.body.data as { voice: { m4aUrl: string | null } }).voice.m4aUrl,
+    ).toBeNull();
+  });
 
   it('sends, lists with a signed link, marks listened once, never re-sends', async () => {
     const c = await chat();

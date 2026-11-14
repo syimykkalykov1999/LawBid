@@ -421,6 +421,14 @@ export class VoiceNoteDto {
   })
   url!: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Owner row 146: short signed link to the AAC/M4A copy of a note recorded in a browser as Opus/WebM (players without WebM, the iPhone, use it). Null when the note is already AAC, the copy is not made, or in chat-list previews.',
+  })
+  m4aUrl!: string | null;
+
   @ApiProperty({ type: 'integer' })
   durationMs!: number;
 

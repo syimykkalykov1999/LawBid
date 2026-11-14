@@ -325,6 +325,22 @@ class CallLog {
 
 /// OQ-040: the audio of a voice message, like Telegram's.
 @immutable
+
+/// Owner row 146: a note recorded on the website in Firefox / Linux Chrome
+/// is Opus in WebM, which the iPhone's player (AVPlayer) cannot play; the
+/// server stores an AAC/M4A copy and sends it as `voice.m4aUrl`. The iPhone
+/// app plays that copy (the original when there is none); Android and the
+/// website keep the original link, which they play as before.
+String? playableVoiceUrl(
+  String? url,
+  String? m4aUrl, {
+  TargetPlatform? platform,
+  bool web = kIsWeb,
+}) =>
+    !web && (platform ?? defaultTargetPlatform) == TargetPlatform.iOS
+        ? (m4aUrl ?? url)
+        : url;
+
 class VoiceNote {
   const VoiceNote({
     required this.durationMs,
