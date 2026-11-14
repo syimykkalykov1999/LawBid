@@ -84,19 +84,14 @@ describe('biometric policy in the privacy texts', () => {
       },
       $transaction: jest.fn().mockResolvedValue([]),
     };
-    const bootstrap = { invalidate: jest.fn().mockResolvedValue(undefined) };
     return {
       prisma,
-      bootstrap,
-      seed: new LegalDocumentsSeed(
-        prisma as unknown as PrismaService,
-        bootstrap as unknown as BootstrapService,
-      ),
+      seed: new LegalDocumentsSeed(prisma as unknown as PrismaService),
     };
   }
 
   it('prepares the section once as a DRAFT of the next version; the current text stays current, nothing is published', async () => {
-    const { seed, prisma, bootstrap } = seedWith({
+    const { seed, prisma } = seedWith({
       en: [
         {
           id: 'p1',
@@ -134,7 +129,6 @@ describe('biometric policy in the privacy texts', () => {
     expect(String(data.change_note)).toContain(BIOMETRIC_TAG);
     // The owner's current text is left as it is (publishing is his).
     expect(prisma.legalDocument.update).not.toHaveBeenCalled();
-    expect(bootstrap.invalidate).not.toHaveBeenCalled();
   });
 
   it('never twice, and never over a text that already has the section', async () => {

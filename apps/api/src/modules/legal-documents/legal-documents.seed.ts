@@ -1,8 +1,7 @@
-import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
-import { BootstrapService } from '../feature-flags/feature-flags.public';
 import {
   DRAFT_VERSION,
   LEGAL_DOC_TYPE_LIST,
@@ -67,10 +66,7 @@ const isPlaceholder = (md: string | null): boolean =>
 export class LegalDocumentsSeed implements OnModuleInit {
   private readonly log = new Logger(LegalDocumentsSeed.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    @Optional() private readonly bootstrap?: BootstrapService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit(): Promise<void> {
     try {
