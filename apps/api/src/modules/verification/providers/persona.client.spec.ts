@@ -131,3 +131,28 @@ it('hosted flow link (docs.withpersona.com/docs/hosted-flow)', () => {
     'https://inquiry.withpersona.com/verify?inquiry-id=inq_1&session-token=tok',
   );
 });
+
+// Detective R2B-7 (14.11): like stripe-node's constructEvent tolerance, a
+// signed set older (or newer) than the admin window is refused, so a
+// captured webhook cannot be replayed later.
+describe('personaSignatureValid timestamp tolerance (R2B-7)', () => {
+  const NOW = 1_800_000_000;
+  it('inside the window: valid', () => {
+    const t = String(NOW - 100);
+    expect(
+      personaSignatureValid(body, `t=${t},v1=${sign(t)}`, SECRET, 300, NOW),
+    ).toBe(true);
+  });
+  it('older than the window: refused', () => {
+    const t = String(NOW - 301);
+    expect(
+      personaSignatureValid(body, `t=${t},v1=${sign(t)}`, SECRET, 300, NOW),
+    ).toBe(false);
+  });
+  it('too far in the future: refused', () => {
+    const t = String(NOW + 301);
+    expect(
+      personaSignatureValid(body, `t=${t},v1=${sign(t)}`, SECRET, 300, NOW),
+    ).toBe(false);
+  });
+});

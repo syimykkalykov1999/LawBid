@@ -1403,6 +1403,40 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Relay of events that cross database families (idle while there is one database): auto = run only when an event is waiting, on = every minute, off = never. Changed on the «Расходы» page.',
     pattern: /^(off|on|auto)$/,
   };
+  out['auth.otp_global_failure_cap'] = {
+    ...out['auth.otp_global_failure_cap'],
+    description:
+      'Wrong sign-in code guesses at one phone or e-mail from all sources in 24 h; past it every wrong guess burns the code (20; 0 = no cap).',
+    min: 0,
+    max: 100000,
+  };
+  out['auth.social_token_max_age_sec'] = {
+    ...out['auth.social_token_max_age_sec'],
+    description:
+      'A Google sign-in token issued longer ago than this many seconds is refused (600; 0 = no check).',
+    min: 0,
+    max: 86400,
+  };
+  out['verification.persona_webhook_tolerance_sec'] = {
+    ...out['verification.persona_webhook_tolerance_sec'],
+    description:
+      'A Persona webhook signed more than this many seconds away from now is refused (300; 0 = no check).',
+    min: 0,
+    max: 86400,
+  };
+  out['users.onboarding_data_max_kb'] = {
+    ...out['users.onboarding_data_max_kb'],
+    description:
+      'Stored onboarding answers of one account, KB (64; 0 = no cap).',
+    min: 0,
+    max: 10240,
+  };
+  out['chat.saved_max'] = {
+    ...out['chat.saved_max'],
+    description: 'Saved messages one person keeps (5000; 0 = no cap).',
+    min: 0,
+    max: 1000000,
+  };
   out['usage.bunny_bandwidth_crit_gb'] = {
     ...out['usage.bunny_bandwidth_crit_gb'],
     description:
