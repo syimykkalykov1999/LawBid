@@ -212,6 +212,9 @@ export const CRON_JOBS = {
   /** R-401 (owner 2026-11-04): nightly Q&A ranking snapshot — attorney
    * scores and per-topic top lists the recommendations read. */
   recoQaSnapshot: 'reco.qa-snapshot',
+  /** Owner row 112: nightly «Обычно отвечает за …» of every attorney
+   * (median first reply in chats, attorney_profiles.reply_minutes_median). */
+  attorneyReplyTime: 'profiles.reply-time',
   /** Owner 2026-10-05: client fraud — re-score the queue, propagate fresh
    * blocks to linked accounts, delete old hashes (retention). */
   fraudSweep: 'fraud.sweep',
@@ -382,6 +385,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.storageSnapshot, pattern: '55 4 * * *' },
   // 05:20 UTC daily: after the rating / trust recomputes, before the US morning.
   { name: CRON_JOBS.recoQaSnapshot, pattern: '20 5 * * *' },
+  // 05:35 UTC daily (night in the US): the response-time snapshot.
+  { name: CRON_JOBS.attorneyReplyTime, pattern: '35 5 * * *' },
   { name: CRON_JOBS.fraudSweep, pattern: '55 3 * * *' },
   { name: CRON_JOBS.opsGuard, pattern: '* * * * *' },
   { name: CRON_JOBS.statusWatchdog, pattern: '* * * * *' },
@@ -496,6 +501,7 @@ export const HEAVY_JOBS: readonly CronJobName[] = [
   CRON_JOBS.ledgerReconcile,
   CRON_JOBS.storageSnapshot,
   CRON_JOBS.recoQaSnapshot,
+  CRON_JOBS.attorneyReplyTime,
   CRON_JOBS.storageRetention,
   CRON_JOBS.fraudSweep,
   CRON_JOBS.searchLearn,

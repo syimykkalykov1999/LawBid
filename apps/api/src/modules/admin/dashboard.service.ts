@@ -14,8 +14,7 @@ import type {
 } from './admin.dto';
 import {
   liveSubscriptionWhere,
-  monthlyRevenueCents,
-  payingSubscriptionWhere,
+  payingMonthlyRevenueCents,
 } from './subscription-metrics';
 export const DASHBOARD_SUMMARY_KEY = 'dashboard';
 /** Older than this, a read still answers at once and one process recounts. */
@@ -287,7 +286,7 @@ export class DashboardService {
       openContactIssues,
       seatLimitRequests,
       live,
-      revenueByPlan,
+      revenueCents,
       fraudQueue,
       fraudBlocked7d,
     ] = await Promise.all([
@@ -322,11 +321,7 @@ export class DashboardService {
       p.seatLimitRequest.count({ where: { status: 'pending' } }),
       // Audit 2026-10-02: the same "live" rule as the overview and the gate.
       p.subscription.count({ where: liveSubscriptionWhere(now) }),
-      p.subscription.groupBy({
-        by: ['plan'],
-        where: payingSubscriptionWhere(now),
-        _sum: { price_cents: true },
-      }),
+      payingMonthlyRevenueCents(p, now),
       // Owner 2026-10-05 (client fraud): Галочки → «Борьба с мошенниками».
       p.clientFraudProfile.count({
         where: { status: { in: ['review', 'restricted'] } },
@@ -338,12 +333,6 @@ export class DashboardService {
         },
       }),
     ]);
-    const revenueCents = monthlyRevenueCents(
-      revenueByPlan.map((r) => ({
-        plan: r.plan,
-        priceCents: r._sum.price_cents ?? 0,
-      })),
-    );
     return {
       newUsers: { clients24h, attorneys24h, clients7d, attorneys7d },
       totals,

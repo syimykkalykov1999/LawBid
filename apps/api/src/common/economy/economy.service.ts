@@ -61,6 +61,8 @@ import {
   REDIS_CEILING_SHARE,
   type Pressure,
   type Tier,
+  stripeFeeFrom,
+  type StripeFee,
 } from './economy.rules';
 
 export const ECONOMY_FLAG = 'economy_guard';
@@ -336,9 +338,13 @@ export class EconomyService {
     });
   }
 
-  /** S9-3: NET revenue since [since] — price before tax of succeeded
-   * payments, minus refunds of those payments, minus the estimated Stripe
-   * fee (the cash the company keeps, not what customers were charged). */
+  /** S9-3: NET revenue since [since] — price before tax of payments paid
+   * since then, minus the refunds MADE since then, minus the Stripe fee.
+   * R3A-1 (14.11): a fully refunded payment (`refunded`) is still a sale of
+   * its day and its refund a minus of the refund's day — the same rule as
+   * the billing overview (`succeeded`+`refunded`, refunds by `created_at`
+   * with the live statuses), so «Платежи», «Прибыль» and «Экономика» agree
+   * and a closed month never changes later. */
   private async revenueUsd(since: Date): Promise<number> {
     const rows = await this.prisma.$queryRaw<
       {
@@ -352,17 +358,31 @@ export class EconomyService {
         COALESCE(SUM(COALESCE(p.subtotal_cents, p.amount_cents - COALESCE(p.tax_cents, 0))), 0) AS subtotal_cents,
         COALESCE(SUM(p.amount_cents), 0) AS gross_cents,
         COUNT(*) AS payments,
-        COALESCE(SUM((SELECT COALESCE(SUM(r.amount_cents), 0) FROM refunds r
-                      WHERE r.payment_id = p.id AND r.status = 'succeeded')), 0) AS refunded_cents
+        (SELECT COALESCE(SUM(r.amount_cents), 0) FROM refunds r
+          WHERE r.status IN ('pending', 'succeeded') AND r.created_at >= ${since}) AS refunded_cents
       FROM payments p
-      WHERE p.status = 'succeeded' AND p.paid_at >= ${since}`;
+      WHERE p.status IN ('succeeded', 'refunded') AND p.paid_at >= ${since}`;
     const r = rows[0];
-    return netRevenueUsd({
-      subtotalCents: Number(r?.subtotal_cents ?? 0),
-      grossCents: Number(r?.gross_cents ?? 0),
-      payments: Number(r?.payments ?? 0),
-      refundedCents: Number(r?.refunded_cents ?? 0),
-    });
+    return netRevenueUsd(
+      {
+        subtotalCents: Number(r?.subtotal_cents ?? 0),
+        grossCents: Number(r?.gross_cents ?? 0),
+        payments: Number(r?.payments ?? 0),
+        refundedCents: Number(r?.refunded_cents ?? 0),
+      },
+      await this.stripeFee(),
+    );
+  }
+
+  /** R3A-9: the Stripe fee the owner set in «Настройки». */
+  private async stripeFee(): Promise<StripeFee> {
+    const [percent, fixed] = await Promise.all([
+      this.settingsSvc.number('economy.stripe_fee_percent').catch(() => NaN),
+      this.settingsSvc
+        .number('economy.stripe_fee_fixed_cents')
+        .catch(() => NaN),
+    ]);
+    return stripeFeeFrom(percent, fixed);
   }
 
   /** Revenue, estimated spend and the rule, as of [now]. */

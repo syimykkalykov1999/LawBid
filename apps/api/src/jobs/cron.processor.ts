@@ -25,6 +25,7 @@ import { OtpCleanupJob } from './handlers/otp-cleanup.job';
 import { DisposableDomainsRefreshJob } from './disposable-domains/disposable-domains-refresh.job';
 import { ReviewReminderJob } from './handlers/review-reminder.job';
 import { RatingReconcileJob } from './handlers/rating-reconcile.job';
+import { AttorneyReplyTimeJob } from './handlers/attorney-reply-time.job';
 import { LicenseExpiryJob } from './handlers/license-expiry.job';
 import { LicenseRegistryRecheckJob } from './handlers/license-registry-recheck.job';
 import { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
@@ -301,6 +302,8 @@ export class CronProcessor {
     @Optional() private readonly caseRebroadcast?: CaseRebroadcastJob,
     // R-401: `reco.qa-snapshot`.
     @Optional() private readonly qaSnapshot?: QaSnapshotService,
+    // Owner row 112: `profiles.reply-time`.
+    @Optional() private readonly replyTime?: AttorneyReplyTimeJob,
   ) {}
 
   /**
@@ -748,6 +751,8 @@ export class CronProcessor {
         return this.storageStats?.snapshot() ?? null;
       case CRON_JOBS.recoQaSnapshot:
         return this.qaSnapshot?.rebuild() ?? null;
+      case CRON_JOBS.attorneyReplyTime:
+        return this.replyTime?.run() ?? null;
       case CRON_JOBS.rewardsAward:
         return this.rewards?.autoAward();
       case CRON_JOBS.outreachRetention:

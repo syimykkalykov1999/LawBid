@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/design_system/widgets/feedback/app_confirm_sheet.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -809,10 +810,19 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                             color: colors.text,
                           ),
                           onSelected: (v) async {
-                            if (v == 'delete') {
-                              await _run(() => repo.delete(pack.id));
-                              if (context.mounted) Navigator.of(context).pop();
-                            }
+                            if (v != 'delete') return;
+                            // Row 109 (Apple HIG): a delete asks first.
+                            final ok = await showConfirmSheet(
+                              context,
+                              t: t,
+                              title: t.t('stickers.deletePack.title'),
+                              message: t.t('group.info.delete.body2'),
+                              confirmLabel: t.t('stickers.deletePack'),
+                              destructive: true,
+                            );
+                            if (!ok || !context.mounted) return;
+                            await _run(() => repo.delete(pack.id));
+                            if (context.mounted) Navigator.of(context).pop();
                           },
                           itemBuilder: (_) => [
                             PopupMenuItem(
@@ -867,7 +877,20 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                   final s = pack.stickers[i];
                   return GestureDetector(
                     onLongPress: pack.isMine
-                        ? () => _run(() => repo.deleteSticker(s.id))
+                        ? () async {
+                            // Row 109: a long press no longer deletes at once.
+                            final ok = await showConfirmSheet(
+                              context,
+                              t: t,
+                              title: t.t('stickers.deleteSticker.title'),
+                              message: t.t('group.info.delete.body2'),
+                              confirmLabel: t.t('chat.discard'),
+                              destructive: true,
+                            );
+                            if (ok && context.mounted) {
+                              await _run(() => repo.deleteSticker(s.id));
+                            }
+                          }
                         : null,
                     child: StickerImage(sticker: s, size: 80),
                   );

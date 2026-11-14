@@ -31,6 +31,7 @@ import { DisposableDomainsRefreshJob } from './disposable-domains/disposable-dom
 import { HttpDisposableDomainsFetcher } from './disposable-domains/disposable-domains.fetcher';
 import { ReviewReminderJob } from './handlers/review-reminder.job';
 import { RatingReconcileJob } from './handlers/rating-reconcile.job';
+import { AttorneyReplyTimeJob } from './handlers/attorney-reply-time.job';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { LicenseExpiryJob } from './handlers/license-expiry.job';
 import { LicenseRegistryRecheckJob } from './handlers/license-registry-recheck.job';
@@ -208,6 +209,7 @@ export class JobsModule {
         DisposableDomainsRefreshJob,
         ReviewReminderJob,
         RatingReconcileJob,
+        AttorneyReplyTimeJob,
         LicenseExpiryJob,
         LicenseRegistryRecheckJob,
         BidSubscriptionLapseJob,
