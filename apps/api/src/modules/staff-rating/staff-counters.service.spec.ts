@@ -5,6 +5,7 @@ import {
   parseCounters,
   toCounterRow,
 } from './staff-counters.service';
+import { StaffDailyStatsService } from './staff-daily-stats.service';
 import { FakeStaffRedis } from './staff-rating.test-support';
 
 const A = '11111111-1111-4111-8111-111111111111';
@@ -129,5 +130,67 @@ describe('StaffCountersService', () => {
     expect(c.buckets[1]).toBe(2);
     expect(c.hours[3]).toBe(5);
     expect(c.outcomes).toEqual({ approve: 5 });
+  });
+});
+
+describe('owner 14.11 (row 180, B9): staff days follow the report time zone', () => {
+  const LA = { string: jest.fn(() => Promise.resolve('America/Los_Angeles')) };
+
+  it('a late shift at 7 pm in Nevada counts on that local day, not tomorrow (UTC)', async () => {
+    const redis = new FakeStaffRedis();
+    const prisma = {
+      $executeRaw: jest.fn(() => Promise.resolve(1)),
+    } as unknown as PrismaService;
+    const svc = new StaffCountersService(prisma, redis.asRedis(), LA as never);
+    await svc.bump(
+      { adminId: A, itemKind: 'x', itemId: id(1), outcome: 'a' },
+      new Date('2026-11-14T03:00:00Z'), // 13.11 19:00 PST
+    );
+    expect(await svc.readDay('2026-11-14')).toEqual([]);
+    expect((await svc.readDay('2026-11-13')).map((c) => c.adminId)).toEqual([
+      A,
+    ]);
+  });
+
+  it('the hourly flush writes the local today and yesterday', async () => {
+    const redis = new FakeStaffRedis();
+    const prisma = {
+      $executeRaw: jest.fn(() => Promise.resolve(1)),
+    } as unknown as PrismaService;
+    const svc = new StaffCountersService(prisma, redis.asRedis(), LA as never);
+    const read = jest.spyOn(svc, 'readDay');
+    await svc.flushRecent(new Date('2026-11-14T03:00:00Z'));
+    expect(read.mock.calls.map((c) => c[0])).toEqual([
+      '2026-11-13',
+      '2026-11-12',
+    ]);
+  });
+
+  it('the daily numbers read the local day window (DST-safe)', async () => {
+    const groupBy = jest.fn(() => Promise.resolve([]));
+    const prisma = {
+      staffQualitySignal: { groupBy },
+      staffReviewSample: { groupBy },
+      workLeaseEvent: { groupBy },
+      $executeRaw: jest.fn(() => Promise.resolve(1)),
+      adminProfile: { findMany: jest.fn(() => Promise.resolve([])) },
+    } as unknown as PrismaService;
+    const counters = { readDay: jest.fn(() => Promise.resolve([])) };
+    const svc = new StaffDailyStatsService(
+      prisma,
+      counters as never,
+      LA as never,
+    );
+    await svc.computeDay('2026-11-13').catch(() => undefined);
+    expect(groupBy.mock.calls[0]).toEqual([
+      expect.objectContaining({
+        where: {
+          created_at: {
+            gte: new Date('2026-11-13T08:00:00.000Z'),
+            lt: new Date('2026-11-14T08:00:00.000Z'),
+          },
+        },
+      }),
+    ]);
   });
 });

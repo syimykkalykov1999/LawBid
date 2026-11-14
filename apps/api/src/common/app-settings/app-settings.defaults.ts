@@ -941,6 +941,17 @@ export const OWNER_ADMIN_HARDENING_SETTINGS = {
   /** Revealing a private message needs a 2FA code entered within this
    * many seconds (max 300 = the step-up lifetime). */
   'admin.private_stepup_seconds': 120,
+  /** Owner 14.11 (row 179): how long one 2FA code covers money and other
+   * protected actions in the same session, seconds. Owner-only + 2FA. */
+  'admin.step_up_ttl_seconds': 300,
+  /** Owner 14.11 (row 180): the zone admin days are cut in — «Сегодня»,
+   * «с дедлайном», the staff KPI days (Stripe «Reporting timezone»). An
+   * IANA name; an unknown one falls back to America/Los_Angeles. */
+  'admin.report_timezone': 'America/Los_Angeles',
+  /** Owner 14.11 (row 179): most rows staff «Выбрать всё по фильтру»
+   * collects (cases, posts, reviews, templates, stickers, videos). 0 = no
+   * cap. The owner never has one. */
+  'admin.bulk_select_cap': 2000,
   /** Daily copy of the audit log into the locked audit bucket (needs the
    * bucket from Terraform; without it this does nothing). */
   'admin.audit_export_enabled': true,

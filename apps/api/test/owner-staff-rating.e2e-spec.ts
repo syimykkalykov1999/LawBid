@@ -1,3 +1,7 @@
+import {
+  DEFAULT_REPORT_TIME_ZONE,
+  reportDayKey,
+} from '../src/common/utils/report-day';
 import type { AddressInfo, Server } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import {
@@ -34,8 +38,11 @@ import { adminSession, type AdminSession } from './support/admin-login';
 jest.setTimeout(120_000);
 
 const SEED_AT = new Date('2026-09-15T12:00:00Z'); // the decisions' day
-const DAILY_RUN = new Date('2026-09-16T01:10:00Z'); // staff.daily-stats
-const NIGHTLY_RUN = new Date('2026-09-16T01:40:00Z'); // staff.rating-nightly
+// Owner 14.11 (row 180): staff days are days of admin.report_timezone
+// (America/Los_Angeles); the crons run at 09:10 / 09:40 UTC = 02:10 / 02:40
+// PDT on the 16th, so «yesterday» is the local 15th (SEED_AT = 05:00 PDT).
+const DAILY_RUN = new Date('2026-09-16T09:10:00Z'); // staff.daily-stats
+const NIGHTLY_RUN = new Date('2026-09-16T09:40:00Z'); // staff.rating-nightly
 
 const ALL_ON = {
   'staff.rating_enabled': true,
@@ -166,8 +173,13 @@ describe('Staff rating engine (e2e)', () => {
       itemId: randomUUID(),
       outcome: 'approve',
     });
-    const today = new Date().toISOString().slice(0, 10);
-    expect(await redis.exists(`staff:ctr:${today}:${good.userId}`)).toBe(0);
+    // Neither the UTC nor the report-zone day key (row 180).
+    for (const today of [
+      new Date().toISOString().slice(0, 10),
+      reportDayKey(new Date(), DEFAULT_REPORT_TIME_ZONE),
+    ]) {
+      expect(await redis.exists(`staff:ctr:${today}:${good.userId}`)).toBe(0);
+    }
     await api().get('/api/v1/admin/staff/people').set(owner.auth).expect(404);
     await api()
       .get('/api/v1/admin/staff/shortlist')
