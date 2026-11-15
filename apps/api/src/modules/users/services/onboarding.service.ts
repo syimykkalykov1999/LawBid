@@ -16,6 +16,7 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { startNameRecheckIfVerified } from './attorney-name-recheck';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type {
   OnboardingStep,
@@ -141,7 +142,19 @@ export class OnboardingService {
     @Optional() private readonly flags?: FeatureFlagsService,
     // Owner 2026-10-22 (audit #4 §5): the app gates analytics on it.
     @Optional() private readonly analyticsConsent?: AnalyticsConsentService,
+    // R2B-8 (14.11): `users.onboarding_data_max_kb`.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  /** R2B-8: the stored onboarding `data` may be at most this many KB
+   * (admin; default 64, 0 = no cap). */
+  private async onboardingDataMaxBytes(): Promise<number> {
+    const n = await this.settings
+      ?.number('users.onboarding_data_max_kb')
+      .catch(() => NaN);
+    const kb = typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : 64;
+    return kb * 1024;
+  }
 
   async getMe(userId: string): Promise<MeView> {
     // Owner 2026-10-18 (speed): only the columns the response uses.
@@ -424,6 +437,17 @@ export class OnboardingService {
     const incoming = { ...(dto.data ?? {}) };
     delete incoming[LICENSED_STATES_KEY];
     const data = { ...prevData, ...incoming } as Prisma.InputJsonObject;
+    const maxBytes = await this.onboardingDataMaxBytes();
+    if (
+      maxBytes > 0 &&
+      Buffer.byteLength(JSON.stringify(data), 'utf8') > maxBytes
+    ) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: `Onboarding data is limited to ${maxBytes / 1024} KB.`,
+        details: { field: 'data', maxKb: maxBytes / 1024 },
+      });
+    }
     await this.prisma.onboardingState.upsert({
       where: { user_id: userId },
       create: { user_id: userId, current_step: dto.currentStep, data },
