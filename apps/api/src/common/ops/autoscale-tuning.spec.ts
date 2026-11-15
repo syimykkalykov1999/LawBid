@@ -30,6 +30,37 @@ describe('autoscale tuning (admin → SSM → Lambda)', () => {
     expect(AUTOSCALE_TUNING_SCHEMA.endpoints).toEqual(
       lambdaSchema('endpoints-autoscale'),
     );
+    expect(AUTOSCALE_TUNING_SCHEMA.spot).toEqual(lambdaSchema('spot-fallback'));
+  });
+
+  it('ECS CPU targets go below 1 % (a live test on an idle service: admin ~1 %, pooler ~0.7 % CPU on 15.11)', () => {
+    for (const p of [
+      'api_cpu',
+      'worker_cpu',
+      'admin_cpu',
+      'api_admin_cpu',
+      'pgbouncer_cpu',
+    ]) {
+      expect(validateAutoscaleTuning('ecs', { [`${p}.target`]: 0.3 })).toEqual({
+        ok: true,
+        values: { [`${p}.target`]: 0.3 },
+      });
+    }
+    expect(validateAutoscaleTuning('ecs', { 'api_cpu.target': 0 })).toEqual({
+      ok: false,
+      errors: ['api_cpu.target: 0.1–100'],
+    });
+  });
+
+  it('spot fallback: the quiet hold from the admin', () => {
+    expect(validateAutoscaleTuning('spot', { restore_after_min: 2 })).toEqual({
+      ok: true,
+      values: { restore_after_min: 2 },
+    });
+    expect(validateAutoscaleTuning('spot', { restore_after_min: 0 })).toEqual({
+      ok: false,
+      errors: ['restore_after_min: 1–1000000000'],
+    });
   });
 
   it('keeps valid numbers, refuses unknown keys and values outside the bounds', () => {
@@ -74,7 +105,7 @@ describe('autoscale tuning (admin → SSM → Lambda)', () => {
     }
     expect(validateAutoscaleTuning('ecs', { 'api_cpu.target': 101 })).toEqual({
       ok: false,
-      errors: ['api_cpu.target: 1–100'],
+      errors: ['api_cpu.target: 0.1–100'],
     });
   });
 });

@@ -700,3 +700,6 @@ GET /admin/spend/autoscale-tuning added the new `ecs` enum value to the `data/ta
 GET /admin/spend/autoscale-tuning added the new `endpoints` enum value to the `data/targets/items/target` response property for the response status `200`
 PUT /admin/spend/autoscale-tuning/{target} added the new `ecs` enum value to the `data/targets/items/target` response property for the response status `200`
 PUT /admin/spend/autoscale-tuning/{target} added the new `endpoints` enum value to the `data/targets/items/target` response property for the response status `200`
+# PR #1120 (owner 15.11, row 20): admin-only «Числа «Авто»» gains the spot-fallback numbers; only the admin reads it and it shows every target it gets (the Dart enum has $unknown)
+GET /admin/spend/autoscale-tuning added the new `spot` enum value to the `data/targets/items/target` response property for the response status `200`
+PUT /admin/spend/autoscale-tuning/{target} added the new `spot` enum value to the `data/targets/items/target` response property for the response status `200`

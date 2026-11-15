@@ -93,23 +93,25 @@ export class AdminSpendController {
   @ApiEnvelopeResponse(AutoscaleTuningReportDto)
   async autoscaleTuning(): Promise<AutoscaleTuningReportDto> {
     const targets = await Promise.all(
-      (['redis', 'db', 'endpoints', 'ecs'] as const).map(async (target) => {
-        const available = !!this.ssm.tuningParam(target);
-        const stored = available
-          ? ((await this.ssm.getTuning(target).catch(() => null)) ?? {})
-          : {};
-        return {
-          target,
-          available,
-          knobs: Object.entries(AUTOSCALE_TUNING_SCHEMA[target]).map(
-            ([key, k]) => ({
-              key,
-              ...k,
-              value: typeof stored[key] === 'number' ? stored[key] : null,
-            }),
-          ),
-        };
-      }),
+      (['redis', 'db', 'endpoints', 'ecs', 'spot'] as const).map(
+        async (target) => {
+          const available = !!this.ssm.tuningParam(target);
+          const stored = available
+            ? ((await this.ssm.getTuning(target).catch(() => null)) ?? {})
+            : {};
+          return {
+            target,
+            available,
+            knobs: Object.entries(AUTOSCALE_TUNING_SCHEMA[target]).map(
+              ([key, k]) => ({
+                key,
+                ...k,
+                value: typeof stored[key] === 'number' ? stored[key] : null,
+              }),
+            ),
+          };
+        },
+      ),
     );
     return { targets };
   }
@@ -130,11 +132,11 @@ export class AdminSpendController {
     @Param('target') target: string,
     @Body() dto: UpdateAutoscaleTuningDto,
   ): Promise<AutoscaleTuningReportDto> {
-    if (!['db', 'redis', 'endpoints', 'ecs'].includes(target)) {
+    if (!['db', 'redis', 'endpoints', 'ecs', 'spot'].includes(target)) {
       throw new HttpException(
         {
           code: E.VALIDATION_ERROR,
-          message: 'target: db, redis, endpoints or ecs.',
+          message: 'target: db, redis, endpoints, ecs or spot.',
         },
         HttpStatus.BAD_REQUEST,
       );
