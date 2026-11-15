@@ -327,4 +327,65 @@ describe('ImageProcessor', () => {
       expect(out.variants.get(256)?.avif?.height).toBe(256);
     });
   });
+
+  // Media check 14.11 (row 97/144): a sticker (public CDN) or a task
+  // attachment is not resized, so before it was stored as uploaded — a
+  // JPEG kept its GPS. Measured on a real camera JPEG: `doc` mode returned
+  // main = null and the EXIF/GPS block went to storage untouched.
+  describe('stripMetadata (kept-size images)', () => {
+    const withGps = (fmt: 'jpeg' | 'png' | 'webp', alpha = false) =>
+      sharp({
+        create: {
+          width: 300,
+          height: 200,
+          channels: alpha ? 4 : 3,
+          background: alpha ? { r: 255, g: 0, b: 0, alpha: 0.5 } : '#335577',
+        },
+      })
+        [fmt]()
+        .withMetadata({
+          orientation: 6,
+          exif: { IFD0: { Copyright: 'secret-gps-owner' } },
+        })
+        .toBuffer();
+
+    it.each(['jpeg', 'png', 'webp'] as const)(
+      '%s: metadata removed, same format, upright, alpha kept',
+      async (fmt) => {
+        const src = await withGps(fmt, fmt !== 'jpeg');
+        expect(src.includes('secret-gps-owner')).toBe(true);
+        const out = await processor.process({
+          data: src,
+          mime: `image/${fmt}` as 'image/jpeg',
+          avatar: false,
+          stripMetadata: true,
+        });
+        expect(out.main).not.toBeNull();
+        expect(out.main!.mime).toBe(`image/${fmt}`);
+        expect(out.main!.data.includes('secret-gps-owner')).toBe(false);
+        const meta = await sharp(out.main!.data).metadata();
+        expect(meta.exif).toBeUndefined();
+        expect([meta.width, meta.height]).toEqual([200, 300]);
+        expect([out.width, out.height]).toEqual([200, 300]);
+        expect(meta.hasAlpha).toBe(fmt !== 'jpeg');
+        expect(out.variants.size).toBe(0);
+      },
+    );
+
+    it('a clean image stays byte-for-byte as uploaded', async () => {
+      const src = await sharp({
+        create: { width: 64, height: 64, channels: 4, background: '#00000000' },
+      })
+        .png()
+        .toBuffer();
+      const out = await processor.process({
+        data: src,
+        mime: 'image/png',
+        avatar: false,
+        stripMetadata: true,
+      });
+      expect(out.main).toBeNull();
+      expect([out.width, out.height]).toEqual([64, 64]);
+    });
+  });
 });

@@ -845,7 +845,9 @@ export class S3StorageService implements OnModuleDestroy {
         Key: key,
         Body: Readable.from(counted(), { objectMode: false }),
         ContentType: contentType,
-        CacheControl: IMMUTABLE_CACHE_CONTROL,
+        // Media check 14.11: the bucket's own header — a documents-bucket
+        // stream (data / legal export) is private, never public-immutable.
+        CacheControl: this.cacheControlFor(bucket),
       },
       partSize: opts.partSizeBytes ?? MULTIPART_PART_BYTES,
       queueSize: opts.queueSize ?? 2,

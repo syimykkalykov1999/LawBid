@@ -109,7 +109,9 @@ export interface ProcessedFile {
  *   — sharp writes no metadata unless asked to.
  * - post photo (docs/05 §3.2): oriented, re-encoded JPEG ≤ 2048 px with
  *   320/1080 px variants — metadata (EXIF/GPS location!) stripped.
- * Other files (PDF, JPEG/PNG documents) are left as uploaded.
+ * Other files (PDF, JPEG/PNG documents) are left as uploaded; with
+ *   `stripMetadata` an image that carries EXIF/XMP/IPTC is rewritten
+ *   without it.
  * Every input is capped at MAX_INPUT_PIXELS (sharp `limitInputPixels`,
  * plus a header check where nothing is decoded); an oversized image is
  * rejected like an undecodable one (the scan job marks it `failed`).
@@ -223,6 +225,11 @@ export class ImageProcessor {
      * JPEG or WebP and carries no EXIF / XMP / IPTC is stored as sent (only
      * the smaller sizes are made). `images.keep_small_originals`. */
     keepSmallOriginal?: boolean;
+    /** Media check 14.11 (rows 97/144): an image kept at its own size
+     * (sticker, task attachment) that carries EXIF / XMP / IPTC is written
+     * again in the same format without them (GPS!), upright, transparency
+     * kept. A clean one stays exactly as uploaded. */
+    stripMetadata?: boolean;
   }): Promise<ProcessedFile> {
     const format = input.format ?? 'jpeg';
     const q = input.quality ?? DEFAULT_IMAGE_QUALITY;
@@ -297,6 +304,17 @@ export class ImageProcessor {
 
     const meta = await source.metadata();
     assertPixels(meta.width ?? 0, meta.height ?? 0);
+    if (input.stripMetadata) {
+      const clean = await this.withoutMetadata(source, input.mime, meta, q);
+      if (clean) {
+        return {
+          main: clean,
+          variants: new Map(),
+          width: clean.width,
+          height: clean.height,
+        };
+      }
+    }
     const swap = (meta.orientation ?? 1) >= 5;
     return {
       main: null,
@@ -383,6 +401,39 @@ export class ImageProcessor {
       if (!variants.has(px)) variants.set(px, main);
     }
     return { main, variants, width, height };
+  }
+
+  /**
+   * [stripMetadata]: the same picture in the same format with no EXIF / XMP
+   * / IPTC (sharp writes none unless asked), EXIF orientation applied,
+   * alpha kept; PNG stays lossless. Null when there is nothing to strip or
+   * the format is not re-encoded here (GIF: animation would be lost).
+   */
+  private async withoutMetadata(
+    source: sharp.Sharp,
+    mime: FileMime,
+    meta: sharp.Metadata,
+    q: ImageQuality,
+  ): Promise<ProcessedImage | null> {
+    if (
+      meta.exif === undefined &&
+      meta.xmp === undefined &&
+      meta.iptc === undefined
+    ) {
+      return null;
+    }
+    const img = source.clone().rotate();
+    const out =
+      mime === FILE_MIME.jpeg
+        ? img.jpeg({ quality: q.jpeg, mozjpeg: true })
+        : mime === FILE_MIME.png
+          ? img.png({ compressionLevel: 9 })
+          : mime === FILE_MIME.webp
+            ? img.webp({ quality: q.webp, effort: 4, alphaQuality: 100 })
+            : null;
+    if (!out) return null;
+    const { data, info } = await out.toBuffer({ resolveWithObject: true });
+    return { data, mime, width: info.width, height: info.height };
   }
 
   private async heicToSharp(data: Buffer): Promise<sharp.Sharp> {
