@@ -10,6 +10,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { PushQueueService } from '../src/modules/notifications/push/push-queue.service';
 import { callPollKey, signCallPoll } from '../src/common/calls/call-poll-token';
 import { RealtimePublisher } from '../src/modules/realtime/realtime-publisher.service';
+import { forEachDatabase } from '../src/sharding/for-each-database';
 
 /**
  * Owner 2026-10-28 (a locked Samsung kept ringing after the caller hung up
@@ -148,6 +149,28 @@ describe('Cancel before answer + token-only ring status (e2e)', () => {
 
   it('the caller cancels: the callee gets «stop ringing», the ticket reads «ended»', async () => {
     const c = await chat();
+    // KNOWN_ERRORS №156: earlier suites of a full run leave live calls in
+    // the shared e2e database (owner-calls ends with an answered call). The
+    // end request below runs the call sweep, which closes every call silent
+    // for CALL_SILENT_MS and pushes «it is over» to both of its people, so a
+    // push spy sees those too. A leftover of our own makes that happen on
+    // every run, not only after 3 minutes of other suites.
+    const other = await chat();
+    const leftover = await prisma.call.create({
+      data: {
+        conversation_id: other.id,
+        caller_id: other.client.id,
+        callee_id: other.attorney.id,
+        status: 'active',
+        answered_at: new Date(Date.now() - 600_000),
+      },
+    });
+    // The call lives in its conversation's database (two databases).
+    await forEachDatabase(
+      prisma,
+      () =>
+        prisma.$executeRaw`UPDATE calls SET updated_at = now() - interval '10 minutes' WHERE id = ${leftover.id}::uuid`,
+    );
     const push = app.get(PushQueueService);
     const spy = jest.spyOn(push, 'enqueueCallEnded');
     const started = await api()
@@ -166,13 +189,14 @@ describe('Cancel before answer + token-only ring status (e2e)', () => {
       .set(c.attorney.auth)
       .send({})
       .expect(200);
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy.mock.calls[0][0]).toMatchObject({
-      recipientId: c.client.id,
-      callId,
-    });
+    // Only this call's pushes are ours; the sweep closed the leftover.
+    const pushes = (id: string) =>
+      spy.mock.calls.map(([d]) => d).filter((d) => d.callId === id);
+    expect(pushes(callId)).toHaveLength(1);
+    expect(pushes(callId)[0]).toMatchObject({ recipientId: c.client.id });
     // «Stop ringing», not «the answered call is over».
-    expect(spy.mock.calls[0][0].ended).toBeUndefined();
+    expect(pushes(callId)[0].ended).toBeUndefined();
+    expect(pushes(leftover.id)).toHaveLength(2);
     spy.mockRestore();
 
     const ended = await status(callId, t).expect(200);

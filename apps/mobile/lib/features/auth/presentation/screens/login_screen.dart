@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -67,6 +68,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ? AppEventNames.loginSuccess
           : AppEventNames.loginFailure,
     );
+    // Detective R2-A #14: the password manager offers «Save password» for
+    // this phone / e-mail only after a sign-in that worked.
+    if (result.isSuccess) TextInput.finishAutofillContext();
     if (!mounted) return;
     setState(() {
       _busy = false;

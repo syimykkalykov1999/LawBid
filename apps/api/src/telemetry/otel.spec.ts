@@ -1,4 +1,9 @@
-import { buildSampler, startTelemetry, traceSampleRatio } from './otel';
+import {
+  buildSampler,
+  safeIncomingSpanAttributes,
+  startTelemetry,
+  traceSampleRatio,
+} from './otel';
 import { isClientError, sentryRates } from './sentry';
 import {
   BadRequestException,
@@ -50,5 +55,27 @@ describe('telemetry knobs (S12-2, S12-6)', () => {
     ).toBe(false);
     expect(isClientError({ originalException: new Error('boom') })).toBe(false);
     expect(isClientError({})).toBe(false);
+  });
+});
+
+// Detective R2B-6 (14.11): server spans carry the same safe URL as the
+// logs — token paths redacted, query values dropped (search text, `?t=`).
+describe('safeIncomingSpanAttributes (R2B-6)', () => {
+  it('replaces url.path and url.query with the safe form', () => {
+    expect(
+      safeIncomingSpanAttributes({
+        url: '/api/v1/calendar/feed/lbc_secret.ics?t=ring_ticket&q=john+doe',
+      }),
+    ).toEqual({
+      'url.path': '/api/v1/calendar/feed/[REDACTED]',
+      'url.query': 't&q',
+    });
+  });
+
+  it('no query: the path only', () => {
+    expect(safeIncomingSpanAttributes({ url: '/api/v1/cases' })).toEqual({
+      'url.path': '/api/v1/cases',
+    });
+    expect(safeIncomingSpanAttributes({})).toEqual({});
   });
 });

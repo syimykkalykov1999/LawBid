@@ -25,6 +25,10 @@ const groupCallsRu = <String, String>{
   // Owner 2026-11-04 (WhatsApp): where the call's sound goes.
   'call.audio.phone': 'Телефон',
   'call.audio.headphones': 'Наушники',
+  // Row 166 (WhatsApp): link quality, the other side's mic, «Call again».
+  'call.poorConnection': 'Плохое соединение',
+  'call.peerMuted': '{name} выключил(а) микрофон',
+  'call.again': 'Позвонить ещё раз',
 };
 
 const groupCallsEn = <String, String>{
@@ -45,4 +49,7 @@ const groupCallsEn = <String, String>{
       'Maintenance is under way on the server. Video can be turned on in about an hour.',
   'call.audio.phone': 'Phone',
   'call.audio.headphones': 'Headphones',
+  'call.poorConnection': 'Poor connection',
+  'call.peerMuted': '{name} muted',
+  'call.again': 'Call again',
 };

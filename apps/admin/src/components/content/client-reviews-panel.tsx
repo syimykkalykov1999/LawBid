@@ -164,11 +164,15 @@ export function ClientReviewsPanel() {
           selectedCount={sel.selected.size}
           noun={REVIEWS}
           onClear={sel.clear}
-          onSelectAll={async () => {
-            const r = await collectIds(async (c) => {
-              const p = await fetchPage(c);
-              return { data: p.data, nextCursor: p.meta?.nextCursor };
-            });
+          onSelectAll={async (cap) => {
+            const r = await collectIds(
+              async (c) => {
+                const p = await fetchPage(c);
+                return { data: p.data, nextCursor: p.meta?.nextCursor };
+              },
+              undefined,
+              cap,
+            );
             sel.replace(r.ids);
             return r.capped;
           }}

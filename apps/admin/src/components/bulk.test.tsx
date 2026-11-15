@@ -5,6 +5,9 @@ import { BulkBar, PageSelectBox, RowSelectBox, useSelection } from '@/components
 import { StatesPicker } from '@/components/states-picker';
 import { ToastProvider } from '@/components/ui/toast';
 
+// Row 179: BulkBar reads the signed-in admin's «select all» cap (the owner has none).
+vi.mock('@/lib/hooks', () => ({ useMe: () => ({ data: { role: 'super_admin', bulkSelectCap: null } }) }));
+
 afterEach(cleanup);
 
 const NOUN = ['публикацию', 'публикации', 'публикаций'] as const;
