@@ -192,6 +192,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # The self-hosted runner image (scripts/ci/self-hosted-runner.sh) has no
+      # xz, and the Linux Flutter SDK is a .tar.xz (measured for #1106).
+      - name: xz for the Flutter SDK (self-hosted only)
+        if: runner.environment == 'self-hosted'
+        run: |
+          command -v xz >/dev/null 2>&1 && exit 0
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends xz-utils zip
+
       - name: Flutter version (apps/mobile/.fvmrc is the single pin)
         id: fv
         run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
@@ -199,7 +208,10 @@ jobs:
         with:
           flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
-          cache: true
+          # Self-hosted: never save a GitHub cache from the laptop (KNOWN_ERRORS
+          # 34); the SDK and pub cache stay in the slot's tool cache volume.
+          cache: ${{ runner.environment == 'github-hosted' }}
+          pub-cache-path: ${{ runner.environment == 'self-hosted' && format('{0}/pub-cache', runner.tool_cache) || 'default' }}
 
       - name: flutter pub get
         working-directory: apps/mobile
