@@ -11,6 +11,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
+import 'package:lawbid/core/navigation/router_error_screen.dart';
 import 'package:lawbid/core/navigation/shell/desktop_layouts.dart';
 import 'package:lawbid/core/navigation/shell/main_shell.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
@@ -160,6 +161,11 @@ GoRouter appRouter(Ref ref) {
     overridePlatformDefaultLocation: kIsWeb,
     observers: [routeObserver, UnfocusOnNavigateObserver()],
     refreshListenable: refresh,
+    // Row 148: go_router 17's Material error page (see RouterErrorScreen).
+    errorPageBuilder: (context, state) => AppPageTransitions.material(
+      state,
+      RouterErrorScreen(state.error),
+    ),
     redirect: (context, state) {
       CrashReporter.setRoute(state.matchedLocation);
       AppEvents.screen(state.matchedLocation);
@@ -209,8 +215,10 @@ GoRouter appRouter(Ref ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.feed,
-                builder: (context, state) =>
-                    const FeedAdaptivePage(feed: FeedScreen()),
+                pageBuilder: (context, state) => AppPageTransitions.material(
+                  state,
+                  const FeedAdaptivePage(feed: FeedScreen()),
+                ),
               ),
             ],
           ),
@@ -219,9 +227,12 @@ GoRouter appRouter(Ref ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.search,
-                builder: (context, state) => const ReadableWidth(
-                  maxWidth: kSearchMaxWidth,
-                  child: SearchScreen(),
+                pageBuilder: (context, state) => AppPageTransitions.material(
+                  state,
+                  const ReadableWidth(
+                    maxWidth: kSearchMaxWidth,
+                    child: SearchScreen(),
+                  ),
                 ),
               ),
             ],
@@ -231,7 +242,8 @@ GoRouter appRouter(Ref ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.mine,
-                builder: (context, state) => const MineScreen(),
+                pageBuilder: (context, state) =>
+                    AppPageTransitions.material(state, const MineScreen()),
               ),
             ],
           ),
@@ -240,7 +252,8 @@ GoRouter appRouter(Ref ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.profile,
-                builder: (context, state) => const ProfileScreen(),
+                pageBuilder: (context, state) =>
+                    AppPageTransitions.material(state, const ProfileScreen()),
               ),
             ],
           ),

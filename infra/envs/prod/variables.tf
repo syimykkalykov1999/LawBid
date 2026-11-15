@@ -618,6 +618,11 @@ variable "cpu_architecture" {
 }
 
 # Security research #5 (2026-10-22): WAF, cloud detector, container.
+variable "autoscale_code_flip" {
+  type        = bool
+  default     = false
+  description = "Owner 15.11: carries the «Авто» request aws.autoscale_code (flips each round). No resource uses it; the plan of that request is the autoscale Lambdas' code."
+}
 variable "waf_enabled" {
   type        = bool
   default     = true

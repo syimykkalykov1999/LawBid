@@ -25,11 +25,14 @@ dependencies:
   # stage 1.5 architecture review — see docs/CHANGELOG.md stage 1.5 entry)
   # D1-24 (13.11): 14 -> 17.5 (migration guides 15-17: case-sensitive URLs,
   # GoRouteData unused here, shell observers kept off in app_router.dart).
-  # 18.x moved its pages onto package:material_ui: with this app's
-  # flutter/material MaterialApp it falls back to NoTransitionPage and a plain
-  # HeroController (no swipe-back on `builder:` routes, other hero flights),
-  # so 18 waits for the app-wide material_ui move.
-  go_router: ^17.5.0
+  # Row 148 (14.11): 17.5 -> 18.1.3 (newest release at least 7 days old;
+  # 18.0 only moved its own pages onto package:material_ui and raised the SDK
+  # floor). With this app's flutter/material MaterialApp, go_router 18 sees a
+  # plain WidgetsApp, so every route builds its own page (`pageBuilder:`,
+  # app_page_transitions.dart; the tab roots use MaterialPage as 17 did), the
+  # unknown-URL page is ours (app_router.dart), and the Hero widgets carry
+  # Material's arc tween themselves: the look and swipe-back stay as on 17.
+  go_router: 18.1.3
 
   # Models (stage 1.5 doesn't define any yet; locked in now so stage 1.7+ doesn't fight
   # version skew across the monorepo)

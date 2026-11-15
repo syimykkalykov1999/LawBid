@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "Only a client who completed a case with this attorney can review them.",
   "reviews.write.saved": "Review posted",
   "reviews.write.title": "Your review",
+  "router.notFound.home": "Home",
+  "router.notFound.title": "Page not found",
   "saved.chats.empty": "No saved messages yet",
   "saved.copied": "Copied",
   "saved.empty": "Nothing saved yet",
