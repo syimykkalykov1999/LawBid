@@ -39,7 +39,9 @@ variable "maxmemory_policy" {
 # Owner 14.11 «newest methods» (docs/dev/AUTO_MODERNIZE_2026-11-15.md):
 # Valkey on ElastiCache is the open-source successor of Redis OSS; AWS prices
 # node-based Valkey 20 % lower and upgrades Redis OSS in place with no
-# downtime (ElastiCache 8.1 for Valkey, 07.2025). Default "redis" = today
+# downtime (ElastiCache 8.1 for Valkey, 07.2025). 15.11: Valkey 9.1, the newest
+# ElastiCache offers (describe-cache-engine-versions --engine valkey; AWS
+# What's New 23.06.2026), family valkey9. Default "redis" = today
 # (no change in the next apply); "valkey" switches at an apply of its own.
 variable "engine" {
   type    = string
@@ -52,11 +54,11 @@ variable "engine" {
 variable "engine_version" {
   type        = string
   default     = ""
-  description = "Empty = 7.1 for redis, 8.1 for valkey."
+  description = "Empty = 7.1 for redis, 9.1 for valkey."
 }
 locals {
-  pg_family      = var.engine == "valkey" ? "valkey8" : "redis7"
-  engine_version = var.engine_version != "" ? var.engine_version : (var.engine == "valkey" ? "8.1" : "7.1")
+  pg_family      = var.engine == "valkey" ? "valkey9" : "redis7"
+  engine_version = var.engine_version != "" ? var.engine_version : (var.engine == "valkey" ? "9.1" : "7.1")
 }
 
 variable "description" {
@@ -190,10 +192,18 @@ resource "aws_elasticache_replication_group" "this" {
   transit_encryption_enabled = true
   auth_token                 = random_password.auth.result
   auth_token_update_strategy = "ROTATE"
-  apply_immediately          = false
-  maintenance_window         = "sun:05:00-sun:06:00"
-  snapshot_retention_limit   = 1
-  tags                       = var.tags
+  # 15.11: with false, AWS keeps an engine change (Redis OSS -> Valkey) for
+  # the Sunday window (ModifyReplicationGroup ApplyImmediately), while the
+  # same apply already deletes the old redis7 parameter group the group still
+  # uses (create_before_destroy) -> InvalidCacheParameterGroupState, apply
+  # red. On Valkey every change goes at once: AWS «minimal downtime …
+  # failover … a few seconds» (ElastiCache «Upgrading engine versions
+  # including cross engine upgrades»). Node size changes use
+  # ApplyImmediately anyway (modules/redis-autoscale).
+  apply_immediately        = var.engine == "valkey"
+  maintenance_window       = "sun:05:00-sun:06:00"
+  snapshot_retention_limit = 1
+  tags                     = var.tags
 
   # Owner 2026-10-16: the admin («Экономика» → «Увеличить») may move Redis
   # one tier up at run time; terraform apply must not undo it. Owner
@@ -261,7 +271,7 @@ resource "aws_elasticache_replication_group" "cluster" {
   transit_encryption_enabled = true
   auth_token                 = random_password.auth.result
   auth_token_update_strategy = "ROTATE"
-  apply_immediately          = false
+  apply_immediately          = var.engine == "valkey" # same reason as the standalone group
   maintenance_window         = "sun:05:00-sun:06:00"
   snapshot_retention_limit   = 1
   tags                       = var.tags

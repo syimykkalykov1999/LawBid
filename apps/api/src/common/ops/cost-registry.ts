@@ -448,7 +448,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
   },
   {
     id: 'aws.redis',
-    name: 'Redis (2 узла: основной и запасной)',
+    name: 'Redis / Valkey (2 узла: основной и запасной)',
     purpose: 'Быстрая память: очереди, чаты в реальном времени, кэш.',
     kind: 'aws',
     control: tf(['redis_node_type', 'redis_replicas'], {
@@ -462,10 +462,10 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ),
     price: price(
       'fixed',
-      't4g.micro ×2 ≈ $23; ступени ≈ $47, $95, $320, $638 за пару',
+      'Valkey: t4g.micro ×2 ≈ $19; ступени ≈ $37, $76, $256, $510 за пару (Redis было $23, $47, $95, $320, $638)',
       U.cache,
     ),
-    usd: { launch: R(23), k100: R(95), m1: R(320, 640) },
+    usd: { launch: R(19), k100: R(76), m1: R(256, 510) },
     needed: 'yes',
     neededNote: 'Нужен. Размер меняет автомасштаб Redis (следующая строка).',
     alarm: 'тревога памяти Redis 70 % (redis-memory)',
@@ -2029,6 +2029,57 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     needed: 'auto',
     neededNote:
       'Положение меняется само при каждом обновлении кода; переключать руками не нужно.',
+    alarm: null,
+  },
+  {
+    // Owner 15.11, verbatim: «делай обновы сейчас» (docs/runbooks/db-major-upgrade.md).
+    id: 'aws.postgres_major',
+    name: 'Новая версия базы (PostgreSQL 18)',
+    purpose:
+      'Переводит базу с PostgreSQL 16 на самую новую 18 способом AWS «сине-зелёное обновление»: рядом создаётся копия на 18, догоняет основную, потом за одну минуту меняется с ней местами. Старая база на 16 остаётся рядом (только чтение) — путь назад. Перед этим одна перезагрузка базы (около минуты) для нужной настройки. Обратно с 18 на 16 нельзя: только переключение на сохранённую старую базу (инструкция).',
+    kind: 'aws',
+    control: tf(['database_major_version'], {
+      off: 'database_major_version = "16"',
+      on: 'database_major_version = "18"',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'free',
+      'Цена базы та же. Пока идёт обновление и пока старая база не удалена, она стоит столько же, сколько основная',
+      U.rds,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 120),
+    needed: 'yes',
+    neededNote:
+      'Один раз. Время ночью, без выкатов: во время обновления нельзя менять схему базы (AWS остановит обновление, ничего не потеряется).',
+    alarm: null,
+  },
+  {
+    // Owner 15.11, verbatim: «делай обновы сейчас». PR #1112 added the
+    // variable; this row is the admin switch for it.
+    id: 'aws.valkey',
+    name: 'Быстрая память на Valkey 9.1 (вместо Redis)',
+    purpose:
+      'Та же быстрая память (очереди, чаты, кэш), но на Valkey — открытом преемнике Redis. AWS меняет на месте: адрес тот же, записи замирают на несколько секунд. Узлы на 20 % дешевле. Назад на Redis через это переключение нельзя (AWS возвращает только с Valkey 7.2); план с пересозданием Redis админка откажет.',
+    kind: 'aws',
+    control: tf(['redis_engine'], {
+      off: 'redis_engine = "redis"',
+      on: 'redis_engine = "valkey"',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'free',
+      'Экономия, а не расход: узлы Valkey на 20 % дешевле узлов Redis',
+      U.cache,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'yes',
+    neededNote: 'Один раз; дальше без изменений.',
     alarm: null,
   },
   {

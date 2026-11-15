@@ -84,11 +84,24 @@ variable "apple_team_id" {
   type    = string
   default = ""
 }
+# Owner 15.11 «делай обновы сейчас»: admin switch aws.postgres_major.
+# "18" = AWS Blue/Green upgrade of the database to the newest PostgreSQL 18
+# (about a minute without the database at the switchover, the old 16 server
+# kept for rollback). docs/runbooks/db-major-upgrade.md.
+variable "database_major_version" {
+  type    = string
+  default = "16"
+}
 # docs/06 §6.3: production sizes (5k RPS peak); raise api_max_tasks with load-test results.
+# 15.11 «делай обновы сейчас»: default valkey after the proof (full API e2e
+# on valkey/valkey:9.1.3 green, modules/redis applies the engine change at
+# once, KNOWN_ERRORS 168). The next prod apply moves Redis OSS 7.1 to Valkey
+# 9.1 in place (AWS: same endpoint, writes pause for a few seconds).
+# Admin switch aws.valkey. docs/runbooks/db-major-upgrade.md.
 variable "redis_engine" {
   type        = string
-  default     = "redis"
-  description = "redis | valkey. Owner 14.11: valkey = ElastiCache Valkey 8.1, moved in place by an apply (no downtime, nodes 20 % cheaper). docs/dev/AUTO_MODERNIZE_2026-11-15.md."
+  default     = "valkey"
+  description = "redis | valkey. valkey = ElastiCache Valkey 9.1, moved in place by an apply (seconds of failover, nodes 20 % cheaper). Back to redis = replacement (refused by the plan guard)."
 }
 variable "redis_node_type" {
   type    = string

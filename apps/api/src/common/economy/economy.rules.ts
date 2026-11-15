@@ -276,14 +276,17 @@ export const DB_TIERS: readonly Tier[] = [
 // ONE ladder with the Redis autoscaler (infra/modules/redis-autoscale,
 // docs/architecture/REDIS_AUTOSCALE.md). memoryGb = ElastiCache node memory;
 // monthUsd = the whole group with ONE replica (2 nodes), on demand,
-// us-east-1, AWS Price List API 2026-10-24.
+// us-east-1. 15.11: Valkey prices (prod redis_engine = valkey; AWS Price
+// List API get-products AmazonElastiCache cacheEngine=Valkey, 2026-11-15
+// 18:59Z: per node $0.0128 / 0.0256 / 0.052 / 0.1752 / 0.3496 / 0.6984 an
+// hour; 2 x 730 h). Redis OSS was $23 / 47 / 95 / 320 / 638 / 1275.
 export const REDIS_TIERS: readonly Tier[] = [
-  { name: 'cache.t4g.micro', memoryGb: 0.5, monthUsd: 23 },
-  { name: 'cache.t4g.small', memoryGb: 1.37, monthUsd: 47 },
-  { name: 'cache.t4g.medium', memoryGb: 3.09, monthUsd: 95 },
-  { name: 'cache.r7g.large', memoryGb: 13.07, monthUsd: 320 },
-  { name: 'cache.r7g.xlarge', memoryGb: 26.32, monthUsd: 638 },
-  { name: 'cache.r7g.2xlarge', memoryGb: 52.82, monthUsd: 1275 },
+  { name: 'cache.t4g.micro', memoryGb: 0.5, monthUsd: 19 },
+  { name: 'cache.t4g.small', memoryGb: 1.37, monthUsd: 37 },
+  { name: 'cache.t4g.medium', memoryGb: 3.09, monthUsd: 76 },
+  { name: 'cache.r7g.large', memoryGb: 13.07, monthUsd: 256 },
+  { name: 'cache.r7g.xlarge', memoryGb: 26.32, monthUsd: 510 },
+  { name: 'cache.r7g.2xlarge', memoryGb: 52.82, monthUsd: 1020 },
 ];
 
 /** The next bigger tier, or null (unknown class or already the largest). */
@@ -414,7 +417,7 @@ export function pressures(
 /** Share of the allowed monthly spend the database may cost at its largest
  * allowed size, and the same for Redis (the rest is servers, network, files,
  * SMS…). With the $350 budget: database up to $122 (db.t4g.medium, $94),
- * Redis up to $52 (cache.t4g.small, $47). */
+ * Redis up to $52 (cache.t4g.small, $37 on Valkey). */
 export const DB_CEILING_SHARE = 0.35;
 export const REDIS_CEILING_SHARE = 0.15;
 

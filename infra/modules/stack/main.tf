@@ -71,7 +71,7 @@ variable "database_multi_az" {
   description = "RDS Multi-AZ (standby in the second AZ, automatic failover). ≈ ×2 the instance price. Prod: true."
 }
 # Owner 14.11 «newest methods» (docs/dev/AUTO_MODERNIZE_2026-11-15.md):
-# "valkey" moves the main and the cache Redis to Valkey 8.1 in place (AWS:
+# "valkey" moves the main and the cache Redis to Valkey 9.1 in place (AWS:
 # no downtime, node price 20 % lower). Default "redis" = no change.
 variable "redis_engine" {
   type    = string
@@ -86,6 +86,22 @@ variable "database_engine_version" {
   type        = string
   default     = "16"
   description = "PostgreSQL version of the created database (\"16\" = latest minor; pin e.g. \"16.6\" with database_auto_minor_upgrade = false). docs/runbooks/db-ops.md."
+}
+# Owner 15.11 «делай обновы сейчас» (admin switch aws.postgres_major,
+# docs/runbooks/db-major-upgrade.md): the PostgreSQL major version the owner
+# wants. "16" = today. "18" = the apply creates the postgres18 parameter group
+# and turns rds.logical_replication on, then infra-apply.yml runs AWS
+# Blue/Green (scripts/infra/rds-major-upgrade.sh: green copy on 18, switchover
+# about a minute, the old 16 server kept as «…-old1» for rollback). Terraform
+# itself never upgrades in place: the version in the config follows the
+# version the server REALLY runs (local.database_running_major).
+variable "database_major_version" {
+  type    = string
+  default = "16"
+  validation {
+    condition     = contains(["16", "18"], var.database_major_version)
+    error_message = "database_major_version: 16 or 18."
+  }
 }
 variable "database_auto_minor_upgrade" {
   type    = bool
@@ -1204,6 +1220,27 @@ module "redis" {
   recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
+# The major version the primary REALLY runs (read-only, no error when it
+# does not exist yet: a new stack is created on database_major_version).
+# After the Blue/Green switchover it reads "18", so the config moves with
+# the server and no plan ever tries an in-place upgrade or a downgrade.
+data "aws_db_instances" "primary" {
+  count = var.create_database ? 1 : 0
+  filter {
+    name   = "db-instance-id"
+    values = ["${local.name}-postgres"]
+  }
+}
+data "aws_db_instance" "primary" {
+  count                  = var.create_database ? length(data.aws_db_instances.primary[0].instance_identifiers) : 0
+  db_instance_identifier = "${local.name}-postgres"
+}
+locals {
+  database_running_major = length(data.aws_db_instance.primary) > 0 ? split(".", data.aws_db_instance.primary[0].engine_version)[0] : var.database_major_version
+  # A pin (database_engine_version = "16.6") stays while it is that major.
+  database_engine_version = split(".", var.database_engine_version)[0] == local.database_running_major ? var.database_engine_version : local.database_running_major
+}
+
 module "postgres" {
   count      = var.create_database ? 1 : 0
   source     = "../postgres"
@@ -1218,7 +1255,8 @@ module "postgres" {
   instance_class             = var.database_instance_class
   backup_retention_days      = var.database_backup_retention_days
   multi_az                   = var.database_multi_az
-  engine_version             = var.database_engine_version
+  engine_version             = local.database_engine_version
+  upgrade_to_major           = var.database_major_version
   auto_minor_version_upgrade = var.database_auto_minor_upgrade
   rds_logical_replication    = var.database_logical_replication
   monitoring_interval        = var.database_monitoring_interval
@@ -2803,6 +2841,7 @@ module "redis_autoscale" {
   name                 = local.name
   replication_group_id = "${local.name}-redis"
   replicas             = max(var.redis_replicas, 1) # price shown for the HA size
+  engine               = var.redis_engine
   cluster_name         = module.ecs.cluster_name
   service_names        = local.autoscale_guard_services # D1-42
   alerts_topic_arn     = module.monitoring.alerts_topic_arn

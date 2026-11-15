@@ -120,6 +120,7 @@ module "stack" {
   apple_team_id                   = var.apple_team_id
   redis_node_type                 = var.redis_node_type
   redis_engine                    = var.redis_engine
+  database_major_version          = var.database_major_version
   redis_replicas                  = var.redis_replicas
   api_max_tasks                   = var.api_max_tasks
   worker_max_tasks                = var.worker_max_tasks
