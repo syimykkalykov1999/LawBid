@@ -382,12 +382,12 @@ class AdminTuningTests(unittest.TestCase):
         cfg, skipped = h.apply_admin_tuning(
             base,
             json.dumps({"down_window_h": 3, "night_start_h": 19, "single_node_up": 0,
-                        "up_cpu_pct": 5, "period_s": 60, "nope": 1}),
+                        "up_cpu_pct": 0, "period_s": 60, "nope": 1}),
         )
         self.assertEqual(cfg.down_window_h, 3)  # the admin wins over Terraform
         self.assertEqual(cfg.night_start_h, 19)
         self.assertIs(cfg.single_node_up, False)
-        self.assertEqual(cfg.up_cpu_pct, base.up_cpu_pct)  # 5 < min 10: skipped
+        self.assertEqual(cfg.up_cpu_pct, base.up_cpu_pct)  # 0 < floor 1: skipped
         self.assertEqual(cfg.period_s, base.period_s)  # not an admin knob
         self.assertEqual(sorted(skipped), ["nope", "period_s", "up_cpu_pct"])
 

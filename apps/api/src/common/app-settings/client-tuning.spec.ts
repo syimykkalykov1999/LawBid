@@ -63,6 +63,17 @@ describe('client tuning knobs (scale audit 2026-10-23)', () => {
     ).toBeNull();
   });
 
+  it('a big photo from Files is read up to N times the file limit (row 149)', () => {
+    expect(isPublic('media.picked_image_read_x')).toBe(true);
+    expect(APP_SETTINGS['media.picked_image_read_x']).toBe(4);
+    expect(
+      validateConfigValue(schema['media.picked_image_read_x'], 0),
+    ).toBeNull();
+    expect(
+      validateConfigValue(schema['media.picked_image_read_x'], 101),
+    ).not.toBeNull();
+  });
+
   it('verification document photo size is tunable, inside sane bounds (media audit C7)', () => {
     expect(APP_SETTINGS['client.verification_photo_max_px']).toBe(2048);
     expect(APP_SETTINGS['client.verification_photo_quality']).toBe(90);

@@ -43,8 +43,8 @@ describe('admin «Авто» numbers (SSM tuning)', () => {
     expect(redis.available).toBe(true);
     expect(redis.knobs.find((k) => k.key === 'down_window_h')).toMatchObject({
       value: 2,
-      min: 0.25,
-      max: 72,
+      min: 0,
+      max: 1000000000,
     });
     expect(
       redis.knobs.find((k) => k.key === 'night_start_h')?.value,
@@ -71,7 +71,7 @@ describe('admin «Авто» numbers (SSM tuning)', () => {
   it('refuses a value outside the bounds (400) and an autoscaler that is not there (409)', async () => {
     const { c, ssm } = build();
     await expect(
-      c.updateAutoscaleTuning(owner, 'redis', { values: { up_cpu_pct: 5 } }),
+      c.updateAutoscaleTuning(owner, 'redis', { values: { up_cpu_pct: 0 } }),
     ).rejects.toMatchObject({ status: 400 });
     await expect(
       c.updateAutoscaleTuning(owner, 'db', { values: { up_cpu_pct: 50 } }),

@@ -75,6 +75,28 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         createChannels()
+        // Row 149: the secrets flutter_secure_storage 9 kept in
+        // EncryptedSharedPreferences, moved once to version 11 by Dart
+        // (core/session/legacy_secure_storage.dart).
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "lawbid/legacy_secure_storage",
+        ).setMethodCallHandler { call, result ->
+            @Suppress("UNCHECKED_CAST")
+            val keys = (call.arguments as? List<String>) ?: emptyList()
+            // Keystore and file work off the main thread.
+            Thread {
+                val answer: Any = when (call.method) {
+                    "read" -> LegacySecureStorage.read(applicationContext, keys)
+                    "forget" -> LegacySecureStorage.forget(applicationContext, keys)
+                    else -> {
+                        runOnUiThread { result.notImplemented() }
+                        return@Thread
+                    }
+                }
+                runOnUiThread { result.success(answer) }
+            }.start()
+        }
         // Owner row 42: Android video re-encode on Media3 Transformer.
         VideoEncoder(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         // Owner 2026-10-20: a video call goes to a floating window when the
