@@ -33,9 +33,9 @@ describe('autoscale tuning (admin → SSM → Lambda)', () => {
     expect(
       validateAutoscaleTuning('redis', { down_window_h: 2, night_start_h: 19 }),
     ).toEqual({ ok: true, values: { down_window_h: 2, night_start_h: 19 } });
-    expect(validateAutoscaleTuning('redis', { up_cpu_pct: 5 })).toEqual({
+    expect(validateAutoscaleTuning('redis', { up_cpu_pct: 0 })).toEqual({
       ok: false,
-      errors: ['up_cpu_pct: 10–100'],
+      errors: ['up_cpu_pct: 1–100'],
     });
     expect(validateAutoscaleTuning('db', { period_s: 60 })).toEqual({
       ok: false,
