@@ -24,6 +24,42 @@ export type TaskKind = 'api' | 'worker';
 /** Owner 2026-11-12 (row 67): the other services with an owner's ceiling
  * (`scale.max_tasks.<kind>`), named by OPS_*_SERVICE (empty = not here). */
 export type OtherKind = 'api_admin' | 'admin' | 'pgbouncer';
+export type ServiceKind = TaskKind | OtherKind;
+
+/** One ECS service now (owner 15.11, «Сейчас» on «Масштаб»). `spot` null =
+ * the service does not say (no strategy and no launch type). */
+export interface ServiceNow {
+  kind: ServiceKind;
+  running: number;
+  desired: number;
+  spot: boolean | null;
+}
+
+/** Pure: one DescribeServices entry as ServiceNow. Spot = the capacity
+ * provider strategy gives FARGATE_SPOT a weight; a plain launch type = no. */
+export function serviceNow(
+  kind: ServiceKind,
+  sv: {
+    runningCount?: number;
+    desiredCount?: number;
+    launchType?: string;
+    capacityProviderStrategy?: { capacityProvider?: string; weight?: number }[];
+  },
+): ServiceNow {
+  const strategy = sv.capacityProviderStrategy ?? [];
+  return {
+    kind,
+    running: sv.runningCount ?? 0,
+    desired: sv.desiredCount ?? 0,
+    spot: strategy.length
+      ? strategy.some(
+          (c) => c.capacityProvider === 'FARGATE_SPOT' && (c.weight ?? 0) > 0,
+        )
+      : sv.launchType
+        ? false
+        : null,
+  };
+}
 export const OTHER_SERVICE_ENV: Readonly<Record<OtherKind, string>> = {
   api_admin: 'OPS_API_ADMIN_SERVICE',
   admin: 'OPS_ADMIN_SERVICE',
@@ -329,11 +365,18 @@ export class AwsOpsService {
     return { changed, missing };
   }
 
-  /** Tasks running / wanted now per service (null off AWS). */
-  async taskCounts(): Promise<Record<
-    TaskKind,
-    { running: number; desired: number }
-  > | null> {
+  /** Tasks running / wanted now per service (null off AWS). Owner 15.11
+   * («Сейчас» on «Масштаб»): `services` also lists the other services
+   * (OPS_*_SERVICE) and whether each runs on Spot. The other three are a
+   * second call that may fail on its own (the task role may read only api
+   * and worker until the read grant is applied): then they are left out and
+   * the api / worker counts stay as before. */
+  async taskCounts(): Promise<
+    | (Record<TaskKind, { running: number; desired: number }> & {
+        services: ServiceNow[];
+      })
+    | null
+  > {
     if (!this.available) return null;
     const api = this.env('OPS_API_SERVICE');
     const worker = this.env('OPS_WORKER_SERVICE');
@@ -345,7 +388,33 @@ export class AwsOpsService {
       const sv = (res.services ?? []).find((x) => x.serviceName === name);
       return { running: sv?.runningCount ?? 0, desired: sv?.desiredCount ?? 0 };
     };
-    return { api: find(api), worker: find(worker) };
+    const others: [ServiceKind, string][] = [];
+    for (const kind of ['api_admin', 'admin', 'pgbouncer'] as const) {
+      const name = this.env(OTHER_SERVICE_ENV[kind]);
+      if (name) others.push([kind, name]);
+    }
+    const more = others.length
+      ? await this.ecsClient()
+          .send(
+            new DescribeServicesCommand({
+              cluster: this.cluster,
+              services: others.map(([, n]) => n),
+            }),
+          )
+          .catch(() => null)
+      : null;
+    const named: [ServiceKind, string][] = [
+      ...(api ? [['api', api] as [ServiceKind, string]] : []),
+      ...(worker ? [['worker', worker] as [ServiceKind, string]] : []),
+      ...others,
+    ];
+    const all = [...(res.services ?? []), ...(more?.services ?? [])];
+    const services: ServiceNow[] = [];
+    for (const [kind, name] of named) {
+      const sv = all.find((x) => x.serviceName === name);
+      if (sv) services.push(serviceNow(kind, sv));
+    }
+    return { api: find(api), worker: find(worker), services };
   }
 
   /** Current autoscaling ceiling per kind (null off AWS). */

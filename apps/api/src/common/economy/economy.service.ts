@@ -30,6 +30,7 @@ import {
 import {
   AwsOpsService,
   type OtherKind,
+  type ServiceNow,
   type TaskKind,
 } from '../ops/aws-ops.service';
 import type {
@@ -216,6 +217,8 @@ export interface EconomyReport {
     api: ContainerReport;
     worker: ContainerReport;
     scaleMode: 'min' | 'normal' | null;
+    /** Owner 15.11: every ECS service now (empty off AWS). */
+    services: ServiceNow[];
   };
   capacity: {
     onAws: boolean;
@@ -228,7 +231,11 @@ export interface EconomyReport {
     /** S9-14: allocated disk, GB, and its monthly price (gp3). */
     dbStorageGb: number | null;
     dbStorageUsd: number | null;
+    /** Owner 15.11 («Сейчас»): standby, read copies, Redis nodes. */
+    dbMultiAz: boolean | null;
+    replicaCount: number | null;
     redisClass: string | null;
+    redisNodes: number | null;
     redisNext: string | null;
     redisMemoryPercent: number | null;
     dbTiers: TierRow[];
@@ -1075,6 +1082,7 @@ export class EconomyService {
         api: container('api'),
         worker: container('worker'),
         scaleMode: scaleMode?.mode ?? null,
+        services: counts?.services ?? [],
       },
       capacity: {
         onAws: this.capacity.available,
@@ -1089,7 +1097,10 @@ export class EconomyService {
           cap?.dbStorageGb != null
             ? dbStorageMonthUsd(cap.dbStorageGb, cap.dbMultiAz ?? true)
             : null,
+        dbMultiAz: cap?.dbMultiAz ?? null,
+        replicaCount: cap?.replicaCount ?? null,
         redisClass: cap?.redisClass ?? null,
+        redisNodes: cap?.redisNodes ?? null,
         redisNext: nextTier(REDIS_TIERS, cap?.redisClass)?.name ?? null,
         redisMemoryPercent: cap?.redisMemoryPercent ?? null,
         dbTiers: this.tierRows(DB_TIERS, cap?.dbClass ?? null),

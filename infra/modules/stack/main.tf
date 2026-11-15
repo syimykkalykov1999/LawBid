@@ -2380,6 +2380,14 @@ data "aws_iam_policy_document" "ops" {
     actions   = ["ecs:UpdateService", "ecs:DescribeServices"]
     resources = [module.ecs.api_service_arn, module.ecs.worker_service_arn]
   }
+  # Owner 15.11 («Сейчас» next to every «Авто» on «Масштаб»): read the task
+  # counts of the other services too (admin, api-admin, pgbouncer). Read
+  # only; the API asks them in a separate call, so until this is applied the
+  # api / worker counts keep working and the others are simply not shown.
+  statement {
+    actions   = ["ecs:DescribeServices"]
+    resources = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${local.name}/*"]
+  }
   statement {
     actions = [
       "application-autoscaling:RegisterScalableTarget",
