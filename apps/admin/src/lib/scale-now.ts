@@ -35,6 +35,18 @@ function serviceText(s: ServiceNow): string {
   return `${SERVICE_NAMES[s.kind]} ${s.running} из ${s.desired}`;
 }
 
+/** Owner 15.11 («сделай настраиваемыми»): the floor / ceiling and the Spot
+ * split of one service now, e.g. «API: от 2 до 6, первые 1 обычные, дальше
+ * обычные:Spot 1:4». null when the report has none of them. */
+function limitsText(s: ServiceNow): string | null {
+  const parts: string[] = [];
+  if (typeof s.min === 'number' && typeof s.max === 'number') parts.push(`от ${s.min} до ${s.max}`);
+  if (typeof s.fargateWeight === 'number' && typeof s.spotWeight === 'number') {
+    parts.push(`первые ${s.base ?? 0} обычные, дальше обычные:Spot ${s.fargateWeight}:${s.spotWeight}`);
+  }
+  return parts.length ? `${SERVICE_NAMES[s.kind]}: ${parts.join(', ')}` : null;
+}
+
 /** Copies the database has now: the snapshot's count (AWS), else the rows. */
 function readCopies(f: NowFacts): number | null {
   const n = f.economy?.capacity.replicaCount;
@@ -148,8 +160,11 @@ export function tuningNow(target: TuningTargetId, f: NowFacts): string {
       return 'Сейчас: число точек доступа сервер пока не видит (их считает сама функция «Авто»)';
     case 'ecs': {
       const spot = spotText(services);
+      const limits = services.map(limitsText).filter((x): x is string => !!x);
       return services.length
-        ? `Сейчас (работает из нужных): ${services.map(serviceText).join(', ')}${spot ? `; ${spot}` : ''}`
+        ? `Сейчас (работает из нужных): ${services.map(serviceText).join(', ')}${spot ? `; ${spot}` : ''}${
+            limits.length ? `; ${limits.join('; ')}` : ''
+          }`
         : line([]);
     }
     case 'spot':

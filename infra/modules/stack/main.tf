@@ -2436,6 +2436,12 @@ data "aws_iam_policy_document" "ops" {
       # separate ops role, not on the task role (least privilege, S4-1).
       "application-autoscaling:DescribeScalingPolicies",
       "application-autoscaling:PutScalingPolicy",
+      # Owner 15.11 (admin floor per service, AwsOpsService.applyMinTasks):
+      # the quiet-hours morning-up action follows the admin's floor. Until
+      # this is applied the floor still changes, the morning action keeps
+      # Terraform's (the admin save reports it as failed `<kind>.morning`).
+      "application-autoscaling:DescribeScheduledActions",
+      "application-autoscaling:PutScheduledAction",
     ]
     resources = ["*"]
   }
