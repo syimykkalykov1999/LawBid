@@ -181,3 +181,50 @@ describe('RealtimePublisher.toRoom', () => {
     expect(r.publish).toHaveBeenCalledTimes(1);
   });
 });
+
+// Detective R2B-6 (14.11): a removed group member leaves the chat room on
+// every API instance (socket.io cluster op SOCKETS_LEAVE, as the adapter's
+// own `socketsLeave` sends it).
+describe('RealtimePublisher.leaveRoom', () => {
+  const prev = process.env.SOCKET_IO_ADAPTER;
+  afterEach(() => {
+    if (prev === undefined) delete process.env.SOCKET_IO_ADAPTER;
+    else process.env.SOCKET_IO_ADAPTER = prev;
+  });
+  const redis = () => ({
+    status: 'ready',
+    spublish: jest.fn().mockResolvedValue(1),
+    publish: jest.fn().mockResolvedValue(1),
+  });
+
+  it("sharded: one SPUBLISH of SOCKETS_LEAVE for the users' sockets", () => {
+    delete process.env.SOCKET_IO_ADAPTER;
+    const r = redis();
+    new RealtimePublisher(r as unknown as Redis).leaveRoom(
+      ['u1'],
+      'conversation:g1',
+    );
+    expect(r.spublish).toHaveBeenCalledTimes(1);
+    const [channel, message] = r.spublish.mock.calls[0] as [string, string];
+    expect(channel).toBe(`socket.io#${REALTIME_NAMESPACE}#`);
+    expect(JSON.parse(message)).toMatchObject({
+      type: 5,
+      nsp: REALTIME_NAMESPACE,
+      data: {
+        opts: { rooms: ['user:u1'], except: [] },
+        rooms: ['conversation:g1'],
+      },
+    });
+  });
+
+  it('classic: the redis-emitter socketsLeave (PUBLISH)', () => {
+    process.env.SOCKET_IO_ADAPTER = 'classic';
+    const r = redis();
+    new RealtimePublisher(r as unknown as Redis).leaveRoom(
+      ['u1'],
+      'conversation:g1',
+    );
+    expect(r.spublish).not.toHaveBeenCalled();
+    expect(r.publish).toHaveBeenCalledTimes(1);
+  });
+});

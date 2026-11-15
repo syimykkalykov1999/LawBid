@@ -1,5 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+import {
+  JobStoppedError,
+  throwIfJobStopped,
+} from '../../common/queues/job-signal';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PAYMENT_PROVIDER } from '../../modules/billing/billing.constants';
@@ -16,6 +22,20 @@ export interface VerificationLossResult {
 
 /** Attorneys checked per set-based read of [VerificationLossBillingJob]. */
 const LOSS_CHECK_BATCH = 1000;
+
+/** Batch E (14.11): JSON [LossMark] — where the last run stopped reading. */
+export const LOSS_MARK_KEY = 'billing:verification-loss:mark';
+
+interface LossMark {
+  /** Start of the last finished run (ms): the next reads rows changed since. */
+  since: number;
+  /** Start of the last full read of the list (ms). */
+  fullAt: number;
+  /** Attorneys whose handling failed: tried again even if unchanged. */
+  retry: string[];
+}
+
+const LOST_STATUSES = ['rejected', 'suspended'] as const;
 
 /** The unused share of a paid amount: `cents * left / total`, never above
  * the amount and never negative. */
@@ -45,6 +65,7 @@ export class VerificationLossBillingJob {
     private readonly sync: SubscriptionSyncService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly logger: PinoLogger,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {
     this.logger.setContext(VerificationLossBillingJob.name);
   }
@@ -59,24 +80,141 @@ export class VerificationLossBillingJob {
     if (!(await this.settings.boolean('billing.cancel_on_verification_loss'))) {
       return out;
     }
-    const lost = await this.prisma.attorneyProfile.findMany({
-      where: { verification_status: { in: ['rejected', 'suspended'] } },
-      select: { user_id: true },
-    });
-    for (const userId of await this.withSomethingToStop(
-      lost.map((l) => l.user_id),
-    )) {
-      try {
-        const did = await this.handle(userId, out);
-        if (did) out.attorneys += 1;
-      } catch (err) {
-        this.logger.error({ err, userId }, 'verification-loss billing failed');
+    // Batch E (14.11): the rejected / suspended list only grows, and every
+    // 10 minutes it was read whole. Now: the attorneys whose profile row
+    // changed since the last finished run (`updated_at` moves with every
+    // status change; minus an overlap for transactions that committed
+    // late), the ones that failed last time, and the whole list once per
+    // `billing.verification_loss_full_scan_hours` as a safety net (0 = every
+    // run). Without Redis, or with no mark yet: the whole list. Read in
+    // pages either way.
+    const startedAt = Date.now();
+    const mark = await this.readMark();
+    const fullEveryH = await this.settings.number(
+      'billing.verification_loss_full_scan_hours',
+    );
+    const overlapMs =
+      Math.max(
+        0,
+        await this.settings.number('billing.verification_loss_overlap_minutes'),
+      ) * 60_000;
+    const full =
+      !mark ||
+      !(fullEveryH > 0) ||
+      startedAt - mark.fullAt >= fullEveryH * 3_600_000;
+    const changedSince = full ? null : new Date(mark.since - overlapMs);
+    const failed: string[] = [];
+    const seen = new Set<string>();
+
+    const work = async (ids: string[]) => {
+      for (const userId of await this.withSomethingToStop(ids)) {
+        throwIfJobStopped();
+        try {
+          const did = await this.handle(userId, out);
+          if (did) out.attorneys += 1;
+        } catch (err) {
+          if (err instanceof JobStoppedError) throw err;
+          failed.push(userId);
+          this.logger.error(
+            { err, userId },
+            'verification-loss billing failed',
+          );
+        }
       }
+    };
+
+    // Keyset pages. The changed-rows read is ordered by (updated_at,
+    // user_id): EXPLAIN of Prisma's generic plan on 300 000 rows (PG 16) —
+    // ORDER BY user_id walked the primary key and filtered every row
+    // (292 ms, 301 368 buffers), this order uses
+    // attorney_profiles_verification_status_updated_at_idx (6 ms). The full
+    // read keeps user_id order (primary key, 3 ms a page).
+    let after: { id: string; at: Date } | null = null;
+    for (;;) {
+      const keyset = !after
+        ? {}
+        : changedSince
+          ? {
+              OR: [
+                { updated_at: { gt: after.at } },
+                { updated_at: after.at, user_id: { gt: after.id } },
+              ],
+            }
+          : { user_id: { gt: after.id } };
+      const page: { user_id: string; updated_at: Date }[] =
+        await this.prisma.attorneyProfile.findMany({
+          where: {
+            verification_status: { in: [...LOST_STATUSES] },
+            ...(changedSince ? { updated_at: { gte: changedSince } } : {}),
+            ...keyset,
+          },
+          select: { user_id: true, updated_at: true },
+          orderBy: changedSince
+            ? [{ updated_at: 'asc' }, { user_id: 'asc' }]
+            : { user_id: 'asc' },
+          take: LOSS_CHECK_BATCH,
+        });
+      const ids = page.map((p) => p.user_id);
+      ids.forEach((id) => seen.add(id));
+      await work(ids);
+      if (page.length < LOSS_CHECK_BATCH) break;
+      const last = page[page.length - 1];
+      after = { id: last.user_id, at: last.updated_at };
     }
+    // Last run's failures, if still not verified (unchanged rows are not in
+    // the changed-rows read above).
+    const retry = (mark?.retry ?? []).filter((id) => !seen.has(id));
+    if (retry.length > 0) {
+      const still = await this.prisma.attorneyProfile.findMany({
+        where: {
+          user_id: { in: retry },
+          verification_status: { in: [...LOST_STATUSES] },
+        },
+        select: { user_id: true },
+      });
+      await work(still.map((r) => r.user_id));
+    }
+    await this.writeMark({
+      since: startedAt,
+      fullAt: full ? startedAt : mark.fullAt,
+      retry: failed.slice(0, LOSS_CHECK_BATCH),
+    });
     if (out.attorneys > 0) {
-      this.logger.info({ ...out }, 'verification-loss billing finished');
+      this.logger.info({ ...out, full }, 'verification-loss billing finished');
     }
     return out;
+  }
+
+  private async readMark(): Promise<LossMark | null> {
+    if (!this.redis) return null;
+    try {
+      const raw = await this.redis.get(LOSS_MARK_KEY);
+      if (!raw) return null;
+      const m = JSON.parse(raw) as Partial<LossMark>;
+      if (typeof m.since !== 'number' || typeof m.fullAt !== 'number') {
+        return null;
+      }
+      return {
+        since: m.since,
+        fullAt: m.fullAt,
+        retry: Array.isArray(m.retry)
+          ? m.retry.filter((x): x is string => typeof x === 'string')
+          : [],
+      };
+    } catch {
+      // Redis away / bad value: read the whole list (the safe side).
+      return null;
+    }
+  }
+
+  /** Only after the whole pass: a crash midway re-reads from the old mark. */
+  private async writeMark(mark: LossMark): Promise<void> {
+    if (!this.redis) return;
+    try {
+      await this.redis.set(LOSS_MARK_KEY, JSON.stringify(mark));
+    } catch (err) {
+      this.logger.warn({ err }, 'verification-loss mark not saved');
+    }
   }
 
   /**

@@ -10,7 +10,10 @@ import {
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
+  ATTR_URL_PATH,
+  ATTR_URL_QUERY,
 } from '@opentelemetry/semantic-conventions';
+import { safeUrl } from '../common/logging/http-log-policy';
 
 /**
  * docs/06 §8 "Трассировка: OpenTelemetry (API → БД → очереди)". Started
@@ -37,6 +40,27 @@ export function buildSampler(ratio: number): Sampler {
   return new ParentBasedSampler({
     root: new TraceIdRatioBasedSampler(ratio),
   });
+}
+
+/**
+ * Detective R2B-6 (14.11): a server span gets the same safe URL as the log
+ * line — token paths redacted, query values dropped (search text, the
+ * ring `?t=` ticket). `startIncomingSpanHook` of
+ * @opentelemetry/instrumentation-http (Apache-2.0): its attributes are
+ * merged over the defaults (`url.path`, `url.query`) when the span starts.
+ */
+export function safeIncomingSpanAttributes(req: {
+  url?: string;
+}): Record<string, string> {
+  const safe = safeUrl(req.url);
+  if (safe === undefined) return {};
+  const q = safe.indexOf('?');
+  return q === -1
+    ? { [ATTR_URL_PATH]: safe }
+    : {
+        [ATTR_URL_PATH]: safe.slice(0, q),
+        [ATTR_URL_QUERY]: safe.slice(q + 1),
+      };
 }
 
 /** Tracing is optional: a failure here must never stop the API booting. */
@@ -67,6 +91,9 @@ function startTelemetryUnsafe(service: 'api' | 'worker'): NodeSDK | null {
         '@opentelemetry/instrumentation-fs': { enabled: false },
         '@opentelemetry/instrumentation-dns': { enabled: false },
         '@opentelemetry/instrumentation-net': { enabled: false },
+        '@opentelemetry/instrumentation-http': {
+          startIncomingSpanHook: (req) => safeIncomingSpanAttributes(req),
+        },
       }),
     ],
   });

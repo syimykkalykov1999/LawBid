@@ -281,7 +281,7 @@ function Posts({ ask }: { ask: Ask }) {
           </Select>
         </div>
         <FilterFields id="pf" value={filter} onChange={setFilter} />
-        <CsvButton entity="posts" />
+        <CsvButton entity="posts" query={{ q: text, kind }} />
       </div>
       {bulk.dialog}
       {canWrite ? (
@@ -289,11 +289,15 @@ function Posts({ ask }: { ask: Ask }) {
           selectedCount={sel.selected.size}
           noun={POSTS}
           onClear={sel.clear}
-          onSelectAll={async () => {
-            const r = await collectIds(async (c) => {
-              const p = await fetchPage(c);
-              return { data: p.data, nextCursor: p.meta?.nextCursor };
-            });
+          onSelectAll={async (cap) => {
+            const r = await collectIds(
+              async (c) => {
+                const p = await fetchPage(c);
+                return { data: p.data, nextCursor: p.meta?.nextCursor };
+              },
+              undefined,
+              cap,
+            );
             sel.replace(r.ids);
             return r.capped;
           }}
@@ -469,11 +473,15 @@ function Comments({ ask }: { ask: Ask }) {
           selectedCount={sel.selected.size}
           noun={COMMENTS}
           onClear={sel.clear}
-          onSelectAll={async () => {
-            const r = await collectIds(async (c) => {
-              const p = await fetchPage(c);
-              return { data: p.data, nextCursor: p.meta?.nextCursor };
-            });
+          onSelectAll={async (cap) => {
+            const r = await collectIds(
+              async (c) => {
+                const p = await fetchPage(c);
+                return { data: p.data, nextCursor: p.meta?.nextCursor };
+              },
+              undefined,
+              cap,
+            );
             sel.replace(r.ids);
             return r.capped;
           }}
@@ -627,11 +635,15 @@ function Reviews({ ask }: { ask: Ask }) {
           selectedCount={sel.selected.size}
           noun={REVIEWS}
           onClear={sel.clear}
-          onSelectAll={async () => {
-            const r = await collectIds(async (c) => {
-              const p = await fetchPage(c);
-              return { data: p.data, nextCursor: p.meta?.nextCursor };
-            });
+          onSelectAll={async (cap) => {
+            const r = await collectIds(
+              async (c) => {
+                const p = await fetchPage(c);
+                return { data: p.data, nextCursor: p.meta?.nextCursor };
+              },
+              undefined,
+              cap,
+            );
             sel.replace(r.ids);
             return r.capped;
           }}
