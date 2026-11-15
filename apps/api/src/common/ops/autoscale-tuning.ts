@@ -13,7 +13,7 @@ export interface TuningKnob {
   max: number;
   kind: TuningKind;
 }
-export type AutoscaleTarget = 'db' | 'redis' | 'endpoints' | 'ecs';
+export type AutoscaleTarget = 'db' | 'redis' | 'endpoints' | 'ecs' | 'spot';
 
 export const AUTOSCALE_TUNING_SCHEMA: Record<
   AutoscaleTarget,
@@ -162,11 +162,14 @@ export const AUTOSCALE_TUNING_SCHEMA: Record<
     },
   },
   // No Lambda here: the API applies these with PutScalingPolicy
-  // (AwsOpsService.applyScaling); `<policy>.<target|in_s|out_s>`.
+  // (AwsOpsService.applyScaling); `<policy>.<target|in_s|out_s>`. CPU
+  // targets from 0.1 % (15.11): AWS takes any double (TargetTrackingScaling-
+  // PolicyConfiguration.TargetValue), and a live test on an idle service
+  // (pooler ~0.7 % CPU) needs a target under 1 %.
   ecs: {
     'api_cpu.target': {
       ru: 'API: процессор, % — цель',
-      min: 1,
+      min: 0.1,
       max: 100,
       kind: 'number',
     },
@@ -184,7 +187,7 @@ export const AUTOSCALE_TUNING_SCHEMA: Record<
     },
     'worker_cpu.target': {
       ru: 'Фоновый сервер: процессор, % — цель',
-      min: 1,
+      min: 0.1,
       max: 100,
       kind: 'number',
     },
@@ -256,7 +259,7 @@ export const AUTOSCALE_TUNING_SCHEMA: Record<
     },
     'admin_cpu.target': {
       ru: 'Админка: процессор, % — цель',
-      min: 1,
+      min: 0.1,
       max: 100,
       kind: 'number',
     },
@@ -274,7 +277,7 @@ export const AUTOSCALE_TUNING_SCHEMA: Record<
     },
     'api_admin_cpu.target': {
       ru: 'API админки: процессор, % — цель',
-      min: 1,
+      min: 0.1,
       max: 100,
       kind: 'number',
     },
@@ -292,7 +295,7 @@ export const AUTOSCALE_TUNING_SCHEMA: Record<
     },
     'pgbouncer_cpu.target': {
       ru: 'Пул соединений: процессор, % — цель',
-      min: 1,
+      min: 0.1,
       max: 100,
       kind: 'number',
     },
@@ -304,6 +307,33 @@ export const AUTOSCALE_TUNING_SCHEMA: Record<
     },
     'pgbouncer_cpu.out_s': {
       ru: 'Пул соединений: процессор — пауза перед новым ростом, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+  },
+  // 15.11 (owner, row 20): modules/spot-fallback/lambda/tuning_schema.json.
+  spot: {
+    gap_min: {
+      ru: 'Запасной путь: ошибка Spot считается свежей столько минут',
+      min: 1,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    max_hold_min: {
+      ru: 'Самая долгая пауза на обычных серверах, минут',
+      min: 1,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    restore_after_min: {
+      ru: 'Назад на Spot: сколько минут без ошибок Spot (удваивается при повторе)',
+      min: 1,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    strike_window_min: {
+      ru: 'Повтор: ошибка в течение стольких минут после возврата удваивает паузу',
       min: 0,
       max: 1000000000,
       kind: 'integer',

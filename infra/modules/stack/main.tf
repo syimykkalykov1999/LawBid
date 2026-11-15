@@ -1729,6 +1729,8 @@ locals {
     # Owner 14.11: the endpoint thresholds and the ECS target / pauses from the admin.
     var.endpoints_autoscale_enabled ? ["/${local.name}/endpoints-autoscale/tuning"] : [],
     ["/${local.name}/ecs-scaling/tuning"],
+    # Owner 15.11 (row 20): the spot-fallback quiet hold etc. from the admin.
+    ["/${local.name}/spot-fallback/tuning"],
   )
   db_pool_class      = local.db_autoscale_on ? var.db_autoscale_min_class : var.database_instance_class
   db_ceiling_class   = local.db_autoscale_on ? var.db_autoscale_max_class : var.database_instance_class
@@ -1863,6 +1865,11 @@ locals {
     OPS_REDIS_AUTOSCALE_TUNING_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/tuning" : ""
     OPS_ENDPOINTS_AUTOSCALE_TUNING_PARAM = var.endpoints_autoscale_enabled ? "/${local.name}/endpoints-autoscale/tuning" : ""
     OPS_ECS_SCALING_TUNING_PARAM         = aws_ssm_parameter.ecs_scaling_tuning.name
+    # Owner 15.11 (row 20): the spot-fallback quiet hold etc. No Terraform
+    # resource: the API's first save creates it (PutParameter), the Lambda
+    # reads a missing one as «defaults», so «Авто» ships this without a new
+    # resource (the aws.autoscale_code scope is in-place updates only).
+    OPS_SPOT_FALLBACK_TUNING_PARAM = "/${local.name}/spot-fallback/tuning"
     OPS_ECS_SCALING_POLICIES = jsonencode(merge(
       module.ecs.scaling_policies,
       var.db_pooler_enabled ? { pgbouncer_cpu = module.pgbouncer[0].scaling_policy } : {},
@@ -2865,6 +2872,7 @@ module "spot_fallback" {
   kms_key_arn      = module.kms.key_arn
   mode             = var.spot_fallback_mode
   tuning           = var.spot_fallback_tuning
+  tuning_param     = "/${local.name}/spot-fallback/tuning"
   controls_bucket  = module.s3.documents_bucket
   tags             = local.tags
 }

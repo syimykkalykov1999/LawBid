@@ -4,12 +4,13 @@ import { ConfigService } from '@nestjs/config';
 export type SsmTarget = 'db' | 'redis';
 
 /** Owner 14.11: whose numbers live in an SSM `…/tuning` parameter. */
-export type TuningTarget = SsmTarget | 'endpoints' | 'ecs';
+export type TuningTarget = SsmTarget | 'endpoints' | 'ecs' | 'spot';
 const TUNING_ENV: Readonly<Record<TuningTarget, string>> = {
   db: 'OPS_DB_AUTOSCALE_TUNING_PARAM',
   redis: 'OPS_REDIS_AUTOSCALE_TUNING_PARAM',
   endpoints: 'OPS_ENDPOINTS_AUTOSCALE_TUNING_PARAM',
   ecs: 'OPS_ECS_SCALING_TUNING_PARAM',
+  spot: 'OPS_SPOT_FALLBACK_TUNING_PARAM',
 };
 
 /** The two Lambda-owned autoscale switches the admin may change. */

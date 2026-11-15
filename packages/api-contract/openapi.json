@@ -167114,7 +167114,8 @@
               "db",
               "redis",
               "endpoints",
-              "ecs"
+              "ecs",
+              "spot"
             ],
             "type": "string"
           },

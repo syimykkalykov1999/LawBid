@@ -11,7 +11,7 @@ import { api } from '@/lib/api/client';
 import { tuningChanges, type TuningTarget } from '@/lib/autoscale-tuning';
 
 const KEY = ['autoscale-tuning'] as const;
-const TITLE: Record<string, string> = { redis: 'Redis', db: 'База', endpoints: 'Точки доступа AWS', ecs: 'Серверы ECS (цель и паузы)' };
+const TITLE: Record<string, string> = { redis: 'Redis', db: 'База', endpoints: 'Точки доступа AWS', ecs: 'Серверы ECS (цель и паузы)', spot: 'Запасные серверы вместо Spot' };
 
 /**
  * Owner 14.11: every number of the Redis / database «Авто» from the admin,
