@@ -64,6 +64,11 @@ class Config:
     target_cpu_max_pct: float = 50
     target_mem_used_max_pct: float = 60  # below the 75 % up trigger, with margin
     target_burst_avg_ratio: float = 0.8  # of the CPU baseline
+    # --- single node (no standby): owner 14.11, grow anyway under SUSTAINED
+    # overload (the resize pause is accepted), with a higher bar than the
+    # replicated group: every trigger held this many 5-min points, no fast lane.
+    single_node_up: bool = True
+    single_up_points: int = 6  # 30 min
     period_s: int = 300
 
     def spec(self, name):
@@ -212,6 +217,24 @@ def decide(cfg, mode, inst, guards, state, metrics, now):
     if cur is None:
         return Decision("none", "unknown_class")
     bad = _guard_reason(cfg, inst, guards, mode)
+    # 14.11 (prod log): the single-node group could shrink only in the one
+    # 03:30 night run, and that run met a deploy («deploying»): the next
+    # chance was a day later. Inside the night window every tick is a
+    # shrink try with the night's rules (the other guards still apply; a
+    # single node is never grown by a tick).
+    if bad == "no_failover" and mode == "tick":
+        bad = _guard_reason(cfg, inst, guards, "night")
+        if bad:
+            return Decision("none", bad)
+        if cfg.single_node_up:
+            up = _decide_up(_single_node_cfg(cfg), cur, state, metrics, now)
+            if up.action == "up":
+                return replace(up, reason="load_single_node")
+            if up.reason != "calm":
+                return up  # at the ceiling / cooldown / connections: say so
+        if guards.night_ok:
+            return _decide_down(cfg, cur, guards, state, metrics, now)
+        return Decision("none", "no_failover")
     if bad:
         return Decision("none", bad)
     if mode == "tick":
@@ -225,6 +248,19 @@ def decide(cfg, mode, inst, guards, state, metrics, now):
     if mode == "night":
         return _decide_down(cfg, cur, guards, state, metrics, now)
     return Decision("none", "bad_mode")
+
+
+def _single_node_cfg(cfg):
+    """The higher bar for growing a node without a standby (owner 14.11)."""
+    n = cfg.single_up_points
+    return replace(
+        cfg,
+        up_cpu_points=max(cfg.up_cpu_points, n),
+        up_mem_points=max(cfg.up_mem_points, n),
+        up_mem_fast_pct=1000,  # no one-point lane
+        up_conn_points=max(cfg.up_conn_points, n),
+        up_credit_points=max(cfg.up_credit_points, n),
+    )
 
 
 def _decide_up(cfg, cur, state, m, now):
