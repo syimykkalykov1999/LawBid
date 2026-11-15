@@ -1499,9 +1499,12 @@ export const OWNER_STORAGE_SETTINGS = {
    * split may start; empty = any time. */
   'db.shards_move_hours': '02:00-05:00',
   'ha.provision_online_users': 200,
+  /** 15.11 (live tests within 10 min): the busy window in minutes instead
+   * of the 3 full hours when > 0 (minute data up to one day). */
+  'ha.provision_minutes': 0,
   'ha.release_days': 7,
   /** Owner 14.11 (live tests): the quiet window in minutes instead of the
-   * days when > 0 (the online data is hourly: at least one hour). */
+   * days when > 0 (minute data up to one day since 15.11). */
   'ha.release_minutes': 0,
   /** Owner 14.11: minutes before a step the other way (the copies added,
    * then removed); 1440 = the 24 h of before. 0 = 24 h. */
