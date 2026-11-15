@@ -2211,6 +2211,9 @@ export const OWNER_INFRA_SETTINGS = {
   /** Owner 14.11: minutes instead of the hours above when > 0 (live tests);
    * 0 = use infra.auto_off_hours. */
   'infra.auto_off_minutes': 0,
+  /** Owner 15.11 (rows 16 / 17): how often «Авто» looks, in minutes (10 as
+   * before; 1 for a live test). */
+  'infra.auto_check_minutes': 10,
   'infra.auto_max_usd_month': 100,
 };
 
