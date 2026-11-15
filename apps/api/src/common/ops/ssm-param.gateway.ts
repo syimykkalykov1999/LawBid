@@ -60,6 +60,38 @@ export class SsmParamGateway {
     );
   }
 
+  /** Owner 14.11: the autoscaler's numbers from the admin (JSON object). */
+  tuningParam(target: SsmTarget): string | undefined {
+    return this.env(
+      target === 'db'
+        ? 'OPS_DB_AUTOSCALE_TUNING_PARAM'
+        : 'OPS_REDIS_AUTOSCALE_TUNING_PARAM',
+    );
+  }
+
+  async getTuning(target: SsmTarget): Promise<Record<string, number> | null> {
+    const name = this.tuningParam(target);
+    if (!name) return null;
+    const raw = await this.get(name);
+    try {
+      const v: unknown = raw ? JSON.parse(raw) : {};
+      return v && typeof v === 'object' && !Array.isArray(v)
+        ? (v as Record<string, number>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  async setTuning(
+    target: SsmTarget,
+    values: Record<string, number>,
+  ): Promise<void> {
+    const name = this.tuningParam(target);
+    if (!name) throw new Error('autoscaler is not on AWS');
+    await this.put(name, JSON.stringify(values));
+  }
+
   get available(): boolean {
     return (
       !!this.modeParam('db') ||

@@ -196,6 +196,18 @@ resource "aws_ssm_parameter" "max_class" {
   lifecycle { ignore_changes = [value] }
 }
 
+# Owner 14.11: every «Авто» number changeable from the admin without a
+# Terraform apply. JSON object of lambda/tuning_schema.json keys, written by
+# the admin (API), read by the Lambda on every run over TUNING (the defaults).
+resource "aws_ssm_parameter" "tuning" {
+  name        = "${local.prefix}/tuning"
+  type        = "String"
+  value       = "{}"
+  description = "Database autoscale numbers from the admin (lambda/tuning_schema.json keys and bounds). Empty object = the Terraform defaults. Changing it here after creation is ignored."
+  tags        = var.tags
+  lifecycle { ignore_changes = [value] }
+}
+
 resource "aws_ssm_parameter" "state" {
   name        = "${local.prefix}/state"
   type        = "String"
@@ -284,7 +296,7 @@ data "aws_iam_policy_document" "lambda" {
   statement {
     sid       = "ModeAndState"
     actions   = ["ssm:GetParameter", "ssm:PutParameter"]
-    resources = [aws_ssm_parameter.mode.arn, aws_ssm_parameter.state.arn, aws_ssm_parameter.max_class.arn]
+    resources = [aws_ssm_parameter.mode.arn, aws_ssm_parameter.state.arn, aws_ssm_parameter.max_class.arn, aws_ssm_parameter.tuning.arn]
   }
   statement {
     sid       = "Logs"
@@ -325,6 +337,7 @@ resource "aws_lambda_function" "this" {
       STATE_PARAM      = aws_ssm_parameter.state.name
       MODE_PARAM       = aws_ssm_parameter.mode.name
       MAX_CLASS_PARAM  = aws_ssm_parameter.max_class.name
+      TUNING_PARAM     = aws_ssm_parameter.tuning.name
       CLUSTER          = var.cluster_name
       SERVICES         = join(",", var.service_names)
       NIGHT_TZ         = var.night_timezone
@@ -419,6 +432,7 @@ output "function_name" { value = aws_lambda_function.this.function_name }
 output "mode_parameter" { value = aws_ssm_parameter.mode.name }
 output "state_parameter" { value = aws_ssm_parameter.state.name }
 output "max_class_parameter" { value = aws_ssm_parameter.max_class.name }
+output "tuning_parameter" { value = aws_ssm_parameter.tuning.name }
 output "monthly_usd" {
   description = "Approximate on-demand price per month with Multi-AZ, by class."
   value       = { for s in local.ladder_json : s.name => s.monthly_usd }

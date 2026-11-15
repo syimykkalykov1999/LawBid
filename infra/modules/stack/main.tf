@@ -1724,8 +1724,8 @@ locals {
   # ha-auto service has added the node.
   redis_autoscale_on = var.redis_autoscale_enabled && !local.redis_cluster_on
   autoscale_ssm_params = concat(
-    local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class"] : [],
-    local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class"] : [],
+    local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class", "/${local.name}/db-autoscale/tuning"] : [],
+    local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class", "/${local.name}/redis-autoscale/tuning"] : [],
   )
   db_pool_class      = local.db_autoscale_on ? var.db_autoscale_min_class : var.database_instance_class
   db_ceiling_class   = local.db_autoscale_on ? var.db_autoscale_max_class : var.database_instance_class
@@ -1855,6 +1855,9 @@ locals {
     OPS_DB_AUTOSCALE_MAXCLASS_PARAM    = local.db_autoscale_on ? "/${local.name}/db-autoscale/max-class" : ""
     OPS_REDIS_AUTOSCALE_MODE_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/mode" : ""
     OPS_REDIS_AUTOSCALE_MAXCLASS_PARAM = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/max-class" : ""
+    # Owner 14.11: the admin writes the autoscalers' numbers here (no apply).
+    OPS_DB_AUTOSCALE_TUNING_PARAM    = local.db_autoscale_on ? "/${local.name}/db-autoscale/tuning" : ""
+    OPS_REDIS_AUTOSCALE_TUNING_PARAM = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/tuning" : ""
     # Owner 15.11 (aws.autoscale_code): main's autoscale code vs the shipped.
     OPS_AUTOSCALE_CODE_MAIN_PARAM    = "/${local.name}/deploy/autoscale_code_main"
     OPS_AUTOSCALE_CODE_APPLIED_PARAM = aws_ssm_parameter.autoscale_code_applied.name

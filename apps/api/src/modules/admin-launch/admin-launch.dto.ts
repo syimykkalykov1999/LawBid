@@ -365,6 +365,40 @@ export class SetCostModeDto {
   state!: 'off' | 'on' | 'auto';
 }
 
+// Owner 14.11: the autoscalers' numbers, changeable from the admin.
+export class AutoscaleKnobDto {
+  @ApiProperty() key!: string;
+  @ApiProperty() ru!: string;
+  @ApiProperty() min!: number;
+  @ApiProperty() max!: number;
+  @ApiProperty({ enum: ['number', 'integer', 'flag'] }) kind!:
+    'number' | 'integer' | 'flag';
+  // the admin's value; null = the Terraform default is used
+  @ApiProperty({ type: Number, nullable: true }) value!: number | null;
+}
+
+export class AutoscaleTuningTargetDto {
+  @ApiProperty({ enum: ['db', 'redis'] }) target!: 'db' | 'redis';
+  // false = this autoscaler does not exist on this server (no SSM name)
+  @ApiProperty() available!: boolean;
+  @ApiProperty({ type: [AutoscaleKnobDto] }) knobs!: AutoscaleKnobDto[];
+}
+
+export class AutoscaleTuningReportDto {
+  @ApiProperty({ type: [AutoscaleTuningTargetDto] })
+  targets!: AutoscaleTuningTargetDto[];
+}
+
+export class UpdateAutoscaleTuningDto {
+  // key -> number, or null to go back to the Terraform default
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'number', nullable: true },
+  })
+  @IsObject()
+  values!: Record<string, number | null>;
+}
+
 export class CostModeResultDto {
   @ApiProperty() id!: string;
   @ApiProperty({ enum: ['off', 'on', 'auto'] }) state!: 'off' | 'on' | 'auto';
