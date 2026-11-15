@@ -12,7 +12,6 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('test/legacy_secure_storage');
   const tokens = FlutterSecureStorage();
-  const plain = FlutterSecureStorage();
 
   late List<MethodCall> calls;
 
@@ -32,7 +31,7 @@ void main() {
   }
 
   Future<void> run() => LegacySecureStorage.move(
-        LegacySecureStorage.keys(tokens: tokens, plain: plain),
+        LegacySecureStorage.keys(tokens: tokens),
         channel: channel,
         android: true,
       );
@@ -51,11 +50,12 @@ void main() {
     await run();
     expect(await tokens.read(key: 'auth.refresh_token'), 'rt-old');
     expect(await tokens.read(key: 'auth.session_hint'), '{"sub":"u1"}');
-    expect(await plain.read(key: 'magic_link_verifier'), 'verifier');
+    // The one-time email verifier is not moved (a new code is asked for).
+    expect(await tokens.read(key: 'magic_link_verifier'), isNull);
     expect(calls.map((c) => c.method), ['read', 'forget']);
     expect(
       calls.last.arguments,
-      containsAll(<String>['auth.refresh_token', 'magic_link_verifier']),
+      containsAll(<String>['auth.refresh_token', 'auth.session_hint']),
     );
   });
 
@@ -92,7 +92,7 @@ void main() {
   test('iPhone and the website have nothing to move', () async {
     native({'auth.refresh_token': 'rt-old'});
     await LegacySecureStorage.move(
-      LegacySecureStorage.keys(tokens: tokens, plain: plain),
+      LegacySecureStorage.keys(tokens: tokens),
       channel: channel,
       android: false,
     );
@@ -104,13 +104,11 @@ void main() {
     await Future.wait([
       LegacySecureStorage.ensureMoved(
         tokens: tokens,
-        plain: plain,
         channel: channel,
         android: true,
       ),
       LegacySecureStorage.ensureMoved(
         tokens: tokens,
-        plain: plain,
         channel: channel,
         android: true,
       ),

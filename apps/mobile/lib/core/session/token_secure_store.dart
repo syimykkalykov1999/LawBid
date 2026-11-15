@@ -106,10 +106,7 @@ class TokenSecureStore {
   /// nothing old to move).
   Future<void> _moved() => _legacy == null
       ? Future<void>.value()
-      : LegacySecureStorage.ensureMoved(
-          tokens: _storage,
-          plain: const FlutterSecureStorage(),
-        );
+      : LegacySecureStorage.ensureMoved(tokens: _storage);
 
   /// The stored refresh token; on the website a new tab that has no marker
   /// of its own but whose browser is signed in ([BrowserSessionHint]) gets

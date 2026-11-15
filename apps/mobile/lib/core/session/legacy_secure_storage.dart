@@ -14,17 +14,17 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 abstract final class LegacySecureStorage {
   static const _channel = MethodChannel('lawbid/legacy_secure_storage');
 
-  /// Every key the app ever stored, with the storage it now lives in.
+  /// The keys that keep a person signed in, with the storage they now live
+  /// in. (The email magic-link verifier is not moved: it lives minutes and
+  /// only means «ask for a new code» when gone.)
   static Map<String, FlutterSecureStorage> keys({
     required FlutterSecureStorage tokens,
-    required FlutterSecureStorage plain,
   }) =>
       {
         'auth.refresh_token': tokens,
         'auth.refresh_token_demo': tokens,
         'lawbid.realRefreshToken': tokens,
         'auth.session_hint': tokens,
-        'magic_link_verifier': plain,
       };
 
   static Future<void>? _done;
@@ -32,12 +32,11 @@ abstract final class LegacySecureStorage {
   /// Runs once per app start (later calls wait for the first).
   static Future<void> ensureMoved({
     required FlutterSecureStorage tokens,
-    required FlutterSecureStorage plain,
     MethodChannel channel = _channel,
     bool? android,
   }) =>
       _done ??= move(
-        keys(tokens: tokens, plain: plain),
+        keys(tokens: tokens),
         channel: channel,
         android: android,
       );

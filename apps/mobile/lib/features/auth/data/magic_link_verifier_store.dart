@@ -3,8 +3,6 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:lawbid/core/session/legacy_secure_storage.dart';
-import 'package:lawbid/core/session/token_secure_store.dart';
 
 const _kVerifierKey = 'magic_link_verifier';
 
@@ -18,13 +16,9 @@ const _kVerifierKey = 'magic_link_verifier';
 class MagicLinkVerifierStore {
   MagicLinkVerifierStore([FlutterSecureStorage? storage, Random? random])
       : _storage = storage ?? const FlutterSecureStorage(),
-        _ownStorage = storage == null,
         _random = random ?? Random.secure();
 
   final FlutterSecureStorage _storage;
-
-  /// The app's own storage (not a test's): only that one has old values.
-  final bool _ownStorage;
   final Random _random;
 
   /// Generates and stores a new verifier (replacing any previous one) and
@@ -38,16 +32,7 @@ class MagicLinkVerifierStore {
 
   /// The verifier of the last email code request on this device, or null
   /// (none requested here, already used, or the app was reinstalled).
-  Future<String?> read() async {
-    // Row 149: a verifier version 9 kept on Android is moved first.
-    if (_ownStorage) {
-      await LegacySecureStorage.ensureMoved(
-        tokens: TokenSecureStore.hardenedStorage,
-        plain: _storage,
-      );
-    }
-    return _storage.read(key: _kVerifierKey);
-  }
+  Future<String?> read() => _storage.read(key: _kVerifierKey);
 
   /// Forgets the verifier (after a successful sign-in or on logout).
   Future<void> clear() => _storage.delete(key: _kVerifierKey);
