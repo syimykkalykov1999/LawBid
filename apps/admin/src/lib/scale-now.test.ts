@@ -103,6 +103,13 @@ describe('tuningNow («Числа «Авто»» cards)', () => {
     );
   });
 
+  it('spot fallback card (#1120): which services run on Spot', () => {
+    expect(tuningNow('spot', facts)).toBe(
+      'Сейчас: на Spot: API, фоновые; обычные: API админки, админка',
+    );
+    expect(tuningNow('spot', {})).toBe('Сейчас: нет данных');
+  });
+
   it('nothing loaded yet: «нет данных», never a crash', () => {
     expect(tuningNow('ecs', {})).toBe('Сейчас: нет данных');
     expect(tuningNow('db', {})).toBe('Сейчас: нет данных');

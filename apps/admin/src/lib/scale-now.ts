@@ -11,7 +11,7 @@ import { searchLine, type Economy, type ScaleExtras } from '@/lib/scale';
  * of its own. Pure, tested in scale-now.test.ts.
  */
 type ServiceNow = components['schemas']['ServiceNowDto'];
-export type TuningTargetId = 'db' | 'redis' | 'endpoints' | 'ecs';
+export type TuningTargetId = 'db' | 'redis' | 'endpoints' | 'ecs' | 'spot';
 
 export interface NowFacts {
   rows?: readonly CostRegistryRow[];
@@ -152,5 +152,8 @@ export function tuningNow(target: TuningTargetId, f: NowFacts): string {
         ? `Сейчас (работает из нужных): ${services.map(serviceText).join(', ')}${spot ? `; ${spot}` : ''}`
         : line([]);
     }
+    case 'spot':
+      // #1120: the spot-fallback card; the same split the Spot row shows.
+      return line([spotText(services)]);
   }
 }
