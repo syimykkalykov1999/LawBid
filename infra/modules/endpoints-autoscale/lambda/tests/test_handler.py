@@ -29,8 +29,10 @@ ENV = {
 class Ssm:
     exceptions = type("E", (), {"ParameterNotFound": KeyError})
 
-    def __init__(self, mode="on"):
+    def __init__(self, mode="on", tuning=None):
         self.p = {"/m": mode, "/c": "2", "/s": "{}"}
+        if tuning is not None:
+            self.p["/t"] = tuning
 
     def get_parameter(self, Name):
         if Name not in self.p:
@@ -56,17 +58,27 @@ class Ec2:
 
 
 class Cw:
+    """GetMetricData with the timestamp shape CloudWatch really returns
+    (prod 15.11, StartTime 20:48:12.3 -> 24 points 20:48:00 ... 19:48:00):
+    StartTime is rounded down to the whole minute (API docs, StartTime),
+    each point is stamped at StartTime + k * Period, and only periods that
+    end by EndTime come back."""
+
     def __init__(self, gb_per_hour):
         self.b = gb_per_hour * 1e9
+        self.calls = []
 
     def get_metric_data(self, MetricDataQueries, StartTime, EndTime, **_):
+        self.calls.append((StartTime, EndTime))
+        start = StartTime.replace(second=0, microsecond=0)
         out = []
         for q in MetricDataQueries:
-            period = q["MetricStat"]["Period"]
-            n = int((EndTime - StartTime).total_seconds() // period)
-            ts = [StartTime + timedelta(seconds=period * i) for i in range(n)]
-            val = self.b * (period / 3600)
-            out.append({"Id": q["Id"], "Timestamps": ts, "Values": [val] * n})
+            period = timedelta(seconds=q["MetricStat"]["Period"])
+            ts = []
+            while start + period * (len(ts) + 1) <= EndTime:
+                ts.append(start + period * len(ts))
+            val = self.b * (period.total_seconds() / 3600)
+            out.append({"Id": q["Id"], "Timestamps": ts, "Values": [val] * len(ts)})
         return {"MetricDataResults": out}
 
 
@@ -112,6 +124,68 @@ class Handler(unittest.TestCase):
         ]
         c = self.run_it(gb=0.01, existing=ex)
         self.assertEqual(c["ec2"].deleted, ["vpce-1"])
+
+
+class CompletePeriods(unittest.TestCase):
+    """Prod 15.11 (row 19): admin tuning up_gb_per_day 0, up_hours 1, NAT at
+    18-27 MB every hour, yet the 20:48Z run said "nothing to change". The
+    window started at now - 24 h (20:48:12.3), CloudWatch stamped points at
+    the rounded 20:48:00, so each one landed a bucket early and the newest
+    hour was always 0."""
+
+    NOW = datetime(2026, 11, 15, 20, 48, 12, 345678, tzinfo=timezone.utc)
+    PROD_TUNING = '{"up_gb_per_day":0,"up_hours":1,"cooldown_h":0}'
+
+    def setUp(self):
+        h._clients.clear()
+
+    def clients(self, gb, tuning=None):
+        h._clients.update(
+            ssm=Ssm("on", tuning), ec2=Ec2(), cloudwatch=Cw(gb), sns=Sns()
+        )
+        return h._clients
+
+    def test_newest_hour_is_counted(self):
+        self.clients(0.025)
+        facts, _ = h.collect(ENV, self.NOW)
+        self.assertEqual(len(facts.hourly_nat_gb), 24)
+        self.assertGreater(facts.hourly_nat_gb[-1], 0)
+        self.assertTrue(all(x > 0 for x in facts.hourly_nat_gb))
+        self.assertEqual(len(facts.daily_total_gb), 8)
+        self.assertTrue(all(x > 0 for x in facts.daily_total_gb))
+
+    def test_prod_tuning_zero_creates_the_endpoints(self):
+        c = self.clients(0.025, self.PROD_TUNING)
+        out = h.lambda_handler({}, None, env={**ENV, "TUNING_PARAM": "/t"}, now=self.NOW)
+        self.assertEqual(out["decision"]["action"], "create")
+        self.assertEqual(
+            c["ec2"].created,
+            ["com.amazonaws.us-east-1.ecr.api", "com.amazonaws.us-east-1.logs"],
+        )
+
+    def test_window_is_whole_periods(self):
+        c = self.clients(0.025)
+        h.collect(ENV, self.NOW)
+        hour, day = c["cloudwatch"].calls[0], c["cloudwatch"].calls[1]
+        end_h = datetime(2026, 11, 15, 20, tzinfo=timezone.utc)
+        end_d = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        self.assertEqual(hour, (end_h - timedelta(hours=24), end_h))
+        self.assertEqual(day, (end_d - timedelta(days=8), end_d))
+
+    def test_defaults_still_ignore_low_traffic(self):
+        c = self.clients(0.025)
+        out = h.lambda_handler({}, None, env=ENV, now=self.NOW)
+        self.assertEqual((out["decision"]["action"], c["ec2"].created), ("none", []))
+
+    def test_log_line_carries_the_facts(self):
+        self.clients(0.025, self.PROD_TUNING)
+        out = h.lambda_handler({}, None, env={**ENV, "TUNING_PARAM": "/t"}, now=self.NOW)
+        f = out["facts"]
+        self.assertEqual(f["hour_window_end"], "2026-11-15T20:00:00+00:00")
+        self.assertEqual((len(f["hourly_nat_gb"]), f["hourly_nat_gb"][-1]), (24, 0.05))  # Out + In metrics
+        self.assertEqual((f["ceiling"], f["control"]), (2, "auto"))
+        self.assertEqual(out["tuning"]["up_gb_per_day"], 0)
+        json.dumps(out)
 
 
 if __name__ == "__main__":
