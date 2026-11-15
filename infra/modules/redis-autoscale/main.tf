@@ -323,7 +323,7 @@ resource "aws_lambda_function" "this" {
   function_name    = local.fn_name
   description      = "Redis size follows the load (docs/architecture/REDIS_AUTOSCALE.md)"
   role             = aws_iam_role.lambda.arn
-  runtime          = "python3.12"
+  runtime          = "python3.13"
   architectures    = ["arm64"]
   handler          = "handler.lambda_handler"
   filename         = data.archive_file.lambda.output_path

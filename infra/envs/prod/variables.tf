@@ -85,6 +85,11 @@ variable "apple_team_id" {
   default = ""
 }
 # docs/06 §6.3: production sizes (5k RPS peak); raise api_max_tasks with load-test results.
+variable "redis_engine" {
+  type        = string
+  default     = "redis"
+  description = "redis | valkey. Owner 14.11: valkey = ElastiCache Valkey 8.1, moved in place by an apply (no downtime, nodes 20 % cheaper). docs/dev/AUTO_MODERNIZE_2026-11-15.md."
+}
 variable "redis_node_type" {
   type    = string
   default = "cache.r7g.large"

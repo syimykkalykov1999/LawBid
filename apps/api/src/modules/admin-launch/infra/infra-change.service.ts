@@ -25,6 +25,7 @@ import {
   createRefusal,
   dueTimeEvent,
   failureSettled,
+  failureSuperseded,
   inQuietWindow,
   infraSuggestions,
   serverRemovedBy,
@@ -77,6 +78,8 @@ export interface InfraRequestView {
   /** Row 86: failed, but the cloud already holds its target (failureSettled):
    * the row shows the item, not this failure; the request keeps its error. */
   settled: boolean;
+  // Owner 15.11: a later successful apply put the cloud back to the file.
+  superseded: boolean;
 }
 
 const PLAN_TTL_MS = 30 * 60_000;
@@ -119,6 +122,7 @@ export class InfraChangeService {
   view(
     r: InfraChangeRequest,
     live?: ReadonlyMap<string, InfraTarget>,
+    lastDoneAt: Date | null = null,
   ): InfraRequestView {
     const entry = COST_REGISTRY.find((e) => e.id === r.item_id);
     const plan = r.plan_summary as InfraRequestView['plan'];
@@ -149,6 +153,10 @@ export class InfraChangeService {
         { status: r.status, toState: r.to_state, plan: plan ?? null },
         entry?.awsTypes,
         live?.get(r.item_id),
+      ),
+      superseded: failureSuperseded(
+        { status: r.status, finishedAt: r.finished_at },
+        lastDoneAt,
       ),
     };
   }
@@ -188,10 +196,24 @@ export class InfraChangeService {
       take: limit,
     });
     // Row 86: a failure whose target the item already holds is «settled».
-    const live = rows.some((r) => r.status === 'failed')
-      ? await this.liveStates()
-      : undefined;
-    return rows.map((r) => this.view(r, live));
+    const anyFailed = rows.some((r) => r.status === 'failed');
+    const live = anyFailed ? await this.liveStates() : undefined;
+    // Owner 15.11: the newest successful apply (any item) supersedes older
+    // failures (failureSuperseded).
+    const done = anyFailed
+      ? await this.prisma.infraChangeRequest.findMany({
+          where: { status: 'done', finished_at: { not: null } },
+          orderBy: { finished_at: 'desc' },
+          take: 1,
+          select: { status: true, finished_at: true },
+        })
+      : [];
+    const lastDoneAt =
+      done
+        .filter((d) => d.status === 'done' && d.finished_at)
+        .map((d) => d.finished_at!)
+        .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+    return rows.map((r) => this.view(r, live, lastDoneAt));
   }
 
   /**
