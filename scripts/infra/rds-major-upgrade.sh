@@ -102,7 +102,10 @@ if [ "$PHASE" = "prepare" ]; then
   # later it read 1, pending-reboot). Wait up to 5 minutes for it.
   lr=""
   for _ in $(seq 1 30); do
-    lr=$(rds describe-db-parameters --db-parameter-group-name "$group" --query "Parameters[?ParameterName=='rds.logical_replication'].ParameterValue | [0]")
+    # `--source user`: our own values only, one page. Without it the CLI pages
+    # through ~400 defaults and applies `| [0]` per page («None None None 1
+    # None» on prod) — the real cause of KNOWN_ERRORS 171.
+    lr=$(rds describe-db-parameters --db-parameter-group-name "$group" --source user --query "Parameters[?ParameterName=='rds.logical_replication'].ParameterValue")
     [ "$lr" = "1" ] && break
     [ "${DRY_RUN:-0}" = "1" ] && break
     sleep 10
