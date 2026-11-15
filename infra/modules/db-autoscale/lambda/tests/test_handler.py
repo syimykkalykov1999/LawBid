@@ -319,3 +319,20 @@ class AllServicesGuardTests(unittest.TestCase):
 
     def test_other_failures_are_unknown(self):
         self.assertTrue(self.guards([], [{"arn": "x/api", "reason": "AccessDenied"}])[2])
+
+
+class NightNowTests(unittest.TestCase):
+    """14.11 (owner): «Авто» is tested within minutes, not at the next
+    night. A manual invoke with {"mode": "night", "night_now": true} counts
+    as inside the night window; the schedules never send the flag."""
+
+    def test_flag_opens_the_window_by_day(self):
+        noon = NOW + 10 * 3600  # NOW is 02:00 in Chicago
+        self.assertFalse(h.night_window({"mode": "night"}, "America/Chicago", noon))
+        self.assertTrue(h.night_window({"mode": "night", "night_now": True}, "America/Chicago", noon))
+        self.assertTrue(h.night_window({"mode": "tick"}, "America/Chicago", NOW))
+
+    def test_only_a_real_true_counts(self):
+        noon = NOW + 10 * 3600
+        for v in ("true", 1, "yes", None):
+            self.assertFalse(h.night_window({"night_now": v}, "America/Chicago", noon))
