@@ -58,6 +58,9 @@ export const GROWTH_CONTAINER = 'growth_switches';
  */
 export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   waf_enabled: bool('waf_enabled'),
+  // Owner 15.11: carries the «apply the autoscale functions' code» request
+  // (flips every round); no Terraform resource uses it.
+  autoscale_code_flip: bool('autoscale_code_flip'),
   cdn_waf_enabled: bool('cdn_waf_enabled'),
   uptime_check: choice('uptime_check', ['off', 'route53', 'synthetics']),
   guardduty_enabled: bool('guardduty_enabled'),
@@ -149,6 +152,18 @@ export interface InfraSwitch {
  *  - hidden.* rows (the same variable as a visible row: one place to flip).
  */
 export const INFRA_SWITCHES: readonly InfraSwitch[] = [
+  {
+    // Owner 15.11 («разреши "Авто" само применять обновления кода своих
+    // функций без меня»): AUTO_SCOPE allows only in-place updates of the
+    // four autoscale Lambdas; the flag only makes the request a file change.
+    id: 'aws.autoscale_code',
+    values: {
+      off: { autoscale_code_flip: false },
+      on: { autoscale_code_flip: true },
+    },
+    impact:
+      'Без перерыва: обновляется только код функций автомасштаба (Redis, база, точки доступа, Spot).',
+  },
   {
     id: 'aws.waf_alb',
     values: { off: { waf_enabled: false }, on: { waf_enabled: true } },

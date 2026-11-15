@@ -1841,8 +1841,11 @@ locals {
     OPS_DB_AUTOSCALE_MAXCLASS_PARAM    = local.db_autoscale_on ? "/${local.name}/db-autoscale/max-class" : ""
     OPS_REDIS_AUTOSCALE_MODE_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/mode" : ""
     OPS_REDIS_AUTOSCALE_MAXCLASS_PARAM = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/max-class" : ""
-    OPS_DB_AUTOSCALE                   = local.db_autoscale_on ? "on" : "off"
-    OPS_REDIS_AUTOSCALE                = local.redis_autoscale_on ? "on" : "off"
+    # Owner 15.11 (aws.autoscale_code): main's autoscale code vs the shipped.
+    OPS_AUTOSCALE_CODE_MAIN_PARAM    = "/${local.name}/deploy/autoscale_code_main"
+    OPS_AUTOSCALE_CODE_APPLIED_PARAM = aws_ssm_parameter.autoscale_code_applied.name
+    OPS_DB_AUTOSCALE                 = local.db_autoscale_on ? "on" : "off"
+    OPS_REDIS_AUTOSCALE              = local.redis_autoscale_on ? "on" : "off"
     # Cluster mode switch (var.redis_cluster_mode = "on"): the app builds ioredis Cluster clients.
     REDIS_CLUSTER      = local.redis_cluster_on ? "true" : "false"
     OPS_POOLER_MIN     = tostring(var.pgbouncer_min_tasks)
@@ -2400,6 +2403,15 @@ data "aws_iam_policy_document" "ops" {
       ]
     }
   }
+  # Owner 15.11 (aws.autoscale_code): «Авто» compares the autoscale code
+  # on main (deploy.yml) with the code the last apply shipped. Read only.
+  statement {
+    actions = ["ssm:GetParameter"]
+    resources = [
+      "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${local.name}/deploy/autoscale_code_main",
+      aws_ssm_parameter.autoscale_code_applied.arn,
+    ]
+  }
   # Economy guard (owner 2026-10-16): read database / Redis load and move
   # them one tier up from the admin. Metrics have no resource-level scope.
   statement {
@@ -2769,6 +2781,30 @@ locals {
     module.ecs.spot_services,
     var.pgbouncer_spot && var.db_pooler_enabled ? { pgbouncer = module.pgbouncer[0].service_arn } : {},
   )
+}
+
+# Owner 15.11 («разреши "Авто" само применять обновления кода своих функций
+# без меня»): the source hash of the four autoscale Lambdas this apply ships.
+# deploy.yml writes the same hash of main to deploy/autoscale_code_main
+# (scripts/deploy/autoscale-code-hash.mjs, same formula); when they differ,
+# «Авто» asks for the item aws.autoscale_code (AUTO_SCOPE: in-place updates
+# of exactly these functions).
+locals {
+  autoscale_code_dirs = ["redis-autoscale", "db-autoscale", "endpoints-autoscale", "spot-fallback"]
+  autoscale_code_hash = sha256(join("\n", flatten([
+    for d in local.autoscale_code_dirs : [
+      for f in sort(fileset("${path.module}/../${d}/lambda", "**")) :
+      "${d}/${f}:${filesha256("${path.module}/../${d}/lambda/${f}")}"
+      if !strcontains(f, "__pycache__")
+    ]
+  ])))
+}
+resource "aws_ssm_parameter" "autoscale_code_applied" {
+  name        = "/${local.name}/deploy/autoscale_code_applied"
+  type        = "String"
+  value       = local.autoscale_code_hash
+  description = "Source hash of the autoscale Lambdas the last apply shipped (owner 15.11, aws.autoscale_code)."
+  tags        = local.tags
 }
 
 module "spot_fallback" {
