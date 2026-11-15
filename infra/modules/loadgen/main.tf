@@ -60,7 +60,7 @@ variable "k6_version" {
 }
 variable "lk_version" {
   type        = string
-  default     = "2.13.0"
+  default     = "2.19.3"
   description = "livekit-cli release (github.com/livekit/livekit-cli/releases) - the LiveKit load tester is `lk load-test`."
 }
 variable "coturn_image" {
