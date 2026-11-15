@@ -70,6 +70,18 @@ variable "database_multi_az" {
   default     = false
   description = "RDS Multi-AZ (standby in the second AZ, automatic failover). ≈ ×2 the instance price. Prod: true."
 }
+# Owner 14.11 «newest methods» (docs/dev/AUTO_MODERNIZE_2026-11-15.md):
+# "valkey" moves the main and the cache Redis to Valkey 8.1 in place (AWS:
+# no downtime, node price 20 % lower). Default "redis" = no change.
+variable "redis_engine" {
+  type    = string
+  default = "redis"
+  validation {
+    condition     = contains(["redis", "valkey"], var.redis_engine)
+    error_message = "redis_engine: redis or valkey."
+  }
+}
+
 variable "database_engine_version" {
   type        = string
   default     = "16"
@@ -1179,6 +1191,7 @@ module "redis" {
   subnet_ids                 = module.network.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.tasks.id]
   node_type                  = var.redis_node_type
+  engine                     = var.redis_engine
   replicas                   = var.redis_replicas
   kms_key_arn                = module.kms.key_arn
   tags                       = local.tags
@@ -1333,6 +1346,7 @@ module "redis_cache" {
   subnet_ids                 = module.network.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.tasks.id]
   node_type                  = var.redis_cache_node_type
+  engine                     = var.redis_engine
   replicas                   = 0
   maxmemory_policy           = "allkeys-lru"
   description                = "cache only (allkeys-lru)"
