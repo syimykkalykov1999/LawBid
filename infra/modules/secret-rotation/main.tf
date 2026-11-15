@@ -256,7 +256,7 @@ resource "aws_lambda_function" "rotator" {
   function_name    = "${local.fn_prefix}-rotator"
   description      = "Rotation steps for the Redis AUTH token and the app key lists (docs/runbooks/secrets-rotation.md)"
   role             = aws_iam_role.rotator[0].arn
-  runtime          = "python3.13"
+  runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "rotator.lambda_handler"
   filename         = data.archive_file.lambda.output_path
@@ -421,7 +421,7 @@ resource "aws_lambda_function" "ops" {
   function_name    = "${local.fn_prefix}-ops"
   description      = "Follow-up of secret rotation: roll ECS, promote keys, status (docs/runbooks/secrets-rotation.md)"
   role             = aws_iam_role.ops.arn
-  runtime          = "python3.13"
+  runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "ops.lambda_handler"
   filename         = data.archive_file.lambda.output_path

@@ -356,6 +356,9 @@ resource "aws_service_discovery_service" "this" {
     }
   }
   health_check_custom_config {
+    # Deprecated in AWS provider 6 (validate warns) but kept: the argument is
+    # ForceNew and not Computed, so dropping it would REPLACE this service
+    # (the pgbouncer DNS name). Remove only when provider 7 drops it.
     failure_threshold = 1
   }
   tags = var.tags

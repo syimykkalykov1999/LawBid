@@ -2386,7 +2386,7 @@ data "aws_iam_policy_document" "ops" {
   # api / worker counts keep working and the others are simply not shown.
   statement {
     actions   = ["ecs:DescribeServices"]
-    resources = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${local.name}/*"]
+    resources = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:service/${local.name}/*"]
   }
   statement {
     actions = [
@@ -2403,7 +2403,7 @@ data "aws_iam_policy_document" "ops" {
   # PutScalingPolicy re-creates the policy's own alarms (target tracking).
   statement {
     actions   = ["cloudwatch:PutMetricAlarm", "cloudwatch:DescribeAlarms", "cloudwatch:DeleteAlarms"]
-    resources = ["arn:aws:cloudwatch:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alarm:TargetTracking-service/${module.ecs.cluster_name}/*"]
+    resources = ["arn:aws:cloudwatch:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:alarm:TargetTracking-service/${module.ecs.cluster_name}/*"]
   }
   dynamic "statement" {
     for_each = module.budget[*].budget_arn
@@ -2470,7 +2470,7 @@ data "aws_iam_policy_document" "ops" {
   statement {
     actions = ["ssm:GetParameter"]
     resources = [
-      "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${local.name}/deploy/autoscale_code_main",
+      "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter/${local.name}/deploy/autoscale_code_main",
       aws_ssm_parameter.autoscale_code_applied.arn,
     ]
   }

@@ -164,7 +164,7 @@ resource "aws_lambda_function" "sweeper" {
   function_name    = local.sweeper_fn
   description      = "Deletes forgotten load-test stacks older than ${var.sweeper_max_age_hours} h (S9-12)"
   role             = aws_iam_role.sweeper.arn
-  runtime          = "python3.12"
+  runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "sweeper.lambda_handler"
   filename         = data.archive_file.sweeper.output_path

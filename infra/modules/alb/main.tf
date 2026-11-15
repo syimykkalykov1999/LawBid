@@ -705,6 +705,9 @@ resource "aws_wafv2_web_acl" "this" {
           managed_rule_group_configs {
             aws_managed_rules_bot_control_rule_set {
               inspection_level = "COMMON"
+              # AWS provider 6 upgrade guide: the default became false; set
+              # true to keep the provider-5 behaviour (no change on apply).
+              enable_machine_learning = true
             }
           }
           dynamic "rule_action_override" {

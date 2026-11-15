@@ -547,7 +547,7 @@ resource "aws_cloudfront_distribution" "web" {
     origin_access_control_id = aws_cloudfront_origin_access_control.web.id
 
     dynamic "origin_shield" {
-      for_each = var.origin_shield_region == "off" ? [] : [var.origin_shield_region == "" ? aws_s3_bucket.web.region : var.origin_shield_region]
+      for_each = var.origin_shield_region == "off" ? [] : [var.origin_shield_region == "" ? aws_s3_bucket.web.bucket_region : var.origin_shield_region]
       content {
         enabled              = true
         origin_shield_region = origin_shield.value
