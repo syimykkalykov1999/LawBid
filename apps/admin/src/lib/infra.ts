@@ -57,7 +57,7 @@ export function infraTone(status: string): InfraTone {
 export const SETTLED_WORD = "В облаке уже так";
 
 export function showsFailure(
-  r: Pick<InfraRequest, "status" | "settled" | "superseded"> | null | undefined,
+  r: (Pick<InfraRequest, "status" | "settled"> & { superseded?: boolean }) | null | undefined,
 ): boolean {
   // Owner 15.11: a failure a later successful apply superseded is history.
   return !!r && r.status === "failed" && !r.settled && !r.superseded;
