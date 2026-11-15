@@ -524,6 +524,36 @@ export const wantKey = (w: Pick<AutoWant, 'id' | 'to'>): string =>
  * start, so a flapping signal never acts. Returns the wants that are due
  * and the new first-seen map (only the wants seen now).
  */
+/**
+ * Owner 14.11 (live tests within minutes; «No limits on owner»): the «Авто»
+ * waits. A `*_minutes` override > 0 wins over the hour setting (0 = the hour
+ * setting, today's behaviour). The only floor is technical: one minute (the
+ * automation looks once per cycle anyway). Serving-infrastructure guards
+ * (NEVER_AUTO_DESTROY, OWNER_CONFIRM_OFF, KEEP_ON) are behaviour, not waits.
+ */
+export function autoWaits(num: (key: string) => number): {
+  onMs: number;
+  offMs: number;
+  wafOnMs: number;
+  wafOffMs: number;
+} {
+  const MIN = 60_000;
+  const pos = (v: number) => (Number.isFinite(v) && v > 0 ? v : 0);
+  const minutesOr = (minKey: string, hourKey: string) => {
+    const m = pos(num(minKey));
+    return Math.max(MIN, m > 0 ? m * MIN : pos(num(hourKey)) * 60 * MIN);
+  };
+  return {
+    onMs: Math.max(MIN, pos(num('infra.auto_on_minutes')) * MIN),
+    offMs: minutesOr('infra.auto_off_minutes', 'infra.auto_off_hours'),
+    wafOnMs: Math.max(MIN, pos(num('infra.waf_attack_on_minutes')) * MIN),
+    wafOffMs: minutesOr(
+      'infra.waf_calm_off_minutes',
+      'infra.waf_calm_off_hours',
+    ),
+  };
+}
+
 export function dueWants(
   wants: readonly AutoWant[],
   seen: Readonly<Record<string, number>>,

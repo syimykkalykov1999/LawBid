@@ -64,6 +64,12 @@ export interface HaFacts {
    * (prod 08.11). Busy = add the copies first, whatever the online count.
    */
   pressure?: { db: boolean; redis: boolean };
+  /** Owner 14.11: the opposite-direction guard (ha.flip_guard_minutes);
+   * default HA_FLIP_MS (24 h). */
+  flipMs?: number;
+  /** Owner 14.11: hours of quiet data needed to remove the copies when
+   * ha.release_minutes is set; default more than HA_HOURS. */
+  minQuietHours?: number;
   /**
    * G10 (2026-11-08): money. `limited` = the economy guard is in its
    * «limited» state (projected third-party spend over the allowance);
@@ -105,6 +111,12 @@ export const HA_FLIP_MS = 24 * 3600_000;
 const MIN_DATA = 0.9;
 
 /** What the load says: add, remove or leave as is. Pure. */
+/** Owner 14.11: the quiet window in hours: ha.release_minutes when > 0
+ * (live tests; at least one hour of the hourly data), else the days. */
+export function haWindowHours(days: number, minutes: number): number {
+  return minutes > 0 ? Math.max(1, Math.ceil(minutes / 60)) : days * 24;
+}
+
 export function wantedHa(f: HaFacts): Dir | null {
   if (f.mode === 'off') return null;
   if (f.mode === 'on') return 'up';
@@ -119,7 +131,7 @@ export function wantedHa(f: HaFacts): Dir | null {
   }
   const have = f.online.filter((v): v is number => v !== null);
   if (
-    f.online.length > HA_HOURS &&
+    f.online.length >= (f.minQuietHours ?? HA_HOURS + 1) &&
     have.length >= f.online.length * MIN_DATA &&
     have.every((v) => v < f.threshold / 2)
   ) {
@@ -150,7 +162,7 @@ function decideHaSteps(f: HaFacts): HaAction[] {
   // group is never left with a paid node and failover off (or the reverse).
   const unfinished = (r: 'db' | 'redis'): Dir | null => {
     const l = f.last[r];
-    return l && f.nowMs - l.atMs < HA_FLIP_MS ? l.dir : null;
+    return l && f.nowMs - l.atMs < (f.flipMs ?? HA_FLIP_MS) ? l.dir : null;
   };
   const out: HaAction[] = [];
   const db = f.db;
@@ -162,7 +174,7 @@ function decideHaSteps(f: HaFacts): HaAction[] {
   const free = (r: 'db' | 'redis', want: Dir): boolean => {
     const l = f.last[r];
     if (want === 'up' && busy) return true;
-    return !l || l.dir === want || f.nowMs - l.atMs >= HA_FLIP_MS;
+    return !l || l.dir === want || f.nowMs - l.atMs >= (f.flipMs ?? HA_FLIP_MS);
   };
   if (dbWant && db && db.available && !db.pending && free('db', dbWant)) {
     if (dbWant === 'up' && !db.multiAz) out.push('db_multi_az_on');
@@ -268,10 +280,20 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       (await this.settings?.string('ha.mode').catch(() => 'off')) ?? 'off';
     const mode = raw.trim().toLowerCase();
     if (mode !== 'on' && mode !== 'auto') return [];
-    const num = async (k: 'ha.provision_online_users' | 'ha.release_days') =>
-      (await this.settings?.number(k).catch(() => 0)) ?? 0;
+    const num = async (
+      k:
+        | 'ha.provision_online_users'
+        | 'ha.release_days'
+        | 'ha.release_minutes'
+        | 'ha.flip_guard_minutes',
+    ) => (await this.settings?.number(k).catch(() => 0)) ?? 0;
     const threshold = await num('ha.provision_online_users');
-    const days = Math.min(30, Math.max(1, (await num('ha.release_days')) || 7));
+    // Owner 14.11 («no limits»): no 30-day ceiling; floor 1 day.
+    const days = Math.max(1, (await num('ha.release_days')) || 7);
+    // Owner 14.11: waits in minutes for live tests (0 = the days / 24 h).
+    const releaseMinutes = Math.max(0, await num('ha.release_minutes'));
+    const windowHours = haWindowHours(days, releaseMinutes);
+    const flipMinutes = Math.max(0, await num('ha.flip_guard_minutes'));
     const got = await this.redis
       ?.set(LOCK_KEY, '1', 'EX', LOCK_TTL_S, 'NX')
       .catch(() => null);
@@ -291,7 +313,7 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
     };
     const [online, db, redis, dbBusy, redisBusy] = await Promise.all([
       soft('online users', [] as (number | null)[], () =>
-        this.onlineByHour(days * 24, nowMs),
+        this.onlineByHour(windowHours, nowMs),
       ),
       soft('database', null as HaFacts['db'], () => this.dbFacts()),
       soft('redis', null as HaFacts['redis'], () => this.redisFacts()),
@@ -306,6 +328,8 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       db,
       redis,
       pressure: { db: dbBusy, redis: redisBusy },
+      ...(releaseMinutes > 0 ? { minQuietHours: windowHours } : {}),
+      ...(flipMinutes > 0 ? { flipMs: flipMinutes * 60_000 } : {}),
       money: await soft('money', undefined as HaFacts['money'], () =>
         this.money(),
       ),
