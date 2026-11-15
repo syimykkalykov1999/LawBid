@@ -4,7 +4,7 @@
 
 | Часть | Сейчас | Новее (источник, дата) | Лучше для нас? | Решение |
 |---|---|---|---|---|
-| Среда Lambda (6 функций на Python: Redis, база, точки доступа, Spot, подпись, ротация ключей) | python3.12, arm64 (Graviton) | Python 3.14 в Lambda ([AWS, 18.11.2025](https://aws.amazon.com/about-aws/whats-new/2025/11/aws-lambda-python-314)) | Да: новее и дольше поддержка. Но наш провайдер Terraform AWS 5.100 знает только до python3.13 (`terraform validate`: «expected runtime to be one of … python3.13 …, got python3.14»). | **Сделано: python3.13** (новейшая, которую принимает провайдер). Python 3.14 — после перехода на провайдер AWS 6.x отдельным PR. arm64 уже везде. |
+| Среда Lambda (6 функций на Python: Redis, база, точки доступа, Spot, подпись, ротация ключей) | python3.12, arm64 (Graviton) | Python 3.14 в Lambda ([AWS, 18.11.2025](https://aws.amazon.com/about-aws/whats-new/2025/11/aws-lambda-python-314)) | Да: новее и дольше поддержка. Но наш провайдер Terraform AWS 5.100 знает только до python3.13 (`terraform validate`: «expected runtime to be one of … python3.13 …, got python3.14»). | **Сделано: python3.14** (15.11, вместе с провайдером AWS 6.72 в #1105; тесты всех Lambda зелёные под Python 3.14.7). arm64 уже везде. |
 | Расписания | EventBridge Scheduler (ночь, проходы) | — | Уже новый способ | Оставить |
 | Повторы асинхронного вызова Lambda | `aws_lambda_function_event_invoke_config` у четырёх функций | — | Уже есть | Оставить |
 | Серверы ECS: масштаб | Target tracking (процессор, запросы, сокеты, очередь) | Predictive scaling для ECS ([AWS, 21.11.2024](https://aws.amazon.com/about-aws/whats-new/2024/11/predictive-scaling-for-amazon-ecs-services)); быстрое автомасштабирование по 20-секундным метрикам ([AWS, 06.2026](https://aws.amazon.com/about-aws/whats-new/2026/06/amazon-ecs-faster-autoscaling)) | Предсказание учится на истории (нужны дни ровной суточной нагрузки) и само по себе не масштабирует. При 0 людей пользы нет. | **Оставить.** Когда появятся люди с суточным ритмом — включить предсказание рядом с target tracking, сначала только «прогноз», и 20-секундные метрики для роста. |
@@ -19,7 +19,7 @@
 | Реплики Aurora / App Auto Scaling | Не используем (RDS, не Aurora) | Aurora replica auto scaling | Нужен переход на Aurora — отдельная работа | Нет |
 
 ## Что в этом PR (`claude/auto-modern`)
-1. Шесть Python Lambda: `python3.12` → `python3.13`, arm64. Тесты Lambda зелёные; на Linux они идут под Python 3.14.
+1. Шесть Python Lambda: `python3.12` → `python3.13` → `python3.14` (15.11, провайдер AWS 6.72), arm64. Тесты Lambda зелёные; на Linux они идут под Python 3.14.
 2. Redis → Valkey одним переключателем: модуль `redis` (`engine`, `engine_version`, семейство групп параметров `valkey8`, `create_before_destroy`), стек и `envs/prod` (`redis_engine`, по умолчанию `redis`).
 3. Проверка `scripts/ci/infra-modern.test.mjs`: все Python Lambda на 3.13 и arm64; Valkey включается одной переменной, по умолчанию прежний движок.
 
