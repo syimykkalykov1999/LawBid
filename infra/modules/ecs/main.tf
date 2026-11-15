@@ -901,6 +901,12 @@ resource "aws_ecs_service" "api" {
   # (docs/06 §7.3 "автоматический откат при провале health-check").
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+  # AWS default for new services since 2025-09-05 (ECS developer guide,
+  # "Balancing an Amazon ECS service across Availability Zones"); provider
+  # 5.x still sends DISABLED unless set. Fargate and Fargate Spot place tasks
+  # independently, so base 1 + Spot could put both in one zone (prod 15.11:
+  # both api tasks in us-east-1a). In-place UpdateService, no recreate.
+  availability_zone_rebalancing = "ENABLED"
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -958,6 +964,12 @@ resource "aws_ecs_service" "api_admin" {
   }
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+  # AWS default for new services since 2025-09-05 (ECS developer guide,
+  # "Balancing an Amazon ECS service across Availability Zones"); provider
+  # 5.x still sends DISABLED unless set. Fargate and Fargate Spot place tasks
+  # independently, so base 1 + Spot could put both in one zone (prod 15.11:
+  # both api tasks in us-east-1a). In-place UpdateService, no recreate.
+  availability_zone_rebalancing = "ENABLED"
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -1046,6 +1058,12 @@ resource "aws_ecs_service" "worker" {
   }
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
+  # AWS default for new services since 2025-09-05 (ECS developer guide,
+  # "Balancing an Amazon ECS service across Availability Zones"); provider
+  # 5.x still sends DISABLED unless set. Fargate and Fargate Spot place tasks
+  # independently, so base 1 + Spot could put both in one zone (prod 15.11:
+  # both api tasks in us-east-1a). In-place UpdateService, no recreate.
+  availability_zone_rebalancing = "ENABLED"
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -1095,6 +1113,12 @@ resource "aws_ecs_service" "admin" {
   }
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+  # AWS default for new services since 2025-09-05 (ECS developer guide,
+  # "Balancing an Amazon ECS service across Availability Zones"); provider
+  # 5.x still sends DISABLED unless set. Fargate and Fargate Spot place tasks
+  # independently, so base 1 + Spot could put both in one zone (prod 15.11:
+  # both api tasks in us-east-1a). In-place UpdateService, no recreate.
+  availability_zone_rebalancing = "ENABLED"
   deployment_circuit_breaker {
     enable   = true
     rollback = true

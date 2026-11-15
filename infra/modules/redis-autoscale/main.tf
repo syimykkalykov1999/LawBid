@@ -139,6 +139,11 @@ locals {
   # node memory (maxmemory is a fixed share of it, so percent scales with GiB).
   # baseline = CPU % of one core a burstable node holds without spending
   # credits. speed = single-core speed of the Redis engine thread, t4g = 1.
+  # 2026-11-15: cache.r8g / cache.m8g (Graviton4) are offered for Valkey and
+  # Memcached only, not for the Redis OSS engine this group runs (AWS Price
+  # List API + describe-reserved-cache-nodes-offerings), so r7g stays the
+  # newest memory class here. On Valkey r8g.large is $0.1756/h for 14.18 GiB
+  # vs r7g.large $0.1752/h for 13.07 GiB: move the ladder with the engine.
   node_specs = {
     "cache.t4g.micro"   = { vcpu = 2, memory_gib = 0.5, hourly = 0.016, baseline = 10, speed = 1.0 }
     "cache.t4g.small"   = { vcpu = 2, memory_gib = 1.37, hourly = 0.032, baseline = 20, speed = 1.0 }
