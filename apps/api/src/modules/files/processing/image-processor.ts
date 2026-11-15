@@ -305,7 +305,13 @@ export class ImageProcessor {
     const meta = await source.metadata();
     assertPixels(meta.width ?? 0, meta.height ?? 0);
     if (input.stripMetadata) {
-      const clean = await this.withoutMetadata(source, input.mime, meta, q);
+      const clean = await this.withoutMetadata(
+        source,
+        input.data,
+        input.mime,
+        meta,
+        q,
+      );
       if (clean) {
         return {
           main: clean,
@@ -407,10 +413,13 @@ export class ImageProcessor {
    * [stripMetadata]: the same picture in the same format with no EXIF / XMP
    * / IPTC (sharp writes none unless asked), EXIF orientation applied,
    * alpha kept; PNG stays lossless. Null when there is nothing to strip or
-   * the format is not re-encoded here (GIF: animation would be lost).
+   * the format is not re-encoded here (GIF, animated PNG: animation would
+   * be lost). An animated WebP sticker is written again with every frame
+   * (sharp `animated`, frame delays and loop kept), never as one frame.
    */
   private async withoutMetadata(
     source: sharp.Sharp,
+    original: Buffer,
     mime: FileMime,
     meta: sharp.Metadata,
     q: ImageQuality,
@@ -422,6 +431,25 @@ export class ImageProcessor {
     ) {
       return null;
     }
+    if ((meta.pages ?? 1) > 1) {
+      if (mime !== FILE_MIME.webp) return null;
+      const anim = await sharp(original, {
+        animated: true,
+        failOn: 'error',
+        limitInputPixels: MAX_INPUT_PIXELS,
+      })
+        .webp({ quality: q.webp, effort: 4, alphaQuality: 100 })
+        .toBuffer();
+      return {
+        data: anim,
+        mime,
+        width: meta.width ?? 0,
+        height: meta.pageHeight ?? meta.height ?? 0,
+      };
+    }
+    // libvips reads only the first frame of an APNG (acTL chunk before the
+    // picture data): left as uploaded rather than frozen.
+    if (mime === FILE_MIME.png && isAnimatedPng(original)) return null;
     const img = source.clone().rotate();
     const out =
       mime === FILE_MIME.jpeg
@@ -539,4 +567,11 @@ export class ImageProcessor {
     }
     return result;
   }
+}
+
+/** An APNG: its `acTL` chunk comes before the first `IDAT`. */
+function isAnimatedPng(data: Buffer): boolean {
+  const idat = data.indexOf('IDAT');
+  const actl = data.indexOf('acTL');
+  return actl > 0 && (idat < 0 || actl < idat);
 }

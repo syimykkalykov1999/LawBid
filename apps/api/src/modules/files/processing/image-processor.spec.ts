@@ -372,6 +372,40 @@ describe('ImageProcessor', () => {
       },
     );
 
+    // Review of #1098: a sticker is often an animated WebP; read without
+    // `animated` sharp sees only the first frame, so stripping its
+    // metadata must not turn it into a still picture.
+    it('an animated WebP keeps every frame', async () => {
+      const frame = (bg: string) =>
+        sharp({
+          create: { width: 32, height: 32, channels: 4, background: bg },
+        })
+          .png()
+          .toBuffer();
+      const src = await sharp(
+        [await frame('#ff0000'), await frame('#00ff00')],
+        {
+          join: { animated: true },
+        },
+      )
+        .webp({ delay: [100, 100], loop: 0 })
+        .withMetadata({ exif: { IFD0: { Copyright: 'secret-gps-owner' } } })
+        .toBuffer();
+      expect((await sharp(src).metadata()).pages).toBe(2);
+      expect(src.includes('secret-gps-owner')).toBe(true);
+      const out = await processor.process({
+        data: src,
+        mime: 'image/webp',
+        avatar: false,
+        stripMetadata: true,
+      });
+      expect(out.main).not.toBeNull();
+      expect(out.main!.data.includes('secret-gps-owner')).toBe(false);
+      const meta = await sharp(out.main!.data).metadata();
+      expect(meta.pages).toBe(2);
+      expect([out.width, out.height]).toEqual([32, 32]);
+    });
+
     it('a clean image stays byte-for-byte as uploaded', async () => {
       const src = await sharp({
         create: { width: 64, height: 64, channels: 4, background: '#00000000' },
