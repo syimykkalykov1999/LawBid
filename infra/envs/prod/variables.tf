@@ -95,7 +95,7 @@ variable "database_major_version" {
 # docs/06 §6.3: production sizes (5k RPS peak); raise api_max_tasks with load-test results.
 # 15.11 «делай обновы сейчас»: default valkey after the proof (full API e2e
 # on valkey/valkey:8.1.11 green, modules/redis applies the engine change at
-# once, KNOWN_ERRORS 165). The next prod apply moves Redis OSS 7.1 to Valkey
+# once, KNOWN_ERRORS 166). The next prod apply moves Redis OSS 7.1 to Valkey
 # 8.1 in place (AWS: same endpoint, writes pause for a few seconds).
 # Admin switch aws.valkey. docs/runbooks/db-major-upgrade.md.
 variable "redis_engine" {

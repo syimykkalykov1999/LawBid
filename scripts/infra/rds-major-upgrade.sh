@@ -9,11 +9,11 @@
 #     --switchover-timeout; guardrails stop it and roll back when not safe),
 #   «Preparing … with logical replication» (rds.logical_replication = 1 and the
 #     instance in sync with its parameter group = one reboot).
-# Why not `blue_green_update` of the Terraform AWS provider (5.100): it cannot
+# Why not `blue_green_update` of the Terraform AWS provider (6.72): it cannot
 # be used with read replicas (provider docs, «Low-Downtime Updates»; prod has
 # lawbid-prod-postgres-replica-1) and after the switchover it DELETES the old
 # server with SkipFinalSnapshot=true (internal/service/rds/instance.go
-# v5.100.0, «Deleting Blue/Green Deployment source»): no way back. Here the
+# v6.72.0, «Deleting Blue/Green Deployment source»): no way back. Here the
 # old 16 server stays as «<id>-old1» (read-only) until the owner deletes it.
 #
 # Idempotent: run again, it continues where it stopped (reboot done, the

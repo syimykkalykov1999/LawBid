@@ -6,7 +6,7 @@ Owner 15.11: «делай обновы сейчас». Two admin switches («Л�
 
 **Method: AWS RDS Blue/Green, run by AWS CLI commands copied from the AWS user guide** (`scripts/infra/rds-major-upgrade.sh`). The guide pages: «Creating a blue/green deployment», «Switching a blue/green deployment», «Limitations and considerations».
 
-**Why not Terraform `blue_green_update`:** with AWS provider 5.100 it (1) cannot be used when the instance has read replicas (provider docs, «Low-Downtime Updates»), and prod has `lawbid-prod-postgres-replica-1`; (2) after the switchover it deletes the old server with `SkipFinalSnapshot=true` (`internal/service/rds/instance.go` v5.100.0, step «Deleting Blue/Green Deployment source»), so there is no way back.
+**Why not Terraform `blue_green_update`:** with AWS provider 6.72 it (1) cannot be used when the instance has read replicas (provider docs, «Low-Downtime Updates»), and prod has `lawbid-prod-postgres-replica-1`; (2) after the switchover it deletes the old server with `SkipFinalSnapshot=true` (`internal/service/rds/instance.go` v6.72.0, step «Deleting Blue/Green Deployment source»), so there is no way back.
 
 **What the 2FA apply does:**
 1. Terraform creates the `lawbid-prod-postgres18` parameter group (the same custom parameters as `…-postgres16`) and sets `rds.logical_replication = 1` on `…-postgres16`. Logical replication is the AWS prerequisite for a major-version Blue/Green. Terraform never upgrades the server in place: the version in the config follows the version the server actually runs (`data.aws_db_instance.primary` in `modules/stack`).
@@ -56,7 +56,7 @@ scripts/infra/rds-major-upgrade.sh prepare 18
 
 ## Redis OSS 7.1 → Valkey 8.1 (`aws.valkey`)
 
-**Prod default since 15.11: `redis_engine = "valkey"`, so the next apply moves it.** Method: in place, as the AWS user guide «Upgrading engine versions including cross engine upgrades» does it** (`modify-replication-group --engine valkey --engine-version … --cache-parameter-group-name …`). The provider sends the same call (`replication_group.go` v5.100: redis → valkey is not a replacement).
+**Prod default since 15.11: `redis_engine = "valkey"`, so the next apply moves it.** Method: in place, as the AWS user guide «Upgrading engine versions including cross engine upgrades» does it (`modify-replication-group --engine valkey --engine-version … --cache-parameter-group-name …`). The provider sends the same call (`replication_group.go` v6.72: redis → valkey is not a replacement).
 - The endpoint stays the same and only the node IPs change. Writes pause for the failover, which AWS says lasts «a few seconds».
 - Valkey nodes cost 20 % less.
 - 15.11 fix: `apply_immediately` is now true on Valkey. With false, AWS keeps the engine change for the Sunday window while the same apply deletes the `redis7` group still in use, and the apply goes red.
