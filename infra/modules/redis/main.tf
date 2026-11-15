@@ -36,6 +36,29 @@ variable "maxmemory_policy" {
     error_message = "maxmemory_policy: noeviction (queues) or an LRU/LFU policy (cache-only node)."
   }
 }
+# Owner 14.11 «newest methods» (docs/dev/AUTO_MODERNIZE_2026-11-15.md):
+# Valkey on ElastiCache is the open-source successor of Redis OSS; AWS prices
+# node-based Valkey 20 % lower and upgrades Redis OSS in place with no
+# downtime (ElastiCache 8.1 for Valkey, 07.2025). Default "redis" = today
+# (no change in the next apply); "valkey" switches at an apply of its own.
+variable "engine" {
+  type    = string
+  default = "redis"
+  validation {
+    condition     = contains(["redis", "valkey"], var.engine)
+    error_message = "engine: redis or valkey."
+  }
+}
+variable "engine_version" {
+  type        = string
+  default     = ""
+  description = "Empty = 7.1 for redis, 8.1 for valkey."
+}
+locals {
+  pg_family      = var.engine == "valkey" ? "valkey8" : "redis7"
+  engine_version = var.engine_version != "" ? var.engine_version : (var.engine == "valkey" ? "8.1" : "7.1")
+}
+
 variable "description" {
   type    = string
   default = "cache, queues, rate limits, realtime"
@@ -117,8 +140,10 @@ resource "random_password" "auth" {
 }
 
 resource "aws_elasticache_parameter_group" "this" {
-  name   = "${var.name}-redis7"
-  family = "redis7"
+  name   = "${var.name}-${local.pg_family}"
+  family = local.pg_family
+  # A new family is a new group: create it before the old one goes.
+  lifecycle { create_before_destroy = true }
   # BullMQ requires noeviction (a dropped job key corrupts a queue); caches
   # carry their own TTLs, so memory pressure shows up as the redis-memory
   # alarm instead of silent data loss. A cache-only node (stack
@@ -133,8 +158,9 @@ resource "aws_elasticache_parameter_group" "this" {
 
 resource "aws_elasticache_parameter_group" "cluster" {
   count  = var.cluster_mode ? 1 : 0
-  name   = "${var.name}-redis7-cluster"
-  family = "redis7"
+  name   = "${var.name}-${local.pg_family}-cluster"
+  family = local.pg_family
+  lifecycle { create_before_destroy = true }
   parameter {
     name  = "cluster-enabled"
     value = "yes"
@@ -149,8 +175,8 @@ resource "aws_elasticache_parameter_group" "cluster" {
 resource "aws_elasticache_replication_group" "this" {
   replication_group_id       = "${var.name}-redis"
   description                = "${var.name} ${var.description}"
-  engine                     = "redis"
-  engine_version             = "7.1"
+  engine                     = var.engine
+  engine_version             = local.engine_version
   node_type                  = var.node_type
   num_cache_clusters         = 1 + var.replicas
   automatic_failover_enabled = var.replicas > 0
@@ -219,8 +245,8 @@ resource "aws_elasticache_replication_group" "cluster" {
   count                      = var.cluster_mode ? 1 : 0
   replication_group_id       = "${var.name}-redis-cl"
   description                = "${var.name} ${var.description} (cluster mode enabled)"
-  engine                     = "redis"
-  engine_version             = "7.1"
+  engine                     = var.engine
+  engine_version             = local.engine_version
   node_type                  = var.cluster_node_type != "" ? var.cluster_node_type : var.node_type
   num_node_groups            = var.num_node_groups
   replicas_per_node_group    = var.replicas_per_node_group
