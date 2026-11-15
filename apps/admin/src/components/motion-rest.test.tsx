@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
-import { domMax, LazyMotion, MotionConfig, motionValue } from 'motion/react';
+import { domMax, frameData, LazyMotion, MotionConfig, MotionGlobalConfig, motionValue, processFrame } from 'motion/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -173,6 +173,20 @@ describe('dialog behaviour (Radix FocusScope / DismissableLayer, react-remove-sc
 });
 
 describe('phone dialog = bottom sheet (vaul)', () => {
+  // A loaded machine reads the "first frame" late (KNOWN_ERRORS №158): with
+  // Motion on the wall clock the panel has moved on by then. Motion's own
+  // switch for tests, `MotionGlobalConfig.useManualTiming`, stops time:
+  // frames run only when the test calls `processFrame(t)` (motion-dom docs).
+  beforeEach(() => {
+    MotionGlobalConfig.useManualTiming = true;
+  });
+  afterEach(() => {
+    MotionGlobalConfig.useManualTiming = false;
+  });
+  const busyMachine = () => act(() => new Promise((r) => setTimeout(r, 150)));
+  const shift = (unit: 'px' | '%') =>
+    Number(new RegExp(`translateY\\(([\\d.]+)${unit}\\)`).exec(screen.getByRole('dialog').style.transform)?.[1] ?? NaN);
+
   it('on phones the panel starts below the screen (slides up), on desktop it rises 24 px', async () => {
     phone = true;
     const { unmount } = wrap(
@@ -181,8 +195,12 @@ describe('phone dialog = bottom sheet (vaul)', () => {
       </Dialog>,
     );
     await flush();
-    // First frames of the slide: still (almost) a whole screen below.
-    expect(screen.getByRole('dialog').style.transform).toMatch(/translateY\((9\d|100)(\.\d+)?%\)/);
+    await busyMachine();
+    // The first frame, however late the test reads it: a whole screen below.
+    expect(shift('%')).toBe(100);
+    act(() => processFrame(frameData.timestamp + 150));
+    const moved = shift('%');
+    expect(moved).toBeLessThan(100); // it does slide up
     unmount();
     phone = false;
     wrap(
@@ -191,11 +209,10 @@ describe('phone dialog = bottom sheet (vaul)', () => {
       </Dialog>,
     );
     await flush();
-    // First frames of the rise: about 24 px below (the animation may have
-    // moved a fraction of a pixel by the time the test reads it, CI 14.11).
-    const rise = /translateY\(([\d.]+)px\)/.exec(screen.getByRole('dialog').style.transform);
-    expect(Number(rise?.[1])).toBeGreaterThan(20);
-    expect(Number(rise?.[1])).toBeLessThanOrEqual(24);
+    await busyMachine();
+    expect(shift('px')).toBe(24);
+    act(() => processFrame(frameData.timestamp + 100));
+    expect(shift('px')).toBeLessThan(24); // and rises
   });
 });
 

@@ -730,12 +730,31 @@ class _AdminContentClient implements AdminContentClient {
   @override
   Future<void> exportAdminCsv({
     required ExportEntity entity,
+    String? q,
+    String? role,
+    String? status,
+    String? stateCode,
+    String? userId,
+    String? caseId,
+    String? kind,
+    DateTime? from,
+    DateTime? to,
     String? xJustification,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{
+      r'q': q,
+      r'role': role,
+      r'status': status,
+      r'stateCode': stateCode,
+      r'userId': userId,
+      r'caseId': caseId,
+      r'kind': kind,
+      r'from': from?.toIso8601String(),
+      r'to': to?.toIso8601String(),
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{r'X-Justification': xJustification};
     _headers.removeWhere((k, v) => v == null);

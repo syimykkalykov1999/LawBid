@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { reportDayBounds, reportTimeZone } from '../../common/utils/report-day';
 import {
   Prisma,
   type AdminRole,
@@ -78,13 +80,17 @@ export class StaffDailyStatsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly counters: StaffCountersService,
+    // Owner 14.11 (row 180): the day window of the report time zone.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   async computeDay(
     day: string,
   ): Promise<{ rows: DailyRow[]; counters: DayCounters[] }> {
-    const from = new Date(`${day}T00:00:00.000Z`);
-    const to = new Date(from.getTime() + 86_400_000);
+    const { from, to } = reportDayBounds(
+      day,
+      await reportTimeZone(this.settings),
+    );
     const counters = await this.counters.readDay(day);
     const [signals, samples, lease] = await Promise.all([
       this.prisma.staffQualitySignal.groupBy({

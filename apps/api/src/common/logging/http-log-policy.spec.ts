@@ -148,3 +148,33 @@ describe('compact serializers', () => {
     expect(requestUserProps({} as IncomingMessage)).toEqual({});
   });
 });
+
+// Detective R2B-6 (14.11): bearer-like tokens in the path never reach a
+// log line (calendar feed secret, deletion-cancel, unsubscribe, the
+// verification phone hand-off).
+describe('safeUrl hides token paths (R2B-6)', () => {
+  it.each([
+    [
+      '/api/v1/calendar/feed/lbc_abcdefghijklmnopqrstuvwxyz012345.ics',
+      '/api/v1/calendar/feed/[REDACTED]',
+    ],
+    [
+      '/api/v1/privacy/deletion/cancel/tok_123456789?x=1',
+      '/api/v1/privacy/deletion/cancel/[REDACTED]?x',
+    ],
+    [
+      '/api/v1/outreach/unsubscribe/AbCdEf0123456789xyz',
+      '/api/v1/outreach/unsubscribe/[REDACTED]',
+    ],
+    [
+      '/api/v1/verification/handoff/hnd_secret_42/status',
+      '/api/v1/verification/handoff/[REDACTED]/status',
+    ],
+  ])('%s', (raw, safe) => {
+    expect(safeUrl(raw)).toBe(safe);
+  });
+
+  it('keeps the calendar feed settings route readable', () => {
+    expect(safeUrl('/api/v1/calendar/feed')).toBe('/api/v1/calendar/feed');
+  });
+});

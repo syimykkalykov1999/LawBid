@@ -49,7 +49,7 @@ export default function BidsPage() {
         eyebrow="Кейсы"
         title="Ставки"
         subtitle="Все ставки адвокатов: сумма, раунды переговоров, статус."
-        actions={<CsvButton entity="bids" />}
+        actions={<CsvButton entity="bids" query={{ q: text, status }} />}
       />
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="w-full space-y-1 sm:w-80">

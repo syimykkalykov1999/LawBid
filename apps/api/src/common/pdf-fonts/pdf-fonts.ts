@@ -223,9 +223,19 @@ function hanFont(text: string, lang?: string): ScriptFont {
   return CJK_BY_FILE('NotoSansCJKsc-Regular.otf');
 }
 
+const scriptOf = new Map<number, ScriptFont | undefined>();
 /** Script font for a code point Inter cannot draw, if we have one. */
 function scriptFontFor(ch: string, han: ScriptFont): ScriptFont | undefined {
-  const f = SCRIPT_FONTS.find((x) => x.scripts.test(ch));
+  // Up to 21 Unicode-script regex tests per character: remembered per code
+  // point (the script of a character never changes; at most one entry per
+  // distinct character ever printed). Profile 14.11: ~12 % of the
+  // 85-language check.
+  const cp = ch.codePointAt(0) as number;
+  let f = scriptOf.get(cp);
+  if (f === undefined && !scriptOf.has(cp)) {
+    f = SCRIPT_FONTS.find((x) => x.scripts.test(ch));
+    scriptOf.set(cp, f);
+  }
   return f?.file === 'NotoSansCJKsc-Regular.otf' ? han : f;
 }
 
@@ -408,11 +418,87 @@ type TextFn = (...args: unknown[]) => unknown;
  * independent of the font size, and pdfkit copies a run before it changes
  * one). A renderer that lays the same text out several times (the deal
  * record tries up to three type scales) passes one cache to all its
- * documents, so each word is shaped once. Scoped to one render, never
- * global: it only holds the words of that document.
+ * documents, so each word is shaped once. A plain one is scoped to one
+ * render; [PdfWordCache] keeps the words between renders, bounded.
  */
-export type PdfLayoutCache = Map<object, Record<string, unknown>>;
-export const newPdfLayoutCache = (): PdfLayoutCache => new Map();
+export interface PdfLayoutCache {
+  /** The word store of a parsed font, if this cache has one for it. */
+  get(font: object): Record<string, unknown> | undefined;
+  /** Adopts the document's own store as the one for [font]. */
+  set(font: object, words: Record<string, unknown>): unknown;
+}
+export const newPdfLayoutCache = (): PdfLayoutCache =>
+  new Map<object, Record<string, unknown>>();
+
+/**
+ * Shaped words kept between renders (row 145, profile 14.11: with a
+ * per-render cache 59 % of the CPU of warm deal records was still fontkit
+ * shaping the same headings, labels and legal texts in every record).
+ * Same reasoning as the per-render cache, wider scope: a run depends only
+ * on the parsed font and the word (pdfkit scales it by the font's own
+ * units, copies it before changing it, and subsets per document from the
+ * glyph ids), so the PDF bytes stay the same. Bounded: at most [maxWords]
+ * words per parsed font, the least recently used one goes first; the
+ * caller sets [maxWords] from the admin setting, 0 = nothing is kept
+ * between renders (the per-render cache, as before).
+ */
+export class PdfWordCache implements PdfLayoutCache {
+  private readonly stores = new Map<object, Record<string, unknown>>();
+  private readonly words = new Map<object, Map<string, unknown>>();
+
+  constructor(public maxWords: number) {}
+
+  /** The cache one render draws with: this one, or a fresh per-render one
+   * when [maxWords] is 0 (what was kept is dropped then). */
+  forRender(): PdfLayoutCache {
+    if (this.maxWords > 0) return this;
+    this.stores.clear();
+    this.words.clear();
+    return newPdfLayoutCache();
+  }
+
+  /** Words kept for [font] (tests, memory checks). */
+  sizeFor(font: object): number {
+    return this.words.get(font)?.size ?? 0;
+  }
+
+  get(font: object): Record<string, unknown> {
+    let store = this.stores.get(font);
+    if (store) return store;
+    const words = new Map<string, unknown>();
+    // pdfkit reads and writes `layoutCache[word]`: a bounded LRU behind the
+    // object it expects.
+    store = new Proxy(Object.create(null) as Record<string, unknown>, {
+      get: (_t, key) => {
+        if (typeof key !== 'string') return undefined;
+        const run = words.get(key);
+        if (run !== undefined) {
+          words.delete(key);
+          words.set(key, run);
+        }
+        return run;
+      },
+      set: (_t, key, run: unknown) => {
+        if (typeof key !== 'string') return true;
+        words.delete(key);
+        words.set(key, run);
+        for (const oldest of words.keys()) {
+          if (words.size <= this.maxWords) break;
+          words.delete(oldest);
+        }
+        return true;
+      },
+    });
+    this.stores.set(font, store);
+    this.words.set(font, words);
+    return store;
+  }
+
+  /** The document's own store is never adopted: [get] always has one. */
+  set(): this {
+    return this;
+  }
+}
 
 export interface PdfFontOptions {
   /** Language of the document (ja, ko, zh...): picks the CJK face for Han. */

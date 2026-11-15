@@ -37,6 +37,7 @@ AdminMeDto _$AdminMeDtoFromJson(Map<String, dynamic> json) => AdminMeDto(
   reasonRequiredAreas: (json['reasonRequiredAreas'] as List<dynamic>)
       .map((e) => e as String)
       .toList(),
+  bulkSelectCap: (json['bulkSelectCap'] as num?)?.toInt(),
   passkeyCount: (json['passkeyCount'] as num?)?.toInt(),
   onCallAvailable: json['onCallAvailable'] as bool?,
   onCallEnabled: json['onCallEnabled'] as bool?,
@@ -70,4 +71,5 @@ Map<String, dynamic> _$AdminMeDtoToJson(
   'securityQuestion': ?instance.securityQuestion,
   'avatarUrl': ?instance.avatarUrl,
   'reasonRequiredAreas': instance.reasonRequiredAreas,
+  'bulkSelectCap': ?instance.bulkSelectCap,
 };
