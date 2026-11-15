@@ -6,8 +6,17 @@
 
 /** The API takes at most this many ids per request. */
 const BULK_BATCH = 500;
-/** "Select everything matching the filter" stops here. */
-export const SELECT_ALL_CAP = 2000;
+/**
+ * Owner 14.11 (row 179, detective R3A-7): «Выбрать всё по фильтру» had a
+ * fixed 2 000 the owner could not change (rule 11). Now the owner has no
+ * cap, staff the owner's setting `admin.bulk_select_cap` (0 = none), which
+ * the server hands over as `me.bulkSelectCap` (null = no cap).
+ */
+export function selectAllCap(me: { role?: string; bulkSelectCap?: number | null } | undefined): number {
+  if (!me || me.role === 'super_admin') return Number.POSITIVE_INFINITY;
+  const n = me.bulkSelectCap;
+  return typeof n === 'number' && n > 0 ? n : Number.POSITIVE_INFINITY;
+}
 
 export interface BulkResult {
   done: string[];
@@ -75,11 +84,11 @@ export async function runInBatches(ids: string[], send: (batch: string[]) => Pro
   return out;
 }
 
-/** Walks a cursor-paged list and collects ids (up to [cap]). */
+/** Walks a cursor-paged list and collects ids (up to [cap]; none by default). */
 export async function collectIds<T extends { id: string }>(
   fetchPage: (cursor: string | undefined) => Promise<{ data: T[]; nextCursor: string | null | undefined }>,
   accept: (row: T) => boolean = () => true,
-  cap = SELECT_ALL_CAP,
+  cap = Number.POSITIVE_INFINITY,
 ): Promise<{ ids: string[]; capped: boolean }> {
   const ids: string[] = [];
   let cursor: string | undefined;

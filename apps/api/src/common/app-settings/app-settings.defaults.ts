@@ -602,6 +602,12 @@ export const OWNER_TASKS_SETTINGS = {
 // subscription ends and the unused part is refunded (rollback: off).
 export const OWNER_BILLING_GATE_SETTINGS = {
   'billing.cancel_on_verification_loss': true,
+  // Batch E (14.11): the verification-loss sweep reads only attorneys whose
+  // profile changed since its last run (minus this overlap, for late
+  // commits) and the whole rejected / suspended list once per
+  // `billing.verification_loss_full_scan_hours` (0 = every run, as before).
+  'billing.verification_loss_overlap_minutes': 15,
+  'billing.verification_loss_full_scan_hours': 6,
   // Offer packs and Boost are for verified attorneys only (rollback: off).
   'billing.require_verified_for_purchases': true,
   /** Algo audit 2026-10-27 (MONEY H-5): a refunded / charged-back offer
@@ -935,6 +941,17 @@ export const OWNER_ADMIN_HARDENING_SETTINGS = {
   /** Revealing a private message needs a 2FA code entered within this
    * many seconds (max 300 = the step-up lifetime). */
   'admin.private_stepup_seconds': 120,
+  /** Owner 14.11 (row 179): how long one 2FA code covers money and other
+   * protected actions in the same session, seconds. Owner-only + 2FA. */
+  'admin.step_up_ttl_seconds': 300,
+  /** Owner 14.11 (row 180): the zone admin days are cut in — «Сегодня»,
+   * «с дедлайном», the staff KPI days (Stripe «Reporting timezone»). An
+   * IANA name; an unknown one falls back to America/Los_Angeles. */
+  'admin.report_timezone': 'America/Los_Angeles',
+  /** Owner 14.11 (row 179): most rows staff «Выбрать всё по фильтру»
+   * collects (cases, posts, reviews, templates, stickers, videos). 0 = no
+   * cap. The owner never has one. */
+  'admin.bulk_select_cap': 2000,
   /** Daily copy of the audit log into the locked audit bucket (needs the
    * bucket from Terraform; without it this does nothing). */
   'admin.audit_export_enabled': true,
@@ -1562,6 +1579,25 @@ export const OWNER_OPS_SETTINGS = {
   'ops.cron_idle_backoff': 'off',
   'ops.cron_idle_after_runs': 10,
   'ops.cron_idle_every_min': 5,
+  // Batch D (14.11): time limit of one cron run. auto (default) = the
+  // longest of the last `ops.cron_timeout_history_runs` good runs of that
+  // job times `ops.cron_timeout_auto_factor`, never below
+  // `ops.cron_timeout_auto_min_minutes`, and no limit before the first good
+  // run — so no job that works is ever cut. on = the minutes listed in
+  // `ops.cron_timeout_minutes` (`job=minutes, …`), auto for the rest. off =
+  // no limit. A run past its limit is stopped and frees its lane.
+  'ops.cron_timeout_mode': 'auto',
+  'ops.cron_timeout_auto_factor': 10,
+  'ops.cron_timeout_auto_min_minutes': 60,
+  'ops.cron_timeout_history_runs': 20,
+  'ops.cron_timeout_minutes': '',
+  // Batch D (14.11): a sub-hourly job skipped tick after tick is logged at
+  // the first skip, then every N-th skip of the streak, and when it runs
+  // again.
+  'ops.cron_skip_log_every': 10,
+  // Batch D (14.11): «Очереди задач» turns red when a job had no good run
+  // for this many of its periods (0 = off).
+  'ops.cron_stale_periods': 3,
   // S20-8: ceiling of the message re-encryption pass, rows per minute
   // (0 = paused; the pass keeps its place).
   'ops.reencrypt_rows_per_min': 800,
@@ -1957,6 +1993,10 @@ export const OWNER_DEAL_RECORD_SETTINGS = {
   'bids.confirmation_required': true,
   /** Days until the one reminder to confirm a bid. */
   'bids.confirmation_reminder_days': 3,
+  /** Row 145: shaped words kept per font between deal-record PDFs
+   * (~3.6 KB each, measured 14.11); 0 = none kept, each record shapes its
+   * words again (modules/deals/deal-record-pdf-cache.ts). */
+  'deal_record.pdf_word_cache_words': 5000,
 };
 
 export const OWNER_CASE_TOOLS_SETTINGS = {

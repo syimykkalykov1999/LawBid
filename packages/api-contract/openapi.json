@@ -43575,6 +43575,89 @@
             }
           },
           {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^[a-z_]{1,32}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^[a-z_]{1,32}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "stateCode",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "pattern": "^[A-Za-z]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "caseId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^[a-z_]{1,16}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "X-Justification",
             "in": "header",
             "description": "Required for entity=users: why contacts are exported (10–500 chars, encodeURIComponent for non-ASCII).",
@@ -43589,7 +43672,7 @@
             "description": ""
           },
           "400": {
-            "description": "Bad request: JUSTIFICATION_REQUIRED",
+            "description": "Bad request: JUSTIFICATION_REQUIRED, VALIDATION_ERROR",
             "content": {
               "text/csv": {
                 "schema": {
@@ -139512,6 +139595,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "bulkSelectCap": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 14.11 (row 179): most rows «select all by filter» collects for this admin; null = no cap (always the super admin)."
           }
         },
         "required": [
@@ -139534,7 +139622,8 @@
           "workspacesEnabled",
           "countryTabs",
           "securityQuestion",
-          "reasonRequiredAreas"
+          "reasonRequiredAreas",
+          "bulkSelectCap"
         ]
       },
       "AdminSessionDto": {
@@ -148497,6 +148586,10 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 100
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -148732,6 +148825,11 @@
           "value": {
             "type": "object",
             "description": "Validated against the key schema (type, min/max, items)."
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
           }
         },
         "required": [
