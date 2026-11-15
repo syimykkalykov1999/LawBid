@@ -216,12 +216,16 @@ def metric_series(nodes, cfg, hours, with_credit, now):
     return d.Metrics(**{k: tuple(v for _, v in sorted(p.items())) for k, p in by_ts.items()})
 
 
-def night_window(event, tz_name, now):
+def night_window(event, tz_name, now, cfg=None):
     """14.11 (owner): a manual test run within minutes, not at the next night:
     {"mode": "night", "night_now": true} counts as inside the night window.
     Only a JSON true; the schedules never send it. Every other guard and the
     quiet-window numbers still apply."""
-    return event.get("night_now") is True or night_ok(tz_name, now)
+    if event.get("night_now") is True:
+        return True
+    if cfg is None:
+        return night_ok(tz_name, now)
+    return night_ok(tz_name, now, cfg.night_start_h, cfg.night_end_h)
 
 
 def night_ok(tz_name, now, first=1, last=6):
@@ -229,7 +233,9 @@ def night_ok(tz_name, now, first=1, last=6):
         from zoneinfo import ZoneInfo
 
         h = datetime.fromtimestamp(now, ZoneInfo(tz_name)).hour
-        return first <= h < last
+        if first <= last:
+            return first <= h < last
+        return h >= first or h < last  # the window crosses midnight
     except Exception:  # no tz database: the scheduler already picks the hour
         return True
 
@@ -315,7 +321,7 @@ def handler(event, context=None, now=None):
     deploying, oneoff, unknown = ecs_guards(
         env.get("CLUSTER", ""), [x for x in env.get("SERVICES", "").split(",") if x]
     )
-    guards = d.Guards(deploying, oneoff, unknown, night_window(event, env.get("NIGHT_TZ", "America/Chicago"), now))
+    guards = d.Guards(deploying, oneoff, unknown, night_window(event, env.get("NIGHT_TZ", "America/Chicago"), now, cfg))
     # a node without a standby grows only after single_up_points (14.11)
     hours = cfg.period_s * max(4, cfg.single_up_points) / 3600
     if mode == "night" or cfg.down_on_tick:  # the tick also checks for a shrink (online resize)

@@ -69,6 +69,11 @@ class Config:
     # replicated group: every trigger held this many 5-min points, no fast lane.
     single_node_up: bool = True
     single_up_points: int = 6  # 30 min
+    # --- the shrink window (hours of NIGHT_TZ, start inclusive, end
+    # exclusive; may cross midnight). Owner 14.11: a test opens it now
+    # through TUNING with the same apply and puts it back the same way.
+    night_start_h: int = 1
+    night_end_h: int = 6
     period_s: int = 300
 
     def spec(self, name):
