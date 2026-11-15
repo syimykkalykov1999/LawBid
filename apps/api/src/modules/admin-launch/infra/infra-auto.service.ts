@@ -1,3 +1,4 @@
+import { SsmParamGateway } from '../../../common/ops/ssm-param.gateway';
 import { PartitionService } from '../../../partitioning/partition.service';
 import { ShardMoveService } from '../../../sharding/move/shard-move.service';
 import { serversFull } from '../../../sharding/shard-growth';
@@ -112,7 +113,27 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly incidents?: IncidentsService,
     @Optional() private readonly push?: PushQueueService,
     @Optional() private readonly moduleRef?: ModuleRef,
+    // Owner 15.11 (aws.autoscale_code): main's vs the shipped Lambda code.
+    @Optional() private readonly ssm?: SsmParamGateway,
   ) {}
+
+  /** Owner 15.11: the autoscale code hashes (SSM, written by deploy.yml and
+   * by Terraform). A failed read = unknown = no request. */
+  private async autoscaleCode(): Promise<{
+    main: string | null;
+    applied: string | null;
+  }> {
+    const read = async (env: string) => {
+      const name = this.config.get<string>(env);
+      if (!name || !this.ssm) return null;
+      return (await this.ssm.get(name).catch(() => null)) || null;
+    };
+    const [main, applied] = await Promise.all([
+      read('OPS_AUTOSCALE_CODE_MAIN_PARAM'),
+      read('OPS_AUTOSCALE_CODE_APPLIED_PARAM'),
+    ]);
+    return { main, applied };
+  }
 
   onModuleInit(): void {
     if (process.env.JEST_WORKER_ID || process.argv[1]?.includes('worker')) {
@@ -316,7 +337,10 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     );
     const pool = Number(this.config.get<string>('DB_POOL_SIZE') ?? '');
     const pooler = !!this.config.get<string>('DB_POOLER_HOST');
+    const code = await this.autoscaleCode();
     return {
+      autoscaleCodeMain: code.main,
+      autoscaleCodeApplied: code.applied,
       pressures: s.pressures,
       budgetRatio: s.budgetRatio,
       searchEngine: engine,

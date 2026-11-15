@@ -581,6 +581,20 @@ export class InfraChangeService {
           confirmed_by: SYSTEM_ACTOR_ID,
           confirmed_at: now,
         });
+        // Owner 15.11 («разреши "Авто" само применять обновления кода своих
+        // функций без меня»): each self-apply is on record. audit_log needs a
+        // real admin (admin_id FK to users; the system actor is none), so the
+        // record is this request row (plan_summary, confirmed_by = system,
+        // kept like every request) plus this structured log line.
+        if (r.item_id === 'aws.autoscale_code') {
+          this.log.log(
+            JSON.stringify({
+              event: 'autoscale_code_auto_apply',
+              request: r.id,
+              resources: plan.resources.map((x) => `${x.action} ${x.address}`),
+            }),
+          );
+        }
       } else {
         this.log.warn(
           `infra auto ${r.id} (${r.item_id} -> ${r.to_state}) waits for the owner: ${blockers.slice(0, 5).join('; ')}`,

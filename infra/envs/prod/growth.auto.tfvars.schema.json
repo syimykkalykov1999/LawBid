@@ -22,6 +22,9 @@
     "audit_logs_enabled": {
       "type": "boolean"
     },
+    "autoscale_code_flip": {
+      "type": "boolean"
+    },
     "cdn_waf_enabled": {
       "type": "boolean"
     },

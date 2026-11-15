@@ -2010,6 +2010,28 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: null,
   },
   {
+    // Owner 15.11, verbatim: «разреши "Авто" само применять обновления кода
+    // своих функций без меня».
+    id: 'aws.autoscale_code',
+    name: 'Обновление кода функций автомасштаба',
+    purpose:
+      'Когда на main новый код функций автомасштаба (Redis, база, точки доступа, Spot), «Авто» само выкатывает его в облако. Применяется без кода владельца, только если в плане нет ничего, кроме обновления этих четырёх функций на месте; иначе ждёт владельца.',
+    kind: 'aws',
+    control: tf(['autoscale_code_flip'], {
+      off: 'autoscale_code_flip = false',
+      on: 'autoscale_code_flip = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price('free', 'Бесплатно: меняется только код функций', U.lambda),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'auto',
+    neededNote:
+      'Положение меняется само при каждом обновлении кода; переключать руками не нужно.',
+    alarm: null,
+  },
+  {
     id: 'aws.spot_fallback',
     name: 'Запасной путь для Spot (обычные серверы, когда Spot нет)',
     purpose:
