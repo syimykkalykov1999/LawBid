@@ -1494,9 +1494,12 @@ export const OWNER_STORAGE_SETTINGS = {
    * split may start; empty = any time. */
   'db.shards_move_hours': '02:00-05:00',
   'ha.provision_online_users': 200,
+  /** 15.11 (live tests within 10 min): the busy window in minutes instead
+   * of the 3 full hours when > 0 (minute data up to one day). */
+  'ha.provision_minutes': 0,
   'ha.release_days': 7,
   /** Owner 14.11 (live tests): the quiet window in minutes instead of the
-   * days when > 0 (the online data is hourly: at least one hour). */
+   * days when > 0 (minute data up to one day since 15.11). */
   'ha.release_minutes': 0,
   /** Owner 14.11: minutes before a step the other way (the copies added,
    * then removed); 1440 = the 24 h of before. 0 = 24 h. */
@@ -2211,6 +2214,9 @@ export const OWNER_INFRA_SETTINGS = {
   /** Owner 14.11: minutes instead of the hours above when > 0 (live tests);
    * 0 = use infra.auto_off_hours. */
   'infra.auto_off_minutes': 0,
+  /** 15.11: how often the cloud automation and the HA copies look, in
+   * minutes (live tests: 1). */
+  'infra.auto_check_minutes': 10,
   'infra.auto_max_usd_month': 100,
 };
 

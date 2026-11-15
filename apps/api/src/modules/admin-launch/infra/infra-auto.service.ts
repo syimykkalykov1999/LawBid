@@ -1,5 +1,6 @@
 import { SsmParamGateway } from '../../../common/ops/ssm-param.gateway';
 import { PartitionService } from '../../../partitioning/partition.service';
+import { autoCheckMs, autoLockTtlS } from '../../../common/ops/auto-check';
 import { ShardMoveService } from '../../../sharding/move/shard-move.service';
 import { serversFull } from '../../../sharding/shard-growth';
 import { INFRA_MODE_KEYS, infraMode } from '../../../common/ops/infra-modes';
@@ -66,9 +67,7 @@ const SEARCH_SEEN_KEY = 'ops:infra-auto:search-seen';
 /** The last automatic search steps (newest first), for «Масштаб». */
 export const SEARCH_LOG_KEY = SEARCH_AUTO_LOG_KEY;
 
-const CHECK_MS = 10 * 60_000;
 const LOCK_KEY = 'ops:infra-auto:lock';
-const LOCK_TTL_S = 9 * 60;
 const SEEN_KEY = 'ops:infra-auto:seen';
 const NOTIFIED_KEY = 'ops:infra-auto:notified';
 /** A held-back want is told to the owner at most once a day. */
@@ -88,7 +87,7 @@ const PARTITION_MODE_TABLES = [
 /**
  * Automation audit 2026-11-08 (owner: «Авто» must really switch a cloud item
  * on at its threshold and off when it is no longer needed). One API task per
- * 10 minutes (Redis lock, like ha-auto.service): reads the growth signals,
+ * `infra.auto_check_minutes` (default 10; Redis lock, like ha-auto.service): reads the growth signals,
  * applies the hysteresis of infra-auto.logic.ts, and starts the same change
  * request the admin buttons start (plan in GitHub -> applied by itself,
  * infra-change.service planReady). After each automatic step the on-call
@@ -139,17 +138,34 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     if (process.env.JEST_WORKER_ID || process.argv[1]?.includes('worker')) {
       return;
     }
-    const tick = () =>
-      void this.check().catch((e: Error) =>
+    // 15.11: the pause between passes is infra.auto_check_minutes, read
+    // after every pass (a setTimeout chain instead of a fixed interval).
+    const loop = async () => {
+      await this.check().catch((e: Error) =>
         this.log.warn(`infra-auto pass failed: ${e.message}`),
       );
-    setTimeout(tick, 120_000 + Math.floor(Math.random() * 30_000)).unref();
-    this.timer = setInterval(tick, CHECK_MS);
+      this.schedule(loop, await this.checkMs());
+    };
+    this.schedule(loop, 120_000 + Math.floor(Math.random() * 30_000));
+  }
+
+  private stopped = false;
+  private schedule(fn: () => Promise<void>, ms: number): void {
+    if (this.stopped) return;
+    this.timer = setTimeout(() => void fn(), ms);
     this.timer.unref();
   }
 
+  /** 15.11: infra.auto_check_minutes (default 10). */
+  async checkMs(): Promise<number> {
+    return autoCheckMs(
+      await this.settings.number('infra.auto_check_minutes').catch(() => 0),
+    );
+  }
+
   onModuleDestroy(): void {
-    if (this.timer) clearInterval(this.timer);
+    this.stopped = true;
+    if (this.timer) clearTimeout(this.timer);
   }
 
   /** One pass; returns the request started (for tests and logs). */
@@ -160,7 +176,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     const none = { started: null, held: [] };
     if (!this.redis) return none;
     const got = await this.redis
-      .set(LOCK_KEY, '1', 'EX', LOCK_TTL_S, 'NX')
+      .set(LOCK_KEY, '1', 'EX', autoLockTtlS(await this.checkMs()), 'NX')
       .catch(() => null);
     if (!got) return none;
     await this.notifyFinished().catch((e: Error) =>

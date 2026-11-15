@@ -669,10 +669,16 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['ha.release_days'],
     min: 1,
   };
+  out['ha.provision_minutes'] = {
+    ...out['ha.provision_minutes'],
+    description:
+      'Busy minutes (every minute at or above ha.provision_online_users) before the copies are added, instead of 3 full hours when above 0 (live tests). 0 = 3 hours.',
+    min: 0,
+  };
   out['ha.release_minutes'] = {
     ...out['ha.release_minutes'],
     description:
-      'Quiet minutes before the copies are removed, instead of ha.release_days when above 0 (live tests; at least one hour of data). 0 = use the days.',
+      'Quiet minutes before the copies are removed, instead of ha.release_days when above 0 (live tests; minute data up to one day). 0 = use the days.',
     min: 0,
   };
   out['ha.flip_guard_minutes'] = {
@@ -1372,6 +1378,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Hours without the signal before an item the automation switched on is switched off again (infra.auto_off_minutes > 0 wins).',
     min: 1,
   };
+  out['infra.auto_check_minutes'] = {
+    ...out['infra.auto_check_minutes'],
+    description:
+      'How often the cloud automation and the HA copies look, in minutes (default 10; live tests: 1).',
+    min: 1,
+  };
   out['infra.auto_off_minutes'] = {
     ...out['infra.auto_off_minutes'],
     description:
@@ -2032,6 +2044,7 @@ export const NO_CEILING: readonly string[] = [
   'events.auto_ceiling_per_day',
   'search.reindex_throttle_ms',
   'ha.provision_online_users',
+  'ha.provision_minutes',
   'ha.release_days',
   'ha.release_minutes',
   'ha.flip_guard_minutes',
@@ -2040,6 +2053,7 @@ export const NO_CEILING: readonly string[] = [
   'infra.auto_on_minutes',
   'infra.auto_off_hours',
   'infra.auto_off_minutes',
+  'infra.auto_check_minutes',
   'infra.auto_max_usd_month',
   'economy.stripe_fee_percent',
   'economy.stripe_fee_fixed_cents',

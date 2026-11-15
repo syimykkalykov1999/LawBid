@@ -447,3 +447,45 @@ describe('InfraAutoService.searchPass: search.engine follows the engine («Ав�
     );
   });
 });
+
+/** 15.11: infra.auto_check_minutes — how often «Авто» looks (live tests). */
+describe('InfraAutoService: pass interval from the admin', () => {
+  const withCheck = (v: number) => {
+    const m = make({});
+    const s = (m.svc as unknown as { settings: { number: jest.Mock } })
+      .settings;
+    const inner = s.number.getMockImplementation() as (
+      k: string,
+    ) => Promise<number>;
+    s.number.mockImplementation(async (k: string) =>
+      k === 'infra.auto_check_minutes' ? v : inner(k),
+    );
+    return m;
+  };
+
+  it('1 minute: passes a minute apart, the lock lives 30 s', async () => {
+    const { svc, redis } = withCheck(1);
+    expect(await svc.checkMs()).toBe(60_000);
+    await svc.check(T0);
+    expect(redis.set).toHaveBeenCalledWith(
+      'ops:infra-auto:lock',
+      '1',
+      'EX',
+      30,
+      'NX',
+    );
+  });
+
+  it('default 10 minutes keeps the 9-minute lock of before', async () => {
+    const { svc, redis } = withCheck(10);
+    expect(await svc.checkMs()).toBe(600_000);
+    await svc.check(T0);
+    expect(redis.set).toHaveBeenCalledWith(
+      'ops:infra-auto:lock',
+      '1',
+      'EX',
+      540,
+      'NX',
+    );
+  });
+});
