@@ -62,8 +62,11 @@ class BiometricAuthService {
     try {
       return await _localAuth.authenticate(
         localizedReason: reason,
-        options:
-            const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
+        // local_auth 3: `AuthenticationOptions.stickyAuth` is now
+        // `persistAcrossBackgrounding`; failures arrive as
+        // `LocalAuthException` (still collapsed to `false` below).
+        biometricOnly: true,
+        persistAcrossBackgrounding: true,
       );
     } catch (_) {
       return false;

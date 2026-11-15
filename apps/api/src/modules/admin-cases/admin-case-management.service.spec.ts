@@ -295,3 +295,40 @@ describe('AdminCaseManagementService.list', () => {
     expect(page.nextCursor).toBeNull();
   });
 });
+
+describe('owner 14.11 (row 180, B9): «с дедлайном» uses the report day', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('at 7 pm in Nevada a case due tonight is still listed', async () => {
+    jest.useFakeTimers({ now: new Date('2026-11-14T03:00:00Z') }); // 13.11 19:00 PST
+    const prisma = {
+      case: { findMany: jest.fn().mockResolvedValue([]) },
+      casePhoto: { findMany: jest.fn().mockResolvedValue([]) },
+      report: {
+        findMany: jest.fn().mockResolvedValue([]),
+        groupBy: jest.fn().mockResolvedValue([]),
+      },
+      casePromotion: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new AdminCaseManagementService(
+      prisma as unknown as PrismaService,
+      new CaseStateMachine(),
+      {} as BidStateMachine,
+      {} as CaseJournalService,
+      {} as NotificationsService,
+      {} as ChatSystemMessages,
+      {} as AuditLogService,
+      undefined,
+      {
+        string: jest.fn(() => Promise.resolve('America/Los_Angeles')),
+      } as never,
+    );
+    await service.list({ withDeadline: true });
+    const where = (
+      prisma.case.findMany.mock.calls[0] as [{ where: { AND: unknown[] } }]
+    )[0].where;
+    expect(where.AND).toContainEqual({
+      deadline_at: { gte: new Date('2026-11-13T08:00:00.000Z') },
+    });
+  });
+});

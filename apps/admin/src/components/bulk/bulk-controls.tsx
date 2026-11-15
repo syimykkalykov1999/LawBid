@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Label } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
-import { type BulkResult, count, type Noun, pageState, resultText, runInBatches, SELECT_ALL_CAP, toggleId, togglePage, toggleRange } from '@/lib/bulk';
+import { type BulkResult, count, type Noun, pageState, resultText, runInBatches, selectAllCap, toggleId, togglePage, toggleRange } from '@/lib/bulk';
+import { useMe } from '@/lib/hooks';
 
 /**
  * Owner 2026-10-04 — bulk moderation building blocks shared by «Посты и
@@ -107,19 +108,23 @@ export function BulkBar({
   noun,
   onSelectAll,
   onClear,
-  cap = SELECT_ALL_CAP,
+  cap: capProp,
   children,
 }: {
   selectedCount: number;
   noun: Noun;
-  /** What the badge says when the cap cut the selection (default 2 000). */
+  /** What the badge says when the cap cut the selection (default: the
+   * signed-in admin's cap — none for the owner, row 179). */
   cap?: number;
-  /** Loads every id matching the filter; resolves to whether the cap cut it. */
-  onSelectAll: () => Promise<boolean>;
+  /** Loads every id matching the filter (at most [cap]); resolves to
+   * whether the cap cut it. */
+  onSelectAll: (cap: number) => Promise<boolean>;
   onClear: () => void;
   children?: React.ReactNode;
 }) {
   const toast = useToast();
+  const { data: me } = useMe();
+  const cap = capProp ?? selectAllCap(me);
   const [loading, setLoading] = useState(false);
   const [capped, setCapped] = useState(false);
   useEffect(() => {
@@ -138,7 +143,7 @@ export function BulkBar({
         onClick={async () => {
           setLoading(true);
           try {
-            setCapped(await onSelectAll());
+            setCapped(await onSelectAll(cap));
           } catch (e) {
             toast.error(e);
           } finally {

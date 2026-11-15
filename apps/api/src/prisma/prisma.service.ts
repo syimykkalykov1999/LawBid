@@ -17,6 +17,7 @@ import {
 } from './slow-query.extension';
 import { softDeleteExtension } from './soft-delete.extension';
 import { transientRetryExtension } from './transient-retry.extension';
+import { jobStopExtension } from './job-stop.extension';
 import {
   parentShardLookup,
   shardExtension,
@@ -126,7 +127,9 @@ export function extend(client: PrismaClient, primary?: () => unknown) {
         addDbTime,
       ),
     )
-    .$extends(transientRetryExtension());
+    .$extends(transientRetryExtension())
+    // Batch D (14.11): a stopped cron job (lock lost, time limit) stops here.
+    .$extends(jobStopExtension());
   // Shard-ready step 6: a client of a NON-primary database loads the global
   // rows an include asks for (user, practice area ...) from the primary one.
   return primary ? base.$extends(crossFamilyStitchExtension(primary)) : base;

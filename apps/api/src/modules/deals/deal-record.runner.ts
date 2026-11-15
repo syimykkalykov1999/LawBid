@@ -34,6 +34,7 @@ import {
 } from './deal-record.pdf';
 import type { DealRecordSnapshot } from './deal-record.snapshot';
 import { DealRecordTexts, type SignedConsent } from './deal-record-texts';
+import { DealRecordPdfCache } from './deal-record-pdf-cache';
 import { dealRecordVerifyUrl, publicApiBase } from './deal-record.verify';
 
 export const DEAL_RECORD_QUEUE = 'deal-record';
@@ -86,6 +87,7 @@ export class DealRecordRunner
     private readonly texts: DealRecordTexts,
     private readonly logger: PinoLogger,
     private readonly chat: ChatSystemMessages,
+    private readonly pdfCache: DealRecordPdfCache,
   ) {
     this.logger.setContext(DealRecordRunner.name);
   }
@@ -241,6 +243,7 @@ export class DealRecordRunner
       signatures: [],
       generatedAt: row.created_at,
       partyLangs,
+      wordCache: await this.pdfCache.current(),
       ...(await this.textsFor(row.id, [
         partyLangs.client,
         partyLangs.attorney,
@@ -317,6 +320,7 @@ export class DealRecordRunner
       snapshotSha256: row.snapshot_sha256,
       signatures,
       generatedAt: sealedAt,
+      wordCache: await this.pdfCache.current(),
       ...(await this.textsFor(
         row.id,
         signatures.map((z) => z.lang ?? null),

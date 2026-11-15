@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chunk, collectIds, count, dayBounds, pageState, resultText, runInBatches, toggleId, togglePage } from './bulk';
+import { chunk, collectIds, selectAllCap, count, dayBounds, pageState, resultText, runInBatches, toggleId, togglePage } from './bulk';
 import { searchStates, statesText } from './us-states';
 
 const POSTS = ['публикацию', 'публикации', 'публикаций'] as const;
@@ -44,6 +44,26 @@ describe('batching', () => {
     const fetchPage = async (c?: string) => pages[c ?? 'start'];
     expect(await collectIds(fetchPage, (r) => r.ok)).toEqual({ ids: ['1', '3', '4'], capped: false });
     expect(await collectIds(fetchPage, undefined, 2)).toEqual({ ids: ['1', '2'], capped: true });
+  });
+
+  // Owner 14.11 (row 179, B6): no fixed 2 000 — the owner has no cap, staff
+  // the owner's setting (me.bulkSelectCap, null = none).
+  it('no fixed cap: 2 500 matches are all selected by default', async () => {
+    const all = Array.from({ length: 2500 }, (_, i) => ({ id: String(i) }));
+    const fetchPage = async (c?: string) => {
+      const start = Number(c ?? 0);
+      const data = all.slice(start, start + 500);
+      return { data, nextCursor: start + 500 < all.length ? String(start + 500) : null };
+    };
+    const r = await collectIds(fetchPage);
+    expect(r).toMatchObject({ capped: false });
+    expect(r.ids).toHaveLength(2500);
+  });
+
+  it('the cap of the signed-in admin', () => {
+    expect(selectAllCap({ role: 'super_admin', bulkSelectCap: null })).toBe(Number.POSITIVE_INFINITY);
+    expect(selectAllCap({ role: 'moderator', bulkSelectCap: 3500 })).toBe(3500);
+    expect(selectAllCap({ role: 'moderator', bulkSelectCap: null })).toBe(Number.POSITIVE_INFINITY);
   });
 });
 

@@ -88,6 +88,9 @@ export const REFERENCE_KEYS = [
   'trust-settings',
 ] as const;
 
+/** Reference keys re-read on every window focus (row 179). */
+export const FOCUS_REFETCH_KEYS = ['config', 'flags'] as const;
+
 /** Aggregates the server recounts on its own schedule. */
 export const AGGREGATE_KEYS = ['dashboard', 'trust-stats', 'fraud-stats', 'economy'] as const;
 
@@ -151,6 +154,10 @@ export function queryClassOf(key: QueryKey): QueryClass {
 export function applyQueryClassDefaults(client: QueryClient): QueryClient {
   for (const k of REFERENCE_KEYS)
     client.setQueryDefaults([k], { staleTime: REFERENCE_STALE_MS, gcTime: PERSISTED_GC_MS });
+  // Owner 14.11 (row 179, detective R3A-6): settings and switches another
+  // admin (or the owner on his phone) may have changed re-read when the tab
+  // gets focus, even while fresh — one light request, 304 when unchanged.
+  for (const k of FOCUS_REFETCH_KEYS) client.setQueryDefaults([k], { staleTime: REFERENCE_STALE_MS, gcTime: PERSISTED_GC_MS, refetchOnWindowFocus: 'always' });
   for (const k of AGGREGATE_KEYS)
     client.setQueryDefaults([k], { staleTime: AGGREGATE_STALE_MS, gcTime: PERSISTED_GC_MS });
   for (const k of LIST_KEYS)

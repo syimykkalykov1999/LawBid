@@ -21,6 +21,7 @@ import {
 } from '../../common/dto/api-docs.decorators';
 import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { exportWhere } from './export-filter';
 import {
   AdminEndpoint,
   CurrentAdmin,
@@ -30,6 +31,7 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import {
   AdminBulkContentDto,
+  ExportQueryDto,
   AdminBulkResultDto,
   AdminBidRowDto,
   AdminClassifyPostsDto,
@@ -380,10 +382,11 @@ export class AdminContentController {
       'Required for entity=users: why contacts are exported (10–500 chars, encodeURIComponent for non-ASCII).',
   })
   @ApiProduces('text/csv')
-  @ApiErrors({ 400: [E.JUSTIFICATION_REQUIRED] })
+  @ApiErrors({ 400: [E.JUSTIFICATION_REQUIRED, E.VALIDATION_ERROR] })
   async exportAdminCsv(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ExportParamDto,
+    @Query() filter: ExportQueryDto,
     @Headers('x-justification') justificationHeader: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
@@ -399,6 +402,9 @@ export class AdminContentController {
         message: 'Payments are available to the super admin only.',
       });
     }
+    // Owner 14.11 (row 180): a filter the list cannot take is a 400 now,
+    // before any header goes out.
+    exportWhere(p.entity, filter);
     // Audit 2026-10-02: the users CSV holds contacts — same rule as
     // GET /admin/users/:id/contacts.
     // Owner 2026-10-05: optional for the owner.
@@ -464,6 +470,7 @@ export class AdminContentController {
     try {
       const out = await this.content.exportCsvStream(p.entity, write, {
         unlimited: isOwner,
+        filter,
       });
       await this.extras.recordExport(
         admin,

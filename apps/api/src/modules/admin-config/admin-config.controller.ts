@@ -153,7 +153,12 @@ export class AdminConfigController {
     }
     // Owner 2026-10-28: the allowlist must not lock its own editor out.
     await this.security.assertSafeToChange(params.key, dto.value, admin.ip);
-    return this.config.updateConfig(admin, params.key, dto.value);
+    return this.config.updateConfig(
+      admin,
+      params.key,
+      dto.value,
+      dto.expectedUpdatedAt,
+    );
   }
 
   @Get('i18n/languages')
