@@ -265,3 +265,26 @@ class NightNowTests(unittest.TestCase):
         noon = NOW + 10 * 3600
         for v in ("true", 1, "yes", None):
             self.assertFalse(h.night_window({"night_now": v}, "America/Chicago", noon))
+
+
+ENV = {"LADDER": json.dumps(LADDER), "MIN_CLASS": "cache.t4g.micro", "MAX_CLASS": "cache.t4g.medium"}
+
+
+class NightHoursTuningTests(unittest.TestCase):
+    """14.11 (owner): the shrink window hours are part of TUNING, so a test
+    can open the window now with the same apply and put it back later."""
+
+    def test_default_window_is_01_to_06(self):
+        cfg = h.load_config({**ENV, "TUNING": "{}"})
+        self.assertEqual((cfg.night_start_h, cfg.night_end_h), (1, 6))
+
+    def test_tuning_moves_the_window(self):
+        cfg = h.load_config({**ENV, "TUNING": '{"night_start_h": 18, "night_end_h": 22}'})
+        evening = NOW + 17 * 3600  # NOW = 02:00 Chicago -> 19:00
+        self.assertTrue(h.night_window({}, "America/Chicago", evening, cfg))
+        self.assertFalse(h.night_window({}, "America/Chicago", NOW, cfg))
+
+    def test_a_window_across_midnight(self):
+        cfg = h.load_config({**ENV, "TUNING": '{"night_start_h": 23, "night_end_h": 3}'})
+        self.assertTrue(h.night_window({}, "America/Chicago", NOW, cfg))  # 02:00
+        self.assertFalse(h.night_window({}, "America/Chicago", NOW + 10 * 3600, cfg))
