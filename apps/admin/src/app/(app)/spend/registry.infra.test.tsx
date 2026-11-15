@@ -85,6 +85,7 @@ const planned: InfraRequest = {
   expiresAt: new Date(Date.now() + 25 * 60_000).toISOString(),
   finishedAt: null,
   settled: false,
+  superseded: false,
 };
 
 let requests: InfraRequest[] = [];

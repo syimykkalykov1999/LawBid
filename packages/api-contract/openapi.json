@@ -167910,6 +167910,9 @@
           },
           "settled": {
             "type": "boolean"
+          },
+          "superseded": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -167932,7 +167935,8 @@
           "plannedAt",
           "expiresAt",
           "finishedAt",
-          "settled"
+          "settled",
+          "superseded"
         ]
       },
       "InfraSuggestionDto": {
