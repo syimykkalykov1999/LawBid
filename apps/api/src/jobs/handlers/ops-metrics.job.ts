@@ -19,6 +19,7 @@ import { PUSH_QUEUE } from '../../modules/notifications/push/push.constants';
 import { DATA_EXPORT_QUEUE } from '../../modules/privacy/privacy.constants';
 import {
   CRON_FAST_QUEUE,
+  CRON_HEAVY_FREQUENT_QUEUE,
   CRON_HEAVY_QUEUE,
   CRON_QUEUE,
 } from '../jobs.constants';
@@ -46,6 +47,7 @@ export {
 export const OBSERVED_QUEUES: readonly string[] = [
   CRON_QUEUE,
   CRON_FAST_QUEUE,
+  CRON_HEAVY_FREQUENT_QUEUE,
   CRON_HEAVY_QUEUE,
   // S10-7: queues whose failures used to reach only the logs.
   ACCOUNT_DELETION_QUEUE,
@@ -76,6 +78,9 @@ export const OBSERVED_QUEUES: readonly string[] = [
  */
 export const SLOW_LANE_QUEUES: readonly string[] = [
   CRON_HEAVY_QUEUE,
+  // Batch D (14.11): split off cron-heavy; its jobs keep the same lenient
+  // alarm they had there (a 10-minute recompute may hold legal.exports).
+  CRON_HEAVY_FREQUENT_QUEUE,
   ACCOUNT_DELETION_QUEUE,
   CHANNEL_FANOUT_QUEUE,
   POST_FANOUT_QUEUE,
@@ -131,11 +136,25 @@ export interface BusinessCounters {
  * The age counts from the moment the job was due: `timestamp + delay`.
  */
 export function waitingAgeSeconds(
-  job: { timestamp: number; delay?: number; opts?: { delay?: number } },
+  job: {
+    id?: string;
+    timestamp: number;
+    delay?: number;
+    opts?: { delay?: number };
+  },
   now: Date,
 ): number {
-  const delay = Number(job.delay ?? job.opts?.delay ?? 0);
-  const due = job.timestamp + (Number.isFinite(delay) && delay > 0 ? delay : 0);
+  // 14.11: once due, BullMQ 6 moves the job to `wait` and sets its `delay`
+  // to 0 (commands/includes/promoteDelayedJobs.lua), so `delay ?? opts.delay`
+  // read 0 and the age was the whole schedule period again. The larger of
+  // the two delays is the one the job was added with; a scheduler job also
+  // names its due moment in its id (`repeat:<scheduler>:<nextMillis>`).
+  const delays = [job.delay, job.opts?.delay]
+    .map(Number)
+    .filter((d) => Number.isFinite(d) && d > 0);
+  let due = job.timestamp + (delays.length ? Math.max(...delays) : 0);
+  const m = /^repeat:.+:(\d{13})$/.exec(job.id ?? '');
+  if (m) due = Math.max(due, Number(m[1]));
   return Math.max(0, Math.floor((now.getTime() - due) / 1000));
 }
 

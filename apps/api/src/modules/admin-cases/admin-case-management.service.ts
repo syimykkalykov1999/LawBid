@@ -1,3 +1,5 @@
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { reportDayStart, reportTimeZone } from '../../common/utils/report-day';
 import { caseIdsByTitle } from '../admin-content/admin-text-search';
 import type { CountryScope } from '../countries/country-scope';
 import { urgencyFields } from '../cases/domain/case-urgency';
@@ -118,6 +120,8 @@ export class AdminCaseManagementService {
     private readonly audit: AuditLogService,
     // S3-5: private details are stored sealed.
     @Optional() private readonly cipher?: MessageBodyCipher,
+    // Owner 14.11 (row 180): «today» is the owner's report day.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   async list(
@@ -158,9 +162,10 @@ export class AdminCaseManagementService {
     }
     // Owner 2026-10-05: dated cases (newest-first paging like the rest).
     if (q.withDeadline) {
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-      and.push({ deadline_at: { gte: today } });
+      // Owner 14.11 (row 180): local midnight of the report zone, not UTC
+      // (from 4–5 pm in Nevada UTC is already «tomorrow»).
+      const tz = await reportTimeZone(this.settings);
+      and.push({ deadline_at: { gte: reportDayStart(new Date(), tz) } });
     }
     if (c) {
       and.push({

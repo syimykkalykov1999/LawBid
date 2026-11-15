@@ -148,6 +148,17 @@ variable "cross_origin_isolation" {
   description = "Send COOP/COEP headers on the app pages (not on /pay.html, Stripe frames break under COEP) so the engine can render on a worker thread (faster, Chrome and Firefox). Off by default: test on a staging stack first (docs/perf/WEB_PERF_2026-10-25.md), then turn on."
 }
 
+# R2 row 171 (14.11): Origin Shield, one more cache layer in front of the
+# bucket. Every CloudFront edge asks the shield, not S3, so a new release's
+# engine and pages are read from S3 about once, the cache hit ratio goes
+# up and a cold edge answers sooner. Empty = the bucket's own region (the
+# AWS advice: the shield region closest to the origin); "off" = no shield.
+variable "origin_shield_region" {
+  type        = string
+  default     = ""
+  description = "Origin Shield region for the web bucket origin; empty = the bucket's region, \"off\" = no Origin Shield."
+}
+
 data "aws_region" "current" {}
 
 resource "aws_acm_certificate" "web" {
@@ -353,7 +364,8 @@ resource "aws_cloudfront_key_value_store" "web" {
 # company site (LawBidSite static export: /about, /pricing, the legal
 # pages...). Owner 2026-10-16: the app is on the domain root, the site's
 # landing moved to /about. A public-page address without a file extension
-# is read as <address>/index.html. Audit #14 (2026-10-22): when that file
+# is read as <address>/index.html; without the trailing slash it answers
+# 301 to <address>/ (R2 row 171: one address per page, as the canonical). Audit #14 (2026-10-22): when that file
 # is missing S3 answers 403 and the visitor gets a REAL 404 (the app's
 # page as the body, custom_error_response below) — a deleted /attorneys/x
 # is no longer a "soft 404" for search engines. Every other address
@@ -362,9 +374,17 @@ resource "aws_cloudfront_key_value_store" "web" {
 # www.<host> answers with a permanent redirect to <host> (one address for
 # search engines).
 resource "aws_cloudfront_function" "seo_index" {
+  # 15.11 (KNOWN_ERRORS 159): the infra-apply role has no cloudfront function
+  # rights yet, so UpdateFunction was 403 and stopped the owner's 2FA apply
+  # (run 43670237435) before the autoscale Lambdas. Until the bootstrap adds
+  # them (PR «bootstrap: cloudfront function rights»), the function's code is
+  # left as it is on AWS; that PR's follow-up removes this block again.
+  lifecycle {
+    ignore_changes = [code, comment]
+  }
   name                         = "${var.name}-seo-index"
   runtime                      = "cloudfront-js-2.0"
-  comment                      = "www to the bare host; public pages end in index.html (real 404); app screens and files from the live release"
+  comment                      = "www to bare host; public pages 301 to slash, end in index.html (real 404); app screens and files from the live release"
   publish                      = true
   key_value_store_associations = [aws_cloudfront_key_value_store.web.arn]
   code                         = <<-EOT
@@ -384,24 +404,26 @@ resource "aws_cloudfront_function" "seo_index" {
     async function get(key) {
       try { return await kvs.get(key); } catch (e) { return ''; }
     }
+    function query(request) {
+      var qs = [];
+      for (var k in request.querystring) {
+        var q = request.querystring[k];
+        qs.push(q.value === '' ? k : k + '=' + q.value);
+      }
+      return qs.length ? '?' + qs.join('&') : '';
+    }
+    function moved(location) {
+      return {
+        statusCode: 301,
+        statusDescription: 'Moved Permanently',
+        headers: { location: { value: location } }
+      };
+    }
     async function handler(event) {
       var request = event.request;
       var host = request.headers.host ? request.headers.host.value : '';
       if (host.indexOf('www.') === 0) {
-        var qs = [];
-        for (var k in request.querystring) {
-          var q = request.querystring[k];
-          qs.push(q.value === '' ? k : k + '=' + q.value);
-        }
-        return {
-          statusCode: 301,
-          statusDescription: 'Moved Permanently',
-          headers: {
-            location: {
-              value: 'https://' + host.substring(4) + request.uri + (qs.length ? '?' + qs.join('&') : '')
-            }
-          }
-        };
+        return moved('https://' + host.substring(4) + request.uri + query(request));
       }
       var uri = request.uri;
       // /.well-known/ holds extension-less files (app links): served as is.
@@ -409,7 +431,12 @@ resource "aws_cloudfront_function" "seo_index" {
       var hasExt = uri.indexOf('.', uri.lastIndexOf('/')) !== -1;
       if (uri !== '/' && PUBLIC.test(uri)) {
         if (!hasExt) {
-          request.uri = uri.charAt(uri.length - 1) === '/' ? uri + 'index.html' : uri + '/index.html';
+          // R2 row 171 (14.11): one address per page. The canonical of every
+          // public page ends in "/" (TRAILING_SLASH=1 export, SEO pages), so
+          // /clients answers 301 to /clients/ (the AWS CloudFront Functions
+          // redirect sample) instead of a second 200 copy of the page.
+          if (uri.charAt(uri.length - 1) !== '/') return moved(uri + '/' + query(request));
+          request.uri = uri + 'index.html';
         }
         return request;
       }
@@ -518,6 +545,14 @@ resource "aws_cloudfront_distribution" "web" {
     domain_name              = aws_s3_bucket.web.bucket_regional_domain_name
     origin_id                = "web"
     origin_access_control_id = aws_cloudfront_origin_access_control.web.id
+
+    dynamic "origin_shield" {
+      for_each = var.origin_shield_region == "off" ? [] : [var.origin_shield_region == "" ? aws_s3_bucket.web.region : var.origin_shield_region]
+      content {
+        enabled              = true
+        origin_shield_region = origin_shield.value
+      }
+    }
   }
 
   # B-c13: the engine's fallback fonts from our host (see `font_fallback_proxy`).

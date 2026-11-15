@@ -71,6 +71,11 @@ class Config:
     # free; RDS sets it to {DBInstanceClassMemory/32768} pages of 8 KiB = 25 %
     # of the class memory, so it shrinks with the class (lawbid-prod-postgres16).
     shared_buffers_ratio: float = 0.25
+    # --- single-AZ database: owner 14.11, grow anyway under SUSTAINED
+    # overload (minutes of pause accepted), with a higher bar than Multi-AZ:
+    # every trigger held this many 5-min points, no fast lanes.
+    single_node_up: bool = True
+    single_up_points: int = 6  # 30 min
     period_s: int = 300
 
     def spec(self, name):
@@ -225,13 +230,50 @@ def decide(cfg, mode, inst, guards, state, metrics, now):
     if cur is None:
         return Decision("none", "unknown_class")
     bad = _guard_reason(cfg, inst, guards, mode)
+    # 14.11 (prod log): every tick said «not_multi_az» and the shrink had
+    # only the one 03:30 night run; a deploy or a busy minute then cost a
+    # whole day. Inside the night window every tick is also a shrink try
+    # with the night's rules (6 quiet hours, all other guards).
+    night_tick = mode == "tick" and guards.night_ok
+    if bad == "not_multi_az" and mode == "tick":
+        bad = _guard_reason(cfg, inst, guards, "night")
+        if bad:
+            return Decision("none", bad)
+        if cfg.single_node_up:
+            up = _decide_up(_single_node_cfg(cfg), cur, state, metrics, now)
+            if up.action == "up":
+                return replace(up, reason="load_single_node")
+            if up.reason != "calm":
+                return up
+        if night_tick:
+            return _decide_down(cfg, cur, guards, state, metrics, now)
+        return Decision("none", "not_multi_az")
     if bad:
         return Decision("none", bad)
     if mode == "tick":
-        return _decide_up(cfg, cur, state, metrics, now)
+        up = _decide_up(cfg, cur, state, metrics, now)
+        if up.reason == "calm" and night_tick:
+            down = _decide_down(cfg, cur, guards, state, metrics, now)
+            if down.action == "down":
+                return down
+        return up
     if mode == "night":
         return _decide_down(cfg, cur, guards, state, metrics, now)
     return Decision("none", "bad_mode")
+
+
+def _single_node_cfg(cfg):
+    """The higher bar for growing a single-AZ database (owner 14.11)."""
+    n = cfg.single_up_points
+    return replace(
+        cfg,
+        up_cpu_points=max(cfg.up_cpu_points, n),
+        up_cpu_fast_pct=1000,  # no fast lane
+        up_mem_points=max(cfg.up_mem_points, n),
+        up_conn_points=max(cfg.up_conn_points, n),
+        up_conn_fast_pct=1000,
+        up_credit_points=max(cfg.up_credit_points, n),
+    )
 
 
 def _decide_up(cfg, cur, state, m, now):

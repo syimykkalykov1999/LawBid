@@ -942,6 +942,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'An attorney who loses verification (rejected / suspended): the subscription ends now and the unused part of the period, offer packs and Boost is refunded. Off: nothing is canceled automatically.',
   };
+  out['billing.verification_loss_overlap_minutes'] = {
+    ...out['billing.verification_loss_overlap_minutes'],
+    description:
+      'Verification-loss sweep: each run re-reads the attorneys changed since the previous run minus this many minutes (late commits are not missed).',
+    min: 1,
+    max: 24 * 60,
+  };
+  out['billing.verification_loss_full_scan_hours'] = {
+    ...out['billing.verification_loss_full_scan_hours'],
+    description:
+      'Verification-loss sweep: the whole rejected / suspended list is checked once per this many hours as a safety net; between, only attorneys changed since the last run. 0 = the whole list every run.',
+    min: 0,
+    max: 24 * 30,
+  };
   out['billing.duplicate_subscription_autofix'] = {
     ...out['billing.duplicate_subscription_autofix'],
     description:
@@ -1177,6 +1191,52 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 30,
   };
+  // Batch D (14.11): cron run time limits, skip log, last-good-run alarm.
+  triState(
+    'ops.cron_timeout_mode',
+    'Time limit of one background job run: auto (default) = 10x the longest of its last good runs, at least an hour, no limit before its first good run (a job that works is never cut); on = the minutes in «ops.cron_timeout_minutes», auto for the jobs not listed; off = no limit. A run past its limit is stopped and frees its lane for the next job.',
+  );
+  out['ops.cron_timeout_auto_factor'] = {
+    ...out['ops.cron_timeout_auto_factor'],
+    description:
+      'Auto time limit = this many times the longest recent good run of the job.',
+    min: 2,
+    max: 1000,
+  };
+  out['ops.cron_timeout_auto_min_minutes'] = {
+    ...out['ops.cron_timeout_auto_min_minutes'],
+    description:
+      'The auto time limit of a background job is never below this many minutes.',
+    min: 1,
+    max: 7 * 24 * 60,
+  };
+  out['ops.cron_timeout_history_runs'] = {
+    ...out['ops.cron_timeout_history_runs'],
+    description:
+      'How many recent good runs of each job the auto time limit looks at.',
+    min: 1,
+    max: 1000,
+  };
+  out['ops.cron_timeout_minutes'] = {
+    ...out['ops.cron_timeout_minutes'],
+    description:
+      'Mode on: fixed time limits, `job=minutes` separated by commas (e.g. `feed.reco=30, legal.exports=10`). Empty = auto for every job.',
+    pattern: /^\s*([a-z0-9.-]+\s*=\s*\d+\s*(,\s*[a-z0-9.-]+\s*=\s*\d+\s*)*)?$/,
+  };
+  out['ops.cron_skip_log_every'] = {
+    ...out['ops.cron_skip_log_every'],
+    description:
+      'A frequent job skipped tick after tick (previous run still going, paused, idle) is logged at the first skip, then every this-many skips, and when it runs again.',
+    min: 1,
+    max: 100_000,
+  };
+  out['ops.cron_stale_periods'] = {
+    ...out['ops.cron_stale_periods'],
+    description:
+      'System health «Queues» turns red when a background job had no good run for this many of its periods (0 = off).',
+    min: 0,
+    max: 1000,
+  };
   out['ops.reencrypt_rows_per_min'] = {
     ...out['ops.reencrypt_rows_per_min'],
     description:
@@ -1354,10 +1414,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Bids: after the client changes the description, budget or urgency of an open case, active bids wait for the attorney (keep, change or withdraw) and cannot be accepted until then. Switch on only once attorneys have an app version with the «Changes» section. Off = as before.',
     'bids.confirmation_reminder_days':
       'Bids: days until the one reminder to an attorney whose bid waits for confirmation. There is no automatic withdrawal.',
+    'deal_record.pdf_word_cache_words':
+      'Deal record PDF: how many shaped words (per font) the server keeps between records, so the next PDF is built faster (~3.6 KB of memory each). The PDF itself never changes. 0 = keep none: each PDF shapes its words again (slower).',
   };
   for (const [k, description] of Object.entries(dealRecordText)) {
     out[k] = { ...out[k], description };
   }
+  out['deal_record.pdf_word_cache_words'] = {
+    ...out['deal_record.pdf_word_cache_words'],
+    min: 0,
+    max: 200_000,
+  };
   for (const [k, description] of Object.entries(seoText)) {
     out[k] = { ...out[k], description };
   }
@@ -1402,6 +1469,40 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Relay of events that cross database families (idle while there is one database): auto = run only when an event is waiting, on = every minute, off = never. Changed on the «Расходы» page.',
     pattern: /^(off|on|auto)$/,
+  };
+  out['auth.otp_global_failure_cap'] = {
+    ...out['auth.otp_global_failure_cap'],
+    description:
+      'Wrong sign-in code guesses at one phone or e-mail from all sources in 24 h; past it every wrong guess burns the code (20; 0 = no cap).',
+    min: 0,
+    max: 100000,
+  };
+  out['auth.social_token_max_age_sec'] = {
+    ...out['auth.social_token_max_age_sec'],
+    description:
+      'A Google sign-in token issued longer ago than this many seconds is refused (600; 0 = no check).',
+    min: 0,
+    max: 86400,
+  };
+  out['verification.persona_webhook_tolerance_sec'] = {
+    ...out['verification.persona_webhook_tolerance_sec'],
+    description:
+      'A Persona webhook signed more than this many seconds away from now is refused (300; 0 = no check).',
+    min: 0,
+    max: 86400,
+  };
+  out['users.onboarding_data_max_kb'] = {
+    ...out['users.onboarding_data_max_kb'],
+    description:
+      'Stored onboarding answers of one account, KB (64; 0 = no cap).',
+    min: 0,
+    max: 10240,
+  };
+  out['chat.saved_max'] = {
+    ...out['chat.saved_max'],
+    description: 'Saved messages one person keeps (5000; 0 = no cap).',
+    min: 0,
+    max: 1000000,
   };
   out['usage.bunny_bandwidth_crit_gb'] = {
     ...out['usage.bunny_bandwidth_crit_gb'],
@@ -1616,6 +1717,25 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 30,
     max: 300,
   };
+  out['admin.step_up_ttl_seconds'] = {
+    ...out['admin.step_up_ttl_seconds'],
+    description:
+      'How long one 2FA code covers money and other protected actions in the same session, seconds (owner only, needs a fresh 2FA code).',
+    min: 30,
+    max: 86_400,
+  };
+  out['admin.bulk_select_cap'] = {
+    ...out['admin.bulk_select_cap'],
+    description:
+      'Most rows a staff «select all by filter» collects (0 = no cap). The owner never has a cap.',
+    min: 0,
+  };
+  out['admin.report_timezone'] = {
+    ...out['admin.report_timezone'],
+    description:
+      'Time zone the admin days are cut in (today, with-deadline, staff KPI days): an IANA name such as America/Los_Angeles or Europe/Moscow.',
+    pattern: /^(UTC|[A-Z][A-Za-z_]+(\/[A-Za-z0-9_+-]+){1,2})$/,
+  };
   out['admin.audit_export_enabled'] = {
     ...out['admin.audit_export_enabled'],
     description:
@@ -1780,6 +1900,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['media.chat_photo_quality'],
     description: 'JPEG quality (50–100) of a photo sent in a chat.',
     min: 50,
+    max: 100,
+  };
+  out['media.picked_image_read_x'] = {
+    ...out['media.picked_image_read_x'],
+    description:
+      'A photo picked from Files above the file limit is read and shrunk only up to this many times the limit (0 = no cap).',
+    min: 0,
     max: 100,
   };
   // Owner row 42: the bitrate ladder of the phone's video re-encode; the

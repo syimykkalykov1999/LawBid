@@ -214,6 +214,14 @@ def metric_series(db_id, cfg, hours, with_credit, now):
     return d.Metrics(**{k: tuple(v for _, v in sorted(p)) for k, p in out.items()})
 
 
+def night_window(event, tz_name, now):
+    """14.11 (owner): a manual test run within minutes, not at the next night:
+    {"mode": "night", "night_now": true} counts as inside the night window.
+    Only a JSON true; the schedules never send it. Every other guard and the
+    quiet-window numbers still apply."""
+    return event.get("night_now") is True or night_ok(tz_name, now)
+
+
 def night_ok(tz_name, now, first=1, last=6):
     try:
         from zoneinfo import ZoneInfo
@@ -360,8 +368,11 @@ def handler(event, context=None, now=None):
     deploying, oneoff, unknown = ecs_guards(
         env.get("CLUSTER", ""), [x for x in env.get("SERVICES", "").split(",") if x]
     )
-    guards = d.Guards(deploying, oneoff, unknown, night_ok(env.get("NIGHT_TZ", "America/Chicago"), now))
-    hours = cfg.down_window_h if mode == "night" else cfg.period_s * 4 / 3600
+    guards = d.Guards(deploying, oneoff, unknown, night_window(event, env.get("NIGHT_TZ", "America/Chicago"), now))
+    # 14.11: a tick inside the night window is a shrink try too (decision.py),
+    # so it reads the whole quiet window.
+    # A single-AZ database grows only after single_up_points (14.11).
+    hours = cfg.down_window_h if mode == "night" or guards.night_ok else cfg.period_s * max(4, cfg.single_up_points) / 3600
     m = metric_series(db_id, cfg, hours, cur is not None and cur.baseline_pct is not None, now)
     dec = d.decide(cfg, mode, inst, guards, state, m, now)
     log(event="decision", mode=mode, switch=switch, cls=inst.cls, action=dec.action,

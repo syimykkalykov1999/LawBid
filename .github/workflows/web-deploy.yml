@@ -16,6 +16,11 @@
 # page-level files (index.html, flutter_bootstrap.js, manifest, ...) are
 # still revalidated. Brotli twins (*.br) of the app and the engine are
 # uploaded next to the gzip ones (scripts/deploy/web-gzip-big.sh).
+# Row 170 (14.11): the engine (canvaskit/, same bytes in every build of one
+# Flutter version) goes to v/<engineRevision>/ instead, uploaded once per
+# engine to releases/<engineRevision>/ (the CloudFront function maps any
+# /v/<40 hex>/ there), so a deploy no longer makes returning visitors
+# download 1.2-2.3 MB of unchanged engine again.
 #
 # Runs only when the repository variable WEB_DEPLOY_ENABLED is 'true', so
 # a repo without the AWS secrets stays green.
@@ -64,6 +69,9 @@ on:
       - "scripts/deploy/web-release.sh"
       - "scripts/deploy/web-sourcemaps.sh"
       - "scripts/deploy/web-boot-check.mjs"
+      - "scripts/deploy/web-immutable.py"
+      - "scripts/deploy/web-gzip-big.sh"
+      - "scripts/deploy/web-prune-releases.sh"
       - "scripts/deploy/web-size-budget.sh"
       - "scripts/deploy/web-size-budget.json"
   workflow_dispatch:
@@ -281,10 +289,28 @@ jobs:
           WEB_HOST: ${{ secrets.WEB_DEEP_LINK_HOST }}
         run: echo "base=$(bash scripts/deploy/web-font-base.sh "$WEB_HOST" "$FLUTTER_ROOT")" >> "$GITHUB_OUTPUT"
 
-      # Owner 2026-10-23: app, engine and assets under v/<sha>/ (see above).
-      - name: Move the heavy files under v/<sha>/
+      - name: Install brotli (for the .br twins)
+        run: command -v brotli >/dev/null || sudo apt-get install -y -qq brotli
+
+      # OPEN_ITEMS_SWEEP 2026-11-09 A-c4: the bundle must not grow unnoticed.
+      # Brotli sizes of our code and of the whole first load, printed every
+      # time, against scripts/deploy/web-size-budget.json (live baseline + 5 %).
+      # Measured on the plain build, before the move below (row 170: the
+      # engine no longer sits under v/<sha>/).
+      - name: Web bundle size budget (brotli, prints the numbers)
+        run: scripts/deploy/web-size-budget.sh apps/mobile/build/web
+
+      # Owner 2026-10-23: app and assets under v/<sha>/ (see above); row 170:
+      # the engine under v/<engineRevision>/ (`engine` output, v/<...>).
+      - name: Move the heavy files under v/<sha>/ (engine under v/<engineRevision>/)
+        id: imm
         working-directory: apps/mobile
-        run: python3 ../../scripts/deploy/web-immutable.py build/web "${{ env.RELEASE_SHA }}" "${{ steps.fonts.outputs.base }}"
+        run: |
+          python3 ../../scripts/deploy/web-immutable.py build/web "${{ env.RELEASE_SHA }}" "${{ steps.fonts.outputs.base }}" | tee "$RUNNER_TEMP/imm.log"
+          E=$(sed -n 's/^engine=//p' "$RUNNER_TEMP/imm.log" | tail -1)
+          [[ "$E" =~ ^v/[0-9A-Za-z]{7,64}$ ]] || { echo "::error::no engine folder from web-immutable.py"; exit 1; }
+          echo "engine=$E" >> "$GITHUB_OUTPUT"
+          echo "engine_rev=${E#v/}" >> "$GITHUB_OUTPUT"
 
       # The engine (CanvasKit / skwasm) is served from our own domain: the
       # page's CSP allows fetches only to 'self' and the API, and a fetch to
@@ -293,7 +319,10 @@ jobs:
         working-directory: apps/mobile
         run: |
           V=build/web/v/${{ env.RELEASE_SHA }}
-          test -s $V/canvaskit/skwasm.wasm
+          EN=build/web/${{ steps.imm.outputs.engine }}
+          test -s $EN/canvaskit/skwasm.wasm
+          test -s $EN/canvaskit/canvaskit.wasm
+          grep -q 'canvasKitBaseUrl:"${{ steps.imm.outputs.engine }}/canvaskit"' build/web/flutter_bootstrap.js
           test -s build/web/index.html
           # Owner 2026-10-22: the page's scripts are files (strict CSP).
           test -s build/web/boot_head.js
@@ -320,14 +349,46 @@ jobs:
       # The whole build under its own prefix. Browsers revalidate every file
       # (the URLs they see do not change between releases); CloudFront keeps
       # a release's files for good (its cache key is the release path).
-      - name: Install brotli (for the .br twins)
-        run: command -v brotli >/dev/null || sudo apt-get install -y -qq brotli
-
-      # OPEN_ITEMS_SWEEP 2026-11-09 A-c4: the bundle must not grow unnoticed.
-      # Brotli sizes of our code and of the whole first load, printed every
-      # time, against scripts/deploy/web-size-budget.json (live baseline + 5 %).
-      - name: Web bundle size budget (brotli, prints the numbers)
-        run: scripts/deploy/web-size-budget.sh apps/mobile/build/web/v/${{ env.RELEASE_SHA }}
+      # Row 170: the engine once per engine revision, at
+      # releases/<engineRevision>/v/<engineRevision>/canvaskit (the path the
+      # CloudFront function maps /v/<engineRevision>/ to; the old root layout
+      # gets it at v/<engineRevision>/). Skipped when it is already complete
+      # there (marker `engine-complete` written last, after every file and its
+      # gzip / brotli copy); a missing key file uploads it again. It leaves
+      # the build folder, so the release upload below does not carry it.
+      - name: Upload the engine once per engine revision
+        if: steps.imm.outputs.engine_rev != env.RELEASE_SHA
+        working-directory: apps/mobile/build/web
+        env:
+          B: ${{ secrets.WEB_BUCKET }}
+          EV: ${{ steps.imm.outputs.engine }}
+          ER: ${{ steps.imm.outputs.engine_rev }}
+          ARN: ${{ steps.store.outputs.arn }}
+        run: |
+          IMM="public,max-age=31536000,immutable"
+          if [ -n "$ARN" ]; then PFX="releases/$ER"; else PFX=""; fi
+          DEST="s3://$B${PFX:+/$PFX}"
+          ENG="$RUNNER_TEMP/engine"
+          rm -rf "$ENG" && mkdir -p "$ENG/v" && mv "$EV" "$ENG/v/"
+          have() { aws s3api head-object --bucket "$B" --key "${PFX:+$PFX/}$1" >/dev/null 2>&1; }
+          complete=1
+          for k in engine-complete $EV/canvaskit/canvaskit.js $EV/canvaskit/canvaskit.wasm $EV/canvaskit/skwasm.js $EV/canvaskit/skwasm.wasm; do
+            have "$k" || { complete=0; break; }
+          done
+          if [ -z "$ARN" ] || [ "$complete" = 0 ]; then
+            cd "$ENG"
+            aws s3 sync v "$DEST/v" --exclude "*.wasm" --cache-control "$IMM"
+            aws s3 sync v "$DEST/v" --exclude "*" --include "*.wasm" \
+              --content-type application/wasm --cache-control "$IMM"
+            "$GITHUB_WORKSPACE/scripts/deploy/web-gzip-big.sh" "$DEST" "$IMM" "$IMM"
+            [ -z "$ARN" ] || echo "$ER" | aws s3 cp - "$DEST/engine-complete" --cache-control no-cache
+            echo "Engine $ER uploaded to $DEST/$EV"
+          else
+            echo "Engine $ER already complete at $DEST/$EV: not uploaded again"
+          fi
+          for k in $EV/canvaskit/canvaskit.wasm $EV/canvaskit/skwasm.wasm; do
+            have "$k" || { echo "::error::engine file missing after upload: $k"; exit 1; }
+          done
 
       - name: Upload this release to releases/<sha>/
         working-directory: apps/mobile/build/web
@@ -335,7 +396,8 @@ jobs:
           DEST: s3://${{ secrets.WEB_BUCKET }}/releases/${{ env.RELEASE_SHA }}
         run: |
           # App screens read spa.html (marked noindex), the home page index.html.
-          cp index.html spa.html
+          # R2 row 174: a noindex screen must not name / as its canonical.
+          sed '/rel="canonical"/d' index.html > spa.html
           # The page-level files: the browser asks again every time (a 304
           # when nothing changed); CloudFront keeps them for good, its cache
           # key is the release path.
@@ -363,6 +425,7 @@ jobs:
         env:
           ARN: ${{ steps.store.outputs.arn }}
           SHA: ${{ env.RELEASE_SHA }}
+          ER: ${{ steps.imm.outputs.engine_rev }}
           B: s3://${{ secrets.WEB_BUCKET }}
         run: |
           R=scripts/deploy/web-release.sh
@@ -377,6 +440,8 @@ jobs:
           if command -v brotli >/dev/null 2>&1; then
             $R put "$ARN" "br_$SHA" 1
             $R put "$ARN" "br2_$SHA" 1
+            # Row 170: the engine's folder has its brotli twins too.
+            [ "$ER" = "$SHA" ] || $R put "$ARN" "br_$ER" 1
           fi
           if [ -n "$PREV" ] && [ "$PREV" != "$SHA" ]; then $R put "$ARN" web_previous "$PREV"; fi
           $R put "$ARN" web_release "$SHA"
