@@ -1402,6 +1402,11 @@ export const OWNER_STORAGE_SETTINGS = {
   'infra.waf_calm_off_minutes': 0,
   /** Database CPU % above which «busy» starts (read copy, size step). */
   'economy.db_cpu_limit_percent': 70,
+  /** Rows 8 / 9 (15.11): the read copies' own CPU line (copies 2..5 come
+   * above it and go below half of it). 0 = the same as
+   * economy.db_cpu_limit_percent (today's behaviour), so the copies can be
+   * tested apart from the primary's copy 1. */
+  'infra.replica_cpu_limit_percent': 0,
   /** Owner 2026-11-02: «time to prepare a second database». Health turns
    * yellow at 80% and red at 100% of EITHER number (primary size in GB;
    * estimated rows of the sharded-family tables). Only a signal: moving
@@ -2211,6 +2216,9 @@ export const OWNER_INFRA_SETTINGS = {
   /** Owner 14.11: minutes instead of the hours above when > 0 (live tests);
    * 0 = use infra.auto_off_hours. */
   'infra.auto_off_minutes': 0,
+  /** Owner 15.11 (rows 16 / 17): how often «Авто» looks, in minutes (10 as
+   * before; 1 for a live test). */
+  'infra.auto_check_minutes': 10,
   'infra.auto_max_usd_month': 100,
 };
 
