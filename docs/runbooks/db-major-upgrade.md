@@ -30,6 +30,8 @@ AWS replicates no DDL or DCL (GRANT) to green, and the deployment then goes to `
 
 **Checked before (15.11, local postgres:18.7 and AWS read-only):**
 - All 212 migrations and the CONCURRENTLY indexes apply on 18, and `prisma migrate diff` finds no drift.
+- The full API e2e passes on postgres:18.7 + valkey/valkey:8.1.11 + MinIO: 1,422 tests in 3 shards. One known flake (KNOWN_ERRORS: stage-5-5, throttler 429) passed on retry.
+- PgBouncer 1.24.0 (our image) connects to 18 over TLS + SCRAM, and named prepared statements work in transaction mode.
 - Every table has a primary key. There are no unlogged tables, large objects or materialized views (all AWS logical-replication limits).
 - Extensions on RDS 18.x: pg_trgm 1.6, unaccent 1.1 and pg_stat_statements 1.12 are available.
 - Every class of the db-autoscale ladder (t4g.micro…r7g.2xlarge) can be ordered on 18.6, and `max_connections` and `shared_buffers` have the same default formulas in postgres18.
@@ -54,7 +56,7 @@ scripts/infra/rds-major-upgrade.sh prepare 18
 
 ## Redis OSS 7.1 → Valkey 8.1 (`aws.valkey`)
 
-**Method: in place, as the AWS user guide «Upgrading engine versions including cross engine upgrades» does it** (`modify-replication-group --engine valkey --engine-version … --cache-parameter-group-name …`). The provider sends the same call (`replication_group.go` v5.100: redis → valkey is not a replacement).
+**Prod default since 15.11: `redis_engine = "valkey"`, so the next apply moves it.** Method: in place, as the AWS user guide «Upgrading engine versions including cross engine upgrades» does it** (`modify-replication-group --engine valkey --engine-version … --cache-parameter-group-name …`). The provider sends the same call (`replication_group.go` v5.100: redis → valkey is not a replacement).
 - The endpoint stays the same and only the node IPs change. Writes pause for the failover, which AWS says lasts «a few seconds».
 - Valkey nodes cost 20 % less.
 - 15.11 fix: `apply_immediately` is now true on Valkey. With false, AWS keeps the engine change for the Sunday window while the same apply deletes the `redis7` group still in use, and the apply goes red.

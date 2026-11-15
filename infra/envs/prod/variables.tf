@@ -93,10 +93,15 @@ variable "database_major_version" {
   default = "16"
 }
 # docs/06 §6.3: production sizes (5k RPS peak); raise api_max_tasks with load-test results.
+# 15.11 «делай обновы сейчас»: default valkey after the proof (full API e2e
+# on valkey/valkey:8.1.11 green, modules/redis applies the engine change at
+# once, KNOWN_ERRORS 165). The next prod apply moves Redis OSS 7.1 to Valkey
+# 8.1 in place (AWS: same endpoint, writes pause for a few seconds).
+# Admin switch aws.valkey. docs/runbooks/db-major-upgrade.md.
 variable "redis_engine" {
   type        = string
-  default     = "redis"
-  description = "redis | valkey. Owner 14.11: valkey = ElastiCache Valkey 8.1, moved in place by an apply (no downtime, nodes 20 % cheaper). docs/dev/AUTO_MODERNIZE_2026-11-15.md."
+  default     = "valkey"
+  description = "redis | valkey. valkey = ElastiCache Valkey 8.1, moved in place by an apply (seconds of failover, nodes 20 % cheaper). Back to redis = replacement (refused by the plan guard)."
 }
 variable "redis_node_type" {
   type    = string
