@@ -90,11 +90,11 @@ class HandlerTests(unittest.TestCase):
             CLUSTER="c", SERVICES="api,worker",
         )
 
-    def run_with(self, fake, event=None):
+    def run_with(self, fake, event=None, now=NOW):
         h._clients.clear()
         for n in ("elasticache", "cloudwatch", "ecs", "sns", "ssm"):
             h._clients[n] = fake
-        return h.handler(event or {"mode": "tick"}, None, now=NOW)
+        return h.handler(event or {"mode": "tick"}, None, now=now)
 
     def test_load_resizes_one_step_saves_state_and_notifies(self):
         f = Fake()
@@ -118,7 +118,8 @@ class HandlerTests(unittest.TestCase):
 
     def test_failover_not_enabled_blocks(self):
         f = Fake(failover="disabled")
-        self.assertEqual(self.run_with(f)["result"], "no_failover")
+        # by day: NOW is 02:00 in Chicago (night window), +10 h = noon
+        self.assertEqual(self.run_with(f, now=NOW + 10 * 3600)["result"], "no_failover")
         self.assertEqual([c[0] for c in f.calls], ["publish"])  # weekly pause notice
 
     def test_deploy_blocks(self):
@@ -247,3 +248,20 @@ class AllServicesGuardTests(unittest.TestCase):
 
     def test_other_failures_are_unknown(self):
         self.assertTrue(self.guards([], [{"arn": "x/api", "reason": "AccessDenied"}])[2])
+
+
+class NightNowTests(unittest.TestCase):
+    """14.11 (owner): «Авто» is tested within minutes, not at the next
+    night. A manual invoke with {"mode": "night", "night_now": true} counts
+    as inside the night window; the schedules never send the flag."""
+
+    def test_flag_opens_the_window_by_day(self):
+        noon = NOW + 10 * 3600  # NOW is 02:00 in Chicago
+        self.assertFalse(h.night_window({"mode": "night"}, "America/Chicago", noon))
+        self.assertTrue(h.night_window({"mode": "night", "night_now": True}, "America/Chicago", noon))
+        self.assertTrue(h.night_window({"mode": "tick"}, "America/Chicago", NOW))
+
+    def test_only_a_real_true_counts(self):
+        noon = NOW + 10 * 3600
+        for v in ("true", 1, "yes", None):
+            self.assertFalse(h.night_window({"night_now": v}, "America/Chicago", noon))

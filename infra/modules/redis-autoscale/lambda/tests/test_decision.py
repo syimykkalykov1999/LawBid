@@ -130,15 +130,33 @@ class GuardTests(unittest.TestCase):
         alone = inst(auto_failover=False, replicas=0)
         night = d.decide(CFG, "night", alone, d.Guards(), d.State(), quiet(), NOW)
         self.assertNotEqual(night.reason, "no_failover")
-        tick = d.decide(CFG, "tick", alone, d.Guards(), d.State(), calm(), NOW)
+        tick = d.decide(CFG, "tick", alone, d.Guards(night_ok=False), d.State(), calm(), NOW)
         self.assertEqual(tick.reason, "no_failover")
+
+    def test_night_window_ticks_retry_the_shrink_without_a_standby(self):
+        # 14.11 (prod log): the one 03:30 night run met a deploy («deploying»)
+        # and the next chance was 24 h later; every 5-min tick returned
+        # «no_failover». Inside the night window each tick is a shrink try.
+        alone = inst("cache.r7g.large", auto_failover=False, replicas=0)
+        r = d.decide(CFG, "tick", alone, d.Guards(night_ok=True), OLD, quiet(cpu=3.0, mem=0.5), NOW)
+        self.assertEqual((r.action, r.target), ("down", "cache.t4g.micro"))
+        # the other guards still hold, and a later tick tries again
+        r = d.decide(CFG, "tick", alone, d.Guards(night_ok=True, deploying=True), OLD, quiet(), NOW)
+        self.assertEqual(r.reason, "deploying")
+        # by day a single node is still never resized by a tick
+        r = d.decide(CFG, "tick", alone, d.Guards(night_ok=False), OLD, quiet(cpu=3.0, mem=0.5), NOW)
+        self.assertEqual(r.reason, "no_failover")
+        # and the night tick never grows a single node
+        r = d.decide(CFG, "tick", alone, d.Guards(night_ok=True), OLD, replace(calm(), cpu=(90.0,) * 4), NOW)
+        self.assertEqual(r.action, "none")
 
     def test_each_guard_blocks(self):
         cases = [
             (inst(status="modifying"), d.Guards(), "not_available"),
             (inst(pending=True), d.Guards(), "pending_modification"),
-            (inst(auto_failover=False), d.Guards(), "no_failover"),
-            (inst(replicas=0), d.Guards(), "no_failover"),
+            # by day (inside the night window a tick is a shrink try, 14.11)
+            (inst(auto_failover=False), d.Guards(night_ok=False), "no_failover"),
+            (inst(replicas=0), d.Guards(night_ok=False), "no_failover"),
             (inst(cluster_mode=True), d.Guards(), "cluster_mode"),
             (inst(), d.Guards(deploying=True), "deploying"),
             (inst(), d.Guards(oneoff_tasks=True), "oneoff_tasks"),

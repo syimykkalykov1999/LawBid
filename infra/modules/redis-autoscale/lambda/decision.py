@@ -212,6 +212,16 @@ def decide(cfg, mode, inst, guards, state, metrics, now):
     if cur is None:
         return Decision("none", "unknown_class")
     bad = _guard_reason(cfg, inst, guards, mode)
+    # 14.11 (prod log): the single-node group could shrink only in the one
+    # 03:30 night run, and that run met a deploy («deploying»): the next
+    # chance was a day later. Inside the night window every tick is a
+    # shrink try with the night's rules (the other guards still apply; a
+    # single node is never grown by a tick).
+    if bad == "no_failover" and mode == "tick" and guards.night_ok:
+        bad = _guard_reason(cfg, inst, guards, "night")
+        if bad:
+            return Decision("none", bad)
+        return _decide_down(cfg, cur, guards, state, metrics, now)
     if bad:
         return Decision("none", bad)
     if mode == "tick":

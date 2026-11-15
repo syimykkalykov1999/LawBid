@@ -157,6 +157,8 @@ class GuardTests(unittest.TestCase):
     HOT = replace(calm(), cpu=(95.0,) * 4)
 
     def go(self, inst_kw=None, **g):
+        # a day tick (inside the night window a tick is also a shrink try, 14.11)
+        g = {"night_ok": False, **g}
         return d.decide(CFG, "tick", inst(**(inst_kw or {})), d.Guards(**g), d.State(cls="db.t4g.small"), self.HOT, NOW)
 
     def test_each_guard_blocks(self):
@@ -179,6 +181,20 @@ class GuardTests(unittest.TestCase):
         r = d.decide(CFG, "night", inst("db.t4g.medium", multi_az=False), d.Guards(), OLD, quiet_week(), NOW)
         self.assertEqual(r.action, "down")
         self.assertEqual(self.go({"multi_az": False}).reason, "not_multi_az")
+
+    def test_night_window_ticks_retry_the_shrink_on_a_single_az_database(self):
+        # 14.11 (prod log): every tick «not_multi_az»; the shrink had only the
+        # one 03:30 night run. Inside the night window each tick tries again.
+        single = inst("db.t4g.medium", multi_az=False)
+        r = d.decide(CFG, "tick", single, d.Guards(night_ok=True), OLD, quiet_week(), NOW)
+        self.assertEqual(r.action, "down")
+        r = d.decide(CFG, "tick", single, d.Guards(night_ok=True, deploying=True), OLD, quiet_week(), NOW)
+        self.assertEqual(r.reason, "deploying")
+        r = d.decide(CFG, "tick", single, d.Guards(night_ok=False), OLD, quiet_week(), NOW)
+        self.assertEqual(r.reason, "not_multi_az")
+        # a Multi-AZ database also shrinks on a night tick once growth is calm
+        r = d.decide(CFG, "tick", inst("db.t4g.medium"), d.Guards(night_ok=True), OLD, quiet_week(), NOW)
+        self.assertEqual(r.action, "down")
 
     def test_single_az_allowed_when_configured(self):
         cfg = replace(CFG, require_multi_az=False)
