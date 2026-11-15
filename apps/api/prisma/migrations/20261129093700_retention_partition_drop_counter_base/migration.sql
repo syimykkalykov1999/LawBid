@@ -1,4 +1,5 @@
 SET LOCAL lock_timeout = '5s';
+-- migration-safety: contract the only DROP TABLE runs inside lawbid_drop_expired_month_partition at retention time and removes one expired monthly partition (child table) of post_view_events / auth_events after its rows are past the retention; no table or column that a release reads is dropped by this migration.
 -- DB scale findings batch B (retention) and C (counters). Expand only: one
 -- nullable-free column with a constant default (no table rewrite on
 -- PostgreSQL 11+), one small new table and three functions.

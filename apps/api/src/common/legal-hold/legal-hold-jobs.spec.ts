@@ -153,8 +153,12 @@ describe('every deletion job respects a legal hold', () => {
 
   it('storage.retention (login events, activity, views)', async () => {
     const $executeRaw = jest.fn().mockResolvedValue(0);
+    // post_view_events rows go through $queryRaw (DELETE … RETURNING feeds
+    // posts.view_count_base), and so do the whole-month partition drops.
+    const $queryRaw = jest.fn().mockResolvedValue([]);
     const prisma = prismaWith({
       $executeRaw,
+      $queryRaw,
       storageSnapshot: {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
@@ -172,15 +176,30 @@ describe('every deletion job respects a legal hold', () => {
     await svc.run();
     // auth_events (16 shards), assistant_activity, post_views,
     // post_view_events, user_activity_days: every statement excludes HELD.
-    // cross_family_outbox / cross_family_inbox are system plumbing tables
-    // (no person rows), so they carry no hold filter.
+    // cross_family_outbox / cross_family_inbox and counter_flush_batches
+    // (counter flush idempotency keys) are system plumbing tables (no person
+    // rows), so they carry no hold filter.
     const personCalls = $executeRaw.mock.calls.filter(
-      (call) => !mentions(call, 'cross_family_', false),
+      (call) =>
+        !mentions(call, 'cross_family_', false) &&
+        !mentions(call, 'counter_flush_batches', false),
     );
     expect(personCalls.length).toBeGreaterThanOrEqual(20);
     for (const call of personCalls) {
       expect(heldInSql(call)).toBe(true);
     }
+    // The view-event row delete excludes HELD in SQL; a month drop gets the
+    // held people as its p_held argument (the month stays if one is in it).
+    const viewDeletes = $queryRaw.mock.calls.filter((call) =>
+      mentions(call, 'DELETE FROM post_view_events', false),
+    );
+    expect(viewDeletes.length).toBeGreaterThan(0);
+    for (const call of viewDeletes) expect(heldInSql(call)).toBe(true);
+    const monthDrops = $queryRaw.mock.calls.filter((call) =>
+      mentions(call, 'lawbid_drop_expired_', false),
+    );
+    expect(monthDrops.length).toBeGreaterThan(0);
+    for (const call of monthDrops) expect(mentions(call)).toBe(true);
   });
 
   it('tasks.archive-purge', async () => {
