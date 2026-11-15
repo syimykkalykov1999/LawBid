@@ -5,7 +5,7 @@ terraform {
   required_providers {
     aws = {
       source                = "hashicorp/aws"
-      version               = "~> 5.60"
+      version               = "~> 6.72"
       configuration_aliases = [aws.replica]
     }
     random = { source = "hashicorp/random", version = "~> 3.6" }
@@ -942,7 +942,7 @@ module "turn" {
   turn_total_quota         = var.turn_total_quota
   hosted_zone_id           = var.turn_on_demand ? null : var.hosted_zone_id # the address changes at every start
   # Route 53 health-check metrics exist in us-east-1 only.
-  health_checks = !var.turn_on_demand && data.aws_region.current.name == "us-east-1"
+  health_checks = !var.turn_on_demand && data.aws_region.current.region == "us-east-1"
 }
 
 # Owner 2026-11-02: the API may start / stop this ONE box and look at instance
@@ -1349,7 +1349,7 @@ module "redis_cache" {
 locals {
   database_arn = var.create_database ? module.postgres[0].arn : (
     var.existing_database_identifier == "" ? "" :
-    "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${var.existing_database_identifier}"
+    "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${var.existing_database_identifier}"
   )
 }
 
@@ -1472,7 +1472,7 @@ module "backup" {
   retention_days      = var.backup_retention_days
   copy_retention_days = var.backup_retention_days
   copy_account_vault_arn = var.backup_copy_account_id == "" ? "" : (
-    "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.name : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
+    "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.region : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
   )
   alerts_topic_arn        = module.monitoring.alerts_topic_arn
   critical_topic_arn      = module.monitoring.critical_topic_arn
@@ -1770,7 +1770,7 @@ locals {
     APP_LINK_BASE_URL = var.app_link_base_url
     ADMIN_ORIGINS     = "https://${var.admin_host}"
     ADMIN_PANEL_URL   = "https://${var.admin_host}"
-    S3_REGION         = data.aws_region.current.name
+    S3_REGION         = data.aws_region.current.region
     # Empty = no on-demand coturn (calls/turn-instance.gateway.ts).
     TURN_ONDEMAND_INSTANCE_ID = var.turn_enabled && var.turn_on_demand ? module.turn[0].instance_id : ""
     S3_BUCKET_DOCUMENTS       = module.s3.documents_bucket
@@ -1800,7 +1800,7 @@ locals {
     # at boot — src/common/secrets/kms-env.ts). Owner steps: DEPLOY_PROD.md.
     DATA_KEYS_KMS_KEY_ARN = aws_kms_key.data_keys.arn
     DATA_KEYS_KMS_APP     = local.name
-    SES_REGION            = data.aws_region.current.name
+    SES_REGION            = data.aws_region.current.region
     SES_FROM_ADDRESS      = var.ses_from_address
     EMAIL_PROVIDER        = "ses"
     SMS_PROVIDER          = "twilio"
@@ -1864,7 +1864,7 @@ locals {
     OPS_API_ADMIN_SERVICE = "api-admin"
     OPS_ADMIN_SERVICE     = "admin"
     OPS_POOLER_SERVICE    = var.db_pooler_enabled ? "pgbouncer" : ""
-    AWS_REGION            = data.aws_region.current.name
+    AWS_REGION            = data.aws_region.current.region
     # Admin health: rotation dates per secret (empty list while rotation is off).
     ROTATION_STATUS_SECRETS   = jsonencode(local.rot_status_items)
     ROTATION_METRIC_NAMESPACE = "LawBid/${local.name}/SecretRotation"
@@ -1891,7 +1891,7 @@ locals {
     # it when the admin sets «search.engine_kind» = serverless.
     OPENSEARCH_SERVERLESS_URL = var.growth.opensearch_serverless_enabled ? one(module.opensearch_serverless[*].endpoint) : ""
   }
-  critical_topic_arn = "arn:aws:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${local.name}-critical"
+  critical_topic_arn = "arn:aws:sns:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:${local.name}-critical"
   api_task_usd       = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * 100) / 100
   worker_task_usd    = floor(730 * (var.worker_cpu / 1024 * 0.04048 + var.worker_memory / 1024 * 0.004445) * 100) / 100
   app_secret_arns = merge(
@@ -2154,9 +2154,9 @@ module "ecs" {
     # buckets presigned uploads POST to (both endpoint spellings the AWS SDK
     # may produce) and the media CDN.
     ADMIN_CONNECT_SRC = join(" ", [
-      "https://${module.s3.media_bucket}.s3.${data.aws_region.current.name}.amazonaws.com",
+      "https://${module.s3.media_bucket}.s3.${data.aws_region.current.region}.amazonaws.com",
       "https://${module.s3.media_bucket}.s3.amazonaws.com",
-      "https://${module.s3.documents_bucket}.s3.${data.aws_region.current.name}.amazonaws.com",
+      "https://${module.s3.documents_bucket}.s3.${data.aws_region.current.region}.amazonaws.com",
       "https://${module.s3.documents_bucket}.s3.amazonaws.com",
       "https://${module.s3.media_cdn_domain}",
     ])
@@ -2396,7 +2396,7 @@ data "aws_iam_policy_document" "ops" {
       actions = ["ssm:GetParameter", "ssm:PutParameter"]
       resources = [
         for p in local.autoscale_ssm_params :
-        "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${p}"
+        "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${p}"
       ]
     }
   }
@@ -2413,7 +2413,7 @@ data "aws_iam_policy_document" "ops" {
   }
   statement {
     actions   = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
-    resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
+    resources = ["arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
   }
   # Admin button «Копия базы для чтения»: create / describe / delete exactly one
   # instance named <database>-readreplica. Nothing else on RDS changes.
@@ -2422,8 +2422,8 @@ data "aws_iam_policy_document" "ops" {
     content {
       actions = ["rds:DescribeDBInstances"]
       resources = [
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
       ]
     }
   }
@@ -2432,12 +2432,12 @@ data "aws_iam_policy_document" "ops" {
     content {
       actions = ["rds:CreateDBInstanceReadReplica", "rds:AddTagsToResource"]
       resources = [
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:pg:*",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:og:*",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:subgrp:*",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secgrp:*",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:pg:*",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:og:*",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:subgrp:*",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:secgrp:*",
       ]
     }
   }
@@ -2445,7 +2445,7 @@ data "aws_iam_policy_document" "ops" {
     for_each = var.db_replica_toggle ? [1] : []
     content {
       actions   = ["rds:DeleteDBInstance"]
-      resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica"]
+      resources = ["arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica"]
     }
   }
   dynamic "statement" {
@@ -2470,17 +2470,17 @@ data "aws_iam_policy_document" "ops" {
   }
   statement {
     actions   = ["elasticache:DescribeReplicationGroups", "elasticache:ModifyReplicationGroup"]
-    resources = ["arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis"]
+    resources = ["arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis"]
   }
   # ha-auto (2026-11-02): add / remove the Redis standby node with the load.
   # AWS checks the node, subnet group and parameter group of the group too.
   statement {
     actions = ["elasticache:IncreaseReplicaCount", "elasticache:DecreaseReplicaCount"]
     resources = [
-      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis",
-      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster:${local.name}-redis-*",
-      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:subnetgroup:*",
-      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parametergroup:*",
+      "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis",
+      "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:cluster:${local.name}-redis-*",
+      "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:subnetgroup:*",
+      "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parametergroup:*",
     ]
   }
 }
@@ -2652,7 +2652,7 @@ module "monitoring" {
     var.documents_cdn_public_key_pem != "" ? { documents = module.s3.documents_distribution_id } : {},
   )
   api_target_group_arn_suffix   = module.alb.api_target_group_arn_suffix
-  media_cdn_distribution_id     = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.name == "us-east-1" ? module.s3.media_distribution_id : ""
+  media_cdn_distribution_id     = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.region == "us-east-1" ? module.s3.media_distribution_id : ""
   admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
   # D1-35: same switch as module.ecs api_admin_enabled (a literal, known at plan).
   api_admin_deploy_alarms           = true
@@ -2846,7 +2846,7 @@ module "cloudtrail_athena" {
   source       = "../cloudtrail-athena"
   name         = local.name
   trail_bucket = module.security_baseline[0].cloudtrail_bucket
-  regions      = distinct([data.aws_region.current.name, "us-east-1"])
+  regions      = distinct([data.aws_region.current.region, "us-east-1"])
   tags         = local.tags
 }
 

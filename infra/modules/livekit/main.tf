@@ -20,7 +20,7 @@
 # Runbook, cost and the owner's steps: docs/runbooks/LIVEKIT.md.
 terraform {
   required_providers {
-    aws    = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws    = { source = "hashicorp/aws", version = "~> 6.72" }
     random = { source = "hashicorp/random", version = "~> 3.6" }
   }
 }
@@ -280,7 +280,7 @@ resource "aws_instance" "this" {
   }
 
   user_data = templatefile("${path.module}/user-data.sh.tftpl", {
-    region         = data.aws_region.current.name
+    region         = data.aws_region.current.region
     host           = local.host
     turn_host      = local.turn_host
     external_ip    = aws_eip.this.public_ip
@@ -333,7 +333,7 @@ resource "aws_cloudwatch_metric_alarm" "system_status" {
   namespace           = "AWS/EC2"
   dimensions          = { InstanceId = aws_instance.this.id }
   treat_missing_data  = "notBreaching"
-  alarm_actions       = [var.alerts_topic_arn, "arn:aws:automate:${data.aws_region.current.name}:ec2:recover"]
+  alarm_actions       = [var.alerts_topic_arn, "arn:aws:automate:${data.aws_region.current.region}:ec2:recover"]
   ok_actions          = [var.alerts_topic_arn]
   tags                = var.tags
 }

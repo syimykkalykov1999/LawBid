@@ -19,7 +19,7 @@ terraform {
   required_providers {
     aws = {
       source                = "hashicorp/aws"
-      version               = "~> 5.60"
+      version               = "~> 6.72"
       configuration_aliases = [aws.replica]
     }
   }

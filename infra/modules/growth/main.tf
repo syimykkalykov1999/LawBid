@@ -15,7 +15,7 @@
 #   event_loop alarm    "a Node process is saturated" (metric written by the app)
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -395,7 +395,7 @@ resource "aws_opensearch_domain" "search" {
       Effect    = "Allow"
       Principal = { AWS = "*" }
       Action    = "es:ESHttp*"
-      Resource  = "arn:aws:es:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:domain/${var.name}-search/*"
+      Resource  = "arn:aws:es:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:domain/${var.name}-search/*"
     }]
   })
   # Auto-Tune adjusts JVM / queue sizes to the load by itself; AWS does not

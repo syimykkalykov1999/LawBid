@@ -131,7 +131,7 @@ resource "aws_iam_role_policy" "journey" {
     Statement = [
       { Effect = "Allow", Action = ["s3:PutObject", "s3:GetObject"], Resource = "${aws_s3_bucket.journey[0].arn}/*" },
       { Effect = "Allow", Action = ["s3:GetBucketLocation", "s3:ListAllMyBuckets"], Resource = "*" },
-      { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/cwsyn-*" },
+      { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/cwsyn-*" },
       { Effect = "Allow", Action = "cloudwatch:PutMetricData", Resource = "*", Condition = { StringEquals = { "cloudwatch:namespace" = "CloudWatchSynthetics" } } },
       { Effect = "Allow", Action = "secretsmanager:GetSecretValue", Resource = var.synthetic_journey_secret_arn },
     ]

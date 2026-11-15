@@ -25,7 +25,7 @@
 #   worked out by modules/stack (check "db_connection_budget").
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
     tls = { source = "hashicorp/tls", version = "~> 4.0" }
   }
 }
@@ -412,7 +412,7 @@ resource "aws_ecs_task_definition" "this" {
       logDriver = "awslogs"
       options = {
         awslogs-group         = aws_cloudwatch_log_group.this.name
-        awslogs-region        = data.aws_region.current.name
+        awslogs-region        = data.aws_region.current.region
         awslogs-stream-prefix = local.svc
       }
     }

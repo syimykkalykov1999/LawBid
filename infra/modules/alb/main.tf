@@ -3,7 +3,7 @@
 # Hosts: api.<domain> → api service, admin.<domain> → admin service.
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 

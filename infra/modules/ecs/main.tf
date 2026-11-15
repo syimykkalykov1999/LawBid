@@ -8,7 +8,7 @@
 # injected from Secrets Manager (never in the task definition JSON).
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -410,8 +410,8 @@ resource "terraform_data" "insights_log_retention" {
     command = <<-EOT
       if [ "${var.container_insights}" != "disabled" ]; then
         G="/aws/ecs/containerinsights/${aws_ecs_cluster.this.name}/performance"
-        aws logs create-log-group --region ${data.aws_region.current.name} --log-group-name "$G" 2>/dev/null || true
-        aws logs put-retention-policy --region ${data.aws_region.current.name} --log-group-name "$G" --retention-in-days ${var.log_retention_days}
+        aws logs create-log-group --region ${data.aws_region.current.region} --log-group-name "$G" 2>/dev/null || true
+        aws logs put-retention-policy --region ${data.aws_region.current.region} --log-group-name "$G" --retention-in-days ${var.log_retention_days}
       fi
     EOT
   }
@@ -490,7 +490,7 @@ resource "aws_iam_role_policy" "task_cloudfront_invalidate" {
 data "aws_iam_policy_document" "task_geo_places" {
   statement {
     actions   = ["geo-places:Autocomplete"]
-    resources = ["arn:aws:geo-places:${data.aws_region.current.name}::provider/default"]
+    resources = ["arn:aws:geo-places:${data.aws_region.current.region}::provider/default"]
   }
 }
 
@@ -560,7 +560,7 @@ locals {
     logDriver = "awslogs"
     options = {
       awslogs-group         = aws_cloudwatch_log_group.svc[svc].name
-      awslogs-region        = data.aws_region.current.name
+      awslogs-region        = data.aws_region.current.region
       awslogs-stream-prefix = svc
     }
   } }
@@ -586,7 +586,7 @@ locals {
         timeout: 5s
     exporters:
       awsxray:
-        region: ${data.aws_region.current.name}
+        region: ${data.aws_region.current.region}
     service:
       pipelines:
         traces:
@@ -605,7 +605,7 @@ locals {
       logDriver = "awslogs"
       options = {
         awslogs-group         = aws_cloudwatch_log_group.svc["api"].name
-        awslogs-region        = data.aws_region.current.name
+        awslogs-region        = data.aws_region.current.region
         awslogs-stream-prefix = "adot"
       }
     }

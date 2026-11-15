@@ -20,7 +20,7 @@
 # 3 active-kid secrets: ~$1.60) plus $0.05 per 10k API calls (cents).
 terraform {
   required_providers {
-    aws     = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws     = { source = "hashicorp/aws", version = "~> 6.72" }
     archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
 }
@@ -113,7 +113,7 @@ locals {
   db_on        = var.db != null
   partition    = "aws"
   acct         = data.aws_caller_identity.current.account_id
-  region       = data.aws_region.current.name
+  region       = data.aws_region.current.region
 
   tracked = concat(
     local.db_on ? [{ name = "DB_APP_CREDENTIALS", arn = var.db.json_secret_arn, every_days = var.db.every_days }] : [],
