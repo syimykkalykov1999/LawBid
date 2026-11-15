@@ -23,7 +23,7 @@ SHA="${1:?sha}"; MUST="${2:?must-have regex}"; EXCLUDE="${3:-^$}"
 # 15.11: the admin's cloud change (infra-apply.yml job «plan → owner 2FA →
 # apply (prod)») runs on main's head too and waits up to 30 min for the
 # owner's code; it is not CI of the code either — counted, it timed the
-# #1123 deploy out (KNOWN_ERRORS 165).
+# #1123 deploy out (KNOWN_ERRORS 166).
 EXCLUDE="(${EXCLUDE})|^Dependabot\$|^plan → owner 2FA → apply"
 TIMEOUT="${REQUIRE_GREEN_TIMEOUT:-2700}"; POLL="${REQUIRE_GREEN_POLL:-30}"
 start=$(date +%s)
