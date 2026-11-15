@@ -7,11 +7,11 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/onboarding_flow_state.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
+import 'package:lawbid/features/auth/presentation/widgets/resend_countdown.dart';
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
 
 /// Human-readable form of the flow's identifier for "We sent it to …".
@@ -76,7 +76,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     // the first frame, so it doesn't race the focus-change announcement
     // the field itself triggers) gives that context once, instead of
     // relying on the fast-updating resend countdown (which is intentionally
-    // excluded from the semantics tree — see `_ResendCountdown`).
+    // excluded from the semantics tree — see `ResendCountdown`).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final t = ref.read(translatorProvider);
@@ -195,7 +195,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             ),
                           ),
                           const SizedBox(height: 14),
-                          _ResendCountdown(
+                          ResendCountdown(
                             t: t,
                             onResend: _resend,
                           ),
@@ -263,97 +263,6 @@ class _ChangeIdentifierLink extends StatelessWidget {
                   decoration: TextDecoration.underline,
                 ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ResendCountdown extends StatefulWidget {
-  const _ResendCountdown({required this.t, required this.onResend});
-
-  final Translator t;
-  final Future<bool> Function() onResend;
-
-  @override
-  State<_ResendCountdown> createState() => _ResendCountdownState();
-}
-
-class _ResendCountdownState extends State<_ResendCountdown> {
-  // file 07 §6.3 doesn't specify the resend cooldown duration — 60s is a
-  // conventional default for SMS OTP resend, documented as a judgment call
-  // in docs/CHANGELOG.md rather than invented silently.
-  static const _totalSeconds = 60;
-  Timer? _timer;
-  int _remaining = _totalSeconds;
-  bool _resending = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _startTimer();
-  }
-
-  void _startTimer() {
-    _timer?.cancel();
-    setState(() => _remaining = _totalSeconds);
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_remaining <= 1) {
-        timer.cancel();
-        setState(() => _remaining = 0);
-      } else {
-        setState(() => _remaining -= 1);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-
-    if (_remaining > 0) {
-      final minutes = _remaining ~/ 60;
-      final seconds = (_remaining % 60).toString().padLeft(2, '0');
-      final label =
-          widget.t.t('auth.otp.resendIn', {'time': '$minutes:$seconds'});
-      // Fast-updating (1/sec) text — excluded from the semantics tree so a
-      // screen reader doesn't re-announce it every second (a11y review,
-      // docs/CHANGELOG.md stage 1.7). The static link below IS announced
-      // once it appears.
-      return ExcludeSemantics(
-        child: Text(
-          label,
-          style: typography.caption.copyWith(color: colors.textSecondary),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: () async {
-        if (_resending) return;
-        _resending = true;
-        final sent = await widget.onResend();
-        _resending = false;
-        if (sent && mounted) _startTimer();
-      },
-      child: Semantics(
-        button: true,
-        label: widget.t.t('auth.otp.resend'),
-        child: ExcludeSemantics(
-          child: Text(
-            widget.t.t('auth.otp.resend'),
-            style: typography.caption.copyWith(
-              color: colors.goldText,
-              decoration: TextDecoration.underline,
             ),
           ),
         ),

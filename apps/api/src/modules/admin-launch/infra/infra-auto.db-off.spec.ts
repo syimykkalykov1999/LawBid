@@ -370,6 +370,68 @@ describe('«Авто» removes database servers at low load (rows 8, 85)', () =>
     );
   });
 
+  it('row 8 replay of prod 14.11 (request eda185d1): the copy goes although main carries unapplied watchers; an out-of-item update still waits', async () => {
+    // API log 14.11 14:22 UTC: «waits for the owner: …db_autoscale[0]
+    // .aws_lambda_function_event_invoke_config.this: create in a switch-off;
+    // …endpoints_autoscale[0]…; …growth.aws_opensearch_domain.search[0]:
+    // update outside aws.rds_replicas; …api_admin_5xx_ratio_deploy[0]: create
+    // in a switch-off; …api_admin_unhealthy_deploy[0]: …». The watchers are
+    // #1052, merged after the last whole-stack apply (14.11 06:01 UTC); the
+    // OpenSearch update is the 4-node domain the record step lost.
+    const DRIFT_WATCHERS = [
+      ...[
+        'db_autoscale',
+        'endpoints_autoscale',
+        'redis_autoscale',
+        'spot_fallback',
+      ].map((m) => ({
+        address: `module.stack.module.${m}[0].aws_lambda_function_event_invoke_config.this`,
+        action: 'create',
+      })),
+      ...['api_admin_5xx_ratio_deploy', 'api_admin_unhealthy_deploy'].map(
+        (a) => ({
+          address: `module.stack.module.monitoring.aws_cloudwatch_metric_alarm.${a}[0]`,
+          action: 'create',
+        }),
+      ),
+      {
+        address: 'module.stack.module.db_autoscale[0].aws_lambda_function.this',
+        action: 'update',
+      },
+    ];
+    const OPENSEARCH_REVERT = {
+      address: 'module.stack.module.growth.aws_opensearch_domain.search[0]',
+      action: 'update',
+    };
+    const go = async (plan: { address: string; action: string }[]) => {
+      const { seed, runFor, workflow } = make({ pressures: ['replica_idle'] });
+      seed({
+        item: 'aws.rds_replicas',
+        to: 'on',
+        status: 'done',
+        by: SYSTEM_ACTOR_ID,
+        at: REPLICA_ON,
+      });
+      const first = await runFor(T0, 80);
+      expect(first?.want).toMatchObject({ id: 'aws.rds_replicas', to: 'off' });
+      return workflow(plan, '502');
+    };
+    const ok = await go([...REPLICA_OFF_PLAN, ...DRIFT_WATCHERS]);
+    expect(ok.status).toBe('confirmed');
+    expect(ok.decision).toBe('apply');
+    // The guard of #1052 stays: an update outside the item waits.
+    const held = await go([
+      ...REPLICA_OFF_PLAN,
+      ...DRIFT_WATCHERS,
+      OPENSEARCH_REVERT,
+    ]);
+    expect(held.status).toBe('planned');
+    expect(held.decision).toBe('wait');
+    console.log(
+      `row 8 replay 14.11: with watchers -> ${ok.status}/${ok.decision}; with the OpenSearch revert -> ${held.status}/${held.decision}`,
+    );
+  });
+
   it('row 8: copies 2..5 go one at a time, highest first, then the first copy', async () => {
     const { seed, runFor, workflow, infra } = make({
       pressures: ['replica_idle'],

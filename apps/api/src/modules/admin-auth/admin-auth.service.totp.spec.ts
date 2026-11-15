@@ -29,6 +29,7 @@ function build(opts: { enabled?: boolean; stepUpTtl?: number } = {}) {
     password_hash: 'x',
   };
   const store = new Map<string, string>();
+  const ttls = new Map<string, number>();
   const redis = {
     set: jest.fn((k: string, v: string, ...rest: unknown[]) => {
       if (rest.includes('NX') && store.has(k)) return Promise.resolve(null);
@@ -37,7 +38,9 @@ function build(opts: { enabled?: boolean; stepUpTtl?: number } = {}) {
     }),
     exists: jest.fn((k: string) => Promise.resolve(store.has(k) ? 1 : 0)),
     get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
-    ttl: jest.fn((k: string) => Promise.resolve(store.has(k) ? 1 : -2)),
+    ttl: jest.fn((k: string) =>
+      Promise.resolve(store.has(k) ? (ttls.get(k) ?? 1) : -2),
+    ),
     del: jest.fn((k: string) => Promise.resolve(store.delete(k) ? 1 : 0)),
     incr: jest.fn((k: string) => {
       const n = Number(store.get(k) ?? '0') + 1;
@@ -120,7 +123,7 @@ function build(opts: { enabled?: boolean; stepUpTtl?: number } = {}) {
   );
   // A live ticket, as loginPassword leaves it.
   store.set('adm:ticket:j1', '0');
-  return { svc, cred, store, prisma, sessions, audit, redis, rateLimit };
+  return { svc, cred, store, ttls, prisma, sessions, audit, redis, rateLimit };
 }
 
 describe('forced authenticator setup at sign-in', () => {
@@ -283,6 +286,22 @@ describe('owner 14.11 (row 179, B8): the step-up window is an owner setting', ()
     await expect(svc.assertFreshStepUp('none', 120)).rejects.toMatchObject({
       response: { code: 'ADMIN_STEP_UP_REQUIRED' },
     });
+  });
+
+  it('rolling deploy: a step-up an older task wrote (value 1, 5-min key) still counts by its TTL', async () => {
+    const { svc, store, ttls } = build({ enabled: true, stepUpTtl: 900 });
+    // Written 50 s ago by the old code: SET '1' EX 300 → 250 s left.
+    store.set(stepUpKey('legacy-new'), '1');
+    ttls.set(stepUpKey('legacy-new'), 250);
+    await expect(
+      svc.assertFreshStepUp('legacy-new', 120),
+    ).resolves.toBeUndefined();
+    // Written 200 s ago: older than the 120 s the reveal allows.
+    store.set(stepUpKey('legacy-old'), '1');
+    ttls.set(stepUpKey('legacy-old'), 100);
+    await expect(
+      svc.assertFreshStepUp('legacy-old', 120),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_STEP_UP_REQUIRED' } });
   });
 
   it('without the settings service the window stays 5 minutes', async () => {

@@ -1424,10 +1424,18 @@ export class AdminAuthService {
     sessionId: string,
     maxAgeSeconds: number,
   ): Promise<void> {
-    const raw = await this.redis.get(stepUpKey(sessionId));
+    const key = stepUpKey(sessionId);
+    const raw = await this.redis.get(key);
     const at = Number(raw);
-    // A key written before 14.11 holds '1' (no moment): not fresh.
-    const age = raw && Number.isFinite(at) && at > 1 ? Date.now() - at : NaN;
+    let age = NaN;
+    if (raw && Number.isFinite(at) && at > 1) {
+      age = Date.now() - at;
+    } else if (raw) {
+      // Rolling deploy: an older task writes '1' with the fixed 5-minute
+      // window; its age is that window minus the time left, as before.
+      const ttl = await this.redis.ttl(key);
+      if (ttl >= 0) age = (STEP_UP_TTL_SECONDS - ttl) * 1000;
+    }
     if (!(age >= 0 && age <= maxAgeSeconds * 1000)) {
       throw new ForbiddenException({
         code: ErrorCode.ADMIN_STEP_UP_REQUIRED,

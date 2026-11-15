@@ -602,6 +602,12 @@ export const OWNER_TASKS_SETTINGS = {
 // subscription ends and the unused part is refunded (rollback: off).
 export const OWNER_BILLING_GATE_SETTINGS = {
   'billing.cancel_on_verification_loss': true,
+  // Batch E (14.11): the verification-loss sweep reads only attorneys whose
+  // profile changed since its last run (minus this overlap, for late
+  // commits) and the whole rejected / suspended list once per
+  // `billing.verification_loss_full_scan_hours` (0 = every run, as before).
+  'billing.verification_loss_overlap_minutes': 15,
+  'billing.verification_loss_full_scan_hours': 6,
   // Offer packs and Boost are for verified attorneys only (rollback: off).
   'billing.require_verified_for_purchases': true,
   /** Algo audit 2026-10-27 (MONEY H-5): a refunded / charged-back offer
@@ -1193,6 +1199,20 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'chat.delete_for_all_hours': 48,
   /** Pinned messages per chat. Owner 2026-11-09: 10 (Telegram pins
    * without a cap, WhatsApp stops at 3; the owner wants ten everywhere). */
+  /** Detective R2 (14.11, rule 11): limits that were numbers in the code.
+   * Wrong OTP guesses at one phone/e-mail from all sources in 24 h before
+   * every wrong guess burns the code (0 = no cap). */
+  'auth.otp_global_failure_cap': 20,
+  /** R2B-9: a Google ID token issued longer ago than this many seconds is
+   * refused (0 = no check). */
+  'auth.social_token_max_age_sec': 600,
+  /** R2B-7: a Persona webhook signed more than this many seconds from now
+   * is refused (0 = no check). */
+  'verification.persona_webhook_tolerance_sec': 300,
+  /** R2B-8: the stored onboarding answers of one account, KB (0 = no cap). */
+  'users.onboarding_data_max_kb': 64,
+  /** Saved messages one person keeps (0 = no cap). */
+  'chat.saved_max': 5000,
   'chat.max_pins': 10,
   /** Owner 2026-10-22: link cards under messages. Kill switch + domains
    * (and their subdomains) that are never fetched. */
@@ -1550,6 +1570,25 @@ export const OWNER_OPS_SETTINGS = {
   'ops.cron_idle_backoff': 'off',
   'ops.cron_idle_after_runs': 10,
   'ops.cron_idle_every_min': 5,
+  // Batch D (14.11): time limit of one cron run. auto (default) = the
+  // longest of the last `ops.cron_timeout_history_runs` good runs of that
+  // job times `ops.cron_timeout_auto_factor`, never below
+  // `ops.cron_timeout_auto_min_minutes`, and no limit before the first good
+  // run — so no job that works is ever cut. on = the minutes listed in
+  // `ops.cron_timeout_minutes` (`job=minutes, …`), auto for the rest. off =
+  // no limit. A run past its limit is stopped and frees its lane.
+  'ops.cron_timeout_mode': 'auto',
+  'ops.cron_timeout_auto_factor': 10,
+  'ops.cron_timeout_auto_min_minutes': 60,
+  'ops.cron_timeout_history_runs': 20,
+  'ops.cron_timeout_minutes': '',
+  // Batch D (14.11): a sub-hourly job skipped tick after tick is logged at
+  // the first skip, then every N-th skip of the streak, and when it runs
+  // again.
+  'ops.cron_skip_log_every': 10,
+  // Batch D (14.11): «Очереди задач» turns red when a job had no good run
+  // for this many of its periods (0 = off).
+  'ops.cron_stale_periods': 3,
   // S20-8: ceiling of the message re-encryption pass, rows per minute
   // (0 = paused; the pass keeps its place).
   'ops.reencrypt_rows_per_min': 800,
@@ -1945,6 +1984,10 @@ export const OWNER_DEAL_RECORD_SETTINGS = {
   'bids.confirmation_required': true,
   /** Days until the one reminder to confirm a bid. */
   'bids.confirmation_reminder_days': 3,
+  /** Row 145: shaped words kept per font between deal-record PDFs
+   * (~3.6 KB each, measured 14.11); 0 = none kept, each record shapes its
+   * words again (modules/deals/deal-record-pdf-cache.ts). */
+  'deal_record.pdf_word_cache_words': 5000,
 };
 
 export const OWNER_CASE_TOOLS_SETTINGS = {

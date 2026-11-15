@@ -169,6 +169,10 @@ export function personaSignatureValid(
   rawBody: Buffer,
   header: string | undefined,
   secret: string,
+  /** R2B-7 (14.11): `|now − t|` allowed, seconds (0 = no check), like
+   * stripe-node `constructEvent` tolerance. */
+  toleranceSec = 0,
+  nowSec: number = Math.floor(Date.now() / 1000),
 ): boolean {
   if (!header || !secret) return false;
   for (const set of header.trim().split(/\s+/)) {
@@ -180,6 +184,8 @@ export function personaSignatureValid(
     const t = parts.get('t') ?? '';
     const v1 = parts.get('v1') ?? '';
     if (!/^\d{1,12}$/.test(t) || !/^[0-9a-f]{64}$/i.test(v1)) continue;
+    if (toleranceSec > 0 && Math.abs(nowSec - Number(t)) > toleranceSec)
+      continue;
     const expected = createHmac('sha256', secret)
       .update(`${t}.`)
       .update(rawBody)
