@@ -22,6 +22,8 @@ function make(
     live?: Record<string, 'on' | 'off'>;
     autoOwned?: string[];
     strings?: Record<string, string>;
+    /** settings.number overrides (row 16 / 17 live-test settings). */
+    numbers?: Record<string, number>;
   } = {},
 ) {
   const store = new Map<string, string>();
@@ -75,18 +77,20 @@ function make(
             : 'off',
     ),
     number: jest.fn(async (k: string) =>
-      // 14.11: the minute overrides are 0 by default (= use the hours)
-      k === 'infra.auto_off_minutes' || k === 'infra.waf_calm_off_minutes'
-        ? 0
-        : k === 'infra.auto_on_minutes'
-          ? 30
-          : k === 'infra.auto_off_hours'
-            ? 72
-            : k === 'infra.auto_max_usd_month'
-              ? 100
-              : k === 'economy.aws_cap_usd'
-                ? (o.awsCap ?? 450)
-                : 50_000_000,
+      o.numbers?.[k] !== undefined
+        ? o.numbers[k]
+        : // 14.11: the minute overrides are 0 by default (= use the hours)
+          k === 'infra.auto_off_minutes' || k === 'infra.waf_calm_off_minutes'
+          ? 0
+          : k === 'infra.auto_on_minutes'
+            ? 30
+            : k === 'infra.auto_off_hours'
+              ? 72
+              : k === 'infra.auto_max_usd_month'
+                ? 100
+                : k === 'economy.aws_cap_usd'
+                  ? (o.awsCap ?? 450)
+                  : 50_000_000,
     ),
   };
   const prisma = {
@@ -122,6 +126,61 @@ const T0 = new Date('2026-11-08T12:00:00Z');
 const later = (min: number) => new Date(T0.getTime() + min * 60_000);
 
 describe('InfraAutoService (dry run with fakes)', () => {
+  it('rows 16 / 17: infra.auto_check_minutes = 1 — the pass lock lives 30 s, not 9 min', async () => {
+    const { svc, redis } = make({ numbers: { 'infra.auto_check_minutes': 1 } });
+    await svc.check(T0);
+    expect(redis.set).toHaveBeenCalledWith(
+      'ops:infra-auto:lock',
+      '1',
+      'EX',
+      30,
+      'NX',
+    );
+  });
+
+  it('rows 16 / 17: the default cycle stays 10 minutes (lock 570 s)', async () => {
+    const { svc, redis } = make({
+      numbers: { 'infra.auto_check_minutes': 10 },
+    });
+    await svc.check(T0);
+    expect(redis.set).toHaveBeenCalledWith(
+      'ops:infra-auto:lock',
+      '1',
+      'EX',
+      570,
+      'NX',
+    );
+  });
+
+  it('rows 16 / 17 live test: a WAF attack switches both protections on within 2 one-minute cycles', async () => {
+    const { svc, infra, store } = make({
+      pressures: ['waf_attack'],
+      live: { 'aws.waf_alb': 'on' },
+      numbers: {
+        'infra.auto_check_minutes': 1,
+        'infra.waf_attack_on_minutes': 1,
+      },
+    });
+    // First look: the attack is seen, its clock starts.
+    await svc.check(T0);
+    expect(infra.create).not.toHaveBeenCalled();
+    // One cycle later (the 30 s lock is gone): the first protection starts.
+    store.delete('ops:infra-auto:lock');
+    const r = await svc.check(later(1));
+    expect(r.started).toMatchObject({ to: 'on' });
+    expect(['aws.waf_bot_control', 'aws.waf_extra_rules']).toContain(
+      r.started?.id,
+    );
+    expect(infra.create).toHaveBeenCalledWith(
+      SYSTEM_ACTOR_ID,
+      null,
+      r.started?.id,
+      'on',
+      null,
+      { auto: true },
+    );
+  });
+
   it('13.11 replay: the pooler «Авто» switched on is NOT switched off while the tasks use it', async () => {
     // Prod 13.11 21:33 UTC: aws.pgbouncer on (switched on by itself), the
     // api tasks connect through it (DB_POOLER_HOST, DB_POOL_SIZE 10), no

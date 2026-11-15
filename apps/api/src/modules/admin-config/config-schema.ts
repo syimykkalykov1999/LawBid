@@ -1378,6 +1378,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Minutes without the signal before switch-off, instead of infra.auto_off_hours when above 0 (live tests). 0 = use the hours.',
     min: 0,
   };
+  out['infra.auto_check_minutes'] = {
+    type: 'integer',
+    defaultValue: 10,
+    description:
+      'How often, in minutes, the automation looks at the signals (one cycle; default 10, 1 for a live test). Every wait above counts in these cycles.',
+    min: 1,
+  };
   out['infra.auto_max_usd_month'] = {
     type: 'integer',
     defaultValue: 100,
@@ -2040,6 +2047,7 @@ export const NO_CEILING: readonly string[] = [
   'infra.auto_on_minutes',
   'infra.auto_off_hours',
   'infra.auto_off_minutes',
+  'infra.auto_check_minutes',
   'infra.auto_max_usd_month',
   'economy.stripe_fee_percent',
   'economy.stripe_fee_fixed_cents',

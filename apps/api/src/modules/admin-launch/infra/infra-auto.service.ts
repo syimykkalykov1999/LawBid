@@ -36,6 +36,7 @@ import {
   autoWants,
   autoWaits,
   dueWants,
+  passLockSeconds,
   searchDomainSpare,
   wantKey,
   type AutoSignals,
@@ -66,9 +67,11 @@ const SEARCH_SEEN_KEY = 'ops:infra-auto:search-seen';
 /** The last automatic search steps (newest first), for «Масштаб». */
 export const SEARCH_LOG_KEY = SEARCH_AUTO_LOG_KEY;
 
-const CHECK_MS = 10 * 60_000;
+/** Owner 15.11 (rows 16 / 17, live WAF test within 10 minutes): every API
+ * task looks once a minute; the shared Redis lock (passLockSeconds of
+ * infra.auto_check_minutes) lets one pass through per cycle. */
+const TICK_MS = 60_000;
 const LOCK_KEY = 'ops:infra-auto:lock';
-const LOCK_TTL_S = 9 * 60;
 const SEEN_KEY = 'ops:infra-auto:seen';
 const NOTIFIED_KEY = 'ops:infra-auto:notified';
 /** A held-back want is told to the owner at most once a day. */
@@ -144,7 +147,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
         this.log.warn(`infra-auto pass failed: ${e.message}`),
       );
     setTimeout(tick, 120_000 + Math.floor(Math.random() * 30_000)).unref();
-    this.timer = setInterval(tick, CHECK_MS);
+    this.timer = setInterval(tick, TICK_MS);
     this.timer.unref();
   }
 
@@ -159,8 +162,11 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
   }> {
     const none = { started: null, held: [] };
     if (!this.redis) return none;
+    const cycle = await this.settings
+      .number('infra.auto_check_minutes')
+      .catch(() => 0);
     const got = await this.redis
-      .set(LOCK_KEY, '1', 'EX', LOCK_TTL_S, 'NX')
+      .set(LOCK_KEY, '1', 'EX', passLockSeconds(cycle), 'NX')
       .catch(() => null);
     if (!got) return none;
     await this.notifyFinished().catch((e: Error) =>

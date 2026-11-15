@@ -574,6 +574,20 @@ export function autoWaits(num: (key: string) => number): {
   };
 }
 
+/**
+ * Owner 15.11 (rows 16 / 17: the WAF «Авто» must be testable live within
+ * 10 minutes; «No limits on owner»): how often the automation looks,
+ * `infra.auto_check_minutes` (default 10, as before). Every API task ticks
+ * once a minute and a shared Redis lock (SET NX EX, the Redis docs' simple
+ * single-instance lock) lets one pass through per cycle: the lock lives the
+ * cycle minus 30 s so the tick that ends the cycle finds it gone. Not a
+ * number (or 0) = 10 minutes; the floor is technical, one tick.
+ */
+export function passLockSeconds(minutes: number): number {
+  const m = Number.isFinite(minutes) && minutes > 0 ? minutes : 10;
+  return Math.max(30, Math.round(m * 60) - 30);
+}
+
 export function dueWants(
   wants: readonly AutoWant[],
   seen: Readonly<Record<string, number>>,
