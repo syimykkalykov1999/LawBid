@@ -100,6 +100,34 @@ export function searchOffPeople(
   );
 }
 
+/**
+ * Row 9 (14.11): the search domain is spare — on «Авто», handed to the
+ * automation (it switched it on itself, or the owner stored «Авто»), and
+ * fewer people than the off line. KEEP_ON keeps the domain while
+ * `search.engine` is shadow / engine, and with `search.engine_follow = auto`
+ * it is the automation itself that put search there, so the domain kept its
+ * own signal alive and never went (the KNOWN_ERRORS 144 pattern). A spare
+ * domain is drained first: search goes back to the database at once
+ * (searchAutoStep), and only then does KEEP_ON let the domain go after
+ * `infra.auto_off_hours` (AWS ALB / Aurora: take the target out of service,
+ * then delete it). Unknown people = not spare (never remove on a failed
+ * read).
+ */
+export function searchDomainSpare(
+  s: Pick<AutoSignals, 'people' | 'searchOnPeople' | 'modes' | 'pickedAuto'>,
+  autoOn: ReadonlySet<string>,
+): boolean {
+  const id = 'aws.opensearch';
+  const handed = autoOn.has(id) || s.pickedAuto?.has(id) === true;
+  return (
+    handed &&
+    (s.modes?.[id] ?? 'auto') === 'auto' &&
+    s.people != null &&
+    Number.isFinite(s.people) &&
+    s.people < searchOffPeople(s)
+  );
+}
+
 /** Fewer direct connections per task than this = switch the pooler on. */
 export const POOL_FLOOR = 8;
 
@@ -372,17 +400,26 @@ export function autoWants(
       });
     }
   }
+  // Row 9 (14.11): a spare domain that search no longer uses (drained back
+  // to the database) sheds its extra nodes too, highest first, so the
+  // domain itself can go after them (LADDERS).
+  const drained =
+    engineOn &&
+    (s.searchEngine ?? 'postgres') === 'postgres' &&
+    searchDomainSpare(s, autoOn);
   if (
     topNode > 0 &&
     (s.modes?.[SEARCH_NODES[topNode]] ?? 'auto') === 'auto' &&
-    (!engineOn || s.pressures.includes('search_idle'))
+    (!engineOn || drained || s.pressures.includes('search_idle'))
   ) {
     out.push({
       id: SEARCH_NODES[topNode],
       to: 'off',
-      reason: engineOn
-        ? 'Поисковому движку давно легко (процессор ниже половины порога, память JVM ниже 50 %): лишние узлы уходят.'
-        : 'Поисковый движок выключен: лишние узлы не нужны.',
+      reason: !engineOn
+        ? 'Поисковый движок выключен: лишние узлы не нужны.'
+        : drained
+          ? 'Поисковый движок не нужен (людей меньше порога выключения), поиск уже в базе: лишние узлы уходят.'
+          : 'Поисковому движку давно легко (процессор ниже половины порога, память JVM ниже 50 %): лишние узлы уходят.',
     });
   }
   // Owner 2026-11-12: the WAF protections on «Авто». On while the web ACL
@@ -615,10 +652,21 @@ const ROLL_THROUGH_UPDATE: readonly string[] = [
   'aws_cloudwatch_composite_alarm',
 ];
 
-/** New alarms for anything an item adds are always fine. */
+/**
+ * Watchers any automatic plan may create, a switch-on and a switch-off alike:
+ * alarms, and the async retry setting of an existing function. They remove
+ * nothing, nothing serves traffic through them, and nothing depends on them
+ * being absent. Rows 8 / 85 (prod 14.11, request eda185d1): every automatic
+ * plan is a plan of the whole stack, so it also carries what was merged on
+ * main and not applied yet (#1052: four event invoke configs, two api-admin
+ * alarms). With these refused in a switch-off, the read copy's removal
+ * waited for the owner and expired, twice. A delete or replace of any type
+ * outside the item, and any update outside ROLL_THROUGH_UPDATE, still waits.
+ */
 const ROLL_THROUGH_CREATE: readonly string[] = [
   'aws_cloudwatch_metric_alarm',
   'aws_cloudwatch_composite_alarm',
+  'aws_lambda_function_event_invoke_config',
 ];
 
 const S = 'module\\.stack\\.';
@@ -695,7 +743,7 @@ export function resourceType(address: string): string {
  * (empty = it may be applied without a tap). Rules, all at once:
  *  - a switch-on removes nothing but replaced task definitions (a new
  *    revision is how ECS rolls a service), a switch-off creates nothing but
- *    those;
+ *    those and new watchers (ROLL_THROUGH_CREATE);
  *  - a switch-off of something live services use waits (OWNER_CONFIRM_OFF);
  *  - serving infrastructure is never deleted or replaced (NEVER_AUTO_DESTROY);
  *  - every changed address belongs to the switched item (AUTO_SCOPE), or is
@@ -731,6 +779,8 @@ export function autoApplyBlockers(
       continue;
     }
     if (to === 'off' && creates) {
+      // A pure create of a watcher (never a replace: that deletes too).
+      if (!deletes && ROLL_THROUGH_CREATE.includes(type)) continue;
       out.push(`${r.address}: ${r.action} in a switch-off`);
       continue;
     }

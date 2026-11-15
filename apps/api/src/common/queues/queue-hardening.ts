@@ -72,6 +72,13 @@ const TUNING: Record<string, Partial<Omit<WorkerTuning, 'metrics'>>> = {
     stalledInterval: 60_000,
     maxStalledCount: 2,
   },
+  // Batch D (14.11): the sub-hourly heavy jobs, split off `cron-heavy`
+  // (jobs.constants.ts): the same long, DB-bound handlers, the same lock.
+  'cron-heavy-frequent': {
+    lockDuration: 300_000,
+    stalledInterval: 60_000,
+    maxStalledCount: 2,
+  },
   'channel-fanout': { lockDuration: 90_000, stalledInterval: 60_000 },
   'post-fanout': { lockDuration: 90_000, stalledInterval: 60_000 },
   'case-fanout': { lockDuration: 90_000, stalledInterval: 60_000 },

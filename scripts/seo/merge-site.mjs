@@ -55,6 +55,19 @@ function locs(xml) {
   return [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].trim());
 }
 
+// R2 row 171 (14.11): the site is exported with TRAILING_SLASH=1, so every
+// page's canonical is /clients/ while its own sitemap can list /clients.
+// The edge answers 301 from /clients to /clients/ (seo_index in
+// infra/modules/web/main.tf), so the sitemap carries the slash form; a file
+// address (/llms.txt) stays as is.
+export function canonical(u) {
+  const m = /^(https?:\/\/[^/?#]+)([^?#]*)(.*)$/.exec(u);
+  if (!m) return u;
+  const [, origin, path, rest] = m;
+  if (path.endsWith('/') || path.slice(path.lastIndexOf('/') + 1).includes('.')) return u;
+  return `${origin}${path}/${rest}`;
+}
+
 export async function mergeSite({ seo, site, siteUrl }) {
   const base = siteUrl.replace(/\/$/, '');
   const copied = [];
@@ -75,7 +88,7 @@ export async function mergeSite({ seo, site, siteUrl }) {
     ? locs(await readFile(join(site, 'sitemap.xml'), 'utf8'))
     : [];
   const keepSite = siteUrls
-    .map((u) => u.replace(/^https?:\/\/[^/]+/, base))
+    .map((u) => canonical(u.replace(/^https?:\/\/[^/]+/, base)))
     .filter((u) => {
       const path = u.slice(base.length).replace(/\/$/, '');
       return path !== '' && !path.startsWith('/lawyers');
