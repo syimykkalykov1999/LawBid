@@ -55,8 +55,21 @@ vi.mock("@/lib/api/client", async (orig) => {
   };
 });
 
-const pages = Object.entries(import.meta.glob("./**/page.tsx")).filter(
-  ([path]) => path.startsWith("./(app)/"),
+type PageModule = { default: ComponentType<unknown> } | null;
+// Every page is loaded while the file is collected, like a static import:
+// loading inside the first test put the cold module graph of the whole
+// panel (2.5 s) on `admins` and timed it out in full runs (KNOWN_ERRORS
+// №114). Server-component pages import server-only code: null.
+const pages: [string, PageModule][] = await Promise.all(
+  Object.entries(import.meta.glob("./**/page.tsx"))
+    .filter(([path]) => path.startsWith("./(app)/"))
+    .map(async ([path, load]): Promise<[string, PageModule]> => [
+      path,
+      (await load().catch((e: Error) => {
+        if (/server-only/.test(e.message)) return null;
+        throw e;
+      })) as PageModule,
+    ]),
 );
 
 function mount(Page: ComponentType<unknown>) {
@@ -82,15 +95,10 @@ describe("admin pages smoke", () => {
     ["сервер думает (загрузка)", "loading"],
     ["сервер ответил ошибкой", "error"],
   ];
-  for (const [path, load] of pages) {
+  for (const [path, mod] of pages) {
     for (const [name, m] of modes) {
       it(`${path} — ${name}`, async () => {
         mode = m;
-        const mod = (await load().catch((e: Error) => {
-          // Server-component pages import server-only code; they render on the server.
-          if (/server-only/.test(e.message)) return null;
-          throw e;
-        })) as { default: ComponentType<unknown> } | null;
         if (!mod) return;
         // Async server components render on the server, not in jsdom.
         if (mod.default.constructor.name === "AsyncFunction") return;
