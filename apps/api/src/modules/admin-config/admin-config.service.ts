@@ -40,6 +40,9 @@ import { isValidTimeZone } from '../../common/utils/zoned-time';
 
 export const CONFIG_AUDIT = {
   flag: 'config.flag',
+  /** Row 150 (R2 review): a live partial rollout got another bucketing
+   * hash, so a different set of people now has the flag. */
+  flagRebucketed: 'config.flag_rebucketed',
   config: 'config.app_config',
   language: 'config.language',
   legalCreate: 'legal.create',
@@ -223,6 +226,36 @@ export class AdminConfigService {
         },
         tx,
       );
+      // Row 150 (R2 review): changing the hash of a flag that is on for part
+      // of the users re-picks who has it; that gets its own audit line, so a
+      // shift in a measurement can be traced to it.
+      const partial = (r: { enabled: boolean; rollout_percent: number }) =>
+        r.enabled && r.rollout_percent > 0 && r.rollout_percent < 100;
+      if (
+        updated.hash_version !== before.hash_version &&
+        (partial(before) || partial(updated))
+      ) {
+        await this.audit.record(
+          {
+            adminId: admin.id,
+            action: CONFIG_AUDIT.flagRebucketed,
+            targetType: 'feature_flag',
+            targetId: null,
+            before: {
+              key,
+              hashVersion: before.hash_version,
+              rolloutPercent: before.rollout_percent,
+            },
+            after: {
+              key,
+              hashVersion: updated.hash_version,
+              rolloutPercent: updated.rollout_percent,
+            },
+            ip: admin.ip,
+          },
+          tx,
+        );
+      }
       return updated;
     });
     await this.flags.invalidate();

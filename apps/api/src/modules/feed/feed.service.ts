@@ -351,11 +351,18 @@ export class FeedService implements FeedProvider {
     const shownAuthors = streamOpen ? await this.shownAuthors(authorIds) : [];
     const following = shownAuthors.length
       ? await this.prisma.post.findMany({
+          // R2 review: postsBefore() is an `AND`; as its own array item it
+          // can never overwrite an `AND` of the visibility rule or the
+          // content mode (a spread would), like the other call site.
           where: {
-            ...POST_VISIBLE_WHERE,
-            ...only,
-            author_id: { in: shownAuthors },
-            ...(after ? postsBefore(after) : {}),
+            AND: [
+              {
+                ...POST_VISIBLE_WHERE,
+                ...only,
+                author_id: { in: shownAuthors },
+              },
+              ...(after ? [postsBefore(after)] : []),
+            ],
           },
           orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
           take: limit + 1,

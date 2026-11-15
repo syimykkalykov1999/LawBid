@@ -297,6 +297,19 @@ function postWheres(prisma: {
   );
 }
 
+/** The followed-stream read: its rule is the first `AND` item (R2 review:
+ * the cursor is a separate item, never spread into the rule). */
+function streamWhere(prisma: {
+  post: { findMany: { mock: { calls: unknown[][] } } };
+}): Record<string, unknown> | undefined {
+  for (const w of postWheres(prisma)) {
+    if (w.author_id) return w;
+    const first = (w.AND as Record<string, unknown>[] | undefined)?.[0];
+    if (first?.author_id) return first;
+  }
+  return undefined;
+}
+
 describe('FeedService followed stream (row 64)', () => {
   it('checks the author rule once per followed author, posts without the join', async () => {
     const { svc, prisma } = build({ redis: fakeRedis({}) });
@@ -313,7 +326,7 @@ describe('FeedService followed stream (row 64)', () => {
       ...(VISIBLE_POST_WHERE.author as object),
       id: { in: ['att-1', 'suspended-2'] },
     });
-    const stream = postWheres(prisma).find((w) => w.author_id);
+    const stream = streamWhere(prisma);
     expect(stream?.author_id).toEqual({ in: ['att-1'] });
     expect(stream?.author).toBeUndefined();
     expect(stream).toMatchObject({
@@ -327,7 +340,7 @@ describe('FeedService followed stream (row 64)', () => {
     const { svc, prisma } = build({ redis: fakeRedis({}) });
     prisma.follow.findMany.mockResolvedValue([{ followee_id: 'suspended-1' }]);
     await svc.page(viewer, undefined, 10);
-    const stream = postWheres(prisma).find((w) => w.author_id);
+    const stream = streamWhere(prisma);
     expect(stream).toBeUndefined();
   });
 });
@@ -428,8 +441,34 @@ describe('FeedService keyset cursor is an index range (row 126)', () => {
     prisma.follow.findMany.mockResolvedValue([{ followee_id: 'att-1' }]);
     const cursor = encodeFeedCursor({ f: { t, id: 'p9' }, r: 0, v: null });
     await svc.page(viewer, cursor, 10);
-    const stream = postWheres(prisma).find((w) => w.author_id);
+    const stream = postWheres(prisma).find(
+      (w) =>
+        (w.AND as Record<string, unknown>[] | undefined)?.[0]?.author_id !==
+        undefined,
+    );
     expect(bounded(stream)).toBe(true);
+  });
+
+  it('R2 review: the cursor is its own AND item next to the visibility rule, never spread into it', async () => {
+    const { svc, prisma } = build({ redis: fakeRedis({}) });
+    prisma.follow.findMany.mockResolvedValue([{ followee_id: 'att-1' }]);
+    const cursor = encodeFeedCursor({ f: { t, id: 'p9' }, r: 0, v: null });
+    await svc.page(viewer, cursor, 10);
+    const stream = postWheres(prisma).find(
+      (w) =>
+        (w.AND as Record<string, unknown>[] | undefined)?.[0]?.author_id !==
+        undefined,
+    );
+    const and = stream?.AND as Record<string, unknown>[];
+    expect(Object.keys(stream ?? {})).toEqual(['AND']);
+    expect(and).toHaveLength(2);
+    expect(and[0]).toMatchObject({
+      status: 'published',
+      deleted_at: null,
+      archived_at: null,
+      author_id: { in: ['att-1'] },
+    });
+    expect(and[1]).toEqual(postsBefore({ t, id: 'p9' }));
   });
 
   it('selects exactly the rows of the old OR rule', () => {
