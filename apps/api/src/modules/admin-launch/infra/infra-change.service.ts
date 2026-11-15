@@ -200,14 +200,20 @@ export class InfraChangeService {
     const live = anyFailed ? await this.liveStates() : undefined;
     // Owner 15.11: the newest successful apply (any item) supersedes older
     // failures (failureSuperseded).
-    const lastDone = anyFailed
-      ? await this.prisma.infraChangeRequest.findFirst({
+    const done = anyFailed
+      ? await this.prisma.infraChangeRequest.findMany({
           where: { status: 'done', finished_at: { not: null } },
           orderBy: { finished_at: 'desc' },
-          select: { finished_at: true },
+          take: 1,
+          select: { status: true, finished_at: true },
         })
-      : null;
-    return rows.map((r) => this.view(r, live, lastDone?.finished_at ?? null));
+      : [];
+    const lastDoneAt =
+      done
+        .filter((d) => d.status === 'done' && d.finished_at)
+        .map((d) => d.finished_at!)
+        .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+    return rows.map((r) => this.view(r, live, lastDoneAt));
   }
 
   /**
