@@ -97,7 +97,16 @@ if [ "$PHASE" = "prepare" ]; then
   # 1. Logical replication on the blue side needs the instance in sync with its group.
   apply_status=$(rds describe-db-instances --db-instance-identifier "$DB_ID" --query 'DBInstances[0].DBParameterGroups[0].ParameterApplyStatus')
   group=$(rds describe-db-instances --db-instance-identifier "$DB_ID" --query 'DBInstances[0].DBParameterGroups[0].DBParameterGroupName')
-  lr=$(rds describe-db-parameters --db-parameter-group-name "$group" --query "Parameters[?ParameterName=='rds.logical_replication'].ParameterValue | [0]")
+  # 15.11 (KNOWN_ERRORS 171): right after the Terraform apply the new value
+  # is not visible yet (prod: checked 5 s after the apply, «not 1»; a minute
+  # later it read 1, pending-reboot). Wait up to 5 minutes for it.
+  lr=""
+  for _ in $(seq 1 30); do
+    lr=$(rds describe-db-parameters --db-parameter-group-name "$group" --query "Parameters[?ParameterName=='rds.logical_replication'].ParameterValue | [0]")
+    [ "$lr" = "1" ] && break
+    [ "${DRY_RUN:-0}" = "1" ] && break
+    sleep 10
+  done
   if [ "$lr" != "1" ]; then
     log "rds.logical_replication is not 1 on $group (the Terraform apply sets it); stop"
     exit 1
