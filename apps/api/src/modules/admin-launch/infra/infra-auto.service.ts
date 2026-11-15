@@ -1,3 +1,4 @@
+import { SsmParamGateway } from '../../../common/ops/ssm-param.gateway';
 import { PartitionService } from '../../../partitioning/partition.service';
 import { ShardMoveService } from '../../../sharding/move/shard-move.service';
 import { serversFull } from '../../../sharding/shard-growth';
@@ -33,7 +34,9 @@ import {
   WAF_GUARDS,
   autoRefusal,
   autoWants,
+  autoWaits,
   dueWants,
+  passLockSeconds,
   searchDomainSpare,
   wantKey,
   type AutoSignals,
@@ -64,9 +67,11 @@ const SEARCH_SEEN_KEY = 'ops:infra-auto:search-seen';
 /** The last automatic search steps (newest first), for «Масштаб». */
 export const SEARCH_LOG_KEY = SEARCH_AUTO_LOG_KEY;
 
-const CHECK_MS = 10 * 60_000;
+/** Owner 15.11 (rows 16 / 17, live WAF test within 10 minutes): every API
+ * task looks once a minute; the shared Redis lock (passLockSeconds of
+ * infra.auto_check_minutes) lets one pass through per cycle. */
+const TICK_MS = 60_000;
 const LOCK_KEY = 'ops:infra-auto:lock';
-const LOCK_TTL_S = 9 * 60;
 const SEEN_KEY = 'ops:infra-auto:seen';
 const NOTIFIED_KEY = 'ops:infra-auto:notified';
 /** A held-back want is told to the owner at most once a day. */
@@ -111,7 +116,27 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly incidents?: IncidentsService,
     @Optional() private readonly push?: PushQueueService,
     @Optional() private readonly moduleRef?: ModuleRef,
+    // Owner 15.11 (aws.autoscale_code): main's vs the shipped Lambda code.
+    @Optional() private readonly ssm?: SsmParamGateway,
   ) {}
+
+  /** Owner 15.11: the autoscale code hashes (SSM, written by deploy.yml and
+   * by Terraform). A failed read = unknown = no request. */
+  private async autoscaleCode(): Promise<{
+    main: string | null;
+    applied: string | null;
+  }> {
+    const read = async (env: string) => {
+      const name = this.config.get<string>(env);
+      if (!name || !this.ssm) return null;
+      return (await this.ssm.get(name).catch(() => null)) || null;
+    };
+    const [main, applied] = await Promise.all([
+      read('OPS_AUTOSCALE_CODE_MAIN_PARAM'),
+      read('OPS_AUTOSCALE_CODE_APPLIED_PARAM'),
+    ]);
+    return { main, applied };
+  }
 
   onModuleInit(): void {
     if (process.env.JEST_WORKER_ID || process.argv[1]?.includes('worker')) {
@@ -122,7 +147,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
         this.log.warn(`infra-auto pass failed: ${e.message}`),
       );
     setTimeout(tick, 120_000 + Math.floor(Math.random() * 30_000)).unref();
-    this.timer = setInterval(tick, CHECK_MS);
+    this.timer = setInterval(tick, TICK_MS);
     this.timer.unref();
   }
 
@@ -137,8 +162,11 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
   }> {
     const none = { started: null, held: [] };
     if (!this.redis) return none;
+    const cycle = await this.settings
+      .number('infra.auto_check_minutes')
+      .catch(() => 0);
     const got = await this.redis
-      .set(LOCK_KEY, '1', 'EX', LOCK_TTL_S, 'NX')
+      .set(LOCK_KEY, '1', 'EX', passLockSeconds(cycle), 'NX')
       .catch(() => null);
     if (!got) return none;
     await this.notifyFinished().catch((e: Error) =>
@@ -155,21 +183,11 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     const autoOn = await this.autoOwned();
     const wants = autoWants(signals, live, autoOn);
     const prev = await this.readSeen();
-    const onMs =
-      Math.max(10, await this.settings.number('infra.auto_on_minutes')) *
-      60_000;
-    const offMs =
-      Math.max(6, await this.settings.number('infra.auto_off_hours')) *
-      3_600_000;
     // Owner 2026-11-12 (foreman): the WAF protections switch on after
     // infra.waf_attack_on_minutes of an attack and off after
     // infra.waf_calm_off_hours of calm, not the slow growth waits.
-    const wafOnMs =
-      Math.max(1, await this.settings.number('infra.waf_attack_on_minutes')) *
-      60_000;
-    const wafOffMs =
-      Math.max(1, await this.settings.number('infra.waf_calm_off_hours')) *
-      3_600_000;
+    // Owner 14.11: every wait also in minutes, no 6 h / 10 min floors.
+    const { onMs, offMs, wafOnMs, wafOffMs } = await this.waits();
     const per = Object.fromEntries(
       WAF_GUARDS.map((id) => [id, { onMs: wafOnMs, offMs: wafOffMs }]),
     );
@@ -325,7 +343,10 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     );
     const pool = Number(this.config.get<string>('DB_POOL_SIZE') ?? '');
     const pooler = !!this.config.get<string>('DB_POOLER_HOST');
+    const code = await this.autoscaleCode();
     return {
+      autoscaleCodeMain: code.main,
+      autoscaleCodeApplied: code.applied,
       pressures: s.pressures,
       budgetRatio: s.budgetRatio,
       searchEngine: engine,
@@ -452,9 +473,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       await this.redis
         ?.set(SEARCH_SEEN_KEY, `${key}@${first}`, 'EX', 7 * 24 * 3600)
         .catch(() => undefined);
-      const onMs =
-        Math.max(10, await this.settings.number('infra.auto_on_minutes')) *
-        60_000;
+      const { onMs } = await this.waits();
       if (now.getTime() - first < onMs) return null;
     }
     try {
@@ -503,6 +522,23 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       `${action.reason} Само, через «Авто». Ручное управление: search.engine_follow = manual.`,
     );
     return action;
+  }
+
+  /** Owner 14.11: the «Авто» waits (minutes win over hours; floor 1 min). */
+  private async waits() {
+    const keys = [
+      'infra.auto_on_minutes',
+      'infra.auto_off_hours',
+      'infra.auto_off_minutes',
+      'infra.waf_attack_on_minutes',
+      'infra.waf_calm_off_hours',
+      'infra.waf_calm_off_minutes',
+    ] as const;
+    const vals = await Promise.all(
+      keys.map((k) => this.settings.number(k).catch(() => 0)),
+    );
+    const m = Object.fromEntries(keys.map((k, i) => [k, vals[i]]));
+    return autoWaits((k) => m[k] ?? 0);
   }
 
   /** Row 9 (14.11): the search domain is on «Авто», handed to the

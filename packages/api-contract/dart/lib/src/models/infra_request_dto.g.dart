@@ -32,6 +32,7 @@ InfraRequestDto _$InfraRequestDtoFromJson(Map<String, dynamic> json) =>
       expiresAt: json['expiresAt'] as String?,
       finishedAt: json['finishedAt'] as String?,
       settled: json['settled'] as bool,
+      superseded: json['superseded'] as bool,
     );
 
 Map<String, dynamic> _$InfraRequestDtoToJson(InfraRequestDto instance) =>
@@ -56,4 +57,5 @@ Map<String, dynamic> _$InfraRequestDtoToJson(InfraRequestDto instance) =>
       'expiresAt': ?instance.expiresAt,
       'finishedAt': ?instance.finishedAt,
       'settled': instance.settled,
+      'superseded': instance.superseded,
     };

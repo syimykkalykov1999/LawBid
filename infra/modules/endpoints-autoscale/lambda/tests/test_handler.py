@@ -1,5 +1,6 @@
 """The handler with fake AWS clients: the wiring, not the maths."""
 
+import json
 import os
 import sys
 import unittest
@@ -115,3 +116,36 @@ class Handler(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AdminTuningTests(unittest.TestCase):
+    """14.11 (owner): the endpoint thresholds from the admin (SSM
+    `<prefix>/tuning`, read on every run over the Terraform TUNING)."""
+
+    def test_schema_matches_the_config(self):
+        import dataclasses
+        import decision as dd
+        defaults = {f.name: f.default for f in dataclasses.fields(dd.Config)}
+        for k, s in h.tuning_schema().items():
+            self.assertIn(k, defaults)
+            self.assertTrue(s["min"] <= defaults[k] <= s["max"], k)
+
+    def test_valid_values_apply_bad_ones_are_skipped(self):
+        import decision as dd
+        cfg, skipped = h.apply_admin_tuning(dd.Config(), json.dumps({"up_gb_per_day": 50, "down_days": 0, "x": 1}))
+        self.assertEqual(cfg.up_gb_per_day, 50)
+        self.assertEqual(cfg.down_days, dd.Config().down_days)
+        self.assertEqual(sorted(skipped), ["down_days", "x"])
+
+    def test_handler_reads_the_parameter(self):
+        import decision as dd
+        calls = []
+
+        class Ssm:
+            def get_parameter(self, Name):
+                calls.append(Name)
+                return {"Parameter": {"Value": '{"cooldown_h": 2}'}}
+
+        h._clients["ssm"] = Ssm()
+        cfg = h.read_admin_tuning(dd.Config(), {"TUNING_PARAM": "/x/endpoints-autoscale/tuning"})
+        self.assertEqual((cfg.cooldown_h, calls), (2, ["/x/endpoints-autoscale/tuning"]))

@@ -399,12 +399,16 @@ resource "aws_ecs_task_definition" "this" {
     readonlyRootFilesystem = true
     linuxParameters        = { initProcessEnabled = true }
     mountPoints            = [{ sourceVolume = "tmp", containerPath = "/tmp", readOnly = false }]
+    # Owner 14.11 (PgBouncer is needed; switch-on safety): healthy = PgBouncer
+    # listens AND the database answers from this task (its security group,
+    # DNS, TLS and the app role's password), so a steady service is one that
+    # can serve queries. The URL's ?query (Prisma options) is cut for libpq.
     healthCheck = {
-      command     = ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -t 3 || exit 1"]
+      command     = ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -t 3 && PGCONNECT_TIMEOUT=3 psql \"$${DATABASE_URL%%\\?*}\" -tAqc 'select 1' >/dev/null || exit 1"]
       interval    = 15
-      timeout     = 5
-      retries     = 3
-      startPeriod = 15
+      timeout     = 8
+      retries     = 4
+      startPeriod = 20
     }
     # SIGINT (image STOPSIGNAL) = safe shutdown: running transactions end.
     stopTimeout = 30
@@ -436,6 +440,10 @@ resource "aws_ecs_service" "this" {
   enable_execute_command             = false
   propagate_tags                     = "SERVICE"
   force_new_deployment               = true
+  # Owner 14.11: Terraform waits for healthy pooler tasks (health check above
+  # reaches the database). Never steady = the apply fails here, before the
+  # API is pointed at the pooler (the endpoint output depends on this).
+  wait_for_steady_state = true
 
   dynamic "capacity_provider_strategy" {
     for_each = var.spot ? {
@@ -493,6 +501,15 @@ resource "aws_appautoscaling_policy" "cpu" {
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
+  }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
   }
 }
 
@@ -596,7 +613,8 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy" {
 # --- outputs ----------------------------------------------------------------------
 output "endpoint" {
   value       = "${aws_service_discovery_service.this.name}.${aws_service_discovery_private_dns_namespace.this.name}"
-  description = "DNS name apps connect to (DB_POOLER_HOST); resolves to the pooler task addresses."
+  description = "DNS name apps connect to (DB_POOLER_HOST); resolves to the pooler task addresses. Known only after the pooler service is steady, so the API moves to it only when the pooler reaches the database."
+  depends_on  = [aws_ecs_service.this]
 }
 output "port" { value = 5432 }
 output "client_ca_pem" {
@@ -611,3 +629,12 @@ output "server_connections_max" {
   value       = var.max_tasks * local.server_total
   description = "Most database connections the pooler can ever hold (max_tasks x (pool + reserve))."
 }
+output "scaling_policy" {
+  value = {
+    name      = aws_appautoscaling_policy.cpu.name, resource_id = aws_appautoscaling_policy.cpu.resource_id,
+    dimension = aws_appautoscaling_policy.cpu.scalable_dimension,
+    target    = var.cpu_target, in_s = 900, out_s = 60
+  }
+  description = "Owner 14.11: the pooler's target-tracking policy the admin may tune (Terraform defaults)."
+}
+

@@ -113,10 +113,18 @@ class UpTests(unittest.TestCase):
         self.assertEqual(self.go(m).action, "up")
 
     def test_burst_credits_exhausted_on_t4g(self):
-        m = replace(calm(), credit=(3.0, 1.0, 0.0, 0.0))
+        # spending credits: CPU at the t4g.small baseline (20 %), below the CPU line
+        m = replace(calm(), cpu=(25.0,) * 4, credit=(3.0, 1.0, 0.0, 0.0))
         r = self.go(m)
         self.assertEqual(r.action, "up")
         self.assertIn("credits", r.facts["triggers"])
+
+    def test_empty_credits_after_a_shrink_are_not_load(self):
+        # 15.11 prod: t4g.medium right after large -> medium, CPU 4 %, balance 0
+        m = replace(calm("db.t4g.medium"), cpu=(4.0,) * 4, credit=(0.0,) * 4)
+        r = self.go(m, cls="db.t4g.medium")
+        self.assertEqual(r.action, "none")
+        self.assertNotIn("credits", (r.facts or {}).get("triggers", {}))
 
     def test_credits_are_ignored_on_r7g(self):
         m = replace(calm("db.r7g.large"), credit=(0.0,) * 4)
@@ -157,6 +165,8 @@ class GuardTests(unittest.TestCase):
     HOT = replace(calm(), cpu=(95.0,) * 4)
 
     def go(self, inst_kw=None, **g):
+        # a day tick (inside the night window a tick is also a shrink try, 14.11)
+        g = {"night_ok": False, **g}
         return d.decide(CFG, "tick", inst(**(inst_kw or {})), d.Guards(**g), d.State(cls="db.t4g.small"), self.HOT, NOW)
 
     def test_each_guard_blocks(self):
@@ -179,6 +189,35 @@ class GuardTests(unittest.TestCase):
         r = d.decide(CFG, "night", inst("db.t4g.medium", multi_az=False), d.Guards(), OLD, quiet_week(), NOW)
         self.assertEqual(r.action, "down")
         self.assertEqual(self.go({"multi_az": False}).reason, "not_multi_az")
+
+    def test_night_window_ticks_retry_the_shrink_on_a_single_az_database(self):
+        # 14.11 (prod log): every tick «not_multi_az»; the shrink had only the
+        # one 03:30 night run. Inside the night window each tick tries again.
+        single = inst("db.t4g.medium", multi_az=False)
+        r = d.decide(CFG, "tick", single, d.Guards(night_ok=True), OLD, quiet_week(), NOW)
+        self.assertEqual(r.action, "down")
+        r = d.decide(CFG, "tick", single, d.Guards(night_ok=True, deploying=True), OLD, quiet_week(), NOW)
+        self.assertEqual(r.reason, "deploying")
+        r = d.decide(CFG, "tick", single, d.Guards(night_ok=False), OLD, quiet_week(), NOW)
+        self.assertEqual(r.reason, "not_multi_az")
+        # a Multi-AZ database also shrinks on a night tick once growth is calm
+        r = d.decide(CFG, "tick", inst("db.t4g.medium"), d.Guards(night_ok=True), OLD, quiet_week(), NOW)
+        self.assertEqual(r.action, "down")
+
+    def test_single_az_grows_only_under_sustained_overload(self):
+        # 14.11 (owner): a single-AZ database must still grow (minutes of
+        # pause accepted) but only after 30 min of overload (6 points).
+        single = inst(multi_az=False)
+        day = d.Guards(night_ok=False)
+        st = d.State(cls="db.t4g.small")
+        self.assertEqual(d.decide(CFG, "tick", single, day, st, self.HOT, NOW).reason, "not_multi_az")
+        held = replace(calm(n=6), cpu=(95.0,) * 6)
+        r = d.decide(CFG, "tick", single, day, st, held, NOW)
+        self.assertEqual((r.action, r.target, r.reason), ("up", "db.t4g.medium", "load_single_node"))
+        off = replace(CFG, single_node_up=False)
+        self.assertEqual(d.decide(off, "tick", single, day, st, held, NOW).reason, "not_multi_az")
+        busy = d.Guards(night_ok=False, oneoff_tasks=True)
+        self.assertEqual(d.decide(CFG, "tick", single, busy, st, held, NOW).reason, "oneoff_tasks")
 
     def test_single_az_allowed_when_configured(self):
         cfg = replace(CFG, require_multi_az=False)

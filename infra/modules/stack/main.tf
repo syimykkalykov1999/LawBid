@@ -70,6 +70,18 @@ variable "database_multi_az" {
   default     = false
   description = "RDS Multi-AZ (standby in the second AZ, automatic failover). ≈ ×2 the instance price. Prod: true."
 }
+# Owner 14.11 «newest methods» (docs/dev/AUTO_MODERNIZE_2026-11-15.md):
+# "valkey" moves the main and the cache Redis to Valkey 8.1 in place (AWS:
+# no downtime, node price 20 % lower). Default "redis" = no change.
+variable "redis_engine" {
+  type    = string
+  default = "redis"
+  validation {
+    condition     = contains(["redis", "valkey"], var.redis_engine)
+    error_message = "redis_engine: redis or valkey."
+  }
+}
+
 variable "database_engine_version" {
   type        = string
   default     = "16"
@@ -1179,6 +1191,7 @@ module "redis" {
   subnet_ids                 = module.network.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.tasks.id]
   node_type                  = var.redis_node_type
+  engine                     = var.redis_engine
   replicas                   = var.redis_replicas
   kms_key_arn                = module.kms.key_arn
   tags                       = local.tags
@@ -1333,6 +1346,7 @@ module "redis_cache" {
   subnet_ids                 = module.network.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.tasks.id]
   node_type                  = var.redis_cache_node_type
+  engine                     = var.redis_engine
   replicas                   = 0
   maxmemory_policy           = "allkeys-lru"
   description                = "cache only (allkeys-lru)"
@@ -1710,8 +1724,13 @@ locals {
   # ha-auto service has added the node.
   redis_autoscale_on = var.redis_autoscale_enabled && !local.redis_cluster_on
   autoscale_ssm_params = concat(
-    local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class"] : [],
-    local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class"] : [],
+    local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class", "/${local.name}/db-autoscale/tuning"] : [],
+    local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class", "/${local.name}/redis-autoscale/tuning"] : [],
+    # Owner 14.11: the endpoint thresholds and the ECS target / pauses from the admin.
+    var.endpoints_autoscale_enabled ? ["/${local.name}/endpoints-autoscale/tuning"] : [],
+    ["/${local.name}/ecs-scaling/tuning"],
+    # Owner 15.11 (row 20): the spot-fallback quiet hold etc. from the admin.
+    ["/${local.name}/spot-fallback/tuning"],
   )
   db_pool_class      = local.db_autoscale_on ? var.db_autoscale_min_class : var.database_instance_class
   db_ceiling_class   = local.db_autoscale_on ? var.db_autoscale_max_class : var.database_instance_class
@@ -1841,8 +1860,25 @@ locals {
     OPS_DB_AUTOSCALE_MAXCLASS_PARAM    = local.db_autoscale_on ? "/${local.name}/db-autoscale/max-class" : ""
     OPS_REDIS_AUTOSCALE_MODE_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/mode" : ""
     OPS_REDIS_AUTOSCALE_MAXCLASS_PARAM = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/max-class" : ""
-    OPS_DB_AUTOSCALE                   = local.db_autoscale_on ? "on" : "off"
-    OPS_REDIS_AUTOSCALE                = local.redis_autoscale_on ? "on" : "off"
+    # Owner 14.11: the admin writes the autoscalers' numbers here (no apply).
+    OPS_DB_AUTOSCALE_TUNING_PARAM        = local.db_autoscale_on ? "/${local.name}/db-autoscale/tuning" : ""
+    OPS_REDIS_AUTOSCALE_TUNING_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/tuning" : ""
+    OPS_ENDPOINTS_AUTOSCALE_TUNING_PARAM = var.endpoints_autoscale_enabled ? "/${local.name}/endpoints-autoscale/tuning" : ""
+    OPS_ECS_SCALING_TUNING_PARAM         = aws_ssm_parameter.ecs_scaling_tuning.name
+    # Owner 15.11 (row 20): the spot-fallback quiet hold etc. No Terraform
+    # resource: the API's first save creates it (PutParameter), the Lambda
+    # reads a missing one as «defaults», so «Авто» ships this without a new
+    # resource (the aws.autoscale_code scope is in-place updates only).
+    OPS_SPOT_FALLBACK_TUNING_PARAM = "/${local.name}/spot-fallback/tuning"
+    OPS_ECS_SCALING_POLICIES = jsonencode(merge(
+      module.ecs.scaling_policies,
+      var.db_pooler_enabled ? { pgbouncer_cpu = module.pgbouncer[0].scaling_policy } : {},
+    ))
+    OPS_DB_AUTOSCALE    = local.db_autoscale_on ? "on" : "off"
+    OPS_REDIS_AUTOSCALE = local.redis_autoscale_on ? "on" : "off"
+    # Owner 15.11 (aws.autoscale_code): main's autoscale code vs the shipped.
+    OPS_AUTOSCALE_CODE_MAIN_PARAM    = "/${local.name}/deploy/autoscale_code_main"
+    OPS_AUTOSCALE_CODE_APPLIED_PARAM = aws_ssm_parameter.autoscale_code_applied.name
     # Cluster mode switch (var.redis_cluster_mode = "on"): the app builds ioredis Cluster clients.
     REDIS_CLUSTER      = local.redis_cluster_on ? "true" : "false"
     OPS_POOLER_MIN     = tostring(var.pgbouncer_min_tasks)
@@ -2058,6 +2094,17 @@ module "secret_rotation" {
 }
 
 # --- own connection pooler: PgBouncer service, Cloud Map name, alarms ----------------
+# Owner 14.11: the ECS target / pauses from the admin (JSON of policy key ->
+# {target, in_s, out_s}); the API applies it with PutScalingPolicy.
+resource "aws_ssm_parameter" "ecs_scaling_tuning" {
+  name        = "/${local.name}/ecs-scaling/tuning"
+  type        = "String"
+  value       = "{}"
+  description = "ECS target-tracking numbers from the admin. Empty object = the Terraform defaults. Changing it here after creation is ignored."
+  tags        = local.tags
+  lifecycle { ignore_changes = [value] }
+}
+
 module "pgbouncer" {
   count  = var.db_pooler_enabled ? 1 : 0
   source = "../pgbouncer"
@@ -2333,12 +2380,30 @@ data "aws_iam_policy_document" "ops" {
     actions   = ["ecs:UpdateService", "ecs:DescribeServices"]
     resources = [module.ecs.api_service_arn, module.ecs.worker_service_arn]
   }
+  # Owner 15.11 («Сейчас» next to every «Авто» on «Масштаб»): read the task
+  # counts of the other services too (admin, api-admin, pgbouncer). Read
+  # only; the API asks them in a separate call, so until this is applied the
+  # api / worker counts keep working and the others are simply not shown.
+  statement {
+    actions   = ["ecs:DescribeServices"]
+    resources = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${local.name}/*"]
+  }
   statement {
     actions = [
       "application-autoscaling:RegisterScalableTarget",
       "application-autoscaling:DescribeScalableTargets",
+      # Owner 14.11: the admin's target / pauses (AwsOpsService.applyScaling).
+      # In this ops document, so with ops_role_split on it lives on the
+      # separate ops role, not on the task role (least privilege, S4-1).
+      "application-autoscaling:DescribeScalingPolicies",
+      "application-autoscaling:PutScalingPolicy",
     ]
     resources = ["*"]
+  }
+  # PutScalingPolicy re-creates the policy's own alarms (target tracking).
+  statement {
+    actions   = ["cloudwatch:PutMetricAlarm", "cloudwatch:DescribeAlarms", "cloudwatch:DeleteAlarms"]
+    resources = ["arn:aws:cloudwatch:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alarm:TargetTracking-service/${module.ecs.cluster_name}/*"]
   }
   dynamic "statement" {
     for_each = module.budget[*].budget_arn
@@ -2399,6 +2464,15 @@ data "aws_iam_policy_document" "ops" {
         "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${p}"
       ]
     }
+  }
+  # Owner 15.11 (aws.autoscale_code): «Авто» compares the autoscale code
+  # on main (deploy.yml) with the code the last apply shipped. Read only.
+  statement {
+    actions = ["ssm:GetParameter"]
+    resources = [
+      "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${local.name}/deploy/autoscale_code_main",
+      aws_ssm_parameter.autoscale_code_applied.arn,
+    ]
   }
   # Economy guard (owner 2026-10-16): read database / Redis load and move
   # them one tier up from the admin. Metrics have no resource-level scope.
@@ -2771,6 +2845,30 @@ locals {
   )
 }
 
+# Owner 15.11 («разреши "Авто" само применять обновления кода своих функций
+# без меня»): the source hash of the four autoscale Lambdas this apply ships.
+# deploy.yml writes the same hash of main to deploy/autoscale_code_main
+# (scripts/deploy/autoscale-code-hash.mjs, same formula); when they differ,
+# «Авто» asks for the item aws.autoscale_code (AUTO_SCOPE: in-place updates
+# of exactly these functions).
+locals {
+  autoscale_code_dirs = ["redis-autoscale", "db-autoscale", "endpoints-autoscale", "spot-fallback"]
+  autoscale_code_hash = sha256(join("\n", flatten([
+    for d in local.autoscale_code_dirs : [
+      for f in sort(fileset("${path.module}/../${d}/lambda", "**")) :
+      "${d}/${f}:${filesha256("${path.module}/../${d}/lambda/${f}")}"
+      if !strcontains(f, "__pycache__")
+    ]
+  ])))
+}
+resource "aws_ssm_parameter" "autoscale_code_applied" {
+  name        = "/${local.name}/deploy/autoscale_code_applied"
+  type        = "String"
+  value       = local.autoscale_code_hash
+  description = "Source hash of the autoscale Lambdas the last apply shipped (owner 15.11, aws.autoscale_code)."
+  tags        = local.tags
+}
+
 module "spot_fallback" {
   count            = length(local.spot_watch) > 0 ? 1 : 0
   source           = "../spot-fallback"
@@ -2782,6 +2880,7 @@ module "spot_fallback" {
   kms_key_arn      = module.kms.key_arn
   mode             = var.spot_fallback_mode
   tuning           = var.spot_fallback_tuning
+  tuning_param     = "/${local.name}/spot-fallback/tuning"
   controls_bucket  = module.s3.documents_bucket
   tags             = local.tags
 }

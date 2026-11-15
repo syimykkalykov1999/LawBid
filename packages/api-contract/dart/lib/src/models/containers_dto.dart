@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'container_report_dto.dart';
 import 'containers_dto_scale_mode.dart';
+import 'service_now_dto.dart';
 
 part 'containers_dto.g.dart';
 
@@ -15,6 +16,7 @@ class ContainersDto {
     required this.onAws,
     required this.api,
     required this.worker,
+    required this.services,
     this.scaleMode,
   });
 
@@ -26,6 +28,9 @@ class ContainersDto {
   final ContainerReportDto api;
   final ContainerReportDto worker;
   final ContainersDtoScaleMode? scaleMode;
+
+  /// Every ECS service the API can read now (empty off AWS), from the same cached report.
+  final List<ServiceNowDto> services;
 
   Map<String, Object?> toJson() => _$ContainersDtoToJson(this);
 }

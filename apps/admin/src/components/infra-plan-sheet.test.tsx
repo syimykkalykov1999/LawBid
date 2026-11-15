@@ -49,6 +49,7 @@ const req = (o: Partial<InfraRequest> = {}): InfraRequest => ({
   expiresAt: new Date(Date.now() + 20 * 60_000).toISOString(),
   finishedAt: null,
   settled: false,
+  superseded: false,
   ...o,
 });
 

@@ -374,6 +374,14 @@ resource "aws_cloudfront_key_value_store" "web" {
 # www.<host> answers with a permanent redirect to <host> (one address for
 # search engines).
 resource "aws_cloudfront_function" "seo_index" {
+  # 15.11 (KNOWN_ERRORS 159): the infra-apply role has no cloudfront function
+  # rights yet, so UpdateFunction was 403 and stopped the owner's 2FA apply
+  # (run 43670237435) before the autoscale Lambdas. Until the bootstrap adds
+  # them (PR «bootstrap: cloudfront function rights»), the function's code is
+  # left as it is on AWS; that PR's follow-up removes this block again.
+  lifecycle {
+    ignore_changes = [code, comment]
+  }
   name                         = "${var.name}-seo-index"
   runtime                      = "cloudfront-js-2.0"
   comment                      = "www to bare host; public pages 301 to slash, end in index.html (real 404); app screens and files from the live release"

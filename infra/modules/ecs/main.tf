@@ -1006,6 +1006,15 @@ resource "aws_appautoscaling_policy" "api_admin_cpu" {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
   }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
+  }
 }
 
 resource "aws_ecs_service" "worker" {
@@ -1131,6 +1140,15 @@ resource "aws_appautoscaling_policy" "admin_cpu" {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
   }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
+  }
 }
 
 # --- autoscaling (§6.3: CPU 60 %, min var.min_tasks, max per env) --------------------
@@ -1214,6 +1232,15 @@ resource "aws_appautoscaling_policy" "cpu" {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
   }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
+  }
 }
 
 output "cluster_name" { value = aws_ecs_cluster.this.name }
@@ -1249,6 +1276,15 @@ resource "aws_appautoscaling_policy" "api_requests" {
       resource_label         = var.alb_resource_label
     }
   }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
+  }
 }
 
 # Scale audit 2026-11-02: idle sockets cost memory and timers but no CPU and no
@@ -1278,6 +1314,15 @@ resource "aws_appautoscaling_policy" "api_sockets" {
         value = "api"
       }
     }
+  }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
   }
 }
 
@@ -1345,4 +1390,45 @@ resource "aws_appautoscaling_policy" "worker_queue" {
       }
     }
   }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
+  }
+}
+
+# Owner 14.11: what the API needs to apply the admin's numbers to these
+# policies (PutScalingPolicy keeps the metric, changes target and pauses);
+# target / in / out are the Terraform defaults (an emptied admin field).
+# Built from variables only, not from the resources: the API environment
+# reads it and the API task definition is in this module (no cycle).
+locals {
+  svc_policy = { dimension = "ecs:service:DesiredCount" }
+}
+output "scaling_policies" {
+  value = merge(
+    { for k in ["api", "worker"] : "${k}_cpu" => merge(local.svc_policy, {
+      name = "${var.name}-${k}-cpu60", resource_id = "service/${var.name}/${k}",
+    target = 60, in_s = 600, out_s = 180 }) },
+    { api_requests = merge(local.svc_policy, {
+      name = "${var.name}-api-requests", resource_id = "service/${var.name}/api",
+    target = var.api_requests_per_task, in_s = 600, out_s = 180 }) },
+    var.api_sockets_per_task > 0 ? { api_sockets = merge(local.svc_policy, {
+      name = "${var.name}-api-sockets", resource_id = "service/${var.name}/api",
+    target = var.api_sockets_per_task, in_s = 600, out_s = 180 }) } : {},
+    var.worker_jobs_per_task > 0 && var.metrics_namespace != "" ? { worker_queue = merge(local.svc_policy, {
+      name = "${var.name}-worker-queue", resource_id = "service/${var.name}/worker",
+    target = var.worker_jobs_per_task, in_s = 600, out_s = 180 }) } : {},
+    { admin_cpu = merge(local.svc_policy, {
+      name = "${var.name}-admin-cpu", resource_id = "service/${var.name}/admin",
+    target = 70, in_s = 900, out_s = 180 }) },
+    var.api_admin_enabled ? { api_admin_cpu = merge(local.svc_policy, {
+      name = "${var.name}-api-admin-cpu", resource_id = "service/${var.name}/api-admin",
+    target = 70, in_s = 900, out_s = 180 }) } : {},
+  )
+  description = "Target-tracking policies the admin may tune (name, resource, Terraform defaults). A policy that does not exist is reported as missing by the API."
 }

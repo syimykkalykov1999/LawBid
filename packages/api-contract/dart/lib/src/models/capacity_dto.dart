@@ -22,7 +22,10 @@ class CapacityDto {
     this.dbMaxConnections,
     this.dbStorageGb,
     this.dbStorageUsd,
+    this.dbMultiAz,
+    this.replicaCount,
     this.redisClass,
+    this.redisNodes,
     this.redisNext,
     this.redisMemoryPercent,
   });
@@ -44,7 +47,16 @@ class CapacityDto {
 
   /// Monthly price of that disk (gp3), USD.
   final num? dbStorageUsd;
+
+  /// The database has a standby in a second zone (Multi-AZ).
+  final bool? dbMultiAz;
+
+  /// Read copies of the database that report load now.
+  final num? replicaCount;
   final String? redisClass;
+
+  /// Redis nodes in the group (primary + standbys).
+  final num? redisNodes;
   final String? redisNext;
   final num? redisMemoryPercent;
   final List<TierRowDto> dbTiers;

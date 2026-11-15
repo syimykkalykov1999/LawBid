@@ -350,11 +350,17 @@ jobs:
         run: |
           node --test scripts/ci/flag-first-check.test.mjs
           bash scripts/ci/require-green.test.sh
+          # Owner 14.11: the admin -> SSM -> Lambda read path against moto's SSM
+          # (Apache-2.0; tests/test_ssm_moto.py, skipped without it).
+          # A venv: the runner's system Python refuses pip installs (PEP 668).
+          python3 -m venv "$RUNNER_TEMP/pyt" && "$RUNNER_TEMP/pyt/bin/pip" install --quiet "moto[ssm]==5.2.5" "boto3==1.43.126"
+          PY="$RUNNER_TEMP/pyt/bin/python"
           python3 -m unittest discover -s infra/modules/signing-guard/lambda/tests
           python3 -m unittest discover -s infra/modules/spot-fallback/lambda/tests
-          python3 -m unittest discover -s infra/modules/db-autoscale/lambda/tests
+          "$PY" -m unittest discover -s infra/modules/db-autoscale/lambda/tests
           python3 -m unittest discover -s infra/modules/secret-rotation/lambda/tests
-          python3 -m unittest discover -s infra/modules/redis-autoscale/lambda/tests
+          "$PY" -m unittest discover -s infra/modules/redis-autoscale/lambda/tests
+          "$PY" -m unittest discover -s infra/modules/endpoints-autoscale/lambda/tests
           python3 -m unittest discover -s loadtest/local-docker -p 'test_*.py'
           python3 -m unittest discover -s loadtest/scripts/tests
 
