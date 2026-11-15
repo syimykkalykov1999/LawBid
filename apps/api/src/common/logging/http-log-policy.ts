@@ -62,12 +62,21 @@ export function httpLogLevel(
   return random() * 100 < policy.samplePercent ? 'info' : 'silent';
 }
 
-/** Secret path parts: the Bunny webhook token, an admin invite token and a
- * group's join code. */
+/** Secret path parts: the Bunny webhook token, an admin invite token, a
+ * group's join code and (detective R2B-6, 14.11) the calendar feed secret
+ * (calendar apps poll it all day), the deletion-cancel link, the outreach
+ * unsubscribe link and the verification phone hand-off token. */
 const SECRET_PATHS: [RegExp, string][] = [
   [/\/webhooks\/bunny\/[^/?#]+/, '/webhooks/bunny/[REDACTED]'],
   [/\/auth\/invite\/[^/?#]+/, '/auth/invite/[REDACTED]'],
   [/\/groups\/join\/[^/?#]+/, '/groups/join/[REDACTED]'],
+  [/\/calendar\/feed\/[^/?#]+/, '/calendar/feed/[REDACTED]'],
+  [
+    /\/privacy\/deletion\/cancel\/[^/?#]+/,
+    '/privacy/deletion/cancel/[REDACTED]',
+  ],
+  [/\/outreach\/unsubscribe\/[^/?#]+/, '/outreach/unsubscribe/[REDACTED]'],
+  [/\/verification\/handoff\/[^/?#]+/, '/verification/handoff/[REDACTED]'],
 ];
 
 /** The url with every query value dropped (only the names stay — docs/05

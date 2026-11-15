@@ -26,6 +26,26 @@ linter:
     public_member_api_docs: false
     # pubspec.yaml groups its dependencies with explanatory comments, not A→Z.
     sort_pub_dependencies: false
+    # Row 118 (2026-11-14): very_good_analysis 6 -> 11. These rules are new
+    # in the 7-11 lint sets and fire 1422 times across the app (counts at the
+    # bump). They stay off until each is adopted in its own pass — several
+    # (discarded_futures, async_return_with_no_await,
+    # avoid_catches_without_on_clauses) change async/error behaviour per call
+    # site and need a reviewed fix, not a mechanical sweep. Every other rule
+    # the newer set added is on and clean.
+    discarded_futures: false # 370
+    document_ignores: false # 320
+    specify_nonobvious_property_types: false # 317
+    async_return_with_no_await: false # 183
+    avoid_catches_without_on_clauses: false # 93
+    unnecessary_ignore: false # 65
+    unnecessary_unawaited: false # 36
+    avoid_types_on_closure_parameters: false # 15
+    prefer_foreach: false # 9
+    unintended_html_in_doc_comment: false # 7
+    matching_super_parameters: false # 4
+    no_literal_bool_comparisons: false # 2
+    simplify_variable_pattern: false # 1
 
 # Audit 2026-10-02: keep the trailing commas the `require_trailing_commas`
 # lint asks for (dart format would otherwise strip them again).

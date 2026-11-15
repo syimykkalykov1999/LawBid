@@ -32,15 +32,30 @@ async function errorFrom(res: Response): Promise<string> {
   return body?.error?.message ?? `Ошибка выгрузки (HTTP ${res.status})`;
 }
 
+/** Owner 14.11 (row 180): the page's filters as query parameters — only the
+ * set ones (an empty string, false or undefined is «not filtered»). */
+export function exportSearch(query: Record<string, string | boolean | undefined> | undefined): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(query ?? {})) {
+    if (v === undefined || v === false || v === '') continue;
+    p.set(k, String(v));
+  }
+  const s = p.toString();
+  return s ? `?${s}` : '';
+}
+
 /** Downloads `/admin/export/<entity>` as a CSV file through the proxy
  * (which adds the admin session). Hidden for roles that can't export. */
 export function CsvButton({
   entity,
   label = 'CSV',
   justification,
+  query,
 }: {
   entity: string;
   label?: string;
+  /** The list's current filters (row 180): the file is what the list shows. */
+  query?: Record<string, string | boolean | undefined>;
   /** Ask for a reason before downloading (default: on for 'users'). */
   justification?: boolean;
 }) {
@@ -66,7 +81,7 @@ export function CsvButton({
     }
     setBusy(true);
     try {
-      const res = await fetch(`/api/proxy/export/${encodeURIComponent(entity)}`, {
+      const res = await fetch(`/api/proxy/export/${encodeURIComponent(entity)}${exportSearch(query)}`, {
         headers,
         credentials: 'same-origin',
       });

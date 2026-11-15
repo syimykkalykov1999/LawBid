@@ -354,7 +354,16 @@ export default function FlagsPage() {
   // Scout 13.11 (row 96): the toast carries «Отменить» (the same switch back; the undo itself offers none).
   const update = useMutation({
     mutationFn: async (v: { key: string; enabled: boolean; undo?: boolean }) => {
-      await patch(v);
+      // Owner 14.11 (row 179): the server refuses (409 «изменено другим»)
+      // when the switch changed since this tab read it. The undo is this
+      // admin's own step back, so it is not checked.
+      const seen = q.data?.find((f) => f.key === v.key)?.updatedAt;
+      const r = await api.PATCH('/admin/feature-flags/{key}', {
+        params: { path: { key: v.key } },
+        body: { enabled: v.enabled, ...(seen && !v.undo ? { expectedUpdatedAt: seen } : {}) },
+      });
+      const saved = r.data?.data;
+      if (saved) qc.setQueryData<Flag[]>(['flags'], (rows) => rows?.map((f) => (f.key === v.key ? { ...f, updatedAt: saved.updatedAt } : f)));
       return v;
     },
     ...optimistic<Flag[], { key: string; enabled: boolean; undo?: boolean }>(
