@@ -304,10 +304,13 @@ resource "aws_iam_role_policy" "alarm_hook" {
 }
 
 resource "aws_lambda_function" "alarm_hook" {
-  count            = local.hook_on ? 1 : 0
-  function_name    = "${var.name}-alarm-hook"
-  role             = aws_iam_role.alarm_hook[0].arn
-  runtime          = "nodejs22.x"
+  count         = local.hook_on ? 1 : 0
+  function_name = "${var.name}-alarm-hook"
+  role          = aws_iam_role.alarm_hook[0].arn
+  runtime       = "nodejs22.x"
+  # Plain inline JS, no native modules: Graviton is ~20 % cheaper per GB-s
+  # (AWS Lambda pricing) like every other Lambda here. In-place update.
+  architectures    = ["arm64"]
   handler          = "index.handler"
   filename         = data.archive_file.alarm_hook[0].output_path
   source_code_hash = data.archive_file.alarm_hook[0].output_base64sha256

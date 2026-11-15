@@ -401,7 +401,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     defaultState: 'on',
     ceiling: tfCeil(
       'db_autoscale_max_class',
-      'Абсолютный потолок размера базы (по умолчанию db.r7g.xlarge)',
+      'Абсолютный потолок размера базы (по умолчанию db.r8g.xlarge)',
     ),
     price: price(
       'mixed',

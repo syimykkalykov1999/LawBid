@@ -43,7 +43,7 @@ variable "ladder" {
   type = list(string)
   default = [
     "db.t4g.micro", "db.t4g.small", "db.t4g.medium", "db.t4g.large",
-    "db.r7g.large", "db.r7g.xlarge", "db.r7g.2xlarge",
+    "db.r8g.large", "db.r8g.xlarge", "db.r8g.2xlarge",
   ]
   description = "Sizes from small to large; one step at a time. Each must exist in local.class_specs."
   validation {
@@ -57,7 +57,7 @@ variable "min_class" {
 }
 variable "max_class" {
   type        = string
-  default     = "db.r7g.xlarge"
+  default     = "db.r8g.xlarge"
   description = "Ceiling for the bill (≈ $698/month with Multi-AZ). Above it the owner gets an e-mail and decides."
 }
 variable "initial_ceiling" {
@@ -129,16 +129,22 @@ data "aws_caller_identity" "current" {}
 
 locals {
   # hourly = on-demand Multi-AZ price, us-east-1, PostgreSQL (AWS Price List API,
-  # 2026-10-24); monthly = hourly x 730, instance only (storage, backups extra).
+  # 2026-10-24; r8g rows re-read 2026-11-15, effective 2026-11-01); monthly = hourly x 730, instance only (storage, backups extra).
   # baseline = CPU % the burstable classes can hold without spending credits.
+  # Memory-optimised rungs are db.r8g (Graviton4): same price as db.r7g
+  # (Graviton3) per vCPU and GiB, newer CPU; orderable for PostgreSQL 16.13
+  # and 18.6 with gp3, Multi-AZ and read replicas (aws rds
+  # describe-orderable-db-instance-options, 2026-11-15). db.r9g (Graviton5)
+  # exists but costs ~0.5 % more per hour, so not taken. No burstable class
+  # newer than t4g is offered for RDS, so t4g stays the small end.
   class_specs = {
     "db.t4g.micro"   = { vcpu = 2, memory_gib = 1, hourly = 0.032, baseline = 10 }
     "db.t4g.small"   = { vcpu = 2, memory_gib = 2, hourly = 0.065, baseline = 20 }
     "db.t4g.medium"  = { vcpu = 2, memory_gib = 4, hourly = 0.129, baseline = 20 }
     "db.t4g.large"   = { vcpu = 2, memory_gib = 8, hourly = 0.258, baseline = 30 }
-    "db.r7g.large"   = { vcpu = 2, memory_gib = 16, hourly = 0.478, baseline = null }
-    "db.r7g.xlarge"  = { vcpu = 4, memory_gib = 32, hourly = 0.956, baseline = null }
-    "db.r7g.2xlarge" = { vcpu = 8, memory_gib = 64, hourly = 1.913, baseline = null }
+    "db.r8g.large"   = { vcpu = 2, memory_gib = 16, hourly = 0.478, baseline = null }
+    "db.r8g.xlarge"  = { vcpu = 4, memory_gib = 32, hourly = 0.956, baseline = null }
+    "db.r8g.2xlarge" = { vcpu = 8, memory_gib = 64, hourly = 1.912, baseline = null }
   }
   ladder_json = [for c in var.ladder : {
     name       = c

@@ -123,6 +123,10 @@ variable "opensearch_enabled" {
 variable "opensearch_instance_type" {
   type    = string
   default = "t3.small.search"
+  # 2026-11-15 (aws opensearch list-instance-type-details, Price List API):
+  # OpenSearch has no burstable Graviton class (no t4g.*.search); the
+  # smallest Graviton is m8g.medium.search at $0.075/h for 4 GiB vs
+  # t3.small.search $0.036/h for 2 GiB, so the cheap start stays t3.small.
 }
 variable "opensearch_instance_count" {
   type    = number
