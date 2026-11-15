@@ -1553,7 +1553,7 @@ variable "db_autoscale_min_class" {
 }
 variable "db_autoscale_max_class" {
   type        = string
-  default     = "db.r7g.xlarge"
+  default     = "db.r8g.xlarge"
   description = "Ceiling for the bill. Above it the owner gets an e-mail."
 }
 variable "db_autoscale_initial_ceiling_class" {
@@ -1570,7 +1570,7 @@ variable "db_autoscale_ladder" {
   type = list(string)
   default = [
     "db.t4g.micro", "db.t4g.small", "db.t4g.medium", "db.t4g.large",
-    "db.r7g.large", "db.r7g.xlarge", "db.r7g.2xlarge",
+    "db.r8g.large", "db.r8g.xlarge", "db.r8g.2xlarge",
   ]
 }
 variable "db_autoscale_tuning" {
@@ -1713,6 +1713,7 @@ locals {
     "db.m7g.large" = 8, "db.m7g.xlarge" = 16, "db.m7g.2xlarge" = 32,
     "db.r6g.large" = 16, "db.r6g.xlarge" = 32, "db.r6g.2xlarge" = 64,
     "db.r7g.large" = 16, "db.r7g.xlarge" = 32, "db.r7g.2xlarge" = 64,
+    "db.r8g.large" = 16, "db.r8g.xlarge" = 32, "db.r8g.2xlarge" = 64,
   }
   # Owner 2026-10-24: with db_autoscale_enabled the database changes size by
   # itself. The pool must be safe at the SMALLEST size it can shrink to

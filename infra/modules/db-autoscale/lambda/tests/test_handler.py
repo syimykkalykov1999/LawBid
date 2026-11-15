@@ -142,7 +142,8 @@ class HandlerTests(unittest.TestCase):
     def test_ceiling_param_never_raises_and_ignores_garbage(self):
         os.environ["MAX_CLASS_PARAM"] = "/x/max-class"
         self.addCleanup(os.environ.pop, "MAX_CLASS_PARAM", None)
-        for value in ("db.r7g.2xlarge", "nonsense", ""):
+        # "db.r7g.xlarge": a value written before the 15.11 r7g -> r8g move.
+        for value in ("db.r8g.2xlarge", "db.r7g.xlarge", "nonsense", ""):
             f = Fake()
             f.param["/x/max-class"] = value
             self.assertEqual(self.run_with(f)["to"], "db.t4g.small")

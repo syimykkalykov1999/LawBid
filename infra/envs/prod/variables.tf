@@ -455,7 +455,7 @@ variable "db_autoscale_min_class" {
 }
 variable "db_autoscale_max_class" {
   type        = string
-  default     = "db.r7g.xlarge"
+  default     = "db.r8g.xlarge"
   description = "Ceiling for the bill: ≈ $698/month with Multi-AZ. Above it the owner gets an e-mail and decides."
 }
 variable "db_autoscale_initial_ceiling_class" {

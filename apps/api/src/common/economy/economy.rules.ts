@@ -268,9 +268,9 @@ export const DB_TIERS: readonly Tier[] = [
   { name: 'db.t4g.small', memoryGb: 2, monthUsd: 47 },
   { name: 'db.t4g.medium', memoryGb: 4, monthUsd: 94 },
   { name: 'db.t4g.large', memoryGb: 8, monthUsd: 188 },
-  { name: 'db.r7g.large', memoryGb: 16, monthUsd: 349 },
-  { name: 'db.r7g.xlarge', memoryGb: 32, monthUsd: 698 },
-  { name: 'db.r7g.2xlarge', memoryGb: 64, monthUsd: 1396 },
+  { name: 'db.r8g.large', memoryGb: 16, monthUsd: 349 },
+  { name: 'db.r8g.xlarge', memoryGb: 32, monthUsd: 698 },
+  { name: 'db.r8g.2xlarge', memoryGb: 64, monthUsd: 1396 },
 ];
 
 // ONE ladder with the Redis autoscaler (infra/modules/redis-autoscale,
