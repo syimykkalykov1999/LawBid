@@ -1860,6 +1860,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 100,
   };
+  out['infra.replica_cpu_limit_percent'] = {
+    ...out['infra.replica_cpu_limit_percent'],
+    description:
+      'Read copies CPU % (average): above it «Авто» adds copy 2..5, below half of it the last extra copy goes. 0 = same as economy.db_cpu_limit_percent (default).',
+    min: 0,
+    max: 100,
+  };
   out['partition.auto_rows'] = {
     ...out['partition.auto_rows'],
     description:
