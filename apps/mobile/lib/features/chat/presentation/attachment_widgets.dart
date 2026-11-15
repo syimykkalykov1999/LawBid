@@ -293,7 +293,9 @@ Future<List<PickedChatFile>> pickChatFiles(
         // The size the picker reported, else from disk. Unknown, unreadable
         // or over the limit: refused here, before anything is read (a 1-2 GB
         // file on the web is never loaded whole), and one bad file does not
-        // stop the others.
+        // stop the others. A picture over the limit is still read (up to the
+        // admin's cap) and shrunk below, like WhatsApp / Telegram.
+        final image = mimeFor(f.name)?.startsWith('image/') ?? false;
         final int? size;
         try {
           size = f.lengthSync() ?? await f.length();
@@ -301,7 +303,7 @@ Future<List<PickedChatFile>> pickChatFiles(
           skipped++;
           continue;
         }
-        if (size == null || size > maxBytes) {
+        if (size == null || !pickedFileReadable(size, maxBytes, image: image)) {
           skipped++;
           continue;
         }
@@ -309,7 +311,7 @@ Future<List<PickedChatFile>> pickChatFiles(
         if (path != null) {
           // A picture opens in the preview for editing, so it is read; it
           // was shrunk or is small. Only other files stay on disk.
-          if (mimeFor(f.name)?.startsWith('image/') ?? false) {
+          if (image) {
             // Audit C7: shrunk like a gallery photo, without its location.
             final pic = await cleanPickedPicture(
               await XFile(path).readAsBytes(),
@@ -329,7 +331,17 @@ Future<List<PickedChatFile>> pickChatFiles(
           skipped++;
           continue;
         }
-        add(bytes, f.name);
+        if (image) {
+          // Audit C7: shrunk like a gallery photo, without its location.
+          final pic = await cleanPickedPicture(
+            bytes,
+            f.name,
+            photos: chatPhotoLimits(),
+          );
+          add(pic.bytes, pic.name);
+        } else {
+          add(bytes, f.name);
+        }
       }
   }
   if (skipped > 0 && context.mounted) {

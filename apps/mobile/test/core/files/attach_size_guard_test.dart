@@ -3,8 +3,12 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/pick_files.dart' show pickedFileReadable;
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart'
     show kChatAttachmentMaxBytes;
@@ -116,6 +120,67 @@ void main() {
     );
     return ctx;
   }
+
+  // Row 149 review: a big photo from «Files» is still sent, shrunk (as
+  // WhatsApp / Telegram); a 2 GB "picture" is never read whole.
+  group('a photo over the file limit', () {
+    const limits = PlaceUploadLimits(
+      maxPhotos: 10,
+      maxFiles: 10,
+      fileMb: 25,
+      totalMb: 100,
+      formats: {'jpeg', 'pdf'},
+    );
+    late Uint8List jpeg;
+
+    setUpAll(() {
+      final image = img.Image(width: 3000, height: 2000);
+      for (final p in image) {
+        p
+          ..r = (p.x * 7) % 256
+          ..g = (p.y * 3) % 256
+          ..b = 90;
+      }
+      jpeg = img.encodeJpg(image, quality: 95);
+    });
+
+    setUp(ClientTuning.reset);
+
+    List<PlatformFile> bigPhotos() => [
+          // Reported as 30 MB: over the 25 MB limit, under 4x it.
+          _Picked('big.jpg', size: 30 << 20, bytes: jpeg, reads: reads),
+          // Reported as 2 GB: over 4x the limit.
+          _Picked('huge.jpg', size: 2 << 30, bytes: jpeg, reads: reads),
+          // A document over the limit is never read.
+          _Picked('big.pdf', size: 30 << 20, bytes: pdf, reads: reads),
+        ];
+
+    void expectShrunk(List<PickedChatFile> out) {
+      expect(reads, ['big.jpg'], reason: 'the 2 GB one and the PDF unread');
+      final photo = out.single;
+      expect(photo.name, 'big.jpg');
+      final decoded = img.decodeJpg(photo.bytes)!;
+      expect(decoded.width, ClientTuning.chatPhotoMaxPx.round());
+      expect(photo.bytes.length, lessThan(limits.fileBytes));
+    }
+
+    testWidgets('a group: the 30 MB photo is shrunk and sent', (tester) async {
+      FilePickerPlatform.instance = _Picker(bigPhotos());
+      final ctx = await pumpContext(tester);
+      final out = await tester.runAsync(
+        () => pickGroupFiles(ctx, t, GroupAttachChoice.files, limits: limits),
+      );
+      expectShrunk(out!);
+    });
+
+    test("the cap is the admin's: 0 = no cap", () {
+      expect(pickedFileReadable(30 << 20, 25 << 20, image: true), isTrue);
+      expect(pickedFileReadable(2 << 30, 25 << 20, image: true), isFalse);
+      expect(pickedFileReadable(30 << 20, 25 << 20, image: false), isFalse);
+      ClientTuning.apply(const {'media.picked_image_read_x': '0'});
+      expect(pickedFileReadable(2 << 30, 25 << 20, image: true), isTrue);
+    });
+  });
 
   testWidgets('a group: only the good file is read and sent', (tester) async {
     FilePickerPlatform.instance = _Picker(picked());

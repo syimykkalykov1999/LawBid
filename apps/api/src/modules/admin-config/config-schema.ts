@@ -1902,6 +1902,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 50,
     max: 100,
   };
+  out['media.picked_image_read_x'] = {
+    ...out['media.picked_image_read_x'],
+    description:
+      'A photo picked from Files above the file limit is read and shrunk only up to this many times the limit (0 = no cap).',
+    min: 0,
+    max: 100,
+  };
   // Owner row 42: the bitrate ladder of the phone's video re-encode; the
   // app keeps the same bounds (core/media/video_compression.dart).
   for (const h of [1080, 720, 540]) {

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/picker_web_options.dart';
 import 'package:lawbid/core/media/photo_jpeg.dart';
@@ -88,6 +89,17 @@ Future<({List<PickedFileBytes> files, int skipped})> readPickedFiles(
     out.add(await cleanPickedPicture(bytes, f.name, photos: photos));
   }
   return (files: out, skipped: skipped);
+}
+
+/// Row 149: a file of [size] bytes picked from «Files» may be read. Over
+/// [maxBytes] only a picture may (it is shrunk afterwards, as WhatsApp and
+/// Telegram do), and only up to `media.picked_image_read_x` times the limit
+/// (0 = no cap). Anything else over the limit is refused unread.
+bool pickedFileReadable(int size, int maxBytes, {required bool image}) {
+  if (size <= maxBytes) return true;
+  if (!image) return false;
+  final x = ClientTuning.pickedImageReadX;
+  return x == 0 || size <= maxBytes * x;
 }
 
 /// A picture picked as a file (told by its first bytes): shrunk and
