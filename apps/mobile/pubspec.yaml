@@ -74,7 +74,7 @@ dependencies:
   drift_flutter: ^0.3.1
   # The web build's in-tab fallback database (core/persistence/
   # drift_memory_web.dart); the same version drift already uses.
-  sqlite3: ^3.5.2
+  sqlite3: ^3.9.0
 
   # CLDR plural rules + date/number/currency formatting per interface
   # language (file 01 §9.2/§9.4 — core/l10n/plural_rules.dart,
@@ -120,7 +120,7 @@ dependencies:
   firebase_messaging: ^17.0.1
   # Owner 2026-10-22: native crashes / ANRs in Sentry (prod release only,
   # core/diagnostics/sentry_native.dart).
-  sentry_flutter: ^10.1.0
+  sentry_flutter: ^10.3.0
   app_badge_plus: ^1.4.0
   flutter_timezone: ^5.1.1
   flutter_stripe: ^14.2.0
@@ -145,7 +145,7 @@ dependencies:
   proximity_sensor: ^2.0.0
   video_compress: ^3.1.4
   device_info_plus: ^12.4.0
-  flutter_local_notifications: ^22.3.2
+  flutter_local_notifications: ^23.0.0
   timezone: ^0.11.2
   phone_numbers_parser: ^9.0.29
   # Owner 2026-10-20: the system dialogs (date, time, OK / Cancel) speak the
@@ -162,15 +162,15 @@ dependencies:
   # Owner 2026-10-20: «Перевести» on the phone instead of paid Google
   # Translate. Free, offline after a one-time ~30 MB language download.
   # Android + iOS only (iOS 15.5+); the web says «in the app».
-  google_mlkit_translation: ^0.15.1
-  google_mlkit_language_id: ^0.15.1
+  google_mlkit_translation: ^1.0.1
+  google_mlkit_language_id: ^1.0.1
   # Owner 2026-10-28 (ID selfie camera, docs/architecture/
   # ID_SELFIE_CAPTURE_2026-10-28.md): free on-device face detection (one
   # face in the oval + blink / head-turn liveness) and text recognition
   # (a soft "ID card is in the frame" hint). Same ML Kit release train as
-  # translation (google_mlkit_commons ^0.13.0); nothing leaves the phone.
-  google_mlkit_face_detection: ^0.15.1
-  google_mlkit_text_recognition: ^0.17.1
+  # translation (google_mlkit_commons 1.x); nothing leaves the phone.
+  google_mlkit_face_detection: ^1.0.1
+  google_mlkit_text_recognition: ^1.0.1
   # Owner 2026-10-22 (audit #4 §3): the persistent media queue hands each
   # S3 POST to the OS (Android WorkManager, iOS background URLSession), so
   # an upload continues while the app is closed (core/uploads/
@@ -181,7 +181,7 @@ dependencies:
   # docs/runbooks/APP_CHECK.md). Official FlutterFire; the version pairs
   # with the pinned firebase_core.
   firebase_app_check: ^0.5.1
-  passkeys: ^2.23.1
+  passkeys: ^2.24.1
   # Its availability query (features/auth/data/passkey_authenticator.dart).
   passkeys_platform_interface: ^2.11.0
   in_app_review: ^2.0.12

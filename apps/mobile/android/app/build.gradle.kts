@@ -36,7 +36,11 @@ fun autoBuildNumber(): Int = ((System.currentTimeMillis() / 1000 - 1767225600L) 
 
 android {
     namespace = "com.lawbid.lawbid"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_local_notifications 23 and androidx.core 1.19 are compiled
+    // against API 37 and require apps to compile against 37 too (Flutter
+    // 3.47's default is 36). Only the API the code is built against changes;
+    // targetSdk (runtime behaviour) stays on Flutter's default.
+    compileSdk = maxOf(flutter.compileSdkVersion, 37)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -160,14 +164,9 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
-    // S8-1 (speed): cronet_http (via native_dio_adapter) uses
-    // play-services-cronet 18.1.1, which pulls cronet-api 141.7340.3; that
-    // version and its cronet-shared both claim the "org.chromium.net"
-    // namespace, which AGP 9 (android.uniquePackageNames) rejects in the
-    // manifest merger. cronet-api 143.7445.0 has its own namespace — the same
-    // pin cronet_http 1.10.1 ships (dart-lang/http#1932). Drop this line when
-    // cronet_http >= 1.10.1 can be used (needs sentry_flutter >= 10.2.0).
-    implementation("org.chromium.net:cronet-api:143.7445.0")
+    // S8-1 (speed): org.chromium.net:cronet-api 143.7445.0 (own namespace,
+    // AGP 9 android.uniquePackageNames) now comes with cronet_http 1.10.1
+    // itself (dart-lang/http#1932), so the app no longer pins it.
     // Owner row 42 (13.11): the phone's video re-encode (VideoEncoder.kt) on
     // AndroidX Media3 Transformer, Apache-2.0. The same Media3 version as the
     // ExoPlayer that video_player_android 2.12.2 brings (all Media3 modules
