@@ -182,8 +182,20 @@ def up_triggers(cfg, cur, m):
     ):
         hit["connections"] = round(100 * max(conns) / cur.max_connections, 1)
     if cur.baseline_pct is not None:
+        # 15.11 (prod log): a class just shrunk starts with an empty credit
+        # balance, and RDS / ElastiCache t4g run in unlimited mode, so an
+        # empty balance alone never slows them (AWS: "burstable performance
+        # instances in unlimited mode": throttling only in standard mode).
+        # The trigger counts only while the CPU also runs at or above the
+        # class baseline, i.e. the credits are really being spent.
         cred = _last(m.credit, cfg.up_credit_points)
-        if len(cred) == cfg.up_credit_points and all(v < cfg.up_credit_min for v in cred):
+        busy = _last(m.cpu, cfg.up_credit_points)
+        if (
+            len(cred) == cfg.up_credit_points
+            and all(v < cfg.up_credit_min for v in cred)
+            and len(busy) == cfg.up_credit_points
+            and all(v >= cur.baseline_pct for v in busy)
+        ):
             hit["credits"] = round(min(cred), 1)
     return hit
 

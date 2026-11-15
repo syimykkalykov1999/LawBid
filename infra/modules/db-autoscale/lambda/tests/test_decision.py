@@ -113,10 +113,18 @@ class UpTests(unittest.TestCase):
         self.assertEqual(self.go(m).action, "up")
 
     def test_burst_credits_exhausted_on_t4g(self):
-        m = replace(calm(), credit=(3.0, 1.0, 0.0, 0.0))
+        # spending credits: CPU at the t4g.small baseline (20 %), below the CPU line
+        m = replace(calm(), cpu=(25.0,) * 4, credit=(3.0, 1.0, 0.0, 0.0))
         r = self.go(m)
         self.assertEqual(r.action, "up")
         self.assertIn("credits", r.facts["triggers"])
+
+    def test_empty_credits_after_a_shrink_are_not_load(self):
+        # 15.11 prod: t4g.medium right after large -> medium, CPU 4 %, balance 0
+        m = replace(calm("db.t4g.medium"), cpu=(4.0,) * 4, credit=(0.0,) * 4)
+        r = self.go(m, cls="db.t4g.medium")
+        self.assertEqual(r.action, "none")
+        self.assertNotIn("credits", (r.facts or {}).get("triggers", {}))
 
     def test_credits_are_ignored_on_r7g(self):
         m = replace(calm("db.r7g.large"), credit=(0.0,) * 4)
