@@ -150,6 +150,8 @@ publicApi.use({
 
 const ERROR_TEXT: Record<string, string> = {
   AUTH_OTP_INVALID: 'Неверный код.',
+  // Owner 14.11 (row 179): another admin (or another tab) saved first.
+  STALE_VERSION: 'Изменено другим — обновите: показаны свежие данные.',
   AUTH_OTP_EXPIRED: 'Код истёк — запросите новый.',
   AUTH_OTP_LOCKED: 'Слишком много попыток. Подождите и запросите новый код.',
   AUTH_OTP_REQUEST_LIMIT: 'Слишком много запросов. Попробуйте позже.',

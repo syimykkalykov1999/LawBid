@@ -197,7 +197,10 @@
       }
     },
     "testEnvironment": "node",
-    "workerIdleMemoryLimit": "1GB"
+    "workerIdleMemoryLimit": "1GB",
+    "setupFiles": [
+      "<rootDir>/../test/setup/fast-kdf.ts"
+    ]
   },
   "engines": {
     "node": ">=26.13.1 <27"
