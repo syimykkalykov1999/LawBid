@@ -55,7 +55,7 @@ resource "aws_cloudwatch_event_rule" "migrate_failed" {
     "$or" = [
       {
         detail = {
-          clusterArn = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"]
+          clusterArn = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"]
           group      = ["family:${var.name}-migrate"]
           lastStatus = ["STOPPED"]
           containers = { exitCode = [{ "anything-but" = 0 }] }
@@ -63,7 +63,7 @@ resource "aws_cloudwatch_event_rule" "migrate_failed" {
       },
       {
         detail = {
-          clusterArn = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"]
+          clusterArn = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"]
           group      = ["family:${var.name}-migrate"]
           lastStatus = ["STOPPED"]
           stopCode   = ["TaskFailedToStart"]

@@ -25,7 +25,7 @@
 #   worked out by modules/stack (check "db_connection_budget").
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
     tls = { source = "hashicorp/tls", version = "~> 4.0" }
   }
 }
@@ -356,6 +356,9 @@ resource "aws_service_discovery_service" "this" {
     }
   }
   health_check_custom_config {
+    # Deprecated in AWS provider 6 (validate warns) but kept: the argument is
+    # ForceNew and not Computed, so dropping it would REPLACE this service
+    # (the pgbouncer DNS name). Remove only when provider 7 drops it.
     failure_threshold = 1
   }
   tags = var.tags
@@ -416,7 +419,7 @@ resource "aws_ecs_task_definition" "this" {
       logDriver = "awslogs"
       options = {
         awslogs-group         = aws_cloudwatch_log_group.this.name
-        awslogs-region        = data.aws_region.current.name
+        awslogs-region        = data.aws_region.current.region
         awslogs-stream-prefix = local.svc
       }
     }

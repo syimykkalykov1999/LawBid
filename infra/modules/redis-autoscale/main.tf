@@ -14,7 +14,7 @@
 # "terraform apply" never undoes a resize.
 terraform {
   required_providers {
-    aws     = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws     = { source = "hashicorp/aws", version = "~> 6.72" }
     archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
 }
@@ -159,8 +159,8 @@ locals {
   }]
   prefix    = "/${var.name}/redis-autoscale"
   fn_name   = "${var.name}-redis-autoscale"
-  rg_arn    = "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${var.replication_group_id}"
-  nodes_arn = "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster:${var.replication_group_id}-*"
+  rg_arn    = "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:replicationgroup:${var.replication_group_id}"
+  nodes_arn = "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:cluster:${var.replication_group_id}-*"
   min_index = index(var.ladder, var.min_node_type)
   max_index = index(var.ladder, var.max_node_type)
 }
@@ -273,7 +273,7 @@ data "aws_iam_policy_document" "lambda" {
     content {
       sid       = "EcsRolloutsOfThisCluster"
       actions   = ["ecs:DescribeServices"]
-      resources = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${var.cluster_name}/*"]
+      resources = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:service/${var.cluster_name}/*"]
     }
   }
   dynamic "statement" {
@@ -285,7 +285,7 @@ data "aws_iam_policy_document" "lambda" {
       condition {
         test     = "ArnEquals"
         variable = "ecs:cluster"
-        values   = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"]
+        values   = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"]
       }
     }
   }
@@ -323,7 +323,7 @@ resource "aws_lambda_function" "this" {
   function_name    = local.fn_name
   description      = "Redis size follows the load (docs/architecture/REDIS_AUTOSCALE.md)"
   role             = aws_iam_role.lambda.arn
-  runtime          = "python3.13"
+  runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "handler.lambda_handler"
   filename         = data.archive_file.lambda.output_path
