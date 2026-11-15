@@ -378,7 +378,8 @@ export class AutoscaleKnobDto {
 }
 
 export class AutoscaleTuningTargetDto {
-  @ApiProperty({ enum: ['db', 'redis'] }) target!: 'db' | 'redis';
+  @ApiProperty({ enum: ['db', 'redis', 'endpoints', 'ecs'] }) target!:
+    'db' | 'redis' | 'endpoints' | 'ecs';
   // false = this autoscaler does not exist on this server (no SSM name)
   @ApiProperty() available!: boolean;
   @ApiProperty({ type: [AutoscaleKnobDto] }) knobs!: AutoscaleKnobDto[];

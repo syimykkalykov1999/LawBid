@@ -84,17 +84,26 @@ aws lambda invoke --function-name lawbid-prod-db-autoscale --cli-binary-format r
 
 ## Все «Авто»: какие числа есть и где они меняются (владелец 14.11)
 
-| «Авто» | Числа | Где меняются |
-|---|---|---|
-| Redis: размер узла (Lambda `lawbid-prod-redis-autoscale`) | таблица ниже | **Админка → Масштаб → «Числа «Авто»: Redis и база»** (SSM `/lawbid-prod/redis-autoscale/tuning`, без применения облака). Переключатель вкл/проба/выкл и потолок денег — как раньше. |
-| База: размер (Lambda `lawbid-prod-db-autoscale`) | таблица ниже | Там же (SSM `/lawbid-prod/db-autoscale/tuning`) |
-| Точки доступа AWS (Lambda `endpoints-autoscale`) | вкл/выкл и потолок — настройки `scale.endpoints.mode` / `scale.endpoints.ceiling`; пороги (20 ГБ/день вверх за 1 ч, 10 ГБ/день вниз за 7 дней, пауза 24 ч) в коде | следующий шаг: та же схема tuning |
-| Серверы ECS (api, worker, admin, api-admin, pgbouncer) | потолки `scale.max_tasks.*`, ночной минимум — настройки в админке; цель 70 % процессора и паузы 180 / 900 с — в Terraform | цель и паузы пока только через Terraform; перенос в админку — отдельная задача (API вызывает PutScalingPolicy, нужно право IAM) |
-| Облако вкл/выкл «Авто» (копии базы, части базы, OpenSearch, поток событий, WAF, пул соединений и др.) | `infra.auto_mode`, `infra.auto_on_minutes`, `infra.auto_off_hours`, `infra.quiet_hours`, `infra.auto_max_usd_month`, `infra.daily_cap`, `infra.search_engine_on_people`, `infra.waf_*`, `infra.mode.*` | уже в админке (Настройки / Масштаб) |
-| Разделение таблиц на части | `partition.*_mode`, `partition.auto_rows` | уже в админке |
-| Поиск следует за людьми | `search.engine_follow`, `infra.search_engine_on_people` | уже в админке |
+| «Авто» | Где меняются числа |
+|---|---|
+| Redis: размер узла (Lambda `lawbid-prod-redis-autoscale`) | **Админка → Масштаб → «Числа «Авто»»** (SSM `/lawbid-prod/redis-autoscale/tuning`), без применения облака. Lambda читает на следующем проходе (≤ 5 мин). |
+| База: размер (Lambda `lawbid-prod-db-autoscale`) | Там же (`/lawbid-prod/db-autoscale/tuning`). |
+| Точки доступа AWS (Lambda `endpoints-autoscale`) | Там же (`/lawbid-prod/endpoints-autoscale/tuning`). Вкл/выкл и потолок — `scale.endpoints.*`, как раньше. |
+| Серверы ECS: цель и паузы автомасштаба (api, worker, admin, api-admin, pgbouncer) | Там же (`/lawbid-prod/ecs-scaling/tuning`). API применяет сразу при сохранении (PutScalingPolicy, метрика остаётся прежней). Потолки серверов — `scale.max_tasks.*`, как раньше. |
+| Облако вкл/выкл «Авто» (копии базы, части базы, OpenSearch, поток событий, WAF, пул и др.) | Уже в админке: `infra.auto_mode`, `infra.auto_on_minutes`, `infra.auto_off_hours`, `infra.quiet_hours`, `infra.auto_max_usd_month`, `infra.daily_cap`, `infra.search_engine_on_people`, `infra.waf_*`, `infra.mode.*`. |
+| Разделение таблиц на части | Уже в админке: `partition.*_mode`, `partition.auto_rows`. |
+| Поиск следует за людьми | Уже в админке: `search.engine_follow`, `infra.search_engine_on_people`. |
 
-Числа Redis и базы. Пустое поле в админке — значение по умолчанию из Terraform. Lambda берёт новые числа на следующем проходе (≤ 5 минут). Число вне границ пропускается, и в журнале Lambda появляется строка `admin_tuning_skipped`. Сохранение — только владелец, с кодом 2FA, с записью в журнал действий (`ops.autoscale_tuning`, было → стало).
+- Пустое поле — значение по умолчанию из Terraform.
+- Число вне границ: админка его не принимает, а Lambda пропускает и пишет в журнал `admin_tuning_skipped`.
+- Сохранять может только владелец, с кодом 2FA, с записью в журнал действий `ops.autoscale_tuning` (было → стало; у серверов ECS ещё и что применилось).
+
+**Почему серверы ECS меняет API, а не отдельная Lambda (наименьшие права):**
+- У API уже есть право менять потолок этих же серверов (`RegisterScalableTarget`, в документе прав `ops`).
+- Новые права `PutScalingPolicy` и `DescribeScalingPolicies`, а для тревог самих политик — `cloudwatch:PutMetricAlarm` / `DescribeAlarms` / `DeleteAlarms` только на `TargetTracking-service/lawbid-prod/*`. Они добавлены в тот же документ `ops`.
+- При включённом `ops_role_split` (S4-1) эти права живут на отдельной роли `lawbid-prod-ops`, которую API берёт через STS, а не на роли задач. Отдельная Lambda держала бы те же права и добавила бы ещё одну движущуюся часть, без выигрыша в правах.
+
+**Проверено на настоящем пути чтения SSM:** `tests/test_ssm_moto.py` в трёх Lambda читает параметр настоящим boto3 из SSM в moto 5.2.5. Значение из админки доходит; без параметра и при сломанном JSON остаются значения по умолчанию.
 
 | «Авто» | Ключ | По умолчанию | Границы | Что делает |
 |---|---|---|---|---|
@@ -138,5 +147,37 @@ aws lambda invoke --function-name lawbid-prod-db-autoscale --cli-binary-format r
 | База | `up_cpu_points` | 3 | 1–48 | Рост: сколько 5-минутных точек подряд держится нагрузка |
 | База | `up_mem_free_pct` | 10 | 1–90 | Рост: свободной памяти меньше, % |
 | База | `up_mem_points` | 3 | 1–48 | Рост: сколько точек подряд мало памяти |
+| Точки доступа | `cooldown_h` | 24.0 | 0–720 | Пауза между изменениями, часов |
+| Точки доступа | `down_days` | 7 | 1–90 | Убрать: сколько дней подряд трафик ниже |
+| Точки доступа | `down_gb_per_day` | 10.0 | 0–10000 | Убрать точки доступа: трафик ниже, ГБ в день |
+| Точки доступа | `up_gb_per_day` | 20.0 | 1–10000 | Создать точки доступа: трафик через NAT выше, ГБ в день |
+| Точки доступа | `up_hours` | 1 | 1–72 | Создать: сколько часов подряд трафик выше |
+| Серверы ECS | `api_cpu.target` | 60 | 10–95 | API: процессор, % — цель |
+| Серверы ECS | `api_cpu.in_s` | 600 | 0–3600 | API: процессор — пауза перед уменьшением, секунд |
+| Серверы ECS | `api_cpu.out_s` | 180 | 0–3600 | API: процессор — пауза перед новым ростом, секунд |
+| Серверы ECS | `worker_cpu.target` | 60 | 10–95 | Фоновый сервер: процессор, % — цель |
+| Серверы ECS | `worker_cpu.in_s` | 600 | 0–3600 | Фоновый сервер: процессор — пауза перед уменьшением, секунд |
+| Серверы ECS | `worker_cpu.out_s` | 180 | 0–3600 | Фоновый сервер: процессор — пауза перед новым ростом, секунд |
+| Серверы ECS | `api_requests.target` | api_requests_per_task | 10–100000 | API: запросов на сервер в минуту — цель |
+| Серверы ECS | `api_requests.in_s` | 600 | 0–3600 | API: запросов на сервер в минуту — пауза перед уменьшением, секунд |
+| Серверы ECS | `api_requests.out_s` | 180 | 0–3600 | API: запросов на сервер в минуту — пауза перед новым ростом, секунд |
+| Серверы ECS | `api_sockets.target` | api_sockets_per_task | 10–100000 | API: открытых сокетов на сервер — цель |
+| Серверы ECS | `api_sockets.in_s` | 600 | 0–3600 | API: открытых сокетов на сервер — пауза перед уменьшением, секунд |
+| Серверы ECS | `api_sockets.out_s` | 180 | 0–3600 | API: открытых сокетов на сервер — пауза перед новым ростом, секунд |
+| Серверы ECS | `worker_queue.target` | worker_jobs_per_task | 1–100000 | Фоновый сервер: задач в очереди на сервер — цель |
+| Серверы ECS | `worker_queue.in_s` | 600 | 0–3600 | Фоновый сервер: задач в очереди на сервер — пауза перед уменьшением, секунд |
+| Серверы ECS | `worker_queue.out_s` | 180 | 0–3600 | Фоновый сервер: задач в очереди на сервер — пауза перед новым ростом, секунд |
+| Серверы ECS | `admin_cpu.target` | 70 | 10–95 | Админка: процессор, % — цель |
+| Серверы ECS | `admin_cpu.in_s` | 900 | 0–3600 | Админка: процессор — пауза перед уменьшением, секунд |
+| Серверы ECS | `admin_cpu.out_s` | 180 | 0–3600 | Админка: процессор — пауза перед новым ростом, секунд |
+| Серверы ECS | `api_admin_cpu.target` | 70 | 10–95 | API админки: процессор, % — цель |
+| Серверы ECS | `api_admin_cpu.in_s` | 900 | 0–3600 | API админки: процессор — пауза перед уменьшением, секунд |
+| Серверы ECS | `api_admin_cpu.out_s` | 180 | 0–3600 | API админки: процессор — пауза перед новым ростом, секунд |
+| Серверы ECS | `pgbouncer_cpu.target` | cpu_target пула | 10–95 | Пул соединений: процессор, % — цель |
+| Серверы ECS | `pgbouncer_cpu.in_s` | 900 | 0–3600 | Пул соединений: процессор — пауза перед уменьшением, секунд |
+| Серверы ECS | `pgbouncer_cpu.out_s` | 60 | 0–3600 | Пул соединений: процессор — пауза перед новым ростом, секунд |
 
-**Владельцу (Terraform):** новые параметры SSM `…/tuning`, право Lambda на чтение и право API на чтение и запись этих двух параметров приходят обычным применением облака из админки (роли создаются в `infra/modules/stack` и модулях автомасштаба). Ничего вручную в IAM добавлять не нужно. Если применение упадёт с отказом IAM на `ssm:PutParameter` / `iam:PutRolePolicy` — значит, роли выката не хватает права, и это пункт для `infra/bootstrap`.
+**Владельцу (Terraform), из этого PR:**
+1. Новые параметры SSM `…/tuning` (4 шт.), право Lambda на чтение, право API на чтение и запись, права `ops` для политик ECS. Всё это приходит обычным применением облака из админки (роли создаёт Terraform в `infra/modules/stack`).
+2. Если применение упадёт с `AccessDenied` на `iam:PutRolePolicy` или `ssm:PutParameter`, роли выката `lawbid-prod-github-deploy` не хватает права. Его добавляют в `infra/bootstrap` вашими ключами.
+3. Рекомендуется включить `ops_role_split = true` (с `ops_role_external_id`), чтобы права на масштаб не жили на роли задач (S4-1).

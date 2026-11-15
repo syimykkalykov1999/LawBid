@@ -27,6 +27,9 @@ describe('autoscale tuning (admin → SSM → Lambda)', () => {
       lambdaSchema('redis-autoscale'),
     );
     expect(AUTOSCALE_TUNING_SCHEMA.db).toEqual(lambdaSchema('db-autoscale'));
+    expect(AUTOSCALE_TUNING_SCHEMA.endpoints).toEqual(
+      lambdaSchema('endpoints-autoscale'),
+    );
   });
 
   it('keeps valid numbers, refuses unknown keys and values outside the bounds', () => {
@@ -51,6 +54,27 @@ describe('autoscale tuning (admin → SSM → Lambda)', () => {
     expect(validateAutoscaleTuning('db', { down_window_h: null })).toEqual({
       ok: true,
       values: {},
+    });
+  });
+
+  it('ECS: every policy has a target and both pauses', () => {
+    const keys = Object.keys(AUTOSCALE_TUNING_SCHEMA.ecs);
+    for (const p of [
+      'api_cpu',
+      'worker_cpu',
+      'api_requests',
+      'api_sockets',
+      'worker_queue',
+      'admin_cpu',
+      'api_admin_cpu',
+      'pgbouncer_cpu',
+    ]) {
+      for (const f of ['target', 'in_s', 'out_s'])
+        expect(keys).toContain(`${p}.${f}`);
+    }
+    expect(validateAutoscaleTuning('ecs', { 'api_cpu.target': 99 })).toEqual({
+      ok: false,
+      errors: ['api_cpu.target: 10–95'],
     });
   });
 });

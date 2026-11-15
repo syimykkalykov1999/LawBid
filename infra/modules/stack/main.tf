@@ -1712,6 +1712,9 @@ locals {
   autoscale_ssm_params = concat(
     local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class", "/${local.name}/db-autoscale/tuning"] : [],
     local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class", "/${local.name}/redis-autoscale/tuning"] : [],
+    # Owner 14.11: the endpoint thresholds and the ECS target / pauses from the admin.
+    var.endpoints_autoscale_enabled ? ["/${local.name}/endpoints-autoscale/tuning"] : [],
+    ["/${local.name}/ecs-scaling/tuning"],
   )
   db_pool_class      = local.db_autoscale_on ? var.db_autoscale_min_class : var.database_instance_class
   db_ceiling_class   = local.db_autoscale_on ? var.db_autoscale_max_class : var.database_instance_class
@@ -1842,10 +1845,16 @@ locals {
     OPS_REDIS_AUTOSCALE_MODE_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/mode" : ""
     OPS_REDIS_AUTOSCALE_MAXCLASS_PARAM = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/max-class" : ""
     # Owner 14.11: the admin writes the autoscalers' numbers here (no apply).
-    OPS_DB_AUTOSCALE_TUNING_PARAM    = local.db_autoscale_on ? "/${local.name}/db-autoscale/tuning" : ""
-    OPS_REDIS_AUTOSCALE_TUNING_PARAM = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/tuning" : ""
-    OPS_DB_AUTOSCALE                 = local.db_autoscale_on ? "on" : "off"
-    OPS_REDIS_AUTOSCALE              = local.redis_autoscale_on ? "on" : "off"
+    OPS_DB_AUTOSCALE_TUNING_PARAM        = local.db_autoscale_on ? "/${local.name}/db-autoscale/tuning" : ""
+    OPS_REDIS_AUTOSCALE_TUNING_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/tuning" : ""
+    OPS_ENDPOINTS_AUTOSCALE_TUNING_PARAM = var.endpoints_autoscale_enabled ? "/${local.name}/endpoints-autoscale/tuning" : ""
+    OPS_ECS_SCALING_TUNING_PARAM         = aws_ssm_parameter.ecs_scaling_tuning.name
+    OPS_ECS_SCALING_POLICIES = jsonencode(merge(
+      module.ecs.scaling_policies,
+      var.db_pooler_enabled ? { pgbouncer_cpu = module.pgbouncer[0].scaling_policy } : {},
+    ))
+    OPS_DB_AUTOSCALE    = local.db_autoscale_on ? "on" : "off"
+    OPS_REDIS_AUTOSCALE = local.redis_autoscale_on ? "on" : "off"
     # Cluster mode switch (var.redis_cluster_mode = "on"): the app builds ioredis Cluster clients.
     REDIS_CLUSTER      = local.redis_cluster_on ? "true" : "false"
     OPS_POOLER_MIN     = tostring(var.pgbouncer_min_tasks)
@@ -2061,6 +2070,17 @@ module "secret_rotation" {
 }
 
 # --- own connection pooler: PgBouncer service, Cloud Map name, alarms ----------------
+# Owner 14.11: the ECS target / pauses from the admin (JSON of policy key ->
+# {target, in_s, out_s}); the API applies it with PutScalingPolicy.
+resource "aws_ssm_parameter" "ecs_scaling_tuning" {
+  name        = "/${local.name}/ecs-scaling/tuning"
+  type        = "String"
+  value       = "{}"
+  description = "ECS target-tracking numbers from the admin. Empty object = the Terraform defaults. Changing it here after creation is ignored."
+  tags        = local.tags
+  lifecycle { ignore_changes = [value] }
+}
+
 module "pgbouncer" {
   count  = var.db_pooler_enabled ? 1 : 0
   source = "../pgbouncer"
@@ -2340,8 +2360,18 @@ data "aws_iam_policy_document" "ops" {
     actions = [
       "application-autoscaling:RegisterScalableTarget",
       "application-autoscaling:DescribeScalableTargets",
+      # Owner 14.11: the admin's target / pauses (AwsOpsService.applyScaling).
+      # In this ops document, so with ops_role_split on it lives on the
+      # separate ops role, not on the task role (least privilege, S4-1).
+      "application-autoscaling:DescribeScalingPolicies",
+      "application-autoscaling:PutScalingPolicy",
     ]
     resources = ["*"]
+  }
+  # PutScalingPolicy re-creates the policy's own alarms (target tracking).
+  statement {
+    actions   = ["cloudwatch:PutMetricAlarm", "cloudwatch:DescribeAlarms", "cloudwatch:DeleteAlarms"]
+    resources = ["arn:aws:cloudwatch:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alarm:TargetTracking-service/${module.ecs.cluster_name}/*"]
   }
   dynamic "statement" {
     for_each = module.budget[*].budget_arn

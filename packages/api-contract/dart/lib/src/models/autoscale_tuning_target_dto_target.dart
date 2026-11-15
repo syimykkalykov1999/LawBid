@@ -10,6 +10,10 @@ enum AutoscaleTuningTargetDtoTarget {
   db('db'),
   @JsonValue('redis')
   redis('redis'),
+  @JsonValue('endpoints')
+  endpoints('endpoints'),
+  @JsonValue('ecs')
+  ecs('ecs'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

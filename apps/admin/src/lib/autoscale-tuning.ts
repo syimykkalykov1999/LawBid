@@ -8,7 +8,7 @@ export interface TuningKnob {
   value: number | null;
 }
 export interface TuningTarget {
-  target: 'db' | 'redis';
+  target: 'db' | 'redis' | 'endpoints' | 'ecs';
   available: boolean;
   knobs: TuningKnob[];
 }
