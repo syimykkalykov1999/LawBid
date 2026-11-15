@@ -16,6 +16,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 
+import '../../../helpers/golden_platform.dart';
 import '../../../helpers/ux_harness.dart';
 
 /// Russian with English for keys only the server bundle carries.
@@ -195,10 +196,13 @@ void main() {
   final themes = {'light': AppTheme.light(), 'dark': AppTheme.dark()};
   late final L10nFormats formats;
   setUpAll(() async {
-    final local = goldenFileComparator as LocalFileComparator;
-    goldenFileComparator = _TolerantComparator(
-      local.basedir.resolve('case_cover_golden_test.dart'),
-    );
+    // Platform goldens compare exactly (helpers/golden_platform.dart).
+    if (!platformGoldens) {
+      final local = goldenFileComparator as LocalFileComparator;
+      goldenFileComparator = _TolerantComparator(
+        local.basedir.resolve('case_cover_golden_test.dart'),
+      );
+    }
     await initializeDateFormatting();
     formats = L10nFormats(AppLanguage.fallback);
   });
@@ -238,13 +242,15 @@ void main() {
 
     testGoldens('attorney feed cards, compact - ${entry.key}', (tester) async {
       final strict = goldenFileComparator;
-      goldenFileComparator = _TolerantComparator(
-        (strict as LocalFileComparator).basedir.resolve(
-              'case_cover_golden_test.dart',
-            ),
-        maxDiff: 0.03,
-      );
-      addTearDown(() => goldenFileComparator = strict);
+      if (!platformGoldens) {
+        goldenFileComparator = _TolerantComparator(
+          (strict as LocalFileComparator).basedir.resolve(
+                'case_cover_golden_test.dart',
+              ),
+          maxDiff: 0.03,
+        );
+        addTearDown(() => goldenFileComparator = strict);
+      }
       await tester.pumpWidgetBuilder(
         Scaffold(
           body: ListView(
