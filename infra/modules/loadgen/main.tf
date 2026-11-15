@@ -10,7 +10,7 @@
 # Everything carries the stack's tags (Project=lawbid-loadtest, CreatedAt...).
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -142,7 +142,7 @@ data "aws_iam_policy_document" "work" {
   # CloudWatch numbers of the TURN box are read by the test scripts
   statement {
     actions   = ["ssm:GetParameter"]
-    resources = ["arn:aws:ssm:${data.aws_region.current.name}:*:parameter/${var.name}/*"]
+    resources = ["arn:aws:ssm:${data.aws_region.current.region}:*:parameter/${var.name}/*"]
   }
   statement {
     actions   = ["ec2:DescribeInstances"]

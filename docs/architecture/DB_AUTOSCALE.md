@@ -155,7 +155,7 @@ re-fetched in this session, treat the numbers as approximate):
 
 ```
 EventBridge Scheduler  rate(5 minutes)      {"mode":"tick"}   ─┐
-EventBridge Scheduler  cron(30 3 * * ? *)                       ├─> Lambda db-autoscale (python3.12, arm64)
+EventBridge Scheduler  cron(30 3 * * ? *)                       ├─> Lambda db-autoscale (python3.14, arm64)
         tz America/Chicago                  {"mode":"night"}  ─┘     ├─ rds:DescribeDBInstances / ModifyDBInstance (this DB only)
                                                                      ├─ cloudwatch:GetMetricData
                                                                      ├─ ecs:DescribeServices / ListTasks (this cluster)

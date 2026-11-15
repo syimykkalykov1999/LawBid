@@ -26,7 +26,7 @@ jobs:
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       ROLE: ${{ secrets.AWS_LOADTEST_WATCHDOG_ROLE }}
-      TF_VERSION: "1.9.8"
+      TF_VERSION: "1.17.1"
     steps:
       - name: Not configured yet
         if: env.ROLE == ''

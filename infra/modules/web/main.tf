@@ -6,7 +6,7 @@
 # Owner 2026-10-15. Not applied yet, like the rest of infra/.
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -171,7 +171,7 @@ resource "aws_acm_certificate" "web" {
   lifecycle {
     create_before_destroy = true
     precondition {
-      condition     = data.aws_region.current.name == "us-east-1"
+      condition     = data.aws_region.current.region == "us-east-1"
       error_message = "CloudFront only reads certificates from us-east-1."
     }
   }
@@ -547,7 +547,7 @@ resource "aws_cloudfront_distribution" "web" {
     origin_access_control_id = aws_cloudfront_origin_access_control.web.id
 
     dynamic "origin_shield" {
-      for_each = var.origin_shield_region == "off" ? [] : [var.origin_shield_region == "" ? aws_s3_bucket.web.region : var.origin_shield_region]
+      for_each = var.origin_shield_region == "off" ? [] : [var.origin_shield_region == "" ? aws_s3_bucket.web.bucket_region : var.origin_shield_region]
       content {
         enabled              = true
         origin_shield_region = origin_shield.value
