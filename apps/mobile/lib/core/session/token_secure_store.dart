@@ -1,5 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:lawbid/core/session/browser_session_hint.dart';
+import 'package:lawbid/core/session/legacy_secure_storage.dart';
 
 const _kRefreshTokenKey = 'auth.refresh_token';
 const _kRefreshTokenIsDemoKey = 'auth.refresh_token_demo';
@@ -55,10 +56,10 @@ class TokenSecureStore {
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
     ),
-    aOptions: AndroidOptions(
-      encryptedSharedPreferences: true,
-      resetOnError: true,
-    ),
+    // Row 149: Android uses version 11's defaults (custom AES-GCM ciphers,
+    // `resetOnError: true`); there is no EncryptedSharedPreferences any more,
+    // and what version 9 kept there is moved by LegacySecureStorage before
+    // the first read.
   );
 
   /// Stored in place of a refresh token that lives in the web cookie.
@@ -81,6 +82,7 @@ class TokenSecureStore {
   /// accessibility class is applied to a fresh item) and returns it. Never
   /// throws for the legacy side: a failing old read is a missing value.
   Future<String?> _read(String key) async {
+    await _moved();
     final value = await _storage.read(key: key);
     final legacy = _legacy;
     if (value != null || legacy == null) return value;
@@ -99,6 +101,12 @@ class TokenSecureStore {
     }
     return old;
   }
+
+  /// Row 149: the app's own storage only (a test that injects one has
+  /// nothing old to move).
+  Future<void> _moved() => _legacy == null
+      ? Future<void>.value()
+      : LegacySecureStorage.ensureMoved(tokens: _storage);
 
   /// The stored refresh token; on the website a new tab that has no marker
   /// of its own but whose browser is signed in ([BrowserSessionHint]) gets
@@ -127,6 +135,7 @@ class TokenSecureStore {
   /// missing or unreadable hint is the old start.
   Future<String?> readSessionHint() async {
     try {
+      await _moved();
       return await _storage.read(key: _kSessionHintKey);
     } on Object {
       return null;
