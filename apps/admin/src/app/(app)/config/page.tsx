@@ -1061,6 +1061,8 @@ const KEY_TEXT: Record<string, string> = {
     "Фото в чате: длинная сторона, px (уменьшается на телефоне перед отправкой). Ключ: media.chat_photo_max_px.",
   "media.chat_photo_quality":
     "Фото в чате: качество JPEG, 50–100. Ключ: media.chat_photo_quality.",
+  "media.picked_image_read_x":
+    "Фото из «Файлов» больше лимита файла всё равно сжимается перед отправкой; читается только до стольких лимитов (4 = до 4× лимита, 0 = без ограничения). Ключ: media.picked_image_read_x.",
   store_url_ios:
     "Ссылка на приложение в App Store для кнопки «Обновить» (нужна до первого релиза iOS). Ключ: store_url_ios.",
   store_url_android:
