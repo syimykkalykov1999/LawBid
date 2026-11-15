@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
@@ -115,10 +116,11 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     if (d.membersNextCursor == null) {
       setState(() {
         _memberHits = [
+          // Review 14.11: the same rule as the server's name search (any
+          // alphabet, spelling, a small typo; @username), so a small group
+          // finds «Эмили» = Emily like a big one does.
           for (final m in _members(d))
-            if ((m.displayName ?? '').toLowerCase().contains(text) ||
-                (m.username ?? '').toLowerCase().startsWith(text))
-              m,
+            if (textMatches(text, [m.displayName, m.username])) m,
         ];
       });
       return;

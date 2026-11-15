@@ -155,6 +155,20 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
     _focus.requestFocus();
   }
 
+  /// Desktop web Enter (review 14.11, Telegram Desktop): with the @mention
+  /// list open it picks the first person instead of sending «@an».
+  void _enter() {
+    final q = _query;
+    if (q != null) {
+      final found = _candidates(q);
+      if (found.isNotEmpty) {
+        _pick(found.first);
+        return;
+      }
+    }
+    _submit();
+  }
+
   void _submit() {
     final text = _text.text.trim();
     if (text.isEmpty) return;
@@ -253,7 +267,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
           // Row 110 (desktop web, like the direct chat): Enter sends,
           // Shift+Enter is a new line, Esc closes the reply / edit bar.
           child: DesktopSendOnEnter(
-            onSend: _submit,
+            onSend: _enter,
             controller: _text,
             onEscape: () {
               final close = widget.editing != null
