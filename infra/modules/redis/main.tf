@@ -4,7 +4,7 @@
 # adapter state only (§6.4: not a source of truth).
 terraform {
   required_providers {
-    aws    = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws    = { source = "hashicorp/aws", version = "~> 6.72" }
     random = { source = "hashicorp/random", version = "~> 3.6" }
   }
 }

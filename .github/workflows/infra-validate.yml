@@ -1,7 +1,8 @@
 # Terraform fmt + validate on PRs that touch infra/. No AWS access and no state
 # (`init -backend=false` only downloads providers). Not a required check on
 # purpose: the public provider registry can flake; a red run is still a reason
-# not to merge. apply / drift float on ">=1.9"; this pin is the minimum we support.
+# not to merge. apply / drift float on ">=1.9" (latest 1.x reads the owner's state);
+# this pin is the newest release at least 7 days old (STRICT_RULES №10).
 name: Infra validate
 
 on:
@@ -20,7 +21,7 @@ concurrency:
 
 env:
   # Same as load-test.yml (the version that creates the test stacks).
-  TF_VERSION: "1.9.8"
+  TF_VERSION: "1.17.1"
 
 jobs:
   validate:

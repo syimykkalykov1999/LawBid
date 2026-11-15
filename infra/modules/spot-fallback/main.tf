@@ -21,7 +21,7 @@
 # `scale.spot_fallback.mode` (off | on | auto) in ops/scale-controls.json.
 terraform {
   required_providers {
-    aws     = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws     = { source = "hashicorp/aws", version = "~> 6.72" }
     archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
 }
@@ -197,7 +197,7 @@ resource "aws_lambda_function" "this" {
   function_name    = local.fn_name
   description      = "Fargate Spot without capacity: tasks on regular Fargate; back to Spot after a quiet hold"
   role             = aws_iam_role.lambda.arn
-  runtime          = "python3.13"
+  runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "handler.lambda_handler"
   filename         = data.archive_file.lambda.output_path

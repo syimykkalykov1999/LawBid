@@ -13,7 +13,7 @@
 # (CloudFront reads its certificates from there as well, modules/web).
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -96,7 +96,7 @@ resource "aws_wafv2_web_acl" "cdn" {
 
   lifecycle {
     precondition {
-      condition     = data.aws_region.current.name == "us-east-1"
+      condition     = data.aws_region.current.region == "us-east-1"
       error_message = "A CloudFront web ACL can only be created in us-east-1 (the stack's main region)."
     }
   }
