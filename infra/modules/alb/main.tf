@@ -119,6 +119,16 @@ variable "waf_bot_control_block" {
   type    = bool
   default = false
 }
+# Rows 16 / 17 (15.11): Bot Control rules that only COUNT even in block mode.
+# The native app (dart:io, no custom User-Agent) and server-to-server calls
+# are «non-browser» / «HTTP library» to Bot Control, whose common-level
+# action for both is Block (AWS WAF Developer Guide, «AWS WAF Bot Control
+# rule group», read 15.11.2026). Overriding them to Count is the AWS-documented
+# rule_action_override; the labels stay for later rules.
+variable "waf_bot_control_count_rules" {
+  type    = list(string)
+  default = ["SignalNonBrowserUserAgent", "CategoryHttpLibrary"]
+}
 # The paths that send an SMS / e-mail or answer "is this number registered":
 # the costly anonymous ones (docs/COST_PROTECTION.md §1).
 locals {
@@ -695,6 +705,35 @@ resource "aws_wafv2_web_acl" "this" {
           managed_rule_group_configs {
             aws_managed_rules_bot_control_rule_set {
               inspection_level = "COMMON"
+            }
+          }
+          dynamic "rule_action_override" {
+            for_each = var.waf_bot_control_count_rules
+            content {
+              name = rule_action_override.value
+              action_to_use {
+                count {}
+              }
+            }
+          }
+          # Provider webhooks (Stripe and the others) are checked by the API
+          # with a signature or a secret token; never inspected as bots (the
+          # same exemption as the rule «no-user-agent» below).
+          scope_down_statement {
+            not_statement {
+              statement {
+                byte_match_statement {
+                  search_string         = "/api/v1/webhooks/"
+                  positional_constraint = "STARTS_WITH"
+                  field_to_match {
+                    uri_path {}
+                  }
+                  text_transformation {
+                    priority = 0
+                    type     = "NONE"
+                  }
+                }
+              }
             }
           }
         }
