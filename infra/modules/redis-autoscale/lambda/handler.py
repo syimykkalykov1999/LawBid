@@ -316,7 +316,8 @@ def handler(event, context=None, now=None):
         env.get("CLUSTER", ""), [x for x in env.get("SERVICES", "").split(",") if x]
     )
     guards = d.Guards(deploying, oneoff, unknown, night_window(event, env.get("NIGHT_TZ", "America/Chicago"), now))
-    hours = cfg.period_s * 4 / 3600
+    # a node without a standby grows only after single_up_points (14.11)
+    hours = cfg.period_s * max(4, cfg.single_up_points) / 3600
     if mode == "night" or cfg.down_on_tick:  # the tick also checks for a shrink (online resize)
         hours = max(hours, cfg.down_window_h)
     m = metric_series(nodes, cfg, hours, cur is not None and cur.baseline_pct is not None, now)

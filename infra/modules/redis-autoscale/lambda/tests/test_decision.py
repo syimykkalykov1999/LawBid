@@ -150,6 +150,28 @@ class GuardTests(unittest.TestCase):
         r = d.decide(CFG, "tick", alone, d.Guards(night_ok=True), OLD, replace(calm(), cpu=(90.0,) * 4), NOW)
         self.assertEqual(r.action, "none")
 
+    def test_single_node_grows_only_under_sustained_overload(self):
+        # 14.11 (owner): a single node must still grow, accepting the short
+        # resize pause, but only after 30 min of overload (6 points), not on
+        # the 15-min spike the replicated group reacts to.
+        alone = inst("cache.t4g.small", auto_failover=False, replicas=0)
+        day = d.Guards(night_ok=False)
+        st = d.State(cls="cache.t4g.small")
+        spike = replace(calm(6), cpu=(10.0, 10.0, 10.0, 90.0, 90.0, 90.0))
+        r = d.decide(CFG, "tick", alone, day, st, spike, NOW)
+        self.assertEqual(r.reason, "no_failover")
+        held = replace(calm(6), cpu=(90.0,) * 6)
+        r = d.decide(CFG, "tick", alone, day, st, held, NOW)
+        self.assertEqual((r.action, r.target, r.reason), ("up", "cache.t4g.medium", "load_single_node"))
+        # one point of «memory 93 %» is not enough on a single node either
+        r = d.decide(CFG, "tick", alone, day, st, replace(calm(6), mem_pct=(30.0,) * 5 + (93.0,)), NOW)
+        self.assertEqual(r.reason, "no_failover")
+        # the setting turns it off; the other guards still hold
+        off = replace(CFG, single_node_up=False)
+        self.assertEqual(d.decide(off, "tick", alone, day, st, held, NOW).reason, "no_failover")
+        busy = d.Guards(night_ok=False, deploying=True)
+        self.assertEqual(d.decide(CFG, "tick", alone, busy, st, held, NOW).reason, "deploying")
+
     def test_each_guard_blocks(self):
         cases = [
             (inst(status="modifying"), d.Guards(), "not_available"),

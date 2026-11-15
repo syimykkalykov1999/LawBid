@@ -196,6 +196,21 @@ class GuardTests(unittest.TestCase):
         r = d.decide(CFG, "tick", inst("db.t4g.medium"), d.Guards(night_ok=True), OLD, quiet_week(), NOW)
         self.assertEqual(r.action, "down")
 
+    def test_single_az_grows_only_under_sustained_overload(self):
+        # 14.11 (owner): a single-AZ database must still grow (minutes of
+        # pause accepted) but only after 30 min of overload (6 points).
+        single = inst(multi_az=False)
+        day = d.Guards(night_ok=False)
+        st = d.State(cls="db.t4g.small")
+        self.assertEqual(d.decide(CFG, "tick", single, day, st, self.HOT, NOW).reason, "not_multi_az")
+        held = replace(calm(n=6), cpu=(95.0,) * 6)
+        r = d.decide(CFG, "tick", single, day, st, held, NOW)
+        self.assertEqual((r.action, r.target, r.reason), ("up", "db.t4g.medium", "load_single_node"))
+        off = replace(CFG, single_node_up=False)
+        self.assertEqual(d.decide(off, "tick", single, day, st, held, NOW).reason, "not_multi_az")
+        busy = d.Guards(night_ok=False, oneoff_tasks=True)
+        self.assertEqual(d.decide(CFG, "tick", single, busy, st, held, NOW).reason, "oneoff_tasks")
+
     def test_single_az_allowed_when_configured(self):
         cfg = replace(CFG, require_multi_az=False)
         r = d.decide(cfg, "tick", inst(multi_az=False), d.Guards(), d.State(cls="db.t4g.small"), self.HOT, NOW)

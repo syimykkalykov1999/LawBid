@@ -371,7 +371,8 @@ def handler(event, context=None, now=None):
     guards = d.Guards(deploying, oneoff, unknown, night_window(event, env.get("NIGHT_TZ", "America/Chicago"), now))
     # 14.11: a tick inside the night window is a shrink try too (decision.py),
     # so it reads the whole quiet window.
-    hours = cfg.down_window_h if mode == "night" or guards.night_ok else cfg.period_s * 4 / 3600
+    # A single-AZ database grows only after single_up_points (14.11).
+    hours = cfg.down_window_h if mode == "night" or guards.night_ok else cfg.period_s * max(4, cfg.single_up_points) / 3600
     m = metric_series(db_id, cfg, hours, cur is not None and cur.baseline_pct is not None, now)
     dec = d.decide(cfg, mode, inst, guards, state, m, now)
     log(event="decision", mode=mode, switch=switch, cls=inst.cls, action=dec.action,
