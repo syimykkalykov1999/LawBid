@@ -44,6 +44,7 @@ import '../models/session_ended_envelope.dart';
 import '../models/session_list_envelope.dart';
 import '../models/set_password_dto.dart';
 import '../models/social_login_dto.dart';
+import '../models/social_nonce_envelope.dart';
 
 part 'auth_client.g.dart';
 
@@ -87,6 +88,17 @@ abstract class AuthClient {
   @POST('/auth/otp/verify-link')
   Future<AuthTokensEnvelope> verifyOtpLink({
     @Body() required OtpVerifyLinkDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Detective R2B-9 (14.11): the nonce for one Google sign-in, made and.
+  /// remembered by the server (OpenID Connect Core §3.1.2.1), so a stolen ID.
+  /// token is useless without the one nonce it was minted for. The global.
+  /// throttler limits anonymous callers (security.anonymous_rate_limit_*).
+  /// The rule that needs it is switched on per app version instead.
+  /// (security.google_nonce_min_app_version).
+  @POST('/auth/social/nonce')
+  Future<SocialNonceEnvelope> socialNonce({
     @Extras() Map<String, dynamic>? extras,
   });
 

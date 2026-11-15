@@ -32,6 +32,7 @@ import {
   SetPasswordDto,
 } from './dto/password.dto';
 import { SocialAuthService } from './social/social-auth.service';
+import { SocialNonceService } from './social/social-nonce.service';
 import { Public } from './decorators/public.decorator';
 import {
   CurrentUser,
@@ -56,6 +57,7 @@ import {
   ReauthTokenDto,
   SessionDto,
   SessionEndedDto,
+  SocialNonceDto,
 } from './dto/auth-responses.dto';
 import { ContinueLoginDto } from './dto/continue-login.dto';
 import { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
@@ -142,6 +144,8 @@ export class AuthController {
     private readonly reauthVerifier: ReauthVerifier,
     private readonly demoReauth: DemoReauthService,
     private readonly passwordReauth: PasswordReauthService,
+    // Detective R2B-9 (14.11): POST /auth/social/nonce.
+    private readonly socialNonces: SocialNonceService,
   ) {}
 
   @ApiEnvelopeResponse(OtpSentDto)
@@ -272,6 +276,24 @@ export class AuthController {
     @Req() req: Request,
   ): Promise<AuthTokensDto> {
     return this.auth.verifyOtpLink(dto, this.meta(req));
+  }
+
+  /**
+   * Detective R2B-9 (14.11): the nonce for one Google sign-in, made and
+   * remembered by the server (OpenID Connect Core §3.1.2.1), so a stolen ID
+   * token is useless without the one nonce it was minted for. The global
+   * throttler limits anonymous callers (security.anonymous_rate_limit_*).
+   * The rule that needs it is switched on per app version instead
+   * (security.google_nonce_min_app_version).
+   */
+  // flag: none a nonce source only; enforcement is the per-version admin setting
+  @ApiEnvelopeResponse(SocialNonceDto)
+  @ApiErrors({ 429: [E.RATE_LIMITED] })
+  @Public()
+  @Post('social/nonce')
+  @HttpCode(HttpStatus.OK)
+  socialNonce(): Promise<SocialNonceDto> {
+    return this.socialNonces.issue();
   }
 
   @ApiEnvelopeResponse(AuthTokensDto, { status: HttpStatus.CREATED })
@@ -667,6 +689,7 @@ export class AuthController {
   private meta(req: Request): RequestMeta {
     const deviceId = req.header('x-device-id')?.trim();
     const deviceKey = req.header('x-device-key')?.trim();
+    const appVersion = req.header('x-app-version')?.trim();
     return {
       ip: req.ip,
       country: requestCountry((n) => req.header(n)),
@@ -676,6 +699,8 @@ export class AuthController {
         deviceKey && deviceKey.length >= 8 && deviceKey.length <= 128
           ? deviceKey
           : undefined,
+      appVersion:
+        appVersion && appVersion.length <= 32 ? appVersion : undefined,
     };
   }
 }

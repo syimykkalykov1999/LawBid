@@ -1417,6 +1417,28 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 86400,
   };
+  out['auth.social_nonce_ttl_sec'] = {
+    ...out['auth.social_nonce_ttl_sec'],
+    description:
+      'How long a Google sign-in nonce issued by POST /auth/social/nonce stays valid, seconds (600). It works once.',
+    min: 30,
+    max: 3600,
+  };
+  // R2B-9 / R2B-12 (14.11): stricter rules that need the new app, switched
+  // on per app version (empty = not enforced; older builds keep the old
+  // path, like min_app_version_* retires them).
+  out['security.google_nonce_min_app_version'] = {
+    ...out['security.google_nonce_min_app_version'],
+    description:
+      'From this app version on (semver), Google sign-in must use a nonce issued by the server; older builds keep their own. Empty = not enforced.',
+    pattern: /^(\d+\.\d+\.\d+)?$/,
+  };
+  out['security.export_reauth_min_app_version'] = {
+    ...out['security.export_reauth_min_app_version'],
+    description:
+      'From this app version on (semver), the data-export download link is given only with a fresh re-authentication (X-Reauth-Token); older builds still get it without. Empty = not enforced.',
+    pattern: /^(\d+\.\d+\.\d+)?$/,
+  };
   out['verification.persona_webhook_tolerance_sec'] = {
     ...out['verification.persona_webhook_tolerance_sec'],
     description:

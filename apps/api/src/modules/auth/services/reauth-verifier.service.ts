@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -16,6 +17,9 @@ import {
   TokenVerifyInvalidError,
 } from './token.service';
 import type { RequestUser } from '../decorators/current-user.decorator';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import type { AppSettingKey } from '../../../common/app-settings/app-settings.defaults';
+import { legacyClientAllowed } from '../../../common/utils/semver.util';
 
 const REAUTH_HEADER = 'x-reauth-token';
 
@@ -40,6 +44,8 @@ export class ReauthVerifier {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    // R2B-12 (14.11): «from this app version on» settings.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   /** True when the request carries an X-Reauth-Token header at all. */
@@ -95,6 +101,29 @@ export class ReauthVerifier {
         message: 'Reauth token already used.',
       });
     }
+  }
+
+  /**
+   * Detective R2B-12 (14.11): a read behind reauth that older apps make
+   * without the token (the data-export link). A token present is checked
+   * like [assertValid] (a bad one is refused, nothing is consumed) → true.
+   * No token → true only while the admin's [minVersionKey] is empty or the
+   * caller's `X-App-Version` is below it ([legacyClientAllowed]); else
+   * false, and the caller leaves the protected part out.
+   */
+  async validOrLegacyClient(
+    req: Request & { user?: RequestUser },
+    minVersionKey: AppSettingKey,
+  ): Promise<boolean> {
+    if (this.hasToken(req)) {
+      await this.assertValid(req);
+      return true;
+    }
+    // Settings unreadable: the rule counts as not switched on yet, so a
+    // config outage never takes the download away (reliability first).
+    const minVersion =
+      (await this.settings?.string(minVersionKey).catch(() => '')) ?? '';
+    return legacyClientAllowed(req.header('x-app-version'), minVersion);
   }
 
   async assertAndConsume(req: Request & { user?: RequestUser }): Promise<void> {

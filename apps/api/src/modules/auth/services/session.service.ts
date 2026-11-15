@@ -37,6 +37,9 @@ export interface RequestMeta {
   /** Country of the caller as the CDN / load balancer reports it (ISO-3166
    * alpha-2; request-country.util.ts). Undefined when not reported. */
   country?: string;
+  /** X-App-Version as the app sends it (R2B-9: rules switched on per app
+   * version). Untrusted, never a reason to grant more than today. */
+  appVersion?: string;
 }
 
 /** Retry-After of a refresh answered 503 (Redis down, lost rotation race). */

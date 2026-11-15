@@ -43,6 +43,7 @@ import {
   AUTH_EVENT_TYPES,
 } from './services/auth-event.service';
 import { GoogleTokenVerifier } from './social/google-token-verifier.service';
+import { SocialNonceService } from './social/social-nonce.service';
 import { AppleTokenVerifier } from './social/apple-token-verifier.service';
 import type { OtpRequestDto } from './dto/otp-request.dto';
 import type { OtpVerifyDto } from './dto/otp-verify.dto';
@@ -150,6 +151,8 @@ export class AuthService {
     @Optional() private readonly ageGate?: AgeGateService,
     // N-2: the domain-event bus.
     @Optional() private readonly events?: DomainEvents,
+    // Detective R2B-9 (14.11): Google linking takes the server's nonce too.
+    @Optional() private readonly socialNonces?: SocialNonceService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -1421,6 +1424,9 @@ export class AuthService {
           code: ErrorCode.AUTH_SOCIAL_TOKEN_INVALID,
           message: 'idToken and nonce are required for apple/google linking.',
         });
+      }
+      if (dto.provider === 'google') {
+        await this.socialNonces?.assertIssued(dto.nonce, meta?.appVersion);
       }
       const verifier = dto.provider === 'apple' ? this.apple : this.google;
       const verified = await verifier.verify(dto.idToken, dto.nonce);
