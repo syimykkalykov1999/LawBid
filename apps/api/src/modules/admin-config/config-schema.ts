@@ -1378,17 +1378,18 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Hours without the signal before an item the automation switched on is switched off again (infra.auto_off_minutes > 0 wins).',
     min: 1,
   };
-  out['infra.auto_check_minutes'] = {
-    ...out['infra.auto_check_minutes'],
-    description:
-      'How often the cloud automation and the HA copies look, in minutes (default 10; live tests: 1).',
-    min: 1,
-  };
   out['infra.auto_off_minutes'] = {
     ...out['infra.auto_off_minutes'],
     description:
       'Minutes without the signal before switch-off, instead of infra.auto_off_hours when above 0 (live tests). 0 = use the hours.',
     min: 0,
+  };
+  out['infra.auto_check_minutes'] = {
+    type: 'integer',
+    defaultValue: 10,
+    description:
+      'How often, in minutes, the cloud automation and the HA copies look at the signals (one cycle; default 10, 1 for a live test). Every wait above counts in these cycles.',
+    min: 1,
   };
   out['infra.auto_max_usd_month'] = {
     type: 'integer',

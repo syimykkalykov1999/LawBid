@@ -1,4 +1,9 @@
-import { autoWaits, dueWants, type AutoWant } from './infra-auto.logic';
+import {
+  autoWaits,
+  dueWants,
+  passLockSeconds,
+  type AutoWant,
+} from './infra-auto.logic';
 
 /**
  * Owner 14.11 (live tests within minutes; «No limits on owner»): every
@@ -71,5 +76,16 @@ describe('«Авто» waits in minutes', () => {
     );
     expect(w.onMs).toBe(60_000);
     expect(w.offMs).toBe(60_000);
+  });
+});
+
+describe('«Авто» cycle in minutes (rows 16 / 17)', () => {
+  it('the pass lock is the cycle minus 30 s; 0 / not a number = 10 minutes', () => {
+    expect(passLockSeconds(10)).toBe(570);
+    expect(passLockSeconds(1)).toBe(30);
+    expect(passLockSeconds(5)).toBe(270);
+    expect(passLockSeconds(0)).toBe(570);
+    expect(passLockSeconds(Number.NaN)).toBe(570);
+    expect(passLockSeconds(0.5)).toBe(30);
   });
 });
