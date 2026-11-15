@@ -288,7 +288,8 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
         | 'ha.flip_guard_minutes',
     ) => (await this.settings?.number(k).catch(() => 0)) ?? 0;
     const threshold = await num('ha.provision_online_users');
-    const days = Math.min(30, Math.max(1, (await num('ha.release_days')) || 7));
+    // Owner 14.11 («no limits»): no 30-day ceiling; floor 1 day.
+    const days = Math.max(1, (await num('ha.release_days')) || 7);
     // Owner 14.11: waits in minutes for live tests (0 = the days / 24 h).
     const releaseMinutes = Math.max(0, await num('ha.release_minutes'));
     const windowHours = haWindowHours(days, releaseMinutes);
