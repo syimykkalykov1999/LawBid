@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "இந்த வழக்கறிஞருடன் வழக்கை முடித்த வாடிக்கையாளர் மட்டுமே மதிப்புரை எழுத முடியும்.",
   "reviews.write.saved": "மதிப்பாய்வு இடப்பட்டது",
   "reviews.write.title": "உங்கள் மதிப்பாய்வு",
+  "router.notFound.home": "முகப்பு",
+  "router.notFound.title": "பக்கம் கிடைக்கவில்லை",
   "saved.chats.empty": "சேமித்த செய்திகள் இல்லை",
   "saved.copied": "நகலெடுக்கப்பட்டது",
   "saved.empty": "இன்னும் எதுவும் சேமிக்கப்படவில்லை",
