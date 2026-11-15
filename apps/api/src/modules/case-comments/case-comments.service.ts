@@ -292,11 +292,14 @@ export class CaseCommentsService {
       throw commentNotFound();
     }
     const now = new Date();
+    // R2B-13 (14.11): only the request that really deletes the row moves
+    // the counters — a parallel DELETE finds it gone (count 0).
     const removedReplies = await withTxRetry(this.prisma, async (tx) => {
-      await tx.caseComment.update({
-        where: { id: c.id },
+      const claimed = await tx.caseComment.updateMany({
+        where: { id: c.id, deleted_at: null },
         data: { deleted_at: now },
       });
+      if (claimed.count === 0) return null;
       if (c.parent_comment_id) return 0;
       const r = await tx.caseComment.updateMany({
         where: { parent_comment_id: c.id, ...LIVE },
@@ -304,6 +307,7 @@ export class CaseCommentsService {
       });
       return r.count;
     });
+    if (removedReplies === null) return { deleted: true };
     if (c.status === 'published') {
       await this.counters.bump(
         'case',

@@ -44,8 +44,9 @@ mk() {
   rm -r "$T/b" 2>/dev/null
   mkdir -p "$T/b/canvaskit" "$T/b/assets"
   for f in main.dart.wasm main.dart.mjs main.dart.js; do : >"$T/b/$f"; done
-  printf '_flutter.loader.load({serviceWorkerSettings:{}});' >"$T/b/flutter_bootstrap.js"
-  printf 'var v="__LB_V__";' >"$T/b/boot_head.js"
+  for f in canvaskit.js canvaskit.wasm skwasm.js skwasm.wasm; do : >"$T/b/canvaskit/$f"; done
+  printf '_flutter.loader.load({});' >"$T/b/flutter_bootstrap.js"
+  printf 'var v="__LB_V__",e="__LB_E__";' >"$T/b/boot_head.js"
 }
 mk
 python3 "$D/web-immutable.py" "$T/b" abcdef1 /s/ >/dev/null

@@ -370,6 +370,55 @@ export const EXPORT_ENTITIES = [
   'teams',
 ] as const;
 
+// Owner 14.11 (row 180): the filters of the list on screen; each entity uses the ones it has (others → 400).
+export class ExportQueryDto {
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^[a-z_]{1,32}$/)
+  role?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^[a-z_]{1,32}$/)
+  status?: string;
+
+  @ApiPropertyOptional({ minLength: 2, maxLength: 2 })
+  @IsOptional()
+  @Matches(/^[A-Za-z]{2}$/)
+  stateCode?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  caseId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^[a-z_]{1,16}$/)
+  kind?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
 export class ExportParamDto {
   @ApiProperty({ enum: EXPORT_ENTITIES, enumName: 'ExportEntity' })
   @IsIn(EXPORT_ENTITIES)

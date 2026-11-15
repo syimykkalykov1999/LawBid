@@ -34,6 +34,7 @@ import {
   autoRefusal,
   autoWants,
   dueWants,
+  searchDomainSpare,
   wantKey,
   type AutoSignals,
   type AutoWant,
@@ -435,6 +436,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       domain: live('aws.opensearch'),
       engineConfigured: status?.engineConfigured ?? false,
       phase: (status?.state?.phase as ReindexPhaseLike | undefined) ?? null,
+      spare: await this.searchSpare().catch(() => false),
     });
     if (!action) {
       await this.redis?.del(SEARCH_SEEN_KEY).catch(() => 0);
@@ -501,6 +503,30 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       `${action.reason} Само, через «Авто». Ручное управление: search.engine_follow = manual.`,
     );
     return action;
+  }
+
+  /** Row 9 (14.11): the search domain is on «Авто», handed to the
+   * automation and below the off line (searchDomainSpare). Any failed read
+   * = not spare. */
+  private async searchSpare(): Promise<boolean> {
+    const [people, onPeople, autoOn, raw] = await Promise.all([
+      this.people(),
+      this.settings.number('infra.search_engine_on_people'),
+      this.autoOwned(),
+      this.settings.raw(INFRA_MODE_KEYS['aws.opensearch']),
+    ]);
+    const mode = infraMode(raw);
+    return searchDomainSpare(
+      {
+        people,
+        searchOnPeople: onPeople,
+        modes: { 'aws.opensearch': mode },
+        pickedAuto: new Set(
+          raw !== undefined && mode === 'auto' ? ['aws.opensearch'] : [],
+        ),
+      },
+      autoOn,
+    );
   }
 
   /** The search reindex through its port (common/search/search-reindex.port),

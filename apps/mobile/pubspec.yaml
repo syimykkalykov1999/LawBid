@@ -62,7 +62,7 @@ dependencies:
   # `POST /auth/reauth` token server-side — see
   # core/session/biometric_auth_service.dart's doc comment for why the
   # server-side trust boundary is still OTP-only this stage.
-  local_auth: ^2.3.0
+  local_auth: ^3.0.2
 
   # Local SQLite cache for the real, backend-driven L10n layer (file 01
   # §9.4, stage 1.6 — see core/l10n/l10n_database.dart). `drift_flutter`
@@ -92,7 +92,7 @@ dependencies:
   # Owner 2026-11-05: a downloaded case document opens in the system viewer
   # (file:// through url_launcher is refused on both platforms). BSD-3.
   open_filex: ^5.0.0
-  smart_auth: ^3.2.0
+  smart_auth: ^4.0.0
   # Connectivity (docs/01 §8.3 "Offline (баннер сверху, показ кэша)",
   # p12 leaf-1.6): the OS network-interface signal behind
   # core/connectivity/connectivity_service.dart. It only says whether an
@@ -221,7 +221,7 @@ dev_dependencies:
   # riverpod 3.x) are now compatible with this pubspec — no longer blocked. Not re-added here
   # anyway, to keep this pass scoped to "unblock the build"; re-adding IDE-lint-only tooling
   # is a separate, deliberate decision, not a version-conflict problem anymore. See CHANGELOG.
-  very_good_analysis: ^6.0.0
+  very_good_analysis: ^11.0.0
   golden_toolkit: ^0.15.0
 
   fake_async: any

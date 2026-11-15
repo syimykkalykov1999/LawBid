@@ -230,8 +230,25 @@ jobs:
           git config user.email "infra-bot@users.noreply.github.com"
           git add infra/envs/prod/growth.auto.tfvars.json
           git commit -m "infra: $(jq -r '.data.itemId' job.json) from the admin (request $REQUEST_ID)" -m "Applied by $RUN_URL"
-          git pull --rebase --quiet origin main || git rebase --abort || true
-          if git push origin HEAD:main 2>/dev/null; then
+          # Rows 8 / 85 / 9 (14.11): `git pull --rebase` refused in every
+          # apply run ("cannot pull with rebase: You have unstaged changes",
+          # files the run itself touched, e.g. terraform init's lock file),
+          # and `|| true` hid it. The push then only worked while main had not
+          # moved; after a long apply (OpenSearch 4 nodes, 14.11) it went to a
+          # branch, the PR was refused (Actions may not open PRs) and main
+          # kept the old node count, so every later plan wanted to undo it.
+          # --autostash keeps those files out of the rebase (git docs); a
+          # main that moves between fetch and push is retried.
+          RECORDED=""
+          for i in 1 2 3 4 5; do
+            if git pull --rebase --autostash --quiet origin main \
+              && git push origin HEAD:main 2>/dev/null; then
+              RECORDED=main; break
+            fi
+            git rebase --abort 2>/dev/null || true
+            sleep $(( i * 5 ))
+          done
+          if [ "$RECORDED" = "main" ]; then
             echo "recorded=main" >> "$GITHUB_OUTPUT"
           else
             B="infra/request-$REQUEST_ID"

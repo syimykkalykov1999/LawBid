@@ -6,13 +6,15 @@ import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { ChatService } from '../chat/chat.service';
 import type { SavedChatItemDto, SavedChatTab } from './chat-saved.dto';
 
 const PAGE = 30;
-/** One person keeps at most this many saved messages. */
+/** One person keeps at most this many saved messages: the default of
+ * the admin setting `chat.saved_max` (0 = no cap). */
 export const SAVED_CHAT_MAX = 5000;
 /** A search reads this many of the newest saved messages (they are sealed
  * in the database, so the match happens after opening them). */
@@ -42,7 +44,19 @@ export class ChatSavedService {
     private readonly chat: ChatService,
     // Owner 2026-10-25: saves per minute against scripts.
     @Optional() private readonly limits?: UsageLimitsService,
+    // Rule 11 (detective R2, 14.11): `chat.saved_max`.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  /** The admin's cap (missing/broken → 5000; 0 = no cap → null). */
+  private async maxSaved(): Promise<number | null> {
+    const n = await this.settings?.number('chat.saved_max').catch(() => NaN);
+    const v =
+      typeof n === 'number' && Number.isFinite(n) && n >= 0
+        ? Math.floor(n)
+        : SAVED_CHAT_MAX;
+    return v === 0 ? null : v;
+  }
 
   /** Saves a message (idempotent). */
   async save(user: RequestUser, messageId: string): Promise<void> {
@@ -58,14 +72,18 @@ export class ChatSavedService {
       select: { message_id: true },
     });
     if (have) return;
-    const count = await this.prisma.savedChatMessage.count({
-      where: { user_id: user.sub },
-    });
-    if (count >= SAVED_CHAT_MAX) {
+    const max = await this.maxSaved();
+    const count =
+      max === null
+        ? 0
+        : await this.prisma.savedChatMessage.count({
+            where: { user_id: user.sub },
+          });
+    if (max !== null && count >= max) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
-        message: `At most ${SAVED_CHAT_MAX} saved messages.`,
-        details: { max: SAVED_CHAT_MAX },
+        message: `At most ${max} saved messages.`,
+        details: { max },
       });
     }
     await this.prisma.savedChatMessage.createMany({
@@ -93,7 +111,7 @@ export class ChatSavedService {
       where: { user_id: user.sub },
       select: { message_id: true },
       orderBy: [{ created_at: 'desc' }, { message_id: 'desc' }],
-      take: SAVED_CHAT_MAX,
+      take: (await this.maxSaved()) ?? undefined,
     });
     return rows.map((r) => r.message_id);
   }
