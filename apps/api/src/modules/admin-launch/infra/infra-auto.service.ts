@@ -33,6 +33,7 @@ import {
   WAF_GUARDS,
   autoRefusal,
   autoWants,
+  autoWaits,
   dueWants,
   searchDomainSpare,
   wantKey,
@@ -155,21 +156,11 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     const autoOn = await this.autoOwned();
     const wants = autoWants(signals, live, autoOn);
     const prev = await this.readSeen();
-    const onMs =
-      Math.max(10, await this.settings.number('infra.auto_on_minutes')) *
-      60_000;
-    const offMs =
-      Math.max(6, await this.settings.number('infra.auto_off_hours')) *
-      3_600_000;
     // Owner 2026-11-12 (foreman): the WAF protections switch on after
     // infra.waf_attack_on_minutes of an attack and off after
     // infra.waf_calm_off_hours of calm, not the slow growth waits.
-    const wafOnMs =
-      Math.max(1, await this.settings.number('infra.waf_attack_on_minutes')) *
-      60_000;
-    const wafOffMs =
-      Math.max(1, await this.settings.number('infra.waf_calm_off_hours')) *
-      3_600_000;
+    // Owner 14.11: every wait also in minutes, no 6 h / 10 min floors.
+    const { onMs, offMs, wafOnMs, wafOffMs } = await this.waits();
     const per = Object.fromEntries(
       WAF_GUARDS.map((id) => [id, { onMs: wafOnMs, offMs: wafOffMs }]),
     );
@@ -452,9 +443,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       await this.redis
         ?.set(SEARCH_SEEN_KEY, `${key}@${first}`, 'EX', 7 * 24 * 3600)
         .catch(() => undefined);
-      const onMs =
-        Math.max(10, await this.settings.number('infra.auto_on_minutes')) *
-        60_000;
+      const { onMs } = await this.waits();
       if (now.getTime() - first < onMs) return null;
     }
     try {
@@ -503,6 +492,23 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       `${action.reason} Само, через «Авто». Ручное управление: search.engine_follow = manual.`,
     );
     return action;
+  }
+
+  /** Owner 14.11: the «Авто» waits (minutes win over hours; floor 1 min). */
+  private async waits() {
+    const keys = [
+      'infra.auto_on_minutes',
+      'infra.auto_off_hours',
+      'infra.auto_off_minutes',
+      'infra.waf_attack_on_minutes',
+      'infra.waf_calm_off_hours',
+      'infra.waf_calm_off_minutes',
+    ] as const;
+    const vals = await Promise.all(
+      keys.map((k) => this.settings.number(k).catch(() => 0)),
+    );
+    const m = Object.fromEntries(keys.map((k, i) => [k, vals[i]]));
+    return autoWaits((k) => m[k] ?? 0);
   }
 
   /** Row 9 (14.11): the search domain is on «Авто», handed to the

@@ -75,15 +75,18 @@ function make(
             : 'off',
     ),
     number: jest.fn(async (k: string) =>
-      k === 'infra.auto_on_minutes'
-        ? 30
-        : k === 'infra.auto_off_hours'
-          ? 72
-          : k === 'infra.auto_max_usd_month'
-            ? 100
-            : k === 'economy.aws_cap_usd'
-              ? (o.awsCap ?? 450)
-              : 50_000_000,
+      // 14.11: the minute overrides are 0 by default (= use the hours)
+      k === 'infra.auto_off_minutes' || k === 'infra.waf_calm_off_minutes'
+        ? 0
+        : k === 'infra.auto_on_minutes'
+          ? 30
+          : k === 'infra.auto_off_hours'
+            ? 72
+            : k === 'infra.auto_max_usd_month'
+              ? 100
+              : k === 'economy.aws_cap_usd'
+                ? (o.awsCap ?? 450)
+                : 50_000_000,
     ),
   };
   const prisma = {

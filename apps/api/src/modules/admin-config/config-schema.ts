@@ -679,6 +679,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 30,
   };
+  out['ha.release_minutes'] = {
+    ...out['ha.release_minutes'],
+    description:
+      'Quiet minutes before the copies are removed, instead of ha.release_days when above 0 (live tests; at least one hour of data). 0 = use the days.',
+    min: 0,
+    max: 1_000_000,
+  };
+  out['ha.flip_guard_minutes'] = {
+    ...out['ha.flip_guard_minutes'],
+    description:
+      'Minutes after a step before the copies may go the other way (default 1440 = 24 h).',
+    min: 0,
+    max: 1_000_000,
+  };
   // Legal-grade protection of client documents (2026-10-24).
   out['security.attorney_strong_auth'] = {
     ...out['security.attorney_strong_auth'],
@@ -1361,17 +1375,25 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['infra.auto_on_minutes'] = {
     type: 'integer',
     defaultValue: 30,
-    description: 'Minutes a signal must hold before an item is switched on.',
-    min: 10,
-    max: 1440,
+    description:
+      'Minutes a signal must hold before an item is switched on (the automation looks every cycle).',
+    min: 1,
+    max: 1_000_000,
   };
   out['infra.auto_off_hours'] = {
     type: 'integer',
     defaultValue: 72,
     description:
-      'Hours without the signal before an item the automation switched on is switched off again.',
-    min: 6,
-    max: 720,
+      'Hours without the signal before an item the automation switched on is switched off again (infra.auto_off_minutes > 0 wins).',
+    min: 1,
+    max: 1_000_000,
+  };
+  out['infra.auto_off_minutes'] = {
+    ...out['infra.auto_off_minutes'],
+    description:
+      'Minutes without the signal before switch-off, instead of infra.auto_off_hours when above 0 (live tests). 0 = use the hours.',
+    min: 0,
+    max: 1_000_000,
   };
   out['infra.auto_max_usd_month'] = {
     type: 'integer',
@@ -1846,14 +1868,21 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Minutes the WAF attack signal must hold before WAF Bot Control and the extra WAF rules on «Авто» switch on in block mode (default 5; the automation looks every 10 minutes).',
     min: 1,
-    max: 1440,
+    max: 1_000_000,
   };
   out['infra.waf_calm_off_hours'] = {
     ...out['infra.waf_calm_off_hours'],
     description:
-      'Hours of calm (below half of both attack lines) before the WAF protections the automation switched on go off again (default 3).',
+      'Hours of calm (below half of both attack lines) before the WAF protections the automation switched on go off again (default 3; infra.waf_calm_off_minutes > 0 wins).',
     min: 1,
-    max: 720,
+    max: 1_000_000,
+  };
+  out['infra.waf_calm_off_minutes'] = {
+    ...out['infra.waf_calm_off_minutes'],
+    description:
+      'Minutes of calm before the WAF protections go off, instead of infra.waf_calm_off_hours when above 0. 0 = use the hours.',
+    min: 0,
+    max: 1_000_000,
   };
   out['economy.db_cpu_limit_percent'] = {
     ...out['economy.db_cpu_limit_percent'],
