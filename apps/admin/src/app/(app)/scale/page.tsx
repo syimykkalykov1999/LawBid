@@ -10,6 +10,7 @@ import { BackfillsCard } from '@/components/backfills-card';
 import { ScaleSwitches } from '@/components/scale-switches';
 import { SearchIndexCard } from '@/components/search-index-card';
 import { DbSplitCard } from '@/components/scale/db-split-card';
+import { AutoscaleTuningCard } from '@/components/scale/autoscale-tuning-card';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
@@ -453,6 +454,8 @@ export default function ScalePage() {
             />
             <DbSplitCard enabled={!!x?.dbSplitEnabled} />
           </div>
+
+          <AutoscaleTuningCard />
 
           <SectionTitle>Облако: включить и выключить по кнопке</SectionTitle>
           <InfraSuggestionCards

@@ -1710,8 +1710,8 @@ locals {
   # ha-auto service has added the node.
   redis_autoscale_on = var.redis_autoscale_enabled && !local.redis_cluster_on
   autoscale_ssm_params = concat(
-    local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class"] : [],
-    local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class"] : [],
+    local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class", "/${local.name}/db-autoscale/tuning"] : [],
+    local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class", "/${local.name}/redis-autoscale/tuning"] : [],
   )
   db_pool_class      = local.db_autoscale_on ? var.db_autoscale_min_class : var.database_instance_class
   db_ceiling_class   = local.db_autoscale_on ? var.db_autoscale_max_class : var.database_instance_class
@@ -1841,8 +1841,11 @@ locals {
     OPS_DB_AUTOSCALE_MAXCLASS_PARAM    = local.db_autoscale_on ? "/${local.name}/db-autoscale/max-class" : ""
     OPS_REDIS_AUTOSCALE_MODE_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/mode" : ""
     OPS_REDIS_AUTOSCALE_MAXCLASS_PARAM = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/max-class" : ""
-    OPS_DB_AUTOSCALE                   = local.db_autoscale_on ? "on" : "off"
-    OPS_REDIS_AUTOSCALE                = local.redis_autoscale_on ? "on" : "off"
+    # Owner 14.11: the admin writes the autoscalers' numbers here (no apply).
+    OPS_DB_AUTOSCALE_TUNING_PARAM    = local.db_autoscale_on ? "/${local.name}/db-autoscale/tuning" : ""
+    OPS_REDIS_AUTOSCALE_TUNING_PARAM = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/tuning" : ""
+    OPS_DB_AUTOSCALE                 = local.db_autoscale_on ? "on" : "off"
+    OPS_REDIS_AUTOSCALE              = local.redis_autoscale_on ? "on" : "off"
     # Cluster mode switch (var.redis_cluster_mode = "on"): the app builds ioredis Cluster clients.
     REDIS_CLUSTER      = local.redis_cluster_on ? "true" : "false"
     OPS_POOLER_MIN     = tostring(var.pgbouncer_min_tasks)
