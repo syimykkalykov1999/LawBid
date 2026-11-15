@@ -1747,11 +1747,21 @@ class ChatThread extends Notifier<ChatThreadState> {
     final me = ref.read(currentUserIdProvider);
     final newest =
         state.messages.where((m) => m.senderId != me && !m.isLocal).firstOrNull;
-    if (newest == null || newest.id == _lastReadSent) return;
+    // Row 110: a chat I marked unread is read again even when this message
+    // was already acknowledged — the read is what takes the mark off.
+    final marked = (state.conversation?.markedUnread ?? false) ||
+        (_liveListRow()?.markedUnread ?? false);
+    if (newest == null || (newest.id == _lastReadSent && !marked)) return;
     _lastReadSent = newest.id;
     try {
       await _repo.read(id, newest.id);
       _readFailures = 0;
+      final c = state.conversation;
+      if (c != null && c.markedUnread && ref.mounted) {
+        state = state.copyWith(
+          conversation: c.withActivity(markedUnread: false),
+        );
+      }
       // Audit 2026-10-02: the chat list and its folders drop this pill now.
       // Owner 2026-10-22 (load audit finding 2): on the rows they hold,
       // without reloading them.

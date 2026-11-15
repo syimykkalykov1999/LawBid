@@ -1,5 +1,6 @@
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connection_title.dart';
 import 'package:lawbid/core/connectivity/connectivity_status.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
@@ -59,6 +60,18 @@ void main() {
         expect(jumped, ['h0']);
         expect(s.canNewer, isFalse);
         expect(s.canOlder, isTrue);
+      });
+    });
+
+    test('the pause comes from the admin (client.chat_search_debounce_ms)', () {
+      addTearDown(ClientTuning.reset);
+      ClientTuning.apply(const {'client.chat_search_debounce_ms': '1000'});
+      fakeAsync((async) {
+        make().type('invoice');
+        async.elapse(const Duration(milliseconds: 900));
+        expect(asked, isEmpty, reason: 'still inside the admin pause');
+        async.elapse(const Duration(milliseconds: 200));
+        expect(asked.map((a) => a.q), ['invoice']);
       });
     });
 

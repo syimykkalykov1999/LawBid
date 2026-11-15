@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -20,13 +21,16 @@ class InChatSearch extends ChangeNotifier {
   InChatSearch({
     required this.search,
     required this.jump,
-    this.debounce = const Duration(milliseconds: 300),
-  });
+    Duration? debounce,
+  }) : debounce = debounce ?? ClientTuning.chatSearchDebounce;
 
   final InChatSearchPage search;
 
   /// Scrolls the chat to the message and flashes it.
   final Future<bool> Function(String messageId) jump;
+
+  /// The pause in typing before the server is asked; the admin's
+  /// `client.chat_search_debounce_ms` unless given.
   final Duration debounce;
 
   String _q = '';

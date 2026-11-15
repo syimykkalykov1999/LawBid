@@ -123,6 +123,7 @@ class Conversation {
     DateTime? lastMessageAt,
     int? unreadCount,
     DateTime? updatedAt,
+    bool? markedUnread,
   }) =>
       Conversation(
         id: id,
@@ -149,7 +150,7 @@ class Conversation {
         waitingSince: waitingSince,
         note: note,
         pinnedAt: pinnedAt,
-        markedUnread: markedUnread,
+        markedUnread: markedUnread ?? this.markedUnread,
         matchedMessage: matchedMessage,
         disappearAfterS: disappearAfterS,
       );
