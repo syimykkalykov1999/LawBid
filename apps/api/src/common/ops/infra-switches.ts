@@ -124,6 +124,11 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   },
   // G5 (2026-11-08): the separate cache Redis `cache.redis_mode = auto` uses.
   redis_cache_node: bool('redis_cache_node'),
+  // Owner 15.11 «делай обновы сейчас»: PostgreSQL 16 -> 18 by AWS Blue/Green
+  // (infra-apply.yml + scripts/infra/rds-major-upgrade.sh) and Redis OSS ->
+  // Valkey 8.1 in place.
+  database_major_version: choice('database_major_version', ['16', '18']),
+  redis_engine: choice('redis_engine', ['redis', 'valkey']),
 };
 
 export type InfraTarget = 'off' | 'on';
@@ -450,6 +455,24 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     },
     impact:
       'Выход в интернет переключается на новый NAT: до минуты внешние сервисы (Stripe, SMS) могут не отвечать.',
+  },
+  {
+    id: 'aws.postgres_major',
+    values: {
+      off: { database_major_version: '16' },
+      on: { database_major_version: '18' },
+    },
+    impact:
+      'Одна перезагрузка базы (около минуты), потом 20–60 минут готовится копия на 18 (приложение работает), потом около минуты без базы при переключении. Старая база остаётся как lawbid-prod-postgres-old1. Во время обновления не выкатывать новую версию приложения.',
+  },
+  {
+    id: 'aws.valkey',
+    values: {
+      off: { redis_engine: 'redis' },
+      on: { redis_engine: 'valkey' },
+    },
+    impact:
+      'Без перерыва: AWS меняет Redis на Valkey на месте, записи в очереди замирают на несколько секунд. Обратно (Выкл) план откажет: это пересоздание Redis.',
   },
   {
     id: 'aws.graviton_spot',

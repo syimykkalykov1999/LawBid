@@ -48,3 +48,15 @@ jobs:
             echo "::endgroup::"
           done
           exit $fail
+      - name: Module tests (terraform test, mock providers, no AWS)
+        run: |
+          export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/tf-plugin-cache"
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          fail=0
+          for f in infra/modules/*/tests/*.tftest.hcl; do dirname "$(dirname "$f")"; done | sort -u > "$RUNNER_TEMP/tf-test-dirs"
+          while read -r t; do
+            echo "::group::test $t"
+            ( cd "$t" && terraform init -backend=false -input=false -no-color >/dev/null && terraform test -no-color ) || { echo "::error::terraform test failed in $t"; fail=1; }
+            echo "::endgroup::"
+          done < "$RUNNER_TEMP/tf-test-dirs"
+          exit $fail

@@ -168,6 +168,23 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
     ]
     resources = ["*"]
   }
+  # Owner 15.11 «делай обновы сейчас» (admin switch aws.postgres_major,
+  # scripts/infra/rds-major-upgrade.sh): AWS RDS Blue/Green. Actions exactly
+  # as the AWS user guide «Authorizing access to Amazon RDS blue/green
+  # deployment operations» lists them for create + switchover (AddTags,
+  # CreateDBInstanceReadReplica, ModifyDBInstance are above), plus the one
+  # reboot that applies rds.logical_replication. Resources "*": the guide says
+  # green copies get internal names, so name patterns cannot be used. NOT
+  # granted: DeleteBlueGreenDeployment; and KeepThePrimaryDatabase below still
+  # denies deleting the primary and the old «…-old1» (the way back).
+  statement {
+    sid = "DatabaseMajorUpgradeBlueGreen"
+    actions = [
+      "rds:CreateBlueGreenDeployment", "rds:SwitchoverBlueGreenDeployment",
+      "rds:DescribeBlueGreenDeployments", "rds:PromoteReadReplica", "rds:RebootDBInstance",
+    ]
+    resources = ["*"]
+  }
   # 15.11 (KNOWN_ERRORS 159): the web module's CloudFront Function
   # (seo_index); UpdateFunction was 403 and stopped the owner's 2FA apply.
   # Only our own functions.

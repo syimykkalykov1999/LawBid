@@ -84,6 +84,14 @@ variable "apple_team_id" {
   type    = string
   default = ""
 }
+# Owner 15.11 «делай обновы сейчас»: admin switch aws.postgres_major.
+# "18" = AWS Blue/Green upgrade of the database to the newest PostgreSQL 18
+# (about a minute without the database at the switchover, the old 16 server
+# kept for rollback). docs/runbooks/db-major-upgrade.md.
+variable "database_major_version" {
+  type    = string
+  default = "16"
+}
 # docs/06 §6.3: production sizes (5k RPS peak); raise api_max_tasks with load-test results.
 variable "redis_engine" {
   type        = string

@@ -190,10 +190,18 @@ resource "aws_elasticache_replication_group" "this" {
   transit_encryption_enabled = true
   auth_token                 = random_password.auth.result
   auth_token_update_strategy = "ROTATE"
-  apply_immediately          = false
-  maintenance_window         = "sun:05:00-sun:06:00"
-  snapshot_retention_limit   = 1
-  tags                       = var.tags
+  # 15.11: with false, AWS keeps an engine change (Redis OSS -> Valkey) for
+  # the Sunday window (ModifyReplicationGroup ApplyImmediately), while the
+  # same apply already deletes the old redis7 parameter group the group still
+  # uses (create_before_destroy) -> InvalidCacheParameterGroupState, apply
+  # red. On Valkey every change goes at once: AWS «minimal downtime …
+  # failover … a few seconds» (ElastiCache «Upgrading engine versions
+  # including cross engine upgrades»). Node size changes use
+  # ApplyImmediately anyway (modules/redis-autoscale).
+  apply_immediately        = var.engine == "valkey"
+  maintenance_window       = "sun:05:00-sun:06:00"
+  snapshot_retention_limit = 1
+  tags                     = var.tags
 
   # Owner 2026-10-16: the admin («Экономика» → «Увеличить») may move Redis
   # one tier up at run time; terraform apply must not undo it. Owner
@@ -261,7 +269,7 @@ resource "aws_elasticache_replication_group" "cluster" {
   transit_encryption_enabled = true
   auth_token                 = random_password.auth.result
   auth_token_update_strategy = "ROTATE"
-  apply_immediately          = false
+  apply_immediately          = var.engine == "valkey" # same reason as the standalone group
   maintenance_window         = "sun:05:00-sun:06:00"
   snapshot_retention_limit   = 1
   tags                       = var.tags

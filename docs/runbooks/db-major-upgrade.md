@@ -1,0 +1,65 @@
+# PostgreSQL 16 → 18 and Redis OSS 7.1 → Valkey 8.1 (runbook)
+
+Owner 15.11: «делай обновы сейчас». Two admin switches («Лестница расходов»): `aws.postgres_major` and `aws.valkey`. Each is one 2FA apply.
+
+## PostgreSQL 16 → 18 (`aws.postgres_major`)
+
+**Method: AWS RDS Blue/Green, run by AWS CLI commands copied from the AWS user guide** (`scripts/infra/rds-major-upgrade.sh`). The guide pages: «Creating a blue/green deployment», «Switching a blue/green deployment», «Limitations and considerations».
+
+**Why not Terraform `blue_green_update`:** with AWS provider 5.100 it (1) cannot be used when the instance has read replicas (provider docs, «Low-Downtime Updates»), and prod has `lawbid-prod-postgres-replica-1`; (2) after the switchover it deletes the old server with `SkipFinalSnapshot=true` (`internal/service/rds/instance.go` v5.100.0, step «Deleting Blue/Green Deployment source»), so there is no way back.
+
+**What the 2FA apply does:**
+1. Terraform creates the `lawbid-prod-postgres18` parameter group (the same custom parameters as `…-postgres16`) and sets `rds.logical_replication = 1` on `…-postgres16`. Logical replication is the AWS prerequisite for a major-version Blue/Green. Terraform never upgrades the server in place: the version in the config follows the version the server actually runs (`data.aws_db_instance.primary` in `modules/stack`).
+2. Part 1 (`infra-apply.yml`) does three things:
+   - It reboots the database once so the static parameter takes effect. **The database is gone for about 1 minute.**
+   - It runs `create-blue-green-deployment` with the newest 18.x that RDS allows from the running version (18.6 on 15.11) and `--target-db-parameter-group-name lawbid-prod-postgres18`.
+   - It waits until the green copy is `AVAILABLE`. The read copy is created too. The app keeps working during this step, which takes about 20–60 minutes.
+3. Part 2 runs `switchover-blue-green-deployment --switchover-timeout 300`.
+   - Writes stop and connections drop. AWS gives the downtime as «typically under a minute». The names and endpoints stay the same, so the app needs no change.
+   - If the AWS guardrails find something unsafe (a DDL, lag), AWS rolls back and nothing changes.
+4. Terraform state: the green servers have new `DbiResourceId`s, which the AWS provider uses to find a database. The script runs `terraform state rm` + `terraform import` for the primary and each read copy, so the next plan does not try to rename `…-old1` back.
+
+**Expected downtime:** about 1 min (reboot) + about 1 min (switchover).
+
+**Do not, while it runs:**
+- Do not deploy, because migrations are DDL.
+- Do not change partition modes.
+- Do not start shards or a «Разделить базу».
+
+AWS replicates no DDL or DCL (GRANT) to green, and the deployment then goes to `Replication degraded`. Nothing is lost: delete the deployment with its green databases and press again.
+
+**Checked before (15.11, local postgres:18.7 and AWS read-only):**
+- All 212 migrations and the CONCURRENTLY indexes apply on 18, and `prisma migrate diff` finds no drift.
+- Every table has a primary key. There are no unlogged tables, large objects or materialized views (all AWS logical-replication limits).
+- Extensions on RDS 18.x: pg_trgm 1.6, unaccent 1.1 and pg_stat_statements 1.12 are available.
+- Every class of the db-autoscale ladder (t4g.micro…r7g.2xlarge) can be ordered on 18.6, and `max_connections` and `shared_buffers` have the same default formulas in postgres18.
+
+**Rollback:**
+- The old server `lawbid-prod-postgres-old1` (16.13) and `lawbid-prod-postgres-replica-1-old1` are kept and stay read-only. IAM `KeepThePrimaryDatabase` still denies deleting them.
+- To go back:
+  1. Set `default_transaction_read_only = 0` on the old server's group.
+  2. Rename the 18 server, then rename `-old1` to `lawbid-prod-postgres` (RDS console → Modify → identifier).
+  3. Re-import the state the same way.
+- Writes made after the switchover exist only on 18.
+- The old servers cost the same as the primary until the owner deletes them. Delete them after 7 calm days in the console. They hold the 16.x PITR history.
+
+**Owner, once before the first use:** `infra/bootstrap` apply. The `DatabaseMajorUpgradeBlueGreen` statement adds `rds:CreateBlueGreenDeployment`, `SwitchoverBlueGreenDeployment`, `DescribeBlueGreenDeployments`, `PromoteReadReplica` and `RebootDBInstance`. These are the actions in the AWS guide «Authorizing access to … blue/green deployment operations».
+
+**By hand (the same steps):**
+```
+AWS_REGION=us-east-1 DRY_RUN=1 scripts/infra/rds-major-upgrade.sh prepare 18   # read-only check
+scripts/infra/rds-major-upgrade.sh prepare 18
+(cd infra/envs/prod && terraform init …) ; TF_DIR=infra/envs/prod scripts/infra/rds-major-upgrade.sh switchover 18
+```
+
+## Redis OSS 7.1 → Valkey 8.1 (`aws.valkey`)
+
+**Method: in place, as the AWS user guide «Upgrading engine versions including cross engine upgrades» does it** (`modify-replication-group --engine valkey --engine-version … --cache-parameter-group-name …`). The provider sends the same call (`replication_group.go` v5.100: redis → valkey is not a replacement).
+- The endpoint stays the same and only the node IPs change. Writes pause for the failover, which AWS says lasts «a few seconds».
+- Valkey nodes cost 20 % less.
+- 15.11 fix: `apply_immediately` is now true on Valkey. With false, AWS keeps the engine change for the Sunday window while the same apply deletes the `redis7` group still in use, and the apply goes red.
+- Same parameter: `maxmemory-policy noeviction`, which is dynamic. AWS requires the same static parameters, and there are none.
+- Checked on valkey/valkey:8.1.11: the full API e2e (BullMQ, ioredis, rate limits, realtime) passes.
+- Neither the redis-autoscale Lambda nor the app has any engine-specific code. ModifyReplicationGroup / ListAllowedNodeTypeModifications and the ElastiCache metrics are the same for Valkey. Every node class of the ladder is offered for Valkey.
+
+**Rollback:** AWS goes back to Redis OSS only from Valkey 7.2. From 8.1 the only way back is a new cache from a snapshot. The admin refuses «Выкл»: the plan would replace the replication group, which `FORBIDDEN_DESTROY` blocks.
