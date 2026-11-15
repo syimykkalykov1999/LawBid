@@ -361,12 +361,14 @@ class _AccountContactFlowScreenState
             ],
           ],
           // R2-A #18: «Resend in 0:59» and «Use another» stay the same
-          // height whatever the label.
-          action: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
+          // height whatever the label: one fixed height for both (the
+          // labels shrink to fit, `fitLabel`), no IntrinsicHeight pass
+          // (#1059 removed those for speed).
+          action: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: AppSizes.touchTarget,
                   child: _ResendButton(
                     // A new code (the controller bumps `attempt`) restarts
                     // the countdown.
@@ -376,8 +378,11 @@ class _AccountContactFlowScreenState
                     onResend: _resend,
                   ),
                 ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: SizedBox(
+                  height: AppSizes.touchTarget,
                   child: AppButton(
                     label: t.t('account.flow.editValue'),
                     variant: AppButtonVariant.secondary,
@@ -387,8 +392,8 @@ class _AccountContactFlowScreenState
                     onPressed: state.busy ? null : _edit,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       case ContactVerificationStage.verified:

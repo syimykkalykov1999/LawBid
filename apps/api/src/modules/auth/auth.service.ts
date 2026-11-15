@@ -1199,7 +1199,7 @@ export class AuthService {
   }
 
   // ---------------------------------------------------------------------
-  // POST /auth/logout, /auth/logout-all
+  // POST /auth/logout, /auth/logout-all, /auth/logout-others
   // ---------------------------------------------------------------------
   async logout(user: RequestUser): Promise<void> {
     await this.revocation.revokeChain(user.sid, 'logout');
@@ -1210,10 +1210,23 @@ export class AuthService {
     });
   }
 
-  /** R2-A #9 (Telegram «Terminate all other sessions»): every session of
-   * the account ends except the caller's own — the phone that pressed it
-   * stays signed in. «This wasn't me» (wasntMe) still ends them all. */
+  /** POST /auth/logout-all: every session of the account ends, the
+   * caller's own included. Its meaning never changes — apps already in the
+   * stores rely on it (expand/contract: «keep this one» is its own route,
+   * [logoutOthers]). */
   async logoutAll(user: RequestUser): Promise<void> {
+    await this.revocation.revokeAllChainsForUser(user.sub, 'logout_all');
+    await this.authEvents.record({
+      userId: user.sub,
+      eventType: AUTH_EVENT_TYPES.LOGOUT_ALL,
+      success: true,
+    });
+  }
+
+  /** POST /auth/logout-others — R2-A #9 (Telegram «Terminate all other
+   * sessions»): every session of the account ends except the caller's own,
+   * so the phone that pressed it stays signed in. */
+  async logoutOthers(user: RequestUser): Promise<void> {
     await this.revocation.revokeOtherChainsForUser(
       user.sub,
       user.sid,
@@ -1223,6 +1236,7 @@ export class AuthService {
       userId: user.sub,
       eventType: AUTH_EVENT_TYPES.LOGOUT_ALL,
       success: true,
+      meta: { scope: 'others', sessionChainId: user.sid },
     });
   }
 

@@ -60,13 +60,13 @@ class _PagedRepo implements ActiveDevicesRepository {
   @override
   Future<void> revoke(String sessionId) async => revoked.add(sessionId);
 
-  int logoutAllCalls = 0;
-  Completer<void>? holdLogoutAll;
+  int logoutOthersCalls = 0;
+  Completer<void>? holdLogoutOthers;
 
   @override
-  Future<void> logoutAll() async {
-    logoutAllCalls++;
-    final gate = holdLogoutAll;
+  Future<void> logoutOthers() async {
+    logoutOthersCalls++;
+    final gate = holdLogoutOthers;
     if (gate != null) await gate.future;
   }
 }
@@ -289,7 +289,7 @@ void main() {
         'list', () async {
       await container.read(activeDevicesControllerProvider.future);
       await ctrl().logoutOthers();
-      expect(repo.logoutAllCalls, 1);
+      expect(repo.logoutOthersCalls, 1);
       expect(value().items.map((s) => s.sessionId), ['1']);
       expect(value().hasMore, isFalse);
     });
@@ -329,7 +329,7 @@ void main() {
         ),
         'c2': CursorPage(items: [_session('4')]),
       })
-        ..holdLogoutAll = Completer<void>();
+        ..holdLogoutOthers = Completer<void>();
       await pumpScreen(tester, repo);
       final button = find.byKey(const ValueKey('devices-logout-others'));
       expect(button, findsOneWidget);
@@ -341,15 +341,15 @@ void main() {
       await tester.tap(button);
       await tester.pumpAndSettle();
       // The question first; nothing is sent yet.
-      expect(repo.logoutAllCalls, 0);
+      expect(repo.logoutOthersCalls, 0);
       await tester.tap(find.byType(TextButton).last);
       await tester.pump();
-      expect(repo.logoutAllCalls, 1);
+      expect(repo.logoutOthersCalls, 1);
       await tester.tap(button, warnIfMissed: false);
       await tester.pump();
       expect(find.byType(AppAlertDialog), findsNothing);
-      expect(repo.logoutAllCalls, 1);
-      repo.holdLogoutAll!.complete();
+      expect(repo.logoutOthersCalls, 1);
+      repo.holdLogoutOthers!.complete();
       await tester.pumpAndSettle();
       // This phone stays, the others are gone.
       expect(find.text('Device 1'), findsOneWidget);

@@ -632,6 +632,9 @@ void main() {
         final b = tester.getSize(buttons.at(1));
         expect(a.width, b.width);
         expect(a.height, b.height);
+        // One fixed height, no extra IntrinsicHeight layout pass (#1059).
+        expect(a.height, AppSizes.touchTarget);
+        expect(find.byType(IntrinsicHeight), findsNothing);
         for (final label in ['Resend code', 'Use another']) {
           final text = find.descendant(
             of: buttons,
