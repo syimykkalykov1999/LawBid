@@ -20,7 +20,11 @@ SHA="${1:?sha}"; MUST="${2:?must-have regex}"; EXCLUDE="${3:-^$}"
 # KNOWN_ERRORS 64: the job "Dependabot" of the "Dependabot Updates" workflow
 # (GitHub's own updater, runs on main after a manifest change) is not CI of our
 # code: its failure must not close the deploy gate. Matched by exact name only.
-EXCLUDE="(${EXCLUDE})|^Dependabot\$"
+# 15.11: the admin's cloud change (infra-apply.yml job «plan → owner 2FA →
+# apply (prod)») runs on main's head too and waits up to 30 min for the
+# owner's code; it is not CI of the code either — counted, it timed the
+# #1123 deploy out (KNOWN_ERRORS 165).
+EXCLUDE="(${EXCLUDE})|^Dependabot\$|^plan → owner 2FA → apply"
 TIMEOUT="${REQUIRE_GREEN_TIMEOUT:-2700}"; POLL="${REQUIRE_GREEN_POLL:-30}"
 start=$(date +%s)
 
