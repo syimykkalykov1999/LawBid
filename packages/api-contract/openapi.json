@@ -183200,6 +183200,38 @@
           "taskUsd"
         ]
       },
+      "ServiceNowDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "api",
+              "worker",
+              "api_admin",
+              "admin",
+              "pgbouncer"
+            ],
+            "type": "string"
+          },
+          "running": {
+            "type": "number"
+          },
+          "desired": {
+            "type": "number"
+          },
+          "spot": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Runs on Fargate Spot (null = the service does not say)."
+          }
+        },
+        "required": [
+          "kind",
+          "running",
+          "desired",
+          "spot"
+        ]
+      },
       "ContainersDto": {
         "type": "object",
         "properties": {
@@ -183220,12 +183252,20 @@
               "normal"
             ],
             "type": "string"
+          },
+          "services": {
+            "description": "Every ECS service the API can read now (empty off AWS), from the same cached report.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceNowDto"
+            }
           }
         },
         "required": [
           "onAws",
           "api",
-          "worker"
+          "worker",
+          "services"
         ]
       },
       "TierRowDto": {
@@ -183292,9 +183332,24 @@
             "nullable": true,
             "description": "Monthly price of that disk (gp3), USD."
           },
+          "dbMultiAz": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "The database has a standby in a second zone (Multi-AZ)."
+          },
+          "replicaCount": {
+            "type": "number",
+            "nullable": true,
+            "description": "Read copies of the database that report load now."
+          },
           "redisClass": {
             "type": "string",
             "nullable": true
+          },
+          "redisNodes": {
+            "type": "number",
+            "nullable": true,
+            "description": "Redis nodes in the group (primary + standbys)."
           },
           "redisNext": {
             "type": "string",

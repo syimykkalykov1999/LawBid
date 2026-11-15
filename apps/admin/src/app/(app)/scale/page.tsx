@@ -37,6 +37,7 @@ import {
   type ScaleExtras,
 } from '@/lib/scale';
 import { usd } from '@/lib/economy';
+import { cloudNow, tuningNow } from '@/lib/scale-now';
 import { budgetPercent, budgetTone, parseLimit, type AwsBudget, type AwsBudgets, type CostRegistryReport } from '@/lib/launch';
 import { HeavyUsersCard } from './heavy-users-card';
 import { LIGHT_TONE } from '@/lib/system-health';
@@ -455,7 +456,7 @@ export default function ScalePage() {
             <DbSplitCard enabled={!!x?.dbSplitEnabled} />
           </div>
 
-          <AutoscaleTuningCard />
+          <AutoscaleTuningCard nowLine={(t) => tuningNow(t, { rows: registry.data?.rows, economy: e, extras: x })} />
 
           <SectionTitle>Облако: включить и выключить по кнопке</SectionTitle>
           <InfraSuggestionCards
@@ -494,6 +495,11 @@ export default function ScalePage() {
                             : infraPick(row.id, st)
                       }
                     />
+                    {row.states.includes('auto') ? (
+                      <span className="basis-full break-words text-xs text-muted" data-testid={`scale-now-${row.id}`}>
+                        {cloudNow(row.id, { rows: registry.data?.rows, economy: e, extras: x })}
+                      </span>
+                    ) : null}
                   </div>
                 );
               })}

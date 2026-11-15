@@ -17,8 +17,9 @@ const TITLE: Record<string, string> = { redis: 'Redis', db: 'База', endpoint
  * Owner 14.11: every number of the Redis / database «Авто» from the admin,
  * without a Terraform apply (SSM `<prefix>/tuning`, read by the Lambda on its
  * next run, ≤ 5 min). Empty field = the default; a fresh 2FA code; audited.
+ * Owner 15.11: each card shows «Сейчас: …» (what runs now) from `nowLine`.
  */
-export function AutoscaleTuningCard() {
+export function AutoscaleTuningCard({ nowLine }: { nowLine?: (target: TuningTarget['target']) => string } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
   const q = useQuery({
@@ -52,6 +53,11 @@ export function AutoscaleTuningCard() {
                 <h3 className="font-medium text-ink">{TITLE[t.target]}</h3>
                 {t.available ? null : <Badge tone="neutral">нет на этом сервере</Badge>}
               </div>
+              {nowLine ? (
+                <p className="-mt-2 mb-3 break-words text-xs text-muted" data-testid={`tuning-now-${t.target}`}>
+                  {nowLine(t.target)}
+                </p>
+              ) : null}
               <div className="space-y-2">
                 {t.knobs.map((k) => (
                   <label key={k.key} className="flex items-center justify-between gap-3 text-sm">
