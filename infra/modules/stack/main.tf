@@ -71,7 +71,7 @@ variable "database_multi_az" {
   description = "RDS Multi-AZ (standby in the second AZ, automatic failover). ≈ ×2 the instance price. Prod: true."
 }
 # Owner 14.11 «newest methods» (docs/dev/AUTO_MODERNIZE_2026-11-15.md):
-# "valkey" moves the main and the cache Redis to Valkey 8.1 in place (AWS:
+# "valkey" moves the main and the cache Redis to Valkey 9.1 in place (AWS:
 # no downtime, node price 20 % lower). Default "redis" = no change.
 variable "redis_engine" {
   type    = string
@@ -2841,6 +2841,7 @@ module "redis_autoscale" {
   name                 = local.name
   replication_group_id = "${local.name}-redis"
   replicas             = max(var.redis_replicas, 1) # price shown for the HA size
+  engine               = var.redis_engine
   cluster_name         = module.ecs.cluster_name
   service_names        = local.autoscale_guard_services # D1-42
   alerts_topic_arn     = module.monitoring.alerts_topic_arn

@@ -1,4 +1,4 @@
-# Owner 15.11 «делай обновы сейчас»: Redis OSS 7.1 -> Valkey 8.1 in place,
+# Owner 15.11 «делай обновы сейчас»: Redis OSS 7.1 -> Valkey 9.1 in place,
 # in ONE apply (docs/runbooks/db-major-upgrade.md, Redis part).
 #   terraform -chdir=infra/modules/redis init -backend=false
 #   terraform -chdir=infra/modules/redis test
@@ -37,12 +37,12 @@ run "valkey_in_one_apply" {
     engine = "valkey"
   }
   assert {
-    condition     = aws_elasticache_replication_group.this.engine == "valkey" && aws_elasticache_replication_group.this.engine_version == "8.1"
-    error_message = "valkey = Valkey 8.1 (the provider needs engine_version set explicitly when moving to valkey)."
+    condition     = aws_elasticache_replication_group.this.engine == "valkey" && aws_elasticache_replication_group.this.engine_version == "9.1"
+    error_message = "valkey = Valkey 9.1 (the provider needs engine_version set explicitly when moving to valkey)."
   }
   assert {
-    condition     = aws_elasticache_parameter_group.this.family == "valkey8" && [for p in aws_elasticache_parameter_group.this.parameter : "${p.name}=${p.value}"] == ["maxmemory-policy=noeviction"]
-    error_message = "valkey8 group with the same (only, dynamic) parameter: maxmemory-policy noeviction for BullMQ."
+    condition     = aws_elasticache_parameter_group.this.family == "valkey9" && [for p in aws_elasticache_parameter_group.this.parameter : "${p.name}=${p.value}"] == ["maxmemory-policy=noeviction"]
+    error_message = "valkey9 group with the same (only, dynamic) parameter: maxmemory-policy noeviction for BullMQ."
   }
   assert {
     condition     = aws_elasticache_replication_group.this.apply_immediately == true

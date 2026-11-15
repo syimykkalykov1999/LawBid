@@ -39,7 +39,9 @@ variable "maxmemory_policy" {
 # Owner 14.11 «newest methods» (docs/dev/AUTO_MODERNIZE_2026-11-15.md):
 # Valkey on ElastiCache is the open-source successor of Redis OSS; AWS prices
 # node-based Valkey 20 % lower and upgrades Redis OSS in place with no
-# downtime (ElastiCache 8.1 for Valkey, 07.2025). Default "redis" = today
+# downtime (ElastiCache 8.1 for Valkey, 07.2025). 15.11: Valkey 9.1, the newest
+# ElastiCache offers (describe-cache-engine-versions --engine valkey; AWS
+# What's New 23.06.2026), family valkey9. Default "redis" = today
 # (no change in the next apply); "valkey" switches at an apply of its own.
 variable "engine" {
   type    = string
@@ -52,11 +54,11 @@ variable "engine" {
 variable "engine_version" {
   type        = string
   default     = ""
-  description = "Empty = 7.1 for redis, 8.1 for valkey."
+  description = "Empty = 7.1 for redis, 9.1 for valkey."
 }
 locals {
-  pg_family      = var.engine == "valkey" ? "valkey8" : "redis7"
-  engine_version = var.engine_version != "" ? var.engine_version : (var.engine == "valkey" ? "8.1" : "7.1")
+  pg_family      = var.engine == "valkey" ? "valkey9" : "redis7"
+  engine_version = var.engine_version != "" ? var.engine_version : (var.engine == "valkey" ? "9.1" : "7.1")
 }
 
 variable "description" {

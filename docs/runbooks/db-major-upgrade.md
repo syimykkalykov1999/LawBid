@@ -1,4 +1,4 @@
-# PostgreSQL 16 → 18 and Redis OSS 7.1 → Valkey 8.1 (runbook)
+# PostgreSQL 16 → 18 and Redis OSS 7.1 → Valkey 9.1 (runbook)
 
 Owner 15.11: «делай обновы сейчас». Two admin switches («Лестница расходов»): `aws.postgres_major` and `aws.valkey`. Each is one 2FA apply.
 
@@ -30,7 +30,7 @@ AWS replicates no DDL or DCL (GRANT) to green, and the deployment then goes to `
 
 **Checked before (15.11, local postgres:18.7 and AWS read-only):**
 - All 212 migrations and the CONCURRENTLY indexes apply on 18, and `prisma migrate diff` finds no drift.
-- The full API e2e passes on postgres:18.7 + valkey/valkey:8.1.11 + MinIO: 1,422 tests in 3 shards. One known flake (KNOWN_ERRORS: stage-5-5, throttler 429) passed on retry.
+- The full API e2e passes on postgres:18.7 + MinIO with Valkey 8.1.11 (1,222 tests; one known throttler flake, stage-5-5, passed on retry) and again with Valkey 9.1.3 (1,219 tests, 0 failed, no flakes), 3 shards each.
 - PgBouncer 1.24.0 (our image) connects to 18 over TLS + SCRAM, and named prepared statements work in transaction mode.
 - Every table has a primary key. There are no unlogged tables, large objects or materialized views (all AWS logical-replication limits).
 - Extensions on RDS 18.x: pg_trgm 1.6, unaccent 1.1 and pg_stat_statements 1.12 are available.
@@ -54,14 +54,17 @@ scripts/infra/rds-major-upgrade.sh prepare 18
 (cd infra/envs/prod && terraform init …) ; TF_DIR=infra/envs/prod scripts/infra/rds-major-upgrade.sh switchover 18
 ```
 
-## Redis OSS 7.1 → Valkey 8.1 (`aws.valkey`)
+## Redis OSS 7.1 → Valkey 9.1 (`aws.valkey`)
+
+**Version:** 9.1, the newest ElastiCache offers (`describe-cache-engine-versions --engine valkey`, 15.11 18:58Z: 7.2, 8.0–8.2, 9.0, 9.1; family `valkey9`). AWS What's New of 23.06.2026 says 9.1 is GA. The AWS cross-engine guide upgrades Redis OSS straight to Valkey 9.0 with the same `modify-replication-group` call. In provider 6.72, redis → valkey is never a replacement, whatever the version (`customizeDiffEngineForceNewOnDowngrade`), and 7.1 → 9.1 is an upgrade.
 
 **Prod default since 15.11: `redis_engine = "valkey"`, so the next apply moves it.** Method: in place, as the AWS user guide «Upgrading engine versions including cross engine upgrades» does it (`modify-replication-group --engine valkey --engine-version … --cache-parameter-group-name …`). The provider sends the same call (`replication_group.go` v6.72: redis → valkey is not a replacement).
 - The endpoint stays the same and only the node IPs change. Writes pause for the failover, which AWS says lasts «a few seconds».
-- Valkey nodes cost 20 % less.
+- Valkey nodes cost 20 % less. These are AWS Price List API prices of 15.11, now used by the redis-autoscale table (`node_hourly.valkey`) and by the API `REDIS_TIERS`. For a pair: t4g.micro $19, t4g.small $37, t4g.medium $76, r7g.large $256, r7g.xlarge $510, r7g.2xlarge $1020.
 - 15.11 fix: `apply_immediately` is now true on Valkey. With false, AWS keeps the engine change for the Sunday window while the same apply deletes the `redis7` group still in use, and the apply goes red.
 - Same parameter: `maxmemory-policy noeviction`, which is dynamic. AWS requires the same static parameters, and there are none.
-- Checked on valkey/valkey:8.1.11: the full API e2e (BullMQ, ioredis, rate limits, realtime) passes.
+- Checked on valkey/valkey:9.1.3 (and before on 8.1.11): the full API e2e passes. It covers BullMQ, ioredis, rate limits and realtime.
+- Every ladder node type is offered for Valkey (t4g.micro/small/medium and r7g.large/xlarge/2xlarge; r8g as well).
 - Neither the redis-autoscale Lambda nor the app has any engine-specific code. ModifyReplicationGroup / ListAllowedNodeTypeModifications and the ElastiCache metrics are the same for Valkey. Every node class of the ladder is offered for Valkey.
 
-**Rollback:** AWS goes back to Redis OSS only from Valkey 7.2. From 8.1 the only way back is a new cache from a snapshot. The admin refuses «Выкл»: the plan would replace the replication group, which `FORBIDDEN_DESTROY` blocks.
+**Rollback:** AWS goes back to Redis OSS only from Valkey 7.2. From 9.1 the only way back is a new cache from a snapshot. The admin refuses «Выкл»: the plan would replace the replication group, which `FORBIDDEN_DESTROY` blocks.

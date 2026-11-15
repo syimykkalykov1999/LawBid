@@ -448,7 +448,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
   },
   {
     id: 'aws.redis',
-    name: 'Redis (2 узла: основной и запасной)',
+    name: 'Redis / Valkey (2 узла: основной и запасной)',
     purpose: 'Быстрая память: очереди, чаты в реальном времени, кэш.',
     kind: 'aws',
     control: tf(['redis_node_type', 'redis_replicas'], {
@@ -462,10 +462,10 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ),
     price: price(
       'fixed',
-      't4g.micro ×2 ≈ $23; ступени ≈ $47, $95, $320, $638 за пару',
+      'Valkey: t4g.micro ×2 ≈ $19; ступени ≈ $37, $76, $256, $510 за пару (Redis было $23, $47, $95, $320, $638)',
       U.cache,
     ),
-    usd: { launch: R(23), k100: R(95), m1: R(320, 640) },
+    usd: { launch: R(19), k100: R(76), m1: R(256, 510) },
     needed: 'yes',
     neededNote: 'Нужен. Размер меняет автомасштаб Redis (следующая строка).',
     alarm: 'тревога памяти Redis 70 % (redis-memory)',
@@ -2061,7 +2061,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     // Owner 15.11, verbatim: «делай обновы сейчас». PR #1112 added the
     // variable; this row is the admin switch for it.
     id: 'aws.valkey',
-    name: 'Быстрая память на Valkey 8.1 (вместо Redis)',
+    name: 'Быстрая память на Valkey 9.1 (вместо Redis)',
     purpose:
       'Та же быстрая память (очереди, чаты, кэш), но на Valkey — открытом преемнике Redis. AWS меняет на месте: адрес тот же, записи замирают на несколько секунд. Узлы на 20 % дешевле. Назад на Redis через это переключение нельзя (AWS возвращает только с Valkey 7.2); план с пересозданием Redis админка откажет.',
     kind: 'aws',

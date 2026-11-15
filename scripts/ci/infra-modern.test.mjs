@@ -29,5 +29,5 @@ test('Redis → Valkey is one variable, default unchanged', () => {
   const tf = readFileSync(mod('redis'), 'utf8');
   assert.match(tf, /variable "engine"[\s\S]*?default\s*=\s*"redis"/);
   assert.match(tf, /engine\s*=\s*var\.engine/);
-  assert.match(tf, /var\.engine == "valkey" \? "valkey8" : "redis7"/);
+  assert.match(tf, /var\.engine == "valkey" \? "valkey9" : "redis7"/);
 });

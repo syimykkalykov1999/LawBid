@@ -126,7 +126,7 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   redis_cache_node: bool('redis_cache_node'),
   // Owner 15.11 «делай обновы сейчас»: PostgreSQL 16 -> 18 by AWS Blue/Green
   // (infra-apply.yml + scripts/infra/rds-major-upgrade.sh) and Redis OSS ->
-  // Valkey 8.1 in place.
+  // Valkey 9.1 in place.
   database_major_version: choice('database_major_version', ['16', '18']),
   redis_engine: choice('redis_engine', ['redis', 'valkey']),
 };
