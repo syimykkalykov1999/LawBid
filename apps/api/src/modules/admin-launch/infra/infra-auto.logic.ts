@@ -17,6 +17,11 @@ import { infraSuggestions, type SuggestionSignals } from './infra-change.logic';
 export const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000';
 
 export interface AutoSignals extends SuggestionSignals {
+  /** Owner 15.11 («разреши "Авто" само применять обновления кода своих
+   * функций без меня»): the source hash of the four autoscale Lambdas on
+   * main (deploy.yml) and the one the last apply shipped (Terraform). */
+  autoscaleCodeMain?: string | null;
+  autoscaleCodeApplied?: string | null;
   /** A table in partition «Авто» / «Вкл» is at 80 % of partition.auto_rows
    * (or «Вкл» at any size) and the runner has no login yet. */
   partitionNeedsRunner: boolean;
@@ -227,6 +232,21 @@ export function autoWants(
         (provision === 'off' || s.replicaAppPath === true)
       ),
   );
+  // Owner 15.11: main carries autoscale Lambda code the functions do not
+  // run yet. The item's tfvars flag only carries the request (it flips on
+  // every round); AUTO_SCOPE limits the plan to in-place function updates.
+  if (
+    s.autoscaleCodeMain &&
+    s.autoscaleCodeApplied &&
+    s.autoscaleCodeMain !== s.autoscaleCodeApplied
+  ) {
+    out.push({
+      id: 'aws.autoscale_code',
+      to: live('aws.autoscale_code') === 'on' ? 'off' : 'on',
+      reason:
+        'На main новый код функций автомасштаба (Redis, база, точки доступа, Spot): «Авто» обновляет их само.',
+    });
+  }
   if (
     s.poolSmall === true &&
     live('aws.pgbouncer') !== 'on' &&
@@ -730,6 +750,14 @@ const WAF_ALB: readonly RegExp[] = [
  * created" (AWS docs, read 13.11.2026).
  */
 export const AUTO_SCOPE: Readonly<Record<string, readonly RegExp[]>> = {
+  // Owner 15.11: exactly the four autoscale functions (in-place updates
+  // only, see AUTOSCALE_CODE_UPDATE_ONLY) and the marker of the shipped code.
+  'aws.autoscale_code': [
+    re(
+      `module\\.(redis_autoscale|db_autoscale|endpoints_autoscale|spot_fallback)\\[0\\]\\.aws_lambda_function\\.this${end}`,
+    ),
+    re(`aws_ssm_parameter\\.autoscale_code_applied${end}`),
+  ],
   'aws.rds_replicas': REPLICAS,
   'aws.rds_replicas_2': REPLICAS,
   'aws.rds_replicas_3': REPLICAS,
@@ -814,7 +842,12 @@ export function autoApplyBlockers(
       out.push(`${r.address}: ${r.action} in a switch-off`);
       continue;
     }
-    if (scope.some((x) => x.test(r.address))) continue;
+    if (scope.some((x) => x.test(r.address))) {
+      // Owner 15.11: the code item never creates or replaces anything.
+      if (itemId !== 'aws.autoscale_code' || r.action === 'update') continue;
+      out.push(`${r.address}: ${r.action} (only in-place updates)`);
+      continue;
+    }
     if (r.action === 'update' && ROLL_THROUGH_UPDATE.includes(type)) continue;
     if (r.action === 'create' && ROLL_THROUGH_CREATE.includes(type)) continue;
     out.push(`${r.address}: ${r.action} outside ${itemId}`);

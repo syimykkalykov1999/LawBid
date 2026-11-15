@@ -364,6 +364,26 @@ export const PLAN_RESOURCE_LIMIT = 60;
  * Unknown stays false: no plan, a cut plan list, an item without types.
  * The request itself keeps status «failed» and its error (history).
  */
+/**
+ * Owner 15.11 (failed rows never cleared, e.g. the pool's 13.11 request
+ * f758b39f): a failed request never reaches growth.auto.tfvars.json on main
+ * (the record step runs after a successful apply only), and every plan is
+ * the whole stack. So the next successful apply of ANY item put the cloud
+ * back to the file: the failure is history, the row shows its settled
+ * position again (no «Не получилось»).
+ */
+export function failureSuperseded(
+  r: { status: string; finishedAt: Date | null },
+  lastDoneAt: Date | null,
+): boolean {
+  return (
+    r.status === 'failed' &&
+    r.finishedAt !== null &&
+    lastDoneAt !== null &&
+    lastDoneAt.getTime() > r.finishedAt.getTime()
+  );
+}
+
 export function failureSettled(
   r: {
     status: string;

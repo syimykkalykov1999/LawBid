@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import {
   ApplicationAutoScalingClient,
   DescribeScalableTargetsCommand,
+  DescribeScalingPoliciesCommand,
+  PutScalingPolicyCommand,
   RegisterScalableTargetCommand,
+  type TargetTrackingScalingPolicyConfiguration,
 } from '@aws-sdk/client-application-auto-scaling';
 import { BudgetsClient, DescribeBudgetCommand } from '@aws-sdk/client-budgets';
 import {
@@ -252,6 +255,78 @@ export class AwsOpsService {
       }),
     );
     return max;
+  }
+
+  /**
+   * Owner 14.11: the admin's ECS target-tracking numbers
+   * (`<policy>.target|in_s|out_s`, SSM `ecs-scaling/tuning`). Each policy of
+   * OPS_ECS_SCALING_POLICIES (Terraform: name, resource, defaults) gets the
+   * admin value or its default; the metric and everything else is kept from
+   * the live policy (PutScalingPolicy replaces the whole configuration).
+   * Equal = no call; a policy that does not exist = `missing`.
+   */
+  async applyScaling(
+    tuning: Record<string, number>,
+  ): Promise<{ changed: string[]; missing: string[] }> {
+    const raw = this.env('OPS_ECS_SCALING_POLICIES');
+    let refs: Record<
+      string,
+      {
+        name: string;
+        resource_id: string;
+        dimension: string;
+        target: number;
+        in_s: number;
+        out_s: number;
+      }
+    > = {};
+    try {
+      refs = raw ? (JSON.parse(raw) as typeof refs) : {};
+    } catch {
+      refs = {};
+    }
+    const changed: string[] = [];
+    const missing: string[] = [];
+    for (const [key, p] of Object.entries(refs)) {
+      const res = await this.scalingClient().send(
+        new DescribeScalingPoliciesCommand({
+          ServiceNamespace: 'ecs',
+          ResourceId: p.resource_id,
+          PolicyNames: [p.name],
+        }),
+      );
+      const live =
+        res.ScalingPolicies?.[0]?.TargetTrackingScalingPolicyConfiguration;
+      if (!live) {
+        missing.push(key);
+        continue;
+      }
+      const want: TargetTrackingScalingPolicyConfiguration = {
+        ...live,
+        TargetValue: tuning[`${key}.target`] ?? p.target,
+        ScaleInCooldown: tuning[`${key}.in_s`] ?? p.in_s,
+        ScaleOutCooldown: tuning[`${key}.out_s`] ?? p.out_s,
+      };
+      if (
+        want.TargetValue === live.TargetValue &&
+        want.ScaleInCooldown === live.ScaleInCooldown &&
+        want.ScaleOutCooldown === live.ScaleOutCooldown
+      ) {
+        continue;
+      }
+      await this.scalingClient().send(
+        new PutScalingPolicyCommand({
+          PolicyName: p.name,
+          ServiceNamespace: 'ecs',
+          ResourceId: p.resource_id,
+          ScalableDimension: p.dimension as never,
+          PolicyType: 'TargetTrackingScaling',
+          TargetTrackingScalingPolicyConfiguration: want,
+        }),
+      );
+      changed.push(key);
+    }
+    return { changed, missing };
   }
 
   /** Tasks running / wanted now per service (null off AWS). */

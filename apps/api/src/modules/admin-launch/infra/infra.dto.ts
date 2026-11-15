@@ -103,6 +103,8 @@ export class InfraRequestDto {
   // Row 86: failed, but the cloud already holds this target (the last
   // finished change set it, or the plan touched nothing of the item).
   @ApiProperty() settled!: boolean;
+  // Owner 15.11: a later successful apply put the cloud back to the file; the row shows its settled position, not this failure.
+  @ApiProperty() superseded!: boolean;
 }
 
 export class InfraSuggestionDto {

@@ -85,6 +85,11 @@ variable "apple_team_id" {
   default = ""
 }
 # docs/06 §6.3: production sizes (5k RPS peak); raise api_max_tasks with load-test results.
+variable "redis_engine" {
+  type        = string
+  default     = "redis"
+  description = "redis | valkey. Owner 14.11: valkey = ElastiCache Valkey 8.1, moved in place by an apply (no downtime, nodes 20 % cheaper). docs/dev/AUTO_MODERNIZE_2026-11-15.md."
+}
 variable "redis_node_type" {
   type    = string
   default = "cache.r7g.large"
@@ -618,6 +623,11 @@ variable "cpu_architecture" {
 }
 
 # Security research #5 (2026-10-22): WAF, cloud detector, container.
+variable "autoscale_code_flip" {
+  type        = bool
+  default     = false
+  description = "Owner 15.11: carries the «Авто» request aws.autoscale_code (flips each round). No resource uses it; the plan of that request is the autoscale Lambdas' code."
+}
 variable "waf_enabled" {
   type        = bool
   default     = true
