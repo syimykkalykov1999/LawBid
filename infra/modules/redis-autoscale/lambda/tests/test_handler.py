@@ -192,10 +192,11 @@ class DeployQuietTests(unittest.TestCase):
     """13.11: a rollout ECS calls COMPLETED still holds a resize for
     DEPLOY_QUIET_SEC (the deploy job keeps smoke-testing prod)."""
 
-    def guards_with(self, updated_at):
+    def guards_with(self, created_at, updated_at=None):
         class Ecs:
             def describe_services(self, cluster, services):
-                dep = [{"rolloutState": "COMPLETED", "updatedAt": updated_at}]
+                dep = [{"rolloutState": "COMPLETED", "createdAt": created_at,
+                        "updatedAt": updated_at or created_at}]
                 return {"services": [{"deployments": dep}], "failures": []}
 
             def list_tasks(self, **kw):
@@ -217,6 +218,21 @@ class DeployQuietTests(unittest.TestCase):
         import time as t
         old = datetime.fromtimestamp(t.time() - h.DEPLOY_QUIET_SEC - 60, timezone.utc)
         self.assertFalse(self.guards_with(old)[0])
+
+    def test_autoscaling_bumping_updated_at_does_not_count(self):
+        # 15.11 prod: api deployment created 12:48Z, COMPLETED; Application
+        # Auto Scaling 1->2 moved its updatedAt to 13:02Z. Not a rollout.
+        import time as t
+        created = datetime.fromtimestamp(t.time() - h.DEPLOY_QUIET_SEC - 60, timezone.utc)
+        bumped = datetime.fromtimestamp(t.time() - 60, timezone.utc)
+        self.assertFalse(self.guards_with(created, bumped)[0])
+
+    def test_smoke_window_after_rollout_still_counts(self):
+        # Rollout done 10 min after it started, smoke runs 15 min later:
+        # 25 min after createdAt the resize still waits.
+        import time as t
+        created = datetime.fromtimestamp(t.time() - 25 * 60, timezone.utc)
+        self.assertTrue(self.guards_with(created)[0])
 
 
 class AllServicesGuardTests(unittest.TestCase):

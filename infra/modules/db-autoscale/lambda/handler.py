@@ -178,8 +178,10 @@ def describe(db_id):
     )
 
 
-# 13.11: how long after a deployment changed a resize still waits (seconds).
-DEPLOY_QUIET_SEC = 15 * 60
+# 13.11: how long after a rollout STARTED a resize still waits (seconds).
+# Measured from the deployment's createdAt (rollout ~10 min + the deploy
+# job's smoke and synthetic checks after it), never from updatedAt.
+DEPLOY_QUIET_SEC = 40 * 60
 
 
 def _epoch(at):
@@ -205,14 +207,20 @@ def ecs_guards(cluster, services):
         # for minutes AFTER ECS reports the rollout complete; the night DB
         # resize at 09:32 UTC paused the database right then and the deploy's
         # «Smoke (all services)» got a 500 (run 43393586005). A deployment
-        # that changed in the last DEPLOY_QUIET_SEC counts as deploying too.
+        # created in the last DEPLOY_QUIET_SEC counts as deploying too.
+        # 15.11: createdAt, not updatedAt. ECS bumps a deployment's updatedAt
+        # whenever its desiredCount changes, so Application Auto Scaling
+        # (api 1->2 at 13:02Z on a deployment created 12:48Z) blocked every
+        # resize for the window, again and again. createdAt only moves on a
+        # real new deployment (AWS API_Deployment: "time when the service
+        # deployment was created").
         quiet_since = time.time() - DEPLOY_QUIET_SEC
         for s in r["services"]:
             deps = s.get("deployments", [])
             if len(deps) > 1 or any(x.get("rolloutState") == "IN_PROGRESS" for x in deps):
                 deploying = True
             for x in deps:
-                at = x.get("updatedAt")
+                at = x.get("createdAt")
                 if at is not None and _epoch(at) > quiet_since:
                     deploying = True
     arns, token = [], None
