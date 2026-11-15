@@ -149,9 +149,18 @@ Future<List<PickedChatFile>> pickGroupFiles(
         webOptions: pickerWebOptions,
       );
       for (final f in picked) {
-        // The size the picker reported, else from disk; unknown = unreadable.
-        final size = f.lengthSync() ?? await f.length();
-        if (size == null) {
+        // The size the picker reported, else from disk. Unknown, unreadable
+        // or over the limit: refused here, before anything is read (a 1-2 GB
+        // file on the web is never loaded whole), and one bad file does not
+        // stop the others.
+        final int? size;
+        try {
+          size = f.lengthSync() ?? await f.length();
+        } on Object {
+          skipped++;
+          continue;
+        }
+        if (size == null || size > maxBytes) {
           skipped++;
           continue;
         }
