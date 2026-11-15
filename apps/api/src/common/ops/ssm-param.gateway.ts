@@ -3,6 +3,15 @@ import { ConfigService } from '@nestjs/config';
 
 export type SsmTarget = 'db' | 'redis';
 
+/** Owner 14.11: whose numbers live in an SSM `…/tuning` parameter. */
+export type TuningTarget = SsmTarget | 'endpoints' | 'ecs';
+const TUNING_ENV: Readonly<Record<TuningTarget, string>> = {
+  db: 'OPS_DB_AUTOSCALE_TUNING_PARAM',
+  redis: 'OPS_REDIS_AUTOSCALE_TUNING_PARAM',
+  endpoints: 'OPS_ENDPOINTS_AUTOSCALE_TUNING_PARAM',
+  ecs: 'OPS_ECS_SCALING_TUNING_PARAM',
+};
+
 /** The two Lambda-owned autoscale switches the admin may change. */
 export type SsmMode = 'on' | 'dry-run' | 'off';
 
@@ -60,16 +69,14 @@ export class SsmParamGateway {
     );
   }
 
-  /** Owner 14.11: the autoscaler's numbers from the admin (JSON object). */
-  tuningParam(target: SsmTarget): string | undefined {
-    return this.env(
-      target === 'db'
-        ? 'OPS_DB_AUTOSCALE_TUNING_PARAM'
-        : 'OPS_REDIS_AUTOSCALE_TUNING_PARAM',
-    );
+  /** Owner 14.11: an «Авто»'s numbers from the admin (JSON object). */
+  tuningParam(target: TuningTarget): string | undefined {
+    return this.env(TUNING_ENV[target]);
   }
 
-  async getTuning(target: SsmTarget): Promise<Record<string, number> | null> {
+  async getTuning(
+    target: TuningTarget,
+  ): Promise<Record<string, number> | null> {
     const name = this.tuningParam(target);
     if (!name) return null;
     const raw = await this.get(name);
@@ -84,7 +91,7 @@ export class SsmParamGateway {
   }
 
   async setTuning(
-    target: SsmTarget,
+    target: TuningTarget,
     values: Record<string, number>,
   ): Promise<void> {
     const name = this.tuningParam(target);

@@ -502,6 +502,15 @@ resource "aws_appautoscaling_policy" "cpu" {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
   }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
+  }
 }
 
 # --- alarms -----------------------------------------------------------------------
@@ -620,3 +629,12 @@ output "server_connections_max" {
   value       = var.max_tasks * local.server_total
   description = "Most database connections the pooler can ever hold (max_tasks x (pool + reserve))."
 }
+output "scaling_policy" {
+  value = {
+    name      = aws_appautoscaling_policy.cpu.name, resource_id = aws_appautoscaling_policy.cpu.resource_id,
+    dimension = aws_appautoscaling_policy.cpu.scalable_dimension,
+    target    = var.cpu_target, in_s = 900, out_s = 60
+  }
+  description = "Owner 14.11: the pooler's target-tracking policy the admin may tune (Terraform defaults)."
+}
+

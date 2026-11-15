@@ -11,7 +11,7 @@ import { api } from '@/lib/api/client';
 import { tuningChanges, type TuningTarget } from '@/lib/autoscale-tuning';
 
 const KEY = ['autoscale-tuning'] as const;
-const TITLE: Record<string, string> = { redis: 'Redis', db: 'База' };
+const TITLE: Record<string, string> = { redis: 'Redis', db: 'База', endpoints: 'Точки доступа AWS', ecs: 'Серверы ECS (цель и паузы)' };
 
 /**
  * Owner 14.11: every number of the Redis / database «Авто» from the admin,
@@ -27,7 +27,7 @@ export function AutoscaleTuningCard() {
   });
   const [drafts, setDrafts] = useState<Record<string, Record<string, string>>>({});
   const save = useMutation({
-    mutationFn: async (v: { target: 'db' | 'redis'; values: Record<string, number | null> }) =>
+    mutationFn: async (v: { target: TuningTarget['target']; values: Record<string, number | null> }) =>
       api.PUT('/admin/spend/autoscale-tuning/{target}', {
         params: { path: { target: v.target } },
         body: { values: v.values },
@@ -41,7 +41,7 @@ export function AutoscaleTuningCard() {
   });
   return (
     <>
-      <SectionTitle>Числа «Авто»: Redis и база</SectionTitle>
+      <SectionTitle>Числа «Авто»: Redis, база, точки доступа, серверы</SectionTitle>
       <div className="grid gap-4 lg:grid-cols-2">
         {(q.data ?? []).map((t) => {
           const d = drafts[t.target] ?? {};

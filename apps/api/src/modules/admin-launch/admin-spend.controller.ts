@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Optional,
   HttpCode,
   HttpException,
   HttpStatus,
@@ -42,6 +43,7 @@ import {
   type AutoscaleTarget,
 } from '../../common/ops/autoscale-tuning';
 import { SsmParamGateway } from '../../common/ops/ssm-param.gateway';
+import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import {
   AutoscaleTuningReportDto,
   UpdateAutoscaleTuningDto,
@@ -78,6 +80,7 @@ export class AdminSpendController {
     private readonly auth: AdminAuthService,
     private readonly registry: CostRegistryService,
     private readonly ssm: SsmParamGateway,
+    @Optional() private readonly awsOps?: AwsOpsService,
   ) {}
 
   /** Owner 14.11: every number of the Redis / database «Авто» (Lambda
@@ -90,7 +93,7 @@ export class AdminSpendController {
   @ApiEnvelopeResponse(AutoscaleTuningReportDto)
   async autoscaleTuning(): Promise<AutoscaleTuningReportDto> {
     const targets = await Promise.all(
-      (['redis', 'db'] as const).map(async (target) => {
+      (['redis', 'db', 'endpoints', 'ecs'] as const).map(async (target) => {
         const available = !!this.ssm.tuningParam(target);
         const stored = available
           ? ((await this.ssm.getTuning(target).catch(() => null)) ?? {})
@@ -127,13 +130,16 @@ export class AdminSpendController {
     @Param('target') target: string,
     @Body() dto: UpdateAutoscaleTuningDto,
   ): Promise<AutoscaleTuningReportDto> {
-    if (target !== 'db' && target !== 'redis') {
+    if (!['db', 'redis', 'endpoints', 'ecs'].includes(target)) {
       throw new HttpException(
-        { code: E.VALIDATION_ERROR, message: 'target: db or redis.' },
+        {
+          code: E.VALIDATION_ERROR,
+          message: 'target: db, redis, endpoints or ecs.',
+        },
         HttpStatus.BAD_REQUEST,
       );
     }
-    const t: AutoscaleTarget = target;
+    const t = target as AutoscaleTarget;
     await this.auth.assertStepUp(admin.sessionId);
     if (!this.ssm.tuningParam(t)) {
       throw new HttpException(
@@ -161,13 +167,16 @@ export class AdminSpendController {
       if (v === null) delete next[k];
     }
     await this.ssm.setTuning(t, next);
+    // ECS has no Lambda: the API applies the numbers now (PutScalingPolicy).
+    const applied =
+      t === 'ecs' && this.awsOps ? await this.awsOps.applyScaling(next) : null;
     await this.audit.record({
       adminId: admin.id,
       action: 'ops.autoscale_tuning',
       targetType: 'autoscaler',
       targetId: null,
       before: { target: t, values: before },
-      after: { target: t, values: next },
+      after: { target: t, values: next, ...(applied ? { applied } : {}) },
       ip: admin.ip,
     });
     return this.autoscaleTuning();

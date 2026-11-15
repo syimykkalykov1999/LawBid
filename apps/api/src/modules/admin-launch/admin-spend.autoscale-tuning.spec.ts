@@ -8,15 +8,20 @@ import { AdminSpendController } from './admin-spend.controller';
 function build(stored: Record<string, number> = { down_window_h: 2 }) {
   const ssm = {
     tuningParam: jest.fn((t: string) =>
-      t === 'redis' ? '/x/redis-autoscale/tuning' : undefined,
+      t === 'redis' || t === 'ecs' ? `/x/${t}/tuning` : undefined,
     ),
     getTuning: jest.fn((t: string) =>
-      Promise.resolve(t === 'redis' ? { ...stored } : null),
+      Promise.resolve(t === 'redis' ? { ...stored } : t === 'ecs' ? {} : null),
     ),
     setTuning: jest.fn(() => Promise.resolve()),
   };
   const audit = { record: jest.fn(() => Promise.resolve()) };
   const auth = { assertStepUp: jest.fn(() => Promise.resolve()) };
+  const awsOps = {
+    applyScaling: jest.fn(() =>
+      Promise.resolve({ changed: ['api_cpu'], missing: [] }),
+    ),
+  };
   const c = new AdminSpendController(
     {} as never,
     {} as never,
@@ -24,8 +29,9 @@ function build(stored: Record<string, number> = { down_window_h: 2 }) {
     auth as never,
     {} as never,
     ssm as never,
+    awsOps as never,
   );
-  return { c, ssm, audit, auth };
+  return { c, ssm, audit, auth, awsOps };
 }
 const owner = { id: 'o1', sessionId: 's1', ip: '1.1.1.1' } as never;
 
@@ -71,5 +77,23 @@ describe('admin «Авто» numbers (SSM tuning)', () => {
       c.updateAutoscaleTuning(owner, 'db', { values: { up_cpu_pct: 50 } }),
     ).rejects.toMatchObject({ status: 409 });
     expect(ssm.setTuning).not.toHaveBeenCalled();
+  });
+
+  it('ECS numbers are applied at once (PutScalingPolicy) and the result is audited', async () => {
+    const { c, ssm, audit, awsOps } = build();
+    await c.updateAutoscaleTuning(owner, 'ecs', {
+      values: { 'api_cpu.target': 45 },
+    });
+    expect(ssm.setTuning).toHaveBeenCalledWith('ecs', { 'api_cpu.target': 45 });
+    expect(awsOps.applyScaling).toHaveBeenCalledWith({ 'api_cpu.target': 45 });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        after: {
+          target: 'ecs',
+          values: { 'api_cpu.target': 45 },
+          applied: { changed: ['api_cpu'], missing: [] },
+        },
+      }),
+    );
   });
 });

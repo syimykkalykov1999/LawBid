@@ -13,7 +13,7 @@ export interface TuningKnob {
   max: number;
   kind: TuningKind;
 }
-export type AutoscaleTarget = 'db' | 'redis';
+export type AutoscaleTarget = 'db' | 'redis' | 'endpoints' | 'ecs';
 
 export const AUTOSCALE_TUNING_SCHEMA: Record<
   AutoscaleTarget,
@@ -125,6 +125,186 @@ export const AUTOSCALE_TUNING_SCHEMA: Record<
     up_mem_points: {
       ru: 'Рост: сколько точек подряд держится память',
       min: 1,
+      max: 1000000000,
+      kind: 'integer',
+    },
+  },
+  endpoints: {
+    cooldown_h: {
+      ru: 'Пауза между изменениями, часов',
+      min: 0,
+      max: 1000000000,
+      kind: 'number',
+    },
+    down_days: {
+      ru: 'Убрать: сколько дней подряд трафик ниже',
+      min: 1,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    down_gb_per_day: {
+      ru: 'Убрать точки доступа: трафик ниже, ГБ в день',
+      min: 0,
+      max: 1000000000,
+      kind: 'number',
+    },
+    up_gb_per_day: {
+      ru: 'Создать точки доступа: трафик через NAT выше, ГБ в день',
+      min: 0,
+      max: 1000000000,
+      kind: 'number',
+    },
+    up_hours: {
+      ru: 'Создать: сколько часов подряд трафик выше',
+      min: 1,
+      max: 1000000000,
+      kind: 'integer',
+    },
+  },
+  // No Lambda here: the API applies these with PutScalingPolicy
+  // (AwsOpsService.applyScaling); `<policy>.<target|in_s|out_s>`.
+  ecs: {
+    'api_cpu.target': {
+      ru: 'API: процессор, % — цель',
+      min: 1,
+      max: 100,
+      kind: 'number',
+    },
+    'api_cpu.in_s': {
+      ru: 'API: процессор — пауза перед уменьшением, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'api_cpu.out_s': {
+      ru: 'API: процессор — пауза перед новым ростом, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'worker_cpu.target': {
+      ru: 'Фоновый сервер: процессор, % — цель',
+      min: 1,
+      max: 100,
+      kind: 'number',
+    },
+    'worker_cpu.in_s': {
+      ru: 'Фоновый сервер: процессор — пауза перед уменьшением, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'worker_cpu.out_s': {
+      ru: 'Фоновый сервер: процессор — пауза перед новым ростом, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'api_requests.target': {
+      ru: 'API: запросов на сервер в минуту — цель',
+      min: 1,
+      max: 1000000000,
+      kind: 'number',
+    },
+    'api_requests.in_s': {
+      ru: 'API: запросов на сервер в минуту — пауза перед уменьшением, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'api_requests.out_s': {
+      ru: 'API: запросов на сервер в минуту — пауза перед новым ростом, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'api_sockets.target': {
+      ru: 'API: открытых сокетов на сервер — цель',
+      min: 1,
+      max: 1000000000,
+      kind: 'number',
+    },
+    'api_sockets.in_s': {
+      ru: 'API: открытых сокетов на сервер — пауза перед уменьшением, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'api_sockets.out_s': {
+      ru: 'API: открытых сокетов на сервер — пауза перед новым ростом, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'worker_queue.target': {
+      ru: 'Фоновый сервер: задач в очереди на сервер — цель',
+      min: 1,
+      max: 1000000000,
+      kind: 'number',
+    },
+    'worker_queue.in_s': {
+      ru: 'Фоновый сервер: задач в очереди на сервер — пауза перед уменьшением, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'worker_queue.out_s': {
+      ru: 'Фоновый сервер: задач в очереди на сервер — пауза перед новым ростом, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'admin_cpu.target': {
+      ru: 'Админка: процессор, % — цель',
+      min: 1,
+      max: 100,
+      kind: 'number',
+    },
+    'admin_cpu.in_s': {
+      ru: 'Админка: процессор — пауза перед уменьшением, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'admin_cpu.out_s': {
+      ru: 'Админка: процессор — пауза перед новым ростом, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'api_admin_cpu.target': {
+      ru: 'API админки: процессор, % — цель',
+      min: 1,
+      max: 100,
+      kind: 'number',
+    },
+    'api_admin_cpu.in_s': {
+      ru: 'API админки: процессор — пауза перед уменьшением, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'api_admin_cpu.out_s': {
+      ru: 'API админки: процессор — пауза перед новым ростом, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'pgbouncer_cpu.target': {
+      ru: 'Пул соединений: процессор, % — цель',
+      min: 1,
+      max: 100,
+      kind: 'number',
+    },
+    'pgbouncer_cpu.in_s': {
+      ru: 'Пул соединений: процессор — пауза перед уменьшением, секунд',
+      min: 0,
+      max: 1000000000,
+      kind: 'integer',
+    },
+    'pgbouncer_cpu.out_s': {
+      ru: 'Пул соединений: процессор — пауза перед новым ростом, секунд',
+      min: 0,
       max: 1000000000,
       kind: 'integer',
     },

@@ -167112,7 +167112,9 @@
           "target": {
             "enum": [
               "db",
-              "redis"
+              "redis",
+              "endpoints",
+              "ecs"
             ],
             "type": "string"
           },
