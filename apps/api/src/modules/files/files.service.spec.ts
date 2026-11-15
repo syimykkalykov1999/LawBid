@@ -193,7 +193,7 @@ describe('FilesService', () => {
           voice_m4a: voiceM4a,
         } as Partial<File>,
       });
-      const storage = made.deps.storage as Record<string, jest.Mock>;
+      const storage = made.deps.storage as unknown as Record<string, jest.Mock>;
       storage.read = jest.fn((_b: string, k: string) =>
         readFails && k.endsWith('.m4a')
           ? Promise.reject(new Error('NoSuchKey'))
