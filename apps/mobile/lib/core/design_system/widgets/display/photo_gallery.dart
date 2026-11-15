@@ -15,6 +15,13 @@ import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/photo_saver.dart';
 import 'package:lawbid/core/text/bidi.dart';
 
+/// Row 148 (go_router 18): the arc a Material app's heroes fly along
+/// (`MaterialApp.createMaterialHeroController`). go_router 18 gives its
+/// navigators a plain HeroController unless the app is package:material_ui's
+/// MaterialApp, so the heroes name the tween themselves.
+RectTween materialHeroTween(Rect? begin, Rect? end) =>
+    MaterialRectArcTween(begin: begin, end: end);
+
 /// Tests draw the photos without the network cache.
 @visibleForTesting
 Widget Function(String url)? debugGalleryImage;
@@ -132,7 +139,11 @@ class _GalleryHeroState extends State<GalleryHero> {
   }
 
   @override
-  Widget build(BuildContext context) => Hero(tag: _tag, child: widget.child);
+  Widget build(BuildContext context) => Hero(
+        tag: _tag,
+        createRectTween: materialHeroTween,
+        child: widget.child,
+      );
 }
 
 class _Gallery extends StatefulWidget {
@@ -274,7 +285,11 @@ class _GalleryState extends State<_Gallery>
                       // thumbnail; after a swipe to another one, it fades.
                       return HeroMode(
                         enabled: i == _page && i == widget.initial,
-                        child: Hero(tag: tag, child: photo),
+                        child: Hero(
+                          tag: tag,
+                          createRectTween: materialHeroTween,
+                          child: photo,
+                        ),
                       );
                     },
                   ),

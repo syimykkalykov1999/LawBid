@@ -5,6 +5,7 @@ import {
   HA_USD_MONTH,
   HaAutoService,
   wantedHa,
+  haWindowHours,
   type HaFacts,
 } from './ha-auto.service';
 
@@ -267,5 +268,36 @@ describe('owner 2026-11-09: money holds the copies only with a sum he typed', ()
 
   it('a sum typed: the economy and AWS budget readings count again', async () => {
     expect(await money(300)).toEqual({ limited: true, budgetLeftUsd: 1 });
+  });
+});
+
+/** Owner 14.11: the copies' waits in minutes for live tests (defaults kept). */
+describe('decideHa: waits from the admin', () => {
+  const q: HaFacts = { ...quiet, ...full };
+
+  it('the flip guard is a setting: 10 minutes after a step the other way is allowed', () => {
+    const tenAgo = { dir: 'up' as const, atMs: NOW - 11 * 60_000 };
+    expect(decideHa({ ...q, last: { db: tenAgo, redis: tenAgo } })).toEqual([]);
+    expect(
+      decideHa({
+        ...q,
+        flipMs: 10 * 60_000,
+        last: { db: tenAgo, redis: tenAgo },
+      }),
+    ).toEqual(['db_multi_az_off', 'redis_failover_off']);
+  });
+
+  it('a one-hour quiet window (ha.release_minutes) is enough when set', () => {
+    expect(decideHa({ ...q, online: hours(1, 10) })).toEqual([]); // today: > 3 hours needed
+    expect(decideHa({ ...q, online: hours(1, 10), minQuietHours: 1 })).toEqual([
+      'db_multi_az_off',
+      'redis_failover_off',
+    ]);
+  });
+
+  it('window hours from ha.release_minutes (0 = days), at least one hour', () => {
+    expect(haWindowHours(7, 0)).toBe(168);
+    expect(haWindowHours(7, 10)).toBe(1);
+    expect(haWindowHours(7, 150)).toBe(3);
   });
 });

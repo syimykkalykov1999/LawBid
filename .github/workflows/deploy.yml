@@ -475,6 +475,18 @@ jobs:
           SYNTHETIC_IDENTIFIER: ${{ secrets.SYNTHETIC_IDENTIFIER }}
           SYNTHETIC_PASSWORD: ${{ secrets.SYNTHETIC_PASSWORD }}
         run: node scripts/ops/synthetic-check.mjs "${{ secrets.PROD_API_URL }}" --expect-version "$IMAGE_TAG"
+      # Owner 15.11 («разреши "Авто" само применять обновления кода своих
+      # функций без меня»): the autoscale Lambdas' source hash on main. The
+      # API compares it with deploy/autoscale_code_applied (written by the
+      # last Terraform apply) and «Авто» ships the code (aws.autoscale_code).
+      # Same formula as infra/modules/stack; /deploy/* is the role's own path.
+      - name: Remember the autoscale Lambda code on main
+        continue-on-error: true
+        run: |
+          H=$(node scripts/deploy/autoscale-code-hash.mjs)
+          aws ssm put-parameter --name "/lawbid-prod/deploy/autoscale_code_main" --type String --overwrite --value "$H" >/dev/null
+          echo "autoscale_code_main = $H" >> "$GITHUB_STEP_SUMMARY"
+
       # S11-9: only a release that passed every check above becomes the
       # rollback default. Needs ssm:PutParameter on /lawbid-prod/deploy/* (infra/bootstrap);
       # until that is applied the deploy still succeeds (warning).
