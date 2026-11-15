@@ -168,6 +168,17 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
     ]
     resources = ["*"]
   }
+  # 15.11 (KNOWN_ERRORS 159): the web module's CloudFront Function
+  # (seo_index); UpdateFunction was 403 and stopped the owner's 2FA apply.
+  # Only our own functions.
+  statement {
+    sid = "OwnCloudFrontFunctions"
+    actions = [
+      "cloudfront:DescribeFunction", "cloudfront:GetFunction", "cloudfront:UpdateFunction",
+      "cloudfront:PublishFunction", "cloudfront:CreateFunction", "cloudfront:DeleteFunction",
+    ]
+    resources = ["arn:aws:cloudfront::${local.account}:function/lawbid-${var.env}-*"]
+  }
   statement {
     sid = "OwnRolesOnly"
     actions = [
