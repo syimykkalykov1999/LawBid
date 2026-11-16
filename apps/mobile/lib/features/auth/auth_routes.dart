@@ -73,9 +73,12 @@ List<RouteBase> authRoutes({
     [
       GoRoute(
         path: AuthRoutes.welcome,
-        builder: (context, state) => WebPageFrame(
-          location: state.matchedLocation,
-          child: const WelcomeScreen(),
+        pageBuilder: (context, state) => AppPageTransitions.material(
+          state,
+          WebPageFrame(
+            location: state.matchedLocation,
+            child: const WelcomeScreen(),
+          ),
         ),
       ),
       // Welcome keeps the platform default transition (not part of the UI

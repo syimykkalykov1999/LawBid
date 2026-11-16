@@ -238,3 +238,52 @@ resource "aws_iam_role_policy" "deploy_infra_apply" {
   role   = aws_iam_role.deploy.name
   policy = data.aws_iam_policy_document.deploy_infra_apply.json
 }
+
+# 15.11 (KNOWN_ERRORS 170): the inline «infra-apply» policy hit the IAM limit
+# («Maximum policy size of 10240 bytes exceeded for role», PutRolePolicy 409:
+# all inline policies of one role share 10,240 characters). Newer rights live
+# in a customer managed policy attached to the same role (its own 6,144-char
+# limit; up to 10 managed policies per role — AWS IAM quotas). Denies in the
+# inline policy still win (explicit deny overrides any allow).
+data "aws_iam_policy_document" "deploy_infra_apply_extra" {
+  # Owner 15.11 «делай обновы сейчас» (admin switch aws.postgres_major,
+  # scripts/infra/rds-major-upgrade.sh): AWS RDS Blue/Green. Actions exactly
+  # as the AWS user guide «Authorizing access to Amazon RDS blue/green
+  # deployment operations» lists them for create + switchover (AddTags,
+  # CreateDBInstanceReadReplica, ModifyDBInstance are above), plus the one
+  # reboot that applies rds.logical_replication. Resources "*": the guide says
+  # green copies get internal names, so name patterns cannot be used. NOT
+  # granted: DeleteBlueGreenDeployment; and KeepThePrimaryDatabase below still
+  # denies deleting the primary and the old «…-old1» (the way back).
+  statement {
+    sid = "DatabaseMajorUpgradeBlueGreen"
+    actions = [
+      "rds:CreateBlueGreenDeployment", "rds:SwitchoverBlueGreenDeployment",
+      "rds:DescribeBlueGreenDeployments", "rds:PromoteReadReplica", "rds:RebootDBInstance",
+    ]
+    resources = ["*"]
+  }
+  # 15.11 (KNOWN_ERRORS 159): the web module's CloudFront Function
+  # (seo_index); UpdateFunction was 403 and stopped the owner's 2FA apply.
+  # Only our own functions.
+  statement {
+    sid = "OwnCloudFrontFunctions"
+    actions = [
+      "cloudfront:DescribeFunction", "cloudfront:GetFunction", "cloudfront:UpdateFunction",
+      "cloudfront:PublishFunction", "cloudfront:CreateFunction", "cloudfront:DeleteFunction",
+    ]
+    resources = ["arn:aws:cloudfront::${local.account}:function/lawbid-${var.env}-*"]
+  }
+}
+
+resource "aws_iam_policy" "deploy_infra_apply_extra" {
+  count  = var.infra_apply_enabled ? 1 : 0
+  name   = "lawbid-${var.env}-infra-apply-extra"
+  policy = data.aws_iam_policy_document.deploy_infra_apply_extra.json
+}
+
+resource "aws_iam_role_policy_attachment" "deploy_infra_apply_extra" {
+  count      = var.infra_apply_enabled ? 1 : 0
+  role       = aws_iam_role.deploy.name
+  policy_arn = aws_iam_policy.deploy_infra_apply_extra[0].arn
+}

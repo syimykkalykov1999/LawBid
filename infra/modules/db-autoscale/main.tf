@@ -13,7 +13,7 @@
 # SSM parameter; the on / dry-run / off switch in another one.
 terraform {
   required_providers {
-    aws     = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws     = { source = "hashicorp/aws", version = "~> 6.72" }
     archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
 }
@@ -43,7 +43,7 @@ variable "ladder" {
   type = list(string)
   default = [
     "db.t4g.micro", "db.t4g.small", "db.t4g.medium", "db.t4g.large",
-    "db.r7g.large", "db.r7g.xlarge", "db.r7g.2xlarge",
+    "db.r8g.large", "db.r8g.xlarge", "db.r8g.2xlarge",
   ]
   description = "Sizes from small to large; one step at a time. Each must exist in local.class_specs."
   validation {
@@ -57,7 +57,7 @@ variable "min_class" {
 }
 variable "max_class" {
   type        = string
-  default     = "db.r7g.xlarge"
+  default     = "db.r8g.xlarge"
   description = "Ceiling for the bill (≈ $698/month with Multi-AZ). Above it the owner gets an e-mail and decides."
 }
 variable "initial_ceiling" {
@@ -129,16 +129,22 @@ data "aws_caller_identity" "current" {}
 
 locals {
   # hourly = on-demand Multi-AZ price, us-east-1, PostgreSQL (AWS Price List API,
-  # 2026-10-24); monthly = hourly x 730, instance only (storage, backups extra).
+  # 2026-10-24; r8g rows re-read 2026-11-15, effective 2026-11-01); monthly = hourly x 730, instance only (storage, backups extra).
   # baseline = CPU % the burstable classes can hold without spending credits.
+  # Memory-optimised rungs are db.r8g (Graviton4): same price as db.r7g
+  # (Graviton3) per vCPU and GiB, newer CPU; orderable for PostgreSQL 16.13
+  # and 18.6 with gp3, Multi-AZ and read replicas (aws rds
+  # describe-orderable-db-instance-options, 2026-11-15). db.r9g (Graviton5)
+  # exists but costs ~0.5 % more per hour, so not taken. No burstable class
+  # newer than t4g is offered for RDS, so t4g stays the small end.
   class_specs = {
     "db.t4g.micro"   = { vcpu = 2, memory_gib = 1, hourly = 0.032, baseline = 10 }
     "db.t4g.small"   = { vcpu = 2, memory_gib = 2, hourly = 0.065, baseline = 20 }
     "db.t4g.medium"  = { vcpu = 2, memory_gib = 4, hourly = 0.129, baseline = 20 }
     "db.t4g.large"   = { vcpu = 2, memory_gib = 8, hourly = 0.258, baseline = 30 }
-    "db.r7g.large"   = { vcpu = 2, memory_gib = 16, hourly = 0.478, baseline = null }
-    "db.r7g.xlarge"  = { vcpu = 4, memory_gib = 32, hourly = 0.956, baseline = null }
-    "db.r7g.2xlarge" = { vcpu = 8, memory_gib = 64, hourly = 1.913, baseline = null }
+    "db.r8g.large"   = { vcpu = 2, memory_gib = 16, hourly = 0.478, baseline = null }
+    "db.r8g.xlarge"  = { vcpu = 4, memory_gib = 32, hourly = 0.956, baseline = null }
+    "db.r8g.2xlarge" = { vcpu = 8, memory_gib = 64, hourly = 1.912, baseline = null }
   }
   ladder_json = [for c in var.ladder : {
     name       = c
@@ -151,7 +157,7 @@ locals {
   }]
   prefix    = "/${var.name}/db-autoscale"
   fn_name   = "${var.name}-db-autoscale"
-  db_arn    = "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${var.db_instance_id}"
+  db_arn    = "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${var.db_instance_id}"
   min_index = index(var.ladder, var.min_class)
   max_index = index(var.ladder, var.max_class)
 
@@ -192,6 +198,18 @@ resource "aws_ssm_parameter" "max_class" {
   type        = "String"
   value       = var.initial_ceiling != "" ? var.initial_ceiling : var.max_class
   description = "Biggest size the money allows right now (cost registry V4). The app writes it from the allowed monthly spend; the Lambda treats it as a ceiling that can only be LOWER than max_class, never higher. Changing it here after creation is ignored."
+  tags        = var.tags
+  lifecycle { ignore_changes = [value] }
+}
+
+# Owner 14.11: every «Авто» number changeable from the admin without a
+# Terraform apply. JSON object of lambda/tuning_schema.json keys, written by
+# the admin (API), read by the Lambda on every run over TUNING (the defaults).
+resource "aws_ssm_parameter" "tuning" {
+  name        = "${local.prefix}/tuning"
+  type        = "String"
+  value       = "{}"
+  description = "Database autoscale numbers from the admin (lambda/tuning_schema.json keys and bounds). Empty object = the Terraform defaults. Changing it here after creation is ignored."
   tags        = var.tags
   lifecycle { ignore_changes = [value] }
 }
@@ -252,7 +270,7 @@ data "aws_iam_policy_document" "lambda" {
     content {
       sid       = "EcsRolloutsOfThisCluster"
       actions   = ["ecs:DescribeServices"]
-      resources = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${var.cluster_name}/*"]
+      resources = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:service/${var.cluster_name}/*"]
     }
   }
   dynamic "statement" {
@@ -264,7 +282,7 @@ data "aws_iam_policy_document" "lambda" {
       condition {
         test     = "ArnEquals"
         variable = "ecs:cluster"
-        values   = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"]
+        values   = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"]
       }
     }
   }
@@ -284,7 +302,7 @@ data "aws_iam_policy_document" "lambda" {
   statement {
     sid       = "ModeAndState"
     actions   = ["ssm:GetParameter", "ssm:PutParameter"]
-    resources = [aws_ssm_parameter.mode.arn, aws_ssm_parameter.state.arn, aws_ssm_parameter.max_class.arn]
+    resources = [aws_ssm_parameter.mode.arn, aws_ssm_parameter.state.arn, aws_ssm_parameter.max_class.arn, aws_ssm_parameter.tuning.arn]
   }
   statement {
     sid       = "Logs"
@@ -302,7 +320,7 @@ resource "aws_lambda_function" "this" {
   function_name    = local.fn_name
   description      = "Database size follows the load (docs/architecture/DB_AUTOSCALE.md)"
   role             = aws_iam_role.lambda.arn
-  runtime          = "python3.12"
+  runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "handler.lambda_handler"
   filename         = data.archive_file.lambda.output_path
@@ -325,6 +343,7 @@ resource "aws_lambda_function" "this" {
       STATE_PARAM      = aws_ssm_parameter.state.name
       MODE_PARAM       = aws_ssm_parameter.mode.name
       MAX_CLASS_PARAM  = aws_ssm_parameter.max_class.name
+      TUNING_PARAM     = aws_ssm_parameter.tuning.name
       CLUSTER          = var.cluster_name
       SERVICES         = join(",", var.service_names)
       NIGHT_TZ         = var.night_timezone
@@ -419,6 +438,7 @@ output "function_name" { value = aws_lambda_function.this.function_name }
 output "mode_parameter" { value = aws_ssm_parameter.mode.name }
 output "state_parameter" { value = aws_ssm_parameter.state.name }
 output "max_class_parameter" { value = aws_ssm_parameter.max_class.name }
+output "tuning_parameter" { value = aws_ssm_parameter.tuning.name }
 output "monthly_usd" {
   description = "Approximate on-demand price per month with Multi-AZ, by class."
   value       = { for s in local.ladder_json : s.name => s.monthly_usd }

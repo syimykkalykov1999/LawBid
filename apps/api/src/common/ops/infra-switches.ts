@@ -47,6 +47,97 @@ const choice = (name: string, values: readonly string[]): InfraKey => ({
   spec: { type: 'choice', values },
 });
 
+/**
+ * Owner 15.11 («сделай в админке максимальное число серверов базы, чтобы
+ * "Авто" добавляло пятый, шестой и дальше»): database servers = the primary
+ * plus the extra servers of the split (Terraform `db_shards`, rows
+ * `aws.db_shards`, `aws.db_shards_2`, …). DB_SERVERS_HARD_MAX is the code's
+ * hard bound (the primary + 15 extra, as RDS allows 15 read replicas per
+ * source; the account's default RDS quota is 40 instances per Region, AWS
+ * Service Quotas «DB instances»). How many «Авто» may reach is the owner's
+ * setting `db.max_servers` (default DB_SERVERS_DEFAULT = 4 = as before).
+ * The same numbers live in cost-registry.ts (no imports there);
+ * infra-switches.spec checks they match.
+ */
+export const DB_SERVERS_HARD_MAX = 16;
+export const DB_SERVERS_DEFAULT = 4;
+
+/** Row id of the [n]-th extra database server (1 = the second server). */
+export function dbServerRowId(n: number): string {
+  return n === 1 ? 'aws.db_shards' : `aws.db_shards_${n}`;
+}
+
+/** Every extra-server row, in order (the second server first). */
+export const DB_SERVER_ROWS: readonly string[] = Array.from(
+  { length: DB_SERVERS_HARD_MAX - 1 },
+  (_, i) => dbServerRowId(i + 1),
+);
+
+/** 1-based index of an extra-server row (`aws.db_shards_3` = 3), or null. */
+export function dbServerIndex(id: string): number | null {
+  const n = DB_SERVER_ROWS.indexOf(id);
+  return n < 0 ? null : n + 1;
+}
+
+/** The stored `db.max_servers` as a whole number in 1..DB_SERVERS_HARD_MAX
+ * (anything unreadable = DB_SERVERS_DEFAULT). */
+export function maxDbServers(raw: unknown): number {
+  const v = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw;
+  if (typeof v !== 'number' || !Number.isFinite(v)) return DB_SERVERS_DEFAULT;
+  return Math.min(DB_SERVERS_HARD_MAX, Math.max(1, Math.floor(v)));
+}
+
+/**
+ * Owner 15.11 (look frozen: with the default 4 «Масштаб» shows exactly the
+ * three server rows it showed before): a server row is shown while the
+ * servers it brings stay inside `db.max_servers`, or while that server runs
+ * (so a server above a lowered maximum can still be seen and removed).
+ * Every other row is always shown.
+ */
+export function dbServerRowShown(
+  id: string,
+  liveState: string | null | undefined,
+  maxServers: unknown,
+): boolean {
+  const n = dbServerIndex(id);
+  if (n === null) return true;
+  return n + 1 <= maxDbServers(maxServers) || liveState === 'on';
+}
+
+/** Russian ordinal of the [n]-th server in all (5 = «пятый»). */
+const SERVER_ORDINAL: readonly string[] = [
+  '',
+  'первый',
+  'второй',
+  'третий',
+  'четвёртый',
+  'пятый',
+  'шестой',
+  'седьмой',
+  'восьмой',
+  'девятый',
+  'десятый',
+  'одиннадцатый',
+  'двенадцатый',
+  'тринадцатый',
+  'четырнадцатый',
+  'пятнадцатый',
+  'шестнадцатый',
+];
+
+/** Switches of the extra servers past the fourth server (rows 4..15). */
+function moreServerSwitches(): InfraSwitch[] {
+  const out: InfraSwitch[] = [];
+  for (let n = 4; n < DB_SERVERS_HARD_MAX; n++) {
+    out.push({
+      id: dbServerRowId(n),
+      values: { off: { db_shards: n - 1 }, on: { db_shards: n } },
+      impact: `Без перерыва: ${SERVER_ORDINAL[n + 1]} сервер создаётся 15–40 минут и стоит пустым; при следующей выкладке на нём сами появляются схема и роли. Данные переезжают ночью сами (Авто) или по кнопке.`,
+    });
+  }
+  return out;
+}
+
 /** The object in the JSON file that holds `growth.<k>` keys. */
 export const GROWTH_CONTAINER = 'growth_switches';
 
@@ -58,6 +149,9 @@ export const GROWTH_CONTAINER = 'growth_switches';
  */
 export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   waf_enabled: bool('waf_enabled'),
+  // Owner 15.11: carries the «apply the autoscale functions' code» request
+  // (flips every round); no Terraform resource uses it.
+  autoscale_code_flip: bool('autoscale_code_flip'),
   cdn_waf_enabled: bool('cdn_waf_enabled'),
   uptime_check: choice('uptime_check', ['off', 'route53', 'synthetics']),
   guardduty_enabled: bool('guardduty_enabled'),
@@ -96,7 +190,9 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   api_admin_spot: bool('api_admin_spot'),
   admin_spot: bool('admin_spot'),
   pgbouncer_spot: bool('pgbouncer_spot'),
-  db_shards: int(['db_shards'], 0, 3),
+  // Owner 15.11: up to DB_SERVERS_HARD_MAX servers in all (the primary +
+  // 15 extra); how many «Авто» may reach is the setting db.max_servers.
+  db_shards: int(['db_shards'], 0, DB_SERVERS_HARD_MAX - 1),
   'growth.rds_read_replicas': int(
     [GROWTH_CONTAINER, 'rds_read_replicas'],
     0,
@@ -121,6 +217,11 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   },
   // G5 (2026-11-08): the separate cache Redis `cache.redis_mode = auto` uses.
   redis_cache_node: bool('redis_cache_node'),
+  // Owner 15.11 «делай обновы сейчас»: PostgreSQL 16 -> 18 by AWS Blue/Green
+  // (infra-apply.yml + scripts/infra/rds-major-upgrade.sh) and Redis OSS ->
+  // Valkey 9.1 in place.
+  database_major_version: choice('database_major_version', ['16', '18']),
+  redis_engine: choice('redis_engine', ['redis', 'valkey']),
 };
 
 export type InfraTarget = 'off' | 'on';
@@ -149,6 +250,18 @@ export interface InfraSwitch {
  *  - hidden.* rows (the same variable as a visible row: one place to flip).
  */
 export const INFRA_SWITCHES: readonly InfraSwitch[] = [
+  {
+    // Owner 15.11 («разреши "Авто" само применять обновления кода своих
+    // функций без меня»): AUTO_SCOPE allows only in-place updates of the
+    // four autoscale Lambdas; the flag only makes the request a file change.
+    id: 'aws.autoscale_code',
+    values: {
+      off: { autoscale_code_flip: false },
+      on: { autoscale_code_flip: true },
+    },
+    impact:
+      'Без перерыва: обновляется только код функций автомасштаба (Redis, база, точки доступа, Spot).',
+  },
   {
     id: 'aws.waf_alb',
     values: { off: { waf_enabled: false }, on: { waf_enabled: true } },
@@ -293,6 +406,8 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     impact:
       'Без перерыва: четвёртый сервер создаётся 15–40 минут и стоит пустым; при следующей выкладке на нём сами появляются схема и роли. Данные переезжают ночью сами (Авто) или по кнопке.',
   },
+  // Owner 15.11: the fifth server and on (db.max_servers decides how far).
+  ...moreServerSwitches(),
   {
     id: 'aws.opensearch',
     values: {
@@ -435,6 +550,24 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     },
     impact:
       'Выход в интернет переключается на новый NAT: до минуты внешние сервисы (Stripe, SMS) могут не отвечать.',
+  },
+  {
+    id: 'aws.postgres_major',
+    values: {
+      off: { database_major_version: '16' },
+      on: { database_major_version: '18' },
+    },
+    impact:
+      'Одна перезагрузка базы (около минуты), потом 20–60 минут готовится копия на 18 (приложение работает), потом около минуты без базы при переключении. Старая база остаётся как lawbid-prod-postgres-old1. Во время обновления не выкатывать новую версию приложения.',
+  },
+  {
+    id: 'aws.valkey',
+    values: {
+      off: { redis_engine: 'redis' },
+      on: { redis_engine: 'valkey' },
+    },
+    impact:
+      'Без перерыва: AWS меняет Redis на Valkey на месте, записи в очереди замирают на несколько секунд. Обратно (Выкл) план откажет: это пересоздание Redis.',
   },
   {
     id: 'aws.graviton_spot',

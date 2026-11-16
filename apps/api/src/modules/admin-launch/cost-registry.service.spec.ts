@@ -358,6 +358,48 @@ describe('CostRegistryService.signals: the CPU line from Admin → Настро�
     const { svc } = make({ stored: {} });
     expect((await svc.signals(NOW)).pressures).not.toContain('db_cpu');
   });
+
+  // Rows 8 / 9 (15.11): the copies' own line, so copy 2 can be tested while
+  // copy 1 stays (and the other way round). Prod readings 15.11: primary
+  // ~4.6 %, an idle copy 3.1–4.2 %.
+  const withCopies = (stored: Record<string, unknown>) => {
+    const t = make({ stored });
+    t.ops.capacity.mockResolvedValue({
+      dbCpuPercent: 4.6,
+      dbConnections: 5,
+      dbMaxConnections: 100,
+      redisMemoryPercent: 20,
+      replicaCpuPercent: 3.5,
+    });
+    return t.svc;
+  };
+  it('infra.replica_cpu_limit_percent = 2: replica_cpu, the primary calm (copy 2 only)', async () => {
+    const p = (
+      await withCopies({ 'infra.replica_cpu_limit_percent': 2 }).signals(NOW)
+    ).pressures;
+    expect(p).toContain('replica_cpu');
+    expect(p).not.toContain('db_cpu');
+  });
+  it('db line 2 + copies line 70: db_cpu keeps copy 1, replica_idle lets copy 2 go', async () => {
+    const p = (
+      await withCopies({
+        'economy.db_cpu_limit_percent': 2,
+        'infra.replica_cpu_limit_percent': 70,
+      }).signals(NOW)
+    ).pressures;
+    expect(p).toContain('db_cpu');
+    expect(p).toContain('replica_idle');
+    expect(p).not.toContain('replica_cpu');
+  });
+  it('0 (default) = the db line, as before', async () => {
+    const p = (
+      await withCopies({
+        'economy.db_cpu_limit_percent': 2,
+        'infra.replica_cpu_limit_percent': 0,
+      }).signals(NOW)
+    ).pressures;
+    expect(p).toEqual(expect.arrayContaining(['db_cpu', 'replica_cpu']));
+  });
 });
 
 // Owner 2026-11-12: search engine nodes «Авто» by count (AWS advice: scale

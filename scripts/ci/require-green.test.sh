@@ -14,4 +14,5 @@ run "still running -> timeout" 1 '^API' pending.json
 run "nothing matching ran" 1 '^Mobile' green.json
 run "re-run replaced the failure" 0 '^API' rerun.json
 run "Dependabot updater failure is not our CI" 0 '^API' dependabot.json
+run "the admin cloud change waiting for the owner is not our CI" 0 '^API' infra-waiting.json
 exit $fail

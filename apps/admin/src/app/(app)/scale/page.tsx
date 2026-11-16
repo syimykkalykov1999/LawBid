@@ -10,6 +10,7 @@ import { BackfillsCard } from '@/components/backfills-card';
 import { ScaleSwitches } from '@/components/scale-switches';
 import { SearchIndexCard } from '@/components/search-index-card';
 import { DbSplitCard } from '@/components/scale/db-split-card';
+import { AutoscaleTuningCard } from '@/components/scale/autoscale-tuning-card';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
@@ -36,6 +37,7 @@ import {
   type ScaleExtras,
 } from '@/lib/scale';
 import { usd } from '@/lib/economy';
+import { cloudNow, tuningNow } from '@/lib/scale-now';
 import { budgetPercent, budgetTone, parseLimit, type AwsBudget, type AwsBudgets, type CostRegistryReport } from '@/lib/launch';
 import { HeavyUsersCard } from './heavy-users-card';
 import { LIGHT_TONE } from '@/lib/system-health';
@@ -454,6 +456,8 @@ export default function ScalePage() {
             <DbSplitCard enabled={!!x?.dbSplitEnabled} />
           </div>
 
+          <AutoscaleTuningCard nowLine={(t) => tuningNow(t, { rows: registry.data?.rows, economy: e, extras: x })} />
+
           <SectionTitle>Облако: включить и выключить по кнопке</SectionTitle>
           <InfraSuggestionCards
             items={infra.data?.suggestions ?? []}
@@ -491,6 +495,11 @@ export default function ScalePage() {
                             : infraPick(row.id, st)
                       }
                     />
+                    {row.states.includes('auto') ? (
+                      <span className="basis-full break-words text-xs text-muted" data-testid={`scale-now-${row.id}`}>
+                        {cloudNow(row.id, { rows: registry.data?.rows, economy: e, extras: x })}
+                      </span>
+                    ) : null}
                   </div>
                 );
               })}

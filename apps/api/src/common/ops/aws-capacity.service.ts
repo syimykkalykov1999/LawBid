@@ -42,6 +42,9 @@ export interface CapacityMetrics {
   redisMemoryPercent: number | null;
   /** Owner 2026-11-11: average CPU of the read copies (null = none / unknown). */
   replicaCpuPercent?: number | null;
+  /** Owner 15.11 («Сейчас»): read copies that report CPU (the same reads
+   * as replicaCpuPercent); null = no database here. */
+  replicaCount?: number | null;
   /** Owner 2026-11-12: the search engine domain (AWS/ES): CPU (Average) and
    * JVM memory pressure (Maximum); null = no domain / unknown. */
   searchCpuPercent?: number | null;
@@ -59,6 +62,9 @@ export interface CapacityInfo {
   dbMultiAz: boolean | null;
   dbClass: string | null;
   redisClass: string | null;
+  /** Owner 15.11 («Сейчас»): Redis nodes in the group (primary + standbys),
+   * from the same DescribeReplicationGroups answer; null = unknown. */
+  redisNodes?: number | null;
 }
 
 const WINDOW_MS = 15 * 60_000;
@@ -176,8 +182,11 @@ export class AwsCapacityService {
   private async redisGroupInfo(): Promise<{
     nodeType: string | null;
     primaryNode: string | null;
+    nodes: number | null;
   }> {
-    if (!this.redisGroup) return { nodeType: null, primaryNode: null };
+    if (!this.redisGroup) {
+      return { nodeType: null, primaryNode: null, nodes: null };
+    }
     const res = await this.cacheClient().send(
       new DescribeReplicationGroupsCommand({
         ReplicationGroupId: this.redisGroup,
@@ -190,6 +199,7 @@ export class AwsCapacityService {
     return {
       nodeType: g?.CacheNodeType ?? null,
       primaryNode: primary?.CacheClusterId ?? g?.MemberClusters?.[0] ?? null,
+      nodes: g ? (g.MemberClusters?.length ?? members.length) : null,
     };
   }
 
@@ -198,15 +208,19 @@ export class AwsCapacityService {
   }
 
   async info(): Promise<CapacityInfo> {
-    const [db, redisClass] = await Promise.all([
+    const [db, redis] = await Promise.all([
       this.dbDescribe().catch(() => ({
         dbClass: null,
         dbStorageGb: null,
         dbMultiAz: null,
       })),
-      this.redisClass().catch(() => null),
+      this.redisGroupInfo().catch(() => null),
     ]);
-    return { ...db, redisClass };
+    return {
+      ...db,
+      redisClass: redis?.nodeType ?? null,
+      redisNodes: redis?.nodes ?? null,
+    };
   }
 
   /** Average of the last datapoints (5-minute periods over 15 minutes);
@@ -296,6 +310,7 @@ export class AwsCapacityService {
       out.replicaCpuPercent = copies.length
         ? copies.reduce((a, b) => a + b, 0) / copies.length
         : null;
+      out.replicaCount = copies.length;
     }
     // Owner 2026-11-12 («Авто» by count for the search engine nodes): AWS
     // advises scaling the domain out on CPUUtilization and JVMMemoryPressure

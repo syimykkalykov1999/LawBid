@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/platform/review_prompter.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
@@ -49,7 +50,7 @@ class ReviewFormScreen extends ConsumerWidget {
             title: Text(t.t('reviews.form.title')),
             leading: AppBackButton(
               semanticLabel: t.t('common.back'),
-              onPressed: () => Navigator.of(context).maybePop(),
+              onPressed: () => context.safeBack(),
             ),
           ),
           body: SafeArea(top: false, child: body),
@@ -180,7 +181,7 @@ class _ReviewFormState extends ConsumerState<_ReviewForm> {
         ),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
       ),
       body: SafeArea(
