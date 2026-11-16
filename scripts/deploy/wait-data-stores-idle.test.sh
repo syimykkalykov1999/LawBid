@@ -21,5 +21,13 @@ echo "available 0" > "$T/lawbid-prod-cache-redis.json"
 echo "error AccessDenied" > "$T/lawbid-prod-db1-postgres.json"
 check "$(run)" 0 "a refused read only warns (not strict)"
 check "$(DATA_STORES_STRICT=true run)" 1 "a refused read fails when strict"
+rm -f "$T/lawbid-prod-db1-postgres.json"
+# Owner 15.11 (db.max_servers): the fifth and later servers are watched too.
+echo "modifying 0" > "$T/lawbid-prod-db5-postgres.json"
+check "$(run)" 1 "the fifth database server is being resized: wait"
+echo "available 0" > "$T/lawbid-prod-db5-postgres.json"
+echo "modifying 0" > "$T/lawbid-prod-db15-postgres.json"
+check "$(run)" 1 "the sixteenth database server is being resized: wait"
+rm -f "$T/lawbid-prod-db5-postgres.json" "$T/lawbid-prod-db15-postgres.json"
 
 echo "pass=$pass fail=$fail"; [ "$fail" = 0 ]

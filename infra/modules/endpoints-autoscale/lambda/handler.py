@@ -10,6 +10,7 @@ Manual: {"action": "status"} prints what it sees.
 
 import json
 import os
+from dataclasses import asdict, replace
 from datetime import datetime, timedelta, timezone
 
 import decision as d
@@ -48,15 +49,28 @@ def write_state(env, st):
     )
 
 
-def gb_series(queries, now, hours, period):
-    """Sum of NAT / endpoint bytes per period, GB, oldest first."""
+def window_end(now, period):
+    """`now` rounded down to a whole `period` (top of the hour, UTC midnight).
+
+    CloudWatch GetMetricData rounds StartTime down to the whole minute and
+    stamps each datapoint at StartTime + k * Period; the docs ask for
+    StartTime/EndTime aligned with the Period. With `now` itself
+    (20:48:12.3) every datapoint (20:48:00, ...) fell 12 s before its bucket,
+    so the newest bucket was always empty (prod 15.11, row 19). Aligned
+    bounds also mean only complete periods are read."""
+    ts = int(now.timestamp()) // period * period
+    return datetime.fromtimestamp(ts, timezone.utc)
+
+
+def gb_series(queries, end, hours):
+    """Bytes per (query id, datapoint time) in [end - hours, end)."""
     if not queries:
         return {}
     cw = client("cloudwatch")
     res = cw.get_metric_data(
         MetricDataQueries=queries,
-        StartTime=now - timedelta(hours=hours),
-        EndTime=now,
+        StartTime=end - timedelta(hours=hours),
+        EndTime=end,
         ScanBy="TimestampAscending",
     )
     out = {}
@@ -109,10 +123,11 @@ def endpoint_queries(endpoint_ids, period):
     return q
 
 
-def bucket(series, now, n, period):
-    """Fold {(id, time): bytes} into n buckets of `period` seconds, GB."""
+def bucket(series, end, n, period):
+    """Fold {(id, time): bytes} into n buckets of `period` seconds ending at
+    `end` (a window_end), GB, oldest first."""
     buckets = [0.0] * n
-    start = now - timedelta(seconds=period * n)
+    start = end - timedelta(seconds=period * n)
     for (_id, t), v in series.items():
         idx = int((t - start).total_seconds() // period)
         if 0 <= idx < n:
@@ -156,15 +171,16 @@ def read_control(env):
 def collect(env, now):
     nat_ids = [x for x in env.get("NAT_IDS", "").split(",") if x]
     have = ours(env)
-    hours = 8 * 24
+    # Only complete periods: the last 24 whole hours, the last 8 whole days.
+    hour_end, day_end = window_end(now, 3600), window_end(now, 86400)
     hourly = bucket(
-        gb_series(nat_queries(nat_ids, 3600), now, 24, 3600), now, 24, 3600
+        gb_series(nat_queries(nat_ids, 3600), hour_end, 24), hour_end, 24, 3600
     )
-    day_series = gb_series(nat_queries(nat_ids, 86400), now, hours, 86400)
+    day_series = gb_series(nat_queries(nat_ids, 86400), day_end, 8 * 24)
     day_series.update(
-        gb_series(endpoint_queries(list(have.values()), 86400), now, hours, 86400)
+        gb_series(endpoint_queries(list(have.values()), 86400), day_end, 8 * 24)
     )
-    daily = bucket(day_series, now, 8, 86400)[:-1] if nat_ids else ()
+    daily = bucket(day_series, day_end, 8, 86400) if nat_ids else ()
     wanted = tuple(x for x in env["SERVICES"].split(",") if x)
     ceiling = int(ssm_get(env["CEILING_PARAM"], str(len(wanted))) or 0)
     control, admin_ceiling = read_control(env)
@@ -214,13 +230,78 @@ def create(env, services):
         )
 
 
-def lambda_handler(event, context, env=os.environ):
-    now = datetime.now(timezone.utc)
-    cfg = d.Config(**json.loads(env.get("TUNING") or "{}"))
+def tuning_schema():
+    """The knobs the admin may change (owner 14.11): key -> Russian label,
+    bounds and kind. The same file feeds the admin page (API spec checks)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tuning_schema.json")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def apply_admin_tuning(cfg, raw):
+    """(cfg, skipped keys). The admin's JSON from SSM `<prefix>/tuning` over
+    the Terraform TUNING; a key outside the schema or its bounds is skipped
+    (and logged by the caller), never fatal. 1 / 0 for the flags."""
+    if not raw:
+        return cfg, []
+    try:
+        body = json.loads(raw)
+    except ValueError:
+        return cfg, ["<not json>"]
+    if not isinstance(body, dict):
+        return cfg, ["<not an object>"]
+    schema, changes, skipped = tuning_schema(), {}, []
+    for k, v in body.items():
+        s = schema.get(k)
+        ok = s is not None and isinstance(v, (int, float)) and not isinstance(v, bool)
+        ok = ok and s["min"] <= v <= s["max"]
+        if ok and s["kind"] in ("integer", "flag"):
+            ok = float(v).is_integer()
+        if not ok:
+            skipped.append(k)
+            continue
+        changes[k] = bool(v) if s["kind"] == "flag" else (int(v) if s["kind"] == "integer" else float(v))
+    return replace(cfg, **changes), skipped
+
+
+def read_admin_tuning(cfg, env=os.environ):
+    """The admin's tuning, when TUNING_PARAM names it; a missing parameter
+    or an SSM error leaves the Terraform numbers."""
+    name = env.get("TUNING_PARAM")
+    if not name:
+        return cfg
+    try:
+        raw = client("ssm").get_parameter(Name=name)["Parameter"]["Value"]
+    except Exception as e:  # ParameterNotFound, AccessDenied: keep the defaults
+        print(json.dumps({"event": "admin_tuning_unread", "error": type(e).__name__}))
+        return cfg
+    cfg, skipped = apply_admin_tuning(cfg, raw)
+    if skipped:
+        print(json.dumps({"event": "admin_tuning_skipped", "keys": skipped}))
+    return cfg
+
+
+def lambda_handler(event, context, env=os.environ, now=None):
+    now = now or datetime.now(timezone.utc)
+    cfg = read_admin_tuning(d.Config(**json.loads(env.get("TUNING") or "{}")), env)
     facts, have = collect(env, now)
     st = read_state(env)
     dec = d.decide(facts, st, cfg, now)
-    out = {"mode": facts.mode, "present": list(facts.present), "decision": dec.__dict__}
+    out = {
+        "mode": facts.mode,
+        "present": list(facts.present),
+        "decision": dec.__dict__,
+        # The facts behind the decision, so a log line alone explains it.
+        "facts": {
+            "control": facts.control,
+            "ceiling": facts.ceiling,
+            "wanted": list(facts.wanted),
+            "hour_window_end": window_end(now, 3600).isoformat(),
+            "hourly_nat_gb": [round(x, 6) for x in facts.hourly_nat_gb],
+            "daily_total_gb": [round(x, 6) for x in facts.daily_total_gb],
+        },
+        "tuning": asdict(cfg),
+    }
     print(json.dumps(out, default=list))
     if (event or {}).get("action") == "status" or dec.action == "none":
         return out

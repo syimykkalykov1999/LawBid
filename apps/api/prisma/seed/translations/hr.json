@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "Samo klijent koji je dovršio slučaj s ovim odvjetnikom može ga recenzirati.",
   "reviews.write.saved": "Recenzija objavljena",
   "reviews.write.title": "Vaša recenzija",
+  "router.notFound.home": "Početna",
+  "router.notFound.title": "Stranica nije pronađena",
   "saved.chats.empty": "Još nema spremljenih poruka",
   "saved.copied": "Kopirano",
   "saved.empty": "Još ništa spremljeno",

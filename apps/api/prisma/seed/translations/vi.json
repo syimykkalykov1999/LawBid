@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "Chỉ khách hàng đã hoàn thành vụ việc với luật sư này mới có thể đánh giá.",
   "reviews.write.saved": "Đã đăng đánh giá",
   "reviews.write.title": "Đánh giá của bạn",
+  "router.notFound.home": "Trang chủ",
+  "router.notFound.title": "Không tìm thấy trang",
   "saved.chats.empty": "Chưa lưu tin nhắn nào",
   "saved.copied": "Đã sao chép",
   "saved.empty": "Chưa lưu gì",

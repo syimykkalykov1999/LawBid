@@ -1363,3 +1363,54 @@ describe('rows 8 / 85 / 9 (prod 14.11): whole-stack plans and the search domain'
     );
   });
 });
+
+describe('AWS provider 6 + python3.14 (15.11): the upgrade plan and «Авто»', () => {
+  // What the provider upgrade itself adds to the next whole-stack plan: the
+  // seven Python functions change `runtime` in place (python3.13 -> 3.14).
+  const runtimeBump = [
+    'module.stack.module.redis_autoscale[0].aws_lambda_function.this',
+    'module.stack.module.db_autoscale[0].aws_lambda_function.this',
+    'module.stack.module.endpoints_autoscale[0].aws_lambda_function.this',
+    'module.stack.module.spot_fallback[0].aws_lambda_function.this',
+    'module.stack.module.signing_guard[0].aws_lambda_function.this',
+    'module.stack.module.secret_rotation[0].aws_lambda_function.rotator',
+    'module.stack.module.secret_rotation[0].aws_lambda_function.ops',
+  ].map((address) => ({ address, action: 'update' }));
+
+  it('in-place runtime updates ride along with any automatic item', () => {
+    expect(autoApplyBlockers('on', runtimeBump, 'aws.autoscale_code')).toEqual(
+      [],
+    );
+    expect(autoApplyBlockers('on', runtimeBump, 'aws.rds_replicas')).toEqual(
+      [],
+    );
+    expect(autoApplyBlockers('off', runtimeBump, 'aws.redis_cache')).toEqual(
+      [],
+    );
+  });
+
+  it('a provider-caused replace of serving parts or a function still waits', () => {
+    expect(
+      autoApplyBlockers(
+        'on',
+        [
+          ...runtimeBump,
+          {
+            address:
+              'module.stack.module.pgbouncer[0].aws_service_discovery_service.this',
+            action: 'delete-create',
+          },
+          {
+            address:
+              'module.stack.module.signing_guard[0].aws_lambda_function.this',
+            action: 'delete-create',
+          },
+        ],
+        'aws.rds_replicas',
+      ),
+    ).toEqual([
+      'module.stack.module.pgbouncer[0].aws_service_discovery_service.this: delete-create of serving infrastructure',
+      'module.stack.module.signing_guard[0].aws_lambda_function.this: delete-create in a switch-on',
+    ]);
+  });
+});

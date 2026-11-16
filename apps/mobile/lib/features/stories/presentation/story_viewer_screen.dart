@@ -7,7 +7,6 @@ import 'package:flutter/physics.dart' show SpringSimulation;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
@@ -19,6 +18,7 @@ import 'package:lawbid/core/media/data_saver.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/core/media/prefetch_policy.dart';
 import 'package:lawbid/core/media/video_prefetch.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/application/story_playback.dart';
@@ -68,11 +68,8 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen> {
   }
 
   void _close() {
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      Navigator.of(context).maybePop();
-    }
+    // Row 161: opened by its link, the viewer closes to the parent screen.
+    context.safeBack();
   }
 
   /// Another person's stories, [step] places along the tray.

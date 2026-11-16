@@ -16,3 +16,16 @@ import {
   to       = module.stack.aws_db_instance.existing[0]
   id       = each.key
 }
+
+# 15.11 (KNOWN_ERRORS 172): the PostgreSQL 18 Blue/Green switchover finished
+# (lawbid-prod-postgres is now the 18.6 «green», old server lawbid-prod-postgres-old1),
+# but scripts/infra/rds-major-upgrade.sh removed the primary from the state and its
+# CLI `terraform import` then failed («Invalid count argument» on
+# db_replica_monitoring while evaluating the whole config). Adopt the running
+# 18.6 server back with a config-driven import (Terraform ≥ 1.5): planned and
+# applied like any change, nothing is created or replaced by the import itself.
+# A server already in the state is not imported again, so the block may stay.
+import {
+  to = module.stack.module.postgres[0].aws_db_instance.this
+  id = "lawbid-prod-postgres"
+}

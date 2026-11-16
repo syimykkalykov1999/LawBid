@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "ફક્ત આ વકીલ સાથે કેસ પૂરો કરનાર ક્લાયન્ટ જ સમીક્ષા કરી શકે છે.",
   "reviews.write.saved": "સમીક્ષા પોસ્ટ થઈ",
   "reviews.write.title": "તમારી સમીક્ષા",
+  "router.notFound.home": "હોમ",
+  "router.notFound.title": "પેજ મળ્યું નથી",
   "saved.chats.empty": "હજી સાચવેલા સંદેશ નથી",
   "saved.copied": "કૉપિ થયું",
   "saved.empty": "હજી કંઈ સાચવ્યું નથી",

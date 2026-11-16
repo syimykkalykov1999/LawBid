@@ -9,7 +9,9 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/groups/application/group_avatar_upload.dart';
 import 'package:lawbid/features/groups/application/group_create_rules.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
@@ -164,7 +166,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     if (_step == 1 && !_creating) {
       setState(() => _step = 0);
     } else {
-      unawaited(Navigator.of(context).maybePop());
+      context.safeBack(fallback: ChatRoutes.inbox);
     }
   }
 

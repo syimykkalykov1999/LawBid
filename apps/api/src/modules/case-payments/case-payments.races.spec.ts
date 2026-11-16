@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/require-await -- in-memory fakes */
 import type { ConfigService } from '@nestjs/config';
 import type { ProviderEvent } from '../billing/payment-provider';
-import { CasePaymentsService } from './case-payments.service';
+import { CasePaymentsService, refundIdOf } from './case-payments.service';
 
 /**
  * Detective R2 (14.11) R2B-4 / R2B-10: refunds, the `charge.refunded`
@@ -89,6 +89,15 @@ function make(payment: Row, request?: Row) {
           return Promise.resolve({ ...r });
         },
       ),
+      updateMany: jest.fn(({ where, data }: { where: Row; data: Row }) => {
+        const hit = refunds.filter((r) => matches(r, where));
+        for (const r of hit) Object.assign(r, data);
+        return Promise.resolve({ count: hit.length });
+      }),
+      findUnique: jest.fn(({ where }: { where: { id: string } }) => {
+        const r = refunds.find((x) => x.id === where.id);
+        return Promise.resolve(r ? { ...r } : null);
+      }),
       aggregate: jest.fn(({ where }: { where: Row }) => {
         const sum = refunds
           .filter((r) => matches(r, where))
@@ -303,5 +312,184 @@ describe('CasePaymentsService payment requests under concurrency (R2B-10)', () =
       } as never),
     ).rejects.toMatchObject({ response: { code: 'PAYMENT_INVALID_STATE' } });
     expect(h.requests.get('req_1')?.fee_payer_rounds).toBe(1);
+  });
+});
+
+/**
+ * Row 177 (15.11): the admin's Idempotency-Key picks the refund row id and
+ * so the Stripe idempotency key. These replay the retries that used to
+ * send a second Stripe refund: each old try got a fresh refund row, so a
+ * fresh Stripe key.
+ */
+describe('CasePaymentsService refunds keyed by the request (row 177)', () => {
+  const admin = { type: 'admin' as const, id: 'adm_1' };
+  type H = ReturnType<typeof make>;
+
+  /** Like Postgres: every transaction here starts with `SELECT … FOR
+   * UPDATE` on the one payment row, so they run one after another, and a
+   * throw rolls the transaction back. */
+  function likePostgres(h: H) {
+    const prisma = (h.svc as unknown as { prisma: { $transaction: jest.Mock } })
+      .prisma;
+    let rowLock: Promise<unknown> = Promise.resolve();
+    prisma.$transaction.mockImplementation(
+      (fn: (tx: unknown) => Promise<unknown>) => {
+        const run = rowLock.then(async () => {
+          const payments = new Map(
+            [...h.payments].map(([k, v]) => [k, { ...v }]),
+          );
+          const refunds = h.refunds.map((r) => ({ ...r }));
+          try {
+            return await fn(h.db);
+          } catch (e) {
+            h.payments.clear();
+            for (const [k, v] of payments) h.payments.set(k, v);
+            h.refunds.splice(0, h.refunds.length, ...refunds);
+            throw e;
+          }
+        });
+        rowLock = run.catch(() => undefined);
+        return run;
+      },
+    );
+  }
+
+  type Call = { idempotencyKey: string; amountCents: number };
+
+  /** Stripe's idempotency: one key → one refund, the same answer back. */
+  function stripeLike(h: H) {
+    const seen = new Map<string, string>();
+    const call = async (a: Call) => {
+      let id = seen.get(a.idempotencyKey);
+      if (!id) {
+        id = `re_${seen.size + 1}`;
+        seen.set(a.idempotencyKey, id);
+      }
+      return { id, status: 'succeeded', failureReason: null };
+    };
+    h.provider.refundConnected.mockImplementation(call);
+    return { seen, call };
+  }
+
+  const keys = (h: H) =>
+    h.provider.refundConnected.mock.calls.map(
+      (c) => (c[0] as Call).idempotencyKey,
+    );
+  const row = (h: H) => h.payments.get('cp_1') as never;
+
+  it('a retry after a Stripe timeout sends the same Stripe key', async () => {
+    const h = make(paid());
+    likePostgres(h);
+    const { seen, call } = stripeLike(h);
+    // Stripe refunded, but the answer never reached us.
+    h.provider.refundConnected.mockImplementationOnce(async (a: Call) => {
+      await call(a);
+      throw new Error('socket hang up');
+    });
+    const dto = { amountCents: 10_000, reason: 'a' };
+    await expect(
+      h.svc.refundPayment(row(h), dto, admin, { requestKey: 'k-1' }),
+    ).rejects.toMatchObject({ response: { code: 'REFUND_PROVIDER_FAILED' } });
+    await h.svc.refundPayment(row(h), dto, admin, { requestKey: 'k-1' });
+    const [k1, k2] = keys(h);
+    expect(k1).toBe(k2);
+    expect(seen.size).toBe(1);
+    expect(h.payments.get('cp_1')?.refunded_cents).toBe(10_000);
+    expect(h.ledger.casePaymentRefunded).toHaveBeenCalledTimes(1);
+  });
+
+  it('a retry after a lost commit books the first Stripe refund once', async () => {
+    const h = make(paid());
+    likePostgres(h);
+    const { seen } = stripeLike(h);
+    h.ledger.casePaymentRefunded.mockRejectedValueOnce(new Error('db gone'));
+    const dto = { amountCents: 10_000, reason: 'a' };
+    await expect(
+      h.svc.refundPayment(row(h), dto, admin, { requestKey: 'k-1' }),
+    ).rejects.toThrow('db gone');
+    await h.svc.refundPayment(row(h), dto, admin, { requestKey: 'k-1' });
+    expect(seen.size).toBe(1);
+    expect(h.payments.get('cp_1')).toMatchObject({
+      refunded_cents: 10_000,
+      status: 'partially_refunded',
+    });
+    expect(h.refunds.filter((r) => r.status !== 'failed')).toHaveLength(1);
+  });
+
+  it('two simultaneous tries of one click move the money once', async () => {
+    const h = make(paid());
+    likePostgres(h);
+    const { seen } = stripeLike(h);
+    const stale = { ...h.payments.get('cp_1') } as never;
+    const dto = { amountCents: 10_000, reason: 'a' };
+    await Promise.all([
+      h.svc.refundPayment(stale, dto, admin, { requestKey: 'k-1' }),
+      h.svc.refundPayment(stale, dto, admin, { requestKey: 'k-1' }),
+    ]);
+    expect(seen.size).toBe(1);
+    expect(h.payments.get('cp_1')?.refunded_cents).toBe(10_000);
+    expect(h.ledger.casePaymentRefunded).toHaveBeenCalledTimes(1);
+  });
+
+  it('a replay of a booked click does not call Stripe again', async () => {
+    const h = make(paid());
+    likePostgres(h);
+    stripeLike(h);
+    const dto = { amountCents: 10_000, reason: 'a' };
+    await h.svc.refundPayment(row(h), dto, admin, { requestKey: 'k-1' });
+    const again = await h.svc.refundPayment(row(h), dto, admin, {
+      requestKey: 'k-1',
+    });
+    expect(h.provider.refundConnected).toHaveBeenCalledTimes(1);
+    expect(again).toMatchObject({ refunded_cents: 10_000 });
+  });
+
+  it('the same key with another amount is refused', async () => {
+    const h = make(paid());
+    likePostgres(h);
+    stripeLike(h);
+    await h.svc.refundPayment(
+      row(h),
+      { amountCents: 10_000, reason: 'a' },
+      admin,
+      { requestKey: 'k-1' },
+    );
+    await expect(
+      h.svc.refundPayment(row(h), { amountCents: 12_000, reason: 'a' }, admin, {
+        requestKey: 'k-1',
+      }),
+    ).rejects.toMatchObject({ response: { code: 'IDEMPOTENCY_KEY_CONFLICT' } });
+    expect(h.payments.get('cp_1')?.refunded_cents).toBe(10_000);
+  });
+
+  it('two different clicks at once are two refunds, both counted', async () => {
+    const h = make(paid());
+    likePostgres(h);
+    const { seen } = stripeLike(h);
+    const stale = { ...h.payments.get('cp_1') } as never;
+    await Promise.all([
+      h.svc.refundPayment(stale, { amountCents: 10_000, reason: 'a' }, admin, {
+        requestKey: 'k-1',
+      }),
+      h.svc.refundPayment(stale, { amountCents: 15_000, reason: 'b' }, admin, {
+        requestKey: 'k-2',
+      }),
+    ]);
+    expect(seen.size).toBe(2);
+    expect(h.payments.get('cp_1')).toMatchObject({
+      refunded_cents: 25_000,
+      status: 'partially_refunded',
+    });
+  });
+
+  it('one id per payment, person and key', () => {
+    const a = refundIdOf('cp_1', admin, 'k-1');
+    expect(refundIdOf('cp_1', admin, 'k-1')).toBe(a);
+    expect(refundIdOf('cp_1', admin, 'k-2')).not.toBe(a);
+    expect(refundIdOf('cp_2', admin, 'k-1')).not.toBe(a);
+    expect(refundIdOf('cp_1', { type: 'admin', id: 'adm_2' }, 'k-1')).not.toBe(
+      a,
+    );
+    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab]/);
   });
 });
