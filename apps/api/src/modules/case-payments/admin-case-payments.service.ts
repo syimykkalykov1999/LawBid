@@ -313,13 +313,17 @@ export class AdminCasePaymentsService {
     admin: AdminActor,
     id: string,
     dto: AdminRefundCasePaymentDto,
+    requestKey?: string,
   ): Promise<AdminCasePaymentRowDto> {
     const row = await this.prisma.casePayment.findUnique({ where: { id } });
     if (!row) throw notFound();
-    const updated = await this.payments.refundPayment(row, dto, {
-      type: 'admin',
-      id: admin.id,
-    });
+    // Row 177: the Idempotency-Key of the click picks the Stripe key.
+    const updated = await this.payments.refundPayment(
+      row,
+      dto,
+      { type: 'admin', id: admin.id },
+      { requestKey },
+    );
     await this.audit.record({
       adminId: admin.id,
       action: CASE_PAYMENT_AUDIT.refund,

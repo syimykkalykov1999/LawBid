@@ -415,6 +415,28 @@ describe('EconomyService.tick', () => {
     expect(t.storage.put).not.toHaveBeenCalled();
   });
 
+  it('owner 15.11: the admin Spot split reaches the spot-fallback Lambda (spot_fallback.want)', async () => {
+    const t = setup({ awsActual: 50, awsForecast: 100 });
+    const tuning = { 'api.spot_weight': 0, 'api_cpu.target': 40 };
+    (t.svc as unknown as { ssm: unknown }).ssm = {
+      getTuning: jest.fn(async (k: string) => (k === 'ecs' ? tuning : null)),
+    };
+    const spotSplits = jest.fn(() => ({
+      api: { base: 1, fargate: 1, spot: 0 },
+    }));
+    (t.aws as unknown as { spotSplits: unknown }).spotSplits = spotSplits;
+    await t.svc.publishScaleControls();
+    expect(spotSplits).toHaveBeenCalledWith(tuning);
+    expect(t.storage.put).toHaveBeenCalledWith(
+      'docs-bucket',
+      'ops/scale-controls.json',
+      Buffer.from(
+        '{"endpoints":{"mode":"auto","ceiling":4},"spot_fallback":{"mode":"auto","want":{"api":{"base":1,"fargate":1,"spot":0}}}}',
+      ),
+      'application/json',
+    );
+  });
+
   it('S9-4: publishes the daily money brake from the allowance', async () => {
     const t = setup({ awsActual: 50, awsForecast: 100 });
     await t.svc.tick(NOW);

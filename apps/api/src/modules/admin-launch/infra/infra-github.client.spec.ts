@@ -1,5 +1,10 @@
 import { generateKeyPairSync } from 'node:crypto';
-import { GithubMergeError, InfraGithubClient } from './infra-github.client';
+import {
+  GithubMergeError,
+  InfraAuthError,
+  InfraGithubClient,
+  InfraUnavailableError,
+} from './infra-github.client';
 
 /**
  * 12.11.2026: the AI assistant's PR calls. GitHub is a fetch fake; the App
@@ -171,5 +176,46 @@ describe('InfraGithubClient: deleting AI branches (owner 2026-11-12, row 49)', (
       await expect(c.deleteBranch(ref)).rejects.toThrow('Only ai/');
     }
     expect(calls).toHaveLength(0);
+  });
+});
+
+/**
+ * 14.11 (request f758b39f, run 43511676199, 13.11 22:14 UTC): during the
+ * outage the workflow's «Report the result» got 401 «Not the infra-apply
+ * workflow.» — the API could not read the GitHub App keys (database down)
+ * and called that «not configured». api.sh treats a 4xx as final, so the
+ * request never closed. A key store or GitHub key fetch that fails is
+ * «try again» (503), not «you are not the workflow» (401).
+ */
+describe('verifyCaller: a failing dependency is not a 401', () => {
+  it('keys unreadable (store down) → InfraUnavailableError', async () => {
+    const secrets = { get: jest.fn(() => Promise.resolve(null)) };
+    const c = new InfraGithubClient(secrets as never);
+    await expect(c.verifyCaller('Bearer x.y.z')).rejects.toBeInstanceOf(
+      InfraUnavailableError,
+    );
+  });
+
+  it('the key store throwing → InfraUnavailableError', async () => {
+    const secrets = { get: jest.fn(() => Promise.reject(new Error('P1001'))) };
+    const c = new InfraGithubClient(secrets as never);
+    await expect(c.verifyCaller('Bearer x.y.z')).rejects.toBeInstanceOf(
+      InfraUnavailableError,
+    );
+  });
+
+  it('a missing token stays a 401 (InfraAuthError)', async () => {
+    const secrets = { get: jest.fn(() => Promise.resolve(null)) };
+    const c = new InfraGithubClient(secrets as never);
+    await expect(c.verifyCaller(undefined)).rejects.toBeInstanceOf(
+      InfraAuthError,
+    );
+  });
+
+  it('a forged token stays a 401 (GitHub keys reachable, signature wrong)', async () => {
+    const { c } = client(() => ({ status: 200, body: { keys: [] } }));
+    await expect(c.verifyCaller('Bearer x.y.z')).rejects.toBeInstanceOf(
+      InfraAuthError,
+    );
   });
 });

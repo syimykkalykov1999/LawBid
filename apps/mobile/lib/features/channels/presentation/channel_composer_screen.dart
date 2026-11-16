@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/channels/application/channel_compose.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
@@ -148,7 +149,7 @@ class _ChannelComposerScreenState extends ConsumerState<ChannelComposerScreen> {
               key: const ValueKey('channel-compose-close'),
               icon: AppIcon(AppIcons.closeRounded, color: colors.text),
               semanticLabel: t.t('common.close'),
-              onPressed: busy ? null : () => Navigator.of(context).maybePop(),
+              onPressed: busy ? null : () => context.safeBack(),
             ),
             title: Text(
               _editing

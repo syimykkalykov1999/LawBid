@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/navigation/system_back.dart';
 
@@ -77,7 +78,10 @@ GoRouter _router() => GoRouter(
         GoRoute(
           path: '/post/:id',
           parentNavigatorKey: _root,
-          builder: (c, s) => const Text('post'),
+          // Row 148: as the app builds a pushed page (go_router 18 gives a
+          // plain `builder:` route a page without transition here).
+          pageBuilder: (c, s) =>
+              AppPageTransitions.material(s, const Text('post')),
         ),
         GoRoute(
           path: '/profile/settings',
