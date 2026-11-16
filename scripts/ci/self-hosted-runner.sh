@@ -43,8 +43,8 @@ DIND_CPUS="${DIND_CPUS:-2}"    # per sidecar: Postgres + Redis + MailHog of one 
 DIND_MEM="${DIND_MEM:-2g}"
 LABELS="lawbid-ci"
 # The tag names the pinned runner base below: build_image() skips an existing
-# tag, so a new base (or any Dockerfile change) needs a new tag.
-IMG="lawbid-ci-runner:2.338.2"
+# tag, so a new base (or any Dockerfile change) needs a new tag. "-1": + libatomic1.
+IMG="lawbid-ci-runner:2.338.2-1"
 NET="lawbid-ci-net"
 WORK="/home/runner/_work"
 FLAG="/tmp/lawbid-ci-up"                                   # exists while `up`; supervisors exit when it is gone
@@ -65,7 +65,10 @@ COPY --from=cli /usr/local/bin/docker /usr/local/bin/docker
 # lawbid.keep: the host's hourly cleanup (docker image prune --filter label!=lawbid.keep) must not drop this image
 LABEL lawbid.keep=1
 USER root
-RUN mkdir -p /home/runner/_work && chown runner:runner /home/runner/_work
+# libatomic1: Node 26 links it; without it setup-node's node exits 127 (KNOWN_ERRORS 181).
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends libatomic1 \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /home/runner/_work && chown runner:runner /home/runner/_work
 USER runner
 D
   docker build -q -t "$IMG" "$d" >/dev/null
