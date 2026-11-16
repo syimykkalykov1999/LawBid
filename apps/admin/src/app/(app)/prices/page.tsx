@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { saveConfig } from '@/lib/config-save';
 import type { components } from '@/lib/api/schema';
 import { usd } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
@@ -316,7 +317,8 @@ function NumberSettingCard({
   const n = Number(value);
   const ok = value.trim() !== '' && Number.isInteger(n) && n >= min && n <= max && n !== current;
   const save = useMutation({
-    mutationFn: () => api.PUT('/admin/config/{key}', { params: { path: { key: settingKey } }, body: { value: n } as never }),
+    // Row 179: checked against the version this tab saw (lib/config-save.ts).
+    mutationFn: () => saveConfig(qc, settingKey, n),
     onSuccess: () => {
       toast.success(saved(n));
       setDraft(null);

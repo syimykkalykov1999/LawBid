@@ -94,7 +94,7 @@ export class AdminConfigController {
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     404: [E.NOT_FOUND],
-    409: [E.FLAG_PROVIDER_KEYS_MISSING],
+    409: [E.FLAG_PROVIDER_KEYS_MISSING, E.STALE_VERSION],
   })
   updateFeatureFlag(
     @CurrentAdmin() admin: AdminActor,
@@ -142,7 +142,11 @@ export class AdminConfigController {
   @Put('config/:key')
   @ApiOperation({ summary: 'Set a value (validated against the key schema)' })
   @ApiEnvelopeResponse(ConfigEntryDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.STALE_VERSION],
+  })
   async updateAppConfig(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: ConfigKeyParamDto,
