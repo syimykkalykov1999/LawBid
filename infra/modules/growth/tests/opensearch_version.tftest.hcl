@@ -23,11 +23,11 @@ variables {
   opensearch_instance_count = 2
 }
 
-run "today_2_15_nothing_changes" {
+run "new_domain_on_3_7" {
   command = plan
   assert {
-    condition     = aws_opensearch_domain.search[0].engine_version == "OpenSearch_2.15"
-    error_message = "Without a switch the domain stays on OpenSearch_2.15 (what runs in prod)."
+    condition     = aws_opensearch_domain.search[0].engine_version == "OpenSearch_3.7"
+    error_message = "16.11: the prod domain is gone; a new one is created straight on OpenSearch_3.7."
   }
   assert {
     condition     = aws_opensearch_domain.search[0].cluster_config[0].instance_type == "t3.small.search"
@@ -35,14 +35,14 @@ run "today_2_15_nothing_changes" {
   }
 }
 
-run "step_1_2_19" {
+run "existing_2_x_domain_keeps_its_hop" {
   command = plan
   variables {
     opensearch_engine_version = "OpenSearch_2.19"
   }
   assert {
     condition     = aws_opensearch_domain.search[0].engine_version == "OpenSearch_2.19"
-    error_message = "aws.opensearch_2_19 asks for OpenSearch_2.19."
+    error_message = "A domain that already runs 2.x still goes one hop per apply (2.19 first)."
   }
 }
 

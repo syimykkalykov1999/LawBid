@@ -71,6 +71,8 @@ scripts/infra/rds-major-upgrade.sh prepare 18
 
 ## OpenSearch 2.15 → 2.19 → 3.7 (`aws.opensearch_2_19`, then `aws.opensearch_3`)
 
+**16.11 update: there is no domain to upgrade.** «Авто» switched `aws.opensearch` off at 03:13Z on 16.11, and `aws opensearch list-domain-names` is empty. `growth.opensearch_engine_version` now defaults to `OpenSearch_3.7`, so the next «Поисковый движок» Вкл (or «Авто») **creates the domain straight on 3.7**. Nothing has to be upgraded and the owner needs no extra step. The API then fills the empty domain by itself: the bootstrap creates the templates, the `-v1` index and both aliases, and the reindex backfills it. That is the path the real-engine specs below run on 3.7.0. The two rows are now «on» by default (Выкл is never offered: it would be a step back). The hop path below (2.15 → 2.19 → 3.7, `FORBIDDEN_REPLACE`, 4 h session) stays only for a domain that already runs 2.x.
+
 **Version:** 3.7, the newest Amazon OpenSearch Service offers (`aws opensearch list-versions`, 15.11: 3.7, 3.5, 3.3, 3.1, 2.19 …). AWS has no direct jump: `get-compatible-versions --domain-name lawbid-prod-search` gives only 2.17 and 2.19, and the AWS guide «Upgrading Amazon OpenSearch Service domains» says 2.x must go to 2.19 first, then to 3.x. So two switches, one owner 2FA apply each, in this order.
 
 - **Method:** AWS in-place upgrade (pre-check, automatic snapshot, blue/green). The address stays the same and search keeps working; AWS says it takes 15 minutes to several hours. In-place costs nothing extra.

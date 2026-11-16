@@ -1789,8 +1789,10 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       off: 'growth = { opensearch_engine_version = "OpenSearch_2.15" }',
       on: 'growth = { opensearch_engine_version = "OpenSearch_2.19" }',
     }),
-    states: ['off', 'on'],
-    defaultState: 'off',
+    // 16.11: a new domain is created on 3.7, so this step is done by
+    // default; Выкл (a step back) is never offered.
+    states: ['on'],
+    defaultState: 'on',
     ceiling: null,
     price: price(
       'free',
@@ -1801,7 +1803,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ifOnUsd: R(0),
     needed: 'yes',
     neededNote:
-      'Один раз, когда работает поисковый движок. Займёт от 15 минут до нескольких часов.',
+      '16.11: новый движок сразу создаётся на 3.7, этот шаг не нужен. Только для движка, который уже работает на 2.x: от 15 минут до нескольких часов.',
     alarm: null,
   },
   {
@@ -1817,8 +1819,10 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       off: 'growth = { opensearch_engine_version = "OpenSearch_2.19" }',
       on: 'growth = { opensearch_engine_version = "OpenSearch_3.7" }',
     }),
-    states: ['off', 'on'],
-    defaultState: 'off',
+    // 16.11: a new domain is created on 3.7, so this step is done by
+    // default; Выкл (a step back) is never offered.
+    states: ['on'],
+    defaultState: 'on',
     ceiling: null,
     price: price(
       'free',
@@ -1829,7 +1833,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ifOnUsd: R(0),
     needed: 'yes',
     neededNote:
-      'Один раз, сразу после шага 1. Займёт от 15 минут до нескольких часов.',
+      '16.11: новый движок сразу создаётся на 3.7 (настройка по умолчанию). Только для движка, который уже работает на 2.19: от 15 минут до нескольких часов.',
     alarm: null,
   },
   {

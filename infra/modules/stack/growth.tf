@@ -11,7 +11,7 @@ variable "growth" {
       db_proxy_secret_arn        Secrets Manager secret {username,password} of the app role.
       opensearch_enabled         OpenSearch domain for the search engine. The app finds it by itself (OPENSEARCH_URL); admin Settings: search.engine = shadow, then engine, turns it on. docs/architecture/SEARCH_READY.md.
       opensearch_instance_type / _count / _volume_gb   size of that domain (_count: 1 or even up to 10).
-      opensearch_engine_version   OpenSearch_2.15 (today) -> OpenSearch_2.19 -> OpenSearch_3.7, one hop per apply (admin switches aws.opensearch_2_19, aws.opensearch_3).
+      opensearch_engine_version   OpenSearch_3.7 (default: a new domain is created on it, 16.11); OpenSearch_2.15 -> 2.19 -> 3.7 only for a domain that already runs 2.x, one hop per apply.
       opensearch_serverless_enabled   Amazon OpenSearch Serverless collection INSTEAD of the domain (admin Settings: search.engine_kind = serverless). about $350 a month minimum (2 OCU, AWS pricing page 2026-10-26) vs about $28 for the t3.small domain: keep false until the domain needs several nodes. Never applied by helpers.
       opensearch_serverless_standby   false = no standby nodes (about $175, staging only).
       redis_cluster_mode         MOVED: set the stack variable redis_cluster_mode = "standby" | "on" (docs/runbooks/redis-cluster.md); this field stays false.
@@ -30,7 +30,7 @@ variable "growth" {
     opensearch_instance_type      = optional(string, "t3.small.search")
     opensearch_instance_count     = optional(number, 1)
     opensearch_volume_gb          = optional(number, 20)
-    opensearch_engine_version     = optional(string, "OpenSearch_2.15")
+    opensearch_engine_version     = optional(string, "OpenSearch_3.7")
     opensearch_serverless_enabled = optional(bool, false)
     opensearch_serverless_standby = optional(bool, true)
     redis_cluster_mode            = optional(bool, false)

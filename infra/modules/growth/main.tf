@@ -149,9 +149,13 @@ variable "opensearch_volume_gb" {
 # get-compatible-versions: skipping 2.19 or going back would delete it.
 # plan-summary.mjs / infra-switches.ts refuse any replacement of
 # aws_opensearch_domain (FORBIDDEN_REPLACE, KNOWN_ERRORS 178).
+# 16.11: «Авто» switched the search domain off (03:13Z, list-domain-names
+# empty), so the next switch-on CREATES it: straight on the newest version.
+# The 2.15 / 2.19 values stay only for a domain that already runs 2.x (one
+# hop per apply, as above).
 variable "opensearch_engine_version" {
   type    = string
-  default = "OpenSearch_2.15"
+  default = "OpenSearch_3.7"
   validation {
     condition     = contains(["OpenSearch_2.15", "OpenSearch_2.19", "OpenSearch_3.7"], var.opensearch_engine_version)
     error_message = "opensearch_engine_version: OpenSearch_2.15, OpenSearch_2.19 or OpenSearch_3.7 (one hop per apply)."
