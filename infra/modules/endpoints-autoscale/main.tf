@@ -15,7 +15,7 @@
 # 0 = none) are SSM parameters, ignored by Terraform after creation.
 terraform {
   required_providers {
-    aws     = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws     = { source = "hashicorp/aws", version = "~> 6.72" }
     archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
 }
@@ -109,6 +109,17 @@ resource "aws_ssm_parameter" "ceiling" {
   lifecycle { ignore_changes = [value] }
 }
 
+# Owner 14.11: the thresholds from the admin without a Terraform apply
+# (lambda/tuning_schema.json keys), read on every run over TUNING.
+resource "aws_ssm_parameter" "tuning" {
+  name        = "${local.prefix}/tuning"
+  type        = "String"
+  value       = "{}"
+  description = "Endpoint autoscale thresholds from the admin (lambda/tuning_schema.json). Empty object = the Terraform defaults. Changing it here after creation is ignored."
+  tags        = var.tags
+  lifecycle { ignore_changes = [value] }
+}
+
 resource "aws_ssm_parameter" "state" {
   name        = "${local.prefix}/state"
   type        = "String"
@@ -168,16 +179,16 @@ data "aws_iam_policy_document" "lambda" {
     sid     = "CreateEndpointParts"
     actions = ["ec2:CreateVpcEndpoint", "ec2:CreateTags"]
     resources = [
-      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:vpc/${var.vpc_id}",
-      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:subnet/*",
-      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:security-group/${var.security_group_id}",
-      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:vpc-endpoint/*",
+      "arn:aws:ec2:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:vpc/${var.vpc_id}",
+      "arn:aws:ec2:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:subnet/*",
+      "arn:aws:ec2:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:security-group/${var.security_group_id}",
+      "arn:aws:ec2:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:vpc-endpoint/*",
     ]
   }
   statement {
     sid       = "DeleteOnlyOwnEndpoints"
     actions   = ["ec2:DeleteVpcEndpoints"]
-    resources = ["arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:vpc-endpoint/*"]
+    resources = ["arn:aws:ec2:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:vpc-endpoint/*"]
     condition {
       test     = "StringEquals"
       variable = "aws:ResourceTag/ManagedBy"
@@ -208,7 +219,7 @@ data "aws_iam_policy_document" "lambda" {
   statement {
     sid       = "SwitchCeilingAndState"
     actions   = ["ssm:GetParameter", "ssm:PutParameter"]
-    resources = [aws_ssm_parameter.mode.arn, aws_ssm_parameter.ceiling.arn, aws_ssm_parameter.state.arn]
+    resources = [aws_ssm_parameter.mode.arn, aws_ssm_parameter.ceiling.arn, aws_ssm_parameter.state.arn, aws_ssm_parameter.tuning.arn]
   }
   statement {
     sid       = "Logs"
@@ -226,7 +237,7 @@ resource "aws_lambda_function" "this" {
   function_name    = local.fn_name
   description      = "VPC interface endpoints appear when NAT traffic is high and go after a quiet week"
   role             = aws_iam_role.lambda.arn
-  runtime          = "python3.12"
+  runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "handler.lambda_handler"
   filename         = data.archive_file.lambda.output_path
@@ -248,6 +259,7 @@ resource "aws_lambda_function" "this" {
       MODE_PARAM    = aws_ssm_parameter.mode.name
       CEILING_PARAM = aws_ssm_parameter.ceiling.name
       TUNING        = jsonencode(var.tuning)
+      TUNING_PARAM  = aws_ssm_parameter.tuning.name
     }
   }
   tags       = var.tags
@@ -319,6 +331,7 @@ resource "aws_cloudwatch_metric_alarm" "errors" {
 output "function_name" { value = aws_lambda_function.this.function_name }
 output "mode_parameter" { value = aws_ssm_parameter.mode.name }
 output "ceiling_parameter" { value = aws_ssm_parameter.ceiling.name }
+output "tuning_parameter" { value = aws_ssm_parameter.tuning.name }
 
 # D1-41 (13.11): EventBridge Scheduler invokes the function asynchronously, so
 # Lambda's own async retries (default 2, events kept up to 6 h) came on top of

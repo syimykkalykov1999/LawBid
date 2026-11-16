@@ -8,7 +8,7 @@
 terraform {
   required_version = ">= 1.6"
   required_providers {
-    aws     = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws     = { source = "hashicorp/aws", version = "~> 6.72" }
     archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
 }
@@ -83,7 +83,7 @@ resource "aws_lambda_function" "this" {
   function_name    = local.fn_name
   description      = "Alerts when an ECS task starts from an image without a cosign signature"
   role             = aws_iam_role.lambda.arn
-  runtime          = "python3.12"
+  runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "handler.lambda_handler"
   filename         = data.archive_file.lambda.output_path

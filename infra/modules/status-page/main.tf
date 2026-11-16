@@ -9,7 +9,7 @@
 # DNS: docs/runbooks/STATUS_PAGE.md (Namecheap/Route 53 now, Cloudflare later).
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -55,7 +55,7 @@ resource "aws_acm_certificate" "status" {
   lifecycle {
     create_before_destroy = true
     precondition {
-      condition     = data.aws_region.current.name == "us-east-1"
+      condition     = data.aws_region.current.region == "us-east-1"
       error_message = "CloudFront only reads certificates from us-east-1."
     }
   }

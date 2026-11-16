@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "Танҳо мизоҷе, ки бо ин адвокат парвандаро анҷом додааст, метавонад тақриз нависад.",
   "reviews.write.saved": "Шарҳ нашр шуд",
   "reviews.write.title": "Шарҳи шумо",
+  "router.notFound.home": "Саҳифаи асосӣ",
+  "router.notFound.title": "Саҳифа ёфт нашуд",
   "saved.chats.empty": "Паёми захирашуда нест",
   "saved.copied": "Нусхабардорӣ шуд",
   "saved.empty": "Ҳанӯз чизе захира нашудааст",

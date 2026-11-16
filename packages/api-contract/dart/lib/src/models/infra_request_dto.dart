@@ -32,6 +32,7 @@ class InfraRequestDto {
     required this.expiresAt,
     required this.finishedAt,
     required this.settled,
+    required this.superseded,
   });
 
   factory InfraRequestDto.fromJson(Map<String, Object?> json) =>
@@ -57,6 +58,7 @@ class InfraRequestDto {
   final String? expiresAt;
   final String? finishedAt;
   final bool settled;
+  final bool superseded;
 
   Map<String, Object?> toJson() => _$InfraRequestDtoToJson(this);
 }

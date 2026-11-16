@@ -20,7 +20,7 @@
 # region (us-east-1 for the stack), as AWS advises, to avoid duplicates.
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
