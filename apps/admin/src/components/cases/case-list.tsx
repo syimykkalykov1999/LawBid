@@ -153,7 +153,7 @@ export function CaseList() {
             <Switch checked={withDeadline} onChange={setWithDeadline} label="С датой (суд, срок подачи)" />
             С датой (суд, срок подачи)
           </label>
-          <CsvButton entity="cases" />
+          <CsvButton entity="cases" query={{ q, status: tab === 'all' ? undefined : tab, stateCode }} />
         </div>
       </div>
       {bulk.dialog}
@@ -162,11 +162,15 @@ export function CaseList() {
           selectedCount={sel.selected.size}
           noun={CASES}
           onClear={sel.clear}
-          onSelectAll={async () => {
-            const r = await collectIds(async (c) => {
-              const p = await fetchPage(c);
-              return { data: p.data, nextCursor: p.meta?.nextCursor };
-            });
+          onSelectAll={async (cap) => {
+            const r = await collectIds(
+              async (c) => {
+                const p = await fetchPage(c);
+                return { data: p.data, nextCursor: p.meta?.nextCursor };
+              },
+              undefined,
+              cap,
+            );
             sel.replace(r.ids);
             return r.capped;
           }}

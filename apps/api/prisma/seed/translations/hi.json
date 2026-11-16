@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "केवल वह क्लाइंट जिसने इस वकील के साथ केस पूरा किया है, समीक्षा कर सकता है।",
   "reviews.write.saved": "समीक्षा पोस्ट हुई",
   "reviews.write.title": "आपकी समीक्षा",
+  "router.notFound.home": "होम",
+  "router.notFound.title": "पेज नहीं मिला",
   "saved.chats.empty": "अभी कोई संदेश सहेजा नहीं",
   "saved.copied": "कॉपी किया",
   "saved.empty": "अभी कुछ सहेजा नहीं",

@@ -136,7 +136,7 @@ web_create_certificate = true
 # On by default for the database named in existing_database_identifier. Idle
 # until Multi-AZ is on (a pending modification pauses it). Optional:
 # db_autoscale_mode      = "dry-run"          # default: e-mails only, changes nothing; switch on later in SSM (docs/architecture/DB_AUTOSCALE.md)
-# db_autoscale_max_class = "db.r7g.xlarge"    # ceiling, about $698/month with Multi-AZ
+# db_autoscale_max_class = "db.r8g.xlarge"    # ceiling, about $698/month with Multi-AZ
 # db_autoscale_min_class = "db.t4g.micro"
 # db_autoscale_enabled   = false              # switch the whole thing off
 

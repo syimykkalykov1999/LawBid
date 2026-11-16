@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "Aðeins viðskiptavinur sem lauk máli með þessum lögmanni getur skrifað umsögn.",
   "reviews.write.saved": "Umsögn birt",
   "reviews.write.title": "Umsögn þín",
+  "router.notFound.home": "Heim",
+  "router.notFound.title": "Síða fannst ekki",
   "saved.chats.empty": "Engin vistuð skilaboð enn",
   "saved.copied": "Afritað",
   "saved.empty": "Ekkert vistað enn",

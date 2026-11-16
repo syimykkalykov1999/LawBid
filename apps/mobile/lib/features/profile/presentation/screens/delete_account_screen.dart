@@ -9,6 +9,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_step_up.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -109,9 +110,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                   semanticLabel: t.t('common.back'),
                   // R2-A #2: opened by a link or after a web refresh, the
                   // screen is alone — back leads to Settings.
-                  onPressed: () => context.canPop()
-                      ? context.pop()
-                      : context.go(AppRoutes.profileSettings),
+                  onPressed: () =>
+                      context.safeBack(fallback: AppRoutes.profileSettings),
                 ),
         ),
         // UI modernization pass (2026-09-27): a danger-toned step indicator

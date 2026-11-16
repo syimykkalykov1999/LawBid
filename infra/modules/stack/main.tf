@@ -5,7 +5,7 @@ terraform {
   required_providers {
     aws = {
       source                = "hashicorp/aws"
-      version               = "~> 5.60"
+      version               = "~> 6.72"
       configuration_aliases = [aws.replica]
     }
     random = { source = "hashicorp/random", version = "~> 3.6" }
@@ -70,10 +70,38 @@ variable "database_multi_az" {
   default     = false
   description = "RDS Multi-AZ (standby in the second AZ, automatic failover). ≈ ×2 the instance price. Prod: true."
 }
+# Owner 14.11 «newest methods» (docs/dev/AUTO_MODERNIZE_2026-11-15.md):
+# "valkey" moves the main and the cache Redis to Valkey 9.1 in place (AWS:
+# no downtime, node price 20 % lower). Default "redis" = no change.
+variable "redis_engine" {
+  type    = string
+  default = "redis"
+  validation {
+    condition     = contains(["redis", "valkey"], var.redis_engine)
+    error_message = "redis_engine: redis or valkey."
+  }
+}
+
 variable "database_engine_version" {
   type        = string
   default     = "16"
   description = "PostgreSQL version of the created database (\"16\" = latest minor; pin e.g. \"16.6\" with database_auto_minor_upgrade = false). docs/runbooks/db-ops.md."
+}
+# Owner 15.11 «делай обновы сейчас» (admin switch aws.postgres_major,
+# docs/runbooks/db-major-upgrade.md): the PostgreSQL major version the owner
+# wants. "16" = today. "18" = the apply creates the postgres18 parameter group
+# and turns rds.logical_replication on, then infra-apply.yml runs AWS
+# Blue/Green (scripts/infra/rds-major-upgrade.sh: green copy on 18, switchover
+# about a minute, the old 16 server kept as «…-old1» for rollback). Terraform
+# itself never upgrades in place: the version in the config follows the
+# version the server REALLY runs (local.database_running_major).
+variable "database_major_version" {
+  type    = string
+  default = "16"
+  validation {
+    condition     = contains(["16", "18"], var.database_major_version)
+    error_message = "database_major_version: 16 or 18."
+  }
 }
 variable "database_auto_minor_upgrade" {
   type    = bool
@@ -942,7 +970,7 @@ module "turn" {
   turn_total_quota         = var.turn_total_quota
   hosted_zone_id           = var.turn_on_demand ? null : var.hosted_zone_id # the address changes at every start
   # Route 53 health-check metrics exist in us-east-1 only.
-  health_checks = !var.turn_on_demand && data.aws_region.current.name == "us-east-1"
+  health_checks = !var.turn_on_demand && data.aws_region.current.region == "us-east-1"
 }
 
 # Owner 2026-11-02: the API may start / stop this ONE box and look at instance
@@ -1179,6 +1207,7 @@ module "redis" {
   subnet_ids                 = module.network.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.tasks.id]
   node_type                  = var.redis_node_type
+  engine                     = var.redis_engine
   replicas                   = var.redis_replicas
   kms_key_arn                = module.kms.key_arn
   tags                       = local.tags
@@ -1189,6 +1218,30 @@ module "redis" {
   cluster_node_type       = var.redis_cluster_node_type
 
   recovery_window_in_days = var.ephemeral ? 0 : 30
+}
+
+# The major version the primary REALLY runs (read-only, no error when it
+# does not exist yet: a new stack is created on database_major_version).
+# After the Blue/Green switchover it reads "18", so the config moves with
+# the server and no plan ever tries an in-place upgrade or a downgrade.
+data "aws_db_instances" "primary" {
+  count = var.create_database ? 1 : 0
+  filter {
+    name   = "db-instance-id"
+    values = ["${local.name}-postgres"]
+  }
+}
+data "aws_db_instance" "primary" {
+  count                  = var.create_database ? length(data.aws_db_instances.primary[0].instance_identifiers) : 0
+  db_instance_identifier = "${local.name}-postgres"
+}
+locals {
+  database_running_major = length(data.aws_db_instance.primary) > 0 ? split(".", data.aws_db_instance.primary[0].engine_version)[0] : var.database_major_version
+  # A pin (database_engine_version = "16.6") stays while it is that major.
+  # Otherwise the exact running version: a bare major ("18") is read by RDS
+  # as its default minor (18.3) and refused as a downgrade of 18.6
+  # (KNOWN_ERRORS 174).
+  database_engine_version = split(".", var.database_engine_version)[0] == local.database_running_major ? var.database_engine_version : (length(data.aws_db_instance.primary) > 0 ? data.aws_db_instance.primary[0].engine_version : local.database_running_major)
 }
 
 module "postgres" {
@@ -1205,7 +1258,8 @@ module "postgres" {
   instance_class             = var.database_instance_class
   backup_retention_days      = var.database_backup_retention_days
   multi_az                   = var.database_multi_az
-  engine_version             = var.database_engine_version
+  engine_version             = local.database_engine_version
+  upgrade_to_major           = var.database_major_version
   auto_minor_version_upgrade = var.database_auto_minor_upgrade
   rds_logical_replication    = var.database_logical_replication
   monitoring_interval        = var.database_monitoring_interval
@@ -1231,10 +1285,10 @@ module "postgres" {
 variable "db_shards" {
   type        = number
   default     = 0
-  description = "Extra PostgreSQL servers for the database split (0 = one database, exactly as before). Set by the admin switch aws.db_shards."
+  description = "Extra PostgreSQL servers for the database split (0 = one database, exactly as before). Set by the admin switches aws.db_shards, aws.db_shards_2 … aws.db_shards_15; how many «Авто» may reach is the admin setting db.max_servers (owner 15.11). 15 = the code's hard bound (infra-switches.ts DB_SERVERS_HARD_MAX - 1)."
   validation {
-    condition     = var.db_shards >= 0 && var.db_shards <= 3 && floor(var.db_shards) == var.db_shards
-    error_message = "db_shards is a whole number from 0 to 3."
+    condition     = var.db_shards >= 0 && var.db_shards <= 15 && floor(var.db_shards) == var.db_shards
+    error_message = "db_shards is a whole number from 0 to 15."
   }
 }
 variable "db_shard_instance_class" {
@@ -1268,9 +1322,12 @@ module "postgres_shard" {
   # Owner 2026-11-12: «Авто» removes an extra server again, only while it
   # is EMPTY (the API and plan-guard check that; IAM allows deleting only
   # …-db*-postgres). AWS keeps a final snapshot of it (never deleted).
-  deletion_protection     = false
-  skip_final_snapshot     = var.ephemeral
-  recovery_window_in_days = var.ephemeral ? 0 : 30
+  deletion_protection = false
+  skip_final_snapshot = var.ephemeral
+  # KNOWN_ERRORS 180: a removed extra server's secret must go at once, or the
+  # next «Авто» switch-on of the same server fails on CreateSecret (name
+  # still in its 30-day recovery window). AWS keeps the final DB snapshot.
+  recovery_window_in_days = 0
 }
 
 # Owner 2026-11-11: each extra database server gets its own read copies
@@ -1333,6 +1390,7 @@ module "redis_cache" {
   subnet_ids                 = module.network.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.tasks.id]
   node_type                  = var.redis_cache_node_type
+  engine                     = var.redis_engine
   replicas                   = 0
   maxmemory_policy           = "allkeys-lru"
   description                = "cache only (allkeys-lru)"
@@ -1349,7 +1407,7 @@ module "redis_cache" {
 locals {
   database_arn = var.create_database ? module.postgres[0].arn : (
     var.existing_database_identifier == "" ? "" :
-    "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${var.existing_database_identifier}"
+    "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${var.existing_database_identifier}"
   )
 }
 
@@ -1472,7 +1530,7 @@ module "backup" {
   retention_days      = var.backup_retention_days
   copy_retention_days = var.backup_retention_days
   copy_account_vault_arn = var.backup_copy_account_id == "" ? "" : (
-    "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.name : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
+    "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.region : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
   )
   alerts_topic_arn        = module.monitoring.alerts_topic_arn
   critical_topic_arn      = module.monitoring.critical_topic_arn
@@ -1539,7 +1597,7 @@ variable "db_autoscale_min_class" {
 }
 variable "db_autoscale_max_class" {
   type        = string
-  default     = "db.r7g.xlarge"
+  default     = "db.r8g.xlarge"
   description = "Ceiling for the bill. Above it the owner gets an e-mail."
 }
 variable "db_autoscale_initial_ceiling_class" {
@@ -1556,7 +1614,7 @@ variable "db_autoscale_ladder" {
   type = list(string)
   default = [
     "db.t4g.micro", "db.t4g.small", "db.t4g.medium", "db.t4g.large",
-    "db.r7g.large", "db.r7g.xlarge", "db.r7g.2xlarge",
+    "db.r8g.large", "db.r8g.xlarge", "db.r8g.2xlarge",
   ]
 }
 variable "db_autoscale_tuning" {
@@ -1699,6 +1757,7 @@ locals {
     "db.m7g.large" = 8, "db.m7g.xlarge" = 16, "db.m7g.2xlarge" = 32,
     "db.r6g.large" = 16, "db.r6g.xlarge" = 32, "db.r6g.2xlarge" = 64,
     "db.r7g.large" = 16, "db.r7g.xlarge" = 32, "db.r7g.2xlarge" = 64,
+    "db.r8g.large" = 16, "db.r8g.xlarge" = 32, "db.r8g.2xlarge" = 64,
   }
   # Owner 2026-10-24: with db_autoscale_enabled the database changes size by
   # itself. The pool must be safe at the SMALLEST size it can shrink to
@@ -1710,8 +1769,13 @@ locals {
   # ha-auto service has added the node.
   redis_autoscale_on = var.redis_autoscale_enabled && !local.redis_cluster_on
   autoscale_ssm_params = concat(
-    local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class"] : [],
-    local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class"] : [],
+    local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class", "/${local.name}/db-autoscale/tuning"] : [],
+    local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class", "/${local.name}/redis-autoscale/tuning"] : [],
+    # Owner 14.11: the endpoint thresholds and the ECS target / pauses from the admin.
+    var.endpoints_autoscale_enabled ? ["/${local.name}/endpoints-autoscale/tuning"] : [],
+    ["/${local.name}/ecs-scaling/tuning"],
+    # Owner 15.11 (row 20): the spot-fallback quiet hold etc. from the admin.
+    ["/${local.name}/spot-fallback/tuning"],
   )
   db_pool_class      = local.db_autoscale_on ? var.db_autoscale_min_class : var.database_instance_class
   db_ceiling_class   = local.db_autoscale_on ? var.db_autoscale_max_class : var.database_instance_class
@@ -1770,7 +1834,7 @@ locals {
     APP_LINK_BASE_URL = var.app_link_base_url
     ADMIN_ORIGINS     = "https://${var.admin_host}"
     ADMIN_PANEL_URL   = "https://${var.admin_host}"
-    S3_REGION         = data.aws_region.current.name
+    S3_REGION         = data.aws_region.current.region
     # Empty = no on-demand coturn (calls/turn-instance.gateway.ts).
     TURN_ONDEMAND_INSTANCE_ID = var.turn_enabled && var.turn_on_demand ? module.turn[0].instance_id : ""
     S3_BUCKET_DOCUMENTS       = module.s3.documents_bucket
@@ -1800,7 +1864,7 @@ locals {
     # at boot — src/common/secrets/kms-env.ts). Owner steps: DEPLOY_PROD.md.
     DATA_KEYS_KMS_KEY_ARN = aws_kms_key.data_keys.arn
     DATA_KEYS_KMS_APP     = local.name
-    SES_REGION            = data.aws_region.current.name
+    SES_REGION            = data.aws_region.current.region
     SES_FROM_ADDRESS      = var.ses_from_address
     EMAIL_PROVIDER        = "ses"
     SMS_PROVIDER          = "twilio"
@@ -1841,8 +1905,25 @@ locals {
     OPS_DB_AUTOSCALE_MAXCLASS_PARAM    = local.db_autoscale_on ? "/${local.name}/db-autoscale/max-class" : ""
     OPS_REDIS_AUTOSCALE_MODE_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/mode" : ""
     OPS_REDIS_AUTOSCALE_MAXCLASS_PARAM = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/max-class" : ""
-    OPS_DB_AUTOSCALE                   = local.db_autoscale_on ? "on" : "off"
-    OPS_REDIS_AUTOSCALE                = local.redis_autoscale_on ? "on" : "off"
+    # Owner 14.11: the admin writes the autoscalers' numbers here (no apply).
+    OPS_DB_AUTOSCALE_TUNING_PARAM        = local.db_autoscale_on ? "/${local.name}/db-autoscale/tuning" : ""
+    OPS_REDIS_AUTOSCALE_TUNING_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/tuning" : ""
+    OPS_ENDPOINTS_AUTOSCALE_TUNING_PARAM = var.endpoints_autoscale_enabled ? "/${local.name}/endpoints-autoscale/tuning" : ""
+    OPS_ECS_SCALING_TUNING_PARAM         = aws_ssm_parameter.ecs_scaling_tuning.name
+    # Owner 15.11 (row 20): the spot-fallback quiet hold etc. No Terraform
+    # resource: the API's first save creates it (PutParameter), the Lambda
+    # reads a missing one as «defaults», so «Авто» ships this without a new
+    # resource (the aws.autoscale_code scope is in-place updates only).
+    OPS_SPOT_FALLBACK_TUNING_PARAM = "/${local.name}/spot-fallback/tuning"
+    OPS_ECS_SCALING_POLICIES = jsonencode(merge(
+      module.ecs.scaling_policies,
+      var.db_pooler_enabled ? { pgbouncer_cpu = module.pgbouncer[0].scaling_policy } : {},
+    ))
+    OPS_DB_AUTOSCALE    = local.db_autoscale_on ? "on" : "off"
+    OPS_REDIS_AUTOSCALE = local.redis_autoscale_on ? "on" : "off"
+    # Owner 15.11 (aws.autoscale_code): main's autoscale code vs the shipped.
+    OPS_AUTOSCALE_CODE_MAIN_PARAM    = "/${local.name}/deploy/autoscale_code_main"
+    OPS_AUTOSCALE_CODE_APPLIED_PARAM = aws_ssm_parameter.autoscale_code_applied.name
     # Cluster mode switch (var.redis_cluster_mode = "on"): the app builds ioredis Cluster clients.
     REDIS_CLUSTER      = local.redis_cluster_on ? "true" : "false"
     OPS_POOLER_MIN     = tostring(var.pgbouncer_min_tasks)
@@ -1864,7 +1945,7 @@ locals {
     OPS_API_ADMIN_SERVICE = "api-admin"
     OPS_ADMIN_SERVICE     = "admin"
     OPS_POOLER_SERVICE    = var.db_pooler_enabled ? "pgbouncer" : ""
-    AWS_REGION            = data.aws_region.current.name
+    AWS_REGION            = data.aws_region.current.region
     # Admin health: rotation dates per secret (empty list while rotation is off).
     ROTATION_STATUS_SECRETS   = jsonencode(local.rot_status_items)
     ROTATION_METRIC_NAMESPACE = "LawBid/${local.name}/SecretRotation"
@@ -1891,7 +1972,7 @@ locals {
     # it when the admin sets «search.engine_kind» = serverless.
     OPENSEARCH_SERVERLESS_URL = var.growth.opensearch_serverless_enabled ? one(module.opensearch_serverless[*].endpoint) : ""
   }
-  critical_topic_arn = "arn:aws:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${local.name}-critical"
+  critical_topic_arn = "arn:aws:sns:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:${local.name}-critical"
   api_task_usd       = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * 100) / 100
   worker_task_usd    = floor(730 * (var.worker_cpu / 1024 * 0.04048 + var.worker_memory / 1024 * 0.004445) * 100) / 100
   app_secret_arns = merge(
@@ -2058,6 +2139,17 @@ module "secret_rotation" {
 }
 
 # --- own connection pooler: PgBouncer service, Cloud Map name, alarms ----------------
+# Owner 14.11: the ECS target / pauses from the admin (JSON of policy key ->
+# {target, in_s, out_s}); the API applies it with PutScalingPolicy.
+resource "aws_ssm_parameter" "ecs_scaling_tuning" {
+  name        = "/${local.name}/ecs-scaling/tuning"
+  type        = "String"
+  value       = "{}"
+  description = "ECS target-tracking numbers from the admin. Empty object = the Terraform defaults. Changing it here after creation is ignored."
+  tags        = local.tags
+  lifecycle { ignore_changes = [value] }
+}
+
 module "pgbouncer" {
   count  = var.db_pooler_enabled ? 1 : 0
   source = "../pgbouncer"
@@ -2154,9 +2246,9 @@ module "ecs" {
     # buckets presigned uploads POST to (both endpoint spellings the AWS SDK
     # may produce) and the media CDN.
     ADMIN_CONNECT_SRC = join(" ", [
-      "https://${module.s3.media_bucket}.s3.${data.aws_region.current.name}.amazonaws.com",
+      "https://${module.s3.media_bucket}.s3.${data.aws_region.current.region}.amazonaws.com",
       "https://${module.s3.media_bucket}.s3.amazonaws.com",
-      "https://${module.s3.documents_bucket}.s3.${data.aws_region.current.name}.amazonaws.com",
+      "https://${module.s3.documents_bucket}.s3.${data.aws_region.current.region}.amazonaws.com",
       "https://${module.s3.documents_bucket}.s3.amazonaws.com",
       "https://${module.s3.media_cdn_domain}",
     ])
@@ -2333,12 +2425,30 @@ data "aws_iam_policy_document" "ops" {
     actions   = ["ecs:UpdateService", "ecs:DescribeServices"]
     resources = [module.ecs.api_service_arn, module.ecs.worker_service_arn]
   }
+  # Owner 15.11 («Сейчас» next to every «Авто» on «Масштаб»): read the task
+  # counts of the other services too (admin, api-admin, pgbouncer). Read
+  # only; the API asks them in a separate call, so until this is applied the
+  # api / worker counts keep working and the others are simply not shown.
+  statement {
+    actions   = ["ecs:DescribeServices"]
+    resources = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:service/${local.name}/*"]
+  }
   statement {
     actions = [
       "application-autoscaling:RegisterScalableTarget",
       "application-autoscaling:DescribeScalableTargets",
+      # Owner 14.11: the admin's target / pauses (AwsOpsService.applyScaling).
+      # In this ops document, so with ops_role_split on it lives on the
+      # separate ops role, not on the task role (least privilege, S4-1).
+      "application-autoscaling:DescribeScalingPolicies",
+      "application-autoscaling:PutScalingPolicy",
     ]
     resources = ["*"]
+  }
+  # PutScalingPolicy re-creates the policy's own alarms (target tracking).
+  statement {
+    actions   = ["cloudwatch:PutMetricAlarm", "cloudwatch:DescribeAlarms", "cloudwatch:DeleteAlarms"]
+    resources = ["arn:aws:cloudwatch:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:alarm:TargetTracking-service/${module.ecs.cluster_name}/*"]
   }
   dynamic "statement" {
     for_each = module.budget[*].budget_arn
@@ -2396,9 +2506,18 @@ data "aws_iam_policy_document" "ops" {
       actions = ["ssm:GetParameter", "ssm:PutParameter"]
       resources = [
         for p in local.autoscale_ssm_params :
-        "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${p}"
+        "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${p}"
       ]
     }
+  }
+  # Owner 15.11 (aws.autoscale_code): «Авто» compares the autoscale code
+  # on main (deploy.yml) with the code the last apply shipped. Read only.
+  statement {
+    actions = ["ssm:GetParameter"]
+    resources = [
+      "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter/${local.name}/deploy/autoscale_code_main",
+      aws_ssm_parameter.autoscale_code_applied.arn,
+    ]
   }
   # Economy guard (owner 2026-10-16): read database / Redis load and move
   # them one tier up from the admin. Metrics have no resource-level scope.
@@ -2413,7 +2532,7 @@ data "aws_iam_policy_document" "ops" {
   }
   statement {
     actions   = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
-    resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
+    resources = ["arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
   }
   # Admin button «Копия базы для чтения»: create / describe / delete exactly one
   # instance named <database>-readreplica. Nothing else on RDS changes.
@@ -2422,8 +2541,8 @@ data "aws_iam_policy_document" "ops" {
     content {
       actions = ["rds:DescribeDBInstances"]
       resources = [
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
       ]
     }
   }
@@ -2432,12 +2551,12 @@ data "aws_iam_policy_document" "ops" {
     content {
       actions = ["rds:CreateDBInstanceReadReplica", "rds:AddTagsToResource"]
       resources = [
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:pg:*",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:og:*",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:subgrp:*",
-        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secgrp:*",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:pg:*",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:og:*",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:subgrp:*",
+        "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:secgrp:*",
       ]
     }
   }
@@ -2445,7 +2564,7 @@ data "aws_iam_policy_document" "ops" {
     for_each = var.db_replica_toggle ? [1] : []
     content {
       actions   = ["rds:DeleteDBInstance"]
-      resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica"]
+      resources = ["arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica"]
     }
   }
   dynamic "statement" {
@@ -2470,17 +2589,17 @@ data "aws_iam_policy_document" "ops" {
   }
   statement {
     actions   = ["elasticache:DescribeReplicationGroups", "elasticache:ModifyReplicationGroup"]
-    resources = ["arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis"]
+    resources = ["arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis"]
   }
   # ha-auto (2026-11-02): add / remove the Redis standby node with the load.
   # AWS checks the node, subnet group and parameter group of the group too.
   statement {
     actions = ["elasticache:IncreaseReplicaCount", "elasticache:DecreaseReplicaCount"]
     resources = [
-      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis",
-      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster:${local.name}-redis-*",
-      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:subnetgroup:*",
-      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parametergroup:*",
+      "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis",
+      "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:cluster:${local.name}-redis-*",
+      "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:subnetgroup:*",
+      "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parametergroup:*",
     ]
   }
 }
@@ -2652,7 +2771,7 @@ module "monitoring" {
     var.documents_cdn_public_key_pem != "" ? { documents = module.s3.documents_distribution_id } : {},
   )
   api_target_group_arn_suffix   = module.alb.api_target_group_arn_suffix
-  media_cdn_distribution_id     = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.name == "us-east-1" ? module.s3.media_distribution_id : ""
+  media_cdn_distribution_id     = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.region == "us-east-1" ? module.s3.media_distribution_id : ""
   admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
   # D1-35: same switch as module.ecs api_admin_enabled (a literal, known at plan).
   api_admin_deploy_alarms           = true
@@ -2728,6 +2847,7 @@ module "redis_autoscale" {
   name                 = local.name
   replication_group_id = "${local.name}-redis"
   replicas             = max(var.redis_replicas, 1) # price shown for the HA size
+  engine               = var.redis_engine
   cluster_name         = module.ecs.cluster_name
   service_names        = local.autoscale_guard_services # D1-42
   alerts_topic_arn     = module.monitoring.alerts_topic_arn
@@ -2771,6 +2891,30 @@ locals {
   )
 }
 
+# Owner 15.11 («разреши "Авто" само применять обновления кода своих функций
+# без меня»): the source hash of the four autoscale Lambdas this apply ships.
+# deploy.yml writes the same hash of main to deploy/autoscale_code_main
+# (scripts/deploy/autoscale-code-hash.mjs, same formula); when they differ,
+# «Авто» asks for the item aws.autoscale_code (AUTO_SCOPE: in-place updates
+# of exactly these functions).
+locals {
+  autoscale_code_dirs = ["redis-autoscale", "db-autoscale", "endpoints-autoscale", "spot-fallback"]
+  autoscale_code_hash = sha256(join("\n", flatten([
+    for d in local.autoscale_code_dirs : [
+      for f in sort(fileset("${path.module}/../${d}/lambda", "**")) :
+      "${d}/${f}:${filesha256("${path.module}/../${d}/lambda/${f}")}"
+      if !strcontains(f, "__pycache__")
+    ]
+  ])))
+}
+resource "aws_ssm_parameter" "autoscale_code_applied" {
+  name        = "/${local.name}/deploy/autoscale_code_applied"
+  type        = "String"
+  value       = local.autoscale_code_hash
+  description = "Source hash of the autoscale Lambdas the last apply shipped (owner 15.11, aws.autoscale_code)."
+  tags        = local.tags
+}
+
 module "spot_fallback" {
   count            = length(local.spot_watch) > 0 ? 1 : 0
   source           = "../spot-fallback"
@@ -2782,6 +2926,7 @@ module "spot_fallback" {
   kms_key_arn      = module.kms.key_arn
   mode             = var.spot_fallback_mode
   tuning           = var.spot_fallback_tuning
+  tuning_param     = "/${local.name}/spot-fallback/tuning"
   controls_bucket  = module.s3.documents_bucket
   tags             = local.tags
 }
@@ -2846,7 +2991,7 @@ module "cloudtrail_athena" {
   source       = "../cloudtrail-athena"
   name         = local.name
   trail_bucket = module.security_baseline[0].cloudtrail_bucket
-  regions      = distinct([data.aws_region.current.name, "us-east-1"])
+  regions      = distinct([data.aws_region.current.region, "us-east-1"])
   tags         = local.tags
 }
 

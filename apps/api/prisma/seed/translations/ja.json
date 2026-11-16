@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "この弁護士と案件を完了した依頼者のみレビューできます。",
   "reviews.write.saved": "レビューを投稿しました",
   "reviews.write.title": "あなたのレビュー",
+  "router.notFound.home": "ホーム",
+  "router.notFound.title": "ページが見つかりません",
   "saved.chats.empty": "保存したメッセージはありません",
   "saved.copied": "コピーしました",
   "saved.empty": "保存済みはまだありません",

@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "فقط العميل الذي أنجز قضية مع هذا المحامي يمكنه مراجعته.",
   "reviews.write.saved": "تم نشر التقييم",
   "reviews.write.title": "تقييمك",
+  "router.notFound.home": "الرئيسية",
+  "router.notFound.title": "الصفحة غير موجودة",
   "saved.chats.empty": "لا رسائل محفوظة بعد",
   "saved.copied": "تم النسخ",
   "saved.empty": "لا شيء محفوظ بعد",

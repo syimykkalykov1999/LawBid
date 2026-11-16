@@ -20337,7 +20337,7 @@
             }
           },
           "409": {
-            "description": "Conflict: FLAG_PROVIDER_KEYS_MISSING",
+            "description": "Conflict: FLAG_PROVIDER_KEYS_MISSING, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -20727,6 +20727,16 @@
           },
           "403": {
             "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -43590,6 +43600,89 @@
             }
           },
           {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^[a-z_]{1,32}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^[a-z_]{1,32}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "stateCode",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "pattern": "^[A-Za-z]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "caseId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^[a-z_]{1,16}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "X-Justification",
             "in": "header",
             "description": "Required for entity=users: why contacts are exported (10–500 chars, encodeURIComponent for non-ASCII).",
@@ -43604,7 +43697,7 @@
             "description": ""
           },
           "400": {
-            "description": "Bad request: JUSTIFICATION_REQUIRED",
+            "description": "Bad request: JUSTIFICATION_REQUIRED, VALIDATION_ERROR",
             "content": {
               "text/csv": {
                 "schema": {
@@ -56859,6 +56952,199 @@
         "summary": "Delete the obsolete «LawBid Monthly» budget (fresh 2FA step-up)",
         "tags": [
           "admin-launch"
+        ]
+      }
+    },
+    "/admin/spend/autoscale-tuning": {
+      "get": {
+        "operationId": "autoscaleTuning",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoscaleTuningReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Autoscaler numbers (SSM tuning) with labels and bounds",
+        "tags": [
+          "admin-spend"
+        ]
+      }
+    },
+    "/admin/spend/autoscale-tuning/{target}": {
+      "put": {
+        "operationId": "updateAutoscaleTuning",
+        "parameters": [
+          {
+            "name": "target",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAutoscaleTuningDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoscaleTuningReportEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change autoscaler numbers (needs step-up)",
+        "tags": [
+          "admin-spend"
         ]
       }
     },
@@ -100163,9 +100449,9 @@
           },
           {
             "name": "Idempotency-Key",
+            "required": true,
             "in": "header",
             "description": "Required: a retry returns the first refund, never a second.",
-            "required": true,
             "schema": {
               "type": "string"
             }
@@ -139486,6 +139772,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "bulkSelectCap": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 14.11 (row 179): most rows «select all by filter» collects for this admin; null = no cap (always the super admin)."
           }
         },
         "required": [
@@ -139508,7 +139799,8 @@
           "workspacesEnabled",
           "countryTabs",
           "securityQuestion",
-          "reasonRequiredAreas"
+          "reasonRequiredAreas",
+          "bulkSelectCap"
         ]
       },
       "AdminSessionDto": {
@@ -148471,6 +148763,10 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 100
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -148706,6 +149002,11 @@
           "value": {
             "type": "object",
             "description": "Validated against the key schema (type, min/max, items)."
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
           }
         },
         "required": [
@@ -166845,6 +167146,115 @@
           "name"
         ]
       },
+      "AutoscaleKnobDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "ru": {
+            "type": "string"
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "number",
+              "integer",
+              "flag"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "key",
+          "ru",
+          "min",
+          "max",
+          "kind",
+          "value"
+        ]
+      },
+      "AutoscaleTuningTargetDto": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "enum": [
+              "db",
+              "redis",
+              "endpoints",
+              "ecs",
+              "spot"
+            ],
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "knobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoscaleKnobDto"
+            }
+          }
+        },
+        "required": [
+          "target",
+          "available",
+          "knobs"
+        ]
+      },
+      "AutoscaleTuningReportDto": {
+        "type": "object",
+        "properties": {
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoscaleTuningTargetDto"
+            }
+          }
+        },
+        "required": [
+          "targets"
+        ]
+      },
+      "AutoscaleTuningReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AutoscaleTuningReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateAutoscaleTuningDto": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number",
+              "nullable": true
+            }
+          }
+        },
+        "required": [
+          "values"
+        ]
+      },
       "CostRowStatusDto": {
         "type": "object",
         "properties": {
@@ -167879,6 +168289,9 @@
           },
           "settled": {
             "type": "boolean"
+          },
+          "superseded": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -167901,7 +168314,8 @@
           "plannedAt",
           "expiresAt",
           "finishedAt",
-          "settled"
+          "settled",
+          "superseded"
         ]
       },
       "InfraSuggestionDto": {
@@ -182864,6 +183278,38 @@
           "taskUsd"
         ]
       },
+      "ServiceNowDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "api",
+              "worker",
+              "api_admin",
+              "admin",
+              "pgbouncer"
+            ],
+            "type": "string"
+          },
+          "running": {
+            "type": "number"
+          },
+          "desired": {
+            "type": "number"
+          },
+          "spot": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Runs on Fargate Spot (null = the service does not say)."
+          }
+        },
+        "required": [
+          "kind",
+          "running",
+          "desired",
+          "spot"
+        ]
+      },
       "ContainersDto": {
         "type": "object",
         "properties": {
@@ -182884,12 +183330,20 @@
               "normal"
             ],
             "type": "string"
+          },
+          "services": {
+            "description": "Every ECS service the API can read now (empty off AWS), from the same cached report.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceNowDto"
+            }
           }
         },
         "required": [
           "onAws",
           "api",
-          "worker"
+          "worker",
+          "services"
         ]
       },
       "TierRowDto": {
@@ -182956,9 +183410,24 @@
             "nullable": true,
             "description": "Monthly price of that disk (gp3), USD."
           },
+          "dbMultiAz": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "The database has a standby in a second zone (Multi-AZ)."
+          },
+          "replicaCount": {
+            "type": "number",
+            "nullable": true,
+            "description": "Read copies of the database that report load now."
+          },
           "redisClass": {
             "type": "string",
             "nullable": true
+          },
+          "redisNodes": {
+            "type": "number",
+            "nullable": true,
+            "description": "Redis nodes in the group (primary + standbys)."
           },
           "redisNext": {
             "type": "string",

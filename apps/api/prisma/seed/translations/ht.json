@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "Sèlman yon kliyan ki fini yon ka ak avoka sa a ka evalye li.",
   "reviews.write.saved": "Avi pibliye",
   "reviews.write.title": "Avi ou",
+  "router.notFound.home": "Akèy",
+  "router.notFound.title": "Paj la pa jwenn",
   "saved.chats.empty": "Pa gen mesaj anrejistre ankò",
   "saved.copied": "Kopye",
   "saved.empty": "Anyen pa anrejistre ankò",

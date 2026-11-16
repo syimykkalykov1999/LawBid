@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "ഈ അഭിഭാഷകനുമായി കേസ് പൂർത്തിയാക്കിയ ക്ലയന്റിന് മാത്രമേ അവലോകനം ചെയ്യാനാകൂ.",
   "reviews.write.saved": "റിവ്യൂ പോസ്റ്റ് ചെയ്തു",
   "reviews.write.title": "നിങ്ങളുടെ റിവ്യൂ",
+  "router.notFound.home": "ഹോം",
+  "router.notFound.title": "പേജ് കണ്ടെത്തിയില്ല",
   "saved.chats.empty": "സേവ് ചെയ്ത സന്ദേശങ്ങളില്ല",
   "saved.copied": "പകർത്തി",
   "saved.empty": "ഇതുവരെ ഒന്നും സേവ് ചെയ്തിട്ടില്ല",

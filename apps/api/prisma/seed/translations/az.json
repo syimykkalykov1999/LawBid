@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "Yalnız bu vəkillə iş tamamlamış müştəri rəy yaza bilər.",
   "reviews.write.saved": "Rəy dərc edildi",
   "reviews.write.title": "Sizin rəyiniz",
+  "router.notFound.home": "Ana səhifə",
+  "router.notFound.title": "Səhifə tapılmadı",
   "saved.chats.empty": "Hələ saxlanmış mesaj yoxdur",
   "saved.copied": "Kopyalandı",
   "saved.empty": "Hələ heç nə saxlanmayıb",

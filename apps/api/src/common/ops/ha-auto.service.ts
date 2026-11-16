@@ -26,6 +26,7 @@ import {
 import type Redis from 'ioredis';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { autoCheckMs, autoLockTtlS } from './auto-check';
 import { opsCredentials } from './ops-credentials';
 import { OpsStateService } from './ops-state.service';
 
@@ -45,8 +46,14 @@ export interface HaFacts {
   /** `ha.provision_online_users`; 0 = never add by load. */
   threshold: number;
   /** Hourly average of people online (open sockets), oldest first,
-   * null = no data in that hour. */
+   * null = no data in that hour. With ha.release_minutes the points are
+   * minutes. The quiet (remove) window. */
   online: (number | null)[];
+  /** 15.11 (live tests within 10 min): the busy (add) window when it is not
+   * the last HA_HOURS hours of [online]: the last ha.provision_minutes
+   * minutes. Every point with data at or above the threshold, data for 90 %
+   * of them. */
+  onlineUp?: (number | null)[];
   nowMs: number;
   db: { multiAz: boolean; available: boolean; pending: boolean } | null;
   redis: {
@@ -64,6 +71,13 @@ export interface HaFacts {
    * (prod 08.11). Busy = add the copies first, whatever the online count.
    */
   pressure?: { db: boolean; redis: boolean };
+  /** Owner 14.11: the opposite-direction guard (ha.flip_guard_minutes);
+   * default HA_FLIP_MS (24 h). */
+  flipMs?: number;
+  /** Owner 14.11: points of quiet data needed to remove the copies when
+   * ha.release_minutes is set (minutes since 15.11); default more than
+   * HA_HOURS. */
+  minQuietHours?: number;
   /**
    * G10 (2026-11-08): money. `limited` = the economy guard is in its
    * «limited» state (projected third-party spend over the allowance);
@@ -103,6 +117,27 @@ export const HA_HOURS = 3;
 export const HA_FLIP_MS = 24 * 3600_000;
 /** Share of the quiet window that must have data before copies are removed. */
 const MIN_DATA = 0.9;
+/** 15.11: a minute window longer than one day reads hourly points (one
+ * CloudWatch call returns at most 1440 points). */
+const MINUTE_POINTS_MAX = 1440;
+/** The newest minutes CloudWatch may still be filling (one sample per task
+ * per minute arrives with a short delay). */
+const MINUTE_LAG_MS = 2 * 60_000;
+
+/** 15.11: which points a window reads: minutes when a minute setting is
+ * above 0 and at most one day, else full hours. */
+export interface HaWindow {
+  points: number;
+  periodS: 60 | 3600;
+}
+
+export function haWindow(defaultMinutes: number, minutes: number): HaWindow {
+  if (minutes > 0 && minutes <= MINUTE_POINTS_MAX) {
+    return { points: Math.ceil(minutes), periodS: 60 };
+  }
+  const m = minutes > 0 ? minutes : defaultMinutes;
+  return { points: Math.max(1, Math.ceil(m / 60)), periodS: 3600 };
+}
 
 /** What the load says: add, remove or leave as is. Pure. */
 export function wantedHa(f: HaFacts): Dir | null {
@@ -110,16 +145,27 @@ export function wantedHa(f: HaFacts): Dir | null {
   if (f.mode === 'on') return 'up';
   if (f.pressure?.db || f.pressure?.redis) return 'up';
   if (f.threshold <= 0) return null;
-  const last = f.online.slice(-HA_HOURS);
-  if (
-    last.length === HA_HOURS &&
-    last.every((v) => v !== null && v >= f.threshold)
-  ) {
-    return 'up';
+  if (f.onlineUp) {
+    const up = f.onlineUp.filter((v): v is number => v !== null);
+    if (
+      f.onlineUp.length > 0 &&
+      up.length >= f.onlineUp.length * MIN_DATA &&
+      up.every((v) => v >= f.threshold)
+    ) {
+      return 'up';
+    }
+  } else {
+    const last = f.online.slice(-HA_HOURS);
+    if (
+      last.length === HA_HOURS &&
+      last.every((v) => v !== null && v >= f.threshold)
+    ) {
+      return 'up';
+    }
   }
   const have = f.online.filter((v): v is number => v !== null);
   if (
-    f.online.length > HA_HOURS &&
+    f.online.length >= (f.minQuietHours ?? HA_HOURS + 1) &&
     have.length >= f.online.length * MIN_DATA &&
     have.every((v) => v < f.threshold / 2)
   ) {
@@ -150,7 +196,7 @@ function decideHaSteps(f: HaFacts): HaAction[] {
   // group is never left with a paid node and failover off (or the reverse).
   const unfinished = (r: 'db' | 'redis'): Dir | null => {
     const l = f.last[r];
-    return l && f.nowMs - l.atMs < HA_FLIP_MS ? l.dir : null;
+    return l && f.nowMs - l.atMs < (f.flipMs ?? HA_FLIP_MS) ? l.dir : null;
   };
   const out: HaAction[] = [];
   const db = f.db;
@@ -162,7 +208,7 @@ function decideHaSteps(f: HaFacts): HaAction[] {
   const free = (r: 'db' | 'redis', want: Dir): boolean => {
     const l = f.last[r];
     if (want === 'up' && busy) return true;
-    return !l || l.dir === want || f.nowMs - l.atMs >= HA_FLIP_MS;
+    return !l || l.dir === want || f.nowMs - l.atMs >= (f.flipMs ?? HA_FLIP_MS);
   };
   if (dbWant && db && db.available && !db.pending && free('db', dbWant)) {
     if (dbWant === 'up' && !db.multiAz) out.push('db_multi_az_on');
@@ -183,9 +229,7 @@ function decideHaSteps(f: HaFacts): HaAction[] {
   return out;
 }
 
-const CHECK_MS = 10 * 60_000;
 const LOCK_KEY = 'ops:ha-auto:lock';
-const LOCK_TTL_S = 9 * 60;
 const LAST_PREFIX = 'ops:ha-auto:last:';
 const LAST_TTL_S = 60 * 24 * 3600;
 
@@ -206,10 +250,11 @@ const dirOf = (a: HaAction): Dir =>
  *
  * Admin → Настройки: `ha.mode` (off | on | auto, default auto),
  * `ha.provision_online_users` (default 200), `ha.release_days` (default 7).
- * One API task per 10 minutes (Redis lock) reads the number of open sockets
- * (`LawBid/Runtime` OpenSockets, one sample per task per minute). Added
- * after 3 full hours at or above the threshold; removed after
- * `ha.release_days` days all under half of it. See [decideHa] for the
+ * One API task per `infra.auto_check_minutes` (default 10; Redis lock)
+ * reads the number of open sockets (`LawBid/Runtime` OpenSockets, one
+ * sample per task per minute). Added after 3 full hours (or
+ * `ha.provision_minutes` minutes) at or above the threshold; removed after
+ * `ha.release_days` days (or `ha.release_minutes`) all under half of it. See [decideHa] for the
  * guards. Needs the task's IAM rights (rds:ModifyDBInstance and
  * elasticache:IncreaseReplicaCount / DecreaseReplicaCount /
  * ModifyReplicationGroup). The autoscalers of the database size and of Redis
@@ -248,17 +293,34 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     if (!this.env('OPS_DB_INSTANCE') && !this.env('OPS_REDIS_GROUP')) return;
-    const tick = () =>
-      void this.check().catch((e: Error) =>
+    // 15.11: the pause between passes is infra.auto_check_minutes, read
+    // after every pass (a setTimeout chain instead of a fixed interval).
+    const loop = async () => {
+      await this.check().catch((e: Error) =>
         this.log.warn(`ha-auto pass failed: ${e.message}`),
       );
-    setTimeout(tick, 90_000 + Math.floor(Math.random() * 30_000)).unref();
-    this.timer = setInterval(tick, CHECK_MS);
+      this.schedule(loop, await this.checkMs());
+    };
+    this.schedule(loop, 90_000 + Math.floor(Math.random() * 30_000));
+  }
+
+  private stopped = false;
+  private schedule(fn: () => Promise<void>, ms: number): void {
+    if (this.stopped) return;
+    this.timer = setTimeout(() => void fn(), ms);
     this.timer.unref();
   }
 
+  /** 15.11: infra.auto_check_minutes (default 10). */
+  async checkMs(): Promise<number> {
+    return autoCheckMs(
+      await this.settings?.number('infra.auto_check_minutes').catch(() => 0),
+    );
+  }
+
   onModuleDestroy(): void {
-    if (this.timer) clearInterval(this.timer);
+    this.stopped = true;
+    if (this.timer) clearTimeout(this.timer);
   }
 
   /** One pass; returns what it did (for tests and the logs). */
@@ -268,12 +330,27 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       (await this.settings?.string('ha.mode').catch(() => 'off')) ?? 'off';
     const mode = raw.trim().toLowerCase();
     if (mode !== 'on' && mode !== 'auto') return [];
-    const num = async (k: 'ha.provision_online_users' | 'ha.release_days') =>
-      (await this.settings?.number(k).catch(() => 0)) ?? 0;
+    const num = async (
+      k:
+        | 'ha.provision_online_users'
+        | 'ha.provision_minutes'
+        | 'ha.release_days'
+        | 'ha.release_minutes'
+        | 'ha.flip_guard_minutes',
+    ) => (await this.settings?.number(k).catch(() => 0)) ?? 0;
     const threshold = await num('ha.provision_online_users');
-    const days = Math.min(30, Math.max(1, (await num('ha.release_days')) || 7));
+    // Owner 14.11 («no limits»): no 30-day ceiling; floor 1 day.
+    const days = Math.max(1, (await num('ha.release_days')) || 7);
+    // Owner 14.11: waits in minutes for live tests (0 = the days / 24 h).
+    const releaseMinutes = Math.max(0, await num('ha.release_minutes'));
+    // 15.11 (live tests within 10 min): the busy window in minutes
+    // (0 = the 3 full hours of before).
+    const provisionMinutes = Math.max(0, await num('ha.provision_minutes'));
+    const down = haWindow(days * 24 * 60, releaseMinutes);
+    const up = haWindow(HA_HOURS * 60, provisionMinutes);
+    const flipMinutes = Math.max(0, await num('ha.flip_guard_minutes'));
     const got = await this.redis
-      ?.set(LOCK_KEY, '1', 'EX', LOCK_TTL_S, 'NX')
+      ?.set(LOCK_KEY, '1', 'EX', autoLockTtlS(await this.checkMs()), 'NX')
       .catch(() => null);
     if (!got) return [];
     const nowMs = Date.now();
@@ -289,9 +366,12 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
         return fb;
       }
     };
-    const [online, db, redis, dbBusy, redisBusy] = await Promise.all([
+    const [online, onlineUp, db, redis, dbBusy, redisBusy] = await Promise.all([
       soft('online users', [] as (number | null)[], () =>
-        this.onlineByHour(days * 24, nowMs),
+        this.onlineSeries(down, nowMs),
+      ),
+      soft('online users (busy window)', [] as (number | null)[], () =>
+        this.onlineSeries(up, nowMs),
       ),
       soft('database', null as HaFacts['db'], () => this.dbFacts()),
       soft('redis', null as HaFacts['redis'], () => this.redisFacts()),
@@ -302,10 +382,13 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       mode: mode === 'on' ? 'on' : 'auto',
       threshold,
       online,
+      onlineUp,
       nowMs,
       db,
       redis,
       pressure: { db: dbBusy, redis: redisBusy },
+      ...(releaseMinutes > 0 ? { minQuietHours: down.points } : {}),
+      ...(flipMinutes > 0 ? { flipMs: flipMinutes * 60_000 } : {}),
       money: await soft('money', undefined as HaFacts['money'], () =>
         this.money(),
       ),
@@ -367,31 +450,35 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
     return m ? { dir: m[1] as Dir, atMs: Number(m[2]) } : undefined;
   }
 
-  /** People online per full hour, oldest first; null = hour without data. */
-  private async onlineByHour(
-    hours: number,
-    nowMs: number,
-  ): Promise<(number | null)[]> {
-    const endMs = Math.floor(nowMs / 3_600_000) * 3_600_000;
+  /** People online per point (full hour or full minute), oldest first;
+   * null = a point without data. */
+  async onlineSeries(w: HaWindow, nowMs: number): Promise<(number | null)[]> {
+    const stepMs = w.periodS * 1000;
+    const endMs =
+      w.periodS === 60
+        ? Math.floor((nowMs - MINUTE_LAG_MS) / stepMs) * stepMs
+        : Math.floor(nowMs / stepMs) * stepMs;
+    const startMs = endMs - w.points * stepMs;
     const r = await this.cwClient().send(
       new GetMetricStatisticsCommand({
         Namespace: 'LawBid/Runtime',
         MetricName: 'OpenSockets',
         Dimensions: [{ Name: 'Service', Value: 'api' }],
-        StartTime: new Date(endMs - hours * 3_600_000),
+        StartTime: new Date(startMs),
         EndTime: new Date(endMs),
-        Period: 3600,
+        Period: w.periodS,
         Statistics: ['Sum'],
       }),
     );
-    const out: (number | null)[] = new Array<number | null>(hours).fill(null);
+    const out: (number | null)[] = new Array<number | null>(w.points).fill(
+      null,
+    );
+    // One sample per api task per minute: Sum / minutes in the point =
+    // people online.
+    const perPoint = w.periodS / 60;
     for (const d of r.Datapoints ?? []) {
-      const i = Math.floor(
-        ((d.Timestamp?.getTime() ?? 0) - (endMs - hours * 3_600_000)) /
-          3_600_000,
-      );
-      // One sample per api task per minute: Sum / 60 = people online.
-      if (i >= 0 && i < hours) out[i] = (d.Sum ?? 0) / 60;
+      const i = Math.floor(((d.Timestamp?.getTime() ?? 0) - startMs) / stepMs);
+      if (i >= 0 && i < w.points) out[i] = (d.Sum ?? 0) / perPoint;
     }
     return out;
   }

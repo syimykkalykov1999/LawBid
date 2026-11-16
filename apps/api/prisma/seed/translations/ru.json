@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "Отзыв об адвокате может оставить только клиент, который завершил с ним дело.",
   "reviews.write.saved": "Отзыв опубликован",
   "reviews.write.title": "Ваш отзыв",
+  "router.notFound.home": "На главную",
+  "router.notFound.title": "Страница не найдена",
   "saved.chats.empty": "Сохранённых сообщений пока нет",
   "saved.copied": "Скопировано",
   "saved.empty": "Пока ничего не сохранено",

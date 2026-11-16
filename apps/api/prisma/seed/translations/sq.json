@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "Vetëm një klient që ka përfunduar një rast me këtë avokat mund ta vlerësojë.",
   "reviews.write.saved": "Vlerësimi u postua",
   "reviews.write.title": "Vlerësimi juaj",
+  "router.notFound.home": "Kreu",
+  "router.notFound.title": "Faqja nuk u gjet",
   "saved.chats.empty": "Ende pa mesazhe të ruajtura",
   "saved.copied": "U kopjua",
   "saved.empty": "Ende asgjë e ruajtur",

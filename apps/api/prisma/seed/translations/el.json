@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "Μόνο πελάτης που ολοκλήρωσε υπόθεση με αυτόν τον δικηγόρο μπορεί να τον αξιολογήσει.",
   "reviews.write.saved": "Η αξιολόγηση δημοσιεύτηκε",
   "reviews.write.title": "Η αξιολόγησή σας",
+  "router.notFound.home": "Αρχική",
+  "router.notFound.title": "Η σελίδα δεν βρέθηκε",
   "saved.chats.empty": "Δεν υπάρχουν αποθηκευμένα μηνύματα",
   "saved.copied": "Αντιγράφηκε",
   "saved.empty": "Δεν υπάρχει τίποτα αποθηκευμένο",

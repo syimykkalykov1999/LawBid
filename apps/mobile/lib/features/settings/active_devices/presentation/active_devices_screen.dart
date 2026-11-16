@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/presentation/widgets/passkeys_section.dart';
@@ -161,9 +162,8 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
           semanticLabel: t.t('common.back'),
           // R2-A #2: alone on the stack (a link, a web refresh), back
           // leads to Settings.
-          onPressed: () => context.canPop()
-              ? context.pop()
-              : context.go(AppRoutes.profileSettings),
+          onPressed: () =>
+              context.safeBack(fallback: AppRoutes.profileSettings),
         ),
       ),
       body: AnimatedSwitcher(

@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "Само клиент, който е приключил дело с този адвокат, може да му остави отзив.",
   "reviews.write.saved": "Отзивът е публикуван",
   "reviews.write.title": "Вашият отзив",
+  "router.notFound.home": "Начало",
+  "router.notFound.title": "Страницата не е намерена",
   "saved.chats.empty": "Още няма запазени съобщения",
   "saved.copied": "Копирано",
   "saved.empty": "Още няма запазено",

@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "Klijent biss li lesta każ ma' dan l-avukat jista' jagħmel reviżjoni.",
   "reviews.write.saved": "Reviżjoni ppubblikata",
   "reviews.write.title": "Ir-reviżjoni tiegħek",
+  "router.notFound.home": "Paġna ewlenija",
+  "router.notFound.title": "Il-paġna ma nstabitx",
   "saved.chats.empty": "Għad m'hemm l-ebda messaġġ salvat",
   "saved.copied": "Ikkupjat",
   "saved.empty": "Għadu ma ġie salvat xejn",

@@ -101,7 +101,10 @@ export function budgetTone(pct: number | null): Tone {
 
 export function money(n: number | null | undefined): string {
   if (n == null) return "нет данных";
-  return `$${n.toLocaleString("ru-RU", { maximumFractionDigits: 2, minimumFractionDigits: n % 1 === 0 ? 0 : 2 })}`;
+  // Row 176: a loss reads «−$12», not «$-12» (Stripe Dashboard style).
+  const abs = Math.abs(n);
+  const text = `$${abs.toLocaleString("ru-RU", { maximumFractionDigits: 2, minimumFractionDigits: abs % 1 === 0 ? 0 : 2 })}`;
+  return n < 0 && Math.round(abs * 100) > 0 ? `−${text}` : text;
 }
 
 export const VENDOR_STATUS: Record<string, { tone: Tone; label: string }> = {

@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "เฉพาะลูกความที่ทำคดีเสร็จกับทนายความคนนี้เท่านั้นที่รีวิวได้",
   "reviews.write.saved": "โพสต์รีวิวแล้ว",
   "reviews.write.title": "รีวิวของคุณ",
+  "router.notFound.home": "หน้าแรก",
+  "router.notFound.title": "ไม่พบหน้า",
   "saved.chats.empty": "ยังไม่มีข้อความที่บันทึก",
   "saved.copied": "คัดลอกแล้ว",
   "saved.empty": "ยังไม่มีที่บันทึก",

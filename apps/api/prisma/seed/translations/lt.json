@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "Atsiliepimą gali palikti tik klientas, užbaigęs bylą su šiuo advokatu.",
   "reviews.write.saved": "Atsiliepimas paskelbtas",
   "reviews.write.title": "Jūsų atsiliepimas",
+  "router.notFound.home": "Pradžia",
+  "router.notFound.title": "Puslapis nerastas",
   "saved.chats.empty": "Išsaugotų žinučių dar nėra",
   "saved.copied": "Nukopijuota",
   "saved.empty": "Dar nieko neišsaugota",

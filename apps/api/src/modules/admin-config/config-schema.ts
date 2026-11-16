@@ -106,8 +106,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     defaultValue: 800,
     description:
       'The search engine answers slower than this, milliseconds: the search falls back to Postgres for that request.',
-    min: 100,
-    max: 5000,
+    min: 1,
   };
   // Owner row 112: «Обычно отвечает за …» (nightly profiles.reply-time).
   out['profile.reply_time_window_days'] = {
@@ -131,8 +130,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     defaultValue: 5000,
     description:
       'Search engine service calls (index layout, counts, index creation, task status): how long one try waits, milliseconds. User searches use search.engine_timeout_ms.',
-    min: 500,
-    max: 120_000,
+    min: 1,
   };
   out['search.engine_max_retries'] = {
     type: 'integer',
@@ -140,7 +138,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Search engine: extra tries after a timeout or a dropped connection (reads and bulk writes only, never reindex). 0 = no retry.',
     min: 0,
-    max: 10,
   };
   out['search.reindex_keep_days'] = {
     type: 'integer',
@@ -148,7 +145,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'After a search reindex, the old index is kept this many days so you can roll back, then deleted.',
     min: 1,
-    max: 60,
   };
   out['events.sink'] = {
     type: 'string',
@@ -162,23 +158,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     defaultValue: 1000000,
     description:
       'Hard ceiling: events recorded per day at most, in every mode; past it the rest of the day records nothing.',
-    min: 1000,
-    max: 2000000000,
+    min: 1,
   };
   out['events.retention_days'] = {
     type: 'integer',
     defaultValue: 30,
     description: 'Recorded events are deleted after this many days.',
     min: 1,
-    max: 365,
   };
   out['events.auto_ceiling_per_day'] = {
     type: 'integer',
     defaultValue: 2000000,
     description:
       'In auto mode: when events per day pass this number the stream is used instead of only the database.',
-    min: 1000,
-    max: 2000000000,
+    min: 1,
   };
   out['search.reindex_throttle_ms'] = {
     type: 'integer',
@@ -186,7 +179,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'A search reindex pauses this many milliseconds between batches of 500 documents, so it does not slow the database.',
     min: 0,
-    max: 5000,
   };
   out['calls.video_provider'] = {
     type: 'string',
@@ -639,9 +631,31 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'infra.mode.rds_replicas_5',
     'infra.mode.db_shards_2',
     'infra.mode.db_shards_3',
+    'infra.mode.db_shards_4',
+    'infra.mode.db_shards_5',
+    'infra.mode.db_shards_6',
+    'infra.mode.db_shards_7',
+    'infra.mode.db_shards_8',
+    'infra.mode.db_shards_9',
+    'infra.mode.db_shards_10',
+    'infra.mode.db_shards_11',
+    'infra.mode.db_shards_12',
+    'infra.mode.db_shards_13',
+    'infra.mode.db_shards_14',
+    'infra.mode.db_shards_15',
   ]) {
     out[k] = { ...out[k], pattern: /^(off|on|auto)$/ };
   }
+  // Owner 15.11: database servers in all «Авто» may reach (owner only, 2FA:
+  // admin-config.service OWNER_ONLY_CONFIG_KEYS). 16 = the code's hard
+  // bound (infra-switches.ts DB_SERVERS_HARD_MAX).
+  out['db.max_servers'] = {
+    ...out['db.max_servers'],
+    description:
+      'Database servers in all (the primary plus the extra servers of the split) that the cloud automation may reach: it adds the fifth, sixth and further server only up to this number (1–16; default 4).',
+    min: 1,
+    max: 16,
+  };
   out['db.shards_move_hours'] = {
     ...out['db.shards_move_hours'],
     // Same rule as infra.quiet_hours (infra-change.logic QUIET_HOURS_PATTERN).
@@ -672,12 +686,28 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['ha.provision_online_users'] = {
     ...out['ha.provision_online_users'],
     min: 0,
-    max: 1_000_000,
   };
   out['ha.release_days'] = {
     ...out['ha.release_days'],
     min: 1,
-    max: 30,
+  };
+  out['ha.provision_minutes'] = {
+    ...out['ha.provision_minutes'],
+    description:
+      'Busy minutes (every minute at or above ha.provision_online_users) before the copies are added, instead of 3 full hours when above 0 (live tests). 0 = 3 hours.',
+    min: 0,
+  };
+  out['ha.release_minutes'] = {
+    ...out['ha.release_minutes'],
+    description:
+      'Quiet minutes before the copies are removed, instead of ha.release_days when above 0 (live tests; minute data up to one day). 0 = use the days.',
+    min: 0,
+  };
+  out['ha.flip_guard_minutes'] = {
+    ...out['ha.flip_guard_minutes'],
+    description:
+      'Minutes after a step before the copies may go the other way (default 1440 = 24 h).',
+    min: 0,
   };
   // Legal-grade protection of client documents (2026-10-24).
   out['security.attorney_strong_auth'] = {
@@ -1302,8 +1332,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['search.ranked_cache_ttl_sec'],
     description:
       'Seconds a search result list is shared by everyone asking the same query (30-60 is right).',
-    min: 10,
-    max: 900,
+    min: 1,
   };
   out['usage.cloudflare_egress_warn_gb'] = {
     ...out['usage.cloudflare_egress_warn_gb'],
@@ -1341,7 +1370,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     // Owner 2026-11-12: no ceiling («потолок до бесконечности»); the owner
     // picks the value (50 while testing, then 10).
-    max: 1_000_000,
   };
   out['infra.quiet_hours'] = {
     type: 'string',
@@ -1361,17 +1389,36 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['infra.auto_on_minutes'] = {
     type: 'integer',
     defaultValue: 30,
-    description: 'Minutes a signal must hold before an item is switched on.',
-    min: 10,
-    max: 1440,
+    description:
+      'Minutes a signal must hold before an item is switched on (the automation looks every cycle).',
+    min: 1,
   };
   out['infra.auto_off_hours'] = {
     type: 'integer',
     defaultValue: 72,
     description:
-      'Hours without the signal before an item the automation switched on is switched off again.',
-    min: 6,
-    max: 720,
+      'Hours without the signal before an item the automation switched on is switched off again (infra.auto_off_minutes > 0 wins).',
+    min: 1,
+  };
+  out['infra.auto_off_minutes'] = {
+    ...out['infra.auto_off_minutes'],
+    description:
+      'Minutes without the signal before switch-off, instead of infra.auto_off_hours when above 0 (live tests). 0 = use the hours.',
+    min: 0,
+  };
+  out['infra.auto_check_minutes'] = {
+    type: 'integer',
+    defaultValue: 10,
+    description:
+      'How often, in minutes, the cloud automation and the HA copies look at the signals (one cycle; default 10, 1 for a live test). Every wait above counts in these cycles.',
+    min: 1,
+  };
+  out['infra.autoscale_code_retry_hours'] = {
+    type: 'integer',
+    defaultValue: 6,
+    description:
+      'Hours before «Авто» asks again to update the autoscale functions’ code for the same code versions (after a failed or no-op update).',
+    min: 1,
   };
   out['infra.auto_max_usd_month'] = {
     type: 'integer',
@@ -1379,7 +1426,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'An automatic switch-on that may cost more than this a month is not made (stays a proposal).',
     min: 0,
-    max: 5000,
   };
   // Owner 2026-10-27: admin «Продвижение» (static SEO pages + channel list).
   // Switched on the «Продвижение» page; the generator reads them from GET
@@ -1529,21 +1575,18 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Stripe card fee, percent of each charge, subtracted on the profit and economy pages (2.9).',
     min: 0,
-    max: 20,
   };
   out['economy.stripe_fee_fixed_cents'] = {
     ...out['economy.stripe_fee_fixed_cents'],
     description:
       'Stripe card fee, fixed cents per charge, subtracted on the profit and economy pages (30).',
     min: 0,
-    max: 500,
   };
   out['economy.max_spend_percent'] = {
     ...out['economy.max_spend_percent'],
     description:
       'Third-party services may cost at most this percent of the last 30 days’ revenue (admin: Экономика).',
     min: 1,
-    max: 100,
   };
   out['ranking.events_mode'] = {
     ...out['ranking.events_mode'],
@@ -1646,13 +1689,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['queues.push_rate_per_sec'],
     description:
       'Push sends per second for the whole system (FCM project quota is 10 000/s).',
-    min: 50,
-    max: 10_000,
+    min: 1,
   };
   out['economy.aws_cap_usd'] = {
     ...out['economy.aws_cap_usd'],
     min: 0,
-    max: 1_000_000,
   };
   for (const key of ['economy.manual_api_max', 'economy.manual_worker_max']) {
     out[key] = { ...out[key], min: 1, max: 1000 };
@@ -1716,6 +1757,25 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Revealing a private message needs a 2FA code entered within this many seconds (30–300).',
     min: 30,
     max: 300,
+  };
+  out['admin.step_up_ttl_seconds'] = {
+    ...out['admin.step_up_ttl_seconds'],
+    description:
+      'How long one 2FA code covers money and other protected actions in the same session, seconds (owner only, needs a fresh 2FA code).',
+    min: 30,
+    max: 86_400,
+  };
+  out['admin.bulk_select_cap'] = {
+    ...out['admin.bulk_select_cap'],
+    description:
+      'Most rows a staff «select all by filter» collects (0 = no cap). The owner never has a cap.',
+    min: 0,
+  };
+  out['admin.report_timezone'] = {
+    ...out['admin.report_timezone'],
+    description:
+      'Time zone the admin days are cut in (today, with-deadline, staff KPI days): an IANA name such as America/Los_Angeles or Europe/Moscow.',
+    pattern: /^(UTC|[A-Z][A-Za-z_]+(\/[A-Za-z0-9_+-]+){1,2})$/,
   };
   out['admin.audit_export_enabled'] = {
     ...out['admin.audit_export_enabled'],
@@ -1785,15 +1845,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['growth.shard_db_gb'],
     description:
       'Primary database size (GB) at which the health card says it is time to prepare a second database (yellow from 80%, red at 100%). A signal only: nothing is moved by itself.',
-    min: 10,
-    max: 100_000,
+    min: 1,
   };
   out['growth.shard_rows'] = {
     ...out['growth.shard_rows'],
     description:
       'Estimated rows of the sharded-family tables at which the health card says it is time to prepare a second database (yellow from 80%, red at 100%). A signal only.',
-    min: 1_000_000,
-    max: 100_000_000_000,
+    min: 1,
   };
   out['partition.post_view_events_mode'] = {
     ...out['partition.post_view_events_mode'],
@@ -1806,35 +1864,36 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'People at which the cloud automation switches the search engine (OpenSearch) on; it goes off again below 80 % of it (default 5 million).',
     min: 1,
-    max: 1_000_000_000,
   };
   out['infra.waf_attack_blocked_per_5m'] = {
     ...out['infra.waf_attack_blocked_per_5m'],
     description:
       'Requests the load-balancer WAF blocked in 5 minutes that count as an attack: WAF Bot Control and the extra WAF rules on «Авто» switch on in block mode; they go off again after infra.waf_calm_off_hours below half of it (default 1000).',
     min: 1,
-    max: 100_000_000,
   };
   out['infra.waf_attack_auth_failed_per_5m'] = {
     ...out['infra.waf_attack_auth_failed_per_5m'],
     description:
       'Failed sign-ins in 5 minutes that count as an attack (same switch-on as the WAF line; off again after infra.waf_calm_off_hours below half of it) (default 50).',
     min: 1,
-    max: 10_000_000,
   };
   out['infra.waf_attack_on_minutes'] = {
     ...out['infra.waf_attack_on_minutes'],
     description:
       'Minutes the WAF attack signal must hold before WAF Bot Control and the extra WAF rules on «Авто» switch on in block mode (default 5; the automation looks every 10 minutes).',
     min: 1,
-    max: 1440,
   };
   out['infra.waf_calm_off_hours'] = {
     ...out['infra.waf_calm_off_hours'],
     description:
-      'Hours of calm (below half of both attack lines) before the WAF protections the automation switched on go off again (default 3).',
+      'Hours of calm (below half of both attack lines) before the WAF protections the automation switched on go off again (default 3; infra.waf_calm_off_minutes > 0 wins).',
     min: 1,
-    max: 720,
+  };
+  out['infra.waf_calm_off_minutes'] = {
+    ...out['infra.waf_calm_off_minutes'],
+    description:
+      'Minutes of calm before the WAF protections go off, instead of infra.waf_calm_off_hours when above 0. 0 = use the hours.',
+    min: 0,
   };
   out['economy.db_cpu_limit_percent'] = {
     ...out['economy.db_cpu_limit_percent'],
@@ -1843,12 +1902,18 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 100,
   };
+  out['infra.replica_cpu_limit_percent'] = {
+    ...out['infra.replica_cpu_limit_percent'],
+    description:
+      'Read copies CPU % (average): above it «Авто» adds copy 2..5, below half of it the last extra copy goes. 0 = same as economy.db_cpu_limit_percent (default).',
+    min: 0,
+    max: 100,
+  };
   out['partition.auto_rows'] = {
     ...out['partition.auto_rows'],
     description:
       'Rows at which the «auto» partition mode converts a table (default 50 million).',
-    min: 1_000_000,
-    max: 5_000_000_000,
+    min: 1,
   };
   out['sms.allowed_country_codes'] = {
     type: 'string[]',
@@ -1881,6 +1946,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['media.chat_photo_quality'],
     description: 'JPEG quality (50–100) of a photo sent in a chat.',
     min: 50,
+    max: 100,
+  };
+  out['media.picked_image_read_x'] = {
+    ...out['media.picked_image_read_x'],
+    description:
+      'A photo picked from Files above the file limit is read and shrunk only up to this many times the limit (0 = no cap).',
+    min: 0,
     max: 100,
   };
   // Owner row 42: the bitrate ladder of the phone's video re-encode; the
@@ -1989,8 +2061,53 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     max: 10_000,
   };
   moderationTuning(out);
+  // Owner 14.11 «remove ALL limits for me»: the «Авто» numbers keep only
+  // their technical floor (set above) and no ceiling — also not the one the
+  // generic inference gives every number.
+  for (const k of NO_CEILING) {
+    if (out[k]) out[k] = { ...out[k], max: undefined };
+  }
   return out;
 }
+
+/** Owner 14.11: «Авто» numbers without a ceiling (config-schema.no-limits.spec). */
+export const NO_CEILING: readonly string[] = [
+  'search.engine_timeout_ms',
+  'search.engine_request_timeout_ms',
+  'search.engine_max_retries',
+  'search.reindex_keep_days',
+  'events.max_per_day',
+  'events.retention_days',
+  'events.auto_ceiling_per_day',
+  'search.reindex_throttle_ms',
+  'ha.provision_online_users',
+  'ha.provision_minutes',
+  'ha.release_days',
+  'ha.release_minutes',
+  'ha.flip_guard_minutes',
+  'search.ranked_cache_ttl_sec',
+  'infra.daily_cap',
+  'infra.auto_on_minutes',
+  'infra.auto_off_hours',
+  'infra.auto_off_minutes',
+  'infra.auto_check_minutes',
+  'infra.auto_max_usd_month',
+  'infra.autoscale_code_retry_hours',
+  'economy.stripe_fee_percent',
+  'economy.stripe_fee_fixed_cents',
+  'economy.max_spend_percent',
+  'queues.push_rate_per_sec',
+  'economy.aws_cap_usd',
+  'growth.shard_db_gb',
+  'growth.shard_rows',
+  'infra.search_engine_on_people',
+  'infra.waf_attack_blocked_per_5m',
+  'infra.waf_attack_auth_failed_per_5m',
+  'infra.waf_attack_on_minutes',
+  'infra.waf_calm_off_hours',
+  'infra.waf_calm_off_minutes',
+  'partition.auto_rows',
+];
 
 /** Owner 2026-10-27: scores take decimals, modes take fixed words,
  * classifier confidences stay within 0–1. */

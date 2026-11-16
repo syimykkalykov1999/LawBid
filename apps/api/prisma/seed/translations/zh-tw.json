@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "只有與這位律師完成過案件的客戶才能評價。",
   "reviews.write.saved": "評價已釋出",
   "reviews.write.title": "您的評價",
+  "router.notFound.home": "首頁",
+  "router.notFound.title": "找不到頁面",
   "saved.chats.empty": "尚無收藏的訊息",
   "saved.copied": "已複製",
   "saved.empty": "尚無收藏",

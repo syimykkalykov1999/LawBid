@@ -5265,6 +5265,8 @@
   "reviews.write.onlyAfterCase": "Nur ein Mandant, der einen Fall mit diesem Anwalt abgeschlossen hat, kann ihn bewerten.",
   "reviews.write.saved": "Bewertung veröffentlicht",
   "reviews.write.title": "Ihre Bewertung",
+  "router.notFound.home": "Startseite",
+  "router.notFound.title": "Seite nicht gefunden",
   "saved.chats.empty": "Noch keine gespeicherten Nachrichten",
   "saved.copied": "Kopiert",
   "saved.empty": "Noch nichts gespeichert",
