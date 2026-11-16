@@ -181,11 +181,11 @@ describe('InfraAutoService (dry run with fakes)', () => {
     );
   });
 
-  it('13.11 replay: the pooler «Авто» switched on is NOT switched off while the tasks use it', async () => {
-    // Prod 13.11 21:33 UTC: aws.pgbouncer on (switched on by itself), the
-    // api tasks connect through it (DB_POOLER_HOST, DB_POOL_SIZE 10), no
-    // pressure. poolSmall is false with a pooler, so the old KEEP_ON saw no
-    // need and requested «on -> off» after infra.auto_off_hours.
+  it('16.11: the pooler «Авто» switched on goes off by itself after the calm hold, even while the tasks use it (the drain moves them first)', async () => {
+    // Owner 16.11 («не жрали деньги за пустоту»): zero users, the tasks
+    // connect through the pooler, no pressure. infra-apply drains the
+    // services to the direct database before it removes the pooler
+    // (KNOWN_ERRORS 182), so «Авто» may ask for it now.
     const { svc, infra, store } = make({
       env: {
         DB_POOLER_HOST: 'pgbouncer.lawbid-prod.internal',
@@ -196,8 +196,11 @@ describe('InfraAutoService (dry run with fakes)', () => {
     });
     expect((await svc.check(T0)).started).toBeNull();
     store.delete('ops:infra-auto:lock');
-    expect((await svc.check(later(73 * 60))).started).toBeNull();
-    expect(infra.create).not.toHaveBeenCalled();
+    expect((await svc.check(later(73 * 60))).started).toMatchObject({
+      id: 'aws.pgbouncer',
+      to: 'off',
+    });
+    expect(infra.create).toHaveBeenCalled();
   });
 
   it('13.11: without a pooler in the task env (drained) the off request may start', async () => {

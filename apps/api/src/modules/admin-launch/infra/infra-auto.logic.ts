@@ -198,16 +198,13 @@ export interface AutoWant {
  * login stays on: once a table is converted the runner keeps its months.
  */
 const KEEP_ON: Readonly<Record<string, (s: AutoSignals) => boolean>> = {
-  // 13.11 outage: a dependency the running services point at is never
-  // removed by itself (drain first, like an ALB deregistration or Aurora
-  // taking a reader out of the endpoint before deleting it). The pooler
-  // removes its own signal (poolSmall is false while it runs), the same
-  // flap the cache node below avoids, and nothing drains it: every query
-  // of the tasks goes through it.
-  'aws.pgbouncer': (s) =>
-    s.pressures.includes('db_connections') ||
-    s.poolSmall === true ||
-    s.poolerLive === true,
+  // Owner 16.11 («чтобы не жрали с меня деньги за пустоту»): the pooler is
+  // kept only by real load (database connections near the limit). The old
+  // «pool below POOL_FLOOR» and «pooler is live» signals were true at zero
+  // users, so «Авто» held it on forever. Switching it off is safe now: the
+  // infra-apply drain moves the services to the direct database first
+  // (KNOWN_ERRORS 182, 184).
+  'aws.pgbouncer': (s) => s.pressures.includes('db_connections'),
   'aws.rds_replicas': (s) =>
     s.pressures.includes('db_cpu') || s.replicaReadsForced === true,
   'aws.opensearch': (s) =>
@@ -264,17 +261,6 @@ export function autoWants(
       to: live('aws.autoscale_code') === 'on' ? 'off' : 'on',
       reason:
         'На main новый код функций автомасштаба (Redis, база, точки доступа, Spot): «Авто» обновляет их само.',
-    });
-  }
-  if (
-    s.poolSmall === true &&
-    live('aws.pgbouncer') !== 'on' &&
-    !out.some((x) => x.id === 'aws.pgbouncer')
-  ) {
-    out.push({
-      id: 'aws.pgbouncer',
-      to: 'on',
-      reason: `У каждого сервера меньше ${POOL_FLOOR} соединений с базой: запросы ждут в очереди, пул соединений это снимет.`,
     });
   }
   if (s.eventsStreamWanted === true && live('aws.events_stream') !== 'on') {
