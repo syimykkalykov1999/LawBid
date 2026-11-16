@@ -204,10 +204,11 @@ export class GroupsService {
     @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
 
-  /** Owner 2026-11-16 (row 183): with the admin switch «Группы» off (the
-   * default) group chats exist for nobody — every user request is refused
-   * the way channels are with «Сообщества» off (ChannelsService
-   * .assertEnabled). The groups' data stays; the admin pages still work. */
+  /** Owner 2026-11-16 (row 183): the admin switch «Группы в чатах» (on by
+   * default, independent of «Сообщества»). Off = group chats exist for
+   * nobody — every user request is refused the way channels are with
+   * «Сообщества» off (ChannelsService.assertEnabled). The groups' data
+   * stays; the admin pages still work. */
   async assertEnabled(): Promise<void> {
     if (!(await this.enabled())) {
       throw new ForbiddenException({

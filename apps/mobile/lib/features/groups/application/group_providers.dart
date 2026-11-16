@@ -27,8 +27,9 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
-/// Owner 2026-11-16 (row 183): the admin switch «Группы» (flag `groups`,
-/// off by default), the same pattern as `channelsEnabledProvider`. Off = no
+/// Owner 2026-11-16 (row 183): the admin switch «Группы в чатах» (flag
+/// `groups`, on by default, independent of `channelsEnabledProvider`; the
+/// same pattern). Off = no
 /// group anywhere: the lists below are empty without a request, the saved
 /// copy is not shown, the group routes show nothing (GroupsGate).
 final groupsEnabledProvider = Provider<bool>(

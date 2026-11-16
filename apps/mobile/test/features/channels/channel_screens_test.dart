@@ -99,7 +99,7 @@ void main() {
         repo,
         extra: [
           groupRepositoryProvider.overrideWithValue(FakeGroupRepository([])),
-          // Row 183: the switch «Группы» is off by default.
+          // Row 183: the switch «Группы в чатах» held on.
           groupsEnabledProvider.overrideWithValue(true),
         ],
       );
@@ -120,7 +120,7 @@ void main() {
           groupRepositoryProvider.overrideWithValue(
             FakeGroupRepository([listGroup('g1'), listGroup('g2')]),
           ),
-          // Row 183: the switch «Группы» is off by default.
+          // Row 183: the switch «Группы в чатах» held on.
           groupsEnabledProvider.overrideWithValue(true),
         ],
       );
@@ -174,7 +174,7 @@ void main() {
         tester,
         const ChannelsScreen(),
         repo,
-        // Row 183: the switch «Группы» is off by default.
+        // Row 183: the switch «Группы в чатах» held on.
         extra: [groupsEnabledProvider.overrideWithValue(true)],
       );
       // Owner 2026-10-21 (inbox 34): the screen opens on «Mine».

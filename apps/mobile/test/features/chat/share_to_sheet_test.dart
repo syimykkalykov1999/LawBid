@@ -204,7 +204,7 @@ void main() {
           _group('g2', 'Read-only announcements', canPost: false),
         ]),
       ),
-      // Row 183: the switch «Группы» (off by default).
+      // Row 183: the switch «Группы в чатах» (on by default).
       groupsEnabledProvider.overrideWithValue(groups),
       channelListProvider.overrideWith((ref, key) async {
         keys.add(key);

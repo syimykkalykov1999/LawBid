@@ -113,7 +113,7 @@ void main() {
                 referralOffOverride,
                 partnerOffOverride,
                 groupRepositoryProvider.overrideWithValue(repo),
-                // Row 183: the switch «Группы» is off by default.
+                // Row 183: the switch «Группы в чатах» held on.
                 groupsEnabledProvider.overrideWithValue(true),
                 chatRepositoryProvider.overrideWithValue(_Chats()),
                 currentUserIdProvider.overrideWithValue('me'),

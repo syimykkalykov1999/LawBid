@@ -22,7 +22,7 @@ export interface FlagDef {
   retired?: boolean;
 }
 
-/** Owner 2026-11-16 (row 183): the switch «Группы» (its entry is below). */
+/** Owner 2026-11-16 (row 183): the switch «Группы в чатах» (entry below). */
 export const GROUPS_FLAG = 'groups';
 
 export const FLAG_CATALOG: readonly FlagDef[] = [
@@ -119,11 +119,12 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Channels: posts from admins to subscribers',
   },
   {
-    // Owner 2026-11-16 (row 183): group chats get their own switch like
-    // «Сообщества», OFF by default: off = no groups anywhere for users (app,
+    // Owner 2026-11-16 (row 183): chat groups (WhatsApp-style group chats)
+    // get their own switch «Группы в чатах», ON by default and independent
+    // of «Сообщества» (`channels`). Off = no groups anywhere for users (app,
     // web) and the API refuses every group request; the groups' data stays.
     key: GROUPS_FLAG,
-    enabled: false,
+    enabled: true,
     app: true,
     description: 'Group chats: create, join, messages, polls, invitations',
   },

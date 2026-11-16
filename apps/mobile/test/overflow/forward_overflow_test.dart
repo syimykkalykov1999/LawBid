@@ -105,7 +105,7 @@ void main() {
                       listGroup('g2', canPost: false),
                     ]),
                   ),
-                  // Row 183: the switch «Группы» is off by default.
+                  // Row 183: the switch «Группы в чатах» held on.
                   groupsEnabledProvider.overrideWithValue(true),
                   channelsEnabledProvider.overrideWithValue(false),
                   currentUserIdProvider.overrideWithValue('me'),

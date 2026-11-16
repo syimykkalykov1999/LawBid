@@ -4,10 +4,10 @@ import { FLAG_CATALOG, GROUPS_FLAG } from '../feature-flags/flag-catalog';
 import { GroupsService } from './groups.service';
 
 /**
- * Owner 2026-11-16 (row 183): the admin switch «Группы», like «Сообщества»
- * for channels. Off (the default) = every user request about groups is
- * refused with FEATURE_DISABLED before anything is read or written; the
- * groups' rows stay. On = the request goes on as before.
+ * Owner 2026-11-16 (row 183): the admin switch «Группы в чатах», on by
+ * default and independent of «Сообщества». Off = every user request about
+ * groups is refused with FEATURE_DISABLED before anything is read or
+ * written; the groups' rows stay. On = the request goes on as before.
  */
 const user = { sub: 'u1', role: 'client' } as never;
 
@@ -57,9 +57,9 @@ async function refused(p: Promise<unknown>): Promise<void> {
 }
 
 describe('GroupsService — the switch «Группы» (row 183)', () => {
-  it('the catalog has it, off by default and shipped to the app', () => {
+  it('the catalog has it, ON by default and shipped to the app', () => {
     const def = FLAG_CATALOG.find((f) => f.key === GROUPS_FLAG);
-    expect(def).toMatchObject({ enabled: false, app: true });
+    expect(def).toMatchObject({ enabled: true, app: true });
   });
 
   it('off: list, create, join, send, read, invites and calls are refused', async () => {

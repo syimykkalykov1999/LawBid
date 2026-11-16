@@ -23,8 +23,8 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 import '../../helpers/ux_harness.dart';
 import 'fake_group_repository.dart';
 
-/// Owner 2026-11-16 (row 183): the admin switch «Группы» (flag `groups`,
-/// off by default), the same pattern as «Сообщества» (`channels`). Off =
+/// Owner 2026-11-16 (row 183): the admin switch «Группы в чатах» (flag
+/// `groups`, on by default, independent of «Сообщества» / `channels`). Off =
 /// no group anywhere in the app and on the web: the lists are empty without
 /// a request (and the saved copy is not shown), the group routes show
 /// nothing, group notifications are left out of the bell list.
@@ -59,8 +59,8 @@ void main() {
     addTearDown(events.close);
   });
 
-  test('the flag is off by default in the compiled-in defaults', () {
-    expect(defaultFeatureFlags['groups'], isFalse);
+  test('the flag is ON by default in the compiled-in defaults', () {
+    expect(defaultFeatureFlags['groups'], isTrue);
   });
 
   test('off: my groups are empty and nothing is asked, also on refresh',

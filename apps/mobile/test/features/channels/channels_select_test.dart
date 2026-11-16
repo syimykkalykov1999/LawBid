@@ -55,7 +55,7 @@ void main() {
           groupRepositoryProvider.overrideWithValue(
             groups ?? FakeGroupRepository([listGroup('g1'), listGroup('g2')]),
           ),
-          // Row 183: the switch «Группы» is off by default.
+          // Row 183: the switch «Группы в чатах» held on.
           groupsEnabledProvider.overrideWithValue(true),
           currentUserRoleProvider.overrideWithValue(role),
         ],
