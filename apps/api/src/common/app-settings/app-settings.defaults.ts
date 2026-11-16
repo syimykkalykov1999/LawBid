@@ -2028,10 +2028,11 @@ export const OWNER_DEAL_RECORD_SETTINGS = {
   'bids.confirmation_required': true,
   /** Days until the one reminder to confirm a bid. */
   'bids.confirmation_reminder_days': 3,
-  /** Row 145: shaped words kept per font between deal-record PDFs
-   * (~3.6 KB each, measured 14.11); 0 = none kept, each record shapes its
-   * words again (modules/deals/deal-record-pdf-cache.ts). */
-  'deal_record.pdf_word_cache_words': 5000,
+  /** Row 145: shaped words kept between deal-record PDFs, ALL fonts
+   * together (~3.6 KB each, measured 14.11: 10 000 ≈ 36 MB, the most it can
+   * hold); 0 = none kept, each record shapes its words again
+   * (modules/deals/deal-record-pdf-cache.ts). */
+  'deal_record.pdf_word_cache_words': 10_000,
 };
 
 export const OWNER_CASE_TOOLS_SETTINGS = {

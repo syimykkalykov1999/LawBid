@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   AUTOSCALE_TUNING_SCHEMA,
+  ECS_CAPACITY_KINDS,
+  checkEcsCapacity,
+  splitKinds,
+  spotSplit,
   validateAutoscaleTuning,
 } from './autoscale-tuning';
 
@@ -107,5 +111,58 @@ describe('autoscale tuning (admin → SSM → Lambda)', () => {
       ok: false,
       errors: ['api_cpu.target: 0.1–100'],
     });
+  });
+
+  it('owner 15.11: floor and Spot split of every service, AWS bounds, floor at least 1', () => {
+    const keys = Object.keys(AUTOSCALE_TUNING_SCHEMA.ecs);
+    for (const k of ECS_CAPACITY_KINDS) {
+      for (const f of [
+        'min_tasks',
+        'spot_base',
+        'fargate_weight',
+        'spot_weight',
+      ])
+        expect(keys).toContain(`${k}.${f}`);
+    }
+    expect(
+      validateAutoscaleTuning('ecs', { 'pgbouncer.min_tasks': 0 }),
+    ).toEqual({
+      ok: false,
+      errors: ['pgbouncer.min_tasks: 1–1000000000'],
+    });
+    expect(validateAutoscaleTuning('ecs', { 'api.spot_weight': 1001 })).toEqual(
+      {
+        ok: false,
+        errors: ['api.spot_weight: 0–1000'],
+      },
+    );
+    expect(validateAutoscaleTuning('ecs', { 'api.spot_base': 100001 })).toEqual(
+      {
+        ok: false,
+        errors: ['api.spot_base: 0–100000'],
+      },
+    );
+  });
+
+  it('owner 15.11: cross checks — floor not above the ceiling, one weight above 0', () => {
+    expect(checkEcsCapacity({ 'api.min_tasks': 3 }, { api: 3 })).toEqual([]);
+    expect(checkEcsCapacity({ 'api.min_tasks': 4 }, { api: 3 })).toEqual([
+      'api.min_tasks: не больше максимума 3',
+    ]);
+    expect(checkEcsCapacity({ 'worker.spot_weight': 0 }, {})).toEqual([]);
+    expect(
+      checkEcsCapacity(
+        { 'worker.spot_weight': 0, 'worker.fargate_weight': 0 },
+        {},
+      ),
+    ).toEqual(['worker.spot_weight: обе доли 0']);
+    expect(spotSplit({ 'admin.spot_weight': 2 }, 'admin')).toEqual({
+      base: 1,
+      fargate: 1,
+      spot: 2,
+    });
+    expect(splitKinds({ 'admin.spot_weight': 2, 'api.min_tasks': 2 })).toEqual([
+      'admin',
+    ]);
   });
 });
