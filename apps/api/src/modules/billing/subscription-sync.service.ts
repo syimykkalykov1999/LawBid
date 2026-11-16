@@ -12,6 +12,7 @@ import { LedgerPostingService } from '../ledger/ledger.public';
 import { StripeReviewService } from '../stripe-ops/stripe-review.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
+import { LIVE_REFUND_STATUSES } from '../admin-billing/refunds.service';
 import { BidsService } from '../bids/bids.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BidPacksService } from '../bid-packs/bid-packs.service';
@@ -727,13 +728,14 @@ export class SubscriptionSyncService {
     }
     const refunded = await this.prisma.payment.findMany({
       where: { stripe_payment_intent_id: charge.paymentIntentId },
-      select: { id: true, user_id: true },
+      select: { id: true, user_id: true, amount_cents: true },
     });
-    await this.prisma.$transaction(async (tx) => {
+    await withTxRetry(this.prisma, async (tx) => {
       await tx.payment.updateMany({
         where: { stripe_payment_intent_id: charge.paymentIntentId! },
         data: { status: 'refunded' },
       });
+      await this.bookOutsideRefunds(tx, refunded, charge.amountRefundedCents);
       // What the ledger has not seen yet (the admin refund books its own).
       for (const p of refunded) {
         await this.ledger?.paymentRefundSynced(tx, {
@@ -765,6 +767,48 @@ export class SubscriptionSyncService {
   }
 
   /**
+   * Row 176 (detective R3A-1, 15.11): a refund made in the Stripe Dashboard
+   * (or by Stripe itself) has no `refunds` row of ours, so «Прибыль»,
+   * «Экономика», «Платежи» and the partner settlement — which all read the
+   * `refunds` table by `created_at` — never saw it and profit stayed too
+   * high. Like the ledger's `paymentRefundSynced` (book what is not seen
+   * yet, by Stripe's running total `amount_refunded`), the part Stripe
+   * refunded beyond our own live refund rows is booked as one `succeeded`
+   * row dated now. Our own refunds reserve their row before calling Stripe,
+   * so their webhook adds nothing; a repeated webhook adds nothing either.
+   * The payment row is locked so two webhooks never book the same part twice.
+   */
+  private async bookOutsideRefunds(
+    tx: Prisma.TransactionClient,
+    payments: { id: string; user_id: string; amount_cents: number }[],
+    totalRefundedCents: number,
+  ): Promise<void> {
+    for (const p of payments) {
+      await tx.$queryRaw`SELECT id FROM payments WHERE id = ${p.id}::uuid FOR UPDATE`;
+      const booked = await tx.refund.aggregate({
+        where: { payment_id: p.id, status: { in: LIVE_REFUND_STATUSES } },
+        _sum: { amount_cents: true },
+      });
+      const cents = outsideRefundCents(
+        totalRefundedCents,
+        p.amount_cents,
+        booked._sum.amount_cents ?? 0,
+      );
+      if (cents <= 0) continue;
+      await tx.refund.create({
+        data: {
+          payment_id: p.id,
+          user_id: p.user_id,
+          amount_cents: cents,
+          reason: OUTSIDE_REFUND_REASON,
+          status: 'succeeded',
+          admin_id: null,
+        },
+      });
+    }
+  }
+
+  /**
    * Algo audit 2026-10-27 (MONEY M-2): a PARTIAL refund made in the Stripe
    * Dashboard (`charge.refunded` with `refunded: false`) never reached the
    * books. The payment stays `succeeded` (nothing is taken back — packs and
@@ -777,16 +821,22 @@ export class SubscriptionSyncService {
     amountRefundedCents: number;
   }): Promise<void> {
     if (!charge.paymentIntentId || charge.amountRefundedCents <= 0) return;
-    if (!(await this.settings.boolean('billing.partial_refund_ledger_enabled')))
-      return;
     const rows = await this.prisma.payment.findMany({
       where: {
         stripe_payment_intent_id: charge.paymentIntentId,
         status: 'succeeded',
       },
-      select: { id: true, user_id: true },
+      select: { id: true, user_id: true, amount_cents: true },
     });
-    if (!rows.length || !this.ledger) return;
+    if (!rows.length) return;
+    // Row 176: the refund reaches «Прибыль», «Экономика» and «Платежи»
+    // whatever the ledger switch says (those read the `refunds` table).
+    await withTxRetry(this.prisma, (tx) =>
+      this.bookOutsideRefunds(tx, rows, charge.amountRefundedCents),
+    );
+    if (!(await this.settings.boolean('billing.partial_refund_ledger_enabled')))
+      return;
+    if (!this.ledger) return;
     await this.prisma.$transaction(async (tx) => {
       for (const p of rows) {
         await this.ledger!.paymentRefundSynced(tx, {
@@ -888,4 +938,18 @@ export function mapStatus(
     default:
       return 'expired';
   }
+}
+
+/** Row 176: the reason on a refund booked from Stripe's own total. */
+export const OUTSIDE_REFUND_REASON = 'Refund made in Stripe (outside LawBid)';
+
+/** Row 176: what Stripe refunded on a payment beyond our live refund rows
+ * (never more than the payment, never negative). */
+export function outsideRefundCents(
+  stripeRefundedCents: number,
+  paymentCents: number,
+  bookedCents: number,
+): number {
+  const total = Math.min(Math.max(stripeRefundedCents, 0), paymentCents);
+  return Math.max(total - Math.max(bookedCents, 0), 0);
 }
