@@ -258,9 +258,12 @@ function Month({ d }: { d: PieceOverview }) {
 export function RatesPage() {
   const { data: me } = useMe();
   const owner = isOwner(me);
-  const [period, setPeriod] = useState(periodNow());
+  // Row 180: until a month is picked, «this month» comes from the API (report time zone, not UTC).
+  const [picked, setPeriod] = useState<string>();
   const rates = useRates(owner);
-  const month = usePieceOverview(period, owner);
+  const month = usePieceOverview(picked, owner);
+  const period = picked ?? (month.data?.ok ? month.data.data.period : periodNow());
+  const latest = period > periodNow() ? period : periodNow();
   const missing = rates.data && !rates.data.ok;
 
   return (
@@ -281,7 +284,7 @@ export function RatesPage() {
           <RatesTable rates={rates.data?.ok ? rates.data.data : []} />
           <SectionTitle
             action={
-              <Input aria-label="Месяц" type="month" value={period} max={periodNow()} onChange={(e) => e.target.value && setPeriod(e.target.value)} className="w-44" />
+              <Input aria-label="Месяц" type="month" value={period} max={latest} onChange={(e) => e.target.value && setPeriod(e.target.value)} className="w-44" />
             }
           >
             Что начислено

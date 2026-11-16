@@ -71,26 +71,56 @@ def write_state(env, states):
     )
 
 
-def wanted(env):
-    """{"api": Want, ...} of the services Terraform put on Spot."""
+def wanted(env, controls=None):
+    """{"api": Want, ...} of the services Terraform put on Spot. Owner 15.11
+    («сделай настраиваемыми»): the admin's split per service from the
+    control file (`spot_fallback.want`, written by the economy job from SSM
+    ecs-scaling/tuning) replaces Terraform's normal strategy; a malformed
+    entry keeps Terraform's."""
     raw = json.loads(env.get("SERVICES") or "{}")
-    return {
-        name: d.Want(base=int(w.get("base", 1)), fargate=int(w.get("fargate", 1)), spot=int(w.get("spot", 4)))
-        for name, w in raw.items()
-    }
+    admin = ((controls or {}).get("spot_fallback") or {}).get("want") or {}
+    out = {}
+    for name, w in raw.items():
+        want = d.Want(base=int(w.get("base", 1)), fargate=int(w.get("fargate", 1)), spot=int(w.get("spot", 4)))
+        out[name] = admin_want(want, admin.get(name) if isinstance(admin, dict) else None)
+    return out
 
 
-def read_control(env):
-    """Owner's admin control off | on | auto (unreadable = auto)."""
+def admin_want(want, a):
+    """Terraform's Want with the admin's numbers over it, inside AWS's bounds
+    (CapacityProviderStrategyItem: base 0-100000, weight 0-1000, one weight
+    above 0); anything else = Terraform's Want unchanged."""
+    if not isinstance(a, dict):
+        return want
+    vals = {}
+    for k, hi in (("base", 100000), ("fargate", 1000), ("spot", 1000)):
+        v = a.get(k, getattr(want, k))
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not float(v).is_integer() or not 0 <= v <= hi:
+            return want
+        vals[k] = int(v)
+    if vals["fargate"] + vals["spot"] == 0:
+        return want
+    return d.Want(**vals)
+
+
+def read_controls(env):
+    """The whole control file (owner's admin controls); unreadable = {}."""
     bucket, key = env.get("CONTROLS_BUCKET"), env.get("CONTROLS_KEY")
     if not bucket or not key:
-        return "auto"
+        return {}
     try:
         raw = client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
-        mode = json.loads(raw).get("spot_fallback", {}).get("mode")
-        return mode if mode in ("on", "off", "auto") else "auto"
+        j = json.loads(raw)
+        return j if isinstance(j, dict) else {}
     except Exception:  # noqa: BLE001 - never block on the control file
-        return "auto"
+        return {}
+
+
+def read_control(env, controls=None):
+    """Owner's admin control off | on | auto (unreadable = auto)."""
+    j = read_controls(env) if controls is None else controls
+    mode = (j.get("spot_fallback") or {}).get("mode") if isinstance(j, dict) else None
+    return mode if mode in ("on", "off", "auto") else "auto"
 
 
 def _aware(t):
@@ -219,9 +249,10 @@ RU = {
 def lambda_handler(event, context, env=os.environ):
     now = datetime.now(timezone.utc)
     cfg = read_admin_tuning(d.Config(**json.loads(env.get("TUNING") or "{}")), env)
-    want = wanted(env)
+    controls = read_controls(env)
+    want = wanted(env, controls)
     mode = ssm_get(env["MODE_PARAM"], "on")
-    control = read_control(env)
+    control = read_control(env, controls)
     states = read_state(env)
     failed = spot_failure(event)
     names = [failed] if failed else list(want)

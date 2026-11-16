@@ -94,7 +94,8 @@ export function summarize(plan) {
 // Owner 2026-11-12: a request that lowers db_shards to K may remove the
 // extra servers K and above (postgres_shard[N] / growth_shard[N], N >= K;
 // a plain delete, never a replacement). The API allows such a request only
-// while those servers hold no data; AWS keeps a final snapshot.
+// while those servers hold no data, so nothing is kept (no final snapshot,
+// no automated backups: KNOWN_ERRORS 189).
 const SHARD_MODULE = /(^|\.)module\.(postgres_shard|growth_shard)\[(\d+)\]\./;
 
 export function forbidden(summary, changes = {}) {

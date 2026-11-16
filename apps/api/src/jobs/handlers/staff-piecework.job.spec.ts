@@ -11,6 +11,7 @@ import {
 } from '../../../test/support/staff-piecework-fixtures';
 import { PayrollAccrualsService } from '../../modules/admin-payroll/payroll-accruals.service';
 import { StaffPieceworkService } from '../../modules/staff-piecework/staff-piecework.service';
+import { CRON_JOBS, CRON_SCHEDULES } from '../jobs.constants';
 import { StaffPieceworkJob } from './staff-piecework.job';
 
 const settings = (stored: Record<string, unknown>) =>
@@ -43,16 +44,21 @@ describe('staff.piecework job', () => {
     });
   });
 
-  it('on: counts YESTERDAY (UTC) and produces the accrual through payroll', async () => {
+  it('on: counts YESTERDAY of the report time zone and produces the accrual through payroll', async () => {
     const fx = emptyFx();
     withPerson(fx, A1);
     fx.rates.push(rate('ticket', 250));
-    fx.leaseDone.push(...done(A1, 'support_ticket', 4));
+    // Three in the Nevada morning, one at 18:00 PDT (01:00Z the next UTC day).
+    fx.leaseDone.push(
+      ...done(A1, 'support_ticket', 3, new Date('2026-10-26T16:00:00Z')),
+      ...done(A1, 'support_ticket', 1, new Date('2026-10-27T01:00:00Z')),
+    );
     fx.snapshots.push({ admin_id: A1, rating: 91, status: 'green' });
-    const { svc, settings: on } = makeService(fx);
-    const job = new StaffPieceworkJob(on, svc);
+    const { svc, settings: on, appSettings } = makeService(fx);
+    const job = new StaffPieceworkJob(on, svc, appSettings);
 
-    const out = await job.run(new Date('2026-10-27T02:15:00Z'));
+    // The cron time (10:15 UTC = 03:15 PDT): 26 Oct in Nevada is complete.
+    const out = await job.run(new Date('2026-10-27T10:15:00Z'));
     expect(out).toMatchObject({
       day: '2026-10-26',
       admins: 1,
@@ -68,7 +74,15 @@ describe('staff.piecework job', () => {
     ]);
 
     // The cron fires twice (retry / restart): still one accrual.
-    await job.run(new Date('2026-10-27T02:15:30Z'));
+    await job.run(new Date('2026-10-27T10:15:30Z'));
     expect(fx.accruals).toHaveLength(1);
+  });
+
+  it('runs after daily-stats and the rating snapshot of the same local day', () => {
+    const at = (name: string) =>
+      CRON_SCHEDULES.find((c) => c.name === name)!.pattern;
+    expect(at(CRON_JOBS.staffDailyStats)).toBe('10 9 * * *');
+    expect(at(CRON_JOBS.staffRatingNightly)).toBe('40 9 * * *');
+    expect(at(CRON_JOBS.staffPiecework)).toBe('15 10 * * *');
   });
 });

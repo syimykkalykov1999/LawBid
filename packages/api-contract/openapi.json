@@ -183301,6 +183301,31 @@
             "type": "boolean",
             "nullable": true,
             "description": "Runs on Fargate Spot (null = the service does not say)."
+          },
+          "base": {
+            "type": "number",
+            "nullable": true,
+            "description": "Regular Fargate tasks first (strategy base; null = launch type)."
+          },
+          "fargateWeight": {
+            "type": "number",
+            "nullable": true,
+            "description": "FARGATE weight of the strategy (null = launch type)."
+          },
+          "spotWeight": {
+            "type": "number",
+            "nullable": true,
+            "description": "FARGATE_SPOT weight of the strategy (null = launch type)."
+          },
+          "min": {
+            "type": "number",
+            "nullable": true,
+            "description": "Autoscaling floor now (MinCapacity; null = not read)."
+          },
+          "max": {
+            "type": "number",
+            "nullable": true,
+            "description": "Autoscaling ceiling now (MaxCapacity; null = not read)."
           }
         },
         "required": [

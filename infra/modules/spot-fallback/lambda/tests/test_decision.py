@@ -121,6 +121,14 @@ class Tick(unittest.TestCase):
     def test_normal_does_nothing(self):
         self.assertEqual(d.on_tick(live(), WANT, d.SvcState(), CFG, NOW).action, "none")
 
+    def test_owner_no_spot_is_normal_not_a_fallback(self):
+        # Owner 15.11: spot weight 0 from the admin looks like a fallback;
+        # it must not "restore" (a deployment) on every tick.
+        no_spot = d.Want(base=1, fargate=1, spot=0)
+        act = d.on_tick(live(d.normal_strategy(no_spot)), no_spot, d.SvcState(fallback_since=ago(500)), CFG, NOW)
+        self.assertEqual(act.action, "none")
+        self.assertIsNone(act.state.fallback_since)
+
 
 if __name__ == "__main__":
     unittest.main()
