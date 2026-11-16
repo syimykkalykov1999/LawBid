@@ -191,7 +191,7 @@ describe('FilesService', () => {
           s3_key: 'voice/u1/f1',
           size_bytes: 100n,
           voice_m4a: voiceM4a,
-        } as Partial<File>,
+        },
       });
       const storage = made.deps.storage as unknown as Record<string, jest.Mock>;
       storage.read = jest.fn((_b: string, k: string) =>
