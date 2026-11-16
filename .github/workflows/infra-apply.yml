@@ -58,7 +58,9 @@ jobs:
   apply:
     name: plan → owner 2FA → apply (prod)
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    # 15.11: 150 -> 300 for aws.postgres_major (AWS Blue/Green: the green
+    # copy can take up to ~2 h on a big database; every other run ends as before).
+    timeout-minutes: 300
     environment: infra-apply
     if: github.ref == 'refs/heads/main'
     steps:
@@ -212,12 +214,63 @@ jobs:
       # Automation audit 2026-11-08: the partition login (Terraform just put
       # PARTITION_DB_PASSWORD into the migrate task) is set on the role by the
       # migrate task at once, not at the next deploy. Same image as running now.
-      - name: Give lawbid_partition its login now (only for that switch)
-        if: steps.apply.outcome == 'success' && steps.job.outputs.item == 'aws.partition_role'
+      # Row 11 (15.11): the same for a new database server (aws.db_shards*,
+      # up to aws.db_shards_15 since db.max_servers; infra-apply.migrate.spec):
+      # prisma/migrate-shards.mjs gives it the schema and the runtime logins
+      # now. Before, that waited for the next deploy, and until then the
+      # emptiness check could not read the server, so «Авто» never removed
+      # an empty one and no data part could move to it. Idempotent.
+      - name: Migrate now (partition login, new database server)
+        if: >-
+          steps.apply.outcome == 'success' &&
+          contains(fromJSON('["aws.partition_role","aws.db_shards","aws.db_shards_2","aws.db_shards_3","aws.db_shards_4","aws.db_shards_5","aws.db_shards_6","aws.db_shards_7","aws.db_shards_8","aws.db_shards_9","aws.db_shards_10","aws.db_shards_11","aws.db_shards_12","aws.db_shards_13","aws.db_shards_14","aws.db_shards_15"]'), steps.job.outputs.item)
         run: |
-          TAG=$(aws ecs describe-task-definition --task-definition "$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].taskDefinition' --output text)" \
-            --query 'taskDefinition.containerDefinitions[0].image' --output text | sed 's/.*://')
+          # KNOWN_ERRORS 181: run-migrations.sh needs ECR_REGISTRY with a tag;
+          # take both from the image the live api runs (registry/repo:tag).
+          IMG=$(aws ecs describe-task-definition --task-definition "$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].taskDefinition' --output text)" \
+            --query 'taskDefinition.containerDefinitions[0].image' --output text)
+          TAG="${IMG##*:}"
+          export ECR_REGISTRY="${IMG%%/*}"
           scripts/deploy/run-migrations.sh lawbid-prod "$TAG"
+
+      # Owner 15.11 «делай обновы сейчас» (docs/runbooks/db-major-upgrade.md):
+      # aws.postgres_major = AWS RDS Blue/Green after the apply (the apply
+      # only created the postgres18 group and set rds.logical_replication).
+      # Two parts, each with a fresh session (the role's session is at most
+      # AWS_APPLY_SESSION_SECONDS); both continue an earlier run.
+      - name: Fresh AWS session (database upgrade, part 1)
+        if: steps.apply.outcome == 'success' && steps.job.outputs.item == 'aws.postgres_major'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
+      - name: Database upgrade, part 1 (reboot for logical replication, green copy)
+        id: pgmajor1
+        if: steps.apply.outcome == 'success' && steps.job.outputs.item == 'aws.postgres_major'
+        env:
+          WAIT_MINUTES: "55"
+        run: |
+          T=$(jq -r '.database_major_version // "16"' infra/envs/prod/growth.auto.tfvars.json)
+          if [ "$T" = "16" ]; then echo "16 asked: nothing to upgrade"; exit 0; fi
+          scripts/infra/rds-major-upgrade.sh prepare "$T"
+      - name: Fresh AWS session (database upgrade, part 2)
+        if: steps.pgmajor1.outcome == 'success'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
+      - name: Database upgrade, part 2 (switchover about a minute, Terraform state)
+        id: pgmajor2
+        if: steps.pgmajor1.outcome == 'success'
+        env:
+          WAIT_MINUTES: "55"
+        run: |
+          T=$(jq -r '.database_major_version // "16"' infra/envs/prod/growth.auto.tfvars.json)
+          if [ "$T" = "16" ]; then exit 0; fi
+          scripts/infra/rds-major-upgrade.sh switchover "$T"
+          echo "PostgreSQL $T: switched over; old server kept as lawbid-prod-postgres-old1" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Record the file on main
         id: record
@@ -263,9 +316,12 @@ jobs:
         if: always() && steps.wait.outputs.go == 'true'
         env:
           APPLY: ${{ steps.apply.outcome }}
+          UPGRADE: ${{ steps.pgmajor1.outcome == 'failure' || steps.pgmajor2.outcome == 'failure' }}
           RECORDED: ${{ steps.record.outputs.recorded }}
         run: |
-          if [ "$APPLY" = "success" ]; then
+          if [ "$APPLY" = "success" ] && [ "$UPGRADE" = "true" ]; then
+            jq -n --arg e "Настройки применены, но обновление базы не закончилось (старая база работает). Журнал: $RUN_URL" '{status:"failed", error:$e}' > result.json
+          elif [ "$APPLY" = "success" ]; then
             jq -n --arg r "${RECORDED:-none}" '{status:"done", recorded:$r}' > result.json
           else
             jq -n --arg e "Применение не удалось. Журнал: $RUN_URL" '{status:"failed", error:$e}' > result.json

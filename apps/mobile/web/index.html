@@ -42,9 +42,12 @@
        runs the site (schema.org Organization + WebSite, as the company
        site's pages do). Data blocks, not scripts: the CSP does not apply.
        App screens get this page as spa.html (noindex) WITHOUT the canonical
-       line (web-deploy.yml drops it), so keep the link alone on its line. -->
+       line (web-deploy.yml drops it), so keep the link alone on its line.
+       Organization = the same company as on /about/ (legalName, email).
+       No WebSite SearchAction: Google retired the sitelinks search box on
+       21.11.2024 and the site has no public search address to point at. -->
   <link rel="canonical" href="https://lawbid.dev/">
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"LawBid","url":"https://lawbid.dev/","logo":"https://lawbid.dev/icons/Icon-512.png"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"LawBid","legalName":"SiMA LLC","url":"https://lawbid.dev/","logo":"https://lawbid.dev/icons/Icon-512.png","email":"support@lawbid.dev"}</script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"LawBid","url":"https://lawbid.dev/"}</script>
 
   <!-- iOS meta tags & icons -->

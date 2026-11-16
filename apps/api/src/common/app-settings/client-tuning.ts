@@ -268,6 +268,10 @@ export const OWNER_CLIENT_TUNING_SETTINGS = Object.fromEntries(
 export const OWNER_CHAT_PHOTO_SETTINGS = {
   'media.chat_photo_max_px': 1600,
   'media.chat_photo_quality': 82,
+  // Row 149 review: a photo picked from «Files» bigger than the file limit
+  // is still read and shrunk (WhatsApp / Telegram); only up to this many
+  // times the limit, so a 2 GB "picture" is never read whole. 0 = no cap.
+  'media.picked_image_read_x': 4,
 } as const;
 
 /** What the app is told to warm up, for the two kinds of network. */
