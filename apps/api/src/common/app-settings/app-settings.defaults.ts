@@ -1355,10 +1355,15 @@ export const OWNER_STORAGE_SETTINGS = {
    * upload; they are served only to clients that send
    * `X-Image-Formats: avif`, and only for files uploaded after
    * `images.avif_since` (ISO time, empty = serve none). Qualities 1-100,
-   * effort 0-9 (higher = smaller but slower to make). */
+   * effort 0-9 (higher = smaller but slower to make).
+   * Row 202 (16.11): quality 60 -> 75. Measured on 10 photo sizes against
+   * the WebP q88 it twins (sharp 0.35.5 / libvips 8.18.7 / aom 3.15.1, SSIM
+   * and PSNR via ffmpeg, docs/architecture/IMAGES_AVIF.md): q60 lost detail
+   * on detailed photos and text (SSIM -0.012, PSNR -4..5 dB); q75 is equal or
+   * better on all of them at 84 % of the WebP bytes. */
   'images.avif_enabled': false,
   'images.avif_since': '',
-  'images.avif_quality': 60,
+  'images.avif_quality': 75,
   'images.avif_effort': 2,
   /** Owner row 106 (media audit 13.11): a post / chat photo already at most
    * 2048 px, upright, JPEG or WebP and without EXIF / XMP / IPTC is stored
