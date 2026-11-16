@@ -11,7 +11,7 @@
 
 | Что | Источник |
 |---|---|
-| Линтер миграций **Squawk** v2.70.0 (15.10.2026), готовое решение, правила `require-concurrent-index-creation`, `constraint-missing-not-valid`, `adding-not-nullable-field`, `changing-column-type`, `adding-field-with-default`, `require-lock-timeout`, `disallowed-unique-constraint` | https://squawkhq.com/docs/rules , https://github.com/sbdchd/squawk |
+| Линтер миграций **Squawk** v2.72.0 (08.11.2026), готовое решение, правила `require-concurrent-index-creation`, `constraint-missing-not-valid`, `adding-not-nullable-field`, `changing-column-type`, `adding-field-with-default`, `require-lock-timeout`, `disallowed-unique-constraint` | https://squawkhq.com/docs/rules , https://github.com/sbdchd/squawk |
 | Те же проверки в Rails: strong_migrations (индекс, внешний ключ, check, NOT NULL, смена типа, volatile default, lock_timeout, перенос данных порциями с паузами) | https://github.com/ankane/strong_migrations |
 | GitLab: `disable_ddl_transaction!` для индексов, внешний ключ NOT VALID + отдельная валидация, `with_lock_retries` (повтор при занятой таблице) | https://docs.gitlab.com/development/migration_style_guide/ |
 | GitLab: батчевые фоновые миграции: диапазоны ключей, повторяемость, пауза по сигналам здоровья (автовакуум, WAL, apdex), пауза/продолжение | https://docs.gitlab.com/development/database/batched_background_migrations/ |

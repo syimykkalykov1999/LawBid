@@ -1622,6 +1622,13 @@ export const OWNER_OPS_SETTINGS = {
   // Batch D (14.11): «Очереди задач» turns red when a job had no good run
   // for this many of its periods (0 = off).
   'ops.cron_stale_periods': 3,
+  // Row 181 (DB scale finding 5): jobs each cron lane runs at once in one
+  // process (jobs.runner CRON_LANE_CONCURRENCY_SETTING), 1..20, applied to
+  // the running workers within 30 s. Defaults = the built-in values.
+  'ops.cron_lane_concurrency_fast': 3,
+  'ops.cron_lane_concurrency_default': 1,
+  'ops.cron_lane_concurrency_heavy_frequent': 1,
+  'ops.cron_lane_concurrency_heavy': 1,
   // S20-8: ceiling of the message re-encryption pass, rows per minute
   // (0 = paused; the pass keeps its place).
   'ops.reencrypt_rows_per_min': 800,

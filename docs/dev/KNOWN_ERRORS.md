@@ -10,7 +10,7 @@
 1. **Mobile analyzer как в CI, по ВСЕМУ приложению:** `cd apps/mobile && flutter analyze` (CI падает даже на `info`, например `require_trailing_commas`). Анализ только изменённых файлов — недостаточно. После правок — `dart format <изменённые файлы>`.
 2. **Gitleaks на свой диф:** `gitleaks git --log-opts="origin/main..HEAD" .` (установлен через brew). Фейковые токены/ключи в тестах называть «test-…-token», не случайной строкой вроде `tok-1-abcdefghijklmnop` или `practice.family_law…` в поле `*_key`.
 3. **ERD после изменения схемы:** `npm run db:erd --workspace apps/api && git diff --exit-code -- docs/db/ERD.md`.
-4. **Новая миграция:** первой строкой `SET LOCAL lock_timeout = '5s';` (squawk require-lock-timeout); проверить `npx squawk-cli@2.70.0 -c .squawk.toml <file>`.
+4. **Новая миграция:** первой строкой `SET LOCAL lock_timeout = '5s';` (squawk require-lock-timeout); проверить `npx squawk-cli@2.72.0 -c .squawk.toml <file>`.
 5. **После merge main:** заново `packages/api-contract/generate.sh` (не contract:fast), oasdiff против main, `python3 apps/mobile/tool/ci/hardcoded_check.py`.
 6. **Новые e2e в режиме двух баз:** вызов сервиса вне HTTP оборачивать в `shardContext.runForCase(...)`; прогнать `E2E_TWO_DB=all` для своего набора.
 7. **Стек PR (B на ветке A):** после слития A сразу `gh pr edit B --base main`, иначе B сольётся в ветку A, а не в main.
