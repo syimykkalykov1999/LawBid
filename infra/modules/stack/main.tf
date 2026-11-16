@@ -1322,9 +1322,12 @@ module "postgres_shard" {
   # Owner 2026-11-12: «Авто» removes an extra server again, only while it
   # is EMPTY (the API and plan-guard check that; IAM allows deleting only
   # …-db*-postgres). AWS keeps a final snapshot of it (never deleted).
-  deletion_protection     = false
-  skip_final_snapshot     = var.ephemeral
-  recovery_window_in_days = var.ephemeral ? 0 : 30
+  deletion_protection = false
+  skip_final_snapshot = var.ephemeral
+  # KNOWN_ERRORS 180: a removed extra server's secret must go at once, or the
+  # next «Авто» switch-on of the same server fails on CreateSecret (name
+  # still in its 30-day recovery window). AWS keeps the final DB snapshot.
+  recovery_window_in_days = 0
 }
 
 # Owner 2026-11-11: each extra database server gets its own read copies
