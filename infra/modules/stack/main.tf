@@ -1238,7 +1238,10 @@ data "aws_db_instance" "primary" {
 locals {
   database_running_major = length(data.aws_db_instance.primary) > 0 ? split(".", data.aws_db_instance.primary[0].engine_version)[0] : var.database_major_version
   # A pin (database_engine_version = "16.6") stays while it is that major.
-  database_engine_version = split(".", var.database_engine_version)[0] == local.database_running_major ? var.database_engine_version : local.database_running_major
+  # Otherwise the exact running version: a bare major ("18") is read by RDS
+  # as its default minor (18.3) and refused as a downgrade of 18.6
+  # (KNOWN_ERRORS 174).
+  database_engine_version = split(".", var.database_engine_version)[0] == local.database_running_major ? var.database_engine_version : (length(data.aws_db_instance.primary) > 0 ? data.aws_db_instance.primary[0].engine_version : local.database_running_major)
 }
 
 module "postgres" {
@@ -1282,10 +1285,10 @@ module "postgres" {
 variable "db_shards" {
   type        = number
   default     = 0
-  description = "Extra PostgreSQL servers for the database split (0 = one database, exactly as before). Set by the admin switch aws.db_shards."
+  description = "Extra PostgreSQL servers for the database split (0 = one database, exactly as before). Set by the admin switches aws.db_shards, aws.db_shards_2 … aws.db_shards_15; how many «Авто» may reach is the admin setting db.max_servers (owner 15.11). 15 = the code's hard bound (infra-switches.ts DB_SERVERS_HARD_MAX - 1)."
   validation {
-    condition     = var.db_shards >= 0 && var.db_shards <= 3 && floor(var.db_shards) == var.db_shards
-    error_message = "db_shards is a whole number from 0 to 3."
+    condition     = var.db_shards >= 0 && var.db_shards <= 15 && floor(var.db_shards) == var.db_shards
+    error_message = "db_shards is a whole number from 0 to 15."
   }
 }
 variable "db_shard_instance_class" {

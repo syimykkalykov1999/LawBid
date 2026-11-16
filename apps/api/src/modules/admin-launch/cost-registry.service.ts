@@ -48,6 +48,7 @@ import {
   INFRA_SWITCH_IDS,
   InfraChangeService,
 } from './infra/infra-change.service';
+import { dbServerRowShown } from '../../common/ops/infra-switches';
 
 interface UsageSnap {
   at?: string;
@@ -499,6 +500,10 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
         );
       }),
     );
+    // Owner 15.11: server rows past db.max_servers stay off «Масштаб».
+    const maxServers = await Promise.resolve()
+      .then(() => this.settings.number('db.max_servers'))
+      .catch(() => undefined);
     const rows: RegistryRow[] = COST_REGISTRY.map((e, i) => {
       const a = attr.byId[e.id];
       const locked = this.lockedReason(e);
@@ -570,7 +575,9 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
     return {
       generatedAt: now.toISOString(),
       spendRefreshedAt: spendReport.refreshedAt,
-      rows,
+      rows: rows.filter((r, i) =>
+        dbServerRowShown(r.id, live[i].state, maxServers),
+      ),
       unclaimed: attr.unclaimed,
       ladder: {
         dayOne: {
