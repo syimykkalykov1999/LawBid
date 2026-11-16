@@ -17,7 +17,7 @@
 # (see api-ci.yml).
 #
 # Topology of one slot i (why it is built this way):
-#   lawbid-ci-dind-i   docker:27-dind, owns the network namespace and the
+#   lawbid-ci-dind-i   docker:29.9.3-dind, owns the network namespace and the
 #                      workspace volume lawbid-ci-work-i mounted at /home/runner/_work
 #   lawbid-ci-run-i    the runner, --network container:lawbid-ci-dind-i, same volume,
 #                      DOCKER_HOST=tcp://127.0.0.1:2375
@@ -42,8 +42,9 @@ MEM="${RUNNER_MEM:-12g}"       # per runner container
 DIND_CPUS="${DIND_CPUS:-2}"    # per sidecar: Postgres + Redis + MailHog of one job
 DIND_MEM="${DIND_MEM:-2g}"
 LABELS="lawbid-ci"
-# Bump the tag when the Dockerfile below changes: build_image() skips an existing tag.
-IMG="lawbid-ci-runner:2"
+# The tag names the pinned runner base below: build_image() skips an existing
+# tag, so a new base (or any Dockerfile change) needs a new tag. "-1": + libatomic1.
+IMG="lawbid-ci-runner:2.338.2-1"
 NET="lawbid-ci-net"
 WORK="/home/runner/_work"
 FLAG="/tmp/lawbid-ci-up"                                   # exists while `up`; supervisors exit when it is gone
@@ -58,13 +59,13 @@ build_image() {
   # drags in a whole daemon). The runner image already has git, curl, unzip, jq.
   # _work is created in the image so the named volume inherits runner:runner.
   cat >"$d/Dockerfile" <<'D'
-FROM docker:27-cli AS cli
-FROM ghcr.io/actions/actions-runner:latest
+FROM docker:29.9.3-cli@sha256:5a7af0dcb0e46c803efe9b45371dd21cb500e5b4453250394ac6f06d49b6e6f1 AS cli
+FROM ghcr.io/actions/actions-runner:2.338.2@sha256:6d0b2d80d80f143f77dcb676e50920100bbb547e39e883454d57f45ab8c31300
 COPY --from=cli /usr/local/bin/docker /usr/local/bin/docker
 # lawbid.keep: the host's hourly cleanup (docker image prune --filter label!=lawbid.keep) must not drop this image
 LABEL lawbid.keep=1
 USER root
-# libatomic1: Node 26 links it; without it setup-node's node exits 127 (KNOWN_ERRORS 159).
+# libatomic1: Node 26 links it; without it setup-node's node exits 127 (KNOWN_ERRORS 180).
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends libatomic1 \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /home/runner/_work && chown runner:runner /home/runner/_work
@@ -116,7 +117,7 @@ start_one() {
   fi
   docker run -d --name "lawbid-ci-dind-$i" --privileged --network "$NET" --restart unless-stopped \
     --cpus "$DIND_CPUS" --memory "$DIND_MEM" -v "lawbid-ci-work-$i:$WORK" \
-    -e DOCKER_TLS_CERTDIR= docker:27-dind >/dev/null
+    -e DOCKER_TLS_CERTDIR= docker:29.9.3-dind@sha256:7bf70dcb85c822e3fa6f2d332143e474b99147b9d7b39102b0cfe8b04a7dd61b >/dev/null
   # setsid: the supervisor must outlive the terminal/session that ran `up`.
   setsid -f bash -c "$(declare -p REPO CPUS MEM LABELS IMG WORK FLAG NPMVOL); $(declare -f supervise); supervise $i" \
     >>"$LOGDIR/slot-$i.log" 2>&1

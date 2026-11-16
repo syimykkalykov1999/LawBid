@@ -25,11 +25,14 @@ dependencies:
   # stage 1.5 architecture review — see docs/CHANGELOG.md stage 1.5 entry)
   # D1-24 (13.11): 14 -> 17.5 (migration guides 15-17: case-sensitive URLs,
   # GoRouteData unused here, shell observers kept off in app_router.dart).
-  # 18.x moved its pages onto package:material_ui: with this app's
-  # flutter/material MaterialApp it falls back to NoTransitionPage and a plain
-  # HeroController (no swipe-back on `builder:` routes, other hero flights),
-  # so 18 waits for the app-wide material_ui move.
-  go_router: ^17.5.0
+  # Row 148 (14.11): 17.5 -> 18.1.3 (newest release at least 7 days old;
+  # 18.0 only moved its own pages onto package:material_ui and raised the SDK
+  # floor). With this app's flutter/material MaterialApp, go_router 18 sees a
+  # plain WidgetsApp, so every route builds its own page (`pageBuilder:`,
+  # app_page_transitions.dart; the tab roots use MaterialPage as 17 did), the
+  # unknown-URL page is ours (app_router.dart), and the Hero widgets carry
+  # Material's arc tween themselves: the look and swipe-back stay as on 17.
+  go_router: 18.1.3
 
   # Models (stage 1.5 doesn't define any yet; locked in now so stage 1.7+ doesn't fight
   # version skew across the monorepo)
@@ -51,7 +54,11 @@ dependencies:
   http: ^1.5.0
   # Browser file save (core/platform/web_download_web.dart).
   web: ^1.1.2
-  flutter_secure_storage: ^9.2.4
+  # Row 149 (14.11): 9 -> 11. 11 no longer reads Android's
+  # EncryptedSharedPreferences (where 9 kept the tokens); the app moves them
+  # itself before the first read (core/session/legacy_secure_storage.dart,
+  # android .../LegacySecureStorage.kt). Needs win32 6 (row 118 first).
+  flutter_secure_storage: ^11.2.0
 
   crypto: ^3.0.8
   flutter_contacts: ^2.6.0
@@ -85,7 +92,7 @@ dependencies:
   # X-App-Version; deep links (custom scheme + universal/App Links, file 01
   # §12); opening the store from the update prompts; Android SMS Retriever
   # OTP autofill (file 01 §10.2 D).
-  package_info_plus: ^9.0.1
+  package_info_plus: ^10.2.2
   app_links: ^7.2.2
   flutter_displaymode: 0.7.0
   url_launcher: ^6.3.3
@@ -108,8 +115,12 @@ dependencies:
   # downscaled to 1024 px before the presign → S3 POST → confirm upload.
   image_picker: ^1.2.4
   camera: ^0.12.2
-  file_picker: ^11.0.3
-  share_plus: ^12.0.2
+  # Row 149 (14.11): 11 -> 13.3.2 (the federated rewrite: a list instead of
+  # FilePickerResult, PlatformFile.readAsBytes/lengthSync instead of
+  # bytes/size); file_picker_web for its web options (core/files).
+  file_picker: 13.3.2
+  file_picker_web: 4.2.0
+  share_plus: ^13.3.1
   socket_io_client: ^3.1.6
   cached_network_image: ^4.0.6
   # Owner 2026-10-22 (load audit finding 8): its own picture caches
@@ -144,7 +155,7 @@ dependencies:
   # the earpiece and the screen goes dark.
   proximity_sensor: ^2.0.0
   video_compress: ^3.1.4
-  device_info_plus: ^12.4.0
+  device_info_plus: ^13.3.0
   flutter_local_notifications: ^22.3.2
   timezone: ^0.11.2
   phone_numbers_parser: ^9.0.29
@@ -192,7 +203,9 @@ dependencies:
   fl_chart: ^1.3.0
   desktop_drop: ^0.8.4
   battery_plus: ^7.1.2
-  wakelock_plus: ^1.5.2
+  # Row 149: 1.8.0, the newest on win32 6 that desktop_drop 0.8.4 allows
+  # (wakelock_plus >=1.8.1 needs dbus 0.8, desktop_drop 0.8.4 dbus 0.7).
+  wakelock_plus: 1.8.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -243,6 +256,9 @@ flutter:
     - assets/practice_art/
     # OQ-041/044: call tones and in-app message sounds.
     - assets/sounds/
+    # Web bundle budget (15.11): the pickers' CLDR language names
+    # (tool/gen_language_display_names.mjs), read by language_catalog.dart.
+    - assets/l10n/language_display_names.json
 
   fonts:
     # Owner 2026-10-01: Phosphor icons (MIT, assets/fonts/LICENSE-Phosphor.txt).

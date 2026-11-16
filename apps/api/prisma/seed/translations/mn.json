@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "Зөвхөн энэ өмгөөлөгчтэй хэрэг дуусгасан үйлчлүүлэгч сэтгэгдэл үлдээх боломжтой.",
   "reviews.write.saved": "Сэтгэгдэл нийтлэгдлээ",
   "reviews.write.title": "Таны сэтгэгдэл",
+  "router.notFound.home": "Нүүр",
+  "router.notFound.title": "Хуудас олдсонгүй",
   "saved.chats.empty": "Хадгалсан мессеж алга",
   "saved.copied": "Хууллаа",
   "saved.empty": "Одоогоор юу ч хадгалаагүй",

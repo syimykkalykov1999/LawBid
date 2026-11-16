@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "Залишити відгук може лише клієнт, який завершив справу з цим адвокатом.",
   "reviews.write.saved": "Відгук опубліковано",
   "reviews.write.title": "Ваш відгук",
+  "router.notFound.home": "На головну",
+  "router.notFound.title": "Сторінку не знайдено",
   "saved.chats.empty": "Збережених повідомлень поки немає",
   "saved.copied": "Скопійовано",
   "saved.empty": "Нічого не збережено",

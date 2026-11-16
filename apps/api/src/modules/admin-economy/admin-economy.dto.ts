@@ -122,6 +122,22 @@ export class ContainerReportDto {
   taskUsd!: number;
 }
 
+/** Owner 15.11 («Сейчас» on «Масштаб»): one ECS service now. */
+export class ServiceNowDto {
+  @ApiProperty({ enum: ['api', 'worker', 'api_admin', 'admin', 'pgbouncer'] })
+  kind!: 'api' | 'worker' | 'api_admin' | 'admin' | 'pgbouncer';
+  @ApiProperty()
+  running!: number;
+  @ApiProperty()
+  desired!: number;
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description: 'Runs on Fargate Spot (null = the service does not say).',
+  })
+  spot!: boolean | null;
+}
+
 export class ContainersDto {
   @ApiProperty({ description: 'ECS actions work here (on AWS).' })
   onAws!: boolean;
@@ -131,6 +147,12 @@ export class ContainersDto {
   worker!: ContainerReportDto;
   @ApiPropertyOptional({ enum: ['min', 'normal'], nullable: true })
   scaleMode!: 'min' | 'normal' | null;
+  @ApiProperty({
+    type: [ServiceNowDto],
+    description:
+      'Every ECS service the API can read now (empty off AWS), from the same cached report.',
+  })
+  services!: ServiceNowDto[];
 }
 
 export class TierRowDto {
@@ -171,8 +193,26 @@ export class CapacityDto {
     description: 'Monthly price of that disk (gp3), USD.',
   })
   dbStorageUsd!: number | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    type: Boolean,
+    description: 'The database has a standby in a second zone (Multi-AZ).',
+  })
+  dbMultiAz!: boolean | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    type: Number,
+    description: 'Read copies of the database that report load now.',
+  })
+  replicaCount!: number | null;
   @ApiPropertyOptional({ nullable: true, type: String })
   redisClass!: string | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    type: Number,
+    description: 'Redis nodes in the group (primary + standbys).',
+  })
+  redisNodes!: number | null;
   @ApiPropertyOptional({ nullable: true, type: String })
   redisNext!: string | null;
   @ApiPropertyOptional({ nullable: true, type: Number })

@@ -12,11 +12,14 @@ Two triggers (modules/spot-fallback/main.tf):
 Switch: SSM parameter MODE_PARAM = on | dry-run | off (operations). Owner's
 admin control `scale.spot_fallback.mode` (off | on | auto) arrives in the S3
 object ops/scale-controls.json written by the economy job. State per service
-in SSM STATE_PARAM. Manual: {"action": "status"} prints what it sees.
+in SSM STATE_PARAM. The admin's numbers (owner 15.11, row 20: the quiet
+hold etc.) in SSM TUNING_PARAM, read on every run over the Terraform TUNING.
+Manual: {"action": "status"} prints what it sees.
 """
 
 import json
 import os
+from dataclasses import replace
 from datetime import datetime, timezone
 
 import decision as d
@@ -155,6 +158,58 @@ def spot_failure(event):
     return str(res[0]).rsplit("/", 1)[-1] if res else None
 
 
+def tuning_schema():
+    """The knobs the admin may change (owner 15.11, row 20): key -> Russian
+    label, bounds and kind. The same file feeds the admin page (API spec
+    checks). Copied from modules/endpoints-autoscale/lambda/handler.py."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tuning_schema.json")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def apply_admin_tuning(cfg, raw):
+    """(cfg, skipped keys). The admin's JSON from SSM `<prefix>/tuning` over
+    the Terraform TUNING; a key outside the schema or its bounds is skipped
+    (and logged by the caller), never fatal."""
+    if not raw:
+        return cfg, []
+    try:
+        body = json.loads(raw)
+    except ValueError:
+        return cfg, ["<not json>"]
+    if not isinstance(body, dict):
+        return cfg, ["<not an object>"]
+    schema, changes, skipped = tuning_schema(), {}, []
+    for k, v in body.items():
+        s = schema.get(k)
+        ok = s is not None and isinstance(v, (int, float)) and not isinstance(v, bool)
+        ok = ok and s["min"] <= v <= s["max"]
+        if ok and s["kind"] in ("integer", "flag"):
+            ok = float(v).is_integer()
+        if not ok:
+            skipped.append(k)
+            continue
+        changes[k] = bool(v) if s["kind"] == "flag" else (int(v) if s["kind"] == "integer" else float(v))
+    return replace(cfg, **changes), skipped
+
+
+def read_admin_tuning(cfg, env=os.environ):
+    """The admin's tuning, when TUNING_PARAM names it; a missing parameter
+    or an SSM error leaves the Terraform numbers."""
+    name = env.get("TUNING_PARAM")
+    if not name:
+        return cfg
+    try:
+        raw = client("ssm").get_parameter(Name=name)["Parameter"]["Value"]
+    except Exception as e:  # ParameterNotFound, AccessDenied: keep the defaults
+        print(json.dumps({"event": "admin_tuning_unread", "error": type(e).__name__}))
+        return cfg
+    cfg, skipped = apply_admin_tuning(cfg, raw)
+    if skipped:
+        print(json.dumps({"event": "admin_tuning_skipped", "keys": skipped}))
+    return cfg
+
+
 RU = {
     "fallback": "перевожу на обычные серверы Fargate (Spot сейчас нет)",
     "restore": "возвращаю на Spot (по одному, без перерыва)",
@@ -163,7 +218,7 @@ RU = {
 
 def lambda_handler(event, context, env=os.environ):
     now = datetime.now(timezone.utc)
-    cfg = d.Config(**json.loads(env.get("TUNING") or "{}"))
+    cfg = read_admin_tuning(d.Config(**json.loads(env.get("TUNING") or "{}")), env)
     want = wanted(env)
     mode = ssm_get(env["MODE_PARAM"], "on")
     control = read_control(env)

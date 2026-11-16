@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, api, errorText } from '@/lib/api/client';
+import { saveConfig } from '@/lib/config-save';
 import { taskLine } from '@/lib/ai-assistant';
 import { formatDateTime } from '@/lib/utils';
 
@@ -68,8 +69,8 @@ export default function AiAssistantPage() {
 
   // Owner rule 5c: Выкл / Вкл / Авто (default Авто), the same buttons as «Масштаб».
   const setMode = useMutation({
-    mutationFn: async (mode: Mode) =>
-      api.PUT('/admin/config/{key}', { params: { path: { key: 'ai.assistant_mode' } }, body: { value: mode } as never }),
+    // Row 179: checked against the version this tab saw (lib/config-save.ts).
+    mutationFn: async (mode: Mode) => saveConfig(qc, 'ai.assistant_mode', mode),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['ai-assistant'] });
       toast.success('Сохранено');
@@ -83,8 +84,7 @@ export default function AiAssistantPage() {
   // Owner 2026-11-12 (row 55): the model of the runs (a fresh 2FA code; the
   // panel's global prompt asks and the request repeats by itself).
   const setModel = useMutation({
-    mutationFn: async (model: string) =>
-      api.PUT('/admin/config/{key}', { params: { path: { key: 'ai.assistant_model' } }, body: { value: model } as never }),
+    mutationFn: async (model: string) => saveConfig(qc, 'ai.assistant_model', model),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['ai-assistant'] });
       toast.success('Модель сохранена');

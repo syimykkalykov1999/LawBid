@@ -19,8 +19,8 @@ import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 /// `CustomTransitionPage` has no interactive pop. Android keeps the shared
 /// axis motion (its back gesture is system-level).
 ///
-/// The welcome route deliberately keeps its plain `builder` (owner: the
-/// welcome screen is not part of this pass).
+/// The welcome route deliberately keeps the plain platform page ([material];
+/// owner: the welcome screen is not part of this pass).
 abstract final class AppPageTransitions {
   /// Owner 2026-09-30: iPhone-style swipe back on Android as well.
   static const bool _swipeBackEverywhere = true;
@@ -29,6 +29,24 @@ abstract final class AppPageTransitions {
         TargetPlatform.iOS || TargetPlatform.macOS => true,
         _ => false,
       };
+
+  /// Row 148 (go_router 18): the plain page a `builder:` route got from
+  /// go_router 17 inside a MaterialApp — go_router 18 looks for
+  /// package:material_ui's MaterialApp, finds this app's flutter/material one
+  /// instead and would build a [NoTransitionPage]. Same arguments as go_router
+  /// 17's `pageBuilderForMaterialApp` (BSD-3, flutter/packages), so tab roots
+  /// and the welcome screen open exactly as before.
+  static Page<void> material(GoRouterState state, Widget child) =>
+      MaterialPage<void>(
+        key: state.pageKey,
+        name: state.name ?? state.path,
+        arguments: <String, String>{
+          ...state.pathParameters,
+          ...state.uri.queryParameters,
+        },
+        restorationId: state.pageKey.value,
+        child: child,
+      );
 
   /// Standard push (forward navigation within a flow). Owner 2026-09-30:
   /// on every platform (Android too) the page slides in from the right and

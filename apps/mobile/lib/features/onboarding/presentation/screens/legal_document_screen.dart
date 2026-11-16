@@ -10,6 +10,7 @@ import 'package:lawbid/core/feature_flags/legal_document.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/legal/presentation/widgets/legal_markdown.dart';
@@ -164,7 +165,7 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
         ),
         leading: AppBackButton(
           semanticLabel: t.t('common.close'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
       ),
       body: SafeArea(top: false, child: body),

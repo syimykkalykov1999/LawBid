@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
+import { saveConfig, saveFlag } from '@/lib/config-save';
 import { TRANSLATE_FLAG, TRANSLATE_SCOPE_KEY, TRANSLATE_ZONES, activeZones, type TranslateScope } from '@/lib/translate-zones';
 
 type ConfigEntry = { key: string; value?: unknown; defaultValue?: unknown };
@@ -32,14 +33,13 @@ export function TranslateZones({ configured }: { configured: boolean }) {
     void qc.invalidateQueries({ queryKey: ['config'] });
   };
   const setConfig = useMutation({
-    mutationFn: (v: { key: string; value: unknown }) =>
-      api.PUT('/admin/config/{key}', { params: { path: { key: v.key } }, body: { value: v.value } as never }),
+    // Row 179: checked against the version this tab saw (lib/config-save.ts).
+    mutationFn: (v: { key: string; value: unknown }) => saveConfig(qc, v.key, v.value),
     onSuccess: done,
     onError: (e) => toast.error(e),
   });
   const setFlag = useMutation({
-    mutationFn: (enabled: boolean) =>
-      api.PATCH('/admin/feature-flags/{key}', { params: { path: { key: TRANSLATE_FLAG } }, body: { enabled } }),
+    mutationFn: (enabled: boolean) => saveFlag(qc, TRANSLATE_FLAG, enabled),
     onSuccess: (_r, enabled) => {
       toast.success(enabled ? 'Переводчик включён' : 'Переводчик выключен');
       void qc.invalidateQueries({ queryKey: ['flags'] });
