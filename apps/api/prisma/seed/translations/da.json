@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "Kun en klient, der har afsluttet en sag med denne advokat, kan anmelde dem.",
   "reviews.write.saved": "Anmeldelse sendt",
   "reviews.write.title": "Din anmeldelse",
+  "router.notFound.home": "Forside",
+  "router.notFound.title": "Siden blev ikke fundet",
   "saved.chats.empty": "Ingen gemte beskeder endnu",
   "saved.copied": "Kopieret",
   "saved.empty": "Intet gemt endnu",

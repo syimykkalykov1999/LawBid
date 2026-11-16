@@ -4,7 +4,7 @@
 # see infra/README.md), so a `terraform apply` never carries a secret.
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 

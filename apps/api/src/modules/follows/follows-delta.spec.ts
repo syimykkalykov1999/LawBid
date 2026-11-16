@@ -6,7 +6,10 @@ import { FollowsService } from './follows.service';
  * since plus meta.deletedIds from the tombstones — the phone never reloads
  * the whole list.
  */
-const T = (ms: number) => new Date(Date.UTC(2026, 10, 9, 8, 0, 0, ms));
+// 16.11: a day before the run, not a fixed date: the API refuses an
+// updatedSince older than 7 days, so a fixed 09.11 broke on 16.11.
+const BASE = Date.now() - 86_400_000;
+const T = (ms: number) => new Date(BASE + ms);
 
 function setup(
   opts: {

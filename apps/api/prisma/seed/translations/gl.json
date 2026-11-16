@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "Só un cliente que completase un caso con este avogado pode valoralo.",
   "reviews.write.saved": "Valoración publicada",
   "reviews.write.title": "A súa valoración",
+  "router.notFound.home": "Inicio",
+  "router.notFound.title": "Non se atopou a páxina",
   "saved.chats.empty": "Aínda non hai mensaxes gardadas",
   "saved.copied": "Copiado",
   "saved.empty": "Aínda non hai nada gardado",

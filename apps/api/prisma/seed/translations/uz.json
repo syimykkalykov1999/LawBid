@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "Faqat ushbu advokat bilan ishni yakunlagan mijoz sharh qoldira oladi.",
   "reviews.write.saved": "Sharh joylandi",
   "reviews.write.title": "Sizning sharhingiz",
+  "router.notFound.home": "Bosh sahifa",
+  "router.notFound.title": "Sahifa topilmadi",
   "saved.chats.empty": "Saqlangan xabarlar yo‘q",
   "saved.copied": "Nusxalandi",
   "saved.empty": "Hali hech narsa saqlanmagan",
