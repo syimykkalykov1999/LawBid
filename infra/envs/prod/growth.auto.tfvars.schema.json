@@ -22,6 +22,9 @@
     "audit_logs_enabled": {
       "type": "boolean"
     },
+    "autoscale_code_flip": {
+      "type": "boolean"
+    },
     "cdn_waf_enabled": {
       "type": "boolean"
     },
@@ -46,13 +49,20 @@
         "ARM64"
       ]
     },
+    "database_major_version": {
+      "type": "string",
+      "enum": [
+        "16",
+        "18"
+      ]
+    },
     "db_pooler_enabled": {
       "type": "boolean"
     },
     "db_shards": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 3
+      "maximum": 15
     },
     "growth_switches": {
       "type": "object",
@@ -108,6 +118,13 @@
     },
     "redis_cache_node": {
       "type": "boolean"
+    },
+    "redis_engine": {
+      "type": "string",
+      "enum": [
+        "redis",
+        "valkey"
+      ]
     },
     "replicate_media": {
       "type": "boolean"

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
+import { isStale, saveConfig } from '@/lib/config-save';
 
 type Field =
   | { key: string; label: string; kind: 'number'; hint?: string }
@@ -119,11 +120,8 @@ export function AutoModerationSettingsCard() {
     queryFn: async () => (await api.GET('/admin/config')).data!.data as Entry[],
   });
   const save = useMutation({
-    mutationFn: (v: { key: string; value: unknown }) =>
-      api.PUT('/admin/config/{key}', {
-        params: { path: { key: v.key } },
-        body: { value: v.value } as never,
-      }),
+    // Row 179: checked against the version this tab saw (lib/config-save.ts).
+    mutationFn: (v: { key: string; value: unknown }) => saveConfig(qc, v.key, v.value),
     onSuccess: (_r, v) => {
       toast.success(`Сохранено: ${v.key}`);
       setDrafts((d) => {
@@ -133,7 +131,16 @@ export function AutoModerationSettingsCard() {
       });
       void qc.invalidateQueries({ queryKey: ['config'] });
     },
-    onError: (e) => toast.error(e),
+    onError: (e, v) => {
+      toast.error(e);
+      // Row 179: changed elsewhere → the field shows the fresh value.
+      if (isStale(e))
+        setDrafts((d) => {
+          const next = { ...d };
+          delete next[v.key];
+          return next;
+        });
+    },
   });
   const byKey = new Map((q.data ?? []).map((e) => [e.key, e]));
   return (

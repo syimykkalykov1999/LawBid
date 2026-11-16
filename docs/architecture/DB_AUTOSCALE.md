@@ -37,7 +37,7 @@
 - вверх не чаще раза в 30 минут; вниз не раньше 6 часов после любого изменения (`down_cooldown_h`, Terraform-переменная модуля);
 - копия базы для чтения уменьшение и рост **не останавливает** (с 12.11): RDS сам поднимает её пределы соединений;
 - без Multi-AZ растёт только вручную, а уменьшается только ночью (простой несколько минут ночью владелец принял 12.11);
-- потолок `db_autoscale_max_class` (по умолчанию `db.r7g.xlarge`, ≈ $698/мес) и пол `db_autoscale_min_class` (`db.t4g.micro`);
+- потолок `db_autoscale_max_class` (по умолчанию `db.r8g.xlarge`, ≈ $698/мес) и пол `db_autoscale_min_class` (`db.t4g.micro`);
 - на потолке при высокой нагрузке только письмо «нужно ваше решение», сама выше не лезет;
 - если что-то непонятно (нет данных, не удалось прочитать ECS, незнакомый размер) она **ничего не делает**;
 - рубильник без Terraform: параметр SSM `on` / `dry-run` / `off` (в `dry-run` только пишет письма, что сделала бы).
@@ -50,9 +50,9 @@
 | 2 | db.t4g.small | 2 ГБ | ~198 | ≈ 47 |
 | 3 | db.t4g.medium | 4 ГБ | ~396 | ≈ 94 |
 | 4 | db.t4g.large | 8 ГБ | ~792 | ≈ 188 |
-| 5 | db.r7g.large | 16 ГБ | ~1585 | ≈ 349 |
-| 6 | db.r7g.xlarge (потолок по умолчанию) | 32 ГБ | ~3171 | ≈ 698 |
-| 7 | db.r7g.2xlarge | 64 ГБ | 5000 | ≈ 1396 |
+| 5 | db.r8g.large | 16 ГБ | ~1585 | ≈ 349 |
+| 6 | db.r8g.xlarge (потолок по умолчанию) | 32 ГБ | ~3171 | ≈ 698 |
+| 7 | db.r8g.2xlarge | 64 ГБ | 5000 | ≈ 1396 |
 
 Цены: AWS Price List API, us-east-1, PostgreSQL, Multi-AZ, по часу × 730, на
 2026-10-24; **примерные**. Диск (gp3), резервные копии и Performance Insights
@@ -155,7 +155,7 @@ re-fetched in this session, treat the numbers as approximate):
 
 ```
 EventBridge Scheduler  rate(5 minutes)      {"mode":"tick"}   ─┐
-EventBridge Scheduler  cron(30 3 * * ? *)                       ├─> Lambda db-autoscale (python3.12, arm64)
+EventBridge Scheduler  cron(30 3 * * ? *)                       ├─> Lambda db-autoscale (python3.14, arm64)
         tz America/Chicago                  {"mode":"night"}  ─┘     ├─ rds:DescribeDBInstances / ModifyDBInstance (this DB only)
                                                                      ├─ cloudwatch:GetMetricData
                                                                      ├─ ecs:DescribeServices / ListTasks (this cluster)
@@ -195,7 +195,7 @@ aws ssm put-parameter --region us-east-1 --name /lawbid-prod/db-autoscale/mode -
 
 Back to trial: same command with `dry-run`; off: `off`. The default only applies when the parameter is first created: if it already exists in prod with `on`, change it with the command above.
 
-**Sizing note (load test 2026-11-02, `docs/perf/LOAD_TEST_2026-11-02.md`).** On 1M users with the real request mix a 2-vCPU database (`db.r7g.large` class) holds about **450–500 people at once** (DB CPU 213 % of 200 %, p95 > 2 s); 8 vCPU held 1 000 people with room (310 % of 800). Rule of thumb for the ladder: **about 200–250 simultaneous people per vCPU** of the database. A launch spike reaches saturation in minutes, a resize takes several minutes more, so the 70 %/15 min rule alone reacts after people already see slow screens. Hence the fast lane (90 %/10 min; scale-UP only — scale-down stays the night rule below; every firing sends the owner e-mail «База увеличена … быстрая полоса: …» with the reason and the price) and the advice: **before a planned peak (launch day, a press mention) raise the class by hand one step ahead** (Admin -> Economy -> Increase), do not rely on the automatic reaction. Numbers are from a laptop stand (Docker VM, no Multi-AZ); RDS differs (Multi-AZ, EBS), so repeat on real hardware before trusting the figure.
+**Sizing note (load test 2026-11-02, `docs/perf/LOAD_TEST_2026-11-02.md`).** On 1M users with the real request mix a 2-vCPU database (`db.r8g.large` class) holds about **450–500 people at once** (DB CPU 213 % of 200 %, p95 > 2 s); 8 vCPU held 1 000 people with room (310 % of 800). Rule of thumb for the ladder: **about 200–250 simultaneous people per vCPU** of the database. A launch spike reaches saturation in minutes, a resize takes several minutes more, so the 70 %/15 min rule alone reacts after people already see slow screens. Hence the fast lane (90 %/10 min; scale-UP only — scale-down stays the night rule below; every firing sends the owner e-mail «База увеличена … быстрая полоса: …» with the reason and the price) and the advice: **before a planned peak (launch day, a press mention) raise the class by hand one step ahead** (Admin -> Economy -> Increase), do not rely on the automatic reaction. Numbers are from a laptop stand (Docker VM, no Multi-AZ); RDS differs (Multi-AZ, EBS), so repeat on real hardware before trusting the figure.
 
 ### 2.2 Scale-down (mode night)
 
@@ -260,7 +260,7 @@ the class) is counted at the target's size, the rest of the used memory as measu
   (`db_autoscale_min_class`) and the check asks that the **largest**
   (`db_autoscale_max_class`) can carry the peak task count. With prod's
   `api_max_tasks = 50`, `worker_max_tasks = 20` (peak 140 tasks) the pool is
-  3 either way (as before), and the check passes at `db.r7g.xlarge` (3171).
+  3 either way (as before), and the check passes at `db.r8g.xlarge` (3171).
 - `rds_primary_instance_class` (growth module) is only the default class of NEW
   read replicas; with autoscale on it keeps its meaning. A `check` warns when
   `growth.rds_read_replicas > 0` together with autoscale (the Lambda would pause).
@@ -296,11 +296,11 @@ the class) is counted at the target's size, the rest of the used memory as measu
    disagree on the next size; an admin step counts as a change and blocks a
    scale-down for 72 h. `db.t4g.xlarge` ($0.517/h, 16 GiB) and `db.t4g.2xlarge`
    ($1.034/h, 32 GiB) were deliberately NOT put on the ladder: they cost more than
-   `db.r7g.large` ($0.478/h, 16 GiB) and `db.r7g.xlarge` ($0.956/h, 32 GiB) for
+   `db.r8g.large` ($0.478/h, 16 GiB) and `db.r8g.xlarge` ($0.956/h, 32 GiB) for
    the same memory, and a step up from t4g.2xlarge to r7g.large would lose memory.
    A class outside the ladder is left alone (`unknown_class`) until set back with `force`.
 8. **Read replicas** block autoscale (documented, mailed weekly).
-9. **Cost**: ceiling `db.r7g.xlarge` ≈ $698/month; the monthly budget alarm
+9. **Cost**: ceiling `db.r8g.xlarge` ≈ $698/month; the monthly budget alarm
    (`monthly_budget_usd = 350`) will fire there: raise the budget before raising the ceiling.
 10. Prices are approximate and hard-coded in `local.class_specs`; refresh when AWS
     changes them (the message price is informational, billing is AWS's).

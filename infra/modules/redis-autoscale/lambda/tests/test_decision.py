@@ -87,9 +87,14 @@ class UpTests(unittest.TestCase):
         self.assertIn("connections", r.facts["triggers"])
 
     def test_burstable_credits_near_zero(self):
-        r = self.go(replace(calm(), credit=(5.0, 4.0, 3.0, 2.0)))
+        r = self.go(replace(calm(), cpu=(30.0,) * 4, credit=(5.0, 4.0, 3.0, 2.0)))
         self.assertEqual((r.action, r.target), ("up", "cache.t4g.medium"))
         self.assertEqual(r.facts["triggers"]["credits"], 2.0)
+
+    def test_empty_credits_after_a_shrink_are_not_load(self):
+        # 15.11 prod: t4g.micro right after r7g.large -> micro, CPU 0.3 %, balance 0.5
+        r = self.go(replace(calm(), cpu=(0.3,) * 4, credit=(0.5,) * 4), cls="cache.t4g.micro")
+        self.assertEqual(r.reason, "calm")
 
     def test_credits_ignored_on_non_burstable(self):
         r = self.go(replace(calm(), credit=(1.0,) * 4), cls="cache.r7g.large")

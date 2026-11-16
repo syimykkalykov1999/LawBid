@@ -4,7 +4,7 @@
 # adapter state only (§6.4: not a source of truth).
 terraform {
   required_providers {
-    aws    = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws    = { source = "hashicorp/aws", version = "~> 6.72" }
     random = { source = "hashicorp/random", version = "~> 3.6" }
   }
 }
@@ -36,6 +36,31 @@ variable "maxmemory_policy" {
     error_message = "maxmemory_policy: noeviction (queues) or an LRU/LFU policy (cache-only node)."
   }
 }
+# Owner 14.11 «newest methods» (docs/dev/AUTO_MODERNIZE_2026-11-15.md):
+# Valkey on ElastiCache is the open-source successor of Redis OSS; AWS prices
+# node-based Valkey 20 % lower and upgrades Redis OSS in place with no
+# downtime (ElastiCache 8.1 for Valkey, 07.2025). 15.11: Valkey 9.1, the newest
+# ElastiCache offers (describe-cache-engine-versions --engine valkey; AWS
+# What's New 23.06.2026), family valkey9. Default "redis" = today
+# (no change in the next apply); "valkey" switches at an apply of its own.
+variable "engine" {
+  type    = string
+  default = "redis"
+  validation {
+    condition     = contains(["redis", "valkey"], var.engine)
+    error_message = "engine: redis or valkey."
+  }
+}
+variable "engine_version" {
+  type        = string
+  default     = ""
+  description = "Empty = 7.1 for redis, 9.1 for valkey."
+}
+locals {
+  pg_family      = var.engine == "valkey" ? "valkey9" : "redis7"
+  engine_version = var.engine_version != "" ? var.engine_version : (var.engine == "valkey" ? "9.1" : "7.1")
+}
+
 variable "description" {
   type    = string
   default = "cache, queues, rate limits, realtime"
@@ -117,8 +142,10 @@ resource "random_password" "auth" {
 }
 
 resource "aws_elasticache_parameter_group" "this" {
-  name   = "${var.name}-redis7"
-  family = "redis7"
+  name   = "${var.name}-${local.pg_family}"
+  family = local.pg_family
+  # A new family is a new group: create it before the old one goes.
+  lifecycle { create_before_destroy = true }
   # BullMQ requires noeviction (a dropped job key corrupts a queue); caches
   # carry their own TTLs, so memory pressure shows up as the redis-memory
   # alarm instead of silent data loss. A cache-only node (stack
@@ -133,8 +160,9 @@ resource "aws_elasticache_parameter_group" "this" {
 
 resource "aws_elasticache_parameter_group" "cluster" {
   count  = var.cluster_mode ? 1 : 0
-  name   = "${var.name}-redis7-cluster"
-  family = "redis7"
+  name   = "${var.name}-${local.pg_family}-cluster"
+  family = local.pg_family
+  lifecycle { create_before_destroy = true }
   parameter {
     name  = "cluster-enabled"
     value = "yes"
@@ -149,8 +177,8 @@ resource "aws_elasticache_parameter_group" "cluster" {
 resource "aws_elasticache_replication_group" "this" {
   replication_group_id       = "${var.name}-redis"
   description                = "${var.name} ${var.description}"
-  engine                     = "redis"
-  engine_version             = "7.1"
+  engine                     = var.engine
+  engine_version             = local.engine_version
   node_type                  = var.node_type
   num_cache_clusters         = 1 + var.replicas
   automatic_failover_enabled = var.replicas > 0
@@ -164,10 +192,18 @@ resource "aws_elasticache_replication_group" "this" {
   transit_encryption_enabled = true
   auth_token                 = random_password.auth.result
   auth_token_update_strategy = "ROTATE"
-  apply_immediately          = false
-  maintenance_window         = "sun:05:00-sun:06:00"
-  snapshot_retention_limit   = 1
-  tags                       = var.tags
+  # 15.11: with false, AWS keeps an engine change (Redis OSS -> Valkey) for
+  # the Sunday window (ModifyReplicationGroup ApplyImmediately), while the
+  # same apply already deletes the old redis7 parameter group the group still
+  # uses (create_before_destroy) -> InvalidCacheParameterGroupState, apply
+  # red. On Valkey every change goes at once: AWS «minimal downtime …
+  # failover … a few seconds» (ElastiCache «Upgrading engine versions
+  # including cross engine upgrades»). Node size changes use
+  # ApplyImmediately anyway (modules/redis-autoscale).
+  apply_immediately        = var.engine == "valkey"
+  maintenance_window       = "sun:05:00-sun:06:00"
+  snapshot_retention_limit = 1
+  tags                     = var.tags
 
   # Owner 2026-10-16: the admin («Экономика» → «Увеличить») may move Redis
   # one tier up at run time; terraform apply must not undo it. Owner
@@ -219,8 +255,8 @@ resource "aws_elasticache_replication_group" "cluster" {
   count                      = var.cluster_mode ? 1 : 0
   replication_group_id       = "${var.name}-redis-cl"
   description                = "${var.name} ${var.description} (cluster mode enabled)"
-  engine                     = "redis"
-  engine_version             = "7.1"
+  engine                     = var.engine
+  engine_version             = local.engine_version
   node_type                  = var.cluster_node_type != "" ? var.cluster_node_type : var.node_type
   num_node_groups            = var.num_node_groups
   replicas_per_node_group    = var.replicas_per_node_group
@@ -235,7 +271,7 @@ resource "aws_elasticache_replication_group" "cluster" {
   transit_encryption_enabled = true
   auth_token                 = random_password.auth.result
   auth_token_update_strategy = "ROTATE"
-  apply_immediately          = false
+  apply_immediately          = var.engine == "valkey" # same reason as the standalone group
   maintenance_window         = "sun:05:00-sun:06:00"
   snapshot_retention_limit   = 1
   tags                       = var.tags

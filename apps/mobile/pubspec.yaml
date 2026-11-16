@@ -256,6 +256,9 @@ flutter:
     - assets/practice_art/
     # OQ-041/044: call tones and in-app message sounds.
     - assets/sounds/
+    # Web bundle budget (15.11): the pickers' CLDR language names
+    # (tool/gen_language_display_names.mjs), read by language_catalog.dart.
+    - assets/l10n/language_display_names.json
 
   fonts:
     # Owner 2026-10-01: Phosphor icons (MIT, assets/fonts/LICENSE-Phosphor.txt).

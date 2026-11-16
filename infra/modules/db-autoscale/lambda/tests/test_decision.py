@@ -25,11 +25,11 @@ LADDER = (
     spec("db.t4g.small", 2, 2, 47.45, 20),
     spec("db.t4g.medium", 2, 4, 94.17, 20),
     spec("db.t4g.large", 2, 8, 188.34, 30),
-    spec("db.r7g.large", 2, 16, 348.94),
-    spec("db.r7g.xlarge", 4, 32, 697.88),
-    spec("db.r7g.2xlarge", 8, 64, 1396.49),
+    spec("db.r8g.large", 2, 16, 348.94),
+    spec("db.r8g.xlarge", 4, 32, 697.88),
+    spec("db.r8g.2xlarge", 8, 64, 1395.76),
 )
-CFG = d.Config(ladder=LADDER, min_class="db.t4g.micro", max_class="db.r7g.xlarge")
+CFG = d.Config(ladder=LADDER, min_class="db.t4g.micro", max_class="db.r8g.xlarge")
 WINDOW = CFG.down_window_h * H // CFG.period_s  # 72 points (6 h)
 
 
@@ -113,32 +113,40 @@ class UpTests(unittest.TestCase):
         self.assertEqual(self.go(m).action, "up")
 
     def test_burst_credits_exhausted_on_t4g(self):
-        m = replace(calm(), credit=(3.0, 1.0, 0.0, 0.0))
+        # spending credits: CPU at the t4g.small baseline (20 %), below the CPU line
+        m = replace(calm(), cpu=(25.0,) * 4, credit=(3.0, 1.0, 0.0, 0.0))
         r = self.go(m)
         self.assertEqual(r.action, "up")
         self.assertIn("credits", r.facts["triggers"])
 
-    def test_credits_are_ignored_on_r7g(self):
-        m = replace(calm("db.r7g.large"), credit=(0.0,) * 4)
-        self.assertEqual(self.go(m, cls="db.r7g.large").action, "none")
+    def test_empty_credits_after_a_shrink_are_not_load(self):
+        # 15.11 prod: t4g.medium right after large -> medium, CPU 4 %, balance 0
+        m = replace(calm("db.t4g.medium"), cpu=(4.0,) * 4, credit=(0.0,) * 4)
+        r = self.go(m, cls="db.t4g.medium")
+        self.assertEqual(r.action, "none")
+        self.assertNotIn("credits", (r.facts or {}).get("triggers", {}))
+
+    def test_credits_are_ignored_on_r8g(self):
+        m = replace(calm("db.r8g.large"), credit=(0.0,) * 4)
+        self.assertEqual(self.go(m, cls="db.r8g.large").action, "none")
 
     def test_missing_data_never_triggers(self):
         m = replace(calm(), cpu=(90.0, 90.0))  # only 10 minutes of data
         self.assertEqual(self.go(m).action, "none")
 
     def test_at_the_ceiling_it_does_not_go_higher(self):
-        s = CFG.spec("db.r7g.xlarge")
-        m = replace(calm("db.r7g.xlarge"), cpu=(95.0,) * 4)
-        r = self.go(m, cls="db.r7g.xlarge")
+        s = CFG.spec("db.r8g.xlarge")
+        m = replace(calm("db.r8g.xlarge"), cpu=(95.0,) * 4)
+        r = self.go(m, cls="db.r8g.xlarge")
         self.assertEqual((r.action, r.reason), ("none", "at_max"))
         self.assertIn("cpu", r.facts["triggers"])
         self.assertIsNotNone(s)
 
     def test_ceiling_can_be_raised(self):
-        cfg = replace(CFG, max_class="db.r7g.2xlarge")
-        m = replace(calm("db.r7g.xlarge"), cpu=(95.0,) * 4)
-        r = d.decide(cfg, "tick", inst("db.r7g.xlarge"), d.Guards(), d.State(cls="db.r7g.xlarge"), m, NOW)
-        self.assertEqual(r.target, "db.r7g.2xlarge")
+        cfg = replace(CFG, max_class="db.r8g.2xlarge")
+        m = replace(calm("db.r8g.xlarge"), cpu=(95.0,) * 4)
+        r = d.decide(cfg, "tick", inst("db.r8g.xlarge"), d.Guards(), d.State(cls="db.r8g.xlarge"), m, NOW)
+        self.assertEqual(r.target, "db.r8g.2xlarge")
 
     def test_cooldown_30_minutes_after_any_change(self):
         m = replace(calm(), cpu=(90.0,) * 4)
@@ -220,6 +228,24 @@ class GuardTests(unittest.TestCase):
         r = d.decide(CFG, "tick", inst("db.t4g.xlarge"), d.Guards(), d.State(), self.HOT, NOW)
         self.assertEqual((r.action, r.reason), ("none", "unknown_class"))
 
+    def test_previous_generation_r7g_is_left_alone(self):
+        # 15.11: the ladder moved db.r7g -> db.r8g (same price, Graviton4).
+        # A database still on an r7g class is never resized blindly; the
+        # owner moves it once by hand (Admin -> Economy) onto the ladder.
+        for cls in ("db.r7g.large", "db.r7g.xlarge"):
+            r = d.decide(CFG, "tick", inst(cls), d.Guards(), d.State(), self.HOT, NOW)
+            self.assertEqual((r.action, r.reason), ("none", "unknown_class"), cls)
+
+    def test_terraform_ladder_is_newest_graviton(self):
+        # The module default (main.tf) is what the Lambda gets as LADDER.
+        import pathlib, re
+        tf = (pathlib.Path(__file__).resolve().parents[2] / "main.tf").read_text()
+        block = re.search(r'variable "ladder" \{.*?default = \[(.*?)\]', tf, re.S).group(1)
+        names = re.findall(r'"(db\.[a-z0-9.]+)"', block)
+        self.assertFalse([n for n in names if n.startswith("db.r7g.")])
+        self.assertEqual([n for n in names if n.startswith("db.r8g.")],
+                         ["db.r8g.large", "db.r8g.xlarge", "db.r8g.2xlarge"])
+
     def test_bad_mode(self):
         r = d.decide(CFG, "x", inst(), d.Guards(), d.State(), self.HOT, NOW)
         self.assertEqual(r.action, "none")
@@ -240,10 +266,10 @@ class DownTests(unittest.TestCase):
     def test_multi_step_the_11_11_case(self):
         # prod 12.11: r7g.large, CPU max 4.7 %, avg 3 %, 10.2 of 16 GiB free
         # (4 GiB of the 5.8 GiB used is shared_buffers, which shrinks with the class)
-        s = CFG.spec("db.r7g.large")
+        s = CFG.spec("db.r8g.large")
         m = d.Metrics(cpu=(4.7,) * WINDOW, mem_free=(10.2 * GIB,) * WINDOW,
                       conns=(s.max_connections * 0.02,) * WINDOW)
-        r = self.go(m, cls="db.r7g.large")
+        r = self.go(m, cls="db.r8g.large")
         # outside shared_buffers 1.8 GiB in use: t4g.medium would sit at 70.0x %
         # (just over the 70 % band), so t4g.large; the next night measures again
         self.assertEqual((r.action, r.target), ("down", "db.t4g.large"))
@@ -299,12 +325,12 @@ class DownTests(unittest.TestCase):
 
     def test_target_must_have_room_for_cpu(self):
         # 29 % of 4 cores on r7g.xlarge becomes 58 % of 2 cores... fine; 29 % * 2 = 58 < 60
-        m = quiet_week("db.r7g.xlarge", cpu=29.0, free_pct=70)
-        self.assertEqual(self.go(m, cls="db.r7g.xlarge").action, "down")
+        m = quiet_week("db.r8g.xlarge", cpu=29.0, free_pct=70)
+        self.assertEqual(self.go(m, cls="db.r8g.xlarge").action, "down")
         # but a 4 -> 2 core step with 29 % on a 2x2 core ladder is only allowed up to 30 %
         cfg = replace(CFG, down_cpu_max_pct=40)
-        m = quiet_week("db.r7g.xlarge", cpu=35.0, free_pct=70)
-        self.assertEqual(self.go(m, cls="db.r7g.xlarge", cfg=cfg).reason, "target_cpu_tight")
+        m = quiet_week("db.r8g.xlarge", cpu=35.0, free_pct=70)
+        self.assertEqual(self.go(m, cls="db.r8g.xlarge", cfg=cfg).reason, "target_cpu_tight")
 
     def test_target_burstable_must_fit_its_credit_baseline(self):
         # t4g.large -> t4g.medium (baseline 20 %): 25 % average would drain credits

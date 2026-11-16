@@ -192,10 +192,11 @@ class DeployQuietTests(unittest.TestCase):
     """13.11: a rollout ECS calls COMPLETED still holds a resize for
     DEPLOY_QUIET_SEC (the deploy job keeps smoke-testing prod)."""
 
-    def guards_with(self, updated_at):
+    def guards_with(self, created_at, updated_at=None):
         class Ecs:
             def describe_services(self, cluster, services):
-                dep = [{"rolloutState": "COMPLETED", "updatedAt": updated_at}]
+                dep = [{"rolloutState": "COMPLETED", "createdAt": created_at,
+                        "updatedAt": updated_at or created_at}]
                 return {"services": [{"deployments": dep}], "failures": []}
 
             def list_tasks(self, **kw):
@@ -217,6 +218,21 @@ class DeployQuietTests(unittest.TestCase):
         import time as t
         old = datetime.fromtimestamp(t.time() - h.DEPLOY_QUIET_SEC - 60, timezone.utc)
         self.assertFalse(self.guards_with(old)[0])
+
+    def test_autoscaling_bumping_updated_at_does_not_count(self):
+        # 15.11 prod: api deployment created 12:48Z, COMPLETED; Application
+        # Auto Scaling 1->2 moved its updatedAt to 13:02Z. Not a rollout.
+        import time as t
+        created = datetime.fromtimestamp(t.time() - h.DEPLOY_QUIET_SEC - 60, timezone.utc)
+        bumped = datetime.fromtimestamp(t.time() - 60, timezone.utc)
+        self.assertFalse(self.guards_with(created, bumped)[0])
+
+    def test_smoke_window_after_rollout_still_counts(self):
+        # Rollout done 10 min after it started, smoke runs 15 min later:
+        # 25 min after createdAt the resize still waits.
+        import time as t
+        created = datetime.fromtimestamp(t.time() - 25 * 60, timezone.utc)
+        self.assertTrue(self.guards_with(created)[0])
 
 
 class AllServicesGuardTests(unittest.TestCase):
@@ -288,3 +304,40 @@ class NightHoursTuningTests(unittest.TestCase):
         cfg = h.load_config({**ENV, "TUNING": '{"night_start_h": 23, "night_end_h": 3}'})
         self.assertTrue(h.night_window({}, "America/Chicago", NOW, cfg))  # 02:00
         self.assertFalse(h.night_window({}, "America/Chicago", NOW + 10 * 3600, cfg))
+
+
+class AdminTuningTests(unittest.TestCase):
+    """14.11 (owner): every «Авто» number is changeable from the admin without
+    a Terraform apply. The admin writes JSON into SSM `<prefix>/tuning`; the
+    Lambda reads it on every run, over the Terraform TUNING (= the defaults).
+    Only keys of tuning_schema.json, only inside their bounds."""
+
+    def test_schema_matches_the_config(self):
+        schema = h.tuning_schema()
+        base = h.load_config({**ENV, "TUNING": "{}"})
+        for k, s in schema.items():
+            self.assertTrue(hasattr(base, k), k)
+            v = getattr(base, k)
+            v = int(v) if isinstance(v, bool) else v
+            self.assertTrue(s["min"] <= v <= s["max"], f"{k} default {v} outside {s}")
+            self.assertTrue(s["ru"], k)
+
+    def test_valid_values_apply_bad_ones_are_skipped(self):
+        base = h.load_config({**ENV, "TUNING": '{"down_window_h": 2}'})
+        cfg, skipped = h.apply_admin_tuning(
+            base,
+            json.dumps({"down_window_h": 3, "night_start_h": 19, "single_node_up": 0,
+                        "up_cpu_pct": 0, "period_s": 60, "nope": 1}),
+        )
+        self.assertEqual(cfg.down_window_h, 3)  # the admin wins over Terraform
+        self.assertEqual(cfg.night_start_h, 19)
+        self.assertIs(cfg.single_node_up, False)
+        self.assertEqual(cfg.up_cpu_pct, base.up_cpu_pct)  # 0 < floor 1: skipped
+        self.assertEqual(cfg.period_s, base.period_s)  # not an admin knob
+        self.assertEqual(sorted(skipped), ["nope", "period_s", "up_cpu_pct"])
+
+    def test_missing_or_broken_parameter_changes_nothing(self):
+        base = h.load_config({**ENV, "TUNING": "{}"})
+        for raw in (None, "", "not json", "[1,2]"):
+            cfg, _ = h.apply_admin_tuning(base, raw)
+            self.assertEqual(cfg, base)

@@ -40,6 +40,29 @@ test("the home page carries schema.org Organization and WebSite", () => {
   assert.match(org.logo, /^https:\/\/lawbid\.dev\/icons\/Icon-512\.png$/);
 });
 
+test("the home page Organization is the same company as /about/", () => {
+  // LawBidSite structured-data.tsx (live /about/ 15.11): legalName + email.
+  const org = jsonLd.find((d) => d["@type"] === "Organization");
+  assert.equal(org.legalName, "SiMA LLC");
+  assert.equal(org.email, "support@lawbid.dev");
+});
+
+test("every JSON-LD block is one schema.org object with absolute https addresses", () => {
+  assert.equal(jsonLd.length, 2);
+  for (const d of jsonLd) {
+    assert.equal(typeof d, "object");
+    assert.ok(!Array.isArray(d));
+    assert.equal(d["@context"], "https://schema.org");
+    for (const key of ["url", "logo"]) {
+      if (key in d) assert.equal(new URL(d[key]).protocol, "https:");
+    }
+  }
+  // Google retired the sitelinks search box (21.11.2024); a SearchAction
+  // would also need a public search address the site does not have.
+  const site = jsonLd.find((d) => d["@type"] === "WebSite");
+  assert.equal(site.potentialAction, undefined);
+});
+
 test("app screens (spa.html, noindex) do not claim the home page as canonical", () => {
   const deploy = readFileSync(
     join(root, ".github", "workflows", "web-deploy.yml"),

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
@@ -43,9 +43,7 @@ class ArchiveScreen extends ConsumerWidget {
             semanticLabel: t.t('common.back'),
             onPressed: () => selecting
                 ? ref.read(chatSelectionProvider.notifier).stop()
-                : context.canPop()
-                    ? context.pop()
-                    : Navigator.of(context).maybePop(),
+                : context.safeBack(),
           ),
           title: Text(
             t.t('settings.archive'),

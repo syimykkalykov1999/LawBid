@@ -48,6 +48,57 @@ def load_config(env=os.environ):
     return replace(base, **json.loads(env.get("TUNING") or "{}"))
 
 
+def tuning_schema():
+    """The knobs the admin may change (owner 14.11): key -> Russian label,
+    bounds and kind. The same file feeds the admin page (API spec checks)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tuning_schema.json")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def apply_admin_tuning(cfg, raw):
+    """(cfg, skipped keys). The admin's JSON from SSM `<prefix>/tuning` over
+    the Terraform TUNING; a key outside the schema or its bounds is skipped
+    (and logged by the caller), never fatal. 1 / 0 for the flags."""
+    if not raw:
+        return cfg, []
+    try:
+        body = json.loads(raw)
+    except ValueError:
+        return cfg, ["<not json>"]
+    if not isinstance(body, dict):
+        return cfg, ["<not an object>"]
+    schema, changes, skipped = tuning_schema(), {}, []
+    for k, v in body.items():
+        s = schema.get(k)
+        ok = s is not None and isinstance(v, (int, float)) and not isinstance(v, bool)
+        ok = ok and s["min"] <= v <= s["max"]
+        if ok and s["kind"] in ("integer", "flag"):
+            ok = float(v).is_integer()
+        if not ok:
+            skipped.append(k)
+            continue
+        changes[k] = bool(v) if s["kind"] == "flag" else (int(v) if s["kind"] == "integer" else float(v))
+    return replace(cfg, **changes), skipped
+
+
+def read_admin_tuning(cfg, env=os.environ):
+    """The admin's tuning, when TUNING_PARAM names it; a missing parameter
+    or an SSM error leaves the Terraform numbers."""
+    name = env.get("TUNING_PARAM")
+    if not name:
+        return cfg
+    try:
+        raw = client("ssm").get_parameter(Name=name)["Parameter"]["Value"]
+    except Exception as e:  # ParameterNotFound, AccessDenied: keep the defaults
+        log(event="admin_tuning_unread", error=type(e).__name__)
+        return cfg
+    cfg, skipped = apply_admin_tuning(cfg, raw)
+    if skipped:
+        log(event="admin_tuning_skipped", keys=skipped)
+    return cfg
+
+
 def apply_ceiling_param(cfg, env=os.environ):
     """Cost registry V4: the app writes the biggest size the money allows into
     the SSM parameter MAX_CLASS_PARAM (economy tick, from the allowed spend).
@@ -127,8 +178,10 @@ def describe(db_id):
     )
 
 
-# 13.11: how long after a deployment changed a resize still waits (seconds).
-DEPLOY_QUIET_SEC = 15 * 60
+# 13.11: how long after a rollout STARTED a resize still waits (seconds).
+# Measured from the deployment's createdAt (rollout ~10 min + the deploy
+# job's smoke and synthetic checks after it), never from updatedAt.
+DEPLOY_QUIET_SEC = 40 * 60
 
 
 def _epoch(at):
@@ -154,14 +207,20 @@ def ecs_guards(cluster, services):
         # for minutes AFTER ECS reports the rollout complete; the night DB
         # resize at 09:32 UTC paused the database right then and the deploy's
         # «Smoke (all services)» got a 500 (run 43393586005). A deployment
-        # that changed in the last DEPLOY_QUIET_SEC counts as deploying too.
+        # created in the last DEPLOY_QUIET_SEC counts as deploying too.
+        # 15.11: createdAt, not updatedAt. ECS bumps a deployment's updatedAt
+        # whenever its desiredCount changes, so Application Auto Scaling
+        # (api 1->2 at 13:02Z on a deployment created 12:48Z) blocked every
+        # resize for the window, again and again. createdAt only moves on a
+        # real new deployment (AWS API_Deployment: "time when the service
+        # deployment was created").
         quiet_since = time.time() - DEPLOY_QUIET_SEC
         for s in r["services"]:
             deps = s.get("deployments", [])
             if len(deps) > 1 or any(x.get("rolloutState") == "IN_PROGRESS" for x in deps):
                 deploying = True
             for x in deps:
-                at = x.get("updatedAt")
+                at = x.get("createdAt")
                 if at is not None and _epoch(at) > quiet_since:
                     deploying = True
     arns, token = [], None
@@ -324,7 +383,7 @@ SKIP_NOTICE_RU = {
 def handler(event, context=None, now=None):
     env = os.environ
     now = time.time() if now is None else now
-    cfg = apply_ceiling_param(load_config())
+    cfg = apply_ceiling_param(read_admin_tuning(load_config()))
     db_id, topic = env["DB_ID"], env["TOPIC_ARN"]
     state_name = env["STATE_PARAM"]
     action = event.get("action", "auto")

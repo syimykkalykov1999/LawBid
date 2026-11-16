@@ -13,6 +13,9 @@ ContainersDto _$ContainersDtoFromJson(Map<String, dynamic> json) =>
       worker: ContainerReportDto.fromJson(
         json['worker'] as Map<String, dynamic>,
       ),
+      services: (json['services'] as List<dynamic>)
+          .map((e) => ServiceNowDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
       scaleMode: json['scaleMode'] == null
           ? null
           : ContainersDtoScaleMode.fromJson(json['scaleMode'] as String),
@@ -24,4 +27,5 @@ Map<String, dynamic> _$ContainersDtoToJson(ContainersDto instance) =>
       'api': instance.api.toJson(),
       'worker': instance.worker.toJson(),
       'scaleMode': ?instance.scaleMode?.toJson(),
+      'services': instance.services.map((e) => e.toJson()).toList(),
     };

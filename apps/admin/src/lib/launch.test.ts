@@ -83,6 +83,12 @@ describe("launch helpers (owner 2026-10-24)", () => {
     expect(money(12.5)).toBe("$12,50");
   });
 
+  it("row 176: a loss shows the minus before the dollar sign", () => {
+    expect(money(-12)).toBe("−$12");
+    expect(money(-12.5)).toBe("−$12,50");
+    expect(money(-0.001)).toBe("$0,00");
+  });
+
   it("scales the 30-day bars to the biggest day, tiny days stay visible", () => {
     expect(
       barHeights([{ usd: 0 }, { usd: 10 }, { usd: 5 }, { usd: 0.01 }]),

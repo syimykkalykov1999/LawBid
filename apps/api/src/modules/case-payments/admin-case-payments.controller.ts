@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -181,9 +182,10 @@ export class AdminCasePaymentsController {
     @CurrentAdmin() admin: AdminActor,
     @Param() p: CasePaymentIdParamDto,
     @Body() dto: AdminRefundCasePaymentDto,
+    @Headers('Idempotency-Key') idempotencyKey: string,
   ): Promise<AdminCasePaymentRowDto> {
     // Owner 2026-10-22: money back to the client's card — fresh 2FA code.
     await this.auth.assertStepUp(admin.sessionId);
-    return this.payments.refund(admin, p.id, dto);
+    return this.payments.refund(admin, p.id, dto, idempotencyKey);
   }
 }
