@@ -118,22 +118,25 @@ describe('autoWants', () => {
     ).toEqual([]);
   });
 
-  it('13.11 replay: a pooler the tasks connect through is never wanted off (poolSmall is false with a pooler)', () => {
+  it('16.11: the pooler is kept only by real load; calm, the one «Авто» switched on goes off (the drain moves the services first)', () => {
     const on = () => 'on' as const;
-    // prod 13.11: switched on by itself, DB_POOLER_HOST set, no pressure
+    // prod 16.11: switched on by itself, DB_POOLER_HOST set, zero users
     expect(
       autoWants(
         { ...calm, poolSmall: false, poolerLive: true },
         on,
         new Set(['aws.pgbouncer']),
-      ),
-    ).toEqual([]);
+      )
+        .filter((x) => x.id === 'aws.pgbouncer')
+        .map((x) => x.to),
+    ).toEqual(['off']);
+    // connections near the limit keep it on
     expect(
       autoWants(
-        { ...calm, poolerLive: true, pickedAuto: new Set(['aws.pgbouncer']) },
+        { ...calm, poolerLive: true, pressures: ['db_connections'] },
         on,
-        new Set(),
-      ),
+        new Set(['aws.pgbouncer']),
+      ).filter((x) => x.id === 'aws.pgbouncer'),
     ).toEqual([]);
   });
 
@@ -163,16 +166,19 @@ describe('autoWants', () => {
     ).toEqual([]);
   });
 
-  it('a small direct pool switches the pooler on, and keeps it on', () => {
+  it('16.11: a small direct pool alone does not switch the pooler on (true at zero users); connections near the limit do', () => {
     expect(
-      autoWants({ ...calm, poolSmall: true }, offAll, new Set()).map(
-        (x) => `${x.id}:${x.to}`,
+      autoWants({ ...calm, poolSmall: true }, offAll, new Set()).filter(
+        (x) => x.id === 'aws.pgbouncer',
       ),
-    ).toEqual(['aws.pgbouncer:on']);
-    const on = () => 'on' as const;
-    expect(
-      autoWants({ ...calm, poolSmall: true }, on, new Set(['aws.pgbouncer'])),
     ).toEqual([]);
+    expect(
+      autoWants(
+        { ...calm, pressures: ['db_connections'] },
+        offAll,
+        new Set(),
+      ).map((x) => `${x.id}:${x.to}`),
+    ).toContain('aws.pgbouncer:on');
   });
 
   it('the search line comes from infra.search_engine_on_people (lowered for a check, then back)', () => {
