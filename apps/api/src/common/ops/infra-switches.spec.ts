@@ -96,9 +96,14 @@ describe('infra switch whitelist', () => {
         const t = new RegExp(`\\b${k.path[1]}\\s*=\\s*optional\\((\\w+)`).exec(
           stack,
         )?.[1];
+        // Owner 15.11: a growth choice (opensearch_engine_version) is a string.
         expect([key, t]).toEqual([
           key,
-          k.spec.type === 'boolean' ? 'bool' : 'number',
+          k.spec.type === 'boolean'
+            ? 'bool'
+            : k.spec.type === 'integer'
+              ? 'number'
+              : 'string',
         ]);
         continue;
       }

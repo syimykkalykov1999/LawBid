@@ -1,5 +1,10 @@
 import type { InfraMode } from '../../../common/ops/infra-modes';
-import type { InfraTarget } from '../../../common/ops/infra-switches';
+import {
+  SEARCH_NODE_ROWS,
+  maxSearchNodes,
+  searchNodeCount,
+  type InfraTarget,
+} from '../../../common/ops/infra-switches';
 import { infraSuggestions, type SuggestionSignals } from './infra-change.logic';
 
 /**
@@ -84,6 +89,9 @@ export interface AutoSignals extends SuggestionSignals {
    * may switch them off too, not only what it switched on itself). */
   modes?: Readonly<Record<string, InfraMode>>;
   pickedAuto?: ReadonlySet<string>;
+  /** Owner 15.11: `search.max_nodes`, search domain data nodes «Авто» may
+   * reach (missing = 4, as before; AWS T3 limit 10). */
+  maxSearchNodes?: number;
 }
 
 /** People at which the search engine (OpenSearch) is switched on, and the
@@ -147,12 +155,10 @@ export const COPIES = [
 
 /** The search engine node steps as cloud rows (owner 2026-11-12, «Авто» by
  * count): the domain itself (1 node), 2 nodes, 4 nodes (even across the two
- * zones). Same ladder as COPIES. */
-export const SEARCH_NODES = [
-  'aws.opensearch',
-  'aws.opensearch_nodes_2',
-  'aws.opensearch_nodes_4',
-] as const;
+ * zones). Same ladder as COPIES. Owner 15.11: and on by two, 6, 8, 10 nodes
+ * (common/ops/infra-switches.ts SEARCH_NODE_ROWS), as far as
+ * `search.max_nodes` allows (the filter at the end of autoWants). */
+export const SEARCH_NODES: readonly string[] = SEARCH_NODE_ROWS;
 
 /** Owner 2026-11-12 («Да сделай авто для двух защит»): the two WAF
  * protections that switch with an attack, like AWS Shield Advanced automatic
@@ -531,8 +537,17 @@ export function autoWants(
         )
       ) &&
       !(w.to === 'on' && modeOf(w.id) === 'off') &&
-      !(w.to === 'off' && modeOf(w.id) === 'on'),
+      !(w.to === 'off' && modeOf(w.id) === 'on') &&
+      // Owner 15.11: never more search nodes than search.max_nodes.
+      !(w.to === 'on' && overMaxSearchNodes(w.id, s.maxSearchNodes)),
   );
+}
+
+/** Owner 15.11: switching row [id] on would give the search domain more data
+ * nodes than `search.max_nodes` allows. */
+export function overMaxSearchNodes(id: string, maxNodes: unknown): boolean {
+  const n = searchNodeCount(id);
+  return n !== null && n > maxSearchNodes(maxNodes);
 }
 
 export const wantKey = (w: Pick<AutoWant, 'id' | 'to'>): string =>
@@ -780,9 +795,8 @@ export const AUTO_SCOPE: Readonly<Record<string, readonly RegExp[]>> = {
   'aws.db_shards': SHARDS,
   'aws.db_shards_2': SHARDS,
   'aws.db_shards_3': SHARDS,
-  'aws.opensearch': SEARCH,
-  'aws.opensearch_nodes_2': SEARCH,
-  'aws.opensearch_nodes_4': SEARCH,
+  // Owner 15.11: the domain and every node step (2, 4, 6, 8, 10).
+  ...Object.fromEntries(SEARCH_NODE_ROWS.map((id) => [id, SEARCH])),
   'aws.events_stream': [
     re(
       `(aws_kinesis_stream\\.events|aws_iam_role_policy\\.events_stream_put)${end}`,

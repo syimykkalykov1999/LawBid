@@ -197,6 +197,55 @@ const capControl = (provider: string): CostControl => ({
 });
 
 /**
+ * Owner 15.11 («максимум узлов поиска в админке»): search domain data nodes
+ * at most (AWS «Total node limit by instance family»: T3 = 10) and by
+ * default (search.max_nodes). Steps of two, one node per zone each. Same
+ * numbers as infra-switches.ts SEARCH_NODES_* (this file has no imports;
+ * infra-switches.spec checks they match).
+ */
+export const SEARCH_NODES_HARD_MAX = 10;
+export const SEARCH_NODES_DEFAULT = 4;
+
+/**
+ * Rows of the node steps past four (`aws.opensearch_nodes_6`, `_8`, `_10`).
+ * Same rule and price per node as the steps before. «Масштаб» shows a row
+ * only while it is inside search.max_nodes or the step is on
+ * (cost-registry.service).
+ */
+function moreSearchNodeRows(): CostEntry[] {
+  const out: CostEntry[] = [];
+  for (let n = SEARCH_NODES_DEFAULT + 2; n <= SEARCH_NODES_HARD_MAX; n += 2) {
+    out.push({
+      id: `aws.opensearch_nodes_${n}`,
+      name: `Узлы поискового движка ${n - 1} и ${n}`,
+      purpose: `Ещё два узла поискового движка (по ${n / 2} в каждой зоне), когда ${n - 2} узлам тяжело (процессор выше порога economy.db_cpu_limit_percent или память JVM выше 75 %).`,
+      kind: 'aws',
+      control: tf(['growth.opensearch_instance_count'], {
+        off: `growth = { opensearch_instance_count = ${n - 2} }`,
+        on: `growth = { opensearch_instance_count = ${n} }`,
+      }),
+      states: ['off', 'on', 'auto'],
+      defaultState: 'off',
+      ceiling: tfCeil(
+        'growth.opensearch_instance_count',
+        'Сколько узлов (1 или чётное до 10)',
+      ),
+      price: price(
+        'fixed',
+        'Как узел того же размера: t3.small ≈ $28 в месяц за узел',
+        U.os,
+      ),
+      usd: { launch: R(0), k100: R(0), m1: R(0) },
+      ifOnUsd: R(56, 60),
+      needed: 'later',
+      neededNote: `Владелец 15.11: включается сама (Авто), только пока работает поисковый движок и узлов не больше настройки search.max_nodes (по умолчанию 4, предел AWS для t3 — 10); уходит сама, когда процессор ниже половины порога и память JVM ниже 50 %; по шагу, лишние — первыми.`,
+      alarm: null,
+    });
+  }
+  return out;
+}
+
+/**
  * Every billable thing. Order = the order on the «Лестница расходов» page:
  * day-1 lines first (default ON), then the things the owner may switch on
  * (default OFF), then outside vendors, then apps / accounts / CI.
@@ -1615,7 +1664,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     defaultState: 'off',
     ceiling: tfCeil(
       'growth.opensearch_instance_count',
-      'Сколько узлов (1, 2 или 4)',
+      'Сколько узлов (1 или чётное до 10)',
     ),
     price: price(
       'fixed',
@@ -1643,7 +1692,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     defaultState: 'off',
     ceiling: tfCeil(
       'growth.opensearch_instance_count',
-      'Сколько узлов (1, 2 или 4)',
+      'Сколько узлов (1 или чётное до 10)',
     ),
     price: price(
       'fixed',
@@ -1657,6 +1706,8 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Владелец 12.11, по совету AWS (масштабировать, когда процессор узлов выше порога или память JVM выше 75 %): включается сама (Авто), только пока работает поисковый движок, и уходит сама, когда процессор ниже половины порога и память JVM ниже 50 %; по шагу, лишние — первыми.',
     alarm: null,
   },
+  // Owner 15.11: six, eight and ten nodes, up to search.max_nodes.
+  ...moreSearchNodeRows(),
   {
     // Owner 15.11, verbatim: «обнови всё до новейшего». AWS allows 2.15 ->
     // 2.19 -> 3.7 only (get-compatible-versions 15.11); infra/modules/growth.
@@ -3353,6 +3404,10 @@ export const INFRA_MODE_KEYS: Readonly<Record<string, string>> = {
   'aws.opensearch': 'infra.mode.opensearch',
   'aws.opensearch_nodes_2': 'infra.mode.opensearch_nodes_2',
   'aws.opensearch_nodes_4': 'infra.mode.opensearch_nodes_4',
+  // Owner 15.11: the steps past four nodes (search.max_nodes).
+  'aws.opensearch_nodes_6': 'infra.mode.opensearch_nodes_6',
+  'aws.opensearch_nodes_8': 'infra.mode.opensearch_nodes_8',
+  'aws.opensearch_nodes_10': 'infra.mode.opensearch_nodes_10',
   'aws.waf_bot_control': 'infra.mode.waf_bot_control',
   'aws.waf_extra_rules': 'infra.mode.waf_extra_rules',
   'aws.events_stream': 'infra.mode.events_stream',

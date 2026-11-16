@@ -62,6 +62,18 @@ run "step_2_3_7_keeps_nodes" {
   }
 }
 
+run "ten_nodes_two_zones" {
+  command = plan
+  variables {
+    opensearch_engine_version = "OpenSearch_3.7"
+    opensearch_instance_count = 10
+  }
+  assert {
+    condition     = aws_opensearch_domain.search[0].cluster_config[0].instance_count == 10 && aws_opensearch_domain.search[0].cluster_config[0].zone_awareness_config[0].availability_zone_count == 2
+    error_message = "search.max_nodes 10 (AWS T3 limit): ten nodes, five per zone."
+  }
+}
+
 run "unknown_version_refused" {
   command = plan
   variables {

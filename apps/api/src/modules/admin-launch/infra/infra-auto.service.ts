@@ -344,7 +344,12 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     const pool = Number(this.config.get<string>('DB_POOL_SIZE') ?? '');
     const pooler = !!this.config.get<string>('DB_POOLER_HOST');
     const code = await this.autoscaleCode();
+    // Owner 15.11: search.max_nodes; unreadable = undefined = 4 (as before).
+    const maxSearchNodes = await Promise.resolve()
+      .then(() => this.settings.number('search.max_nodes'))
+      .catch(() => undefined);
     return {
+      maxSearchNodes,
       autoscaleCodeMain: code.main,
       autoscaleCodeApplied: code.applied,
       pressures: s.pressures,

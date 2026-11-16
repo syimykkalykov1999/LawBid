@@ -79,7 +79,7 @@
         "opensearch_instance_count": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 4
+          "maximum": 10
         },
         "opensearch_engine_version": {
           "type": "string",

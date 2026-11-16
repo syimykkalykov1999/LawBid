@@ -67,6 +67,8 @@ export const OWNER_ONLY_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'verification.auto_decision.ai_request_info_enabled',
   // Owner 14.11 (row 179, B8): the 2FA window itself.
   'admin.step_up_ttl_seconds',
+  // Owner 15.11: how many search engine nodes «Авто» may reach.
+  'search.max_nodes',
 ]);
 export const PAID_FLAGS: Record<
   string,

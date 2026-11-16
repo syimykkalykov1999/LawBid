@@ -621,6 +621,9 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'infra.mode.opensearch',
     'infra.mode.opensearch_nodes_2',
     'infra.mode.opensearch_nodes_4',
+    'infra.mode.opensearch_nodes_6',
+    'infra.mode.opensearch_nodes_8',
+    'infra.mode.opensearch_nodes_10',
     'infra.mode.waf_bot_control',
     'infra.mode.waf_extra_rules',
     'infra.mode.events_stream',
@@ -634,6 +637,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   ]) {
     out[k] = { ...out[k], pattern: /^(off|on|auto)$/ };
   }
+  // Owner 15.11: search domain data nodes «Авто» may reach (owner only, 2FA:
+  // admin-config.service OWNER_ONLY_CONFIG_KEYS). 10 = AWS limit for the T3
+  // family (infra-switches.ts SEARCH_NODES_HARD_MAX); odd counts above 1 act
+  // as the even step below (two zones).
+  out['search.max_nodes'] = {
+    ...out['search.max_nodes'],
+    description:
+      'Search engine data nodes the cloud automation may reach: past four it adds two nodes at a time (one per zone), 6, 8, 10, and takes them back the same way (1–10, the AWS limit for t3 nodes; default 4).',
+    min: 1,
+    max: 10,
+  };
   out['db.shards_move_hours'] = {
     ...out['db.shards_move_hours'],
     // Same rule as infra.quiet_hours (infra-change.logic QUIET_HOURS_PATTERN).

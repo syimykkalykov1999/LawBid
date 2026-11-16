@@ -51,6 +51,98 @@ const choice = (name: string, values: readonly string[]): InfraKey => ({
 export const GROWTH_CONTAINER = 'growth_switches';
 
 /**
+ * Owner 15.11 («максимум узлов поиска в админке, "Авто" дальше четырёх»):
+ * data nodes of the search domain. The steps go +2 (1 -> 2 -> 4 -> 6 -> 8
+ * -> 10): the domain runs in two Availability Zones and AWS «Configuring a
+ * multi-AZ domain» wants the data node count to be a multiple of the zone
+ * count, so every step keeps both zones equal. No dedicated master nodes:
+ * AWS recommends three of them for production, but at this size they would
+ * cost more than the data nodes they coordinate (owner: cheapest start);
+ * the data nodes elect the cluster manager among themselves.
+ * SEARCH_NODES_HARD_MAX is the AWS «Total node limit by instance family»
+ * for T2/T3 (10 nodes, OpenSearch Service quotas, every engine version);
+ * the domain runs t3.small.search. How far «Авто» may go is the owner's
+ * setting `search.max_nodes` (default SEARCH_NODES_DEFAULT = 4 = as before).
+ * The same numbers live in cost-registry.ts (no imports there);
+ * infra-switches.spec checks they match.
+ */
+export const SEARCH_NODES_STEP = 2;
+export const SEARCH_NODES_HARD_MAX = 10;
+export const SEARCH_NODES_DEFAULT = 4;
+
+/** Row id of the step that brings the domain to [count] nodes
+ * (1 = the domain itself, `aws.opensearch`). */
+export function searchNodeRowId(count: number): string {
+  return count === 1 ? 'aws.opensearch' : `aws.opensearch_nodes_${count}`;
+}
+
+/** Node counts of the steps, in order: 1, 2, 4, 6, 8, 10. */
+export const SEARCH_NODE_COUNTS: readonly number[] = [
+  1,
+  ...Array.from(
+    { length: SEARCH_NODES_HARD_MAX / SEARCH_NODES_STEP },
+    (_, i) => (i + 1) * SEARCH_NODES_STEP,
+  ),
+];
+
+/** The search ladder rows, in order (the domain first). */
+export const SEARCH_NODE_ROWS: readonly string[] =
+  SEARCH_NODE_COUNTS.map(searchNodeRowId);
+
+/** Nodes the domain has with row [id] on, or null for another row. */
+export function searchNodeCount(id: string): number | null {
+  const i = SEARCH_NODE_ROWS.indexOf(id);
+  return i < 0 ? null : SEARCH_NODE_COUNTS[i];
+}
+
+/** The stored `search.max_nodes` as a node count «Авто» may reach: a whole
+ * number in 1..SEARCH_NODES_HARD_MAX, odd counts above 1 rounded down to the
+ * even step below (5 -> 4); anything unreadable = SEARCH_NODES_DEFAULT. */
+export function maxSearchNodes(raw: unknown): number {
+  const v = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw;
+  if (typeof v !== 'number' || !Number.isFinite(v)) return SEARCH_NODES_DEFAULT;
+  const n = Math.min(SEARCH_NODES_HARD_MAX, Math.max(1, Math.floor(v)));
+  return n === 1 ? 1 : n - (n % SEARCH_NODES_STEP);
+}
+
+/**
+ * Look frozen: with the default 4 «Масштаб» shows exactly the search rows it
+ * showed before. A node step past 4 is shown while it stays inside
+ * `search.max_nodes`, or while it is on (so it can still be seen and taken
+ * back after the maximum was lowered). Every other row is always shown.
+ */
+export function searchNodeRowShown(
+  id: string,
+  liveState: string | null | undefined,
+  maxNodes: unknown,
+): boolean {
+  const n = searchNodeCount(id);
+  if (n === null) return true;
+  return (
+    n <= SEARCH_NODES_DEFAULT ||
+    n <= maxSearchNodes(maxNodes) ||
+    liveState === 'on'
+  );
+}
+
+/** Switches of the node steps past four nodes (6, 8, 10). */
+function moreSearchNodeSwitches(): InfraSwitch[] {
+  const out: InfraSwitch[] = [];
+  for (const n of SEARCH_NODE_COUNTS) {
+    if (n <= SEARCH_NODES_DEFAULT) continue;
+    out.push({
+      id: searchNodeRowId(n),
+      values: {
+        off: { 'growth.opensearch_instance_count': n - SEARCH_NODES_STEP },
+        on: { 'growth.opensearch_instance_count': n },
+      },
+      impact: `Без перерыва: AWS сам переносит поиск на ${n} узлов (по ${n / 2} в каждой зоне, сине-зелёная замена, 20–60 минут); поиск работает всё время.`,
+    });
+  }
+  return out;
+}
+
+/**
  * Every key the admin may write. Top-level names are variables of
  * infra/envs/prod/variables.tf; `growth.<k>` keys go to the
  * `growth_switches` object (infra/envs/prod/growth.tf), merged over
@@ -110,12 +202,14 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
     spec: { type: 'boolean' },
   },
   // Owner 2026-11-12 («Авто» by count): data nodes of the search engine
-  // domain. Two Availability Zones in prod = 1, 2 or 4 (AWS wants an even
-  // count across two zones; modules/stack/growth.tf refuses 3).
+  // domain. Two Availability Zones in prod = 1 or an even count (AWS wants a
+  // multiple of the zone count; modules/stack/growth.tf refuses odd ones).
+  // Owner 15.11: up to SEARCH_NODES_HARD_MAX (AWS T3 limit); how far «Авто»
+  // goes is the setting search.max_nodes.
   'growth.opensearch_instance_count': int(
     [GROWTH_CONTAINER, 'opensearch_instance_count'],
     1,
-    4,
+    SEARCH_NODES_HARD_MAX,
   ),
   // Owner 15.11 «обнови всё до новейшего»: the search engine version, one
   // AWS hop per apply (2.15 -> 2.19 -> 3.7, modules/growth/main.tf).
@@ -349,6 +443,8 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     impact:
       'Без перерыва: AWS сам переносит поиск на четыре узла (по два в каждой зоне, сине-зелёная замена, 20–60 минут); поиск работает всё время.',
   },
+  // Owner 15.11: six, eight and ten nodes (search.max_nodes decides how far).
+  ...moreSearchNodeSwitches(),
   {
     id: 'aws.opensearch_2_19',
     values: {
