@@ -22,6 +22,7 @@ import { infraHttp } from './infra-errors';
 import {
   InfraAuthError,
   InfraGithubClient,
+  InfraUnavailableError,
   type WorkflowCaller,
 } from './infra-github.client';
 import {
@@ -60,6 +61,16 @@ export class InfraWorkflowController {
         throw new HttpException(
           { code: E.UNAUTHORIZED, message: 'Not the infra-apply workflow.' },
           HttpStatus.UNAUTHORIZED,
+        );
+      }
+      // 14.11: scripts/infra/api.sh retries a 5xx (15 min for «status»).
+      if (e instanceof InfraUnavailableError) {
+        throw new HttpException(
+          {
+            code: E.INTERNAL_ERROR,
+            message: 'The caller cannot be checked right now; retry.',
+          },
+          HttpStatus.SERVICE_UNAVAILABLE,
         );
       }
       throw e;

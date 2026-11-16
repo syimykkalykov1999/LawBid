@@ -114,4 +114,37 @@ describe('waitingAgeSeconds (backlog age)', () => {
       ),
     ).toBe(30);
   });
+
+  // 14.11 (prod, alarm:queue-backlog flapping): when a due delayed job moves
+  // to `wait`, BullMQ 6 sets the job's `delay` back to 0
+  // (commands/includes/promoteDelayedJobs.lua: HSET jobKey delay 0), so the
+  // waiting head of the `cron` lane read 3599 / 599 / 300 s (the schedule
+  // periods) although it was due seconds ago. A scheduler job's id carries
+  // its due moment (job-scheduler.js: `repeat:<id>:<nextMillis>`).
+  it('a promoted scheduler run (delay reset to 0) counts from its due moment in the id', () => {
+    const due = now.getTime() - 2_000;
+    expect(
+      waitingAgeSeconds(
+        {
+          id: `repeat:ops.metrics:${due}`,
+          timestamp: due - 3_600_000,
+          delay: 0,
+        },
+        now,
+      ),
+    ).toBe(2);
+  });
+
+  it('a promoted plain delayed job (delay reset to 0) still reads opts.delay', () => {
+    expect(
+      waitingAgeSeconds(
+        {
+          timestamp: now.getTime() - 90_000,
+          delay: 0,
+          opts: { delay: 60_000 },
+        },
+        now,
+      ),
+    ).toBe(30);
+  });
 });

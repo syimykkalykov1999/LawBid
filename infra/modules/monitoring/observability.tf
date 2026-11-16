@@ -271,12 +271,12 @@ resource "aws_cloudwatch_dashboard" "slo" {
       },
       {
         type       = "metric", x = 0, y = 2, width = 12, height = 7
-        properties = { title = "Успешность сценариев, % (за час)", region = data.aws_region.current.name, view = "timeSeries", yAxis = { left = { min = 0, max = 100 } }, metrics = local.dash_slo_metrics, period = 3600, stat = "Sum" }
+        properties = { title = "Успешность сценариев, % (за час)", region = data.aws_region.current.region, view = "timeSeries", yAxis = { left = { min = 0, max = 100 } }, metrics = local.dash_slo_metrics, period = 3600, stat = "Sum" }
       },
       {
         type = "metric", x = 12, y = 2, width = 12, height = 7
         properties = {
-          title = "Доступность API: доля 5xx, % (по 5 минут)", region = data.aws_region.current.name, view = "timeSeries", period = 300, stat = "Sum"
+          title = "Доступность API: доля 5xx, % (по 5 минут)", region = data.aws_region.current.region, view = "timeSeries", period = 300, stat = "Sum"
           metrics = [
             ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", var.alb_arn_suffix, "TargetGroup", var.api_target_group_arn_suffix, { id = "req", visible = false }],
             ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", var.alb_arn_suffix, "TargetGroup", var.api_target_group_arn_suffix, { id = "err", visible = false }],
@@ -288,7 +288,7 @@ resource "aws_cloudwatch_dashboard" "slo" {
       {
         type = "metric", x = 0, y = 9, width = 12, height = 6
         properties = {
-          title       = "Скорость ответа API (p95, секунды)", region = data.aws_region.current.name, view = "timeSeries", period = 300
+          title       = "Скорость ответа API (p95, секунды)", region = data.aws_region.current.region, view = "timeSeries", period = 300
           metrics     = [["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", var.alb_arn_suffix, "TargetGroup", var.api_target_group_arn_suffix, { stat = "p95" }]]
           annotations = { horizontal = [{ label = "цель", value = var.p95_target_ms / 1000 }] }
         }
@@ -296,7 +296,7 @@ resource "aws_cloudwatch_dashboard" "slo" {
       {
         type = "metric", x = 12, y = 9, width = 12, height = 6
         properties = {
-          title = "Задержка цикла событий Node (p99, мс)", region = data.aws_region.current.name, view = "timeSeries", period = 60, stat = "Average"
+          title = "Задержка цикла событий Node (p99, мс)", region = data.aws_region.current.region, view = "timeSeries", period = 60, stat = "Average"
           metrics = [
             ["LawBid/Runtime", "EventLoopP99Ms", "Service", "api", { label = "api" }],
             ["LawBid/Runtime", "EventLoopP99Ms", "Service", "worker", { label = "worker" }],
@@ -307,7 +307,7 @@ resource "aws_cloudwatch_dashboard" "slo" {
       {
         type = "metric", x = 0, y = 15, width = 12, height = 6
         properties = {
-          title = "Куча Node, % лимита", region = data.aws_region.current.name, view = "timeSeries", period = 60, stat = "Maximum"
+          title = "Куча Node, % лимита", region = data.aws_region.current.region, view = "timeSeries", period = 60, stat = "Maximum"
           metrics = [
             ["LawBid/Runtime", "HeapUsedMb", "Service", "api", { id = "au", visible = false }],
             ["LawBid/Runtime", "HeapLimitMb", "Service", "api", { id = "al", visible = false }],

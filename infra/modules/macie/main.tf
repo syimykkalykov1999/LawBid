@@ -17,7 +17,7 @@
 # Default off: the stack creates this module only when macie_enabled.
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 

@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "Бул адвокат менен ишти аяктаган кардар гана пикир калтыра алат.",
   "reviews.write.saved": "Пикир жарыяланды",
   "reviews.write.title": "Сиздин пикириңиз",
+  "router.notFound.home": "Башкы бет",
+  "router.notFound.title": "Барак табылган жок",
   "saved.chats.empty": "Сакталган билдирүү жок",
   "saved.copied": "Көчүрүлдү",
   "saved.empty": "Азырынча эч нерсе сакталган жок",

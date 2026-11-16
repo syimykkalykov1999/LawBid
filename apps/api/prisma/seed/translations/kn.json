@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "ಈ ವಕೀಲರೊಂದಿಗೆ ಪ್ರಕರಣ ಪೂರ್ಣಗೊಳಿಸಿದ ಕ್ಲೈಂಟ್ ಮಾತ್ರ ವಿಮರ್ಶಿಸಬಹುದು.",
   "reviews.write.saved": "ವಿಮರ್ಶೆ ಪೋಸ್ಟ್ ಆಗಿದೆ",
   "reviews.write.title": "ನಿಮ್ಮ ವಿಮರ್ಶೆ",
+  "router.notFound.home": "ಮುಖಪುಟ",
+  "router.notFound.title": "ಪುಟ ಸಿಗಲಿಲ್ಲ",
   "saved.chats.empty": "ಇನ್ನೂ ಉಳಿಸಿದ ಸಂದೇಶಗಳಿಲ್ಲ",
   "saved.copied": "ನಕಲಿಸಲಾಗಿದೆ",
   "saved.empty": "ಇನ್ನೂ ಏನೂ ಉಳಿಸಿಲ್ಲ",

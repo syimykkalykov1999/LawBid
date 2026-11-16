@@ -1409,8 +1409,15 @@ export const OWNER_STORAGE_SETTINGS = {
    * off after this many hours of calm (their own infra.auto_* waits). */
   'infra.waf_attack_on_minutes': 5,
   'infra.waf_calm_off_hours': 3,
+  /** Owner 14.11: minutes instead of the hours above when > 0; 0 = hours. */
+  'infra.waf_calm_off_minutes': 0,
   /** Database CPU % above which «busy» starts (read copy, size step). */
   'economy.db_cpu_limit_percent': 70,
+  /** Rows 8 / 9 (15.11): the read copies' own CPU line (copies 2..5 come
+   * above it and go below half of it). 0 = the same as
+   * economy.db_cpu_limit_percent (today's behaviour), so the copies can be
+   * tested apart from the primary's copy 1. */
+  'infra.replica_cpu_limit_percent': 0,
   /** Owner 2026-11-02: «time to prepare a second database». Health turns
    * yellow at 80% and red at 100% of EITHER number (primary size in GB;
    * estimated rows of the sharded-family tables). Only a signal: moving
@@ -1499,11 +1506,37 @@ export const OWNER_STORAGE_SETTINGS = {
   'infra.mode.rds_replicas_5': 'auto',
   'infra.mode.db_shards_2': 'auto',
   'infra.mode.db_shards_3': 'auto',
+  // Owner 15.11: the fifth server and on (rows aws.db_shards_4.._15).
+  'infra.mode.db_shards_4': 'auto',
+  'infra.mode.db_shards_5': 'auto',
+  'infra.mode.db_shards_6': 'auto',
+  'infra.mode.db_shards_7': 'auto',
+  'infra.mode.db_shards_8': 'auto',
+  'infra.mode.db_shards_9': 'auto',
+  'infra.mode.db_shards_10': 'auto',
+  'infra.mode.db_shards_11': 'auto',
+  'infra.mode.db_shards_12': 'auto',
+  'infra.mode.db_shards_13': 'auto',
+  'infra.mode.db_shards_14': 'auto',
+  'infra.mode.db_shards_15': 'auto',
+  // Owner 15.11 («максимальное число серверов базы в админке»): database
+  // servers in all (the primary + the extra ones) «Авто» may reach, 1..16
+  // (common/ops/infra-switches.ts DB_SERVERS_HARD_MAX). 4 = as before.
+  'db.max_servers': 4,
   /** "HH:MM-HH:MM" (America/Chicago, may cross midnight) when an automatic
    * split may start; empty = any time. */
   'db.shards_move_hours': '02:00-05:00',
   'ha.provision_online_users': 200,
+  /** 15.11 (live tests within 10 min): the busy window in minutes instead
+   * of the 3 full hours when > 0 (minute data up to one day). */
+  'ha.provision_minutes': 0,
   'ha.release_days': 7,
+  /** Owner 14.11 (live tests): the quiet window in minutes instead of the
+   * days when > 0 (minute data up to one day since 15.11). */
+  'ha.release_minutes': 0,
+  /** Owner 14.11: minutes before a step the other way (the copies added,
+   * then removed); 1440 = the 24 h of before. 0 = 24 h. */
+  'ha.flip_guard_minutes': 1440,
   // 09.11.2026 (owner): «Задача для ИИ» (docs/runbooks/AI_ASSISTANT.md).
   // Owner rule 5c: off | on | auto, default auto. The GitHub workflow asks
   // the API before every run: auto / on run (admin tasks + the 2-hourly
@@ -2211,6 +2244,12 @@ export const OWNER_INFRA_SETTINGS = {
   'infra.auto_mode': 'auto',
   'infra.auto_on_minutes': 30,
   'infra.auto_off_hours': 72,
+  /** Owner 14.11: minutes instead of the hours above when > 0 (live tests);
+   * 0 = use infra.auto_off_hours. */
+  'infra.auto_off_minutes': 0,
+  /** Owner 15.11 (rows 16 / 17): how often «Авто» looks, in minutes (10 as
+   * before; 1 for a live test). */
+  'infra.auto_check_minutes': 10,
   'infra.auto_max_usd_month': 100,
 };
 
