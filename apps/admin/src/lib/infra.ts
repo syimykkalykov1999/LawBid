@@ -57,9 +57,10 @@ export function infraTone(status: string): InfraTone {
 export const SETTLED_WORD = "В облаке уже так";
 
 export function showsFailure(
-  r: Pick<InfraRequest, "status" | "settled"> | null | undefined,
+  r: (Pick<InfraRequest, "status" | "settled"> & { superseded?: boolean }) | null | undefined,
 ): boolean {
-  return !!r && r.status === "failed" && !r.settled;
+  // Owner 15.11: a failure a later successful apply superseded is history.
+  return !!r && r.status === "failed" && !r.settled && !r.superseded;
 }
 
 /** The chip / badge word of a request (a settled failure reads SETTLED_WORD). */
@@ -115,7 +116,8 @@ export function minutesLeft(r: Pick<InfraRequest, "expiresAt">, now: Date = new 
 
 /** The newest request of [itemId] (the list comes newest first). */
 export function latestFor(requests: InfraRequest[] | undefined, itemId: string): InfraRequest | null {
-  return requests?.find((r) => r.itemId === itemId) ?? null;
+  // Owner 15.11: a superseded failure is not the row's state any more.
+  return requests?.find((r) => r.itemId === itemId && !(r.status === "failed" && r.superseded)) ?? null;
 }
 
 /** «Выкл → Вкл» for the sheet title. */

@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/widgets/feedback/app_confirm_sheet.dar
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/session/session_providers.dart';
@@ -67,7 +68,10 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
     final firm = ref.watch(myFirmProvider);
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppBar(title: Text(t.t('firm.title'))),
+      appBar: AppBar(
+        leading: safeBackLeading(context),
+        title: Text(t.t('firm.title')),
+      ),
       body: firm.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         // Detective R2-A #24: what went wrong, then Retry.

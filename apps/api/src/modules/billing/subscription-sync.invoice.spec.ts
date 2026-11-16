@@ -1,4 +1,8 @@
-import { SubscriptionSyncService } from './subscription-sync.service';
+import {
+  OUTSIDE_REFUND_REASON,
+  SubscriptionSyncService,
+  outsideRefundCents,
+} from './subscription-sync.service';
 
 /**
  * Algo audit 2026-10-27 (MONEY H-1): a late `invoice.payment_failed` (the
@@ -190,7 +194,13 @@ describe('SubscriptionSyncService.onInvoice — no local subscription yet', () =
 /** Algo audit 2026-10-27 (MONEY M-2): a partial refund reaches the ledger. */
 describe('SubscriptionSyncService.onRefund — partial refunds', () => {
   function setup(opts: { refunded: boolean; enabled?: boolean }) {
-    const tx = {};
+    const tx = {
+      $queryRaw: jest.fn(),
+      refund: {
+        aggregate: jest.fn().mockResolvedValue({ _sum: { amount_cents: 0 } }),
+        create: jest.fn(),
+      },
+    };
     const prisma = {
       payment: {
         findMany: jest
@@ -241,5 +251,128 @@ describe('SubscriptionSyncService.onRefund — partial refunds', () => {
     const h = setup({ refunded: false, enabled: false });
     await h.svc.onRefund('ch_1');
     expect(h.ledger.paymentRefundSynced).not.toHaveBeenCalled();
+  });
+});
+
+/** Row 176 (R3A-1): a refund made in the Stripe Dashboard reaches the
+ * `refunds` table, so «Прибыль», «Экономика» and «Платежи» subtract it. */
+describe('SubscriptionSyncService.onRefund — refunds made outside LawBid (row 176)', () => {
+  function setup(opts: {
+    refunded: boolean;
+    bookedCents: number;
+    stripeRefundedCents: number;
+    ledgerEnabled?: boolean;
+  }) {
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'pay-1' }]),
+      payment: { updateMany: jest.fn() },
+      refund: {
+        aggregate: jest
+          .fn()
+          .mockResolvedValue({ _sum: { amount_cents: opts.bookedCents } }),
+        create: jest.fn(),
+      },
+    };
+    const prisma = {
+      payment: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { id: 'pay-1', user_id: 'att-1', amount_cents: 10_000 },
+          ]),
+        updateMany: jest.fn(),
+      },
+      $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
+    };
+    const svc = Object.create(SubscriptionSyncService.prototype) as {
+      onRefund(chargeId: string): Promise<void>;
+    };
+    Object.assign(svc, {
+      prisma,
+      ledger: { paymentRefundSynced: jest.fn() },
+      bidPacks: { refundPayments: jest.fn() },
+      stars: { refundPayments: jest.fn() },
+      provider: {
+        retrieveCharge: jest.fn().mockResolvedValue({
+          id: 'ch_1',
+          paymentIntentId: 'pi_1',
+          refunded: opts.refunded,
+          amountRefundedCents: opts.stripeRefundedCents,
+        }),
+      },
+      settings: {
+        boolean: jest.fn().mockResolvedValue(opts.ledgerEnabled ?? true),
+      },
+      logger: { warn: jest.fn(), debug: jest.fn(), error: jest.fn() },
+    });
+    return { svc, tx };
+  }
+
+  it('a full Dashboard refund books one succeeded refund row for the whole payment', async () => {
+    const h = setup({
+      refunded: true,
+      bookedCents: 0,
+      stripeRefundedCents: 10_000,
+    });
+    await h.svc.onRefund('ch_1');
+    expect(h.tx.$queryRaw).toHaveBeenCalled(); // payment row locked
+    expect(h.tx.refund.create).toHaveBeenCalledWith({
+      data: {
+        payment_id: 'pay-1',
+        user_id: 'att-1',
+        amount_cents: 10_000,
+        reason: OUTSIDE_REFUND_REASON,
+        status: 'succeeded',
+        admin_id: null,
+      },
+    });
+  });
+
+  it('a partial Dashboard refund is booked even with the ledger switch off', async () => {
+    const h = setup({
+      refunded: false,
+      bookedCents: 0,
+      stripeRefundedCents: 2_500,
+      ledgerEnabled: false,
+    });
+    await h.svc.onRefund('ch_1');
+    expect(h.tx.refund.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        amount_cents: 2_500,
+        status: 'succeeded',
+      }),
+    });
+  });
+
+  it('our own admin refund (row already reserved) adds nothing — no double count', async () => {
+    const h = setup({
+      refunded: true,
+      bookedCents: 10_000,
+      stripeRefundedCents: 10_000,
+    });
+    await h.svc.onRefund('ch_1');
+    expect(h.tx.refund.create).not.toHaveBeenCalled();
+  });
+
+  it('a second Dashboard refund books only the new part', async () => {
+    const h = setup({
+      refunded: false,
+      bookedCents: 2_500,
+      stripeRefundedCents: 4_000,
+    });
+    await h.svc.onRefund('ch_1');
+    expect(h.tx.refund.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ amount_cents: 1_500 }),
+    });
+  });
+});
+
+describe('outsideRefundCents (row 176)', () => {
+  it('books what Stripe refunded beyond our rows, capped by the payment, never negative', () => {
+    expect(outsideRefundCents(10_000, 10_000, 0)).toBe(10_000);
+    expect(outsideRefundCents(4_000, 10_000, 2_500)).toBe(1_500);
+    expect(outsideRefundCents(10_000, 10_000, 10_000)).toBe(0);
+    expect(outsideRefundCents(12_000, 10_000, 0)).toBe(10_000);
+    expect(outsideRefundCents(1_000, 10_000, 3_000)).toBe(0);
   });
 });

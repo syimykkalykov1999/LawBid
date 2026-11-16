@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 
 /// Owner 2026-10-23 (web speed pass): a screen whose code is a *deferred
 /// library* (`import '...' deferred as x`). On the web the first download is
@@ -145,7 +146,7 @@ class _DeferredScreenState extends ConsumerState<DeferredScreen> {
         backgroundColor: pageColor,
         elevation: 0,
         scrolledUnderElevation: 0,
-        leading: const BackButton(),
+        leading: BackButton(onPressed: () => context.safeBack()),
       ),
       body: _failed
           ? AppErrorState(

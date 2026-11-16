@@ -331,7 +331,7 @@ class _VerificationWizardScreenState
 
   void _back() {
     setState(() => _stepError = null);
-    if (!_c.back()) Navigator.of(context).maybePop();
+    if (!_c.back()) context.safeBack();
   }
 
   @override

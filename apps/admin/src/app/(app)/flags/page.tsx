@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { saveFlag } from '@/lib/config-save';
 import { optimistic, patchRow } from '@/lib/optimistic';
 import {
   REELS_CLIENT_FLAG,
@@ -348,11 +349,9 @@ export default function FlagsPage() {
     queryKey: ['flags'],
     queryFn: async () => (await api.GET('/admin/feature-flags')).data!.data as Flag[],
   });
-  const patch = (v: { key: string; enabled: boolean }) =>
-    api.PATCH('/admin/feature-flags/{key}', {
-      params: { path: { key: v.key } },
-      body: { enabled: v.enabled },
-    });
+  // Row 179: the reels three-way choice writes two switches; each carries
+  // the version this tab saw (lib/config-save.ts).
+  const patch = (v: { key: string; enabled: boolean }) => saveFlag(qc, v.key, v.enabled);
   // SPEED_MATRIX 2026-11-09: the switch flips at once; the server's
   // answer confirms it, a refusal flips it back (lib/optimistic.ts).
   // Scout 13.11 (row 96): the toast carries «Отменить» (the same switch back; the undo itself offers none).
@@ -361,13 +360,7 @@ export default function FlagsPage() {
       // Owner 14.11 (row 179): the server refuses (409 «изменено другим»)
       // when the switch changed since this tab read it. The undo is this
       // admin's own step back, so it is not checked.
-      const seen = q.data?.find((f) => f.key === v.key)?.updatedAt;
-      const r = await api.PATCH('/admin/feature-flags/{key}', {
-        params: { path: { key: v.key } },
-        body: { enabled: v.enabled, ...(seen && !v.undo ? { expectedUpdatedAt: seen } : {}) },
-      });
-      const saved = r.data?.data;
-      if (saved) qc.setQueryData<Flag[]>(['flags'], (rows) => rows?.map((f) => (f.key === v.key ? { ...f, updatedAt: saved.updatedAt } : f)));
+      await saveFlag(qc, v.key, v.enabled, { check: !v.undo });
       return v;
     },
     ...optimistic<Flag[], { key: string; enabled: boolean; undo?: boolean }>(
