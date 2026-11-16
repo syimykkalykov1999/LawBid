@@ -1790,8 +1790,9 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       on: 'growth = { opensearch_engine_version = "OpenSearch_2.19" }',
     }),
     // 16.11: a new domain is created on 3.7, so this step is done by
-    // default; Выкл (a step back) is never offered.
-    states: ['on'],
+    // default; Выкл (a step back) is refused (infra-change.logic
+    // ONE_WAY_SWITCHES).
+    states: ['off', 'on'],
     defaultState: 'on',
     ceiling: null,
     price: price(
@@ -1820,8 +1821,9 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       on: 'growth = { opensearch_engine_version = "OpenSearch_3.7" }',
     }),
     // 16.11: a new domain is created on 3.7, so this step is done by
-    // default; Выкл (a step back) is never offered.
-    states: ['on'],
+    // default; Выкл (a step back) is refused (infra-change.logic
+    // ONE_WAY_SWITCHES).
+    states: ['off', 'on'],
     defaultState: 'on',
     ceiling: null,
     price: price(

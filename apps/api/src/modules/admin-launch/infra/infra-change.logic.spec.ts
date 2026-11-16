@@ -155,6 +155,15 @@ describe('create guards', () => {
       'not_configured',
     );
   });
+  it('16.11: the search engine version only goes up (no Выкл), Вкл still works on a 2.x domain', () => {
+    for (const id of ['aws.opensearch_2_19', 'aws.opensearch_3']) {
+      const v = { ...base, entry: entry(id), sw: switchFor(id) };
+      expect(createRefusal({ ...v, to: 'off' })).toBe('no_step_back');
+      expect(createRefusal({ ...v, to: 'on' })).toBeNull();
+    }
+    // other rows keep their Выкл
+    expect(createRefusal({ ...base, to: 'off' })).toBeNull();
+  });
   it('daily cap 0 = no limit (owner 12.11)', () => {
     expect(createRefusal({ ...base, dailyCap: 0, last24h: 500 })).toBeNull();
   });
