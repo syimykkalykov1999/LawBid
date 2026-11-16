@@ -19,7 +19,9 @@ set -eu
 P="${1:?prefix, e.g. lawbid-prod}"
 WAIT="${DATA_STORES_WAIT_SECONDS:-1800}"
 POLL="${DATA_STORES_POLL_SECONDS:-30}"
-DBS="${DB_INSTANCE_IDS:-$P-postgres $P-db1-postgres $P-db2-postgres $P-db3-postgres}"
+# Owner 15.11: the primary and up to 15 extra servers (db.max_servers); a
+# server that does not exist answers «missing» and is skipped.
+DBS="${DB_INSTANCE_IDS:-$P-postgres $(seq -f "$P-db%g-postgres" 1 15 | tr '\n' ' ')}"
 RGS="${REDIS_GROUP_IDS:-$P-redis $P-cache-redis}"
 ERR="${TMPDIR:-/tmp}/data-stores.$$.err"
 trap 'rm -f "$ERR"' EXIT

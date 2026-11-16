@@ -47,6 +47,97 @@ const choice = (name: string, values: readonly string[]): InfraKey => ({
   spec: { type: 'choice', values },
 });
 
+/**
+ * Owner 15.11 («сделай в админке максимальное число серверов базы, чтобы
+ * "Авто" добавляло пятый, шестой и дальше»): database servers = the primary
+ * plus the extra servers of the split (Terraform `db_shards`, rows
+ * `aws.db_shards`, `aws.db_shards_2`, …). DB_SERVERS_HARD_MAX is the code's
+ * hard bound (the primary + 15 extra, as RDS allows 15 read replicas per
+ * source; the account's default RDS quota is 40 instances per Region, AWS
+ * Service Quotas «DB instances»). How many «Авто» may reach is the owner's
+ * setting `db.max_servers` (default DB_SERVERS_DEFAULT = 4 = as before).
+ * The same numbers live in cost-registry.ts (no imports there);
+ * infra-switches.spec checks they match.
+ */
+export const DB_SERVERS_HARD_MAX = 16;
+export const DB_SERVERS_DEFAULT = 4;
+
+/** Row id of the [n]-th extra database server (1 = the second server). */
+export function dbServerRowId(n: number): string {
+  return n === 1 ? 'aws.db_shards' : `aws.db_shards_${n}`;
+}
+
+/** Every extra-server row, in order (the second server first). */
+export const DB_SERVER_ROWS: readonly string[] = Array.from(
+  { length: DB_SERVERS_HARD_MAX - 1 },
+  (_, i) => dbServerRowId(i + 1),
+);
+
+/** 1-based index of an extra-server row (`aws.db_shards_3` = 3), or null. */
+export function dbServerIndex(id: string): number | null {
+  const n = DB_SERVER_ROWS.indexOf(id);
+  return n < 0 ? null : n + 1;
+}
+
+/** The stored `db.max_servers` as a whole number in 1..DB_SERVERS_HARD_MAX
+ * (anything unreadable = DB_SERVERS_DEFAULT). */
+export function maxDbServers(raw: unknown): number {
+  const v = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw;
+  if (typeof v !== 'number' || !Number.isFinite(v)) return DB_SERVERS_DEFAULT;
+  return Math.min(DB_SERVERS_HARD_MAX, Math.max(1, Math.floor(v)));
+}
+
+/**
+ * Owner 15.11 (look frozen: with the default 4 «Масштаб» shows exactly the
+ * three server rows it showed before): a server row is shown while the
+ * servers it brings stay inside `db.max_servers`, or while that server runs
+ * (so a server above a lowered maximum can still be seen and removed).
+ * Every other row is always shown.
+ */
+export function dbServerRowShown(
+  id: string,
+  liveState: string | null | undefined,
+  maxServers: unknown,
+): boolean {
+  const n = dbServerIndex(id);
+  if (n === null) return true;
+  return n + 1 <= maxDbServers(maxServers) || liveState === 'on';
+}
+
+/** Russian ordinal of the [n]-th server in all (5 = «пятый»). */
+const SERVER_ORDINAL: readonly string[] = [
+  '',
+  'первый',
+  'второй',
+  'третий',
+  'четвёртый',
+  'пятый',
+  'шестой',
+  'седьмой',
+  'восьмой',
+  'девятый',
+  'десятый',
+  'одиннадцатый',
+  'двенадцатый',
+  'тринадцатый',
+  'четырнадцатый',
+  'пятнадцатый',
+  'шестнадцатый',
+];
+
+/** Switches of the extra servers past the fourth server (rows 4..15). */
+function moreServerSwitches(): InfraSwitch[] {
+  const out: InfraSwitch[] = [];
+  for (let n = 4; n < DB_SERVERS_HARD_MAX; n++) {
+    out.push({
+      id: dbServerRowId(n),
+      values: { off: { db_shards: n - 1 }, on: { db_shards: n } },
+      impact: `Без перерыва: ${SERVER_ORDINAL[n + 1]} сервер создаётся 15–40 минут и стоит пустым; при следующей выкладке на нём сами появляются схема и роли. Данные переезжают ночью сами (Авто) или по кнопке.`,
+    });
+  }
+  return out;
+}
+
 /** The object in the JSON file that holds `growth.<k>` keys. */
 export const GROWTH_CONTAINER = 'growth_switches';
 
@@ -99,7 +190,9 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   api_admin_spot: bool('api_admin_spot'),
   admin_spot: bool('admin_spot'),
   pgbouncer_spot: bool('pgbouncer_spot'),
-  db_shards: int(['db_shards'], 0, 3),
+  // Owner 15.11: up to DB_SERVERS_HARD_MAX servers in all (the primary +
+  // 15 extra); how many «Авто» may reach is the setting db.max_servers.
+  db_shards: int(['db_shards'], 0, DB_SERVERS_HARD_MAX - 1),
   'growth.rds_read_replicas': int(
     [GROWTH_CONTAINER, 'rds_read_replicas'],
     0,
@@ -313,6 +406,8 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     impact:
       'Без перерыва: четвёртый сервер создаётся 15–40 минут и стоит пустым; при следующей выкладке на нём сами появляются схема и роли. Данные переезжают ночью сами (Авто) или по кнопке.',
   },
+  // Owner 15.11: the fifth server and on (db.max_servers decides how far).
+  ...moreServerSwitches(),
   {
     id: 'aws.opensearch',
     values: {
