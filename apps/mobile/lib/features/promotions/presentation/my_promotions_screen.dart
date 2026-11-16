@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/boost_colors.dart';
@@ -24,6 +25,7 @@ class MyPromotionsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppBar(
+        leading: safeBackLeading(context),
         title: Text(t.t('promote.mine.title')),
         actions: [
           // Owner 2026-10-15: both roles reach their payments from here.
