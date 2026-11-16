@@ -1312,21 +1312,31 @@ module "postgres_shard" {
   instance_class             = local.db_shard_class
   backup_retention_days      = var.database_backup_retention_days
   multi_az                   = var.database_multi_az
-  engine_version             = var.database_engine_version
-  auto_minor_version_upgrade = var.database_auto_minor_upgrade
-  monitoring_interval        = var.database_monitoring_interval
-  database_insights_advanced = var.database_insights_advanced
-  log_group_class            = var.database_log_group_class
-  tags                       = local.tags
+  # KNOWN_ERRORS 189: exactly the primary's version (one source:
+  # local.database_engine_version = the version the primary really runs, or
+  # its pin), so the parameter group family (postgres16 / postgres18, chosen
+  # by the module from the major) is the primary's too. The bare
+  # var.database_engine_version ("16") put the extra servers on 16.13 next
+  # to a primary on 18.6 (16.11).
+  engine_version              = local.database_engine_version
+  allow_major_version_upgrade = true
+  auto_minor_version_upgrade  = var.database_auto_minor_upgrade
+  monitoring_interval         = var.database_monitoring_interval
+  database_insights_advanced  = var.database_insights_advanced
+  log_group_class             = var.database_log_group_class
+  tags                        = local.tags
 
   # Owner 2026-11-12: «Авто» removes an extra server again, only while it
   # is EMPTY (the API and plan-guard check that; IAM allows deleting only
-  # …-db*-postgres). AWS keeps a final snapshot of it (never deleted).
+  # …-db*-postgres). KNOWN_ERRORS 189: an empty server leaves nothing
+  # behind: no final snapshot and no retained automated backups (both kept
+  # billing until the owner deleted them by hand, 16.11). The module ties
+  # delete_automated_backups to skip_final_snapshot. The primary keeps both.
   deletion_protection = false
-  skip_final_snapshot = var.ephemeral
+  skip_final_snapshot = true
   # KNOWN_ERRORS 180: a removed extra server's secret must go at once, or the
   # next «Авто» switch-on of the same server fails on CreateSecret (name
-  # still in its 30-day recovery window). AWS keeps the final DB snapshot.
+  # still in its 30-day recovery window).
   recovery_window_in_days = 0
 }
 
@@ -1359,7 +1369,9 @@ module "growth_shard" {
   rds_subnet_group_name         = "${local.name}-db${count.index + 1}-postgres"
   rds_security_group_ids        = [module.postgres_shard[count.index].security_group_id]
   rds_kms_key_arn               = module.kms.key_arn
-  rds_parameter_group_name      = "${local.name}-db${count.index + 1}-postgres16"
+  # The server's own group (postgres16 or postgres18, KNOWN_ERRORS 189): a
+  # copy of an 18 server cannot take a postgres16 group.
+  rds_parameter_group_name = module.postgres_shard[count.index].parameter_group_name
   # A read copy holds no data of its own: «Авто» may remove it (KNOWN_ERRORS 103).
   rds_deletion_protection = false
 }
@@ -2448,6 +2460,12 @@ data "aws_iam_policy_document" "ops" {
       # separate ops role, not on the task role (least privilege, S4-1).
       "application-autoscaling:DescribeScalingPolicies",
       "application-autoscaling:PutScalingPolicy",
+      # Owner 15.11 (admin floor per service, AwsOpsService.applyMinTasks):
+      # the quiet-hours morning-up action follows the admin's floor. Until
+      # this is applied the floor still changes, the morning action keeps
+      # Terraform's (the admin save reports it as failed `<kind>.morning`).
+      "application-autoscaling:DescribeScheduledActions",
+      "application-autoscaling:PutScheduledAction",
     ]
     resources = ["*"]
   }

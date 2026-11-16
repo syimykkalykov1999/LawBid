@@ -12,6 +12,11 @@ ServiceNowDto _$ServiceNowDtoFromJson(Map<String, dynamic> json) =>
       running: json['running'] as num,
       desired: json['desired'] as num,
       spot: json['spot'] as bool?,
+      baseValue: json['base'] as num?,
+      fargateWeight: json['fargateWeight'] as num?,
+      spotWeight: json['spotWeight'] as num?,
+      min: json['min'] as num?,
+      max: json['max'] as num?,
     );
 
 Map<String, dynamic> _$ServiceNowDtoToJson(ServiceNowDto instance) =>
@@ -20,4 +25,9 @@ Map<String, dynamic> _$ServiceNowDtoToJson(ServiceNowDto instance) =>
       'running': instance.running,
       'desired': instance.desired,
       'spot': ?instance.spot,
+      'base': ?instance.baseValue,
+      'fargateWeight': ?instance.fargateWeight,
+      'spotWeight': ?instance.spotWeight,
+      'min': ?instance.min,
+      'max': ?instance.max,
     };

@@ -51,10 +51,12 @@ class Ecs:
 
 
 class S3:
-    def __init__(self, mode=None):
-        self.mode = mode
+    def __init__(self, mode=None, body=None):
+        self.mode, self.body = mode, body
 
     def get_object(self, Bucket, Key):
+        if self.body is not None:
+            return {"Body": io.BytesIO(json.dumps(self.body).encode())}
         if self.mode is None:
             raise RuntimeError("no object")
         return {"Body": io.BytesIO(json.dumps({"spot_fallback": {"mode": self.mode}}).encode())}
@@ -79,8 +81,8 @@ def svc(name, strategy, running=5, desired=5, events=()):
     }
 
 
-def wire(services, mode="on", state="{}", control=None):
-    fakes = {"ssm": Ssm(mode, state), "ecs": Ecs(services), "s3": S3(control), "sns": Sns()}
+def wire(services, mode="on", state="{}", control=None, body=None):
+    fakes = {"ssm": Ssm(mode, state), "ecs": Ecs(services), "s3": S3(control, body), "sns": Sns()}
     h._clients.clear()
     h._clients.update(fakes)
     return fakes
@@ -192,6 +194,59 @@ class AdminTuningTests(unittest.TestCase):
         state = json.dumps({"api": {"fallback_since": old, "last_failure": old, "strikes": 1}})
         f = wire([svc("api", FALLBACK), svc("worker", NORMAL)], state=state)
         h.lambda_handler({"mode": "tick"}, None, dict(ENV, TUNING_PARAM="/missing"))
+        self.assertEqual(f["ecs"].updates, [])
+
+
+
+class AdminSplitTests(unittest.TestCase):
+    """Owner 15.11 («надеюсь я могу настраивать … спот … сделай
+    настраиваемыми»): the admin's Spot split per service arrives in the
+    control file (`spot_fallback.want`, economy job) and is the normal
+    strategy the tick brings each service to (one writer of the strategy)."""
+
+    def test_admin_split_is_rolled_out_by_the_tick(self):
+        body = {"spot_fallback": {"mode": "auto", "want": {"api": {"base": 2, "fargate": 1, "spot": 2}}}}
+        f = wire([svc("api", NORMAL), svc("worker", NORMAL)], body=body)
+        h.lambda_handler({"mode": "tick"}, None, ENV)
+        self.assertEqual(len(f["ecs"].updates), 1)
+        u = f["ecs"].updates[0]
+        self.assertEqual(u["service"], "api")
+        self.assertEqual(
+            u["capacityProviderStrategy"],
+            [{"capacityProvider": "FARGATE", "base": 2, "weight": 1}, {"capacityProvider": "FARGATE_SPOT", "base": 0, "weight": 2}],
+        )
+        self.assertTrue(u["forceNewDeployment"])
+
+    def test_service_already_on_the_admin_split_is_left_alone(self):
+        live = [{"capacityProvider": "FARGATE", "base": 2, "weight": 1}, {"capacityProvider": "FARGATE_SPOT", "base": 0, "weight": 2}]
+        body = {"spot_fallback": {"want": {"api": {"base": 2, "fargate": 1, "spot": 2}}}}
+        f = wire([svc("api", live), svc("worker", NORMAL)], body=body)
+        h.lambda_handler({"mode": "tick"}, None, ENV)
+        self.assertEqual(f["ecs"].updates, [])
+
+    def test_no_spot_split_does_not_redeploy_every_tick(self):
+        body = {"spot_fallback": {"want": {"api": {"spot": 0}}}}
+        f = wire([svc("api", NORMAL), svc("worker", NORMAL)], body=body)
+        h.lambda_handler({"mode": "tick"}, None, ENV)
+        self.assertEqual([u["capacityProviderStrategy"] for u in f["ecs"].updates], [FALLBACK])
+        # Next ticks: the live strategy is the owner's, nothing more happens.
+        f["ecs"].services = [svc("api", FALLBACK), svc("worker", NORMAL)]
+        f["ecs"].updates = []
+        for _ in range(3):
+            h.lambda_handler({"mode": "tick"}, None, ENV)
+        self.assertEqual(f["ecs"].updates, [])
+
+    def test_bad_admin_numbers_keep_terraform(self):
+        import decision as dd
+        tf = dd.Want(1, 1, 4)
+        for bad in ({"spot": -1}, {"fargate": 1001}, {"base": 1.5}, {"fargate": 0, "spot": 0}, {"spot": True}, "x"):
+            self.assertEqual(h.admin_want(tf, bad), tf, bad)
+        self.assertEqual(h.admin_want(tf, {"spot": 0}), dd.Want(1, 1, 0))
+
+    def test_unreadable_control_file_keeps_terraform_and_auto(self):
+        f = wire([svc("api", NORMAL), svc("worker", NORMAL)])
+        out = h.lambda_handler({"mode": "tick"}, None, ENV)
+        self.assertEqual(out["control"], "auto")
         self.assertEqual(f["ecs"].updates, [])
 
 

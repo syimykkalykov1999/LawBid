@@ -21,7 +21,13 @@ function build(stored: Record<string, number> = { down_window_h: 2 }) {
     applyScaling: jest.fn(() =>
       Promise.resolve({ changed: ['api_cpu'], missing: [] }),
     ),
+    applyMinTasks: jest.fn(() =>
+      Promise.resolve({ changed: [], missing: [], morning: [], failed: [] }),
+    ),
   };
+  // scale.max_tasks.* = 4 for every service.
+  const settings = { number: jest.fn(() => Promise.resolve(4)) };
+  const economy = { publishScaleControls: jest.fn(() => Promise.resolve()) };
   const c = new AdminSpendController(
     {} as never,
     {} as never,
@@ -30,8 +36,10 @@ function build(stored: Record<string, number> = { down_window_h: 2 }) {
     {} as never,
     ssm as never,
     awsOps as never,
+    settings as never,
+    economy as never,
   );
-  return { c, ssm, audit, auth, awsOps };
+  return { c, ssm, audit, auth, awsOps, economy };
 }
 const owner = { id: 'o1', sessionId: 's1', ip: '1.1.1.1' } as never;
 
@@ -91,9 +99,45 @@ describe('admin «Авто» numbers (SSM tuning)', () => {
         after: {
           target: 'ecs',
           values: { 'api_cpu.target': 45 },
-          applied: { changed: ['api_cpu'], missing: [] },
+          applied: {
+            changed: ['api_cpu'],
+            missing: [],
+            min: { changed: [], missing: [], morning: [], failed: [] },
+          },
         },
       }),
     );
+  });
+
+  it('owner 15.11: floor and Spot split are saved, the floor applied, the split published for the Lambda', async () => {
+    const { c, ssm, awsOps, economy } = build();
+    const values = {
+      'api.min_tasks': 3,
+      'pgbouncer.spot_base': 2,
+      'pgbouncer.spot_weight': 0,
+    };
+    await c.updateAutoscaleTuning(owner, 'ecs', { values });
+    expect(ssm.setTuning).toHaveBeenCalledWith('ecs', values);
+    expect(awsOps.applyMinTasks).toHaveBeenCalledWith(values);
+    expect(economy.publishScaleControls).toHaveBeenCalled();
+  });
+
+  it('owner 15.11: a floor above the ceiling or both weights 0 is refused (400), nothing saved', async () => {
+    const { c, ssm, awsOps } = build();
+    await expect(
+      c.updateAutoscaleTuning(owner, 'ecs', { values: { 'api.min_tasks': 5 } }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      c.updateAutoscaleTuning(owner, 'ecs', {
+        values: { 'worker.fargate_weight': 0, 'worker.spot_weight': 0 },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      c.updateAutoscaleTuning(owner, 'ecs', {
+        values: { 'pgbouncer.min_tasks': 0 },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(ssm.setTuning).not.toHaveBeenCalled();
+    expect(awsOps.applyMinTasks).not.toHaveBeenCalled();
   });
 });

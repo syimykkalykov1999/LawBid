@@ -358,7 +358,7 @@ export function dbMaxConnections(memoryGb: number): number {
 
 export const DB_CPU_LIMIT_PERCENT = 70;
 export const DB_CONN_LIMIT_PERCENT = 80;
-export const REDIS_MEM_LIMIT_PERCENT = 75;
+export const REDIS_MEM_LIMIT_PERCENT = 80; // owner 16.11: paid extras as late as possible
 
 export type PressureKind = 'db_cpu' | 'db_connections' | 'redis_memory';
 

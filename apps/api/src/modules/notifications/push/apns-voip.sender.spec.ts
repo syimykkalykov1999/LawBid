@@ -30,7 +30,7 @@ describe('ApnsVoipSender', () => {
     const { privateKey, publicKey } = generateKeyPairSync('ec', {
       namedCurve: 'prime256v1',
     });
-    const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }) as string;
+    const pem = privateKey.export({ type: 'pkcs8', format: 'pem' } as const);
     const secrets = {
       get: jest.fn().mockResolvedValue({
         fingerprint: 'f1',

@@ -290,6 +290,15 @@ export class AwsCapacityService {
       const cls = await this.dbClass();
       const tier = DB_TIERS.find((t) => t.name === cls);
       out.dbMaxConnections = tier ? dbMaxConnections(tier.memoryGb) : null;
+      // 16.11 real load test (KNOWN_ERRORS 187): the formula takes the class's
+      // whole memory (t4g.small: 225), RDS uses DBInstanceClassMemory, which
+      // is smaller (live max_connections 181). 146 connections read as 65 %
+      // while the database was at 81 %, so «Авто» stayed quiet until logins
+      // would be refused. The live setting wins when the database answers.
+      if (this.prisma) {
+        const live = (await selfHostDbConnections(this.prisma.global())).max;
+        if (live != null) out.dbMaxConnections = live;
+      }
       // The read copies are `<db>-replica-N` (infra/modules/growth), up to 5.
       const copies: number[] = [];
       for (let n = 1; n <= 5; n++) {

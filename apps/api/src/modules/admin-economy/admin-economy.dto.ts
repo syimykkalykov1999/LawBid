@@ -136,6 +136,38 @@ export class ServiceNowDto {
     description: 'Runs on Fargate Spot (null = the service does not say).',
   })
   spot!: boolean | null;
+  // Owner 15.11 («сделай настраиваемыми»): the live Spot split and floor.
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description:
+      'Regular Fargate tasks first (strategy base; null = launch type).',
+  })
+  base?: number | null;
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'FARGATE weight of the strategy (null = launch type).',
+  })
+  fargateWeight?: number | null;
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'FARGATE_SPOT weight of the strategy (null = launch type).',
+  })
+  spotWeight?: number | null;
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Autoscaling floor now (MinCapacity; null = not read).',
+  })
+  min?: number | null;
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Autoscaling ceiling now (MaxCapacity; null = not read).',
+  })
+  max?: number | null;
 }
 
 export class ContainersDto {
