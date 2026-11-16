@@ -457,6 +457,12 @@ export const OWNER_MEDIA_SETTINGS = {
   // support video goes down to this height (0 = as recorded); a voice note
   // is AAC at this bitrate (kbit/s) and sample rate (Hz).
   'media.video_reencode_above_kbps': 8000,
+  // Owner row 199 (16.11, WhatsApp / Telegram: one encode, not two): a
+  // reel / story / channel video no taller than `media.video_max_height`
+  // goes to Bunny as recorded — Bunny re-encodes every upload anyway, so a
+  // phone encode before it was a second loss. Only a taller one (or one
+  // over `video.max_size_mb`) is shrunk on the phone. Off = as before.
+  'media.bunny_one_encode': true,
   'media.chat_video_max_height': 720,
   'media.voice_bitrate_kbps': 32,
   'media.voice_sample_rate_hz': 16000,
