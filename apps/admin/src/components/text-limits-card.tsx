@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
-import { api } from '@/lib/api/client';
+import { saveConfig } from '@/lib/config-save';
 
 /** Owner 2026-10-15: how many characters each free-text field takes. */
 const LIMITS: { key: string; label: string }[] = [
@@ -50,11 +50,8 @@ export function TextLimitsCard({ entries }: { entries: Entry[] }) {
   const toast = useToast();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const save = useMutation({
-    mutationFn: (v: { key: string; value: number }) =>
-      api.PUT('/admin/config/{key}', {
-        params: { path: { key: v.key } },
-        body: { value: v.value } as never,
-      }),
+    // Row 179: checked against the version this tab saw (lib/config-save.ts).
+    mutationFn: (v: { key: string; value: number }) => saveConfig(qc, v.key, v.value),
     onSuccess: (_r, v) => {
       toast.success(`Сохранено: ${v.key}`);
       setDrafts((d) => {

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Optional,
   HttpCode,
   HttpException,
   HttpStatus,
@@ -37,6 +38,15 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
+  AUTOSCALE_TUNING_SCHEMA,
+  validateAutoscaleTuning,
+  type AutoscaleTarget,
+} from '../../common/ops/autoscale-tuning';
+import { SsmParamGateway } from '../../common/ops/ssm-param.gateway';
+import { AwsOpsService } from '../../common/ops/aws-ops.service';
+import {
+  AutoscaleTuningReportDto,
+  UpdateAutoscaleTuningDto,
   CostModeResultDto,
   CostRegistryReportDto,
   SetCostModeDto,
@@ -69,7 +79,110 @@ export class AdminSpendController {
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
     private readonly registry: CostRegistryService,
+    private readonly ssm: SsmParamGateway,
+    @Optional() private readonly awsOps?: AwsOpsService,
   ) {}
+
+  /** Owner 14.11: every number of the Redis / database «Авто» (Lambda
+   * autoscalers) with its Russian label, bounds and the admin's value
+   * (null = the Terraform default). */
+  @Get('autoscale-tuning')
+  @ApiOperation({
+    summary: 'Autoscaler numbers (SSM tuning) with labels and bounds',
+  })
+  @ApiEnvelopeResponse(AutoscaleTuningReportDto)
+  async autoscaleTuning(): Promise<AutoscaleTuningReportDto> {
+    const targets = await Promise.all(
+      (['redis', 'db', 'endpoints', 'ecs', 'spot'] as const).map(
+        async (target) => {
+          const available = !!this.ssm.tuningParam(target);
+          const stored = available
+            ? ((await this.ssm.getTuning(target).catch(() => null)) ?? {})
+            : {};
+          return {
+            target,
+            available,
+            knobs: Object.entries(AUTOSCALE_TUNING_SCHEMA[target]).map(
+              ([key, k]) => ({
+                key,
+                ...k,
+                value: typeof stored[key] === 'number' ? stored[key] : null,
+              }),
+            ),
+          };
+        },
+      ),
+    );
+    return { targets };
+  }
+
+  /** Owner 14.11: change the numbers without a Terraform apply. Fresh 2FA;
+   * merged into what is stored (null = back to the default); audited. */
+  @Put('autoscale-tuning/:target')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Change autoscaler numbers (needs step-up)' })
+  @ApiEnvelopeResponse(AutoscaleTuningReportDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.FEATURE_DISABLED],
+  })
+  async updateAutoscaleTuning(
+    @CurrentAdmin() admin: AdminActor,
+    @Param('target') target: string,
+    @Body() dto: UpdateAutoscaleTuningDto,
+  ): Promise<AutoscaleTuningReportDto> {
+    if (!['db', 'redis', 'endpoints', 'ecs', 'spot'].includes(target)) {
+      throw new HttpException(
+        {
+          code: E.VALIDATION_ERROR,
+          message: 'target: db, redis, endpoints, ecs or spot.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const t = target as AutoscaleTarget;
+    await this.auth.assertStepUp(admin.sessionId);
+    if (!this.ssm.tuningParam(t)) {
+      throw new HttpException(
+        {
+          code: E.FEATURE_DISABLED,
+          message: 'This autoscaler is not on this server.',
+        },
+        HttpStatus.CONFLICT,
+      );
+    }
+    const check = validateAutoscaleTuning(t, dto.values ?? {});
+    if (!check.ok) {
+      throw new HttpException(
+        {
+          code: E.VALIDATION_ERROR,
+          message: `Out of bounds: ${check.errors.join('; ')}.`,
+          details: { errors: check.errors },
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const before = (await this.ssm.getTuning(t)) ?? {};
+    const next: Record<string, number> = { ...before, ...check.values };
+    for (const [k, v] of Object.entries(dto.values ?? {})) {
+      if (v === null) delete next[k];
+    }
+    await this.ssm.setTuning(t, next);
+    // ECS has no Lambda: the API applies the numbers now (PutScalingPolicy).
+    const applied =
+      t === 'ecs' && this.awsOps ? await this.awsOps.applyScaling(next) : null;
+    await this.audit.record({
+      adminId: admin.id,
+      action: 'ops.autoscale_tuning',
+      targetType: 'autoscaler',
+      targetId: null,
+      before: { target: t, values: before },
+      after: { target: t, values: next, ...(applied ? { applied } : {}) },
+      ip: admin.ip,
+    });
+    return this.autoscaleTuning();
+  }
 
   /**
    * Cost registry (owner 2026-10-25): every billable thing with this

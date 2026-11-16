@@ -48,7 +48,7 @@ resource "aws_instance" "second" {
     external_ip  = aws_eip.second[0].public_ip
     on_demand    = false
     secret_param = aws_ssm_parameter.secret.name
-    region       = data.aws_region.current.name
+    region       = data.aws_region.current.region
     denied       = var.denied_peer_cidrs
     quota        = local.quota
   })
@@ -111,7 +111,7 @@ resource "aws_cloudwatch_metric_alarm" "system_status" {
   namespace           = "AWS/EC2"
   dimensions          = { InstanceId = each.value.instance_id }
   treat_missing_data  = "notBreaching"
-  alarm_actions       = [var.alerts_topic_arn, "arn:aws:automate:${data.aws_region.current.name}:ec2:recover"]
+  alarm_actions       = [var.alerts_topic_arn, "arn:aws:automate:${data.aws_region.current.region}:ec2:recover"]
   ok_actions          = [var.alerts_topic_arn]
   tags                = var.tags
 }

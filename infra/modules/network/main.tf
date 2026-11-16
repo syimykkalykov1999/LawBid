@@ -6,7 +6,7 @@
 # https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -133,7 +133,7 @@ resource "aws_security_group" "endpoints" {
 
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.this.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  service_name      = "com.amazonaws.${data.aws_region.current.region}.s3"
   vpc_endpoint_type = "Gateway"
   route_table_ids   = aws_route_table.private[*].id
   tags              = merge(var.tags, { Name = "${var.name}-s3" })
@@ -143,7 +143,7 @@ resource "aws_vpc_endpoint" "interface" {
   for_each = toset(var.interface_endpoints)
 
   vpc_id              = aws_vpc.this.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.${each.key}"
+  service_name        = "com.amazonaws.${data.aws_region.current.region}.${each.key}"
   vpc_endpoint_type   = "Interface"
   subnet_ids          = slice(aws_subnet.private[*].id, 0, var.interface_endpoint_azs == 0 ? length(var.azs) : min(var.interface_endpoint_azs, length(var.azs)))
   security_group_ids  = [aws_security_group.endpoints.id]

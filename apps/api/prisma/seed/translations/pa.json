@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "ਸਿਰਫ਼ ਉਹ ਕਲਾਇੰਟ ਜਿਸਨੇ ਇਸ ਵਕੀਲ ਨਾਲ ਕੇਸ ਪੂਰਾ ਕੀਤਾ ਹੈ, ਸਮੀਖਿਆ ਕਰ ਸਕਦਾ ਹੈ।",
   "reviews.write.saved": "ਸਮੀਖਿਆ ਪੋਸਟ ਹੋ ਗਈ",
   "reviews.write.title": "ਤੁਹਾਡੀ ਸਮੀਖਿਆ",
+  "router.notFound.home": "ਹੋਮ",
+  "router.notFound.title": "ਪੰਨਾ ਨਹੀਂ ਮਿਲਿਆ",
   "saved.chats.empty": "ਹਾਲੇ ਕੋਈ ਸੁਨੇਹਾ ਸੰਭਾਲਿਆ ਨਹੀਂ",
   "saved.copied": "ਕਾਪੀ ਹੋ ਗਿਆ",
   "saved.empty": "ਹਾਲੇ ਕੁਝ ਸੰਭਾਲਿਆ ਨਹੀਂ",

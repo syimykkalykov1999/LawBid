@@ -4,7 +4,7 @@
 # at the registrar.
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -60,7 +60,7 @@ data "aws_region" "current" {}
 locals {
   dns = var.hosted_zone_id == null ? {} : {
     verification  = { name = "_amazonses.${var.domain}", type = "TXT", records = [aws_ses_domain_identity.this.verification_token] }
-    mail_from_mx  = { name = "mail.${var.domain}", type = "MX", records = ["10 feedback-smtp.${data.aws_region.current.name}.amazonses.com"] }
+    mail_from_mx  = { name = "mail.${var.domain}", type = "MX", records = ["10 feedback-smtp.${data.aws_region.current.region}.amazonses.com"] }
     mail_from_spf = { name = "mail.${var.domain}", type = "TXT", records = ["v=spf1 include:amazonses.com -all"] }
     dmarc         = { name = "_dmarc.${var.domain}", type = "TXT", records = ["v=DMARC1; p=${var.dmarc_policy}; rua=mailto:${var.dmarc_rua}; adkim=s; aspf=s"] }
   }
