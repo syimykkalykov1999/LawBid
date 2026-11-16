@@ -260,6 +260,10 @@ resource "aws_lambda_function" "this" {
       CEILING_PARAM = aws_ssm_parameter.ceiling.name
       TUNING        = jsonencode(var.tuning)
       TUNING_PARAM  = aws_ssm_parameter.tuning.name
+      # 16.11: the owner's admin «Вкл / Выкл» (economy job -> S3). Without
+      # these the Lambda read «auto» forever and ignored both buttons.
+      CONTROLS_BUCKET = var.controls_bucket
+      CONTROLS_KEY    = var.controls_key
     }
   }
   tags       = var.tags
