@@ -15,6 +15,11 @@ class ServiceNowDto {
     required this.running,
     required this.desired,
     required this.spot,
+    this.baseValue,
+    this.fargateWeight,
+    this.spotWeight,
+    this.min,
+    this.max,
   });
 
   factory ServiceNowDto.fromJson(Map<String, Object?> json) =>
@@ -26,6 +31,23 @@ class ServiceNowDto {
 
   /// Runs on Fargate Spot (null = the service does not say).
   final bool? spot;
+
+  /// Regular Fargate tasks first (strategy base; null = launch type).
+  /// The name has been replaced because it contains a keyword. Original name: `base`.
+  @JsonKey(name: 'base')
+  final num? baseValue;
+
+  /// FARGATE weight of the strategy (null = launch type).
+  final num? fargateWeight;
+
+  /// FARGATE_SPOT weight of the strategy (null = launch type).
+  final num? spotWeight;
+
+  /// Autoscaling floor now (MinCapacity; null = not read).
+  final num? min;
+
+  /// Autoscaling ceiling now (MaxCapacity; null = not read).
+  final num? max;
 
   Map<String, Object?> toJson() => _$ServiceNowDtoToJson(this);
 }

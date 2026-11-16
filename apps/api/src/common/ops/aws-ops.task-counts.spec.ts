@@ -61,6 +61,26 @@ describe('AwsOpsService.taskCounts: every service now', () => {
       });
     });
     (s as unknown as { ecs: { send: typeof send } }).ecs = { send };
+    // Owner 15.11: floor / ceiling from Application Auto Scaling.
+    const scalingSend = jest.fn(() =>
+      Promise.resolve({
+        ScalableTargets: [
+          {
+            ResourceId: 'service/lawbid-prod/api',
+            MinCapacity: 2,
+            MaxCapacity: 6,
+          },
+          {
+            ResourceId: 'service/lawbid-prod/worker',
+            MinCapacity: 1,
+            MaxCapacity: 3,
+          },
+        ],
+      }),
+    );
+    (s as unknown as { scaling: { send: typeof scalingSend } }).scaling = {
+      send: scalingSend,
+    };
     return { s, calls };
   }
 
@@ -69,12 +89,52 @@ describe('AwsOpsService.taskCounts: every service now', () => {
     const r = await s.taskCounts();
     expect(r?.api).toEqual({ running: 2, desired: 3 });
     expect(r?.worker).toEqual({ running: 1, desired: 1 });
+    const strat = { base: 1, fargateWeight: 1, spotWeight: 4 };
+    const none = { base: null, fargateWeight: null, spotWeight: null };
+    const noTarget = { min: null, max: null };
     expect(r?.services).toEqual([
-      { kind: 'api', running: 2, desired: 3, spot: true },
-      { kind: 'worker', running: 1, desired: 1, spot: false },
-      { kind: 'api_admin', running: 1, desired: 1, spot: true },
-      { kind: 'admin', running: 1, desired: 1, spot: true },
-      { kind: 'pgbouncer', running: 2, desired: 2, spot: null },
+      {
+        kind: 'api',
+        running: 2,
+        desired: 3,
+        spot: true,
+        ...strat,
+        min: 2,
+        max: 6,
+      },
+      {
+        kind: 'worker',
+        running: 1,
+        desired: 1,
+        spot: false,
+        ...none,
+        min: 1,
+        max: 3,
+      },
+      {
+        kind: 'api_admin',
+        running: 1,
+        desired: 1,
+        spot: true,
+        ...strat,
+        ...noTarget,
+      },
+      {
+        kind: 'admin',
+        running: 1,
+        desired: 1,
+        spot: true,
+        ...strat,
+        ...noTarget,
+      },
+      {
+        kind: 'pgbouncer',
+        running: 2,
+        desired: 2,
+        spot: null,
+        ...none,
+        ...noTarget,
+      },
     ]);
     expect(calls).toEqual([
       ['api', 'worker'],
