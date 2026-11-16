@@ -252,7 +252,7 @@ describe('InfraChangeService', () => {
     expect(planned.status).toBe('planned');
   });
 
-  it('13.11 replay: the automatic pooler switch-off plan is NOT applied without the owner', async () => {
+  it('16.11: the automatic pooler switch-off plan is applied by itself (infra-apply drains first; 13.11 it waited)', async () => {
     // Request f758b39f (13.11 21:33 UTC): «Авто» aws.pgbouncer on -> off. Its
     // plan deletes only the pooler and replaces the api / worker task
     // definitions, so the old rule confirmed it by itself and the apply took
@@ -295,8 +295,8 @@ describe('InfraChangeService', () => {
       ],
       fileBefore: { db_pooler_enabled: true },
     });
-    expect(planned.status).toBe('planned');
-    expect((await svc.decision(r.id, RUN)).decision).toBe('wait');
+    expect(planned.status).toBe('confirmed');
+    expect((await svc.decision(r.id, RUN)).decision).toBe('apply');
   });
 
   it('the auto flag of an admin is ignored (only the system acts without 2FA)', async () => {

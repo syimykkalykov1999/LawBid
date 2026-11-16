@@ -67,6 +67,7 @@ abstract final class ClientTuning {
 
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
+  static int _pickedImageReadX = 4;
   static int _sentryTracesPercent = 0;
   static int _traceparentPercent = 5;
 
@@ -200,6 +201,11 @@ abstract final class ClientTuning {
   static double get chatPhotoMaxPx => _chatPhotoMaxPx;
   static int get chatPhotoQuality => _chatPhotoQuality;
 
+  /// Row 149: a photo picked from «Files» above the file limit is still read
+  /// and shrunk, up to this many times the limit (`media.picked_image_read_x`,
+  /// 0 = no cap), so a 2 GB "picture" is never read whole.
+  static int get pickedImageReadX => _pickedImageReadX;
+
   /// Media audit 13.11 (C7): longest side / JPEG quality of a verification
   /// document photo picked from «Files» (`client.verification_photo_*`).
   static double get verificationPhotoMaxPx => _verificationPhotoMaxPx;
@@ -332,6 +338,7 @@ abstract final class ClientTuning {
       4096,
     ).toDouble();
     _chatPhotoQuality = pick('media.chat_photo_quality', 82, 50, 100);
+    _pickedImageReadX = pick('media.picked_image_read_x', 4, 0, 100);
     _verificationPhotoMaxPx = pick(
       'client.verification_photo_max_px',
       2048,

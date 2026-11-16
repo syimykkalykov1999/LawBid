@@ -17,6 +17,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { PRACTICE_TREE_CACHE_KEY } from '../../common/cache/cache-keys';
 import { caseIdsByTitle, postIdsMatching } from './admin-text-search';
+import { exportWhere, type ExportFilter } from './export-filter';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import {
   type ContentAction,
@@ -627,10 +628,14 @@ export class AdminContentService {
   async exportCsvStream(
     entity: string,
     write: (chunk: string) => Promise<void> | void,
-    { unlimited = false }: { unlimited?: boolean } = {},
+    {
+      unlimited = false,
+      filter,
+    }: { unlimited?: boolean; filter?: ExportFilter } = {},
   ): Promise<{ rows: number; truncated: boolean }> {
     const max = unlimited ? Number.POSITIVE_INFINITY : CSV_EXPORT_LIMIT;
-    const spec = this.exportSpec(entity);
+    // Owner 14.11 (row 180): the list's filters (none = the whole table).
+    const spec = this.exportSpec(entity, exportWhere(entity, filter));
     await write(csvLine(spec.header));
     let rows = 0;
     let cursor: string | undefined;
@@ -653,8 +658,12 @@ export class AdminContentService {
     }
   }
 
-  private exportSpec(entity: string): ExportSpec {
+  private exportSpec(
+    entity: string,
+    where?: { AND: Record<string, unknown>[] },
+  ): ExportSpec {
     const keyset = (take: number, cursor?: string) => ({
+      ...(where ? { where: where as never } : {}),
       take,
       orderBy: [{ created_at: 'desc' as const }, { id: 'desc' as const }],
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

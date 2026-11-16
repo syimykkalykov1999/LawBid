@@ -17,6 +17,7 @@ import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/diagnostics/sentry_native.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/media/prefetch_policy.dart';
 import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -264,6 +265,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
     WidgetsBinding.instance.waitUntilFirstFrameRasterized.then((_) {
       PerfMarks.mark('lb.first_frame');
       SentryNative.markFirstFrame();
+      // The pickers' CLDR language names (deferred, language_catalog.dart)
+      // arrive at idle after the first frame, before anyone opens a picker.
+      StartupIdleQueue.enqueue(loadLanguageDisplayNames);
     }),
   );
 }

@@ -108,4 +108,32 @@ describe('«Масштаб» page (R-369)', () => {
     expect(await screen.findByText(/OpenSearch \(облако\) работает и ждёт переключения/)).toBeTruthy();
     expect(screen.getByText(/Ищет: Встроенный поиск \(PostgreSQL\)/)).toBeTruthy();
   });
+
+  it('shows «Сейчас» next to every «Авто» row and on every «Авто» numbers card (owner 15.11)', async () => {
+    answers.set('/admin/economy', {
+      containers: {
+        onAws: true,
+        api: { running: 2, desired: 2, ceiling: 4, hardCap: 4, taskUsd: 18 },
+        worker: { running: 1, desired: 1, ceiling: 2, hardCap: 2, taskUsd: 28 },
+        services: [{ kind: 'pgbouncer', running: 1, desired: 1, spot: true }],
+      },
+      capacity: { onAws: true, dbClass: 'db.t4g.medium', redisClass: 'cache.t4g.micro', redisNodes: 2, dbTiers: [], redisTiers: [] },
+      settings: { manualApi: 4, manualWorker: 2, ceilingMode: 'auto' },
+      events: [],
+    });
+    answers.set('/admin/spend/registry', {
+      rows: [
+        { id: 'aws.pgbouncer', name: 'PgBouncer', infraSwitch: true, states: ['off', 'on', 'auto'], liveState: 'on' },
+        { id: 'aws.guardduty', name: 'GuardDuty', infraSwitch: true, states: ['off', 'on'], liveState: null },
+      ],
+    });
+    answers.set('/admin/spend/autoscale-tuning', {
+      targets: [{ target: 'redis', available: true, knobs: [] }],
+    });
+    renderPage();
+    expect((await screen.findByTestId('scale-now-aws.pgbouncer')).textContent).toBe('Сейчас: PgBouncer 1 из 1');
+    // A row without «Авто» gets no line.
+    expect(screen.queryByTestId('scale-now-aws.guardduty')).toBeNull();
+    expect((await screen.findByTestId('tuning-now-redis')).textContent).toBe('Сейчас: cache.t4g.micro, узлов: 2');
+  });
 });

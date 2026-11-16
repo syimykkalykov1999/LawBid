@@ -7,7 +7,7 @@ import { SentryInit } from '@/components/sentry-init';
 import { ToastProvider, useToast } from '@/components/ui/toast';
 import { startActivityTracking } from '@/lib/activity';
 import { makePersister, PERSIST_BUSTER, PERSIST_MAX_AGE_MS, shouldPersistQuery } from '@/lib/persist';
-import { makeQueryClient } from '@/lib/query-client';
+import { connectSettingsTabs, makeQueryClient } from '@/lib/query-client';
 import { ThemeProvider } from '@/lib/theme';
 
 // S18-8: the animation engine loads after first paint, in its own chunk.
@@ -40,6 +40,8 @@ export function Providers({
   }, []);
   // R-385: data-class defaults (lib/query-client.ts).
   const [client] = useState(() => makeQueryClient(toastSink));
+  // Row 179: a settings save in another tab re-reads the settings here too.
+  useEffect(() => connectSettingsTabs(client), [client]);
   // Speed matrix 2026-11-09 (§3 #4): the cache is also kept in IndexedDB
   // (lib/persist.ts), so a reload or a new tab opens from the stored copy.
   const [persister] = useState(() => makePersister());

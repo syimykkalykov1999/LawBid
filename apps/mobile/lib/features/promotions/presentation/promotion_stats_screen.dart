@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/boost_colors.dart';
@@ -28,7 +29,10 @@ class PromotionStatsScreen extends ConsumerWidget {
     final stats = ref.watch(promotionStatsProvider(id));
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppBar(title: Text(t.t('boost.stats.title'))),
+      appBar: AppBar(
+        leading: safeBackLeading(context),
+        title: Text(t.t('boost.stats.title')),
+      ),
       body: stats.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(

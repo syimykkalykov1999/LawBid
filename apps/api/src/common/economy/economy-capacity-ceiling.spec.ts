@@ -65,7 +65,7 @@ describe('EconomyService.applyCapacityCeilings (cost registry V4)', () => {
     await run({ awsLimitUsd: 350 });
     expect(ssm.put).not.toHaveBeenCalled();
     await run({ awsLimitUsd: 1000 });
-    expect(stored['/p/db/max']).toBe('db.r7g.large');
+    expect(stored['/p/db/max']).toBe('db.r8g.large');
   });
 
   it('owner 2026-11-09: off, or no sum typed, lifts both ceilings to the largest size', async () => {
@@ -78,7 +78,7 @@ describe('EconomyService.applyCapacityCeilings (cost registry V4)', () => {
         '/p/redis/max': 'cache.t4g.small',
       });
       await run(f, cap);
-      expect(stored['/p/db/max']).toBe('db.r7g.2xlarge');
+      expect(stored['/p/db/max']).toBe('db.r8g.2xlarge');
       expect(stored['/p/redis/max']).toBe('cache.r7g.2xlarge');
     }
   });

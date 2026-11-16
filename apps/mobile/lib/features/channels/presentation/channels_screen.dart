@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
@@ -83,9 +84,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               : AppTopBar(
                   leading: AppBackButton(
                     semanticLabel: t.t('common.back'),
-                    onPressed: () => context.canPop()
-                        ? context.pop()
-                        : Navigator.of(context).maybePop(),
+                    onPressed: () => context.safeBack(),
                   ),
                   // Owner 2026-10-20: no word «Channels»: the tabs stand in
                   // the middle of the bar on the arrow's line, the magnifier
