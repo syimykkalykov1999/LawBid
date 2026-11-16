@@ -341,11 +341,12 @@ export function useRates(enabled: boolean) {
   });
 }
 
-export function usePieceOverview(period: string, enabled: boolean) {
+/** [period] unset: the API picks this month of the report time zone (`admin.report_timezone`, row 180). */
+export function usePieceOverview(period: string | undefined, enabled: boolean) {
   return useQuery({
-    queryKey: ['staff-piecework', period],
+    queryKey: ['staff-piecework', period ?? 'current'],
     enabled,
     staleTime: 60_000,
-    queryFn: () => staffGet<PieceOverview>('/admin/staff/piecework', { period }),
+    queryFn: () => staffGet<PieceOverview>('/admin/staff/piecework', period ? { period } : undefined),
   });
 }

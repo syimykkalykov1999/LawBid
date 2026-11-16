@@ -1,6 +1,7 @@
 import {
   accrualRef,
   dayBounds,
+  dayDate,
   dayStatus,
   effectiveRateCents,
   isDay,
@@ -13,6 +14,7 @@ import {
   type RateRow,
 } from './piecework.calc';
 
+const LA = 'America/Los_Angeles';
 const PCT = { p90: 110, p75: 100, p60: 90, low: 75 };
 const snap = (rating: number | null, status = 'ok') => ({ rating, status });
 
@@ -136,14 +138,36 @@ describe('days and references', () => {
     expect(rateKindOf('review_sample')).toBeNull();
   });
 
-  it('validates days and bounds them in UTC', () => {
+  it('validates days and bounds them in the report time zone (row 180)', () => {
     expect(isDay('2026-10-26')).toBe(true);
     expect(isDay('2026-02-30')).toBe(false);
     expect(isDay('26-10-2026')).toBe(false);
-    const b = dayBounds('2026-10-26');
-    expect(b.start.toISOString()).toBe('2026-10-26T00:00:00.000Z');
-    expect(b.end.toISOString()).toBe('2026-10-27T00:00:00.000Z');
-    expect(yesterdayOf(new Date('2026-10-27T02:15:00Z'))).toBe('2026-10-26');
+    expect(dayDate('2026-10-26').toISOString()).toBe(
+      '2026-10-26T00:00:00.000Z',
+    );
+    const b = dayBounds('2026-11-14', LA);
+    expect(b.start.toISOString()).toBe('2026-11-14T08:00:00.000Z');
+    expect(b.end.toISOString()).toBe('2026-11-15T08:00:00.000Z');
+    // A decision closed at 18:00 PST belongs to that Nevada day.
+    const at = new Date('2026-11-15T02:00:00Z');
+    expect(at >= b.start && at < b.end).toBe(true);
+    // DST end (1 Nov 2026): the local day is 25 hours long.
+    const dst = dayBounds('2026-11-01', LA);
+    expect(dst.end.getTime() - dst.start.getTime()).toBe(25 * 3_600_000);
+    expect(dayBounds('2026-11-14', 'UTC').start.toISOString()).toBe(
+      '2026-11-14T00:00:00.000Z',
+    );
+  });
+
+  it('yesterday is the last complete day of the report time zone', () => {
+    // 18:00 PST on 14 Nov: the 14th is not over yet in Nevada.
+    expect(yesterdayOf(new Date('2026-11-15T02:00:00Z'), LA)).toBe(
+      '2026-11-13',
+    );
+    // The cron (10:15 UTC = 02:15 PST): the 14th has just closed.
+    expect(yesterdayOf(new Date('2026-11-15T10:15:00Z'), LA)).toBe(
+      '2026-11-14',
+    );
   });
 
   it('accrual reference: one per person per day, revisions count up', () => {
