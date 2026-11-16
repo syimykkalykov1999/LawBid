@@ -4,7 +4,7 @@ terraform {
   required_version = ">= 1.9"
   backend "s3" {}
   required_providers {
-    aws    = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws    = { source = "hashicorp/aws", version = "~> 6.72" }
     random = { source = "hashicorp/random", version = "~> 3.6" }
     tls    = { source = "hashicorp/tls", version = "~> 4.0" }
   }
@@ -119,6 +119,8 @@ module "stack" {
   apple_bundle_ids                = var.apple_bundle_ids
   apple_team_id                   = var.apple_team_id
   redis_node_type                 = var.redis_node_type
+  redis_engine                    = var.redis_engine
+  database_major_version          = var.database_major_version
   redis_replicas                  = var.redis_replicas
   api_max_tasks                   = var.api_max_tasks
   worker_max_tasks                = var.worker_max_tasks

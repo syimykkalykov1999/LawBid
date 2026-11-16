@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "Tega odvetnika lahko oceni le stranka, ki je z njim zaključila zadevo.",
   "reviews.write.saved": "Ocena objavljena",
   "reviews.write.title": "Vaša ocena",
+  "router.notFound.home": "Domov",
+  "router.notFound.title": "Strani ni mogoče najti",
   "saved.chats.empty": "Še ni shranjenih sporočil",
   "saved.copied": "Kopirano",
   "saved.empty": "Nič še ni shranjenega",

@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "Slegs 'n kliënt wat 'n saak met hierdie prokureur voltooi het, kan hom resenseer.",
   "reviews.write.saved": "Resensie geplaas",
   "reviews.write.title": "Jou resensie",
+  "router.notFound.home": "Tuis",
+  "router.notFound.title": "Bladsy nie gevind nie",
   "saved.chats.empty": "Nog geen gestoorde boodskappe",
   "saved.copied": "Gekopieer",
   "saved.empty": "Nog niks gestoor nie",

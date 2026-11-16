@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "Vain asiakas, joka on hoitanut asian loppuun tämän asianajajan kanssa, voi arvostella hänet.",
   "reviews.write.saved": "Arvostelu julkaistu",
   "reviews.write.title": "Arvostelusi",
+  "router.notFound.home": "Etusivu",
+  "router.notFound.title": "Sivua ei löytynyt",
   "saved.chats.empty": "Ei tallennettuja viestejä",
   "saved.copied": "Kopioitu",
   "saved.empty": "Ei vielä tallennettua",

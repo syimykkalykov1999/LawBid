@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "Doar un client care a finalizat un caz cu acest avocat îl poate recenza.",
   "reviews.write.saved": "Recenzie publicată",
   "reviews.write.title": "Recenzia dvs.",
+  "router.notFound.home": "Acasă",
+  "router.notFound.title": "Pagina nu a fost găsită",
   "saved.chats.empty": "Niciun mesaj salvat încă",
   "saved.copied": "Copiat",
   "saved.empty": "Nimic salvat încă",

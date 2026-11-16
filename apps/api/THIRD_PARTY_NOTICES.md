@@ -29,6 +29,18 @@ https://github.com/cozmo/jsQR — decodes the QR drawn in the PDF in
 image. License: Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0
 (full text in the package's LICENSE file).
 
+## @prisma/extension-read-replicas 0.5.0 — Apache-2.0 (pattern copied)
+
+https://github.com/prisma/extension-read-replicas (Prisma Data, Inc.) —
+`src/prisma/prisma-read.service.ts` copies from its `src/extension.ts` the
+list of model read operations (`readOperations`) and the way a read is sent
+to another client (`client[model][operation](args)`, here with the camelCase
+delegate our shard router keys on), plus the `__internalParams.transaction`
+check that leaves transactions alone. Used when a read copy does not answer
+and the read is asked again of the primary (rows 8 / 9, 15.11). License:
+Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0 (full text in
+the package's LICENSE file). Changed: camelCase delegate, raw SELECT replay.
+
 ## async-mutex — MIT
 
 `src/common/vendor/async-mutex/` (Semaphore.ts, SemaphoreInterface.ts, errors.ts), tag v0.5.0, https://github.com/DirtyHairy/async-mutex — copied whole, reformatted only. Used by the byte budget of full file reads (`modules/files/read-budget.ts`, security audit 2026-11-08 L6).

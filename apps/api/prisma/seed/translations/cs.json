@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "Recenzi může napsat jen klient, který s tímto advokátem dokončil případ.",
   "reviews.write.saved": "Recenze zveřejněna",
   "reviews.write.title": "Vaše recenze",
+  "router.notFound.home": "Domů",
+  "router.notFound.title": "Stránka nenalezena",
   "saved.chats.empty": "Zatím žádné uložené zprávy",
   "saved.copied": "Zkopírováno",
   "saved.empty": "Zatím nic uloženo",

@@ -48,6 +48,7 @@ import {
   INFRA_SWITCH_IDS,
   InfraChangeService,
 } from './infra/infra-change.service';
+import { dbServerRowShown } from '../../common/ops/infra-switches';
 
 interface UsageSnap {
   at?: string;
@@ -370,6 +371,7 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
       cpuLimitRaw,
       blockedLineRaw,
       authLineRaw,
+      replicaLineRaw,
     ] = await Promise.all([
       safe(() => this.ops.workerHeartbeat()),
       safe(() => this.ops.isHeavyPaused()),
@@ -380,6 +382,7 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
       safe(() => this.settings.number('economy.db_cpu_limit_percent')),
       safe(() => this.settings.number('infra.waf_attack_blocked_per_5m')),
       safe(() => this.settings.number('infra.waf_attack_auth_failed_per_5m')),
+      safe(() => this.settings.number('infra.replica_cpu_limit_percent')),
     ]);
     const cpuLimit = cpuLimitRaw ?? undefined;
     const line = (v: number | null, d: number) =>
@@ -416,7 +419,12 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
             // Owner 2026-11-11 («Авто» by count, like Aurora Auto Scaling):
             // the read copies' average CPU over the line adds a copy, below
             // half of it an extra copy may go. Used by infra-auto only.
-            ...replicaSignals(cap.replicaCpuPercent, cpuLimit ?? 70),
+            // Rows 8 / 9 (15.11): their own line when set (> 0), so copies
+            // 2..5 can be tested apart from copy 1 (db_cpu).
+            ...replicaSignals(
+              cap.replicaCpuPercent,
+              line(replicaLineRaw, cpuLimit ?? 70),
+            ),
             // Owner 2026-11-12: the search engine nodes, the same way.
             ...searchSignals(
               cap.searchCpuPercent,
@@ -492,6 +500,10 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
         );
       }),
     );
+    // Owner 15.11: server rows past db.max_servers stay off «Масштаб».
+    const maxServers = await Promise.resolve()
+      .then(() => this.settings.number('db.max_servers'))
+      .catch(() => undefined);
     const rows: RegistryRow[] = COST_REGISTRY.map((e, i) => {
       const a = attr.byId[e.id];
       const locked = this.lockedReason(e);
@@ -563,7 +575,9 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
     return {
       generatedAt: now.toISOString(),
       spendRefreshedAt: spendReport.refreshedAt,
-      rows,
+      rows: rows.filter((r, i) =>
+        dbServerRowShown(r.id, live[i].state, maxServers),
+      ),
       unclaimed: attr.unclaimed,
       ladder: {
         dayOne: {

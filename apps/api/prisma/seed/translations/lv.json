@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "Atsauksmi var atstāt tikai klients, kurš pabeidzis lietu ar šo advokātu.",
   "reviews.write.saved": "Atsauksme publicēta",
   "reviews.write.title": "Jūsu atsauksme",
+  "router.notFound.home": "Sākums",
+  "router.notFound.title": "Lapa nav atrasta",
   "saved.chats.empty": "Saglabātu ziņu vēl nav",
   "saved.copied": "Nokopēts",
   "saved.empty": "Vēl nekas nav saglabāts",

@@ -8,7 +8,7 @@
 # by plan/apply (sensitive). Runbook: docs/runbooks/TURN.md.
 terraform {
   required_providers {
-    aws    = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws    = { source = "hashicorp/aws", version = "~> 6.72" }
     random = { source = "hashicorp/random", version = "~> 3.6" }
   }
 }
@@ -82,7 +82,8 @@ variable "tags" {
   default = {}
 }
 
-# Ubuntu 24.04 LTS arm64 (coturn is in its repository; Amazon Linux 2023's is not).
+# Ubuntu 24.04 LTS arm64; coturn itself runs from its official image pinned by
+# digest (user-data.sh.tftpl, row 202), not from the older apt package.
 data "aws_ssm_parameter" "ami" {
   name = "/aws/service/canonical/ubuntu/server/24.04/stable/current/arm64/hvm/ebs-gp3/ami-id"
 }
@@ -231,7 +232,7 @@ resource "aws_instance" "this" {
     external_ip  = local.primary_ip
     on_demand    = var.on_demand
     secret_param = aws_ssm_parameter.secret.name
-    region       = data.aws_region.current.name
+    region       = data.aws_region.current.region
     denied       = var.denied_peer_cidrs
     quota        = local.quota
   })

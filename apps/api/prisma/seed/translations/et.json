@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "Arvustada saab ainult klient, kes on selle advokaadiga juhtumi lõpetanud.",
   "reviews.write.saved": "Arvustus postitatud",
   "reviews.write.title": "Teie arvustus",
+  "router.notFound.home": "Avaleht",
+  "router.notFound.title": "Lehte ei leitud",
   "saved.chats.empty": "Salvestatud sõnumeid pole",
   "saved.copied": "Kopeeritud",
   "saved.empty": "Midagi pole salvestatud",

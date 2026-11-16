@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "רק לקוח שסיים תיק עם עורך הדין הזה יכול לכתוב עליו ביקורת.",
   "reviews.write.saved": "חוות הדעת פורסמה",
   "reviews.write.title": "חוות הדעת שלכם",
+  "router.notFound.home": "דף הבית",
+  "router.notFound.title": "הדף לא נמצא",
   "saved.chats.empty": "אין עדיין הודעות שמורות",
   "saved.copied": "הועתק",
   "saved.empty": "עוד לא נשמר דבר",

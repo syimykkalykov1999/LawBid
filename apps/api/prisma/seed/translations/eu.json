@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "Abokatu honekin kasu bat amaitu duen bezero batek bakarrik eman dezake iritzia.",
   "reviews.write.saved": "Iritzia argitaratu da",
   "reviews.write.title": "Zure iritzia",
+  "router.notFound.home": "Hasiera",
+  "router.notFound.title": "Ez da orria aurkitu",
   "saved.chats.empty": "Ez dago gordetako mezurik",
   "saved.copied": "Kopiatuta",
   "saved.empty": "Oraindik ez dago ezer gordeta",

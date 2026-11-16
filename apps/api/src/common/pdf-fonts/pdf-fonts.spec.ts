@@ -223,28 +223,43 @@ describe('PDF fonts: script fallback', () => {
 });
 
 describe('PdfWordCache (row 145: shaped words kept between PDFs)', () => {
-  it('keeps at most maxWords per font, the least recently used goes first', () => {
-    const cache = new PdfWordCache(2);
+  it('keeps at most maxWords IN ALL (every font together), the least recently used goes first', () => {
+    const cache = new PdfWordCache(3);
     const fontA = {};
     const fontB = {};
     const a = cache.get(fontA);
+    const b = cache.get(fontB);
     a['one '] = 1;
     a['two '] = 2;
     expect(a['one ']).toBe(1); // used: «two» is now the oldest
-    a['three'] = 3;
-    expect(cache.sizeFor(fontA)).toBe(2);
+    b['one '] = 'b'; // same word, other font: its own entry
+    expect(cache.size).toBe(3);
+    b['two '] = 'b2'; // a 4th word anywhere drops the oldest of ALL fonts
+    expect(cache.size).toBe(3);
     expect(a['two ']).toBeUndefined();
     expect(a['one ']).toBe(1);
-    expect(a['three']).toBe(3);
-    // Another font has its own words, and the same store comes back.
-    cache.get(fontB)['one '] = 'b';
-    expect(cache.get(fontA)['one ']).toBe(1);
-    expect(cache.get(fontB)['one ']).toBe('b');
+    expect(b['one ']).toBe('b');
+    expect(b['two ']).toBe('b2');
+    expect(cache.sizeFor(fontA) + cache.sizeFor(fontB)).toBe(3);
     expect(cache.get(fontA)).toBe(a);
     // A lower bound applies at the next new word.
     cache.maxWords = 1;
     a['four'] = 4;
-    expect(cache.sizeFor(fontA)).toBe(1);
+    expect(cache.size).toBe(1);
+    expect(a['four']).toBe(4);
+  });
+
+  it('never holds more than maxWords, however many fonts and words pass through', () => {
+    const cache = new PdfWordCache(500);
+    const fonts = Array.from({ length: 25 }, () => ({}));
+    let max = 0;
+    for (let i = 0; i < 20_000; i++) {
+      const store = cache.get(fonts[i % fonts.length]);
+      store[`w${i} `] = i;
+      max = Math.max(max, cache.size);
+    }
+    expect(max).toBe(500);
+    expect(cache.size).toBe(500);
   });
 
   it('0 = nothing kept: each render gets its own fresh cache and the kept words are dropped', () => {
@@ -291,6 +306,12 @@ describe('PdfWordCache (row 145: shaped words kept between PDFs)', () => {
     expect(await render(kept.forRender())).toBe(plain);
     expect(await render(kept.forRender())).toBe(plain); // all words from the cache
     expect(kept.sizeFor(parsedFont(INTER_PATH as string))).toBeGreaterThan(10);
+    // A bound far below the words of one PDF (constant eviction across the
+    // scripts' fonts mid-render) still gives the same bytes.
+    const tiny = new PdfWordCache(7);
+    expect(await render(tiny.forRender())).toBe(plain);
+    expect(await render(tiny.forRender())).toBe(plain);
+    expect(tiny.size).toBeLessThanOrEqual(7);
   });
 });
 

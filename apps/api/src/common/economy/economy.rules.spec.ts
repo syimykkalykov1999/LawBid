@@ -131,7 +131,7 @@ describe('fargateTaskMonthUsd', () => {
 describe('tiers', () => {
   it('finds the next bigger database tier', () => {
     expect(nextTier(DB_TIERS, 'db.t4g.medium')?.name).toBe('db.t4g.large');
-    expect(nextTier(DB_TIERS, 'db.t4g.large')?.name).toBe('db.r7g.large');
+    expect(nextTier(DB_TIERS, 'db.t4g.large')?.name).toBe('db.r8g.large');
   });
   it('steps the Redis ladder the same way as the autoscaler', () => {
     expect(nextTier(REDIS_TIERS, 'cache.t4g.medium')?.name).toBe(
@@ -141,7 +141,7 @@ describe('tiers', () => {
     expect(nextTier(REDIS_TIERS, 'cache.m7g.large')).toBeNull();
   });
   it('has no next tier after the largest or for an unknown class', () => {
-    expect(nextTier(DB_TIERS, 'db.r7g.2xlarge')).toBeNull();
+    expect(nextTier(DB_TIERS, 'db.r8g.2xlarge')).toBeNull();
     expect(nextTier(DB_TIERS, 'db.r6g.large')).toBeNull();
     expect(nextTier(REDIS_TIERS, null)).toBeNull();
   });
@@ -310,10 +310,10 @@ describe('affordableTier (budget-tied autoscale ceilings, cost registry V4)', ()
 
   it('a bigger allowance lifts the ceiling step by step', () => {
     expect(affordableTier(DB_TIERS, 1000, DB_CEILING_SHARE).name).toBe(
-      'db.r7g.large',
+      'db.r8g.large',
     );
     expect(affordableTier(DB_TIERS, 2000, DB_CEILING_SHARE).name).toBe(
-      'db.r7g.xlarge',
+      'db.r8g.xlarge',
     );
     expect(affordableTier(REDIS_TIERS, 2200, REDIS_CEILING_SHARE).name).toBe(
       'cache.r7g.large',
@@ -328,7 +328,7 @@ describe('affordableTier (budget-tied autoscale ceilings, cost registry V4)', ()
       'db.t4g.micro',
     );
     expect(
-      affordableTier(DB_TIERS, 100_000, DB_CEILING_SHARE, 'db.r7g.large').name,
-    ).toBe('db.r7g.large');
+      affordableTier(DB_TIERS, 100_000, DB_CEILING_SHARE, 'db.r8g.large').name,
+    ).toBe('db.r8g.large');
   });
 });

@@ -31,7 +31,7 @@ describe('DealRecordPdfCache (row 145)', () => {
         fail ? Promise.reject(new Error('redis down')) : Promise.resolve(77.9),
       ),
     );
-    expect(APP_SETTINGS[DEAL_RECORD_WORD_CACHE_KEY]).toBe(5000);
+    expect(APP_SETTINGS[DEAL_RECORD_WORD_CACHE_KEY]).toBe(10_000);
     expect((await holder.current()).maxWords).toBe(77);
     fail = true;
     expect((await holder.current()).maxWords).toBe(77);

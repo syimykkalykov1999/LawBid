@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "ມີແຕ່ລູກຄ້າທີ່ສຳເລັດຄະດີກັບທະນາຍຄວາມນີ້ຈຶ່ງຣີວິວໄດ້.",
   "reviews.write.saved": "ໂພສຕ໌ຣີວິວແລ້ວ",
   "reviews.write.title": "ຣີວິວຂອງທ່ານ",
+  "router.notFound.home": "ໜ້າຫຼັກ",
+  "router.notFound.title": "ບໍ່ພົບໜ້າ",
   "saved.chats.empty": "ຍັງບໍ່ມີຂໍ້ຄວາມທີ່ບັນທຶກ",
   "saved.copied": "ສຳເນົາແລ້ວ",
   "saved.empty": "ຍັງບໍ່ມີທີ່ບັນທຶກ",

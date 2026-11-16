@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "শুধু এই অ্যাটর্নির সাথে কেস সম্পন্ন করা ক্লায়েন্টই রিভিউ দিতে পারেন।",
   "reviews.write.saved": "রিভিউ পোস্ট করা হয়েছে",
   "reviews.write.title": "আপনার রিভিউ",
+  "router.notFound.home": "হোম",
+  "router.notFound.title": "পৃষ্ঠা পাওয়া যায়নি",
   "saved.chats.empty": "এখনও কোনো বার্তা সংরক্ষিত নেই",
   "saved.copied": "কপি হয়েছে",
   "saved.empty": "এখনও কিছু সংরক্ষিত নেই",

@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "Kaliya macmiil kiis la dhammaystay qareenkan ayaa faallo ka bixin kara.",
   "reviews.write.saved": "Dib-u-eegista waa la daabacay",
   "reviews.write.title": "Dib-u-eegistaada",
+  "router.notFound.home": "Bogga hore",
+  "router.notFound.title": "Bogga lama helin",
   "saved.chats.empty": "Fariin la keydiyay ma jirto",
   "saved.copied": "La koobiyay",
   "saved.empty": "Wax la keydiyay majiraan",

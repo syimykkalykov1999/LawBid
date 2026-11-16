@@ -15,7 +15,7 @@
 #   event_loop alarm    "a Node process is saturated" (metric written by the app)
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -75,7 +75,7 @@ variable "rds_kms_key_arn" {
 variable "rds_parameter_group_name" {
   type        = string
   default     = ""
-  description = "Parameter group of the primary (same postgres16 family: rds.force_ssl, slow-query log, pg_stat_statements). Empty = the RDS default group."
+  description = "Parameter group of the primary (same family, postgres16 or postgres18: rds.force_ssl, slow-query log, pg_stat_statements). Empty = the RDS default group."
 }
 variable "rds_deletion_protection" {
   type        = bool
@@ -123,6 +123,10 @@ variable "opensearch_enabled" {
 variable "opensearch_instance_type" {
   type    = string
   default = "t3.small.search"
+  # 2026-11-15 (aws opensearch list-instance-type-details, Price List API):
+  # OpenSearch has no burstable Graviton class (no t4g.*.search); the
+  # smallest Graviton is m8g.medium.search at $0.075/h for 4 GiB vs
+  # t3.small.search $0.036/h for 2 GiB, so the cheap start stays t3.small.
 }
 variable "opensearch_instance_count" {
   type    = number
@@ -395,7 +399,7 @@ resource "aws_opensearch_domain" "search" {
       Effect    = "Allow"
       Principal = { AWS = "*" }
       Action    = "es:ESHttp*"
-      Resource  = "arn:aws:es:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:domain/${var.name}-search/*"
+      Resource  = "arn:aws:es:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:domain/${var.name}-search/*"
     }]
   })
   # Auto-Tune adjusts JVM / queue sizes to the load by itself; AWS does not

@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "只有与这位律师完成过案件的客户才能评价。",
   "reviews.write.saved": "评价已发布",
   "reviews.write.title": "您的评价",
+  "router.notFound.home": "首页",
+  "router.notFound.title": "找不到页面",
   "saved.chats.empty": "暂无收藏的消息",
   "saved.copied": "已复制",
   "saved.empty": "暂无收藏",

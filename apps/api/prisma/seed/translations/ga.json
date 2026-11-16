@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "Ní féidir ach le cliant a chríochnaigh cás leis an aturnae seo léirmheas a scríobh air.",
   "reviews.write.saved": "Léirmheas postáilte",
   "reviews.write.title": "Do léirmheas",
+  "router.notFound.home": "Baile",
+  "router.notFound.title": "Níor aimsíodh an leathanach",
   "saved.chats.empty": "Níl aon teachtaireacht shábháilte fós",
   "saved.copied": "Cóipeáilte",
   "saved.empty": "Níor sábháladh aon rud fós",

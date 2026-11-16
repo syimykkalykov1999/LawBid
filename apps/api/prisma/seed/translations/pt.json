@@ -5261,6 +5261,8 @@
   "reviews.write.onlyAfterCase": "Só um cliente que concluiu um caso com este advogado pode avaliá-lo.",
   "reviews.write.saved": "Avaliação publicada",
   "reviews.write.title": "Sua avaliação",
+  "router.notFound.home": "Início",
+  "router.notFound.title": "Página não encontrada",
   "saved.chats.empty": "Nenhuma mensagem salva",
   "saved.copied": "Copiado",
   "saved.empty": "Nada salvo ainda",

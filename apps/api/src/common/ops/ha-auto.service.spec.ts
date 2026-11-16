@@ -5,6 +5,7 @@ import {
   HA_USD_MONTH,
   HaAutoService,
   wantedHa,
+  haWindow,
   type HaFacts,
 } from './ha-auto.service';
 
@@ -267,5 +268,220 @@ describe('owner 2026-11-09: money holds the copies only with a sum he typed', ()
 
   it('a sum typed: the economy and AWS budget readings count again', async () => {
     expect(await money(300)).toEqual({ limited: true, budgetLeftUsd: 1 });
+  });
+});
+
+/** Owner 14.11: the copies' waits in minutes for live tests (defaults kept). */
+describe('decideHa: waits from the admin', () => {
+  const q: HaFacts = { ...quiet, ...full };
+
+  it('the flip guard is a setting: 10 minutes after a step the other way is allowed', () => {
+    const tenAgo = { dir: 'up' as const, atMs: NOW - 11 * 60_000 };
+    expect(decideHa({ ...q, last: { db: tenAgo, redis: tenAgo } })).toEqual([]);
+    expect(
+      decideHa({
+        ...q,
+        flipMs: 10 * 60_000,
+        last: { db: tenAgo, redis: tenAgo },
+      }),
+    ).toEqual(['db_multi_az_off', 'redis_failover_off']);
+  });
+
+  it('a one-hour quiet window (ha.release_minutes) is enough when set', () => {
+    expect(decideHa({ ...q, online: hours(1, 10) })).toEqual([]); // today: > 3 hours needed
+    expect(decideHa({ ...q, online: hours(1, 10), minQuietHours: 1 })).toEqual([
+      'db_multi_az_off',
+      'redis_failover_off',
+    ]);
+  });
+
+  it('windows: minute points up to one day, else full hours (0 = default)', () => {
+    expect(haWindow(7 * 24 * 60, 0)).toEqual({ points: 168, periodS: 3600 });
+    expect(haWindow(7 * 24 * 60, 10)).toEqual({ points: 10, periodS: 60 });
+    expect(haWindow(180, 0)).toEqual({ points: 3, periodS: 3600 });
+    expect(haWindow(180, 5)).toEqual({ points: 5, periodS: 60 });
+    expect(haWindow(180, 1440)).toEqual({ points: 1440, periodS: 60 });
+    expect(haWindow(180, 1500)).toEqual({ points: 25, periodS: 3600 });
+  });
+});
+
+/** 15.11: «Авто» of the copies testable on prod within 10 minutes. */
+describe('decideHa: busy window in minutes (ha.provision_minutes)', () => {
+  const calm = hours(168, 0);
+  it('5 busy minutes add both copies; one quiet minute does not', () => {
+    const f: HaFacts = { ...base, threshold: 1, online: calm };
+    expect(decideHa({ ...f, onlineUp: [1, 1, 2, 1, 1] })).toEqual([
+      'db_multi_az_on',
+      'redis_replica_up',
+    ]);
+    expect(decideHa({ ...f, onlineUp: [1, 1, 0, 1, 1] })).toEqual([]);
+  });
+
+  it('needs data for 90 % of the minutes; no data or an empty window = nothing', () => {
+    const f: HaFacts = { ...base, threshold: 1, online: calm };
+    const ten = Array.from({ length: 10 }, () => 3);
+    expect(decideHa({ ...f, onlineUp: [...ten.slice(1), null] })).toEqual([
+      'db_multi_az_on',
+      'redis_replica_up',
+    ]);
+    expect(decideHa({ ...f, onlineUp: [...ten.slice(2), null, null] })).toEqual(
+      [],
+    );
+    expect(decideHa({ ...f, onlineUp: [] })).toEqual([]);
+  });
+
+  it('the hourly default is unchanged: 3 full hours, every one with data', () => {
+    expect(wantedHa({ ...base, onlineUp: [300, 300, 300] })).toBe('up');
+    const between = hours(168, 150);
+    expect(
+      wantedHa({ ...base, online: between, onlineUp: [300, null, 300] }),
+    ).toBe(null);
+  });
+
+  it('a short quiet window no longer blocks the busy check (was: 1 point, 3 needed)', () => {
+    // Before 15.11 ha.release_minutes = 10 shrank the one series to 1 hour
+    // and «add» needed its last 3 hours: the copies could never be added.
+    const f: HaFacts = {
+      ...base,
+      threshold: 1,
+      online: Array.from({ length: 10 }, () => 2),
+      minQuietHours: 10,
+      onlineUp: Array.from({ length: 5 }, () => 2),
+    };
+    expect(decideHa(f)).toEqual(['db_multi_az_on', 'redis_replica_up']);
+  });
+
+  it('ten quiet minutes remove the copies (minute release window)', () => {
+    const f: HaFacts = {
+      ...base,
+      ...full,
+      threshold: 200,
+      online: Array.from({ length: 10 }, () => 0),
+      minQuietHours: 10,
+      onlineUp: Array.from({ length: 5 }, () => 0),
+    };
+    expect(decideHa(f)).toEqual(['db_multi_az_off', 'redis_failover_off']);
+  });
+});
+
+/** 15.11: one pass on minute settings reads minute points and acts. */
+describe('HaAutoService: live test on minute settings', () => {
+  const NOW_MS = Date.UTC(2026, 10, 15, 14, 7, 30);
+  const setup = (online: number) => {
+    const vals: Record<string, number | string> = {
+      'ha.mode': 'auto',
+      'ha.provision_online_users': 1,
+      'ha.provision_minutes': 5,
+      'ha.release_days': 7,
+      'ha.release_minutes': 10,
+      'ha.flip_guard_minutes': 1,
+      'infra.auto_check_minutes': 1,
+      'economy.aws_cap_usd': 0,
+    };
+    const settings = {
+      number: jest.fn((k: string) => Promise.resolve(Number(vals[k] ?? 0))),
+      string: jest.fn((k: string) => Promise.resolve(String(vals[k] ?? ''))),
+    };
+    const redis = {
+      set: jest.fn(() => Promise.resolve('OK')),
+      get: jest.fn(() => Promise.resolve(null)),
+    };
+    const env: Record<string, string> = {
+      OPS_DB_INSTANCE: 'db1',
+      OPS_REDIS_GROUP: 'rg1',
+    };
+    const svc = new HaAutoService(
+      { get: (k: string) => env[k] } as never,
+      redis as never,
+      settings as never,
+    );
+    const cwCalls: { Period?: number; StartTime?: Date; EndTime?: Date }[] = [];
+    const cw = {
+      send: jest.fn((cmd: { input: Record<string, unknown> }) => {
+        const i = cmd.input as {
+          Period: number;
+          StartTime: Date;
+          EndTime: Date;
+          MetricName: string;
+        };
+        if (i.MetricName !== 'OpenSockets') {
+          return Promise.resolve({ Datapoints: [] });
+        }
+        cwCalls.push(i);
+        const pts = [];
+        for (
+          let t = i.StartTime.getTime();
+          t < i.EndTime.getTime();
+          t += i.Period * 1000
+        ) {
+          pts.push({ Timestamp: new Date(t), Sum: online * (i.Period / 60) });
+        }
+        return Promise.resolve({ Datapoints: pts });
+      }),
+    };
+    const sent: string[] = [];
+    const aws = (facts: unknown) => ({
+      send: jest.fn((cmd: object) => {
+        const n = cmd.constructor.name;
+        if (n.startsWith('Describe')) return Promise.resolve(facts);
+        sent.push(n);
+        return Promise.resolve({});
+      }),
+    });
+    Object.assign(svc as object, {
+      cw,
+      rds: aws({
+        DBInstances: [{ MultiAZ: false, DBInstanceStatus: 'available' }],
+      }),
+      cache: aws({
+        ReplicationGroups: [
+          {
+            NodeGroups: [{}],
+            MemberClusters: ['rg1-001'],
+            AutomaticFailover: 'disabled',
+            Status: 'available',
+          },
+        ],
+      }),
+    });
+    return { svc, cwCalls, sent, redis };
+  };
+
+  beforeEach(() =>
+    jest.useFakeTimers({ now: NOW_MS, doNotFake: ['nextTick'] }),
+  );
+  afterEach(() => jest.useRealTimers());
+
+  it('one person online for 5 minutes adds both copies in one pass', async () => {
+    const { svc, cwCalls, sent, redis } = setup(1);
+    await expect(svc.check()).resolves.toEqual([
+      'db_multi_az_on',
+      'redis_replica_up',
+    ]);
+    expect(sent).toEqual([
+      'ModifyDBInstanceCommand',
+      'IncreaseReplicaCountCommand',
+    ]);
+    const spans = cwCalls.map(
+      (c) =>
+        `${c.Period}:${(c.EndTime!.getTime() - c.StartTime!.getTime()) / 60_000}`,
+    );
+    expect(spans.sort()).toEqual(['60:10', '60:5']);
+    // The newest 2 minutes are skipped (CloudWatch still filling them).
+    expect(cwCalls[0].EndTime!.getTime()).toBe(Date.UTC(2026, 10, 15, 14, 5));
+    // The pass lock follows infra.auto_check_minutes (1 min -> 30 s).
+    expect(redis.set).toHaveBeenCalledWith(
+      'ops:ha-auto:lock',
+      '1',
+      'EX',
+      30,
+      'NX',
+    );
+  });
+
+  it('nobody online for 10 minutes: nothing is added', async () => {
+    const { svc, sent } = setup(0);
+    await expect(svc.check()).resolves.toEqual([]);
+    expect(sent).toEqual([]);
   });
 });
