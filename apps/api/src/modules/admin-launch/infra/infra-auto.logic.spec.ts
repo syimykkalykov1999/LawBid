@@ -416,14 +416,14 @@ describe('autoApplyOk', () => {
       ),
     ).toBe(false);
   });
-  it('13.11: switching off what live services connect to always waits for the owner', () => {
+  it('16.11: the pooler switch-off goes without a tap (the drain runs first; was 13.11 «waits»)', () => {
     const pgb = 'module.stack.module.pgbouncer[0]';
     const plan = [
       { address: `${pgb}.aws_ecs_service.this`, action: 'delete' },
       { address: `${pgb}.aws_security_group.svc`, action: 'delete' },
       { address: td, action: 'create-delete' },
     ];
-    expect(autoApplyOk('off', plan, 'aws.pgbouncer')).toBe(false);
+    expect(autoApplyOk('off', plan, 'aws.pgbouncer')).toBe(true);
     // owner rows 8 / 85: the read copies still go without a tap
     expect(
       autoApplyOk(
@@ -1310,13 +1310,26 @@ describe('rows 8 / 85 / 9 (prod 14.11): whole-stack plans and the search domain'
       'module.stack.aws_sns_topic.t: create in a switch-off',
       'module.stack.module.growth.aws_opensearch_domain.search[0]: update outside aws.rds_replicas',
     ]);
-    // the pooler's switch-off still waits for the owner (KNOWN_ERRORS 144)
+    // 16.11: the pooler's own service goes without a tap (drain first,
+    // KNOWN_ERRORS 182); the api service never does
     expect(
       autoApplyOk(
         'off',
         [
           {
             address: 'module.stack.module.pgbouncer[0].aws_ecs_service.this',
+            action: 'delete',
+          },
+        ],
+        'aws.pgbouncer',
+      ),
+    ).toBe(true);
+    expect(
+      autoApplyOk(
+        'off',
+        [
+          {
+            address: 'module.stack.module.ecs.aws_ecs_service.api',
             action: 'delete',
           },
         ],
