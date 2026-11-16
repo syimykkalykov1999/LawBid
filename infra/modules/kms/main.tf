@@ -2,7 +2,7 @@
 # Secrets Manager, CloudWatch Logs and the ElastiCache auth token.
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -47,11 +47,11 @@ resource "aws_kms_key" "this" {
       {
         Sid       = "CloudWatchLogs"
         Effect    = "Allow"
-        Principal = { Service = "logs.${data.aws_region.current.name}.amazonaws.com" }
+        Principal = { Service = "logs.${data.aws_region.current.region}.amazonaws.com" }
         Action    = ["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"]
         Resource  = "*"
         Condition = {
-          ArnLike = { "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*" }
+          ArnLike = { "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:*" }
         }
       },
       {

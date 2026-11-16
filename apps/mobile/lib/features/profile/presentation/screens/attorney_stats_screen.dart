@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -49,7 +50,10 @@ class AttorneyStatsScreen extends ConsumerWidget {
         );
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppBar(title: Text(t.t('stats.title'))),
+      appBar: AppBar(
+        leading: safeBackLeading(context),
+        title: Text(t.t('stats.title')),
+      ),
       body: stats.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => Center(

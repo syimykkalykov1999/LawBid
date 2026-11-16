@@ -18,7 +18,7 @@
 # the shared ECS module); see docs/runbooks/GAMEDAY.md "Later".
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -49,7 +49,7 @@ data "aws_region" "current" {}
 
 locals {
   acct        = data.aws_caller_identity.current.account_id
-  region      = data.aws_region.current.name
+  region      = data.aws_region.current.region
   cluster_arn = "arn:aws:ecs:${local.region}:${local.acct}:cluster/${var.cluster_name}"
   db_arn      = "arn:aws:rds:${local.region}:${local.acct}:db:${var.db_instance_id}"
   redis_arn   = "arn:aws:elasticache:${local.region}:${local.acct}:replicationgroup:${var.redis_replication_group_id}"

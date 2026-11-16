@@ -10,6 +10,7 @@ import { Field, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { saveConfig } from '@/lib/config-save';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 
@@ -67,10 +68,8 @@ export default function DealRecordPage() {
 
   const saveSwitch = useMutation({
     mutationFn: async (v: { key: string; value: boolean; say: string }) => {
-      const res = await api.PUT('/admin/config/{key}', {
-        params: { path: { key: v.key } },
-        body: { value: v.value } as never,
-      });
+      // Row 179: checked against the version this tab saw (lib/config-save.ts).
+      const res = await saveConfig(qc, v.key, v.value);
       if (res.error) throw res.error;
       return v;
     },

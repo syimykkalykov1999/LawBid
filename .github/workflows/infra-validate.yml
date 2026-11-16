@@ -1,7 +1,8 @@
 # Terraform fmt + validate on PRs that touch infra/. No AWS access and no state
 # (`init -backend=false` only downloads providers). Not a required check on
 # purpose: the public provider registry can flake; a red run is still a reason
-# not to merge. apply / drift float on ">=1.9"; this pin is the minimum we support.
+# not to merge. apply / drift float on ">=1.9" (latest 1.x reads the owner's state);
+# this pin is the newest release at least 7 days old (STRICT_RULES №10).
 name: Infra validate
 
 on:
@@ -20,7 +21,7 @@ concurrency:
 
 env:
   # Same as load-test.yml (the version that creates the test stacks).
-  TF_VERSION: "1.9.8"
+  TF_VERSION: "1.17.1"
 
 jobs:
   validate:
@@ -47,4 +48,16 @@ jobs:
             ( cd "$d" && terraform init -backend=false -input=false -no-color >/dev/null && terraform validate -no-color ) || { echo "::error::terraform validate failed in $d"; fail=1; }
             echo "::endgroup::"
           done
+          exit $fail
+      - name: Module tests (terraform test, mock providers, no AWS)
+        run: |
+          export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/tf-plugin-cache"
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          fail=0
+          for f in infra/modules/*/tests/*.tftest.hcl; do dirname "$(dirname "$f")"; done | sort -u > "$RUNNER_TEMP/tf-test-dirs"
+          while read -r t; do
+            echo "::group::test $t"
+            ( cd "$t" && terraform init -backend=false -input=false -no-color >/dev/null && terraform test -no-color ) || { echo "::error::terraform test failed in $t"; fail=1; }
+            echo "::endgroup::"
+          done < "$RUNNER_TEMP/tf-test-dirs"
           exit $fail

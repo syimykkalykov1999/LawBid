@@ -6,6 +6,10 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import {
+  DEFAULT_REPORT_TIME_ZONE,
+  previousReportDay,
+} from '../src/common/utils/report-day';
 import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { StaffPieceworkService } from '../src/modules/staff-piecework/staff-piecework.service';
 import { adminSession, type AdminSession } from './support/admin-login';
@@ -36,10 +40,10 @@ describe('Staff piecework (e2e)', () => {
   let other: AdminSession;
   let employeeId = '';
 
-  const yesterday = new Date(Date.now() - 86_400_000)
-    .toISOString()
-    .slice(0, 10);
-  const noon = new Date(`${yesterday}T12:00:00Z`);
+  // Row 180: days are days of `admin.report_timezone` (unset here, so the
+  // default America/Los_Angeles); 20:00Z is midday there all year.
+  const yesterday = previousReportDay(new Date(), DEFAULT_REPORT_TIME_ZONE);
+  const noon = new Date(`${yesterday}T20:00:00Z`);
   const month = yesterday.slice(0, 7);
 
   beforeAll(async () => {
