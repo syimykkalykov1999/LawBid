@@ -198,8 +198,10 @@ resource "aws_db_parameter_group" "this" {
   # newer major version is asked for (upgrade_to_major): AWS Blue/Green for a
   # major upgrade replicates logically and needs it on the blue (old) side
   # (AWS docs «Preparing … blue/green deployment with logical replication»).
+  # Stays on after the switch: this group then only serves the kept old
+  # instance, and removing it needs ResetDBParameterGroup (KNOWN_ERRORS 173).
   dynamic "parameter" {
-    for_each = var.rds_logical_replication || (local.engine_major == "16" && var.upgrade_to_major != "16") ? [1] : []
+    for_each = var.rds_logical_replication || var.upgrade_to_major != "16" ? [1] : []
     content {
       name         = "rds.logical_replication"
       value        = "1"
