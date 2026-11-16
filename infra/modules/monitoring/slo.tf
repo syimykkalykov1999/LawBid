@@ -599,7 +599,7 @@ resource "aws_iam_role_policy" "canary" {
       {
         Effect   = "Allow"
         Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
-        Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/cwsyn-*"
+        Resource = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/cwsyn-*"
       },
       {
         Effect    = "Allow"
@@ -685,8 +685,8 @@ resource "terraform_data" "canary_log_retention" {
     on_failure = continue
     command    = <<-EOT
       G="/aws/lambda/${element(split(":", aws_synthetics_canary.uptime[0].engine_arn), 6)}"
-      aws logs create-log-group --region ${data.aws_region.current.name} --log-group-name "$G" 2>/dev/null || true
-      aws logs put-retention-policy --region ${data.aws_region.current.name} --log-group-name "$G" --retention-in-days ${var.canary_log_retention_days}
+      aws logs create-log-group --region ${data.aws_region.current.region} --log-group-name "$G" 2>/dev/null || true
+      aws logs put-retention-policy --region ${data.aws_region.current.region} --log-group-name "$G" --retention-in-days ${var.canary_log_retention_days}
     EOT
   }
 }

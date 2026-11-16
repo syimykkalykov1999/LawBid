@@ -159,5 +159,41 @@ class Handler(unittest.TestCase):
         self.assertEqual(out["decisions"]["api"]["action"], "fallback")
 
 
+class AdminTuningTests(unittest.TestCase):
+    """15.11 (owner, row 20): the quiet hold and the other numbers from the
+    admin (SSM `<prefix>/tuning`, read on every run over the Terraform
+    TUNING), the same way as the endpoint autoscaler."""
+
+    def test_schema_matches_the_config(self):
+        import dataclasses
+        import decision as dd
+        defaults = {f.name: f.default for f in dataclasses.fields(dd.Config)}
+        self.assertEqual(sorted(h.tuning_schema()), sorted(defaults))
+        for k, s in h.tuning_schema().items():
+            self.assertTrue(s["min"] <= defaults[k] <= s["max"], k)
+
+    def test_valid_values_apply_bad_ones_are_skipped(self):
+        import decision as dd
+        cfg, skipped = h.apply_admin_tuning(dd.Config(), json.dumps({"restore_after_min": 2, "gap_min": 0, "x": 1}))
+        self.assertEqual(cfg.restore_after_min, 2)
+        self.assertEqual(cfg.gap_min, dd.Config().gap_min)
+        self.assertEqual(sorted(skipped), ["gap_min", "x"])
+
+    def test_short_hold_from_the_admin_restores_on_the_next_tick(self):
+        old = (datetime.now(timezone.utc) - timedelta(minutes=3)).isoformat()
+        state = json.dumps({"api": {"fallback_since": old, "last_failure": old, "strikes": 1}})
+        f = wire([svc("api", FALLBACK), svc("worker", NORMAL)], state=state)
+        f["ssm"].p["/t"] = json.dumps({"restore_after_min": 2})
+        h.lambda_handler({"mode": "tick"}, None, dict(ENV, TUNING_PARAM="/t"))
+        self.assertEqual([(u["service"], u["capacityProviderStrategy"]) for u in f["ecs"].updates], [("api", NORMAL)])
+
+    def test_without_the_parameter_the_default_hold_stays(self):
+        old = (datetime.now(timezone.utc) - timedelta(minutes=3)).isoformat()
+        state = json.dumps({"api": {"fallback_since": old, "last_failure": old, "strikes": 1}})
+        f = wire([svc("api", FALLBACK), svc("worker", NORMAL)], state=state)
+        h.lambda_handler({"mode": "tick"}, None, dict(ENV, TUNING_PARAM="/missing"))
+        self.assertEqual(f["ecs"].updates, [])
+
+
 if __name__ == "__main__":
     unittest.main()

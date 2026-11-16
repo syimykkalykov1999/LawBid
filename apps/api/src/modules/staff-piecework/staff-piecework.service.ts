@@ -3,9 +3,12 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { AdminWorkspace } from '../../generated/prisma/client';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { reportDayKey, reportTimeZone } from '../../common/utils/report-day';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
@@ -14,6 +17,7 @@ import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import {
   accrualRef,
   dayBounds,
+  dayDate,
   dayStatus,
   effectiveRateCents,
   isDay,
@@ -98,14 +102,21 @@ export class StaffPieceworkService {
     private readonly staff: StaffSettingsService,
     private readonly payroll: PayrollAccrualsService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
-  /** Computes one UTC day for everyone who worked (or was overturned). */
+  /**
+   * Computes one day for everyone who worked (or was overturned). Row 180
+   * (B9): the day is a day of the report time zone (`admin.report_timezone`),
+   * the same cut as the KPI days in `staff_daily_stats`; the DATE columns
+   * keep the day key itself.
+   */
   async computeDay(
     day: string,
     opts: { onlyAdmin?: string; force?: boolean } = {},
   ): Promise<DayRunResult> {
-    const { start, end } = dayBounds(day);
+    const { start, end } = dayBounds(day, await reportTimeZone(this.settings));
+    const date = dayDate(day);
     const cfg = await this.staff.get();
     const q = {
       p90: cfg.numbers['staff.piecework.mult_90_pct'],
@@ -129,7 +140,7 @@ export class StaffPieceworkService {
     const overturned = await this.overturnedByAdmin(start, end);
     const ids = opts.onlyAdmin
       ? [opts.onlyAdmin]
-      : await this.candidates(start, end, overturned);
+      : await this.candidates(date, start, end, overturned);
     if (ids.length === 0) return result;
 
     // Rates in force at the end of the day, one query for the whole run.
@@ -161,9 +172,11 @@ export class StaffPieceworkService {
           this.prisma.staffRatingSnapshot.findMany({
             where: {
               admin_id: { in: batch },
+              // DATE column: the snapshot taken the morning after the day
+              // (it rates the day just closed) still counts, as before.
               snapshot_date: {
-                gte: new Date(start.getTime() - SNAPSHOT_LOOKBACK_DAYS * 864e5),
-                lte: end,
+                gte: new Date(date.getTime() - SNAPSHOT_LOOKBACK_DAYS * 864e5),
+                lte: new Date(date.getTime() + 864e5),
               },
             },
             orderBy: [{ admin_id: 'asc' }, { snapshot_date: 'desc' }],
@@ -171,7 +184,7 @@ export class StaffPieceworkService {
             select: { admin_id: true, rating: true, status: true },
           }),
           this.prisma.staffPieceworkDay.findMany({
-            where: { admin_id: { in: batch }, day: start },
+            where: { admin_id: { in: batch }, day: date },
             select: {
               admin_id: true,
               kind: true,
@@ -252,7 +265,7 @@ export class StaffPieceworkService {
           noRating: quality.noRating,
           onPayroll: name !== undefined || settle.ref !== null,
         });
-        await this.replaceRows(adminId, start, lines, {
+        await this.replaceRows(adminId, date, lines, {
           qualityPct: quality.pct,
           status,
           ref: settle.ref,
@@ -287,9 +300,9 @@ export class StaffPieceworkService {
     day: string,
     reason: string,
   ): Promise<{ status: 'disputed'; accrual: 'canceled' | 'paid' | 'none' }> {
-    const { start } = this.checkedDay(day, true);
+    const date = await this.checkedDay(day, true);
     const rows = await this.prisma.staffPieceworkDay.findMany({
-      where: { admin_id: adminId, day: start },
+      where: { admin_id: adminId, day: date },
       select: {
         admin_id: true,
         kind: true,
@@ -307,7 +320,7 @@ export class StaffPieceworkService {
     }
     await this.prisma.$transaction(async (tx) => {
       await tx.staffPieceworkDay.updateMany({
-        where: { admin_id: adminId, day: start },
+        where: { admin_id: adminId, day: date },
         data: { status: 'disputed' },
       });
       await this.audit.record(
@@ -332,7 +345,7 @@ export class StaffPieceworkService {
     adminId: string,
     day: string,
   ): Promise<DayRunResult> {
-    this.checkedDay(day, true);
+    await this.checkedDay(day, true);
     const res = await this.computeDay(day, { onlyAdmin: adminId, force: true });
     if (res.admins === 0) throw notFound();
     await this.audit.record({
@@ -347,22 +360,23 @@ export class StaffPieceworkService {
   }
 
   /** Validates a YYYY-MM-DD path value; a day not yet finished (today or
-   * later) cannot be counted. */
-  private checkedDay(day: string, finished: boolean): { start: Date } {
+   * later in the report time zone) cannot be counted. Returns the value of
+   * the DATE column. */
+  private async checkedDay(day: string, finished: boolean): Promise<Date> {
     if (!isDay(day)) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
         message: 'Day must be YYYY-MM-DD.',
       });
     }
-    const { start } = dayBounds(day);
-    if (finished && start.getTime() >= startOfTodayUtc().getTime()) {
+    const today = reportDayKey(new Date(), await reportTimeZone(this.settings));
+    if (finished && day >= today) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
         message: 'Only a finished day can be counted.',
       });
     }
-    return { start };
+    return dayDate(day);
   }
 
   /** Verdict «different» / «worse» that arrived in the day, per person and
@@ -396,12 +410,13 @@ export class StaffPieceworkService {
    * day plus anyone overturned that day. When the stats of the day are not
    * there yet, the day's `done` lease events name the people instead. */
   private async candidates(
+    date: Date,
     start: Date,
     end: Date,
     overturned: Map<string, unknown>,
   ): Promise<string[]> {
     const stats = await this.prisma.staffDailyStat.findMany({
-      where: { day: start, decided: { gt: 0 } },
+      where: { day: date, decided: { gt: 0 } },
       select: { admin_id: true },
       take: 20_000,
     });
@@ -493,20 +508,20 @@ export class StaffPieceworkService {
   /** Re-run replaces: the person's rows of the day are swapped as a whole. */
   private async replaceRows(
     adminId: string,
-    start: Date,
+    date: Date,
     lines: Line[],
     meta: { qualityPct: number; status: DayStatus; ref: string | null },
   ): Promise<void> {
     await this.prisma.$transaction([
       this.prisma.staffPieceworkDay.deleteMany({
-        where: { admin_id: adminId, day: start },
+        where: { admin_id: adminId, day: date },
       }),
       ...(lines.length > 0
         ? [
             this.prisma.staffPieceworkDay.createMany({
               data: lines.map((l) => ({
                 admin_id: adminId,
-                day: start,
+                day: date,
                 kind: l.kind,
                 units: l.units,
                 held_units: l.held,
@@ -573,13 +588,6 @@ function groupRows(rows: DayRow[]): Map<string, DayRow[]> {
     m.set(r.admin_id, list);
   }
   return m;
-}
-
-function startOfTodayUtc(): Date {
-  const n = new Date();
-  return new Date(
-    Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()),
-  );
 }
 
 function notFound(): NotFoundException {

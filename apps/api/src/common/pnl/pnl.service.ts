@@ -6,6 +6,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import { stripeFeeFrom } from '../economy/economy.rules';
 import {
+  reportDayBounds,
+  reportDayKey,
+  reportTimeZone,
+} from '../utils/report-day';
+import {
   buildPnl,
   type PaymentDayRow,
   type PnlKind,
@@ -61,12 +66,16 @@ export class PnlService {
   }
 
   async compute(now: Date = new Date()): Promise<PnlSnapshot> {
-    const dow = (now.getUTCDay() + 6) % 7;
-    const since = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) -
-        (dow + 77) * DAY_MS,
-    );
-    const rows = await this.paymentRows(since);
+    // Row 180 (R3A-11): days, weeks and months end at the owner's midnight
+    // (`admin.report_timezone`, Stripe's «Reporting timezone»), not UTC's.
+    const timeZone = await reportTimeZone(this.settings);
+    const todayMs = Date.parse(`${reportDayKey(now, timeZone)}T00:00:00Z`);
+    const dow = (new Date(todayMs).getUTCDay() + 6) % 7;
+    const firstDay = new Date(todayMs - (dow + 77) * DAY_MS)
+      .toISOString()
+      .slice(0, 10);
+    const since = reportDayBounds(firstDay, timeZone).from;
+    const rows = await this.paymentRows(since, timeZone);
     let vendorDaily: { date: string; usd: number }[] = [];
     let fixed: Awaited<ReturnType<SpendService['fixedCosts']>> = [];
     try {
@@ -86,11 +95,13 @@ export class PnlService {
         ?.number('economy.stripe_fee_fixed_cents')
         .catch(() => undefined),
     );
-    return buildPnl({ rows, vendorDaily, fixed, now, fee });
+    return buildPnl({ rows, vendorDaily, fixed, now, fee, timeZone });
   }
 
   /**
-   * Payments per UTC day and source, and refunds per UTC day of the refund.
+   * Payments per day and source, and refunds per day of the refund — the
+   * days of [timeZone] (row 180). Vendor bills stay in their own (UTC)
+   * billing days: AWS / Cloudflare report them that way.
    * Source: a star purchase, a bid pack, a case promotion or a seat
    * purchase points at the payment / invoice; any other payment of a client
    * is a client subscription, the rest are attorney subscriptions. A refund
@@ -101,7 +112,10 @@ export class PnlService {
    * the billing overview), the way Stripe's balance reports book them — so
    * a closed day or month never changes when a refund comes weeks later.
    */
-  private async paymentRows(since: Date): Promise<PaymentDayRow[]> {
+  private async paymentRows(
+    since: Date,
+    timeZone: string,
+  ): Promise<PaymentDayRow[]> {
     const res = await withSnapshotTimeout(
       this.prisma,
       (p) =>
@@ -120,7 +134,7 @@ export class PnlService {
                COALESCE(SUM(x.payments), 0) AS payments,
                COALESCE(SUM(x.refunded_cents), 0) AS refunded_cents
           FROM (
-            SELECT to_char(p.paid_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
+            SELECT to_char(p.paid_at AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') AS day,
                    p.id AS payment_id,
                    COALESCE(p.subtotal_cents, p.amount_cents - COALESCE(p.tax_cents, 0)) AS subtotal_cents,
                    p.amount_cents AS gross_cents,
@@ -129,7 +143,7 @@ export class PnlService {
               FROM payments p
              WHERE p.status IN ('succeeded', 'refunded') AND p.paid_at >= ${since}
             UNION ALL
-            SELECT to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
+            SELECT to_char(r.created_at AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') AS day,
                    r.payment_id,
                    0, 0, 0,
                    r.amount_cents

@@ -21,6 +21,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/legacy/confirm";
 import { api, errorText } from "@/lib/api/client";
+import { saveFlag } from "@/lib/config-save";
 import { usd } from "@/lib/economy";
 import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
@@ -108,10 +109,8 @@ function FlagCard() {
   });
   const toggle = useMutation({
     mutationFn: async (enabled: boolean) => {
-      await api.PATCH("/admin/feature-flags/{key}", {
-        params: { path: { key: "stars" } },
-        body: { enabled },
-      });
+      // Row 179: checked against the version this tab saw (lib/config-save.ts).
+      await saveFlag(qc, "stars", enabled);
       return enabled;
     },
     onSuccess: (enabled) => {
