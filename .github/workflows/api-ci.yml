@@ -768,6 +768,12 @@ jobs:
         if: steps.mig.outputs.changed == 'true'
         run: scripts/ci/start-minio.sh
 
+      # n1-compat.mjs creates its database with psql; a self-hosted runner without
+      # postgresql-client made spawnSync fail silently (#1084, KNOWN_ERRORS 178).
+      - name: psql (N-1 creates its database with it)
+        if: steps.mig.outputs.changed == 'true'
+        run: command -v psql || (sudo apt-get update -q && sudo apt-get install -yq postgresql-client)
+
       - name: New schema under the old code, then the old smoke suites
         if: steps.mig.outputs.changed == 'true'
         env:
