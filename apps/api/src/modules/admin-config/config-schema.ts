@@ -1413,6 +1413,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'How often, in minutes, the cloud automation and the HA copies look at the signals (one cycle; default 10, 1 for a live test). Every wait above counts in these cycles.',
     min: 1,
   };
+  out['infra.autoscale_code_retry_hours'] = {
+    type: 'integer',
+    defaultValue: 6,
+    description:
+      'Hours before «Авто» asks again to update the autoscale functions’ code for the same code versions (after a failed or no-op update).',
+    min: 1,
+  };
   out['infra.auto_max_usd_month'] = {
     type: 'integer',
     defaultValue: 100,
@@ -2085,6 +2092,7 @@ export const NO_CEILING: readonly string[] = [
   'infra.auto_off_minutes',
   'infra.auto_check_minutes',
   'infra.auto_max_usd_month',
+  'infra.autoscale_code_retry_hours',
   'economy.stripe_fee_percent',
   'economy.stripe_fee_fixed_cents',
   'economy.max_spend_percent',

@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
@@ -90,7 +91,10 @@ class _MyGiftsScreenState extends ConsumerState<MyGiftsScreen> {
         : ref.watch(giftShowcaseProvider(me));
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppBar(title: Text(t.t('stars.myGifts'))),
+      appBar: AppBar(
+        leading: safeBackLeading(context),
+        title: Text(t.t('stars.myGifts')),
+      ),
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => Center(
