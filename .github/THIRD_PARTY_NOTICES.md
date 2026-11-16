@@ -51,3 +51,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## uharfbuzz (used by `.github/workflows/web-deploy.yml` through `apps/mobile/tool/slim_fonts.py`)
+- Source: https://github.com/harfbuzz/uharfbuzz, PyPI `uharfbuzz==0.57.0` (2026-10-23); it bundles HarfBuzz (https://github.com/harfbuzz/harfbuzz, "Old MIT" license).
+- License: Apache License 2.0 (checked 15.11.2026, METADATA and LICENSE of the 0.57.0 wheel). Full text: https://www.apache.org/licenses/LICENSE-2.0
+- Installed in the deploy job only and used as is to check that the web font copies shape exactly like the upstream files; no code of it is copied into this repository and nothing of it is shipped.
