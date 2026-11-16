@@ -60,6 +60,12 @@ describe('cloudNow (Облако rows)', () => {
     expect(cloudNow('aws.db_shards_2', facts)).toBe('Сейчас: серверов базы: 3');
   });
 
+  it('database servers past the fourth (db.max_servers raised): counted too', () => {
+    const on = ['aws.db_shards', 'aws.db_shards_2', 'aws.db_shards_3', 'aws.db_shards_4', 'aws.db_shards_5'];
+    const f = { ...facts, rows: [...on.map((id) => row(id, 'on')), row('aws.db_shards_6', 'off')] };
+    expect(cloudNow('aws.db_shards_5', f)).toBe('Сейчас: серверов базы: 6');
+  });
+
   it('search: domain and node count, and who searches', () => {
     expect(cloudNow('aws.opensearch_nodes_4', facts)).toBe(
       'Сейчас: движок поиска включён, узлов: 2, ищет Встроенный поиск (PostgreSQL)',

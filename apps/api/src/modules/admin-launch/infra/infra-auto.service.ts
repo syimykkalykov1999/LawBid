@@ -306,6 +306,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       searchOnPeople,
       shardsMode,
       shardGrowth,
+      maxServers,
     ] = await Promise.all([
       this.registry.signals(now),
       this.registry.searchEngine(),
@@ -322,6 +323,10 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
         .catch(() => undefined),
       this.settings.string('db.shards_mode').catch(() => 'auto'),
       this.shardGrowth().catch(() => undefined),
+      // Owner 15.11: unreadable = undefined = the default 4 (as before).
+      Promise.resolve()
+        .then(() => this.settings.number('db.max_servers'))
+        .catch(() => undefined),
     ]);
     const full = await this.serversFull().catch(() => false);
     const empty: string[] = await this.emptyServers().catch(() => []);
@@ -374,6 +379,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       pickedAuto,
       serversFull: full,
       emptyServers: empty,
+      maxServers,
     };
   }
 

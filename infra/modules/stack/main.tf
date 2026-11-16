@@ -1282,10 +1282,10 @@ module "postgres" {
 variable "db_shards" {
   type        = number
   default     = 0
-  description = "Extra PostgreSQL servers for the database split (0 = one database, exactly as before). Set by the admin switch aws.db_shards."
+  description = "Extra PostgreSQL servers for the database split (0 = one database, exactly as before). Set by the admin switches aws.db_shards, aws.db_shards_2 … aws.db_shards_15; how many «Авто» may reach is the admin setting db.max_servers (owner 15.11). 15 = the code's hard bound (infra-switches.ts DB_SERVERS_HARD_MAX - 1)."
   validation {
-    condition     = var.db_shards >= 0 && var.db_shards <= 3 && floor(var.db_shards) == var.db_shards
-    error_message = "db_shards is a whole number from 0 to 3."
+    condition     = var.db_shards >= 0 && var.db_shards <= 15 && floor(var.db_shards) == var.db_shards
+    error_message = "db_shards is a whole number from 0 to 15."
   }
 }
 variable "db_shard_instance_class" {

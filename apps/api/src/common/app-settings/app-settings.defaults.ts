@@ -1495,6 +1495,23 @@ export const OWNER_STORAGE_SETTINGS = {
   'infra.mode.rds_replicas_5': 'auto',
   'infra.mode.db_shards_2': 'auto',
   'infra.mode.db_shards_3': 'auto',
+  // Owner 15.11: the fifth server and on (rows aws.db_shards_4.._15).
+  'infra.mode.db_shards_4': 'auto',
+  'infra.mode.db_shards_5': 'auto',
+  'infra.mode.db_shards_6': 'auto',
+  'infra.mode.db_shards_7': 'auto',
+  'infra.mode.db_shards_8': 'auto',
+  'infra.mode.db_shards_9': 'auto',
+  'infra.mode.db_shards_10': 'auto',
+  'infra.mode.db_shards_11': 'auto',
+  'infra.mode.db_shards_12': 'auto',
+  'infra.mode.db_shards_13': 'auto',
+  'infra.mode.db_shards_14': 'auto',
+  'infra.mode.db_shards_15': 'auto',
+  // Owner 15.11 («максимальное число серверов базы в админке»): database
+  // servers in all (the primary + the extra ones) «Авто» may reach, 1..16
+  // (common/ops/infra-switches.ts DB_SERVERS_HARD_MAX). 4 = as before.
+  'db.max_servers': 4,
   /** "HH:MM-HH:MM" (America/Chicago, may cross midnight) when an automatic
    * split may start; empty = any time. */
   'db.shards_move_hours': '02:00-05:00',

@@ -631,9 +631,31 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'infra.mode.rds_replicas_5',
     'infra.mode.db_shards_2',
     'infra.mode.db_shards_3',
+    'infra.mode.db_shards_4',
+    'infra.mode.db_shards_5',
+    'infra.mode.db_shards_6',
+    'infra.mode.db_shards_7',
+    'infra.mode.db_shards_8',
+    'infra.mode.db_shards_9',
+    'infra.mode.db_shards_10',
+    'infra.mode.db_shards_11',
+    'infra.mode.db_shards_12',
+    'infra.mode.db_shards_13',
+    'infra.mode.db_shards_14',
+    'infra.mode.db_shards_15',
   ]) {
     out[k] = { ...out[k], pattern: /^(off|on|auto)$/ };
   }
+  // Owner 15.11: database servers in all «Авто» may reach (owner only, 2FA:
+  // admin-config.service OWNER_ONLY_CONFIG_KEYS). 16 = the code's hard
+  // bound (infra-switches.ts DB_SERVERS_HARD_MAX).
+  out['db.max_servers'] = {
+    ...out['db.max_servers'],
+    description:
+      'Database servers in all (the primary plus the extra servers of the split) that the cloud automation may reach: it adds the fifth, sixth and further server only up to this number (1–16; default 4).',
+    min: 1,
+    max: 16,
+  };
   out['db.shards_move_hours'] = {
     ...out['db.shards_move_hours'],
     // Same rule as infra.quiet_hours (infra-change.logic QUIET_HOURS_PATTERN).
