@@ -20270,7 +20270,7 @@
             }
           },
           "409": {
-            "description": "Conflict: FLAG_PROVIDER_KEYS_MISSING",
+            "description": "Conflict: FLAG_PROVIDER_KEYS_MISSING, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -20660,6 +20660,16 @@
           },
           "403": {
             "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -100372,9 +100382,9 @@
           },
           {
             "name": "Idempotency-Key",
+            "required": true,
             "in": "header",
             "description": "Required: a retry returns the first refund, never a second.",
-            "required": true,
             "schema": {
               "type": "string"
             }

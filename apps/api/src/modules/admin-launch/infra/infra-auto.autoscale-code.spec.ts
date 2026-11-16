@@ -1,6 +1,7 @@
 import {
   autoApplyBlockers,
   autoWants,
+  autoscaleCodePair,
   type AutoSignals,
 } from './infra-auto.logic';
 
@@ -106,5 +107,33 @@ describe('aws.autoscale_code: «Авто» applies its own functions’ code', (
         (w) => w.id === 'aws.autoscale_code',
       ),
     ).toBeUndefined();
+    // KNOWN_ERRORS 176 (prod 15.11 19:13 / 19:54 / 20:35 CT): the main hash
+    // stayed old while deploys waited, so the same pair was asked for every
+    // round. Once asked, the same pair is not asked again.
+    expect(
+      autoWants(
+        {
+          ...base,
+          autoscaleCodeMain: 'a1',
+          autoscaleCodeApplied: 'b2',
+          autoscaleCodeTried: autoscaleCodePair('a1', 'b2'),
+        },
+        live,
+        new Set(),
+      ).find((w) => w.id === 'aws.autoscale_code'),
+    ).toBeUndefined();
+    // A new main (a fresh deploy) is a new pair: asked once more.
+    expect(
+      autoWants(
+        {
+          ...base,
+          autoscaleCodeMain: 'c3',
+          autoscaleCodeApplied: 'b2',
+          autoscaleCodeTried: autoscaleCodePair('a1', 'b2'),
+        },
+        live,
+        new Set(),
+      ).find((w) => w.id === 'aws.autoscale_code'),
+    ).toMatchObject({ to: 'on' });
   });
 });

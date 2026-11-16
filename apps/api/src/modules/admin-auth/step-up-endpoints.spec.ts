@@ -113,7 +113,7 @@ const CASES: Case[] = [
       new AdminCasePaymentsController(
         svc as never,
         auth as never,
-      ).refundAdminCasePayment(actor, { id: 'c1' }, {} as never),
+      ).refundAdminCasePayment(actor, { id: 'c1' }, {} as never, 'k-1'),
   },
   {
     name: 'POST /admin/users/:id/phone',
