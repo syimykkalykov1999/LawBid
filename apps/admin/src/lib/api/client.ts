@@ -114,15 +114,51 @@ async function stepUpAndRetry(request: Request, response: Response): Promise<Res
   );
 }
 
+/**
+ * Owner list row 179 (detective R3A-6): every screen that writes app_config
+ * (Настройки, Функции and each section's own «Настройки» card) reads the
+ * same rows, so a save on one leaves the others showing old values for up
+ * to 15 minutes (REFERENCE_STALE_MS). A write — or a 409 STALE_VERSION,
+ * which means someone else wrote — is noted here; the QueryClient's
+ * MutationCache then invalidates every settings key once
+ * (lib/query-client.ts, TanStack `invalidateQueries`).
+ */
+const SETTINGS_WRITE_PATH = /^\/api\/proxy\/(config(\/|$)|feature-flags\/|(.+\/)?settings(\/|$))/;
+let settingsWritten = false;
+export function isSettingsWrite(method: string, pathname: string): boolean {
+  return method !== 'GET' && method !== 'HEAD' && SETTINGS_WRITE_PATH.test(pathname);
+}
+/** True once after a settings write was seen (and resets). */
+export function takeSettingsWrite(): boolean {
+  const seen = settingsWritten;
+  settingsWritten = false;
+  return seen;
+}
+async function noteSettingsWrite(request: Request, response: Response): Promise<void> {
+  if (!isSettingsWrite(request.method, new URL(request.url).pathname)) return;
+  if (response.ok) {
+    settingsWritten = true;
+    return;
+  }
+  if (response.status !== 409) return;
+  const body = (await response
+    .clone()
+    .json()
+    .catch(() => null)) as { error?: { code?: string } } | null;
+  if (body?.error?.code === 'STALE_VERSION') settingsWritten = true;
+}
+
 export const toProxy: Middleware = {
   // `/admin/x` → `/api/proxy/x`
   onRequest: ({ request }) =>
     reroute(request, (p) => p.replace(/^\/admin\//, '/api/proxy/')),
   async onResponse({ request, response: first }) {
     let response = first;
+    await noteSettingsWrite(request, response);
     if (response.ok) return response;
     const retried = await stepUpAndRetry(request, response);
     if (retried) {
+      await noteSettingsWrite(request, retried);
       if (retried.ok) return retried;
       response = retried;
     }
