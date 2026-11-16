@@ -35,6 +35,8 @@ import type {
 } from './admin-config.dto';
 import { LEGAL_DOC_TYPES } from './admin-config.dto';
 import { configSchema, validateConfigValue } from './config-schema';
+import { REPORT_TIME_ZONE_KEY } from '../../common/utils/report-day';
+import { isValidTimeZone } from '../../common/utils/zoned-time';
 
 export const CONFIG_AUDIT = {
   flag: 'config.flag',
@@ -63,6 +65,10 @@ export const OWNER_ONLY_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'verification.auto_decision.audit_pct_min',
   'verification.auto_decision.persona_document_enabled',
   'verification.auto_decision.ai_request_info_enabled',
+  // Owner 14.11 (row 179, B8): the 2FA window itself.
+  'admin.step_up_ttl_seconds',
+  // Owner 15.11: how many database servers «Авто» may reach.
+  'db.max_servers',
 ]);
 export const PAID_FLAGS: Record<
   string,
@@ -179,6 +185,22 @@ export class AdminConfigService {
       });
     }
     const after = await withTxRetry(this.prisma, async (tx) => {
+      // Owner 14.11 (row 179): refuse a save from a tab that saw an older row.
+      if (dto.expectedUpdatedAt !== undefined) {
+        const cur = await tx.featureFlag.findUnique({ where: { key } });
+        assertNotStale(
+          cur?.updated_at ?? null,
+          dto.expectedUpdatedAt,
+          cur
+            ? {
+                key,
+                enabled: cur.enabled,
+                rolloutPercent: cur.rollout_percent,
+                updatedAt: cur.updated_at.toISOString(),
+              }
+            : undefined,
+        );
+      }
       const updated = await tx.featureFlag.update({
         where: { key },
         data: {
@@ -439,6 +461,8 @@ export class AdminConfigService {
     admin: AdminActor,
     key: string,
     value: unknown,
+    // Owner 14.11 (row 179): what the editor saw; undefined = no check.
+    expectedUpdatedAt?: string | null,
   ): Promise<ConfigEntryDto> {
     await this.assertOwnerOnly(admin, key);
     const schema = configSchema()[key];
@@ -463,9 +487,24 @@ export class AdminConfigService {
     await this.assertR2Ready(key, value);
     await this.assertSearchEngineReady(key, value);
     await this.assertTextDetectorReady(key, value);
+    if (key === REPORT_TIME_ZONE_KEY && !isValidTimeZone(value)) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: `Unknown time zone: ${String(value)}.`,
+        details: { field: 'value' },
+      });
+    }
     const json = value as Prisma.InputJsonValue;
     const row = await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({ where: { key } });
+      if (expectedUpdatedAt !== undefined) {
+        assertNotStale(before?.updated_at ?? null, expectedUpdatedAt, {
+          key,
+          value: before ? before.value : schema.defaultValue,
+          stored: Boolean(before),
+          updatedAt: before?.updated_at.toISOString() ?? null,
+        });
+      }
       const updated = await tx.appConfig.upsert({
         where: { key },
         create: { key, value: json },
@@ -743,6 +782,29 @@ function presentLegal(
     consents: r._count.consents,
     createdAt: r.created_at.toISOString(),
   };
+}
+
+/**
+ * Owner 14.11 (row 179, detective R3A-6): optimistic concurrency by the row's
+ * updated_at (RFC 9110 §13.1.1 If-Match; common/concurrency/optimistic-lock.ts
+ * uses a version column, these two tables have only updated_at). Inside the
+ * serializable transaction, so two saves cannot both pass. Owner 15.11: the
+ * 409 carries the fresh row (`current`), so the admin shows it at once and
+ * the owner can save again (GitHub / Linear «changed elsewhere» refusal).
+ */
+export function assertNotStale(
+  current: Date | null,
+  expected: string | null,
+  fresh?: Record<string, unknown>,
+): void {
+  const now = current ? current.toISOString() : null;
+  const seen = expected === null ? null : new Date(expected).toISOString();
+  if (now === seen) return;
+  throw new ConflictException({
+    code: ErrorCode.STALE_VERSION,
+    message: 'This setting was changed by someone else. Reload and try again.',
+    details: { currentUpdatedAt: now, ...(fresh ? { current: fresh } : {}) },
+  });
 }
 
 const notFound = (what: string) =>

@@ -22,6 +22,8 @@ function make(
     live?: Record<string, 'on' | 'off'>;
     autoOwned?: string[];
     strings?: Record<string, string>;
+    /** settings.number overrides (row 16 / 17 live-test settings). */
+    numbers?: Record<string, number>;
   } = {},
 ) {
   const store = new Map<string, string>();
@@ -75,15 +77,20 @@ function make(
             : 'off',
     ),
     number: jest.fn(async (k: string) =>
-      k === 'infra.auto_on_minutes'
-        ? 30
-        : k === 'infra.auto_off_hours'
-          ? 72
-          : k === 'infra.auto_max_usd_month'
-            ? 100
-            : k === 'economy.aws_cap_usd'
-              ? (o.awsCap ?? 450)
-              : 50_000_000,
+      o.numbers?.[k] !== undefined
+        ? o.numbers[k]
+        : // 14.11: the minute overrides are 0 by default (= use the hours)
+          k === 'infra.auto_off_minutes' || k === 'infra.waf_calm_off_minutes'
+          ? 0
+          : k === 'infra.auto_on_minutes'
+            ? 30
+            : k === 'infra.auto_off_hours'
+              ? 72
+              : k === 'infra.auto_max_usd_month'
+                ? 100
+                : k === 'economy.aws_cap_usd'
+                  ? (o.awsCap ?? 450)
+                  : 50_000_000,
     ),
   };
   const prisma = {
@@ -119,11 +126,66 @@ const T0 = new Date('2026-11-08T12:00:00Z');
 const later = (min: number) => new Date(T0.getTime() + min * 60_000);
 
 describe('InfraAutoService (dry run with fakes)', () => {
-  it('13.11 replay: the pooler «Авто» switched on is NOT switched off while the tasks use it', async () => {
-    // Prod 13.11 21:33 UTC: aws.pgbouncer on (switched on by itself), the
-    // api tasks connect through it (DB_POOLER_HOST, DB_POOL_SIZE 10), no
-    // pressure. poolSmall is false with a pooler, so the old KEEP_ON saw no
-    // need and requested «on -> off» after infra.auto_off_hours.
+  it('rows 16 / 17: infra.auto_check_minutes = 1 — the pass lock lives 30 s, not 9 min', async () => {
+    const { svc, redis } = make({ numbers: { 'infra.auto_check_minutes': 1 } });
+    await svc.check(T0);
+    expect(redis.set).toHaveBeenCalledWith(
+      'ops:infra-auto:lock',
+      '1',
+      'EX',
+      30,
+      'NX',
+    );
+  });
+
+  it('rows 16 / 17: the default cycle stays 10 minutes (lock 570 s)', async () => {
+    const { svc, redis } = make({
+      numbers: { 'infra.auto_check_minutes': 10 },
+    });
+    await svc.check(T0);
+    expect(redis.set).toHaveBeenCalledWith(
+      'ops:infra-auto:lock',
+      '1',
+      'EX',
+      570,
+      'NX',
+    );
+  });
+
+  it('rows 16 / 17 live test: a WAF attack switches both protections on within 2 one-minute cycles', async () => {
+    const { svc, infra, store } = make({
+      pressures: ['waf_attack'],
+      live: { 'aws.waf_alb': 'on' },
+      numbers: {
+        'infra.auto_check_minutes': 1,
+        'infra.waf_attack_on_minutes': 1,
+      },
+    });
+    // First look: the attack is seen, its clock starts.
+    await svc.check(T0);
+    expect(infra.create).not.toHaveBeenCalled();
+    // One cycle later (the 30 s lock is gone): the first protection starts.
+    store.delete('ops:infra-auto:lock');
+    const r = await svc.check(later(1));
+    expect(r.started).toMatchObject({ to: 'on' });
+    expect(['aws.waf_bot_control', 'aws.waf_extra_rules']).toContain(
+      r.started?.id,
+    );
+    expect(infra.create).toHaveBeenCalledWith(
+      SYSTEM_ACTOR_ID,
+      null,
+      r.started?.id,
+      'on',
+      null,
+      { auto: true },
+    );
+  });
+
+  it('16.11: the pooler «Авто» switched on goes off by itself after the calm hold, even while the tasks use it (the drain moves them first)', async () => {
+    // Owner 16.11 («не жрали деньги за пустоту»): zero users, the tasks
+    // connect through the pooler, no pressure. infra-apply drains the
+    // services to the direct database before it removes the pooler
+    // (KNOWN_ERRORS 182), so «Авто» may ask for it now.
     const { svc, infra, store } = make({
       env: {
         DB_POOLER_HOST: 'pgbouncer.lawbid-prod.internal',
@@ -134,8 +196,11 @@ describe('InfraAutoService (dry run with fakes)', () => {
     });
     expect((await svc.check(T0)).started).toBeNull();
     store.delete('ops:infra-auto:lock');
-    expect((await svc.check(later(73 * 60))).started).toBeNull();
-    expect(infra.create).not.toHaveBeenCalled();
+    expect((await svc.check(later(73 * 60))).started).toMatchObject({
+      id: 'aws.pgbouncer',
+      to: 'off',
+    });
+    expect(infra.create).toHaveBeenCalled();
   });
 
   it('13.11: without a pooler in the task env (drained) the off request may start', async () => {
@@ -273,6 +338,9 @@ describe('InfraAutoService.searchPass: search.engine follows the engine («Ав�
     configured?: boolean;
     phase?: string | null;
     seen?: string;
+    /** Row 9: people in the database and the items «Авто» switched on. */
+    people?: number;
+    owned?: string[];
   }) {
     const store = new Map<string, string>();
     if (o.seen) store.set('ops:infra-auto:search-seen', o.seen);
@@ -312,9 +380,13 @@ describe('InfraAutoService.searchPass: search.engine follows the engine («Ав�
       liveStates: jest.fn(
         async () => new Map([['aws.opensearch', o.domain ?? 'on']]),
       ),
+      autoOwned: jest.fn(async () => new Set(o.owned ?? [])),
     };
     const upsert = jest.fn(async () => ({}));
-    const prisma = { appConfig: { upsert } };
+    const prisma = {
+      appConfig: { upsert },
+      $queryRaw: jest.fn(async () => [{ n: o.people ?? 0 }]),
+    };
     const reindex = {
       status: jest.fn(async () => ({
         engineConfigured: o.configured ?? true,
@@ -380,6 +452,34 @@ describe('InfraAutoService.searchPass: search.engine follows the engine («Ав�
       seen: seenOf('search:set_mode:engine'),
     });
     expect(await r3.svc.searchPass(later)).toMatchObject({ to: 'engine' });
+  });
+
+  it('row 9 (prod 14.11): a domain «Авто» switched on itself and does not need drains search to the database at once', async () => {
+    // Prod: search auto reached `engine` 14.11 04:51 UTC; people are far
+    // below infra.search_engine_on_people. KEEP_ON kept the domain because
+    // search.engine = engine, which «Авто» had set itself.
+    const a = search({ mode: 'engine', people: 3, owned: ['aws.opensearch'] });
+    expect(await a.svc.searchPass(T0)).toMatchObject({
+      kind: 'set_mode',
+      to: 'postgres',
+    });
+    expect(a.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { value: 'postgres' } }),
+    );
+    // and it does not climb back toward the engine
+    const b = search({
+      mode: 'postgres',
+      people: 3,
+      owned: ['aws.opensearch'],
+      seen: `search:set_mode:shadow@${T0.getTime()}`,
+    });
+    expect(await b.svc.searchPass(later)).toBeNull();
+    // enough people (on line 30 here, off line 24): the engine stays
+    const c = search({ mode: 'engine', people: 25, owned: ['aws.opensearch'] });
+    expect(await c.svc.searchPass(T0)).toBeNull();
+    // a domain the owner switched on by hand is his: search follows it
+    const d = search({ mode: 'engine', people: 3, owned: [] });
+    expect(await d.svc.searchPass(T0)).toBeNull();
   });
 
   it('domain off: back to postgres at once (no waiting)', async () => {

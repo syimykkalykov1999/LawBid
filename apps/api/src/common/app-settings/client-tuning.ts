@@ -67,6 +67,21 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'How often an ongoing call re-checks its state with the server (a safety net next to the socket), seconds.',
   },
+  // Row 166 (WhatsApp): the end of a call on the phone.
+  'client.call_ended_ms': {
+    default: 1600,
+    min: 500,
+    max: 10_000,
+    description:
+      'How long the short «Call ended» screen stays after a normal hang-up, milliseconds.',
+  },
+  'client.call_ended_hold_s': {
+    default: 0,
+    min: 0,
+    max: 600,
+    description:
+      'How long «No answer» / «Busy» / a refusal stays with its Cancel · Call again (or Settings) buttons, seconds. 0 = until the person taps (WhatsApp).',
+  },
   'client.qr_poll_s': {
     default: 10,
     min: 5,
@@ -253,6 +268,10 @@ export const OWNER_CLIENT_TUNING_SETTINGS = Object.fromEntries(
 export const OWNER_CHAT_PHOTO_SETTINGS = {
   'media.chat_photo_max_px': 1600,
   'media.chat_photo_quality': 82,
+  // Row 149 review: a photo picked from «Files» bigger than the file limit
+  // is still read and shrunk (WhatsApp / Telegram); only up to this many
+  // times the limit, so a 2 GB "picture" is never read whole. 0 = no cap.
+  'media.picked_image_read_x': 4,
 } as const;
 
 /** What the app is told to warm up, for the two kinds of network. */

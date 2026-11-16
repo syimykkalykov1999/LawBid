@@ -20,6 +20,8 @@ abstract final class ClientTuning {
   static bool _eventsEnabled = true;
   static int _eventsFlushS = 60;
   static int _callSyncS = 30;
+  static int _callEndedMs = 1600;
+  static int _callEndedHoldS = 0;
   static int _qrPollS = 10;
   static int _resumeMinAwayS = 30;
   static int _undoWindowS = 5;
@@ -61,6 +63,7 @@ abstract final class ClientTuning {
 
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
+  static int _pickedImageReadX = 4;
   static int _sentryTracesPercent = 0;
   static int _traceparentPercent = 5;
 
@@ -87,6 +90,14 @@ abstract final class ClientTuning {
   static bool get eventsEnabled => _eventsEnabled;
   static Duration get eventsFlush => Duration(seconds: _eventsFlushS);
   static Duration get callSync => Duration(seconds: _callSyncS);
+
+  /// Row 166: how long the short «Call ended» screen stays
+  /// (`client.call_ended_ms`).
+  static Duration get callEndedLinger => Duration(milliseconds: _callEndedMs);
+
+  /// Row 166 (WhatsApp): how long «No answer» · Cancel · Call again waits
+  /// for a tap (`client.call_ended_hold_s`); zero = until the person taps.
+  static Duration get callEndedHold => Duration(seconds: _callEndedHoldS);
   static Duration get qrPoll => Duration(seconds: _qrPollS);
   static Duration get resumeMinAway => Duration(seconds: _resumeMinAwayS);
 
@@ -169,6 +180,11 @@ abstract final class ClientTuning {
   /// (`media.chat_photo_*`; the original stays on the phone).
   static double get chatPhotoMaxPx => _chatPhotoMaxPx;
   static int get chatPhotoQuality => _chatPhotoQuality;
+
+  /// Row 149: a photo picked from «Files» above the file limit is still read
+  /// and shrunk, up to this many times the limit (`media.picked_image_read_x`,
+  /// 0 = no cap), so a 2 GB "picture" is never read whole.
+  static int get pickedImageReadX => _pickedImageReadX;
 
   /// Media audit 13.11 (C7): longest side / JPEG quality of a verification
   /// document photo picked from «Files» (`client.verification_photo_*`).
@@ -273,6 +289,8 @@ abstract final class ClientTuning {
     _eventsEnabled = config['client.events_enabled'] != 'false';
     _eventsFlushS = pick('client.events_flush_s', 60, 15, 3600);
     _callSyncS = pick('client.call_sync_s', 30, 10, 300);
+    _callEndedMs = pick('client.call_ended_ms', 1600, 500, 10000);
+    _callEndedHoldS = pick('client.call_ended_hold_s', 0, 0, 600);
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
     _undoWindowS = pick('client.undo_window_s', 5, 2, 30);
@@ -295,6 +313,7 @@ abstract final class ClientTuning {
       4096,
     ).toDouble();
     _chatPhotoQuality = pick('media.chat_photo_quality', 82, 50, 100);
+    _pickedImageReadX = pick('media.picked_image_read_x', 4, 0, 100);
     _verificationPhotoMaxPx = pick(
       'client.verification_photo_max_px',
       2048,

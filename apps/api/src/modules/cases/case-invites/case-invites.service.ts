@@ -162,73 +162,87 @@ export class CaseInvitesService {
       this.settings.number('invites.max_per_pair_per_day'),
       this.settings.number('invites.reinvite_after_hours'),
     ]);
-    const dayAgo = new Date(now.getTime() - DAY_MS);
-    // Owner 2026-10-15 (anti-spam both ways): an attorney is not flooded by
-    // invites (from anyone, nor from one client over and over), and the same
-    // case is not offered again at once after a decline or an expiry.
-    const [toAttorneyToday, toPairToday, previous] = await Promise.all([
-      this.prisma.caseInvite.count({
-        where: { attorney_id: attorneyId, created_at: { gt: dayAgo } },
-      }),
-      this.prisma.caseInvite.count({
-        where: {
-          attorney_id: attorneyId,
-          client_id: user.sub,
-          created_at: { gt: dayAgo },
-        },
-      }),
-      this.prisma.caseInvite.findUnique({
-        where: {
-          case_id_attorney_id: { case_id: caseId, attorney_id: attorneyId },
-        },
-      }),
-    ]);
-    // A still pending invite is answered with «already invited» below.
-    const tooSoon =
-      !!previous &&
-      statusOf(previous, kase.status, now) !== 'pending' &&
-      reinviteHours > 0 &&
-      now.getTime() - previous.created_at.getTime() < reinviteHours * 3_600_000;
-    if (
-      (maxPerAttorney > 0 && toAttorneyToday >= maxPerAttorney) ||
-      (maxPerPair > 0 && toPairToday >= maxPerPair) ||
-      tooSoon
-    ) {
-      throw new HttpException(
-        {
-          code: ErrorCode.INVITE_LIMIT_REACHED,
-          message: tooSoon
-            ? 'This attorney was invited to this case a moment ago. Try again later.'
-            : 'This attorney has received many invitations today. Try again tomorrow.',
-          details: { maxPerAttorney, maxPerPair, reinviteHours },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-    const [pendingOnCase, sentToday] = await Promise.all([
-      this.prisma.caseInvite.count({
-        where: { case_id: caseId, status: 'pending', expires_at: { gt: now } },
-      }),
-      this.prisma.caseInvite.count({
-        where: {
-          client_id: user.sub,
-          created_at: { gt: new Date(now.getTime() - DAY_MS) },
-        },
-      }),
-    ]);
-    if (pendingOnCase >= maxPending || sentToday >= maxPerDay) {
-      throw new HttpException(
-        {
-          code: ErrorCode.INVITE_LIMIT_REACHED,
-          message:
-            pendingOnCase >= maxPending
-              ? 'Too many attorneys are already invited to this case.'
-              : 'Too many invites today. Try again tomorrow.',
-          details: { maxPending, maxPerDay },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+    // R2B-13 (14.11): the caps are counted again inside the transaction,
+    // under one advisory lock per client and per attorney, so parallel
+    // invites cannot all pass the same count (the read outside is only a
+    // fast refusal).
+    const assertCaps = async (
+      db: Pick<Prisma.TransactionClient, 'caseInvite'>,
+    ): Promise<void> => {
+      const dayAgo = new Date(now.getTime() - DAY_MS);
+      // Owner 2026-10-15 (anti-spam both ways): an attorney is not flooded by
+      // invites (from anyone, nor from one client over and over), and the same
+      // case is not offered again at once after a decline or an expiry.
+      const [toAttorneyToday, toPairToday, previous] = await Promise.all([
+        db.caseInvite.count({
+          where: { attorney_id: attorneyId, created_at: { gt: dayAgo } },
+        }),
+        db.caseInvite.count({
+          where: {
+            attorney_id: attorneyId,
+            client_id: user.sub,
+            created_at: { gt: dayAgo },
+          },
+        }),
+        db.caseInvite.findUnique({
+          where: {
+            case_id_attorney_id: { case_id: caseId, attorney_id: attorneyId },
+          },
+        }),
+      ]);
+      // A still pending invite is answered with «already invited» below.
+      const tooSoon =
+        !!previous &&
+        statusOf(previous, kase.status, now) !== 'pending' &&
+        reinviteHours > 0 &&
+        now.getTime() - previous.created_at.getTime() <
+          reinviteHours * 3_600_000;
+      if (
+        (maxPerAttorney > 0 && toAttorneyToday >= maxPerAttorney) ||
+        (maxPerPair > 0 && toPairToday >= maxPerPair) ||
+        tooSoon
+      ) {
+        throw new HttpException(
+          {
+            code: ErrorCode.INVITE_LIMIT_REACHED,
+            message: tooSoon
+              ? 'This attorney was invited to this case a moment ago. Try again later.'
+              : 'This attorney has received many invitations today. Try again tomorrow.',
+            details: { maxPerAttorney, maxPerPair, reinviteHours },
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      const [pendingOnCase, sentToday] = await Promise.all([
+        db.caseInvite.count({
+          where: {
+            case_id: caseId,
+            status: 'pending',
+            expires_at: { gt: now },
+          },
+        }),
+        db.caseInvite.count({
+          where: {
+            client_id: user.sub,
+            created_at: { gt: new Date(now.getTime() - DAY_MS) },
+          },
+        }),
+      ]);
+      if (pendingOnCase >= maxPending || sentToday >= maxPerDay) {
+        throw new HttpException(
+          {
+            code: ErrorCode.INVITE_LIMIT_REACHED,
+            message:
+              pendingOnCase >= maxPending
+                ? 'Too many attorneys are already invited to this case.'
+                : 'Too many invites today. Try again tomorrow.',
+            details: { maxPending, maxPerDay },
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    };
+    await assertCaps(this.prisma);
 
     const data = {
       client_id: user.sub,
@@ -244,6 +258,10 @@ export class CaseInvitesService {
       created_at: now,
     };
     const invite = await this.prisma.$transaction(async (tx) => {
+      // Client first, then attorney: one order everywhere (no deadlock).
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`case_invite:client:${user.sub}`}, 0))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`case_invite:attorney:${attorneyId}`}, 0))`;
+      await assertCaps(tx);
       const existing = await tx.caseInvite.findUnique({
         where: {
           case_id_attorney_id: { case_id: caseId, attorney_id: attorneyId },

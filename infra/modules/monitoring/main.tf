@@ -5,7 +5,7 @@
 # docs/runbooks/<alarm>.md (the alarm description names it).
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
     # Owner 2026-10-22: zips the uptime canary script (slo.tf).
     archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
@@ -323,7 +323,7 @@ resource "aws_cloudwatch_log_metric_filter" "queue_waiting_total" {
 resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age_all" {
   name           = "${var.name}-queue-oldest-age-all"
   log_group_name = var.worker_log_group
-  pattern        = "{ $.metric = \"queue_depth\" && $.queue != \"stripe-webhooks-dlq\" && $.queue != \"cron-heavy\" && $.queue != \"account-deletion\" && $.queue != \"channel-fanout\" && $.queue != \"admin-broadcast\" }"
+  pattern        = "{ $.metric = \"queue_depth\" && $.queue != \"stripe-webhooks-dlq\" && $.queue != \"cron-heavy\" && $.queue != \"cron-heavy-frequent\" && $.queue != \"account-deletion\" && $.queue != \"channel-fanout\" && $.queue != \"admin-broadcast\" }"
   metric_transformation {
     name      = "QueueOldestAgeSecondsAll"
     namespace = local.ns
@@ -339,7 +339,7 @@ resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age_all" {
 resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age_slow" {
   name           = "${var.name}-queue-oldest-age-slow"
   log_group_name = var.worker_log_group
-  pattern        = "{ $.metric = \"queue_depth\" && ($.queue = \"cron-heavy\" || $.queue = \"account-deletion\" || $.queue = \"channel-fanout\" || $.queue = \"admin-broadcast\") }"
+  pattern        = "{ $.metric = \"queue_depth\" && ($.queue = \"cron-heavy\" || $.queue = \"cron-heavy-frequent\" || $.queue = \"account-deletion\" || $.queue = \"channel-fanout\" || $.queue = \"admin-broadcast\") }"
   metric_transformation {
     name      = "QueueOldestAgeSecondsSlow"
     namespace = local.ns
@@ -1777,7 +1777,7 @@ resource "aws_cloudwatch_metric_alarm" "waf_alb_requests" {
       namespace   = "AWS/WAFV2"
       period      = 86400
       stat        = "Sum"
-      dimensions  = { WebACL = var.waf_alb_acl_name, Region = data.aws_region.current.name, Rule = "ALL" }
+      dimensions  = { WebACL = var.waf_alb_acl_name, Region = data.aws_region.current.region, Rule = "ALL" }
     }
   }
   metric_query {
@@ -1787,7 +1787,7 @@ resource "aws_cloudwatch_metric_alarm" "waf_alb_requests" {
       namespace   = "AWS/WAFV2"
       period      = 86400
       stat        = "Sum"
-      dimensions  = { WebACL = var.waf_alb_acl_name, Region = data.aws_region.current.name, Rule = "ALL" }
+      dimensions  = { WebACL = var.waf_alb_acl_name, Region = data.aws_region.current.region, Rule = "ALL" }
     }
   }
   metric_query {

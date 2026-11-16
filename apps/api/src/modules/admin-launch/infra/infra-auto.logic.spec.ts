@@ -10,6 +10,7 @@ import {
   dueWants,
   SEARCH_ENGINE_OFF_PEOPLE,
   SEARCH_ENGINE_ON_PEOPLE,
+  searchDomainSpare,
   type AutoSignals,
   type AutoWant,
 } from './infra-auto.logic';
@@ -117,22 +118,25 @@ describe('autoWants', () => {
     ).toEqual([]);
   });
 
-  it('13.11 replay: a pooler the tasks connect through is never wanted off (poolSmall is false with a pooler)', () => {
+  it('16.11: the pooler is kept only by real load; calm, the one «Авто» switched on goes off (the drain moves the services first)', () => {
     const on = () => 'on' as const;
-    // prod 13.11: switched on by itself, DB_POOLER_HOST set, no pressure
+    // prod 16.11: switched on by itself, DB_POOLER_HOST set, zero users
     expect(
       autoWants(
         { ...calm, poolSmall: false, poolerLive: true },
         on,
         new Set(['aws.pgbouncer']),
-      ),
-    ).toEqual([]);
+      )
+        .filter((x) => x.id === 'aws.pgbouncer')
+        .map((x) => x.to),
+    ).toEqual(['off']);
+    // connections near the limit keep it on
     expect(
       autoWants(
-        { ...calm, poolerLive: true, pickedAuto: new Set(['aws.pgbouncer']) },
+        { ...calm, poolerLive: true, pressures: ['db_connections'] },
         on,
-        new Set(),
-      ),
+        new Set(['aws.pgbouncer']),
+      ).filter((x) => x.id === 'aws.pgbouncer'),
     ).toEqual([]);
   });
 
@@ -162,16 +166,19 @@ describe('autoWants', () => {
     ).toEqual([]);
   });
 
-  it('a small direct pool switches the pooler on, and keeps it on', () => {
+  it('16.11: a small direct pool alone does not switch the pooler on (true at zero users); connections near the limit do', () => {
     expect(
-      autoWants({ ...calm, poolSmall: true }, offAll, new Set()).map(
-        (x) => `${x.id}:${x.to}`,
+      autoWants({ ...calm, poolSmall: true }, offAll, new Set()).filter(
+        (x) => x.id === 'aws.pgbouncer',
       ),
-    ).toEqual(['aws.pgbouncer:on']);
-    const on = () => 'on' as const;
-    expect(
-      autoWants({ ...calm, poolSmall: true }, on, new Set(['aws.pgbouncer'])),
     ).toEqual([]);
+    expect(
+      autoWants(
+        { ...calm, pressures: ['db_connections'] },
+        offAll,
+        new Set(),
+      ).map((x) => `${x.id}:${x.to}`),
+    ).toContain('aws.pgbouncer:on');
   });
 
   it('the search line comes from infra.search_engine_on_people (lowered for a check, then back)', () => {
@@ -409,14 +416,14 @@ describe('autoApplyOk', () => {
       ),
     ).toBe(false);
   });
-  it('13.11: switching off what live services connect to always waits for the owner', () => {
+  it('16.11: the pooler switch-off goes without a tap (the drain runs first; was 13.11 «waits»)', () => {
     const pgb = 'module.stack.module.pgbouncer[0]';
     const plan = [
       { address: `${pgb}.aws_ecs_service.this`, action: 'delete' },
       { address: `${pgb}.aws_security_group.svc`, action: 'delete' },
       { address: td, action: 'create-delete' },
     ];
-    expect(autoApplyOk('off', plan, 'aws.pgbouncer')).toBe(false);
+    expect(autoApplyOk('off', plan, 'aws.pgbouncer')).toBe(true);
     // owner rows 8 / 85: the read copies still go without a tap
     expect(
       autoApplyOk(
@@ -1233,5 +1240,196 @@ describe('autoWants: the two WAF protections on an attack', () => {
         }),
       ).toBeNull();
     }
+  });
+});
+
+describe('rows 8 / 85 / 9 (prod 14.11): whole-stack plans and the search domain', () => {
+  const replicaOff = [
+    {
+      address: 'module.stack.module.growth.aws_db_instance.replica[0]',
+      action: 'delete',
+    },
+    {
+      address: 'module.stack.aws_ecs_task_definition.api',
+      action: 'delete-create',
+    },
+  ];
+  it('a switch-off may create watchers (alarms, async retry settings), nothing else', () => {
+    const watchers = [
+      {
+        address:
+          'module.stack.module.db_autoscale[0].aws_lambda_function_event_invoke_config.this',
+        action: 'create',
+      },
+      {
+        address:
+          'module.stack.module.monitoring.aws_cloudwatch_metric_alarm.api_admin_5xx_ratio_deploy[0]',
+        action: 'create',
+      },
+    ];
+    expect(
+      autoApplyBlockers(
+        'off',
+        [...replicaOff, ...watchers],
+        'aws.rds_replicas',
+      ),
+    ).toEqual([]);
+    // replacing a watcher deletes it: still waits
+    expect(
+      autoApplyBlockers(
+        'off',
+        [
+          ...replicaOff,
+          {
+            address:
+              'module.stack.module.monitoring.aws_cloudwatch_metric_alarm.x',
+            action: 'delete-create',
+          },
+        ],
+        'aws.rds_replicas',
+      ),
+    ).toEqual([
+      'module.stack.module.monitoring.aws_cloudwatch_metric_alarm.x: delete-create in a switch-off',
+    ]);
+    // any other create, and an update outside the item, still wait
+    expect(
+      autoApplyBlockers(
+        'off',
+        [
+          ...replicaOff,
+          { address: 'module.stack.aws_sns_topic.t', action: 'create' },
+          {
+            address:
+              'module.stack.module.growth.aws_opensearch_domain.search[0]',
+            action: 'update',
+          },
+        ],
+        'aws.rds_replicas',
+      ),
+    ).toEqual([
+      'module.stack.aws_sns_topic.t: create in a switch-off',
+      'module.stack.module.growth.aws_opensearch_domain.search[0]: update outside aws.rds_replicas',
+    ]);
+    // 16.11: the pooler's own service goes without a tap (drain first,
+    // KNOWN_ERRORS 182); the api service never does
+    expect(
+      autoApplyOk(
+        'off',
+        [
+          {
+            address: 'module.stack.module.pgbouncer[0].aws_ecs_service.this',
+            action: 'delete',
+          },
+        ],
+        'aws.pgbouncer',
+      ),
+    ).toBe(true);
+    expect(
+      autoApplyOk(
+        'off',
+        [
+          {
+            address: 'module.stack.module.ecs.aws_ecs_service.api',
+            action: 'delete',
+          },
+        ],
+        'aws.pgbouncer',
+      ),
+    ).toBe(false);
+  });
+
+  it('row 9: the domain «Авто» switched on goes once search is drained and people are below the off line', () => {
+    const ids = (w: AutoWant[]) =>
+      w.map((x) => `${x.id}:${x.to}`).filter((x) => x.includes('opensearch'));
+    // prod 14.11: domain + 2 + 4 nodes on, all by «Авто»
+    const live = (id: string) =>
+      id.startsWith('aws.opensearch') ? ('on' as const) : ('off' as const);
+    const mine = new Set([
+      'aws.opensearch',
+      'aws.opensearch_nodes_2',
+      'aws.opensearch_nodes_4',
+    ]);
+    const prod = {
+      ...calm,
+      people: 40,
+      searchOnPeople: SEARCH_ENGINE_ON_PEOPLE,
+    };
+    // search still on the engine: nothing is removed under live reads
+    expect(
+      ids(autoWants({ ...prod, searchEngine: 'engine' }, live, mine)),
+    ).toEqual([]);
+    // drained (searchPass set postgres): the top node step goes first
+    expect(ids(autoWants(prod, live, mine))).toEqual([
+      'aws.opensearch_nodes_4:off',
+    ]);
+    // then the domain itself, once its extra steps are off
+    const one = (id: string) =>
+      id.startsWith('aws.opensearch_nodes')
+        ? ('off' as const)
+        : ('on' as const);
+    expect(ids(autoWants(prod, one, mine))).toEqual(['aws.opensearch:off']);
+    // the owner's own domain (not handed to «Авто») stays
+    expect(ids(autoWants(prod, one, new Set()))).toEqual([]);
+    // «Вкл» on «Масштаб» keeps it
+    expect(
+      ids(autoWants({ ...prod, modes: { 'aws.opensearch': 'on' } }, one, mine)),
+    ).toEqual([]);
+    // unknown people (failed read): never spare
+    expect(searchDomainSpare({ people: undefined }, mine)).toBe(false);
+    expect(searchDomainSpare({ people: 40 }, mine)).toBe(true);
+    expect(searchDomainSpare({ people: SEARCH_ENGINE_OFF_PEOPLE }, mine)).toBe(
+      false,
+    );
+  });
+});
+
+describe('AWS provider 6 + python3.14 (15.11): the upgrade plan and «Авто»', () => {
+  // What the provider upgrade itself adds to the next whole-stack plan: the
+  // seven Python functions change `runtime` in place (python3.13 -> 3.14).
+  const runtimeBump = [
+    'module.stack.module.redis_autoscale[0].aws_lambda_function.this',
+    'module.stack.module.db_autoscale[0].aws_lambda_function.this',
+    'module.stack.module.endpoints_autoscale[0].aws_lambda_function.this',
+    'module.stack.module.spot_fallback[0].aws_lambda_function.this',
+    'module.stack.module.signing_guard[0].aws_lambda_function.this',
+    'module.stack.module.secret_rotation[0].aws_lambda_function.rotator',
+    'module.stack.module.secret_rotation[0].aws_lambda_function.ops',
+  ].map((address) => ({ address, action: 'update' }));
+
+  it('in-place runtime updates ride along with any automatic item', () => {
+    expect(autoApplyBlockers('on', runtimeBump, 'aws.autoscale_code')).toEqual(
+      [],
+    );
+    expect(autoApplyBlockers('on', runtimeBump, 'aws.rds_replicas')).toEqual(
+      [],
+    );
+    expect(autoApplyBlockers('off', runtimeBump, 'aws.redis_cache')).toEqual(
+      [],
+    );
+  });
+
+  it('a provider-caused replace of serving parts or a function still waits', () => {
+    expect(
+      autoApplyBlockers(
+        'on',
+        [
+          ...runtimeBump,
+          {
+            address:
+              'module.stack.module.pgbouncer[0].aws_service_discovery_service.this',
+            action: 'delete-create',
+          },
+          {
+            address:
+              'module.stack.module.signing_guard[0].aws_lambda_function.this',
+            action: 'delete-create',
+          },
+        ],
+        'aws.rds_replicas',
+      ),
+    ).toEqual([
+      'module.stack.module.pgbouncer[0].aws_service_discovery_service.this: delete-create of serving infrastructure',
+      'module.stack.module.signing_guard[0].aws_lambda_function.this: delete-create in a switch-on',
+    ]);
   });
 });

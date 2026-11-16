@@ -8,7 +8,10 @@ import {
   type CjkEntry,
   FONTS_DIR,
   INTER_PATH,
+  PdfWordCache,
   applyPdfFonts,
+  parsedFont,
+  type PdfLayoutCache,
   needsFallback,
   splitRuns,
   layoutLine,
@@ -217,6 +220,99 @@ describe('PDF fonts: script fallback', () => {
       .filter(([, chars]) => chars.length > 0);
     expect(bad).toEqual([]);
   }, 120_000);
+});
+
+describe('PdfWordCache (row 145: shaped words kept between PDFs)', () => {
+  it('keeps at most maxWords IN ALL (every font together), the least recently used goes first', () => {
+    const cache = new PdfWordCache(3);
+    const fontA = {};
+    const fontB = {};
+    const a = cache.get(fontA);
+    const b = cache.get(fontB);
+    a['one '] = 1;
+    a['two '] = 2;
+    expect(a['one ']).toBe(1); // used: «two» is now the oldest
+    b['one '] = 'b'; // same word, other font: its own entry
+    expect(cache.size).toBe(3);
+    b['two '] = 'b2'; // a 4th word anywhere drops the oldest of ALL fonts
+    expect(cache.size).toBe(3);
+    expect(a['two ']).toBeUndefined();
+    expect(a['one ']).toBe(1);
+    expect(b['one ']).toBe('b');
+    expect(b['two ']).toBe('b2');
+    expect(cache.sizeFor(fontA) + cache.sizeFor(fontB)).toBe(3);
+    expect(cache.get(fontA)).toBe(a);
+    // A lower bound applies at the next new word.
+    cache.maxWords = 1;
+    a['four'] = 4;
+    expect(cache.size).toBe(1);
+    expect(a['four']).toBe(4);
+  });
+
+  it('never holds more than maxWords, however many fonts and words pass through', () => {
+    const cache = new PdfWordCache(500);
+    const fonts = Array.from({ length: 25 }, () => ({}));
+    let max = 0;
+    for (let i = 0; i < 20_000; i++) {
+      const store = cache.get(fonts[i % fonts.length]);
+      store[`w${i} `] = i;
+      max = Math.max(max, cache.size);
+    }
+    expect(max).toBe(500);
+    expect(cache.size).toBe(500);
+  });
+
+  it('0 = nothing kept: each render gets its own fresh cache and the kept words are dropped', () => {
+    const cache = new PdfWordCache(10);
+    cache.get({})['x'] = 1;
+    expect(cache.forRender()).toBe(cache);
+    cache.maxWords = 0;
+    const r1 = cache.forRender();
+    const r2 = cache.forRender();
+    expect(r1).not.toBe(cache);
+    expect(r1).not.toBe(r2);
+    const font = {};
+    expect(r1.get(font)).toBeUndefined();
+    expect(cache.sizeFor(font)).toBe(0);
+  });
+
+  it('a PDF in every script is byte for byte the same with words kept from an earlier PDF', async () => {
+    const render = async (layoutCache?: PdfLayoutCache): Promise<string> => {
+      const doc = new PDFDocument({
+        size: 'A4',
+        info: { CreationDate: new Date('2026-11-14T00:00:00Z') },
+      });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      const done = new Promise((r) => doc.on('end', r));
+      applyPdfFonts(doc, layoutCache ? { layoutCache } : {});
+      for (const t of [
+        'Client: Мария Иванова, fee $2,400 — agreed.',
+        'العميل: محمد 1500 دولار',
+        'ลูกค้า ราหุล ค่าธรรมเนียม',
+        'שלום עולם 12',
+        'राहुल शर्मा — शुल्क',
+      ]) {
+        doc.text(t, { width: 300, align: 'justify' });
+        doc.text(t, { align: 'right', wordSpacing: 2 });
+      }
+      doc.end();
+      await done;
+      return createHash('sha256').update(Buffer.concat(chunks)).digest('hex');
+    };
+    const plain = await render();
+    expect(await render()).toBe(plain);
+    const kept = new PdfWordCache(5000);
+    expect(await render(kept.forRender())).toBe(plain);
+    expect(await render(kept.forRender())).toBe(plain); // all words from the cache
+    expect(kept.sizeFor(parsedFont(INTER_PATH as string))).toBeGreaterThan(10);
+    // A bound far below the words of one PDF (constant eviction across the
+    // scripts' fonts mid-render) still gives the same bytes.
+    const tiny = new PdfWordCache(7);
+    expect(await render(tiny.forRender())).toBe(plain);
+    expect(await render(tiny.forRender())).toBe(plain);
+    expect(tiny.size).toBeLessThanOrEqual(7);
+  });
 });
 
 describe('warmCjkFonts', () => {

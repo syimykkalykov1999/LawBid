@@ -168,6 +168,10 @@ dependencies {
     // pin cronet_http 1.10.1 ships (dart-lang/http#1932). Drop this line when
     // cronet_http >= 1.10.1 can be used (needs sentry_flutter >= 10.2.0).
     implementation("org.chromium.net:cronet-api:143.7445.0")
+    // Row 149: reads the secrets flutter_secure_storage 9 kept in
+    // EncryptedSharedPreferences, once, to move them to version 11
+    // (LegacySecureStorage.kt). Apache-2.0, the library version 9 used.
+    implementation("androidx.security:security-crypto:1.1.0")
     // Owner row 42 (13.11): the phone's video re-encode (VideoEncoder.kt) on
     // AndroidX Media3 Transformer, Apache-2.0. The same Media3 version as the
     // ExoPlayer that video_player_android 2.12.2 brings (all Media3 modules

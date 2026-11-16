@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_step_up.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -99,7 +100,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
         title: Text(t.t('deleteAccount.title')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
       ),
       // UI modernization pass (2026-09-27): a danger-toned step indicator

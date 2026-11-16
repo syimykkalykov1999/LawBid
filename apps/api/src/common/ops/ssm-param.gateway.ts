@@ -3,6 +3,16 @@ import { ConfigService } from '@nestjs/config';
 
 export type SsmTarget = 'db' | 'redis';
 
+/** Owner 14.11: whose numbers live in an SSM `…/tuning` parameter. */
+export type TuningTarget = SsmTarget | 'endpoints' | 'ecs' | 'spot';
+const TUNING_ENV: Readonly<Record<TuningTarget, string>> = {
+  db: 'OPS_DB_AUTOSCALE_TUNING_PARAM',
+  redis: 'OPS_REDIS_AUTOSCALE_TUNING_PARAM',
+  endpoints: 'OPS_ENDPOINTS_AUTOSCALE_TUNING_PARAM',
+  ecs: 'OPS_ECS_SCALING_TUNING_PARAM',
+  spot: 'OPS_SPOT_FALLBACK_TUNING_PARAM',
+};
+
 /** The two Lambda-owned autoscale switches the admin may change. */
 export type SsmMode = 'on' | 'dry-run' | 'off';
 
@@ -58,6 +68,36 @@ export class SsmParamGateway {
         ? 'OPS_DB_AUTOSCALE_MAXCLASS_PARAM'
         : 'OPS_REDIS_AUTOSCALE_MAXCLASS_PARAM',
     );
+  }
+
+  /** Owner 14.11: an «Авто»'s numbers from the admin (JSON object). */
+  tuningParam(target: TuningTarget): string | undefined {
+    return this.env(TUNING_ENV[target]);
+  }
+
+  async getTuning(
+    target: TuningTarget,
+  ): Promise<Record<string, number> | null> {
+    const name = this.tuningParam(target);
+    if (!name) return null;
+    const raw = await this.get(name);
+    try {
+      const v: unknown = raw ? JSON.parse(raw) : {};
+      return v && typeof v === 'object' && !Array.isArray(v)
+        ? (v as Record<string, number>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  async setTuning(
+    target: TuningTarget,
+    values: Record<string, number>,
+  ): Promise<void> {
+    const name = this.tuningParam(target);
+    if (!name) throw new Error('autoscaler is not on AWS');
+    await this.put(name, JSON.stringify(values));
   }
 
   get available(): boolean {

@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
@@ -77,7 +78,10 @@ class PostInsightsScreen extends ConsumerWidget {
     }
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppBar(title: Text(t.t('post.stats.title'))),
+      appBar: AppBar(
+        leading: safeBackLeading(context),
+        title: Text(t.t('post.stats.title')),
+      ),
       body: body,
     );
   }

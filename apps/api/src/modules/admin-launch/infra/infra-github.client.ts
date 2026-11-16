@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createPrivateKey } from 'node:crypto';
-import { SignJWT, createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
+import {
+  SignJWT,
+  createRemoteJWKSet,
+  errors as joseErrors,
+  jwtVerify,
+  type JWTPayload,
+} from 'jose';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 
 /** The workflow file the API may start, and the only one it trusts. */
@@ -27,6 +33,9 @@ export interface WorkflowCaller {
 }
 
 export class InfraAuthError extends Error {}
+/** 14.11: the caller could not be checked right now (key store or GitHub's
+ * keys unreachable): a 503 the workflow retries, never a final 401. */
+export class InfraUnavailableError extends Error {}
 
 /**
  * Owner 2026-10-26: the only two ways the API talks to GitHub for infra
@@ -192,8 +201,11 @@ export class InfraGithubClient {
   ): Promise<WorkflowCaller> {
     const token = /^Bearer\s+(\S+)$/i.exec(authorization ?? '')?.[1];
     if (!token) throw new InfraAuthError('no token');
-    const c = await this.creds();
-    if (!c) throw new InfraAuthError('not configured');
+    // 14.11 (request f758b39f): a workflow run only exists because the App
+    // started it, so keys that cannot be read now mean the store is down
+    // (the 13.11 outage), not «not the workflow».
+    const c = await this.creds().catch(() => null);
+    if (!c) throw new InfraUnavailableError('keys unreadable');
     let payload: JWTPayload;
     try {
       payload = (
@@ -202,7 +214,14 @@ export class InfraGithubClient {
           audience: workflow.audience,
         })
       ).payload;
-    } catch {
+    } catch (e) {
+      // GitHub's key set did not load (timeout, network): try again later.
+      if (
+        e instanceof joseErrors.JWKSTimeout ||
+        !(e instanceof joseErrors.JOSEError)
+      ) {
+        throw new InfraUnavailableError('GitHub keys unreachable');
+      }
       throw new InfraAuthError('bad token');
     }
     return callerFromClaims(payload, c.repo, workflow.file);

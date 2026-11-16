@@ -602,6 +602,12 @@ export const OWNER_TASKS_SETTINGS = {
 // subscription ends and the unused part is refunded (rollback: off).
 export const OWNER_BILLING_GATE_SETTINGS = {
   'billing.cancel_on_verification_loss': true,
+  // Batch E (14.11): the verification-loss sweep reads only attorneys whose
+  // profile changed since its last run (minus this overlap, for late
+  // commits) and the whole rejected / suspended list once per
+  // `billing.verification_loss_full_scan_hours` (0 = every run, as before).
+  'billing.verification_loss_overlap_minutes': 15,
+  'billing.verification_loss_full_scan_hours': 6,
   // Offer packs and Boost are for verified attorneys only (rollback: off).
   'billing.require_verified_for_purchases': true,
   /** Algo audit 2026-10-27 (MONEY H-5): a refunded / charged-back offer
@@ -935,6 +941,17 @@ export const OWNER_ADMIN_HARDENING_SETTINGS = {
   /** Revealing a private message needs a 2FA code entered within this
    * many seconds (max 300 = the step-up lifetime). */
   'admin.private_stepup_seconds': 120,
+  /** Owner 14.11 (row 179): how long one 2FA code covers money and other
+   * protected actions in the same session, seconds. Owner-only + 2FA. */
+  'admin.step_up_ttl_seconds': 300,
+  /** Owner 14.11 (row 180): the zone admin days are cut in — «Сегодня»,
+   * «с дедлайном», the staff KPI days (Stripe «Reporting timezone»). An
+   * IANA name; an unknown one falls back to America/Los_Angeles. */
+  'admin.report_timezone': 'America/Los_Angeles',
+  /** Owner 14.11 (row 179): most rows staff «Выбрать всё по фильтру»
+   * collects (cases, posts, reviews, templates, stickers, videos). 0 = no
+   * cap. The owner never has one. */
+  'admin.bulk_select_cap': 2000,
   /** Daily copy of the audit log into the locked audit bucket (needs the
    * bucket from Terraform; without it this does nothing). */
   'admin.audit_export_enabled': true,
@@ -1182,6 +1199,20 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'chat.delete_for_all_hours': 48,
   /** Pinned messages per chat. Owner 2026-11-09: 10 (Telegram pins
    * without a cap, WhatsApp stops at 3; the owner wants ten everywhere). */
+  /** Detective R2 (14.11, rule 11): limits that were numbers in the code.
+   * Wrong OTP guesses at one phone/e-mail from all sources in 24 h before
+   * every wrong guess burns the code (0 = no cap). */
+  'auth.otp_global_failure_cap': 20,
+  /** R2B-9: a Google ID token issued longer ago than this many seconds is
+   * refused (0 = no check). */
+  'auth.social_token_max_age_sec': 600,
+  /** R2B-7: a Persona webhook signed more than this many seconds from now
+   * is refused (0 = no check). */
+  'verification.persona_webhook_tolerance_sec': 300,
+  /** R2B-8: the stored onboarding answers of one account, KB (0 = no cap). */
+  'users.onboarding_data_max_kb': 64,
+  /** Saved messages one person keeps (0 = no cap). */
+  'chat.saved_max': 5000,
   'chat.max_pins': 10,
   /** Owner 2026-10-22: link cards under messages. Kill switch + domains
    * (and their subdomains) that are never fetched. */
@@ -1367,8 +1398,15 @@ export const OWNER_STORAGE_SETTINGS = {
    * off after this many hours of calm (their own infra.auto_* waits). */
   'infra.waf_attack_on_minutes': 5,
   'infra.waf_calm_off_hours': 3,
+  /** Owner 14.11: minutes instead of the hours above when > 0; 0 = hours. */
+  'infra.waf_calm_off_minutes': 0,
   /** Database CPU % above which «busy» starts (read copy, size step). */
   'economy.db_cpu_limit_percent': 70,
+  /** Rows 8 / 9 (15.11): the read copies' own CPU line (copies 2..5 come
+   * above it and go below half of it). 0 = the same as
+   * economy.db_cpu_limit_percent (today's behaviour), so the copies can be
+   * tested apart from the primary's copy 1. */
+  'infra.replica_cpu_limit_percent': 0,
   /** Owner 2026-11-02: «time to prepare a second database». Health turns
    * yellow at 80% and red at 100% of EITHER number (primary size in GB;
    * estimated rows of the sharded-family tables). Only a signal: moving
@@ -1457,11 +1495,37 @@ export const OWNER_STORAGE_SETTINGS = {
   'infra.mode.rds_replicas_5': 'auto',
   'infra.mode.db_shards_2': 'auto',
   'infra.mode.db_shards_3': 'auto',
+  // Owner 15.11: the fifth server and on (rows aws.db_shards_4.._15).
+  'infra.mode.db_shards_4': 'auto',
+  'infra.mode.db_shards_5': 'auto',
+  'infra.mode.db_shards_6': 'auto',
+  'infra.mode.db_shards_7': 'auto',
+  'infra.mode.db_shards_8': 'auto',
+  'infra.mode.db_shards_9': 'auto',
+  'infra.mode.db_shards_10': 'auto',
+  'infra.mode.db_shards_11': 'auto',
+  'infra.mode.db_shards_12': 'auto',
+  'infra.mode.db_shards_13': 'auto',
+  'infra.mode.db_shards_14': 'auto',
+  'infra.mode.db_shards_15': 'auto',
+  // Owner 15.11 («максимальное число серверов базы в админке»): database
+  // servers in all (the primary + the extra ones) «Авто» may reach, 1..16
+  // (common/ops/infra-switches.ts DB_SERVERS_HARD_MAX). 4 = as before.
+  'db.max_servers': 4,
   /** "HH:MM-HH:MM" (America/Chicago, may cross midnight) when an automatic
    * split may start; empty = any time. */
   'db.shards_move_hours': '02:00-05:00',
   'ha.provision_online_users': 200,
+  /** 15.11 (live tests within 10 min): the busy window in minutes instead
+   * of the 3 full hours when > 0 (minute data up to one day). */
+  'ha.provision_minutes': 0,
   'ha.release_days': 7,
+  /** Owner 14.11 (live tests): the quiet window in minutes instead of the
+   * days when > 0 (minute data up to one day since 15.11). */
+  'ha.release_minutes': 0,
+  /** Owner 14.11: minutes before a step the other way (the copies added,
+   * then removed); 1440 = the 24 h of before. 0 = 24 h. */
+  'ha.flip_guard_minutes': 1440,
   // 09.11.2026 (owner): «Задача для ИИ» (docs/runbooks/AI_ASSISTANT.md).
   // Owner rule 5c: off | on | auto, default auto. The GitHub workflow asks
   // the API before every run: auto / on run (admin tasks + the 2-hourly
@@ -1544,6 +1608,25 @@ export const OWNER_OPS_SETTINGS = {
   'ops.cron_idle_backoff': 'off',
   'ops.cron_idle_after_runs': 10,
   'ops.cron_idle_every_min': 5,
+  // Batch D (14.11): time limit of one cron run. auto (default) = the
+  // longest of the last `ops.cron_timeout_history_runs` good runs of that
+  // job times `ops.cron_timeout_auto_factor`, never below
+  // `ops.cron_timeout_auto_min_minutes`, and no limit before the first good
+  // run — so no job that works is ever cut. on = the minutes listed in
+  // `ops.cron_timeout_minutes` (`job=minutes, …`), auto for the rest. off =
+  // no limit. A run past its limit is stopped and frees its lane.
+  'ops.cron_timeout_mode': 'auto',
+  'ops.cron_timeout_auto_factor': 10,
+  'ops.cron_timeout_auto_min_minutes': 60,
+  'ops.cron_timeout_history_runs': 20,
+  'ops.cron_timeout_minutes': '',
+  // Batch D (14.11): a sub-hourly job skipped tick after tick is logged at
+  // the first skip, then every N-th skip of the streak, and when it runs
+  // again.
+  'ops.cron_skip_log_every': 10,
+  // Batch D (14.11): «Очереди задач» turns red when a job had no good run
+  // for this many of its periods (0 = off).
+  'ops.cron_stale_periods': 3,
   // S20-8: ceiling of the message re-encryption pass, rows per minute
   // (0 = paused; the pass keeps its place).
   'ops.reencrypt_rows_per_min': 800,
@@ -1939,6 +2022,11 @@ export const OWNER_DEAL_RECORD_SETTINGS = {
   'bids.confirmation_required': true,
   /** Days until the one reminder to confirm a bid. */
   'bids.confirmation_reminder_days': 3,
+  /** Row 145: shaped words kept between deal-record PDFs, ALL fonts
+   * together (~3.6 KB each, measured 14.11: 10 000 ≈ 36 MB, the most it can
+   * hold); 0 = none kept, each record shapes its words again
+   * (modules/deals/deal-record-pdf-cache.ts). */
+  'deal_record.pdf_word_cache_words': 10_000,
 };
 
 export const OWNER_CASE_TOOLS_SETTINGS = {
@@ -2151,7 +2239,16 @@ export const OWNER_INFRA_SETTINGS = {
   'infra.auto_mode': 'auto',
   'infra.auto_on_minutes': 30,
   'infra.auto_off_hours': 72,
+  /** Owner 14.11: minutes instead of the hours above when > 0 (live tests);
+   * 0 = use infra.auto_off_hours. */
+  'infra.auto_off_minutes': 0,
+  /** Owner 15.11 (rows 16 / 17): how often «Авто» looks, in minutes (10 as
+   * before; 1 for a live test). */
+  'infra.auto_check_minutes': 10,
   'infra.auto_max_usd_month': 100,
+  /** KNOWN_ERRORS 176: hours before «Авто» asks again for the same
+   * autoscale-code pair (a failed or no-op update). */
+  'infra.autoscale_code_retry_hours': 6,
 };
 
 /**

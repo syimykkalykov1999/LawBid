@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/payments/pay_page_look.dart';
@@ -94,7 +95,10 @@ class _BidPacksScreenState extends ConsumerState<BidPacksScreen>
     final data = ref.watch(bidPacksProvider);
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppBar(title: Text(t.t('packs.title'))),
+      appBar: AppBar(
+        leading: safeBackLeading(context),
+        title: Text(t.t('packs.title')),
+      ),
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => Center(

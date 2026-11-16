@@ -1,13 +1,13 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
@@ -65,9 +65,7 @@ class ChannelsGate extends ConsumerWidget {
             padding: const EdgeInsetsDirectional.only(start: AppSpacing.xs),
             child: AppBackButton(
               semanticLabel: t.t('common.back'),
-              onPressed: () => context.canPop()
-                  ? context.pop()
-                  : Navigator.of(context).maybePop(),
+              onPressed: () => context.safeBack(),
             ),
           ),
         ),
@@ -148,99 +146,105 @@ class ChannelRow extends ConsumerWidget {
       excludeSemantics: true,
       onTap: onTap,
       onLongPress: onLongPress,
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        borderRadius: BorderRadius.circular(AppRadii.field),
-        child: Container(
-          color: picked ?? false ? colors.chip : null,
-          constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenSide,
-              vertical: AppSpacing.sm,
-            ),
-            child: Row(
-              children: [
-                if (picked != null) ...[
-                  AppIcon(
-                    picked
-                        ? AppIcons.checkCircleRounded
-                        : AppIcons.radioButtonUncheckedRounded,
-                    key: ValueKey('channel-pick-${channel.id}'),
-                    color: picked ? colors.iconTint : colors.textSecondary,
+      // Owner row 113: a right-click on the website does what the long
+      // press does (picks the channel, like a chat row).
+      child: WebRightClickMenu(
+        onMenu: onLongPress,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          borderRadius: BorderRadius.circular(AppRadii.field),
+          child: Container(
+            color: picked ?? false ? colors.chip : null,
+            constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.screenSide,
+                vertical: AppSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  if (picked != null) ...[
+                    AppIcon(
+                      picked
+                          ? AppIcons.checkCircleRounded
+                          : AppIcons.radioButtonUncheckedRounded,
+                      key: ValueKey('channel-pick-${channel.id}'),
+                      color: picked ? colors.iconTint : colors.textSecondary,
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                  ],
+                  ChannelAvatar(
+                    title: channel.title,
+                    url: channel.avatarUrl,
+                    size: 48,
                   ),
                   const SizedBox(width: AppSpacing.md),
-                ],
-                ChannelAvatar(
-                  title: channel.title,
-                  url: channel.avatarUrl,
-                  size: 48,
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              channel.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: type.body.copyWith(
-                                color: colors.text,
-                                fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                channel.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.body.copyWith(
+                                  color: colors.text,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          ),
-                          if (channel.owner.verified) ...[
-                            const SizedBox(width: AppSpacing.xs),
-                            VerifiedCheck(
-                              label: t.t('post.verified'),
-                              size: 15,
-                              gold: true,
-                            ),
+                            if (channel.owner.verified) ...[
+                              const SizedBox(width: AppSpacing.xs),
+                              VerifiedCheck(
+                                label: t.t('post.verified'),
+                                size: 15,
+                                gold: true,
+                              ),
+                            ],
                           ],
-                        ],
-                      ),
-                      Text(
-                        '@${channel.username}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: type.caption.copyWith(
-                          color: colors.textSecondary,
                         ),
-                      ),
-                      // Inbox 20e: a running call takes the subscribers' line.
-                      if (channel.ongoingCall case final call?)
-                        OngoingCallLine(call: call)
-                      else
                         Text(
-                          subscribers,
+                          '@${channel.username}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: type.caption.copyWith(
                             color: colors.textSecondary,
                           ),
                         ),
-                    ],
-                  ),
-                ),
-                if (channel.isClosed)
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(
-                      start: AppSpacing.sm,
+                        // Inbox 20e: a running call takes the subscribers'
+                        // line.
+                        if (channel.ongoingCall case final call?)
+                          OngoingCallLine(call: call)
+                        else
+                          Text(
+                            subscribers,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                      ],
                     ),
-                    child: AppIcon(
-                      AppIcons.lockOutlineRounded,
-                      size: 18,
-                      color: colors.textSecondary,
-                    ),
                   ),
-              ],
+                  if (channel.isClosed)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        start: AppSpacing.sm,
+                      ),
+                      child: AppIcon(
+                        AppIcons.lockOutlineRounded,
+                        size: 18,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -401,10 +405,6 @@ class ChannelsEmpty extends StatelessWidget {
   final Widget? action;
 
   @override
-  Widget build(BuildContext context) => AppEmptyState(
-        title: title,
-        message: message,
-        icon: icon,
-        action: action,
-      );
+  Widget build(BuildContext context) =>
+      AppEmptyState(title: title, message: message, icon: icon, action: action);
 }

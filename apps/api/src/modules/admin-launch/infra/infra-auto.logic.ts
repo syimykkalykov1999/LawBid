@@ -1,5 +1,10 @@
 import type { InfraMode } from '../../../common/ops/infra-modes';
-import type { InfraTarget } from '../../../common/ops/infra-switches';
+import {
+  DB_SERVER_ROWS,
+  dbServerIndex,
+  maxDbServers,
+  type InfraTarget,
+} from '../../../common/ops/infra-switches';
 import { infraSuggestions, type SuggestionSignals } from './infra-change.logic';
 
 /**
@@ -14,9 +19,23 @@ import { infraSuggestions, type SuggestionSignals } from './infra-change.logic';
  * scale in after a long cool-down) and Kubernetes HPA's stabilization
  * window. Everything here is pure; infra-auto.service.ts does the I/O.
  */
+/** The main/applied hash pair one aws.autoscale_code request is made for. */
+export const autoscaleCodePair = (main: string, applied: string): string =>
+  `${main}|${applied}`;
+
 export const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000';
 
 export interface AutoSignals extends SuggestionSignals {
+  /** Owner 15.11 («разреши "Авто" само применять обновления кода своих
+   * функций без меня»): the source hash of the four autoscale Lambdas on
+   * main (deploy.yml) and the one the last apply shipped (Terraform). */
+  autoscaleCodeMain?: string | null;
+  autoscaleCodeApplied?: string | null;
+  /** 15.11 (KNOWN_ERRORS 176): the main/applied pair «Авто» already asked
+   * for. The main hash is written only by a finished deploy, so while
+   * deploys wait behind cloud changes it stays old and the pair never meets:
+   * one request per pair, again only after infra.autoscale_code_retry_hours. */
+  autoscaleCodeTried?: string | null;
   /** A table in partition «Авто» / «Вкл» is at 80 % of partition.auto_rows
    * (or «Вкл» at any size) and the runner has no login yet. */
   partitionNeedsRunner: boolean;
@@ -70,9 +89,12 @@ export interface AutoSignals extends SuggestionSignals {
    * at 80 % of the split threshold and every extra server already holds
    * data parts — the next server (third, fourth) is needed. */
   serversFull?: boolean;
-  /** Owner 2026-11-12: the extra database servers (`db1`, `db2`, `db3`)
+  /** Owner 2026-11-12: the extra database servers (`db1`, `db2`, …)
    * that hold no data at all (ShardMoveService.emptyServers). */
   emptyServers?: readonly string[];
+  /** Owner 15.11: `db.max_servers`, database servers in all (the primary
+   * plus the extra ones) «Авто» may reach (missing = 4, as before). */
+  maxServers?: number;
   /** Owner 2026-11-11: the position picked on «Масштаб» for each item the
    * automation switches (common/ops/infra-modes.ts; missing = Авто), and
    * the items the owner set to Авто himself (handed to the automation: it
@@ -97,6 +119,34 @@ export function searchOffPeople(
 ): number {
   return Math.floor(
     (searchOnPeople(s) * SEARCH_ENGINE_OFF_PEOPLE) / SEARCH_ENGINE_ON_PEOPLE,
+  );
+}
+
+/**
+ * Row 9 (14.11): the search domain is spare — on «Авто», handed to the
+ * automation (it switched it on itself, or the owner stored «Авто»), and
+ * fewer people than the off line. KEEP_ON keeps the domain while
+ * `search.engine` is shadow / engine, and with `search.engine_follow = auto`
+ * it is the automation itself that put search there, so the domain kept its
+ * own signal alive and never went (the KNOWN_ERRORS 144 pattern). A spare
+ * domain is drained first: search goes back to the database at once
+ * (searchAutoStep), and only then does KEEP_ON let the domain go after
+ * `infra.auto_off_hours` (AWS ALB / Aurora: take the target out of service,
+ * then delete it). Unknown people = not spare (never remove on a failed
+ * read).
+ */
+export function searchDomainSpare(
+  s: Pick<AutoSignals, 'people' | 'searchOnPeople' | 'modes' | 'pickedAuto'>,
+  autoOn: ReadonlySet<string>,
+): boolean {
+  const id = 'aws.opensearch';
+  const handed = autoOn.has(id) || s.pickedAuto?.has(id) === true;
+  return (
+    handed &&
+    (s.modes?.[id] ?? 'auto') === 'auto' &&
+    s.people != null &&
+    Number.isFinite(s.people) &&
+    s.people < searchOffPeople(s)
   );
 }
 
@@ -148,16 +198,13 @@ export interface AutoWant {
  * login stays on: once a table is converted the runner keeps its months.
  */
 const KEEP_ON: Readonly<Record<string, (s: AutoSignals) => boolean>> = {
-  // 13.11 outage: a dependency the running services point at is never
-  // removed by itself (drain first, like an ALB deregistration or Aurora
-  // taking a reader out of the endpoint before deleting it). The pooler
-  // removes its own signal (poolSmall is false while it runs), the same
-  // flap the cache node below avoids, and nothing drains it: every query
-  // of the tasks goes through it.
-  'aws.pgbouncer': (s) =>
-    s.pressures.includes('db_connections') ||
-    s.poolSmall === true ||
-    s.poolerLive === true,
+  // Owner 16.11 («чтобы не жрали с меня деньги за пустоту»): the pooler is
+  // kept only by real load (database connections near the limit). The old
+  // «pool below POOL_FLOOR» and «pooler is live» signals were true at zero
+  // users, so «Авто» held it on forever. Switching it off is safe now: the
+  // infra-apply drain moves the services to the direct database first
+  // (KNOWN_ERRORS 182, 184).
+  'aws.pgbouncer': (s) => s.pressures.includes('db_connections'),
   'aws.rds_replicas': (s) =>
     s.pressures.includes('db_cpu') || s.replicaReadsForced === true,
   'aws.opensearch': (s) =>
@@ -199,15 +246,21 @@ export function autoWants(
         (provision === 'off' || s.replicaAppPath === true)
       ),
   );
+  // Owner 15.11: main carries autoscale Lambda code the functions do not
+  // run yet. The item's tfvars flag only carries the request (it flips on
+  // every round); AUTO_SCOPE limits the plan to in-place function updates.
   if (
-    s.poolSmall === true &&
-    live('aws.pgbouncer') !== 'on' &&
-    !out.some((x) => x.id === 'aws.pgbouncer')
+    s.autoscaleCodeMain &&
+    s.autoscaleCodeApplied &&
+    s.autoscaleCodeMain !== s.autoscaleCodeApplied &&
+    s.autoscaleCodeTried !==
+      autoscaleCodePair(s.autoscaleCodeMain, s.autoscaleCodeApplied)
   ) {
     out.push({
-      id: 'aws.pgbouncer',
-      to: 'on',
-      reason: `У каждого сервера меньше ${POOL_FLOOR} соединений с базой: запросы ждут в очереди, пул соединений это снимет.`,
+      id: 'aws.autoscale_code',
+      to: live('aws.autoscale_code') === 'on' ? 'off' : 'on',
+      reason:
+        'На main новый код функций автомасштаба (Redis, база, точки доступа, Spot): «Авто» обновляет их само.',
     });
   }
   if (s.eventsStreamWanted === true && live('aws.events_stream') !== 'on') {
@@ -272,7 +325,9 @@ export function autoWants(
   // Owner 2026-11-11: the third and fourth servers, one after the other, on
   // the same rule once the servers before are taken (Aurora Limitless adds
   // capacity the same way). Switched off by itself only when empty (below).
-  const MORE = ['aws.db_shards', 'aws.db_shards_2', 'aws.db_shards_3'];
+  // Owner 15.11: and the fifth, sixth … up to `db.max_servers` in all (the
+  // filter at the end refuses a switch-on past it).
+  const MORE = DB_SERVER_ROWS;
   for (let i = 1; i < MORE.length; i++) {
     const id = MORE[i];
     const mode = s.modes?.[id] ?? 'auto';
@@ -290,7 +345,8 @@ export function autoWants(
   // Owner 2026-11-12 («Авто» both ways): the last extra server goes again
   // only while it is EMPTY (no data part, no move, not one row) and no
   // server nears the split threshold (then the empty one takes the next
-  // split). One at a time, the highest first; AWS keeps a final snapshot.
+  // split). One at a time, the highest first; nothing is kept of it (no
+  // final snapshot or backups, KNOWN_ERRORS 189).
   // A server with data is never removed (the API and the plan guard check
   // emptiness again).
   let last = -1;
@@ -372,17 +428,26 @@ export function autoWants(
       });
     }
   }
+  // Row 9 (14.11): a spare domain that search no longer uses (drained back
+  // to the database) sheds its extra nodes too, highest first, so the
+  // domain itself can go after them (LADDERS).
+  const drained =
+    engineOn &&
+    (s.searchEngine ?? 'postgres') === 'postgres' &&
+    searchDomainSpare(s, autoOn);
   if (
     topNode > 0 &&
     (s.modes?.[SEARCH_NODES[topNode]] ?? 'auto') === 'auto' &&
-    (!engineOn || s.pressures.includes('search_idle'))
+    (!engineOn || drained || s.pressures.includes('search_idle'))
   ) {
     out.push({
       id: SEARCH_NODES[topNode],
       to: 'off',
-      reason: engineOn
-        ? 'Поисковому движку давно легко (процессор ниже половины порога, память JVM ниже 50 %): лишние узлы уходят.'
-        : 'Поисковый движок выключен: лишние узлы не нужны.',
+      reason: !engineOn
+        ? 'Поисковый движок выключен: лишние узлы не нужны.'
+        : drained
+          ? 'Поисковый движок не нужен (людей меньше порога выключения), поиск уже в базе: лишние узлы уходят.'
+          : 'Поисковому движку давно легко (процессор ниже половины порога, память JVM ниже 50 %): лишние узлы уходят.',
     });
   }
   // Owner 2026-11-12: the WAF protections on «Авто». On while the web ACL
@@ -474,8 +539,17 @@ export function autoWants(
         )
       ) &&
       !(w.to === 'on' && modeOf(w.id) === 'off') &&
-      !(w.to === 'off' && modeOf(w.id) === 'on'),
+      !(w.to === 'off' && modeOf(w.id) === 'on') &&
+      // Owner 15.11: never more database servers than db.max_servers.
+      !(w.to === 'on' && overMaxServers(w.id, s.maxServers)),
   );
+}
+
+/** Owner 15.11: switching row [id] on would make more database servers in
+ * all (the primary + the extra ones) than `db.max_servers` allows. */
+export function overMaxServers(id: string, maxServers: unknown): boolean {
+  const n = dbServerIndex(id);
+  return n !== null && n + 1 > maxDbServers(maxServers);
 }
 
 export const wantKey = (w: Pick<AutoWant, 'id' | 'to'>): string =>
@@ -487,6 +561,50 @@ export const wantKey = (w: Pick<AutoWant, 'id' | 'to'>): string =>
  * start, so a flapping signal never acts. Returns the wants that are due
  * and the new first-seen map (only the wants seen now).
  */
+/**
+ * Owner 14.11 (live tests within minutes; «No limits on owner»): the «Авто»
+ * waits. A `*_minutes` override > 0 wins over the hour setting (0 = the hour
+ * setting, today's behaviour). The only floor is technical: one minute (the
+ * automation looks once per cycle anyway). Serving-infrastructure guards
+ * (NEVER_AUTO_DESTROY, OWNER_CONFIRM_OFF, KEEP_ON) are behaviour, not waits.
+ */
+export function autoWaits(num: (key: string) => number): {
+  onMs: number;
+  offMs: number;
+  wafOnMs: number;
+  wafOffMs: number;
+} {
+  const MIN = 60_000;
+  const pos = (v: number) => (Number.isFinite(v) && v > 0 ? v : 0);
+  const minutesOr = (minKey: string, hourKey: string) => {
+    const m = pos(num(minKey));
+    return Math.max(MIN, m > 0 ? m * MIN : pos(num(hourKey)) * 60 * MIN);
+  };
+  return {
+    onMs: Math.max(MIN, pos(num('infra.auto_on_minutes')) * MIN),
+    offMs: minutesOr('infra.auto_off_minutes', 'infra.auto_off_hours'),
+    wafOnMs: Math.max(MIN, pos(num('infra.waf_attack_on_minutes')) * MIN),
+    wafOffMs: minutesOr(
+      'infra.waf_calm_off_minutes',
+      'infra.waf_calm_off_hours',
+    ),
+  };
+}
+
+/**
+ * Owner 15.11 (rows 16 / 17: the WAF «Авто» must be testable live within
+ * 10 minutes; «No limits on owner»): how often the automation looks,
+ * `infra.auto_check_minutes` (default 10, as before). Every API task ticks
+ * once a minute and a shared Redis lock (SET NX EX, the Redis docs' simple
+ * single-instance lock) lets one pass through per cycle: the lock lives the
+ * cycle minus 30 s so the tick that ends the cycle finds it gone. Not a
+ * number (or 0) = 10 minutes; the floor is technical, one tick.
+ */
+export function passLockSeconds(minutes: number): number {
+  const m = Number.isFinite(minutes) && minutes > 0 ? minutes : 10;
+  return Math.max(30, Math.round(m * 60) - 30);
+}
+
 export function dueWants(
   wants: readonly AutoWant[],
   seen: Readonly<Record<string, number>>,
@@ -570,9 +688,21 @@ export function autoRefusal(p: {
  * not here: the read path falls back to the primary by itself, and owner
  * rows 8 / 85 want them removed by «Авто».)
  */
-export const OWNER_CONFIRM_OFF: ReadonlySet<string> = new Set([
-  'aws.pgbouncer',
-]);
+// Owner 16.11 («даже на авто я должен вводить коды?» — «Да», make it
+// automatic): the pooler left this set. infra-apply now drains the services
+// to the direct database before the plan removes it (KNOWN_ERRORS 182),
+// proven live 16.11 (requests 247a481f, 45f01121). Kept for the next item
+// of this kind.
+export const OWNER_CONFIRM_OFF: ReadonlySet<string> = new Set<string>([]);
+
+/**
+ * Serving infrastructure an item may remove with its own switch-off,
+ * because infra-apply moves the traffic away first (drain, KNOWN_ERRORS
+ * 182): only inside the item's own module.
+ */
+const DRAINED_OWN: Readonly<Record<string, RegExp>> = {
+  'aws.pgbouncer': /^module\.stack\.module\.pgbouncer\[0\]\./,
+};
 
 /**
  * D1-34 (detective round 1, 13.11): serving infrastructure an automatic plan
@@ -615,10 +745,21 @@ const ROLL_THROUGH_UPDATE: readonly string[] = [
   'aws_cloudwatch_composite_alarm',
 ];
 
-/** New alarms for anything an item adds are always fine. */
+/**
+ * Watchers any automatic plan may create, a switch-on and a switch-off alike:
+ * alarms, and the async retry setting of an existing function. They remove
+ * nothing, nothing serves traffic through them, and nothing depends on them
+ * being absent. Rows 8 / 85 (prod 14.11, request eda185d1): every automatic
+ * plan is a plan of the whole stack, so it also carries what was merged on
+ * main and not applied yet (#1052: four event invoke configs, two api-admin
+ * alarms). With these refused in a switch-off, the read copy's removal
+ * waited for the owner and expired, twice. A delete or replace of any type
+ * outside the item, and any update outside ROLL_THROUGH_UPDATE, still waits.
+ */
 const ROLL_THROUGH_CREATE: readonly string[] = [
   'aws_cloudwatch_metric_alarm',
   'aws_cloudwatch_composite_alarm',
+  'aws_lambda_function_event_invoke_config',
 ];
 
 const S = 'module\\.stack\\.';
@@ -652,14 +793,21 @@ const WAF_ALB: readonly RegExp[] = [
  * created" (AWS docs, read 13.11.2026).
  */
 export const AUTO_SCOPE: Readonly<Record<string, readonly RegExp[]>> = {
+  // Owner 15.11: exactly the four autoscale functions (in-place updates
+  // only, see AUTOSCALE_CODE_UPDATE_ONLY) and the marker of the shipped code.
+  'aws.autoscale_code': [
+    re(
+      `module\\.(redis_autoscale|db_autoscale|endpoints_autoscale|spot_fallback)\\[0\\]\\.aws_lambda_function\\.this${end}`,
+    ),
+    re(`aws_ssm_parameter\\.autoscale_code_applied${end}`),
+  ],
   'aws.rds_replicas': REPLICAS,
   'aws.rds_replicas_2': REPLICAS,
   'aws.rds_replicas_3': REPLICAS,
   'aws.rds_replicas_4': REPLICAS,
   'aws.rds_replicas_5': REPLICAS,
-  'aws.db_shards': SHARDS,
-  'aws.db_shards_2': SHARDS,
-  'aws.db_shards_3': SHARDS,
+  // Owner 15.11: every extra-server row (the second up to the sixteenth).
+  ...Object.fromEntries(DB_SERVER_ROWS.map((id) => [id, SHARDS])),
   'aws.opensearch': SEARCH,
   'aws.opensearch_nodes_2': SEARCH,
   'aws.opensearch_nodes_4': SEARCH,
@@ -671,7 +819,8 @@ export const AUTO_SCOPE: Readonly<Record<string, readonly RegExp[]>> = {
   'aws.redis_cache': [re(`module\\.redis_cache\\[0\\]\\.`)],
   'aws.pgbouncer': [
     re(`module\\.pgbouncer\\[0\\]\\.`),
-    re(`module\\.postgres\\.aws_security_group\\.db${end}`),
+    // prod plans name it module.postgres[0] (16.11 requests cd13dfb6, 45f01121)
+    re(`module\\.postgres(\\[0\\])?\\.aws_security_group\\.db${end}`),
   ],
   'aws.partition_role': [
     re(
@@ -695,7 +844,7 @@ export function resourceType(address: string): string {
  * (empty = it may be applied without a tap). Rules, all at once:
  *  - a switch-on removes nothing but replaced task definitions (a new
  *    revision is how ECS rolls a service), a switch-off creates nothing but
- *    those;
+ *    those and new watchers (ROLL_THROUGH_CREATE);
  *  - a switch-off of something live services use waits (OWNER_CONFIRM_OFF);
  *  - serving infrastructure is never deleted or replaced (NEVER_AUTO_DESTROY);
  *  - every changed address belongs to the switched item (AUTO_SCOPE), or is
@@ -722,7 +871,11 @@ export function autoApplyBlockers(
     const deletes = r.action.includes('delete');
     const creates = r.action.includes('create');
     if (rolling) continue;
-    if (deletes && NEVER_AUTO_DESTROY.includes(type)) {
+    if (
+      deletes &&
+      NEVER_AUTO_DESTROY.includes(type) &&
+      !(to === 'off' && DRAINED_OWN[itemId]?.test(r.address))
+    ) {
       out.push(`${r.address}: ${r.action} of serving infrastructure`);
       continue;
     }
@@ -731,10 +884,17 @@ export function autoApplyBlockers(
       continue;
     }
     if (to === 'off' && creates) {
+      // A pure create of a watcher (never a replace: that deletes too).
+      if (!deletes && ROLL_THROUGH_CREATE.includes(type)) continue;
       out.push(`${r.address}: ${r.action} in a switch-off`);
       continue;
     }
-    if (scope.some((x) => x.test(r.address))) continue;
+    if (scope.some((x) => x.test(r.address))) {
+      // Owner 15.11: the code item never creates or replaces anything.
+      if (itemId !== 'aws.autoscale_code' || r.action === 'update') continue;
+      out.push(`${r.address}: ${r.action} (only in-place updates)`);
+      continue;
+    }
     if (r.action === 'update' && ROLL_THROUGH_UPDATE.includes(type)) continue;
     if (r.action === 'create' && ROLL_THROUGH_CREATE.includes(type)) continue;
     out.push(`${r.address}: ${r.action} outside ${itemId}`);

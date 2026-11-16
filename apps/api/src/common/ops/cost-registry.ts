@@ -197,6 +197,74 @@ const capControl = (provider: string): CostControl => ({
 });
 
 /**
+ * Owner 15.11: database servers in all at most (the primary + 15 extra) and
+ * by default (db.max_servers). Same numbers as infra-switches.ts
+ * DB_SERVERS_HARD_MAX / DB_SERVERS_DEFAULT (this file has no imports;
+ * infra-switches.spec checks they match).
+ */
+export const DB_SERVERS_HARD_MAX = 16;
+export const DB_SERVERS_DEFAULT = 4;
+
+const SERVER_NAME: readonly string[] = [
+  '',
+  'Первый',
+  'Второй',
+  'Третий',
+  'Четвёртый',
+  'Пятый',
+  'Шестой',
+  'Седьмой',
+  'Восьмой',
+  'Девятый',
+  'Десятый',
+  'Одиннадцатый',
+  'Двенадцатый',
+  'Тринадцатый',
+  'Четырнадцатый',
+  'Пятнадцатый',
+  'Шестнадцатый',
+];
+
+/**
+ * Owner 15.11 («Авто» adds a fifth, sixth … database server up to
+ * db.max_servers): rows of the extra servers past the fourth server
+ * (`aws.db_shards_4` = the fifth server … `aws.db_shards_15` = the
+ * sixteenth). Same rule and price as the third and fourth. «Масштаб» shows
+ * a row only while it is inside db.max_servers or the server runs
+ * (cost-registry.service).
+ */
+function moreServerRows(): CostEntry[] {
+  const out: CostEntry[] = [];
+  for (let n = 4; n < DB_SERVERS_HARD_MAX; n++) {
+    out.push({
+      id: `aws.db_shards_${n}`,
+      name: `${SERVER_NAME[n + 1]} сервер базы (деление базы)`,
+      purpose:
+        'Ещё один сервер PostgreSQL, когда уже работающие серверы базы подходят к порогу деления. Пустой, пока на него не перенесена половина частей данных с самого полного сервера. Схема, роли и пароли настраиваются сами при выкладке.',
+      kind: 'aws',
+      control: tf(['db_shards'], {
+        off: `db_shards = ${n - 1}`,
+        on: `db_shards = ${n}`,
+      }),
+      states: ['off', 'on', 'auto'],
+      defaultState: 'off',
+      ceiling: tfCeil('db_shards', 'Сколько серверов (0–15)'),
+      price: price(
+        'fixed',
+        'Как основная база того же размера, ≈ $190 за штуку для среднего размера',
+        U.rds,
+      ),
+      usd: { launch: R(0), k100: R(0), m1: R(0) },
+      ifOnUsd: R(190),
+      needed: 'later',
+      neededNote: `Владелец 15.11: включается сам (Авто), когда все ${n} сервер${n < 5 ? 'а' : 'ов'} базы уже заняты частями данных и какой-то из серверов подходит к порогу деления (80 %), если серверов базы не больше настройки db.max_servers; первое деление на него начинается само ночью (db.shards_move_hours). Сам уходит только пустым.`,
+      alarm: null,
+    });
+  }
+  return out;
+}
+
+/**
  * Every billable thing. Order = the order on the «Лестница расходов» page:
  * day-1 lines first (default ON), then the things the owner may switch on
  * (default OFF), then outside vendors, then apps / accounts / CI.
@@ -401,7 +469,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     defaultState: 'on',
     ceiling: tfCeil(
       'db_autoscale_max_class',
-      'Абсолютный потолок размера базы (по умолчанию db.r7g.xlarge)',
+      'Абсолютный потолок размера базы (по умолчанию db.r8g.xlarge)',
     ),
     price: price(
       'mixed',
@@ -448,7 +516,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
   },
   {
     id: 'aws.redis',
-    name: 'Redis (2 узла: основной и запасной)',
+    name: 'Redis / Valkey (2 узла: основной и запасной)',
     purpose: 'Быстрая память: очереди, чаты в реальном времени, кэш.',
     kind: 'aws',
     control: tf(['redis_node_type', 'redis_replicas'], {
@@ -462,10 +530,10 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ),
     price: price(
       'fixed',
-      't4g.micro ×2 ≈ $23; ступени ≈ $47, $95, $320, $638 за пару',
+      'Valkey: t4g.micro ×2 ≈ $19; ступени ≈ $37, $76, $256, $510 за пару (Redis было $23, $47, $95, $320, $638)',
       U.cache,
     ),
-    usd: { launch: R(23), k100: R(95), m1: R(320, 640) },
+    usd: { launch: R(19), k100: R(76), m1: R(256, 510) },
     needed: 'yes',
     neededNote: 'Нужен. Размер меняет автомасштаб Redis (следующая строка).',
     alarm: 'тревога памяти Redis 70 % (redis-memory)',
@@ -1511,7 +1579,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     }),
     states: ['off', 'on', 'auto'],
     defaultState: 'off',
-    ceiling: tfCeil('db_shards', 'Сколько серверов (0–3)'),
+    ceiling: tfCeil('db_shards', 'Сколько серверов (0–15)'),
     price: price(
       'fixed',
       'Как основная база того же размера, ≈ $190 за штуку для среднего размера',
@@ -1536,7 +1604,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     }),
     states: ['off', 'on', 'auto'],
     defaultState: 'off',
-    ceiling: tfCeil('db_shards', 'Сколько серверов (0–3)'),
+    ceiling: tfCeil('db_shards', 'Сколько серверов (0–15)'),
     price: price(
       'fixed',
       'Как основная база того же размера, ≈ $190 за штуку для среднего размера',
@@ -1561,7 +1629,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     }),
     states: ['off', 'on', 'auto'],
     defaultState: 'off',
-    ceiling: tfCeil('db_shards', 'Сколько серверов (0–3)'),
+    ceiling: tfCeil('db_shards', 'Сколько серверов (0–15)'),
     price: price(
       'fixed',
       'Как основная база того же размера, ≈ $190 за штуку для среднего размера',
@@ -1574,6 +1642,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Владелец 11.11: включается сам (Авто), когда основная база, второй и третий серверы уже заняты частями данных и какой-то из серверов подходит к порогу деления (80 %); первое деление на него начинается само ночью (db.shards_move_hours). Сам не выключается: на нём данные.',
     alarm: null,
   },
+  ...moreServerRows(),
   {
     id: 'aws.opensearch',
     name: 'Поисковый движок (OpenSearch)',
@@ -2007,6 +2076,79 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     needed: 'later',
     neededNote:
       'После сборки образов под ARM: см. docs/runbooks/ARM64_SPOT.md.',
+    alarm: null,
+  },
+  {
+    // Owner 15.11, verbatim: «разреши "Авто" само применять обновления кода
+    // своих функций без меня».
+    id: 'aws.autoscale_code',
+    name: 'Обновление кода функций автомасштаба',
+    purpose:
+      'Когда на main новый код функций автомасштаба (Redis, база, точки доступа, Spot), «Авто» само выкатывает его в облако. Применяется без кода владельца, только если в плане нет ничего, кроме обновления этих четырёх функций на месте; иначе ждёт владельца.',
+    kind: 'aws',
+    control: tf(['autoscale_code_flip'], {
+      off: 'autoscale_code_flip = false',
+      on: 'autoscale_code_flip = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price('free', 'Бесплатно: меняется только код функций', U.lambda),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'auto',
+    neededNote:
+      'Положение меняется само при каждом обновлении кода; переключать руками не нужно.',
+    alarm: null,
+  },
+  {
+    // Owner 15.11, verbatim: «делай обновы сейчас» (docs/runbooks/db-major-upgrade.md).
+    id: 'aws.postgres_major',
+    name: 'Новая версия базы (PostgreSQL 18)',
+    purpose:
+      'Переводит базу с PostgreSQL 16 на самую новую 18 способом AWS «сине-зелёное обновление»: рядом создаётся копия на 18, догоняет основную, потом за одну минуту меняется с ней местами. Старая база на 16 остаётся рядом (только чтение) — путь назад. Перед этим одна перезагрузка базы (около минуты) для нужной настройки. Обратно с 18 на 16 нельзя: только переключение на сохранённую старую базу (инструкция).',
+    kind: 'aws',
+    control: tf(['database_major_version'], {
+      off: 'database_major_version = "16"',
+      on: 'database_major_version = "18"',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'free',
+      'Цена базы та же. Пока идёт обновление и пока старая база не удалена, она стоит столько же, сколько основная',
+      U.rds,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 120),
+    needed: 'yes',
+    neededNote:
+      'Один раз. Время ночью, без выкатов: во время обновления нельзя менять схему базы (AWS остановит обновление, ничего не потеряется).',
+    alarm: null,
+  },
+  {
+    // Owner 15.11, verbatim: «делай обновы сейчас». PR #1112 added the
+    // variable; this row is the admin switch for it.
+    id: 'aws.valkey',
+    name: 'Быстрая память на Valkey 9.1 (вместо Redis)',
+    purpose:
+      'Та же быстрая память (очереди, чаты, кэш), но на Valkey — открытом преемнике Redis. AWS меняет на месте: адрес тот же, записи замирают на несколько секунд. Узлы на 20 % дешевле. Назад на Redis через это переключение нельзя (AWS возвращает только с Valkey 7.2); план с пересозданием Redis админка откажет.',
+    kind: 'aws',
+    control: tf(['redis_engine'], {
+      off: 'redis_engine = "redis"',
+      on: 'redis_engine = "valkey"',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'free',
+      'Экономия, а не расход: узлы Valkey на 20 % дешевле узлов Redis',
+      U.cache,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'yes',
+    neededNote: 'Один раз; дальше без изменений.',
     alarm: null,
   },
   {
@@ -3236,6 +3378,19 @@ export const INFRA_MODE_KEYS: Readonly<Record<string, string>> = {
   'aws.rds_replicas_5': 'infra.mode.rds_replicas_5',
   'aws.db_shards_2': 'infra.mode.db_shards_2',
   'aws.db_shards_3': 'infra.mode.db_shards_3',
+  // Owner 15.11: the fifth server and on.
+  'aws.db_shards_4': 'infra.mode.db_shards_4',
+  'aws.db_shards_5': 'infra.mode.db_shards_5',
+  'aws.db_shards_6': 'infra.mode.db_shards_6',
+  'aws.db_shards_7': 'infra.mode.db_shards_7',
+  'aws.db_shards_8': 'infra.mode.db_shards_8',
+  'aws.db_shards_9': 'infra.mode.db_shards_9',
+  'aws.db_shards_10': 'infra.mode.db_shards_10',
+  'aws.db_shards_11': 'infra.mode.db_shards_11',
+  'aws.db_shards_12': 'infra.mode.db_shards_12',
+  'aws.db_shards_13': 'infra.mode.db_shards_13',
+  'aws.db_shards_14': 'infra.mode.db_shards_14',
+  'aws.db_shards_15': 'infra.mode.db_shards_15',
   'aws.redis_cache': 'cache.redis_mode',
 };
 

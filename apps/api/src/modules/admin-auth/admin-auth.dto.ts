@@ -376,6 +376,14 @@ export class AdminMeDto {
       'Sections where this admin must write a reason (always empty for the super admin).',
   })
   reasonRequiredAreas!: string[];
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Owner 14.11 (row 179): most rows «select all by filter» collects for this admin; null = no cap (always the super admin).',
+  })
+  bulkSelectCap!: number | null;
 }
 
 export class AdminOnCallDto {

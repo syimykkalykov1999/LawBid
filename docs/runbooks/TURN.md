@@ -112,6 +112,15 @@ Second relay in another zone and alarms: section «Два сервера» below
 The API needs no change: `calls.service.ts` issues short-lived logins from the
 URL list and the secret (admin → Интеграции → TURN).
 
+**Version (row 202, 16.11.2026).** coturn runs from its official image
+`coturn/coturn:4.18.0` pinned by digest (`user-data.sh.tftpl`), wrapped in the
+systemd unit `coturn` (`docker run` in the foreground, host network), so
+`systemctl restart coturn` and `journalctl -u coturn` work as before. Ubuntu
+24.04's apt package was 4.6.1 (2023). Checked locally: the same
+`turnserver.conf` + REST-API login, 1200 relayed packets, 0 lost, on 4.6.1 and
+4.18.0. A new version = a new digest in `user-data.sh.tftpl`; the next
+`terraform apply` replaces the box (`user_data_replace_on_change`).
+
 ## 1. Apply (owner, on the Mac, only this module)
 
 ```

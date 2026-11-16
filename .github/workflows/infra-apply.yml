@@ -16,7 +16,10 @@
 #      cost from the cost registry; in dry-run mode the run ends here;
 #   5. wait (poll every 20 s, at most 30 min) for the owner's 2FA confirm;
 #   6. terraform apply plan.bin — exactly the plan the owner saw (Terraform
-#      refuses a saved plan whose state changed meanwhile);
+#      refuses a saved plan whose state changed meanwhile); a plan that
+#      removes PgBouncer first moves the services to the direct database
+#      (drain), and after every apply the services follow the pooler setting
+#      (scripts/infra/pooler-roll.sh, KNOWN_ERRORS 182);
 #   7. record the file on main (push; a pull request when main is protected)
 #      and report done / failed with this run's link.
 # Concurrency 1 (also enforced by the API's database). Never runs on a PR.
@@ -58,7 +61,9 @@ jobs:
   apply:
     name: plan → owner 2FA → apply (prod)
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    # 15.11: 150 -> 300 for aws.postgres_major (AWS Blue/Green: the green
+    # copy can take up to ~2 h on a big database; every other run ends as before).
+    timeout-minutes: 300
     environment: infra-apply
     if: github.ref == 'refs/heads/main'
     steps:
@@ -132,6 +137,10 @@ jobs:
           terraform plan -input=false -no-color -out=plan.bin > plan.log 2>&1 \
             || { grep -E '^(Error|│ Error)' plan.log | cut -c1-200 | head -10; exit 1; }
           terraform show -json plan.bin > plan.json
+          # KNOWN_ERRORS 182: does this plan remove or add our PgBouncer, and
+          # which database settings will the api / worker get (no secrets).
+          node ../../../scripts/infra/pooler-switch.mjs plan.json > ../../../pooler.json
+          echo "pooler_off=$(jq -r '.off' ../../../pooler.json)" >> "$GITHUB_OUTPUT"
           set +e
           SERVING_OUT=../../../serving.txt node ../../../scripts/infra/plan-summary.mjs plan.json ../../../changes.json > ../../../summary.json
           RC=$?
@@ -197,6 +206,31 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
 
+      # KNOWN_ERRORS 182 (16.11, ~25 min outage): «Выкл» of aws.pgbouncer
+      # destroyed the pooler while api / api-admin / worker still ran task
+      # definitions with DB_POOLER_HOST (deploy.yml owns the services'
+      # revision; Terraform only registers new ones). Phase 1 of switching
+      # the pooler OFF: drain first. The services move to a copy of what they
+      # run with exactly the planned database settings (direct, Terraform's
+      # pool size) and the step waits until they run it, PgBouncer still
+      # serving. Nothing is changed in Terraform's state, so the confirmed
+      # plan stays valid. A failure here skips the apply (pooler kept).
+      - name: Pooler off, phase 1 - move the services to the direct database
+        id: drain
+        if: steps.wait.outputs.go == 'true' && steps.plan.outputs.pooler_off == 'true'
+        run: scripts/infra/pooler-roll.sh lawbid-prod drain pooler.json
+
+      - name: Fresh AWS session after the drain
+        if: steps.drain.outcome == 'success'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
+
+      # Phase 2 of OFF = this apply: PgBouncer goes only now. The database
+      # group drops its reference to the pooler's group BEFORE that group is
+      # deleted (create_before_destroy in modules/pgbouncer, KNOWN_ERRORS 182).
       - name: Apply exactly the confirmed plan
         id: apply
         if: steps.wait.outputs.go == 'true'
@@ -209,15 +243,88 @@ jobs:
           grep -E '^Apply complete' apply.log || true
           rm -f apply.log
 
+      # KNOWN_ERRORS 182: the services follow the pooler setting at once.
+      # ON: Terraform waited for healthy pooler tasks (wait_for_steady_state,
+      # health check reaches the database) and registered api / worker
+      # revisions with DB_POOLER_HOST; the services are rolled onto them
+      # (rolling, min 100 % healthy). Also after a failed apply and for a
+      # left-over state (16.11: pooler gone, services direct): a service whose
+      # pooler settings differ from Terraform's newest revision is rolled;
+      # never onto a pooler without running tasks. Nothing differs = no-op.
+      # continue-on-error: recording the file on main must still happen.
+      - name: Fresh AWS session for the services roll
+        if: always() && steps.wait.outputs.go == 'true' && (steps.apply.outcome == 'success' || steps.apply.outcome == 'failure')
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
+      - name: Services follow the pooler setting (on, off, left-over)
+        id: align
+        if: always() && steps.wait.outputs.go == 'true' && (steps.apply.outcome == 'success' || steps.apply.outcome == 'failure')
+        continue-on-error: true
+        run: scripts/infra/pooler-roll.sh lawbid-prod align
+
       # Automation audit 2026-11-08: the partition login (Terraform just put
       # PARTITION_DB_PASSWORD into the migrate task) is set on the role by the
       # migrate task at once, not at the next deploy. Same image as running now.
-      - name: Give lawbid_partition its login now (only for that switch)
-        if: steps.apply.outcome == 'success' && steps.job.outputs.item == 'aws.partition_role'
+      # Row 11 (15.11): the same for a new database server (aws.db_shards*,
+      # up to aws.db_shards_15 since db.max_servers; infra-apply.migrate.spec):
+      # prisma/migrate-shards.mjs gives it the schema and the runtime logins
+      # now. Before, that waited for the next deploy, and until then the
+      # emptiness check could not read the server, so «Авто» never removed
+      # an empty one and no data part could move to it. Idempotent.
+      - name: Migrate now (partition login, new database server)
+        if: >-
+          steps.apply.outcome == 'success' &&
+          contains(fromJSON('["aws.partition_role","aws.db_shards","aws.db_shards_2","aws.db_shards_3","aws.db_shards_4","aws.db_shards_5","aws.db_shards_6","aws.db_shards_7","aws.db_shards_8","aws.db_shards_9","aws.db_shards_10","aws.db_shards_11","aws.db_shards_12","aws.db_shards_13","aws.db_shards_14","aws.db_shards_15"]'), steps.job.outputs.item)
         run: |
-          TAG=$(aws ecs describe-task-definition --task-definition "$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].taskDefinition' --output text)" \
-            --query 'taskDefinition.containerDefinitions[0].image' --output text | sed 's/.*://')
+          # KNOWN_ERRORS 181: run-migrations.sh needs ECR_REGISTRY with a tag;
+          # take both from the image the live api runs (registry/repo:tag).
+          IMG=$(aws ecs describe-task-definition --task-definition "$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].taskDefinition' --output text)" \
+            --query 'taskDefinition.containerDefinitions[0].image' --output text)
+          TAG="${IMG##*:}"
+          export ECR_REGISTRY="${IMG%%/*}"
           scripts/deploy/run-migrations.sh lawbid-prod "$TAG"
+
+      # Owner 15.11 «делай обновы сейчас» (docs/runbooks/db-major-upgrade.md):
+      # aws.postgres_major = AWS RDS Blue/Green after the apply (the apply
+      # only created the postgres18 group and set rds.logical_replication).
+      # Two parts, each with a fresh session (the role's session is at most
+      # AWS_APPLY_SESSION_SECONDS); both continue an earlier run.
+      - name: Fresh AWS session (database upgrade, part 1)
+        if: steps.apply.outcome == 'success' && steps.job.outputs.item == 'aws.postgres_major'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
+      - name: Database upgrade, part 1 (reboot for logical replication, green copy)
+        id: pgmajor1
+        if: steps.apply.outcome == 'success' && steps.job.outputs.item == 'aws.postgres_major'
+        env:
+          WAIT_MINUTES: "55"
+        run: |
+          T=$(jq -r '.database_major_version // "16"' infra/envs/prod/growth.auto.tfvars.json)
+          if [ "$T" = "16" ]; then echo "16 asked: nothing to upgrade"; exit 0; fi
+          scripts/infra/rds-major-upgrade.sh prepare "$T"
+      - name: Fresh AWS session (database upgrade, part 2)
+        if: steps.pgmajor1.outcome == 'success'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
+      - name: Database upgrade, part 2 (switchover about a minute, Terraform state)
+        id: pgmajor2
+        if: steps.pgmajor1.outcome == 'success'
+        env:
+          WAIT_MINUTES: "55"
+        run: |
+          T=$(jq -r '.database_major_version // "16"' infra/envs/prod/growth.auto.tfvars.json)
+          if [ "$T" = "16" ]; then exit 0; fi
+          scripts/infra/rds-major-upgrade.sh switchover "$T"
+          echo "PostgreSQL $T: switched over; old server kept as lawbid-prod-postgres-old1" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Record the file on main
         id: record
@@ -230,8 +337,25 @@ jobs:
           git config user.email "infra-bot@users.noreply.github.com"
           git add infra/envs/prod/growth.auto.tfvars.json
           git commit -m "infra: $(jq -r '.data.itemId' job.json) from the admin (request $REQUEST_ID)" -m "Applied by $RUN_URL"
-          git pull --rebase --quiet origin main || git rebase --abort || true
-          if git push origin HEAD:main 2>/dev/null; then
+          # Rows 8 / 85 / 9 (14.11): `git pull --rebase` refused in every
+          # apply run ("cannot pull with rebase: You have unstaged changes",
+          # files the run itself touched, e.g. terraform init's lock file),
+          # and `|| true` hid it. The push then only worked while main had not
+          # moved; after a long apply (OpenSearch 4 nodes, 14.11) it went to a
+          # branch, the PR was refused (Actions may not open PRs) and main
+          # kept the old node count, so every later plan wanted to undo it.
+          # --autostash keeps those files out of the rebase (git docs); a
+          # main that moves between fetch and push is retried.
+          RECORDED=""
+          for i in 1 2 3 4 5; do
+            if git pull --rebase --autostash --quiet origin main \
+              && git push origin HEAD:main 2>/dev/null; then
+              RECORDED=main; break
+            fi
+            git rebase --abort 2>/dev/null || true
+            sleep $(( i * 5 ))
+          done
+          if [ "$RECORDED" = "main" ]; then
             echo "recorded=main" >> "$GITHUB_OUTPUT"
           else
             B="infra/request-$REQUEST_ID"
@@ -246,9 +370,18 @@ jobs:
         if: always() && steps.wait.outputs.go == 'true'
         env:
           APPLY: ${{ steps.apply.outcome }}
+          UPGRADE: ${{ steps.pgmajor1.outcome == 'failure' || steps.pgmajor2.outcome == 'failure' }}
           RECORDED: ${{ steps.record.outputs.recorded }}
+          DRAIN: ${{ steps.drain.outcome }}
+          ALIGN: ${{ steps.align.outcome }}
         run: |
-          if [ "$APPLY" = "success" ]; then
+          if [ "$DRAIN" = "failure" ]; then
+            jq -n --arg e "Пул соединений не выключен: сервисы не перешли на прямую базу, ничего не удалено, всё работает как было. Журнал: $RUN_URL" '{status:"failed", error:$e}' > result.json
+          elif [ "$APPLY" = "success" ] && [ "$ALIGN" = "failure" ]; then
+            jq -n --arg e "Настройки применены, но сервисы не перешли на новую настройку пула соединений. Журнал: $RUN_URL" '{status:"failed", error:$e}' > result.json
+          elif [ "$APPLY" = "success" ] && [ "$UPGRADE" = "true" ]; then
+            jq -n --arg e "Настройки применены, но обновление базы не закончилось (старая база работает). Журнал: $RUN_URL" '{status:"failed", error:$e}' > result.json
+          elif [ "$APPLY" = "success" ]; then
             jq -n --arg r "${RECORDED:-none}" '{status:"done", recorded:$r}' > result.json
           else
             jq -n --arg e "Применение не удалось. Журнал: $RUN_URL" '{status:"failed", error:$e}' > result.json
@@ -260,4 +393,5 @@ jobs:
         if: always()
         run: |
           rm -f infra/envs/prod/terraform.tfvars infra/envs/prod/current-images.auto.tfvars \
-            infra/envs/prod/plan.bin infra/envs/prod/plan.json infra/envs/prod/*.log job.json decision.json serving.txt
+            infra/envs/prod/plan.bin infra/envs/prod/plan.json infra/envs/prod/*.log job.json decision.json serving.txt \
+            pooler.json td.json td.new.json

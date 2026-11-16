@@ -20,6 +20,7 @@ async function make(
     otpResult?: 'ok' | 'invalid' | 'expired' | 'locked';
     noPassword?: boolean;
     throttle?: Record<string, jest.Mock>;
+    settings?: { number: jest.Mock };
   } = {},
 ) {
   const passwords = new PasswordService();
@@ -52,6 +53,11 @@ async function make(
       remaining: 1,
       retryAfterSeconds: 30,
     }),
+    consumeFixedWindow: jest.fn().mockResolvedValue({
+      allowed: true,
+      remaining: 0,
+      retryAfterSeconds: 0,
+    }),
   };
   const otp = {
     requestOtp: jest.fn().mockResolvedValue(undefined),
@@ -78,7 +84,7 @@ async function make(
     loginMethods as never,
     bans as never,
     revocation as never,
-    undefined,
+    opts.settings as never,
     undefined,
     undefined,
     undefined,
@@ -271,6 +277,57 @@ describe('PasswordAuthService', () => {
         service.requestReset({ identifier: 'sofia@example.com' }, META),
       ).rejects.toThrow('phone number only');
       expect(otp.requestOtp).not.toHaveBeenCalled();
+    });
+
+    it('R2-A #17: a second reset request inside the SMS wait sends no second SMS, same answer', async () => {
+      const settings = {
+        number: jest.fn((key: string) =>
+          Promise.resolve(key === 'sms.resend_cooldown_seconds' ? 60 : 5),
+        ),
+      };
+      const { service, otp, rateLimit } = await make({ settings });
+      rateLimit.consumeFixedWindow
+        .mockResolvedValueOnce({
+          allowed: true,
+          remaining: 0,
+          retryAfterSeconds: 0,
+        })
+        .mockResolvedValueOnce({
+          allowed: false,
+          remaining: 0,
+          retryAfterSeconds: 59,
+        });
+      const first = await service.requestReset(
+        { identifier: '+14155552680' },
+        META,
+      );
+      const second = await service.requestReset(
+        { identifier: '+14155552680' },
+        META,
+      );
+      expect(first).toEqual({ sent: true, channel: 'phone' });
+      expect(second).toEqual(first);
+      expect(otp.requestOtp).toHaveBeenCalledTimes(1);
+      expect(rateLimit.consumeFixedWindow).toHaveBeenCalledWith(
+        ['sms-reset-resend', 'h(+14155552680)'],
+        1,
+        60,
+      );
+    });
+
+    it('R2-A #17: with the wait set to 0 every request sends', async () => {
+      const settings = { number: jest.fn(() => Promise.resolve(0)) };
+      const { service, otp, rateLimit } = await make({ settings });
+      // 0 also means "no cap" for the per-hour/day reset limits here.
+      rateLimit.consumeSlidingWindow.mockResolvedValue({
+        allowed: true,
+        remaining: 1,
+        retryAfterSeconds: 0,
+      });
+      await service.requestReset({ identifier: '+14155552680' }, META);
+      await service.requestReset({ identifier: '+14155552680' }, META);
+      expect(otp.requestOtp).toHaveBeenCalledTimes(2);
+      expect(rateLimit.consumeFixedWindow).not.toHaveBeenCalled();
     });
 
     it('sends nothing for an unknown account but answers the same', async () => {

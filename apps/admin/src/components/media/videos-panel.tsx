@@ -173,7 +173,7 @@ export function VideosPanel() {
           selectedCount={sel.selected.size}
           noun={VIDEOS}
           onClear={sel.clear}
-          onSelectAll={async () => {
+          onSelectAll={async (cap) => {
             // Already deleted assets can't be taken down again.
             const r = await collectIds(
               async (c) => {
@@ -181,6 +181,7 @@ export function VideosPanel() {
                 return { data: p.data, nextCursor: p.meta?.nextCursor };
               },
               (v) => v.status !== 'deleted',
+              cap,
             );
             sel.replace(r.ids);
             return r.capped;

@@ -61,12 +61,13 @@ jobs:
 
       - name: Self-tests of the CI helper scripts
         run: |
-          node --test scripts/ci/flag-first-check.test.mjs scripts/ci/npm-audit-gate.test.mjs scripts/ci/rollout-guard.test.mjs
+          node --test scripts/ci/flag-first-check.test.mjs scripts/ci/npm-audit-gate.test.mjs scripts/ci/rollout-guard.test.mjs scripts/ci/pgbouncer-switch-on.test.mjs scripts/infra/pooler-switch.test.mjs scripts/infra/plan-summary.test.mjs scripts/deploy/autoscale-code-hash.test.mjs apps/api/prisma/verify-schema-runtime.test.mjs
           bash scripts/ci/require-green.test.sh
           bash scripts/ci/require-secrets.test.sh
           bash scripts/ci/wait-earlier-prod-change.test.sh
           bash scripts/deploy/current-tag.test.sh
           bash scripts/deploy/run-migrations.test.sh
+          bash scripts/infra/pooler-roll.test.sh
           bash scripts/deploy/wait-data-stores-idle.test.sh
           bash scripts/deploy/web-font-base.test.sh
           bash scripts/ci/require-ecr.test.sh
@@ -75,6 +76,11 @@ jobs:
           bash scripts/ci/select-xcode.test.sh
           bash scripts/ci/mobile-web-parity.test.sh
           bash scripts/deploy/web-size-budget.test.sh
+          # Row 170: the engine folder, the compressed small files, the prune guard.
+          python3 -m unittest discover -s scripts/deploy -p 'test_*.py'
+          node scripts/deploy/web-boot-head.test.mjs
+          bash scripts/deploy/web-gzip-big.test.sh
+          bash scripts/deploy/web-prune-releases.test.sh
           node --test scripts/ci/migration-role-check.test.mjs
 
       # OPEN_ITEMS_SWEEP 2026-11-09 C-c9: the docs name the DB user migrations
