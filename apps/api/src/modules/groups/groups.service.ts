@@ -46,6 +46,10 @@ import {
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
+import {
+  FeatureFlagsService,
+  GROUPS_FLAG,
+} from '../feature-flags/feature-flags.public';
 import { FilesService } from '../files/files.service';
 import { decodeOffset, encodeOffset } from '../recommendations/offset-cursor';
 import { RecommendationsService } from '../recommendations/recommendations.service';
@@ -196,7 +200,28 @@ export class GroupsService {
     // Replica seam: the discover rows come from a cached snapshot anyway.
     @Optional() private readonly replica?: PrismaReadService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    // Owner 2026-11-16 (row 183): the admin switch «Группы».
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
+
+  /** Owner 2026-11-16 (row 183): with the admin switch «Группы» off (the
+   * default) group chats exist for nobody — every user request is refused
+   * the way channels are with «Сообщества» off (ChannelsService
+   * .assertEnabled). The groups' data stays; the admin pages still work. */
+  async assertEnabled(): Promise<void> {
+    if (!(await this.enabled())) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Group chats are not available yet.',
+      });
+    }
+  }
+
+  /** The switch «Группы» as a yes / no; a missing row reads as on, as
+   * channels do (the catalog creates it off on boot). */
+  async enabled(): Promise<boolean> {
+    return !this.flags || (await this.flags.isEnabled(GROUPS_FLAG, true));
+  }
 
   /** `groups.max_members` (admin), never above the hard ceiling. */
   private async maxMembers(): Promise<number> {
@@ -229,6 +254,7 @@ export class GroupsService {
 
   /** For the calls module: 404 unless [userId] is in the group. */
   async assertMember(userId: string, groupId: string): Promise<Membership> {
+    await this.assertEnabled();
     return this.requireMember(userId, groupId);
   }
 
@@ -268,6 +294,7 @@ export class GroupsService {
     archived = false,
     updatedSinceRaw?: string,
   ): Promise<GroupPage> {
+    await this.assertEnabled();
     const since = parseUpdatedSince(updatedSinceRaw);
     if (since) return this.listChanged(user, archived, since);
     const c = cursor ? decodeCursor(cursor) : undefined;
@@ -374,6 +401,7 @@ export class GroupsService {
   }
 
   async get(user: RequestUser, id: string): Promise<GroupDetailDto> {
+    await this.assertEnabled();
     return this.detail(user.sub, id);
   }
 
@@ -418,6 +446,7 @@ export class GroupsService {
     cursor?: string,
     limit = MEMBERS_PAGE_DEFAULT,
   ): Promise<GroupMemberPage> {
+    await this.assertEnabled();
     await this.requireMember(user.sub, id);
     const after = cursor ? decodeMemberCursor(cursor) : null;
     const page = await memberPage(this.prisma, id, limit, after);
@@ -434,6 +463,7 @@ export class GroupsService {
     limit = MESSAGES_PAGE,
     topicId?: string,
   ): Promise<GroupMessagePage> {
+    await this.assertEnabled();
     await this.requireMember(user.sub, id);
     const c = cursor ? decodeCursor(cursor) : undefined;
     const topic = topicId ? await this.topicOf(id, topicId) : null;
@@ -490,6 +520,7 @@ export class GroupsService {
     afterId: string,
     topicId?: string,
   ): Promise<GroupMessagePage> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     const topic = topicId ? await this.topicOf(id, topicId) : null;
     const anchor = await this.prisma.chatGroupMessage.findFirst({
@@ -541,6 +572,7 @@ export class GroupsService {
     user: RequestUser,
     dto: CreateGroupDto,
   ): Promise<GroupDetailDto> {
+    await this.assertEnabled();
     // Owner 2026-10-22 (audit #4 §6): `rate_limit.group_create_per_day`.
     await this.limits?.consume('group_create', user.sub);
     if (dto.avatarFileId) {
@@ -624,6 +656,7 @@ export class GroupsService {
     id: string,
     dto: UpdateGroupDto,
   ): Promise<GroupDetailDto> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     const settings =
       dto.whoCanPost !== undefined ||
@@ -833,6 +866,7 @@ export class GroupsService {
   }
 
   async resetInvite(user: RequestUser, id: string): Promise<GroupDetailDto> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (!m.can('invite')) throw forbidden();
     if (m.group.group_type === 'private') {
@@ -851,6 +885,7 @@ export class GroupsService {
   }
 
   async deleteGroup(user: RequestUser, id: string): Promise<void> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (m.role !== 'owner')
       throw forbidden('Only the owner can delete the group.');
@@ -869,6 +904,7 @@ export class GroupsService {
     id: string,
     dto: AddGroupMembersDto,
   ): Promise<GroupDetailDto> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (!(m.can('invite') || m.group.who_can_add === 'all')) throw forbidden();
     const wanted = await this.addableIds(user.sub, dto.userIds);
@@ -953,6 +989,7 @@ export class GroupsService {
 
   /** My pending invitations (the group cards in Requests). */
   async myInvites(user: RequestUser): Promise<GroupInviteDto[]> {
+    await this.assertEnabled();
     const rows = await this.prisma.chatGroupInvite.findMany({
       where: {
         invitee_id: user.sub,
@@ -1018,6 +1055,7 @@ export class GroupsService {
     user: RequestUser,
     inviteId: string,
   ): Promise<GroupInvitePreviewDetailDto> {
+    await this.assertEnabled();
     const row = await this.myInvite(user.sub, inviteId);
     const [invite] = await this.inviteDtos([row]);
     if (!invite) throw notFound();
@@ -1066,6 +1104,7 @@ export class GroupsService {
     user: RequestUser,
     inviteId: string,
   ): Promise<GroupJoinResultDto> {
+    await this.assertEnabled();
     const row = await this.myInvite(user.sub, inviteId);
     const existing = await this.prisma.chatGroupMember.findUnique({
       where: {
@@ -1098,6 +1137,7 @@ export class GroupsService {
   }
 
   async declineInvite(user: RequestUser, inviteId: string): Promise<void> {
+    await this.assertEnabled();
     const row = await this.myInvite(user.sub, inviteId);
     await this.prisma.chatGroupInvite.update({
       where: { id: row.id },
@@ -1112,6 +1152,7 @@ export class GroupsService {
     id: string,
     targetId: string,
   ): Promise<GroupDetailDto> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (targetId === user.sub) throw forbidden('Use leave instead.');
     if (!m.can('ban')) throw forbidden();
@@ -1131,6 +1172,7 @@ export class GroupsService {
   }
 
   async leave(user: RequestUser, id: string): Promise<void> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (m.role === 'owner') {
       // Hand the group to the longest-serving admin, else member.
@@ -1160,6 +1202,7 @@ export class GroupsService {
     role: 'admin' | 'member',
     rights?: GroupAdminRight[],
   ): Promise<GroupDetailDto> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (!m.can('admins')) throw forbidden('Only the owner can do that.');
     const target = await this.prisma.chatGroupMember.findUnique({
@@ -1215,6 +1258,7 @@ export class GroupsService {
     id: string,
     targetId: string,
   ): Promise<GroupDetailDto> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (m.role !== 'owner') throw forbidden('Only the owner can do that.');
     if (targetId === user.sub) throw forbidden();
@@ -1306,6 +1350,7 @@ export class GroupsService {
     user: RequestUser,
     code: string,
   ): Promise<GroupInvitePreviewDto> {
+    await this.assertEnabled();
     const g = await this.byCode(code);
     return (await this.previews([g], user.sub, code))[0];
   }
@@ -1315,6 +1360,7 @@ export class GroupsService {
     user: RequestUser,
     q: string,
   ): Promise<GroupInvitePreviewDto[]> {
+    await this.assertEnabled();
     const query = communityQuery(q);
     if (!query) return [];
     const found = await this.prisma.chatGroup.findMany({
@@ -1354,6 +1400,7 @@ export class GroupsService {
     cursor?: string,
     limit = 15,
   ): Promise<GroupDiscoverPageDto> {
+    await this.assertEnabled();
     const ranked = await this.reco.communities(user.sub, 'group');
     const start = decodeOffset(cursor);
     const slice = ranked.slice(start, start + limit);
@@ -1426,6 +1473,7 @@ export class GroupsService {
   }
 
   async join(user: RequestUser, code: string): Promise<GroupJoinResultDto> {
+    await this.assertEnabled();
     const g = await this.byCode(code);
     const existing = await this.prisma.chatGroupMember.findUnique({
       where: { group_id_user_id: { group_id: g.id, user_id: user.sub } },
@@ -1466,6 +1514,7 @@ export class GroupsService {
     user: RequestUser,
     id: string,
   ): Promise<GroupJoinRequestDto[]> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (!m.can('invite')) throw forbidden();
     const rows = await this.prisma.chatGroupJoinRequest.findMany({
@@ -1486,6 +1535,7 @@ export class GroupsService {
     userId: string,
     approve: boolean,
   ): Promise<GroupJoinRequestDto[]> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (!m.can('invite')) throw forbidden();
     const req = await this.prisma.chatGroupJoinRequest.findUnique({
@@ -1705,6 +1755,7 @@ export class GroupsService {
     dto: SendGroupMessageDto,
     opts: { forwardedFromName?: string | null; push?: boolean } = {},
   ): Promise<GroupMessageDto> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (!(m.admin || m.group.who_can_post === 'all')) {
       throw forbidden('Only admins can write in this group.');
@@ -1839,6 +1890,7 @@ export class GroupsService {
     user: RequestUser,
     messageId: string,
   ): Promise<ForwardContent> {
+    await this.assertEnabled();
     // Only the id is known here (the forward picker), so this probes the
     // primary key of every hash partition: one call per forward.
     const row = await this.prisma.chatGroupMessage.findFirst({
@@ -1889,6 +1941,7 @@ export class GroupsService {
     user: RequestUser,
     groupId: string,
   ): Promise<ForwardContent> {
+    await this.assertEnabled();
     const { group: g } = await this.requireMember(user.sub, groupId);
     const handle =
       g.group_type === 'public' && g.username
@@ -1918,6 +1971,7 @@ export class GroupsService {
     content: ForwardContent,
     opts: { topicId?: string; silent?: boolean } = {},
   ): Promise<GroupMessageDto> {
+    await this.assertEnabled();
     const photos = content.kind === 'post' ? (content.photoFileIds ?? []) : [];
     const parts: ForwardContent[] =
       photos.length > 0
@@ -2000,6 +2054,7 @@ export class GroupsService {
     messageId: string,
     body: string,
   ): Promise<GroupMessageDto> {
+    await this.assertEnabled();
     await this.requireMember(user.sub, id);
     const row = await this.prisma.chatGroupMessage.findFirst({
       where: { id: messageId, group_id: id },
@@ -2030,6 +2085,7 @@ export class GroupsService {
     id: string,
     messageId: string,
   ): Promise<void> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     const row = await this.prisma.chatGroupMessage.findFirst({
       where: { id: messageId, group_id: id },
@@ -2055,6 +2111,7 @@ export class GroupsService {
     id: string,
     messageId: string | null,
   ): Promise<GroupDetailDto> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (!(m.can('pin') || m.group.who_can_pin === 'all')) throw forbidden();
     let row: ChatGroupMessage | null = null;
@@ -2098,6 +2155,7 @@ export class GroupsService {
     id: string,
     lastReadMessageId: string,
   ): Promise<{ lastReadMessageId: string | null }> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     const target = await this.prisma.chatGroupMessage.findFirst({
       where: { id: lastReadMessageId, group_id: id },
@@ -2165,6 +2223,7 @@ export class GroupsService {
     id: string,
     dto: UpdateGroupMeDto,
   ): Promise<GroupDto> {
+    await this.assertEnabled();
     await this.requireMember(user.sub, id);
     const data: Prisma.ChatGroupMemberUpdateInput = {};
     if (dto.mutedUntil !== undefined) {
@@ -2198,6 +2257,7 @@ export class GroupsService {
     id: string,
     updatedSinceRaw?: string,
   ): Promise<GroupTopicDto[] | SyncPage<GroupTopicDto>> {
+    await this.assertEnabled();
     const since = parseUpdatedSince(updatedSinceRaw);
     const m = await this.requireMember(user.sub, id);
     if (!m.group.topics_enabled) {
@@ -2231,6 +2291,7 @@ export class GroupsService {
     id: string,
     dto: CreateTopicDto,
   ): Promise<GroupTopicDto> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (!m.can('info')) throw forbidden();
     this.requireTopicsOn(m.group);
@@ -2280,6 +2341,7 @@ export class GroupsService {
     topicId: string,
     dto: UpdateTopicDto,
   ): Promise<GroupTopicDto[]> {
+    await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     if (!m.can('info')) throw forbidden();
     this.requireTopicsOn(m.group);

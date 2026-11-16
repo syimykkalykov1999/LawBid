@@ -22,6 +22,9 @@ export interface FlagDef {
   retired?: boolean;
 }
 
+/** Owner 2026-11-16 (row 183): the switch «Группы» (its entry is below). */
+export const GROUPS_FLAG = 'groups';
+
 export const FLAG_CATALOG: readonly FlagDef[] = [
   {
     // Owner 2026-10-16: the app must never run at a loss paying third
@@ -114,6 +117,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: false,
     app: true,
     description: 'Channels: posts from admins to subscribers',
+  },
+  {
+    // Owner 2026-11-16 (row 183): group chats get their own switch like
+    // «Сообщества», OFF by default: off = no groups anywhere for users (app,
+    // web) and the API refuses every group request; the groups' data stays.
+    key: GROUPS_FLAG,
+    enabled: false,
+    app: true,
+    description: 'Group chats: create, join, messages, polls, invitations',
   },
   {
     // Owner 2026-10-20: attorneys publish free slots, clients book a

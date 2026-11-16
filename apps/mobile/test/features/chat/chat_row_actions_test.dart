@@ -137,6 +137,8 @@ void main() {
           extra: [
             chatRepositoryProvider.overrideWithValue(repo),
             groupRepositoryProvider.overrideWithValue(groupRepo),
+            // Row 183: the switch «Группы» is off by default.
+            groupsEnabledProvider.overrideWithValue(true),
             currentUserIdProvider.overrideWithValue('me'),
             realtimeClientProvider.overrideWithValue(null),
             if (typing.isNotEmpty)

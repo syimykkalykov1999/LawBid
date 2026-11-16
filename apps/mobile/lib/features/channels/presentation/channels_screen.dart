@@ -194,7 +194,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final searching = _query.isNotEmpty;
     final scope = searching ? ChannelScope.discover : _tab;
     final recommended = scope == ChannelScope.discover && !searching;
-    if ((_kinds[_listKey] ?? _Kind.groups) == _Kind.groups) {
+    // Row 183: with «Группы» off only the channels are there.
+    final groupsOn = ref.watch(groupsEnabledProvider);
+    if (groupsOn && (_kinds[_listKey] ?? _Kind.groups) == _Kind.groups) {
       final q = _query.toLowerCase();
       return (
         groups: recommended
@@ -270,13 +272,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           children: [
             const SizedBox(height: AppSpacing.sm),
             const AppSheetHandle(),
-            AppListRow(
-              key: const ValueKey('channels-new-group'),
-              icon: AppIcons.groupAddOutlined,
-              label: t.t('group.new'),
-              showChevron: false,
-              onTap: () => Navigator.of(ctx).pop('group'),
-            ),
+            // Row 183: no «Новая группа» while «Группы» is off.
+            if (ref.read(groupsEnabledProvider))
+              AppListRow(
+                key: const ValueKey('channels-new-group'),
+                icon: AppIcons.groupAddOutlined,
+                label: t.t('group.new'),
+                showChevron: false,
+                onTap: () => Navigator.of(ctx).pop('group'),
+              ),
             AppListRow(
               key: const ValueKey('channels-new-channel'),
               icon: AppIcons.campaignOutlined,
@@ -385,6 +389,10 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final recommended = scope == ChannelScope.discover && query.isEmpty;
     final key = (scope: scope, query: query);
+    // Row 183: with «Группы» off the page is the channels only — no
+    // «Groups | Channels» pills, no group rows.
+    final groupsOn = ref.watch(groupsEnabledProvider);
+    final kindNow = groupsOn ? _kind : _Kind.channels;
     final picking = ref.watch(chatSelectionProvider);
     final selection = ref.read(chatSelectionProvider.notifier);
 
@@ -533,25 +541,26 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
 
     return Column(
       children: [
-        PillTabs<_Kind>(
-          key: const ValueKey('channels-kind'),
-          value: _kind,
-          tabs: [
-            (_Kind.groups, t.t('channel.section.groups')),
-            (_Kind.channels, t.t('channel.title')),
-          ],
-          onChanged: _pick,
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            AppSpacing.xs,
-            AppSpacing.screenSide,
-            AppSpacing.xs,
+        if (groupsOn)
+          PillTabs<_Kind>(
+            key: const ValueKey('channels-kind'),
+            value: kindNow,
+            tabs: [
+              (_Kind.groups, t.t('channel.section.groups')),
+              (_Kind.channels, t.t('channel.title')),
+            ],
+            onChanged: _pick,
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.xs,
+              AppSpacing.screenSide,
+              AppSpacing.xs,
+            ),
           ),
-        ),
         Expanded(
           child: SwipePages<_Kind>(
-            value: _kind,
-            values: _Kind.values,
+            value: kindNow,
+            values: groupsOn ? _Kind.values : const [_Kind.channels],
             onChanged: _pick,
             pageBuilder: (_, kind) => kind == _Kind.groups
                 ? list(_Kind.groups, groupRows)

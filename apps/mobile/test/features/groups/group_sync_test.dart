@@ -32,6 +32,8 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         groupRepositoryProvider.overrideWithValue(repo),
+        // Row 183: the switch «Группы» is off by default.
+        groupsEnabledProvider.overrideWithValue(true),
         realtimeClientProvider.overrideWithValue(null),
         realtimeEventsProvider.overrideWithValue(events.stream),
         currentUserIdProvider.overrideWithValue('u1'),

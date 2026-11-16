@@ -55,6 +55,8 @@ void main() {
           groupRepositoryProvider.overrideWithValue(
             groups ?? FakeGroupRepository([listGroup('g1'), listGroup('g2')]),
           ),
+          // Row 183: the switch «Группы» is off by default.
+          groupsEnabledProvider.overrideWithValue(true),
           currentUserRoleProvider.overrideWithValue(role),
         ],
         child: MaterialApp.router(

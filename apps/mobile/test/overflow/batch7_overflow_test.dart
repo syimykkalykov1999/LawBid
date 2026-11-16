@@ -189,6 +189,8 @@ void main() {
               listGroup('a2', pinned: true),
             ],
         ),
+        // Row 183: the switch «Группы» is off by default.
+        groupsEnabledProvider.overrideWithValue(true),
       ],
     ),
     'channels archive': (
