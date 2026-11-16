@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { saveConfig } from '@/lib/config-save';
 import {
   carryingLine,
   checkLine,
@@ -86,11 +87,8 @@ export function CallsTransportCard({
   const pick = (st: CostState) =>
     guarded(
       async () => {
-        await api.PUT('/admin/config/{key}', {
-          params: { path: { key: 'calls.transport' } },
-          // The contract types `value` as an opaque object; a string is valid here.
-          body: { value: TRANSPORT_OF_STATE[st] } as never,
-        });
+        // Row 179: checked against the version this tab saw (lib/config-save.ts).
+        await saveConfig(qc, 'calls.transport', TRANSPORT_OF_STATE[st]);
         await qc.invalidateQueries({ queryKey: KEY });
       },
       { success: `Связь для звонков: ${COST_STATE_WORD[st]}` },

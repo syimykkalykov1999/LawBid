@@ -19,6 +19,10 @@ import { infraSuggestions, type SuggestionSignals } from './infra-change.logic';
  * scale in after a long cool-down) and Kubernetes HPA's stabilization
  * window. Everything here is pure; infra-auto.service.ts does the I/O.
  */
+/** The main/applied hash pair one aws.autoscale_code request is made for. */
+export const autoscaleCodePair = (main: string, applied: string): string =>
+  `${main}|${applied}`;
+
 export const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000';
 
 export interface AutoSignals extends SuggestionSignals {
@@ -27,6 +31,11 @@ export interface AutoSignals extends SuggestionSignals {
    * main (deploy.yml) and the one the last apply shipped (Terraform). */
   autoscaleCodeMain?: string | null;
   autoscaleCodeApplied?: string | null;
+  /** 15.11 (KNOWN_ERRORS 176): the main/applied pair «Авто» already asked
+   * for. The main hash is written only by a finished deploy, so while
+   * deploys wait behind cloud changes it stays old and the pair never meets:
+   * one request per pair, again only after infra.autoscale_code_retry_hours. */
+  autoscaleCodeTried?: string | null;
   /** A table in partition «Авто» / «Вкл» is at 80 % of partition.auto_rows
    * (or «Вкл» at any size) and the runner has no login yet. */
   partitionNeedsRunner: boolean;
@@ -246,7 +255,9 @@ export function autoWants(
   if (
     s.autoscaleCodeMain &&
     s.autoscaleCodeApplied &&
-    s.autoscaleCodeMain !== s.autoscaleCodeApplied
+    s.autoscaleCodeMain !== s.autoscaleCodeApplied &&
+    s.autoscaleCodeTried !==
+      autoscaleCodePair(s.autoscaleCodeMain, s.autoscaleCodeApplied)
   ) {
     out.push({
       id: 'aws.autoscale_code',
