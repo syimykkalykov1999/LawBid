@@ -4,7 +4,7 @@ import {
   QueryClient,
   type QueryKey,
 } from '@tanstack/react-query';
-import { ApiError } from '@/lib/api/client';
+import { ApiError, takeSettingsWrite } from '@/lib/api/client';
 import { countsQuery } from '@/lib/live';
 import { queryRetryDelay, shouldRetryQuery } from '@/lib/query-retry';
 
@@ -88,8 +88,56 @@ export const REFERENCE_KEYS = [
   'trust-settings',
 ] as const;
 
+/**
+ * Row 179: the keys that show app_config / feature_flags rows — Настройки,
+ * Функции and every section's own «Настройки» card. They are re-read on
+ * every window focus (another admin, or the owner on his phone, may have
+ * saved; one light request, 304 when unchanged) and invalidated together
+ * after any settings save in this tab or another tab of this browser.
+ */
+export const SETTINGS_KEYS: readonly string[] = [
+  'config',
+  'flags',
+  ...REFERENCE_KEYS.filter((k) => k.endsWith('-settings')),
+];
 /** Reference keys re-read on every window focus (row 179). */
-export const FOCUS_REFETCH_KEYS = ['config', 'flags'] as const;
+export const FOCUS_REFETCH_KEYS = SETTINGS_KEYS;
+
+/** Is [key] one of the settings screens (SETTINGS_KEYS)? */
+export function isSettingsKey(key: QueryKey): boolean {
+  return SETTINGS_KEYS.includes(String(key[0]));
+}
+
+const SETTINGS_CHANNEL = 'lawbid-admin-settings';
+
+/**
+ * Row 179: after a settings save every settings screen re-reads once
+ * (TanStack `invalidateQueries`: the ones on screen now, the rest when they
+ * open next — never on every open). `cancelRefetch: false` joins a read the
+ * save's own optimistic `onSettled` already started instead of a second one.
+ */
+export function invalidateSettings(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({ predicate: (q) => isSettingsKey(q.queryKey) }, { cancelRefetch: false });
+}
+
+/**
+ * Row 179: the other admin tabs of this browser learn about a save at once
+ * (BroadcastChannel, the cross-tab pattern of TanStack's
+ * broadcastQueryClient) and invalidate their settings keys too.
+ */
+export function connectSettingsTabs(client: QueryClient): () => void {
+  if (typeof BroadcastChannel === 'undefined') return () => undefined;
+  const channel = new BroadcastChannel(SETTINGS_CHANNEL);
+  channel.onmessage = () => void invalidateSettings(client);
+  return () => channel.close();
+}
+
+function announceSettingsSaved(): void {
+  if (typeof BroadcastChannel === 'undefined') return;
+  const channel = new BroadcastChannel(SETTINGS_CHANNEL);
+  channel.postMessage('saved');
+  channel.close();
+}
 
 /** Aggregates the server recounts on its own schedule. */
 export const AGGREGATE_KEYS = ['dashboard', 'trust-stats', 'fraud-stats', 'economy'] as const;
@@ -153,7 +201,7 @@ export function queryClassOf(key: QueryKey): QueryClass {
 /** The data-class defaults on [client] (TanStack `setQueryDefaults`). */
 export function applyQueryClassDefaults(client: QueryClient): QueryClient {
   for (const k of REFERENCE_KEYS)
-    client.setQueryDefaults([k], { staleTime: REFERENCE_STALE_MS, gcTime: PERSISTED_GC_MS });
+    if (!FOCUS_REFETCH_KEYS.includes(k)) client.setQueryDefaults([k], { staleTime: REFERENCE_STALE_MS, gcTime: PERSISTED_GC_MS });
   // Owner 14.11 (row 179, detective R3A-6): settings and switches another
   // admin (or the owner on his phone) may have changed re-read when the tab
   // gets focus, even while fresh — one light request, 304 when unchanged.
@@ -184,6 +232,16 @@ export function makeQueryClient(toastSink: ErrorSink = { current: null }): Query
         // badges re-read at once (one light request, 304 when unchanged).
         onSuccess: () => {
           void client.invalidateQueries({ queryKey: countsQuery.queryKey });
+        },
+        // Row 179: a settings save (or a 409 «изменено другим») seen by the
+        // API client re-reads every settings screen here and in the other
+        // tabs. After this tick, so the save's own onSettled read goes first
+        // and this one joins it (TanStack runs cache hooks before the
+        // mutation's own).
+        onSettled: () => {
+          if (!takeSettingsWrite()) return;
+          setTimeout(() => void invalidateSettings(client), 0);
+          announceSettingsSaved();
         },
       }),
       defaultOptions: {

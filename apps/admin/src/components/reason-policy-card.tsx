@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
+import { saveConfig } from '@/lib/config-save';
 import { REASON_AREAS, REASON_AREAS_KEY } from '@/lib/reason-policy';
 
 /**
@@ -22,8 +23,8 @@ export function ReasonPolicyCard() {
   const raw = (entry?.value ?? entry?.defaultValue) as unknown;
   const on = new Set(Array.isArray(raw) ? (raw as string[]) : []);
   const save = useMutation({
-    mutationFn: (next: string[]) =>
-      api.PUT('/admin/config/{key}', { params: { path: { key: REASON_AREAS_KEY } }, body: { value: next } as never }),
+    // Row 179: checked against the version this tab saw (lib/config-save.ts).
+    mutationFn: (next: string[]) => saveConfig(qc, REASON_AREAS_KEY, next),
     onSuccess: () => {
       toast.success('Сохранено');
       void qc.invalidateQueries({ queryKey: ['config'] });

@@ -14,6 +14,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { api, errorText } from "@/lib/api/client";
+import { isStale, saveConfig } from "@/lib/config-save";
 import { optimistic, patchRow } from "@/lib/optimistic";
 import { useMe } from "@/lib/hooks";
 import { CONFIG_TYPE, label } from "@/lib/labels";
@@ -1599,27 +1600,26 @@ function FullConfigPage() {
   // SPEED_MATRIX 2026-11-09: the row shows the new value at once; the
   // server confirms, a refusal puts the old value back (lib/optimistic.ts).
   const save = useMutation({
-    mutationFn: async (v: { key: string; value: unknown }) => {
-      // Owner 14.11 (row 179): what this tab saw (null = the default); a
-      // newer save elsewhere → 409 «изменено другим», the row re-reads.
-      const seen = q.data?.find((e) => e.key === v.key);
-      const r = await api.PUT("/admin/config/{key}", {
-        params: { path: { key: v.key } },
-        // The contract types `value` as an opaque object; any JSON value is valid here.
-        body: { value: v.value, ...(seen ? { expectedUpdatedAt: seen.updatedAt } : {}) } as never,
-      });
-      const saved = r.data?.data;
-      if (saved)
-        qc.setQueryData<Entry[]>(["config"], (rows) =>
-          rows?.map((e) => (e.key === v.key ? { ...e, updatedAt: saved.updatedAt } : e)),
-        );
-      return r;
-    },
+    // Owner 14.11 (row 179): what this tab saw (null = the default); a
+    // newer save elsewhere → 409 «изменено другим», the row re-reads.
+    mutationFn: (v: { key: string; value: unknown }) => saveConfig(qc, v.key, v.value),
     ...optimistic<Entry[], { key: string; value: unknown }>(
       qc,
       ["config"],
       patchRow((e, v) => ({ ...e, value: v.value, stored: true })),
-      { onError: (e) => toast.error(e) },
+      {
+        onError: (e, v) => {
+          toast.error(e);
+          // Row 179: the field shows the fresh value, not the stale draft;
+          // the owner types again and saves on top of it.
+          if (isStale(e))
+            setDrafts((d) => {
+              const next = { ...d };
+              delete next[v.key];
+              return next;
+            });
+        },
+      },
     ),
     onSuccess: (_r, v) => {
       toast.success(`Сохранено: ${v.key}`);
