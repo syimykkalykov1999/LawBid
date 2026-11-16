@@ -39,9 +39,15 @@ import {
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   AUTOSCALE_TUNING_SCHEMA,
+  checkEcsCapacity,
   validateAutoscaleTuning,
   type AutoscaleTarget,
 } from '../../common/ops/autoscale-tuning';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import {
+  EconomyService,
+  readMaxTasks,
+} from '../../common/economy/economy.service';
 import { SsmParamGateway } from '../../common/ops/ssm-param.gateway';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import {
@@ -81,6 +87,8 @@ export class AdminSpendController {
     private readonly registry: CostRegistryService,
     private readonly ssm: SsmParamGateway,
     @Optional() private readonly awsOps?: AwsOpsService,
+    @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly economy?: EconomyService,
   ) {}
 
   /** Owner 14.11: every number of the Redis / database «Авто» (Lambda
@@ -168,10 +176,38 @@ export class AdminSpendController {
     for (const [k, v] of Object.entries(dto.values ?? {})) {
       if (v === null) delete next[k];
     }
+    // Owner 15.11: the floor is not above the owner's ceiling
+    // (`scale.max_tasks.<kind>`) and a Spot split keeps one weight above 0.
+    if (t === 'ecs') {
+      const max = this.settings ? await readMaxTasks(this.settings) : {};
+      const errors = checkEcsCapacity(next, max);
+      if (errors.length) {
+        throw new HttpException(
+          {
+            code: E.VALIDATION_ERROR,
+            message: `Out of bounds: ${errors.join('; ')}.`,
+            details: { errors },
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
     await this.ssm.setTuning(t, next);
-    // ECS has no Lambda: the API applies the numbers now (PutScalingPolicy).
-    const applied =
-      t === 'ecs' && this.awsOps ? await this.awsOps.applyScaling(next) : null;
+    // ECS has no Lambda: the API applies the numbers now (PutScalingPolicy,
+    // owner 15.11: the floor with RegisterScalableTarget). The Spot split
+    // reaches the spot-fallback Lambda through ops/scale-controls.json,
+    // published at once; its next tick (≤ 5 min) rolls a deployment.
+    let applied: Prisma.InputJsonObject | null = null;
+    if (t === 'ecs' && this.awsOps) {
+      const policies = await this.awsOps.applyScaling(next);
+      const min = await this.awsOps.applyMinTasks(next);
+      applied = {
+        changed: policies.changed,
+        missing: policies.missing,
+        min: { ...min },
+      };
+      await this.economy?.publishScaleControls();
+    }
     await this.audit.record({
       adminId: admin.id,
       action: 'ops.autoscale_tuning',

@@ -999,8 +999,9 @@ resource "aws_appautoscaling_target" "api_admin" {
   resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.api_admin[0].name}"
   min_capacity       = var.api_admin_tasks
   max_capacity       = var.api_admin_max_tasks
-  # The app (economy job) writes the owner's ceiling scale.max_tasks.api_admin.
-  lifecycle { ignore_changes = [max_capacity] }
+  # The app (economy job) writes the owner's ceiling scale.max_tasks.api_admin;
+  # owner 15.11: the floor is the admin's too (api_admin.min_tasks).
+  lifecycle { ignore_changes = [max_capacity, min_capacity] }
 }
 
 resource "aws_appautoscaling_policy" "api_admin_cpu" {
@@ -1146,8 +1147,9 @@ resource "aws_appautoscaling_target" "admin" {
   resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.admin.name}"
   min_capacity       = var.admin_tasks
   max_capacity       = var.admin_max_tasks
-  # The app (economy job) writes the owner's ceiling scale.max_tasks.admin.
-  lifecycle { ignore_changes = [max_capacity] }
+  # The app (economy job) writes the owner's ceiling scale.max_tasks.admin;
+  # owner 15.11: the floor is the admin's too (admin.min_tasks).
+  lifecycle { ignore_changes = [max_capacity, min_capacity] }
 }
 
 resource "aws_appautoscaling_policy" "admin_cpu" {
@@ -1191,8 +1193,11 @@ resource "aws_appautoscaling_target" "svc" {
   # is moved by the app (economy.guard job, RegisterScalableTarget) from
   # the revenue rule; terraform apply must not reset it to the cap. The
   # first creation still uses the cap, the job lowers it within 5 minutes.
+  # Owner 15.11 («сделай настраиваемыми»): the floor is the admin's too
+  # (`<kind>.min_tasks` in SSM ecs-scaling/tuning, AwsOpsService
+  # .applyMinTasks); Terraform's number is only the first value.
   lifecycle {
-    ignore_changes = [max_capacity]
+    ignore_changes = [max_capacity, min_capacity]
   }
 }
 
@@ -1202,15 +1207,22 @@ resource "aws_appautoscaling_target" "svc" {
 # is active `terraform plan` shows the target's min_capacity as drift; it is
 # restored by the morning action.
 locals {
+  # The configured day floor. Owner 15.11: read from the variables, not from
+  # the target (its min_capacity is ignored and, refreshed at night, would be
+  # the night value).
+  day_min = {
+    api    = coalesce(var.api_min_tasks, var.min_tasks)
+    worker = var.min_tasks
+  }
   # auto: half the normal minimum, never below night_min_tasks; on: night_min_tasks.
   night_min = {
-    for k, t in aws_appautoscaling_target.svc : k =>
-    var.night_scale_mode == "on" ? var.night_min_tasks : max(var.night_min_tasks, ceil(t.min_capacity / 2))
+    for k, m in local.day_min : k =>
+    var.night_scale_mode == "on" ? var.night_min_tasks : max(var.night_min_tasks, ceil(m / 2))
   }
 }
 
 resource "aws_appautoscaling_scheduled_action" "night_down" {
-  for_each           = var.night_scale_mode != "off" ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > local.night_min[k] } : {}
+  for_each           = var.night_scale_mode != "off" ? { for k, t in aws_appautoscaling_target.svc : k => t if local.day_min[k] > local.night_min[k] } : {}
   name               = "${var.name}-${each.key}-night-down"
   service_namespace  = each.value.service_namespace
   scalable_dimension = each.value.scalable_dimension
@@ -1223,7 +1235,7 @@ resource "aws_appautoscaling_scheduled_action" "night_down" {
 }
 
 resource "aws_appautoscaling_scheduled_action" "morning_up" {
-  for_each           = var.night_scale_mode != "off" ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > local.night_min[k] } : {}
+  for_each           = var.night_scale_mode != "off" ? { for k, t in aws_appautoscaling_target.svc : k => t if local.day_min[k] > local.night_min[k] } : {}
   name               = "${var.name}-${each.key}-morning-up"
   service_namespace  = each.value.service_namespace
   scalable_dimension = each.value.scalable_dimension
@@ -1231,8 +1243,12 @@ resource "aws_appautoscaling_scheduled_action" "morning_up" {
   schedule           = var.night_end_cron
   timezone           = "UTC"
   scalable_target_action {
-    min_capacity = each.value.min_capacity
+    min_capacity = local.day_min[each.key]
   }
+  # Owner 15.11: the admin's floor moves this action too (PutScheduledAction,
+  # AwsOpsService.applyMinTasks), else every morning would put Terraform's
+  # floor back; an apply keeps the admin's.
+  lifecycle { ignore_changes = [scalable_target_action] }
 }
 
 resource "aws_appautoscaling_policy" "cpu" {
