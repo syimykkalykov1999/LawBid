@@ -25,6 +25,9 @@ const ALLOWED = new Set([
   'partitioning/partition.service.ts',
   'partitioning/sql.ts',
   'prisma/prisma.service.ts',
+  // Rows 8 / 9 (15.11): a read that met a gone read copy is handed to the
+  // primary unchanged — the caller's own text and bound values, no new SQL.
+  'prisma/prisma-read.service.ts',
   // Shard-ready step 10: the move tool; SQL text is built from the model
   // manifest (checked identifiers), every value is a bound parameter.
   'sharding/move/move-db.ts',

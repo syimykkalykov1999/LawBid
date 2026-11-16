@@ -73,3 +73,60 @@ test("the site's own .well-known never reaches the publish (D1-48)", () => {
   assert.equal(existsSync(join(seo, '.well-known/assetlinks.json')), false);
   assert.equal(read('.well-known/apple-app-site-association'), '{}');
 });
+
+// R2 row 171 (14.11): the site's sitemap listed /clients, /pricing … without
+// the trailing slash while each page's canonical is /clients/ (TRAILING_SLASH=1
+// export). The sitemap must carry the canonical form, in both modes.
+async function mergeWith(seoSitemap, siteLocs) {
+  const s = mkdtempSync(join(tmpdir(), 'seo-slash-'));
+  const w = mkdtempSync(join(tmpdir(), 'site-slash-'));
+  if (seoSitemap) put(s, 'sitemap.xml', seoSitemap);
+  if (seoSitemap && seoSitemap.includes('sitemapindex')) {
+    put(s, 'sitemaps/attorneys-1.xml', '<urlset><url><loc>https://lawbid.dev/attorneys/a/</loc></url></urlset>');
+  }
+  put(w, 'sitemap.xml', `<urlset>${siteLocs.map((l) => `<url><loc>${l}</loc></url>`).join('')}</urlset>`);
+  await mergeSite({ seo: s, site: w, siteUrl: 'https://lawbid.dev' });
+  return (p) => readFileSync(join(s, p), 'utf8');
+}
+const allLocs = (xml) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+const siteLocs = [
+  'https://lawbid.dev',
+  'https://lawbid.dev/clients',
+  'https://lawbid.dev/pricing',
+  'https://lawbid.dev/faq/',
+  'https://lawbid.dev/legal/terms',
+  'https://lawbid.dev/llms.txt',
+];
+
+test('site addresses get the canonical trailing slash (plain sitemap)', async () => {
+  const read = await mergeWith('<urlset><url><loc>https://lawbid.dev/lawyers/</loc></url></urlset>', siteLocs);
+  assert.deepEqual(allLocs(read('sitemap.xml')), [
+    'https://lawbid.dev/',
+    'https://lawbid.dev/lawyers/',
+    'https://lawbid.dev/clients/',
+    'https://lawbid.dev/pricing/',
+    'https://lawbid.dev/faq/',
+    'https://lawbid.dev/legal/terms/',
+    'https://lawbid.dev/llms.txt',
+  ]);
+});
+
+test('site addresses get the canonical trailing slash (sitemaps/site-1.xml)', async () => {
+  const read = await mergeWith(
+    '<sitemapindex><sitemap><loc>https://lawbid.dev/sitemaps/attorneys-1.xml</loc></sitemap></sitemapindex>',
+    siteLocs,
+  );
+  assert.deepEqual(allLocs(read('sitemaps/site-1.xml')), [
+    'https://lawbid.dev/',
+    'https://lawbid.dev/clients/',
+    'https://lawbid.dev/pricing/',
+    'https://lawbid.dev/faq/',
+    'https://lawbid.dev/legal/terms/',
+    'https://lawbid.dev/llms.txt',
+  ]);
+});
+
+test('a site address with and without the slash is listed once', async () => {
+  const read = await mergeWith('', ['https://lawbid.dev/clients', 'https://lawbid.dev/clients/']);
+  assert.deepEqual(allLocs(read('sitemap.xml')), ['https://lawbid.dev/', 'https://lawbid.dev/clients/']);
+});

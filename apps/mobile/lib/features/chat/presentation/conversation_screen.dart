@@ -280,6 +280,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       onPlace: () => unawaited(_sendPlace()),
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
       prepareVideo: _prepareVideo,
+      // Row 199: photos open in the preview's editor, one compression.
+      keepOriginals: true,
       fromDisk: ref
           .read(featureFlagsControllerProvider)
           .isEnabled('chat_files_from_disk'),

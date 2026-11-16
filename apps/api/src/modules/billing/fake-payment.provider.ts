@@ -744,6 +744,9 @@ export class FakePaymentProvider implements PaymentProvider {
       refundApplicationFee: boolean;
     }
   >();
+  /** Stripe idempotency: a repeated key returns the first refund and
+   * moves no more money (docs.stripe.com/api/idempotent_requests). */
+  private readonly refundByKey = new Map<string, ProviderRefund>();
 
   // ---- Stripe robustness 2026-10-27 (dev / tests) ------------------------
   readonly disputes = new Map<
@@ -1015,7 +1018,14 @@ export class FakePaymentProvider implements PaymentProvider {
     refundApplicationFee: boolean;
     idempotencyKey: string;
   }): Promise<ProviderRefund> {
+    const seen = this.refundByKey.get(input.idempotencyKey);
+    if (seen) return Promise.resolve(seen);
     const id = `re_fake_${randomUUID().slice(0, 12)}`;
+    this.refundByKey.set(input.idempotencyKey, {
+      id,
+      status: 'succeeded',
+      failureReason: null,
+    });
     this.connectedRefunds.set(id, {
       accountId: input.accountId,
       paymentIntentId: input.paymentIntentId,

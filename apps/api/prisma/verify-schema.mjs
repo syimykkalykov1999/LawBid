@@ -18,6 +18,7 @@
 // SCHEMA_DRIFT_CHECK: fail (default) | warn | off — repository variable,
 // passed in by run-migrations.sh. Prints table/column names only.
 import { spawnSync } from 'node:child_process';
+import { onlyRuntimeTables } from './verify-schema-runtime.mjs';
 
 const mode = (process.env.SCHEMA_DRIFT_CHECK || 'fail').trim().toLowerCase();
 if (mode === 'off') {
@@ -55,6 +56,13 @@ const diff = prisma([
 ]);
 if (diff.status === 0) {
   console.log(`schema check: database matches schema.prisma (${models} models)`);
+  process.exit(0);
+}
+// 15.11 (KNOWN_ERRORS 167): tables the app creates itself at run time.
+if (diff.status === 2 && onlyRuntimeTables(`${diff.stdout || ''}${diff.stderr || ''}`)) {
+  console.log(
+    `schema check: database matches schema.prisma (${models} models; run-time tables of the partition runner left as they are)`,
+  );
   process.exit(0);
 }
 const summary = `${diff.stdout || ''}${diff.stderr || ''}`

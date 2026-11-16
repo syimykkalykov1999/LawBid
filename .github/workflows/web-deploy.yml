@@ -236,11 +236,14 @@ jobs:
       # get the optical-size axis pinned at its default (the web engine never
       # moves it, so the pixels stay the same): brotli 546 -> ~300 KB before
       # the first frame. Phones keep the full files from assets/.
+      # Row 128 (2026-11-15): plus only the OpenType features the web shaper
+      # can apply (~300 -> ~254 KB); the step shapes ~31 000 texts at 9
+      # weights with HarfBuzz in both files and fails on any difference.
       - name: Web text fonts without the optical-size axis
         working-directory: apps/mobile
         run: |
           python3 -m venv "$RUNNER_TEMP/fonttools"
-          "$RUNNER_TEMP/fonttools/bin/pip" install -q fonttools==4.68.0
+          "$RUNNER_TEMP/fonttools/bin/pip" install -q fonttools==4.68.0 uharfbuzz==0.57.0
           "$RUNNER_TEMP/fonttools/bin/python" tool/slim_fonts.py web build/web/assets/assets/fonts
 
       # The push worker needs the same keys (it cannot read the build's).
@@ -404,7 +407,8 @@ jobs:
           DEST: s3://${{ secrets.WEB_BUCKET }}/releases/${{ env.RELEASE_SHA }}
         run: |
           # App screens read spa.html (marked noindex), the home page index.html.
-          cp index.html spa.html
+          # R2 row 174: a noindex screen must not name / as its canonical.
+          sed '/rel="canonical"/d' index.html > spa.html
           # The page-level files: the browser asks again every time (a 304
           # when nothing changed); CloudFront keeps them for good, its cache
           # key is the release path.

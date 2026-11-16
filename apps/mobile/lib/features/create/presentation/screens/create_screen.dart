@@ -37,7 +37,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   /// closes (as the full editor did), cancelled — the chooser stays.
   Future<void> _newTask() async {
     final saved = await showPlannerTaskSheet(context, ref);
-    if (saved && mounted) await Navigator.of(context).maybePop(true);
+    if (saved && mounted) context.safeLeave(result: true);
   }
 
   @override

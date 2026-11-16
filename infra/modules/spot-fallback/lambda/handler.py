@@ -12,11 +12,14 @@ Two triggers (modules/spot-fallback/main.tf):
 Switch: SSM parameter MODE_PARAM = on | dry-run | off (operations). Owner's
 admin control `scale.spot_fallback.mode` (off | on | auto) arrives in the S3
 object ops/scale-controls.json written by the economy job. State per service
-in SSM STATE_PARAM. Manual: {"action": "status"} prints what it sees.
+in SSM STATE_PARAM. The admin's numbers (owner 15.11, row 20: the quiet
+hold etc.) in SSM TUNING_PARAM, read on every run over the Terraform TUNING.
+Manual: {"action": "status"} prints what it sees.
 """
 
 import json
 import os
+from dataclasses import replace
 from datetime import datetime, timezone
 
 import decision as d
@@ -68,26 +71,56 @@ def write_state(env, states):
     )
 
 
-def wanted(env):
-    """{"api": Want, ...} of the services Terraform put on Spot."""
+def wanted(env, controls=None):
+    """{"api": Want, ...} of the services Terraform put on Spot. Owner 15.11
+    («сделай настраиваемыми»): the admin's split per service from the
+    control file (`spot_fallback.want`, written by the economy job from SSM
+    ecs-scaling/tuning) replaces Terraform's normal strategy; a malformed
+    entry keeps Terraform's."""
     raw = json.loads(env.get("SERVICES") or "{}")
-    return {
-        name: d.Want(base=int(w.get("base", 1)), fargate=int(w.get("fargate", 1)), spot=int(w.get("spot", 4)))
-        for name, w in raw.items()
-    }
+    admin = ((controls or {}).get("spot_fallback") or {}).get("want") or {}
+    out = {}
+    for name, w in raw.items():
+        want = d.Want(base=int(w.get("base", 1)), fargate=int(w.get("fargate", 1)), spot=int(w.get("spot", 4)))
+        out[name] = admin_want(want, admin.get(name) if isinstance(admin, dict) else None)
+    return out
 
 
-def read_control(env):
-    """Owner's admin control off | on | auto (unreadable = auto)."""
+def admin_want(want, a):
+    """Terraform's Want with the admin's numbers over it, inside AWS's bounds
+    (CapacityProviderStrategyItem: base 0-100000, weight 0-1000, one weight
+    above 0); anything else = Terraform's Want unchanged."""
+    if not isinstance(a, dict):
+        return want
+    vals = {}
+    for k, hi in (("base", 100000), ("fargate", 1000), ("spot", 1000)):
+        v = a.get(k, getattr(want, k))
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not float(v).is_integer() or not 0 <= v <= hi:
+            return want
+        vals[k] = int(v)
+    if vals["fargate"] + vals["spot"] == 0:
+        return want
+    return d.Want(**vals)
+
+
+def read_controls(env):
+    """The whole control file (owner's admin controls); unreadable = {}."""
     bucket, key = env.get("CONTROLS_BUCKET"), env.get("CONTROLS_KEY")
     if not bucket or not key:
-        return "auto"
+        return {}
     try:
         raw = client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
-        mode = json.loads(raw).get("spot_fallback", {}).get("mode")
-        return mode if mode in ("on", "off", "auto") else "auto"
+        j = json.loads(raw)
+        return j if isinstance(j, dict) else {}
     except Exception:  # noqa: BLE001 - never block on the control file
-        return "auto"
+        return {}
+
+
+def read_control(env, controls=None):
+    """Owner's admin control off | on | auto (unreadable = auto)."""
+    j = read_controls(env) if controls is None else controls
+    mode = (j.get("spot_fallback") or {}).get("mode") if isinstance(j, dict) else None
+    return mode if mode in ("on", "off", "auto") else "auto"
 
 
 def _aware(t):
@@ -155,6 +188,58 @@ def spot_failure(event):
     return str(res[0]).rsplit("/", 1)[-1] if res else None
 
 
+def tuning_schema():
+    """The knobs the admin may change (owner 15.11, row 20): key -> Russian
+    label, bounds and kind. The same file feeds the admin page (API spec
+    checks). Copied from modules/endpoints-autoscale/lambda/handler.py."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tuning_schema.json")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def apply_admin_tuning(cfg, raw):
+    """(cfg, skipped keys). The admin's JSON from SSM `<prefix>/tuning` over
+    the Terraform TUNING; a key outside the schema or its bounds is skipped
+    (and logged by the caller), never fatal."""
+    if not raw:
+        return cfg, []
+    try:
+        body = json.loads(raw)
+    except ValueError:
+        return cfg, ["<not json>"]
+    if not isinstance(body, dict):
+        return cfg, ["<not an object>"]
+    schema, changes, skipped = tuning_schema(), {}, []
+    for k, v in body.items():
+        s = schema.get(k)
+        ok = s is not None and isinstance(v, (int, float)) and not isinstance(v, bool)
+        ok = ok and s["min"] <= v <= s["max"]
+        if ok and s["kind"] in ("integer", "flag"):
+            ok = float(v).is_integer()
+        if not ok:
+            skipped.append(k)
+            continue
+        changes[k] = bool(v) if s["kind"] == "flag" else (int(v) if s["kind"] == "integer" else float(v))
+    return replace(cfg, **changes), skipped
+
+
+def read_admin_tuning(cfg, env=os.environ):
+    """The admin's tuning, when TUNING_PARAM names it; a missing parameter
+    or an SSM error leaves the Terraform numbers."""
+    name = env.get("TUNING_PARAM")
+    if not name:
+        return cfg
+    try:
+        raw = client("ssm").get_parameter(Name=name)["Parameter"]["Value"]
+    except Exception as e:  # ParameterNotFound, AccessDenied: keep the defaults
+        print(json.dumps({"event": "admin_tuning_unread", "error": type(e).__name__}))
+        return cfg
+    cfg, skipped = apply_admin_tuning(cfg, raw)
+    if skipped:
+        print(json.dumps({"event": "admin_tuning_skipped", "keys": skipped}))
+    return cfg
+
+
 RU = {
     "fallback": "перевожу на обычные серверы Fargate (Spot сейчас нет)",
     "restore": "возвращаю на Spot (по одному, без перерыва)",
@@ -163,10 +248,11 @@ RU = {
 
 def lambda_handler(event, context, env=os.environ):
     now = datetime.now(timezone.utc)
-    cfg = d.Config(**json.loads(env.get("TUNING") or "{}"))
-    want = wanted(env)
+    cfg = read_admin_tuning(d.Config(**json.loads(env.get("TUNING") or "{}")), env)
+    controls = read_controls(env)
+    want = wanted(env, controls)
     mode = ssm_get(env["MODE_PARAM"], "on")
-    control = read_control(env)
+    control = read_control(env, controls)
     states = read_state(env)
     failed = spot_failure(event)
     names = [failed] if failed else list(want)

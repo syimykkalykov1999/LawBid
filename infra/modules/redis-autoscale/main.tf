@@ -14,7 +14,7 @@
 # "terraform apply" never undoes a resize.
 terraform {
   required_providers {
-    aws     = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws     = { source = "hashicorp/aws", version = "~> 6.72" }
     archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
 }
@@ -45,6 +45,15 @@ variable "kms_key_arn" {
   description = "Key of the alerts topic (the Lambda must be allowed to publish to an encrypted topic) and of the log group."
 }
 
+variable "engine" {
+  type        = string
+  default     = "redis"
+  description = "Engine of the group (stack redis_engine): only picks the price row (Valkey nodes about 20 % cheaper)."
+  validation {
+    condition     = contains(["redis", "valkey"], var.engine)
+    error_message = "engine: redis or valkey."
+  }
+}
 variable "ladder" {
   type = list(string)
   default = [
@@ -134,18 +143,35 @@ data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
 locals {
-  # hourly = per node, on demand, us-east-1, Redis (AWS Price List API,
-  # 2026-10-24); monthly = hourly x 730 x nodes. memory_gib = ElastiCache
-  # node memory (maxmemory is a fixed share of it, so percent scales with GiB).
-  # baseline = CPU % of one core a burstable node holds without spending
-  # credits. speed = single-core speed of the Redis engine thread, t4g = 1.
+  # hourly = per node, on demand, us-east-1, AWS Price List API
+  # (get-products AmazonElastiCache, usagetype NodeUsage:<type>): Redis OSS
+  # 2026-10-24, Valkey 2026-11-15 18:59Z (about 20 % lower). monthly =
+  # hourly x 730 x nodes. memory_gib = ElastiCache node memory (maxmemory is a
+  # fixed share of it, so percent scales with GiB). baseline = CPU % of one
+  # core a burstable node holds without spending credits. speed =
+  # single-core speed of the engine main thread, t4g = 1.
+  # 2026-11-15: cache.r8g / cache.m8g (Graviton4) are offered for Valkey and
+  # Memcached only, not for the Redis OSS engine (AWS Price List API +
+  # describe-reserved-cache-nodes-offerings), so r7g stays the memory class of
+  # the ladder; on Valkey r8g.large is $0.1756/h for 14.18 GiB vs r7g.large
+  # $0.1752/h for 13.07 GiB (a later ladder move, with the admin max class).
+  node_hourly = {
+    redis = {
+      "cache.t4g.micro" = 0.016, "cache.t4g.small" = 0.032, "cache.t4g.medium" = 0.065,
+      "cache.r7g.large" = 0.219, "cache.r7g.xlarge" = 0.437, "cache.r7g.2xlarge" = 0.873,
+    }
+    valkey = {
+      "cache.t4g.micro" = 0.0128, "cache.t4g.small" = 0.0256, "cache.t4g.medium" = 0.052,
+      "cache.r7g.large" = 0.1752, "cache.r7g.xlarge" = 0.3496, "cache.r7g.2xlarge" = 0.6984,
+    }
+  }
   node_specs = {
-    "cache.t4g.micro"   = { vcpu = 2, memory_gib = 0.5, hourly = 0.016, baseline = 10, speed = 1.0 }
-    "cache.t4g.small"   = { vcpu = 2, memory_gib = 1.37, hourly = 0.032, baseline = 20, speed = 1.0 }
-    "cache.t4g.medium"  = { vcpu = 2, memory_gib = 3.09, hourly = 0.065, baseline = 20, speed = 1.0 }
-    "cache.r7g.large"   = { vcpu = 2, memory_gib = 13.07, hourly = 0.219, baseline = null, speed = 1.3 }
-    "cache.r7g.xlarge"  = { vcpu = 4, memory_gib = 26.32, hourly = 0.437, baseline = null, speed = 1.3 }
-    "cache.r7g.2xlarge" = { vcpu = 8, memory_gib = 52.82, hourly = 0.873, baseline = null, speed = 1.3 }
+    "cache.t4g.micro"   = { vcpu = 2, memory_gib = 0.5, hourly = local.node_hourly[var.engine]["cache.t4g.micro"], baseline = 10, speed = 1.0 }
+    "cache.t4g.small"   = { vcpu = 2, memory_gib = 1.37, hourly = local.node_hourly[var.engine]["cache.t4g.small"], baseline = 20, speed = 1.0 }
+    "cache.t4g.medium"  = { vcpu = 2, memory_gib = 3.09, hourly = local.node_hourly[var.engine]["cache.t4g.medium"], baseline = 20, speed = 1.0 }
+    "cache.r7g.large"   = { vcpu = 2, memory_gib = 13.07, hourly = local.node_hourly[var.engine]["cache.r7g.large"], baseline = null, speed = 1.3 }
+    "cache.r7g.xlarge"  = { vcpu = 4, memory_gib = 26.32, hourly = local.node_hourly[var.engine]["cache.r7g.xlarge"], baseline = null, speed = 1.3 }
+    "cache.r7g.2xlarge" = { vcpu = 8, memory_gib = 52.82, hourly = local.node_hourly[var.engine]["cache.r7g.2xlarge"], baseline = null, speed = 1.3 }
   }
   ladder_json = [for c in var.ladder : {
     name       = c
@@ -159,8 +185,8 @@ locals {
   }]
   prefix    = "/${var.name}/redis-autoscale"
   fn_name   = "${var.name}-redis-autoscale"
-  rg_arn    = "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${var.replication_group_id}"
-  nodes_arn = "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster:${var.replication_group_id}-*"
+  rg_arn    = "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:replicationgroup:${var.replication_group_id}"
+  nodes_arn = "arn:aws:elasticache:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:cluster:${var.replication_group_id}-*"
   min_index = index(var.ladder, var.min_node_type)
   max_index = index(var.ladder, var.max_node_type)
 }
@@ -197,6 +223,18 @@ resource "aws_ssm_parameter" "max_class" {
   type        = "String"
   value       = var.initial_ceiling != "" ? var.initial_ceiling : var.max_node_type
   description = "Biggest size the money allows right now (cost registry V4). The app writes it from the allowed monthly spend; the Lambda treats it as a ceiling that can only be LOWER than max_node_type, never higher. Changing it here after creation is ignored."
+  tags        = var.tags
+  lifecycle { ignore_changes = [value] }
+}
+
+# Owner 14.11: every «Авто» number changeable from the admin without a
+# Terraform apply. JSON object of lambda/tuning_schema.json keys, written by
+# the admin (API), read by the Lambda on every run over TUNING (the defaults).
+resource "aws_ssm_parameter" "tuning" {
+  name        = "${local.prefix}/tuning"
+  type        = "String"
+  value       = "{}"
+  description = "Redis autoscale numbers from the admin (lambda/tuning_schema.json keys and bounds). Empty object = the Terraform defaults. Changing it here after creation is ignored."
   tags        = var.tags
   lifecycle { ignore_changes = [value] }
 }
@@ -261,7 +299,7 @@ data "aws_iam_policy_document" "lambda" {
     content {
       sid       = "EcsRolloutsOfThisCluster"
       actions   = ["ecs:DescribeServices"]
-      resources = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${var.cluster_name}/*"]
+      resources = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:service/${var.cluster_name}/*"]
     }
   }
   dynamic "statement" {
@@ -273,7 +311,7 @@ data "aws_iam_policy_document" "lambda" {
       condition {
         test     = "ArnEquals"
         variable = "ecs:cluster"
-        values   = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"]
+        values   = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"]
       }
     }
   }
@@ -293,7 +331,7 @@ data "aws_iam_policy_document" "lambda" {
   statement {
     sid       = "ModeAndState"
     actions   = ["ssm:GetParameter", "ssm:PutParameter"]
-    resources = [aws_ssm_parameter.mode.arn, aws_ssm_parameter.state.arn, aws_ssm_parameter.max_class.arn]
+    resources = [aws_ssm_parameter.mode.arn, aws_ssm_parameter.state.arn, aws_ssm_parameter.max_class.arn, aws_ssm_parameter.tuning.arn]
   }
   statement {
     sid       = "Logs"
@@ -311,7 +349,7 @@ resource "aws_lambda_function" "this" {
   function_name    = local.fn_name
   description      = "Redis size follows the load (docs/architecture/REDIS_AUTOSCALE.md)"
   role             = aws_iam_role.lambda.arn
-  runtime          = "python3.12"
+  runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "handler.lambda_handler"
   filename         = data.archive_file.lambda.output_path
@@ -334,6 +372,7 @@ resource "aws_lambda_function" "this" {
       STATE_PARAM      = aws_ssm_parameter.state.name
       MODE_PARAM       = aws_ssm_parameter.mode.name
       MAX_CLASS_PARAM  = aws_ssm_parameter.max_class.name
+      TUNING_PARAM     = aws_ssm_parameter.tuning.name
       CLUSTER          = var.cluster_name
       SERVICES         = join(",", var.service_names)
       NIGHT_TZ         = var.night_timezone
@@ -428,6 +467,7 @@ output "function_name" { value = aws_lambda_function.this.function_name }
 output "mode_parameter" { value = aws_ssm_parameter.mode.name }
 output "state_parameter" { value = aws_ssm_parameter.state.name }
 output "max_class_parameter" { value = aws_ssm_parameter.max_class.name }
+output "tuning_parameter" { value = aws_ssm_parameter.tuning.name }
 output "monthly_usd" {
   description = "Approximate on-demand price per month of the whole group (primary + replicas), by node type."
   value       = { for s in local.ladder_json : s.name => s.monthly_usd }

@@ -5260,6 +5260,8 @@
   "reviews.write.onlyAfterCase": "Abokin ciniki da ya kammala shari'a da wannan lauya ne kawai zai iya yin bita.",
   "reviews.write.saved": "An wallafa bita",
   "reviews.write.title": "Bitarku",
+  "router.notFound.home": "Gida",
+  "router.notFound.title": "Ba a sami shafin ba",
   "saved.chats.empty": "Babu saƙon da aka adana",
   "saved.copied": "An kwafa",
   "saved.empty": "Babu abin da aka adana tukuna",

@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
@@ -39,7 +40,7 @@ class ChannelFormScreen extends ConsumerWidget {
             appBar: AppTopBar(
               leading: AppBackButton(
                 semanticLabel: t.t('common.back'),
-                onPressed: () => Navigator.of(context).maybePop(),
+                onPressed: () => context.safeBack(),
               ),
             ),
             body: CasesErrorView(
@@ -285,7 +286,7 @@ class _FormState extends ConsumerState<_Form> {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: _saving ? () {} : () => Navigator.of(context).maybePop(),
+          onPressed: _saving ? () {} : () => context.safeBack(),
         ),
         title: Text(
           editing == null ? t.t('channel.create') : t.t('channel.edit'),
