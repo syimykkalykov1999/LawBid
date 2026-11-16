@@ -14,6 +14,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { api, errorText } from "@/lib/api/client";
+import { isStale, saveConfig } from "@/lib/config-save";
 import { optimistic, patchRow } from "@/lib/optimistic";
 import { useMe } from "@/lib/hooks";
 import { CONFIG_TYPE, label } from "@/lib/labels";
@@ -1127,6 +1128,32 @@ const KEY_TEXT: Record<string, string> = {
     "Третий сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления; данные переезжают ночью сами). Сам не удаляется: на нём данные. Меняется кнопками на странице «Масштаб». Ключ: infra.mode.db_shards_2.",
   "infra.mode.db_shards_3":
     "Четвёртый сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления; данные переезжают ночью сами). Сам не удаляется: на нём данные. Меняется кнопками на странице «Масштаб». Ключ: infra.mode.db_shards_3.",
+  "infra.mode.db_shards_4":
+    "Пятый сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 5. Ключ: infra.mode.db_shards_4.",
+  "infra.mode.db_shards_5":
+    "Шестой сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 6. Ключ: infra.mode.db_shards_5.",
+  "infra.mode.db_shards_6":
+    "Седьмой сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 7. Ключ: infra.mode.db_shards_6.",
+  "infra.mode.db_shards_7":
+    "Восьмой сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 8. Ключ: infra.mode.db_shards_7.",
+  "infra.mode.db_shards_8":
+    "Девятый сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 9. Ключ: infra.mode.db_shards_8.",
+  "infra.mode.db_shards_9":
+    "Десятый сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 10. Ключ: infra.mode.db_shards_9.",
+  "infra.mode.db_shards_10":
+    "Одиннадцатый сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 11. Ключ: infra.mode.db_shards_10.",
+  "infra.mode.db_shards_11":
+    "Двенадцатый сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 12. Ключ: infra.mode.db_shards_11.",
+  "infra.mode.db_shards_12":
+    "Тринадцатый сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 13. Ключ: infra.mode.db_shards_12.",
+  "infra.mode.db_shards_13":
+    "Четырнадцатый сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 14. Ключ: infra.mode.db_shards_13.",
+  "infra.mode.db_shards_14":
+    "Пятнадцатый сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 15. Ключ: infra.mode.db_shards_14.",
+  "infra.mode.db_shards_15":
+    "Шестнадцатый сервер базы: off = Выкл (само не создаётся), on = Вкл (держать), auto = Авто (по умолчанию: создаётся само, когда все серверы базы уже с данными и один подходит к порогу деления, если серверов не больше db.max_servers; данные переезжают ночью сами). Сам уходит только пустым. Строка видна на странице «Масштаб», когда db.max_servers не меньше 16. Ключ: infra.mode.db_shards_15.",
+  "db.max_servers":
+    "Сколько всего серверов базы может сделать «Авто» (основная база и дополнительные серверы деления, 1–16; по умолчанию 4). Поставьте 5, 6 и больше — «Авто» добавит пятый, шестой и следующие серверы, когда все серверы уже с данными и один подходит к порогу деления; строки этих серверов появятся на странице «Масштаб». Меняет только владелец, с кодом 2FA. Ключ: db.max_servers.",
   "db.shards_move_hours":
     "Когда можно само начинать деление базы: «ЧЧ:ММ-ЧЧ:ММ» по времени Чикаго, можно через полночь (02:00-05:00 по умолчанию). Пусто — в любое время.",
   "ha.mode":
@@ -1573,27 +1600,26 @@ function FullConfigPage() {
   // SPEED_MATRIX 2026-11-09: the row shows the new value at once; the
   // server confirms, a refusal puts the old value back (lib/optimistic.ts).
   const save = useMutation({
-    mutationFn: async (v: { key: string; value: unknown }) => {
-      // Owner 14.11 (row 179): what this tab saw (null = the default); a
-      // newer save elsewhere → 409 «изменено другим», the row re-reads.
-      const seen = q.data?.find((e) => e.key === v.key);
-      const r = await api.PUT("/admin/config/{key}", {
-        params: { path: { key: v.key } },
-        // The contract types `value` as an opaque object; any JSON value is valid here.
-        body: { value: v.value, ...(seen ? { expectedUpdatedAt: seen.updatedAt } : {}) } as never,
-      });
-      const saved = r.data?.data;
-      if (saved)
-        qc.setQueryData<Entry[]>(["config"], (rows) =>
-          rows?.map((e) => (e.key === v.key ? { ...e, updatedAt: saved.updatedAt } : e)),
-        );
-      return r;
-    },
+    // Owner 14.11 (row 179): what this tab saw (null = the default); a
+    // newer save elsewhere → 409 «изменено другим», the row re-reads.
+    mutationFn: (v: { key: string; value: unknown }) => saveConfig(qc, v.key, v.value),
     ...optimistic<Entry[], { key: string; value: unknown }>(
       qc,
       ["config"],
       patchRow((e, v) => ({ ...e, value: v.value, stored: true })),
-      { onError: (e) => toast.error(e) },
+      {
+        onError: (e, v) => {
+          toast.error(e);
+          // Row 179: the field shows the fresh value, not the stale draft;
+          // the owner types again and saves on top of it.
+          if (isStale(e))
+            setDrafts((d) => {
+              const next = { ...d };
+              delete next[v.key];
+              return next;
+            });
+        },
+      },
     ),
     onSuccess: (_r, v) => {
       toast.success(`Сохранено: ${v.key}`);

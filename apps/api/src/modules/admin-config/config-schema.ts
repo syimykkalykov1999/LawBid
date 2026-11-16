@@ -634,9 +634,31 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'infra.mode.rds_replicas_5',
     'infra.mode.db_shards_2',
     'infra.mode.db_shards_3',
+    'infra.mode.db_shards_4',
+    'infra.mode.db_shards_5',
+    'infra.mode.db_shards_6',
+    'infra.mode.db_shards_7',
+    'infra.mode.db_shards_8',
+    'infra.mode.db_shards_9',
+    'infra.mode.db_shards_10',
+    'infra.mode.db_shards_11',
+    'infra.mode.db_shards_12',
+    'infra.mode.db_shards_13',
+    'infra.mode.db_shards_14',
+    'infra.mode.db_shards_15',
   ]) {
     out[k] = { ...out[k], pattern: /^(off|on|auto)$/ };
   }
+  // Owner 15.11: database servers in all «Авто» may reach (owner only, 2FA:
+  // admin-config.service OWNER_ONLY_CONFIG_KEYS). 16 = the code's hard
+  // bound (infra-switches.ts DB_SERVERS_HARD_MAX).
+  out['db.max_servers'] = {
+    ...out['db.max_servers'],
+    description:
+      'Database servers in all (the primary plus the extra servers of the split) that the cloud automation may reach: it adds the fifth, sixth and further server only up to this number (1–16; default 4).',
+    min: 1,
+    max: 16,
+  };
   // Owner 15.11: search domain data nodes «Авто» may reach (owner only, 2FA:
   // admin-config.service OWNER_ONLY_CONFIG_KEYS). 10 = AWS limit for the T3
   // family (infra-switches.ts SEARCH_NODES_HARD_MAX); odd counts above 1 act
@@ -1405,6 +1427,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'How often, in minutes, the cloud automation and the HA copies look at the signals (one cycle; default 10, 1 for a live test). Every wait above counts in these cycles.',
     min: 1,
   };
+  out['infra.autoscale_code_retry_hours'] = {
+    type: 'integer',
+    defaultValue: 6,
+    description:
+      'Hours before «Авто» asks again to update the autoscale functions’ code for the same code versions (after a failed or no-op update).',
+    min: 1,
+  };
   out['infra.auto_max_usd_month'] = {
     type: 'integer',
     defaultValue: 100,
@@ -2077,6 +2106,7 @@ export const NO_CEILING: readonly string[] = [
   'infra.auto_off_minutes',
   'infra.auto_check_minutes',
   'infra.auto_max_usd_month',
+  'infra.autoscale_code_retry_hours',
   'economy.stripe_fee_percent',
   'economy.stripe_fee_fixed_cents',
   'economy.max_spend_percent',

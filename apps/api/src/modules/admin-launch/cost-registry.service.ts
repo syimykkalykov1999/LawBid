@@ -48,7 +48,10 @@ import {
   INFRA_SWITCH_IDS,
   InfraChangeService,
 } from './infra/infra-change.service';
-import { searchNodeRowShown } from '../../common/ops/infra-switches';
+import {
+  dbServerRowShown,
+  searchNodeRowShown,
+} from '../../common/ops/infra-switches';
 
 interface UsageSnap {
   at?: string;
@@ -500,6 +503,10 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
         );
       }),
     );
+    // Owner 15.11: server rows past db.max_servers stay off «Масштаб».
+    const maxServers = await Promise.resolve()
+      .then(() => this.settings.number('db.max_servers'))
+      .catch(() => undefined);
     // Owner 15.11: search node steps past search.max_nodes stay off «Масштаб».
     const maxSearchNodes = await Promise.resolve()
       .then(() => this.settings.number('search.max_nodes'))
@@ -575,8 +582,10 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
     return {
       generatedAt: now.toISOString(),
       spendRefreshedAt: spendReport.refreshedAt,
-      rows: rows.filter((r, i) =>
-        searchNodeRowShown(r.id, live[i].state, maxSearchNodes),
+      rows: rows.filter(
+        (r, i) =>
+          dbServerRowShown(r.id, live[i].state, maxServers) &&
+          searchNodeRowShown(r.id, live[i].state, maxSearchNodes),
       ),
       unclaimed: attr.unclaimed,
       ladder: {

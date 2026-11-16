@@ -42,6 +42,10 @@ function readCopies(f: NowFacts): number | null {
   return chain(f, ['aws.rds_replicas', 'aws.rds_replicas_2', 'aws.rds_replicas_3', 'aws.rds_replicas_4', 'aws.rds_replicas_5']);
 }
 
+/** The extra database server rows (the second server first … the sixteenth),
+ * as the API names them (common/ops/infra-switches.ts DB_SERVER_ROWS). */
+const DB_SERVER_ROWS: readonly string[] = Array.from({ length: 15 }, (_, i) => (i === 0 ? 'aws.db_shards' : `aws.db_shards_${i + 1}`));
+
 /** Rows that add one more of a thing (N-th copy, N-th server): how many are
  * on in a row from the first. null = nothing is known about the first. */
 function chain(f: NowFacts, ids: readonly string[]): number | null {
@@ -55,7 +59,9 @@ function chain(f: NowFacts, ids: readonly string[]): number | null {
 }
 
 function dbServers(f: NowFacts): number | null {
-  const extra = chain(f, ['aws.db_shards', 'aws.db_shards_2', 'aws.db_shards_3']);
+  // Owner 15.11: up to 15 extra servers (db.max_servers); a row the API
+  // does not send (past the maximum, not running) ends the chain.
+  const extra = chain(f, DB_SERVER_ROWS);
   return extra === null ? null : 1 + extra;
 }
 

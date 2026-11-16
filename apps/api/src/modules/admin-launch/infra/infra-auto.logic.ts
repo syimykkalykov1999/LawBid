@@ -1,5 +1,8 @@
 import type { InfraMode } from '../../../common/ops/infra-modes';
 import {
+  DB_SERVER_ROWS,
+  dbServerIndex,
+  maxDbServers,
   SEARCH_NODE_ROWS,
   maxSearchNodes,
   searchNodeCount,
@@ -19,6 +22,10 @@ import { infraSuggestions, type SuggestionSignals } from './infra-change.logic';
  * scale in after a long cool-down) and Kubernetes HPA's stabilization
  * window. Everything here is pure; infra-auto.service.ts does the I/O.
  */
+/** The main/applied hash pair one aws.autoscale_code request is made for. */
+export const autoscaleCodePair = (main: string, applied: string): string =>
+  `${main}|${applied}`;
+
 export const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000';
 
 export interface AutoSignals extends SuggestionSignals {
@@ -27,6 +34,11 @@ export interface AutoSignals extends SuggestionSignals {
    * main (deploy.yml) and the one the last apply shipped (Terraform). */
   autoscaleCodeMain?: string | null;
   autoscaleCodeApplied?: string | null;
+  /** 15.11 (KNOWN_ERRORS 176): the main/applied pair «Авто» already asked
+   * for. The main hash is written only by a finished deploy, so while
+   * deploys wait behind cloud changes it stays old and the pair never meets:
+   * one request per pair, again only after infra.autoscale_code_retry_hours. */
+  autoscaleCodeTried?: string | null;
   /** A table in partition «Авто» / «Вкл» is at 80 % of partition.auto_rows
    * (or «Вкл» at any size) and the runner has no login yet. */
   partitionNeedsRunner: boolean;
@@ -80,9 +92,12 @@ export interface AutoSignals extends SuggestionSignals {
    * at 80 % of the split threshold and every extra server already holds
    * data parts — the next server (third, fourth) is needed. */
   serversFull?: boolean;
-  /** Owner 2026-11-12: the extra database servers (`db1`, `db2`, `db3`)
+  /** Owner 2026-11-12: the extra database servers (`db1`, `db2`, …)
    * that hold no data at all (ShardMoveService.emptyServers). */
   emptyServers?: readonly string[];
+  /** Owner 15.11: `db.max_servers`, database servers in all (the primary
+   * plus the extra ones) «Авто» may reach (missing = 4, as before). */
+  maxServers?: number;
   /** Owner 2026-11-11: the position picked on «Масштаб» for each item the
    * automation switches (common/ops/infra-modes.ts; missing = Авто), and
    * the items the owner set to Авто himself (handed to the automation: it
@@ -244,7 +259,9 @@ export function autoWants(
   if (
     s.autoscaleCodeMain &&
     s.autoscaleCodeApplied &&
-    s.autoscaleCodeMain !== s.autoscaleCodeApplied
+    s.autoscaleCodeMain !== s.autoscaleCodeApplied &&
+    s.autoscaleCodeTried !==
+      autoscaleCodePair(s.autoscaleCodeMain, s.autoscaleCodeApplied)
   ) {
     out.push({
       id: 'aws.autoscale_code',
@@ -326,7 +343,9 @@ export function autoWants(
   // Owner 2026-11-11: the third and fourth servers, one after the other, on
   // the same rule once the servers before are taken (Aurora Limitless adds
   // capacity the same way). Switched off by itself only when empty (below).
-  const MORE = ['aws.db_shards', 'aws.db_shards_2', 'aws.db_shards_3'];
+  // Owner 15.11: and the fifth, sixth … up to `db.max_servers` in all (the
+  // filter at the end refuses a switch-on past it).
+  const MORE = DB_SERVER_ROWS;
   for (let i = 1; i < MORE.length; i++) {
     const id = MORE[i];
     const mode = s.modes?.[id] ?? 'auto';
@@ -538,9 +557,18 @@ export function autoWants(
       ) &&
       !(w.to === 'on' && modeOf(w.id) === 'off') &&
       !(w.to === 'off' && modeOf(w.id) === 'on') &&
+      // Owner 15.11: never more database servers than db.max_servers.
+      !(w.to === 'on' && overMaxServers(w.id, s.maxServers)) &&
       // Owner 15.11: never more search nodes than search.max_nodes.
       !(w.to === 'on' && overMaxSearchNodes(w.id, s.maxSearchNodes)),
   );
+}
+
+/** Owner 15.11: switching row [id] on would make more database servers in
+ * all (the primary + the extra ones) than `db.max_servers` allows. */
+export function overMaxServers(id: string, maxServers: unknown): boolean {
+  const n = dbServerIndex(id);
+  return n !== null && n + 1 > maxDbServers(maxServers);
 }
 
 /** Owner 15.11: switching row [id] on would give the search domain more data
@@ -792,9 +820,8 @@ export const AUTO_SCOPE: Readonly<Record<string, readonly RegExp[]>> = {
   'aws.rds_replicas_3': REPLICAS,
   'aws.rds_replicas_4': REPLICAS,
   'aws.rds_replicas_5': REPLICAS,
-  'aws.db_shards': SHARDS,
-  'aws.db_shards_2': SHARDS,
-  'aws.db_shards_3': SHARDS,
+  // Owner 15.11: every extra-server row (the second up to the sixteenth).
+  ...Object.fromEntries(DB_SERVER_ROWS.map((id) => [id, SHARDS])),
   // Owner 15.11: the domain and every node step (2, 4, 6, 8, 10).
   ...Object.fromEntries(SEARCH_NODE_ROWS.map((id) => [id, SEARCH])),
   'aws.events_stream': [

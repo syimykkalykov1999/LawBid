@@ -40,6 +40,7 @@ import {
   searchDomainSpare,
   wantKey,
   type AutoSignals,
+  autoscaleCodePair,
   type AutoWant,
 } from './infra-auto.logic';
 import {
@@ -73,6 +74,8 @@ export const SEARCH_LOG_KEY = SEARCH_AUTO_LOG_KEY;
 const TICK_MS = 60_000;
 const LOCK_KEY = 'ops:infra-auto:lock';
 const SEEN_KEY = 'ops:infra-auto:seen';
+/** KNOWN_ERRORS 176: the autoscale-code pair already asked for. */
+const CODE_TRIED_KEY = 'ops:infra-auto:autoscale-code-tried';
 const NOTIFIED_KEY = 'ops:infra-auto:notified';
 /** A held-back want is told to the owner at most once a day. */
 const HELD_PREFIX = 'ops:infra-auto:held:';
@@ -276,6 +279,32 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
             : `Облако: выключаю само «${entry.name}»`,
           `${want.reason} План и применение идут сами, результат придёт отдельным сообщением. Отменить: «Масштаб» → запрос → «Отменить» или «Откатить».`,
         );
+        if (
+          want.id === 'aws.autoscale_code' &&
+          signals.autoscaleCodeMain &&
+          signals.autoscaleCodeApplied
+        ) {
+          const hours = await this.settings.number(
+            'infra.autoscale_code_retry_hours',
+          );
+          const ttl = Math.max(
+            60,
+            Math.round(
+              (Number.isFinite(hours) && hours > 0 ? hours : 6) * 3600,
+            ),
+          );
+          await this.redis
+            ?.set(
+              CODE_TRIED_KEY,
+              autoscaleCodePair(
+                signals.autoscaleCodeMain,
+                signals.autoscaleCodeApplied,
+              ),
+              'EX',
+              ttl,
+            )
+            .catch(() => undefined);
+        }
         // The first-seen time of a want that acted starts over.
         delete seen[wantKey(want)];
         await this.redis
@@ -306,6 +335,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       searchOnPeople,
       shardsMode,
       shardGrowth,
+      maxServers,
     ] = await Promise.all([
       this.registry.signals(now),
       this.registry.searchEngine(),
@@ -322,6 +352,10 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
         .catch(() => undefined),
       this.settings.string('db.shards_mode').catch(() => 'auto'),
       this.shardGrowth().catch(() => undefined),
+      // Owner 15.11: unreadable = undefined = the default 4 (as before).
+      Promise.resolve()
+        .then(() => this.settings.number('db.max_servers'))
+        .catch(() => undefined),
     ]);
     const full = await this.serversFull().catch(() => false);
     const empty: string[] = await this.emptyServers().catch(() => []);
@@ -344,6 +378,9 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     const pool = Number(this.config.get<string>('DB_POOL_SIZE') ?? '');
     const pooler = !!this.config.get<string>('DB_POOLER_HOST');
     const code = await this.autoscaleCode();
+    const tried = this.redis
+      ? await this.redis.get(CODE_TRIED_KEY).catch(() => null)
+      : null;
     // Owner 15.11: search.max_nodes; unreadable = undefined = 4 (as before).
     const maxSearchNodes = await Promise.resolve()
       .then(() => this.settings.number('search.max_nodes'))
@@ -352,6 +389,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       maxSearchNodes,
       autoscaleCodeMain: code.main,
       autoscaleCodeApplied: code.applied,
+      autoscaleCodeTried: tried,
       pressures: s.pressures,
       budgetRatio: s.budgetRatio,
       searchEngine: engine,
@@ -379,6 +417,7 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       pickedAuto,
       serversFull: full,
       emptyServers: empty,
+      maxServers,
     };
   }
 

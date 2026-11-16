@@ -258,7 +258,7 @@ describe('infra switch whitelist', () => {
     expect(names).toEqual([...FORBIDDEN_DESTROY]);
   });
 
-  // Owner 15.11 (KNOWN_ERRORS 174): the AWS provider REPLACES the search
+  // Owner 15.11 (KNOWN_ERRORS 178): the AWS provider REPLACES the search
   // domain when engine_version skips an AWS hop or goes back. Switching the
   // engine off (a plain delete) stays allowed; a replacement never.
   it('the search domain may be switched off but never replaced', () => {

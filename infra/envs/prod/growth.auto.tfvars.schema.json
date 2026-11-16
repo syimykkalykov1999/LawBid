@@ -62,7 +62,7 @@
     "db_shards": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 3
+      "maximum": 15
     },
     "growth_switches": {
       "type": "object",

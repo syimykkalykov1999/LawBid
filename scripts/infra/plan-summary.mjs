@@ -34,7 +34,7 @@ export const FORBIDDEN_DESTROY = [
 const DESTROY_ALLOWED = [/aws_db_instance\.replica(\[|$)/];
 // Owner 15.11: may be deleted (switched off) but never REPLACED: the AWS
 // provider replaces an OpenSearch domain on a skipped version hop or a
-// downgrade (KNOWN_ERRORS 174). Same list as infra-switches.ts.
+// downgrade (KNOWN_ERRORS 178). Same list as infra-switches.ts.
 export const FORBIDDEN_REPLACE = ['aws_opensearch_domain'];
 
 export const NEVER_AUTO_DESTROY = [

@@ -1,6 +1,7 @@
 import type { CostEntry } from '../../../common/ops/cost-registry';
 import {
   INFRA_KEYS,
+  dbServerIndex,
   type InfraSwitch,
   type PlanResource,
   type InfraTarget,
@@ -261,13 +262,11 @@ export const REFUSAL_TEXT: Record<CreateRefusal, string> = {
 };
 
 /** Owner 2026-11-12: the extra database server a switch-off removes
- * (`aws.db_shards` off = db1, `_2` = db2, `_3` = db3), or null. */
+ * (`aws.db_shards` off = db1, `_2` = db2, … `_15` = db15), or null. */
 export function serverRemovedBy(itemId: string, to: string): string | null {
   if (to !== 'off') return null;
-  const n = ['aws.db_shards', 'aws.db_shards_2', 'aws.db_shards_3'].indexOf(
-    itemId,
-  );
-  return n < 0 ? null : `db${n + 1}`;
+  const n = dbServerIndex(itemId);
+  return n === null ? null : `db${n}`;
 }
 
 /** The values a request writes into growth.auto.tfvars.json. An automatic

@@ -67,6 +67,8 @@ export const OWNER_ONLY_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'verification.auto_decision.ai_request_info_enabled',
   // Owner 14.11 (row 179, B8): the 2FA window itself.
   'admin.step_up_ttl_seconds',
+  // Owner 15.11: how many database servers «Авто» may reach.
+  'db.max_servers',
   // Owner 15.11: how many search engine nodes «Авто» may reach.
   'search.max_nodes',
 ]);
@@ -188,7 +190,18 @@ export class AdminConfigService {
       // Owner 14.11 (row 179): refuse a save from a tab that saw an older row.
       if (dto.expectedUpdatedAt !== undefined) {
         const cur = await tx.featureFlag.findUnique({ where: { key } });
-        assertNotStale(cur?.updated_at ?? null, dto.expectedUpdatedAt);
+        assertNotStale(
+          cur?.updated_at ?? null,
+          dto.expectedUpdatedAt,
+          cur
+            ? {
+                key,
+                enabled: cur.enabled,
+                rolloutPercent: cur.rollout_percent,
+                updatedAt: cur.updated_at.toISOString(),
+              }
+            : undefined,
+        );
       }
       const updated = await tx.featureFlag.update({
         where: { key },
@@ -487,7 +500,12 @@ export class AdminConfigService {
     const row = await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({ where: { key } });
       if (expectedUpdatedAt !== undefined) {
-        assertNotStale(before?.updated_at ?? null, expectedUpdatedAt);
+        assertNotStale(before?.updated_at ?? null, expectedUpdatedAt, {
+          key,
+          value: before ? before.value : schema.defaultValue,
+          stored: Boolean(before),
+          updatedAt: before?.updated_at.toISOString() ?? null,
+        });
       }
       const updated = await tx.appConfig.upsert({
         where: { key },
@@ -772,11 +790,14 @@ function presentLegal(
  * Owner 14.11 (row 179, detective R3A-6): optimistic concurrency by the row's
  * updated_at (RFC 9110 §13.1.1 If-Match; common/concurrency/optimistic-lock.ts
  * uses a version column, these two tables have only updated_at). Inside the
- * serializable transaction, so two saves cannot both pass.
+ * serializable transaction, so two saves cannot both pass. Owner 15.11: the
+ * 409 carries the fresh row (`current`), so the admin shows it at once and
+ * the owner can save again (GitHub / Linear «changed elsewhere» refusal).
  */
 export function assertNotStale(
   current: Date | null,
   expected: string | null,
+  fresh?: Record<string, unknown>,
 ): void {
   const now = current ? current.toISOString() : null;
   const seen = expected === null ? null : new Date(expected).toISOString();
@@ -784,7 +805,7 @@ export function assertNotStale(
   throw new ConflictException({
     code: ErrorCode.STALE_VERSION,
     message: 'This setting was changed by someone else. Reload and try again.',
-    details: { currentUpdatedAt: now },
+    details: { currentUpdatedAt: now, ...(fresh ? { current: fresh } : {}) },
   });
 }
 

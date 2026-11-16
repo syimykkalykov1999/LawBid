@@ -148,7 +148,7 @@ variable "opensearch_volume_gb" {
 # engine_version) REPLACES the domain when the target is not in
 # get-compatible-versions: skipping 2.19 or going back would delete it.
 # plan-summary.mjs / infra-switches.ts refuse any replacement of
-# aws_opensearch_domain (FORBIDDEN_REPLACE, KNOWN_ERRORS 174).
+# aws_opensearch_domain (FORBIDDEN_REPLACE, KNOWN_ERRORS 178).
 variable "opensearch_engine_version" {
   type    = string
   default = "OpenSearch_2.15"
