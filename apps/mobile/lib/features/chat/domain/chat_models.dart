@@ -325,9 +325,6 @@ class CallLog {
   final int durationSec;
 }
 
-/// OQ-040: the audio of a voice message, like Telegram's.
-@immutable
-
 /// Owner row 146: a note recorded on the website in Firefox / Linux Chrome
 /// is Opus in WebM, which the iPhone's player (AVPlayer) cannot play; the
 /// server stores an AAC/M4A copy and sends it as `voice.m4aUrl`. The iPhone
@@ -349,6 +346,8 @@ String? playableVoiceUrl(
       : url;
 }
 
+/// OQ-040: the audio of a voice message, like Telegram's.
+@immutable
 class VoiceNote {
   const VoiceNote({
     required this.durationMs,
