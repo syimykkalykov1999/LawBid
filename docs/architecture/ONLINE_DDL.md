@@ -29,7 +29,7 @@
 |---|---|
 | `CREATE INDEX` без `CONCURRENTLY` на существующей таблице | Файл `prisma/concurrent/<14 цифр>_<имя>.sql`, см. §2 |
 | `ADD FOREIGN KEY` / `ADD CHECK` без `NOT VALID` | `... NOT VALID` в одной миграции, `VALIDATE CONSTRAINT` в **следующей** (в одной транзакции блокировка держится всё время проверки; Squawk это тоже ловит) |
-| `SET NOT NULL` на заполненной колонке | миграция 1: `ADD CONSTRAINT c CHECK (col IS NOT NULL) NOT VALID`; миграция 2: `VALIDATE CONSTRAINT c`; миграция 3: `SET NOT NULL` (с PostgreSQL 12 мгновенно, проверка берётся из валидного CHECK) и `DROP CONSTRAINT c` |
+| `SET NOT NULL` на заполненной колонке | миграция 1: `ADD CONSTRAINT col_not_null CHECK (col IS NOT NULL) NOT VALID`; миграция 2: `VALIDATE CONSTRAINT col_not_null`; миграция 3: `SET NOT NULL` (с PostgreSQL 12 мгновенно, проверка берётся из валидного CHECK) и `DROP CONSTRAINT col_not_null`. Имя ограничения должно содержать имя колонки: Squawk 2.72.0 иначе не связывает VALIDATE из прошлой миграции с `SET NOT NULL` и ругается `adding-not-nullable-field` |
 | `ALTER COLUMN TYPE` (переписывает таблицу) | новая колонка, запись в обе, перенос данных (§3), переключить чтение, потом удалить старую (правила expand/contract уже в `check-migrations.mjs`) |
 | `ADD COLUMN ... DEFAULT gen_random_uuid()/random()/nextval/SERIAL/IDENTITY` | колонка без default, default отдельно, заполнение порциями (§3). Константа и `now()` можно: PostgreSQL 11+ не переписывает таблицу |
 | `ADD UNIQUE` / `PRIMARY KEY` на существующей | уникальный индекс `CONCURRENTLY`, потом `ADD CONSTRAINT ... UNIQUE USING INDEX` |
