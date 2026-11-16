@@ -89,7 +89,16 @@ describe('settings and switches refuse a stale save', () => {
       status: 409,
       response: {
         code: 'STALE_VERSION',
-        details: { currentUpdatedAt: NEWER.toISOString() },
+        details: {
+          currentUpdatedAt: NEWER.toISOString(),
+          // Owner 15.11: the fresh row, so the admin shows it at once.
+          current: {
+            key: 'feed.reco_scan_max',
+            value: 1000,
+            stored: true,
+            updatedAt: NEWER.toISOString(),
+          },
+        },
       },
     });
     expect(tx.appConfig.upsert).not.toHaveBeenCalled();
@@ -117,7 +126,17 @@ describe('settings and switches refuse a stale save', () => {
       }),
     ).rejects.toMatchObject({
       status: 409,
-      response: { code: 'STALE_VERSION' },
+      response: {
+        code: 'STALE_VERSION',
+        details: {
+          current: {
+            key: 'video_posts',
+            enabled: false,
+            rolloutPercent: 100,
+            updatedAt: NEWER.toISOString(),
+          },
+        },
+      },
     });
     expect(stale.tx.featureFlag.update).not.toHaveBeenCalled();
     const fresh = build({ flag: SEEN });
