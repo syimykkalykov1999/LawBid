@@ -63,7 +63,7 @@ export default function PnlPage() {
         </Card>
       ) : (
         <>
-          <p className="mb-4 text-xs text-muted">Посчитано: {when}. Дни по UTC.</p>
+          <p className="mb-4 text-xs text-muted">Посчитано: {when}. Дни по часовому поясу отчётов (Настройки → admin.report_timezone).</p>
           <div className="mb-6 grid gap-3 lg:grid-cols-3">
             <PeriodCard title="Сегодня" p={r.today} hint="за сегодняшний день, он ещё не закончился" />
             <PeriodCard title="Эта неделя" p={r.week} hint="с понедельника по сегодня" />

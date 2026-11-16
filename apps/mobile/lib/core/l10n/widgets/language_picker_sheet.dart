@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -41,6 +43,20 @@ class LanguagePickerSheet extends ConsumerStatefulWidget {
 class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
   final _searchController = TextEditingController();
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // The CLDR names are a deferred library (language_catalog.dart): when
+    // the sheet opens before they arrived, the rows get them on arrival.
+    if (!languageDisplayNamesLoaded) {
+      unawaited(
+        loadLanguageDisplayNames().then((_) {
+          if (mounted) setState(() {});
+        }),
+      );
+    }
+  }
 
   @override
   void dispose() {

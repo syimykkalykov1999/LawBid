@@ -24,11 +24,14 @@
   },
   "devDependencies": {
     "husky": "^9.1.7",
-    "lint-staged": "^15.2.10"
+    "lint-staged": "^17.6.0"
   },
   "overrides": {
     "body-parser": "^2.4.0",
-    "multer": "2.5.0"
+    "multer": "2.5.0",
+    "openapi-typescript": {
+      "typescript": "~6.0.3"
+    }
   },
   "engines": {
     "node": ">=26.13.1 <27"

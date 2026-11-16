@@ -75,7 +75,7 @@ variable "rds_kms_key_arn" {
 variable "rds_parameter_group_name" {
   type        = string
   default     = ""
-  description = "Parameter group of the primary (same postgres16 family: rds.force_ssl, slow-query log, pg_stat_statements). Empty = the RDS default group."
+  description = "Parameter group of the primary (same family, postgres16 or postgres18: rds.force_ssl, slow-query log, pg_stat_statements). Empty = the RDS default group."
 }
 variable "rds_deletion_protection" {
   type        = bool
