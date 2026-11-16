@@ -64,6 +64,7 @@ erDiagram
     Int height "nullable"
     String blurhash "nullable"
     Boolean avif_twins
+    Boolean voice_m4a
     enum_ScanStatus scan_status
     String scan_skipped "nullable"
     Boolean is_public
