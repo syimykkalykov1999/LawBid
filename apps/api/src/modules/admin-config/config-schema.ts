@@ -1774,7 +1774,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['admin.report_timezone'] = {
     ...out['admin.report_timezone'],
     description:
-      'Time zone the admin days are cut in (today, with-deadline, staff KPI days): an IANA name such as America/Los_Angeles or Europe/Moscow.',
+      'Time zone the admin days are cut in (today, with-deadline, staff KPI days, the profit days, weeks and months): an IANA name such as America/Los_Angeles or Europe/Moscow.',
     pattern: /^(UTC|[A-Z][A-Za-z_]+(\/[A-Za-z0-9_+-]+){1,2})$/,
   };
   out['admin.audit_export_enabled'] = {

@@ -19,6 +19,27 @@ const row = (p: Partial<PaymentDayRow>): PaymentDayRow => ({
 const NOW = new Date('2026-10-25T12:00:00Z');
 
 describe('pnl rules', () => {
+  it('row 180: today/week/month end at the report-zone midnight, not UTC', () => {
+    // 2026-11-17 03:00 UTC = Mon 16.11 19:00 PST: still Monday in Nevada,
+    // already Tuesday in UTC. A sale at 18:00 PST (02:00 UTC) is «today».
+    const now = new Date('2026-11-17T03:00:00Z');
+    const rows = [row({ day: '2026-11-16' })];
+    const la = buildPnl({
+      rows,
+      vendorDaily: [],
+      fixed: [],
+      now,
+      timeZone: 'America/Los_Angeles',
+    });
+    expect(la.asOf).toBe('2026-11-16');
+    expect(la.today.revenueUsd).toBe(96.8);
+    expect(la.weeks[11].weekStart).toBe('2026-11-16');
+    expect(la.days[29].day).toBe('2026-11-16');
+    const utc = buildPnl({ rows, vendorDaily: [], fixed: [], now });
+    expect(utc.asOf).toBe('2026-11-17');
+    expect(utc.today.revenueUsd).toBe(0);
+  });
+
   it('weekStart is the Monday (UTC)', () => {
     expect(weekStart('2026-10-25')).toBe('2026-10-19');
     expect(weekStart('2026-10-19')).toBe('2026-10-19');
