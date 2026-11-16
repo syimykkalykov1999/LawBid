@@ -18,11 +18,13 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import type {
   CasePayment,
+  CasePaymentRefund,
   PaymentRequest,
   PayoutAccount,
   Prisma,
 } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { uuidV5 } from '../../common/uuid-v5';
 import {
   decodeCursor,
   encodeCursor,
@@ -174,6 +176,23 @@ export function payoutStatusOf(a: ProviderConnectAccount): PayoutAccountStatus {
   if (a.chargesEnabled && a.payoutsEnabled) return 'active';
   if (!a.detailsSubmitted) return 'onboarding';
   return 'restricted';
+}
+
+/** Namespace of request-keyed refund ids (a random v4, fixed forever). */
+const REFUND_KEY_NAMESPACE = '3b8f5d2c-9e41-4a7b-8c06-5f2e1d9a7c34';
+
+/** Row 177: one refund row id per (payment, who, request key). The
+ * Stripe idempotency key is derived from it, so every retry of one
+ * request reaches Stripe with the same key. Exported for the tests. */
+export function refundIdOf(
+  paymentId: string,
+  by: { type: string; id: string | null },
+  requestKey: string,
+): string {
+  return uuidV5(
+    `case-payment-refund:${paymentId}:${by.type}:${by.id ?? ''}:${requestKey}`,
+    REFUND_KEY_NAMESPACE,
+  );
 }
 
 function isPaid(status: string): boolean {
@@ -887,6 +906,7 @@ export class CasePaymentsService {
     row: CasePayment,
     dto: RefundCasePaymentDto,
     by: { type: 'attorney' | 'admin' | 'stripe'; id: string | null },
+    opts: { requestKey?: string } = {},
   ): Promise<CasePayment> {
     if (row.status === 'refunded') {
       throw new ConflictException({
@@ -913,11 +933,51 @@ export class CasePaymentsService {
     // (admin + attorney, two tabs) can never pass the same `left`; the
     // `charge.refunded` webhook takes the same lock (`syncCharge`). Same
     // reserve-then-call pattern as admin-billing/refunds.service.ts.
-    const { refund, amount } = await shardContext.runForCase(row.case_id, () =>
+    //
+    // Row 177 (15.11): with a request key (the admin's Idempotency-Key, an
+    // early-fraud-warning id) the refund row id — and so the Stripe
+    // idempotency key `case-payment-refund:<id>` — is the same on every
+    // retry of that request (Stripe's pattern: retry with the SAME key). A
+    // retry after a timeout, a lost commit or an expired in-flight claim
+    // gets Stripe's first refund back instead of sending a second one.
+    const refundId = opts.requestKey
+      ? refundIdOf(row.id, by, opts.requestKey)
+      : undefined;
+    const reserved = await shardContext.runForCase(row.case_id, () =>
       withTxRetry(
         this.prisma,
-        async (tx) => {
+        async (
+          tx,
+        ): Promise<
+          | { replay: CasePayment }
+          | { refund: CasePaymentRefund; amount: number }
+        > => {
           const locked = await this.lockPayment(tx, row.id);
+          const prior = refundId
+            ? await tx.casePaymentRefund.findUnique({ where: { id: refundId } })
+            : null;
+          if (prior) {
+            if (
+              dto.amountCents !== undefined &&
+              dto.amountCents !== prior.amount_cents
+            ) {
+              throw new ConflictException({
+                code: ErrorCode.IDEMPOTENCY_KEY_CONFLICT,
+                message:
+                  'This Idempotency-Key was already used for another amount.',
+                details: { reason: 'payload_mismatch' },
+              });
+            }
+            // Already booked (the commit below ran): replay, no new money.
+            if (prior.stripe_refund_id && prior.status !== 'failed') {
+              return { replay: locked ?? row };
+            }
+            // Reserved, Stripe outcome unknown (crash, lost commit): send
+            // the same request again; the money is still reserved.
+            if (prior.status === 'pending') {
+              return { refund: prior, amount: prior.amount_cents };
+            }
+          }
           if (!locked || !isPaid(locked.status)) {
             throw new ConflictException({
               code: ErrorCode.PAYMENT_INVALID_STATE,
@@ -929,7 +989,7 @@ export class CasePaymentsService {
             await this.liveRefundedCents(tx, row.id),
           );
           const left = locked.client_total_cents - used;
-          const want = dto.amountCents ?? left;
+          const want = dto.amountCents ?? prior?.amount_cents ?? left;
           if (want <= 0 || want > left) {
             throw new ConflictException({
               code: ErrorCode.REFUND_AMOUNT_EXCEEDED,
@@ -937,21 +997,35 @@ export class CasePaymentsService {
               details: { leftCents: left },
             });
           }
-          const created = await tx.casePaymentRefund.create({
-            data: {
-              payment_id: row.id,
-              amount_cents: want,
-              reason: dto.reason,
-              initiated_by_type: by.type,
-              initiated_by: by.id,
-              status: 'pending',
-            },
-          });
+          // A failed try of the same request is reserved again in place,
+          // so Stripe sees the same key and the same parameters.
+          const created = prior
+            ? await tx.casePaymentRefund.update({
+                where: { id: prior.id },
+                data: {
+                  status: 'pending',
+                  failure_reason: null,
+                  reason: dto.reason,
+                },
+              })
+            : await tx.casePaymentRefund.create({
+                data: {
+                  ...(refundId ? { id: refundId } : {}),
+                  payment_id: row.id,
+                  amount_cents: want,
+                  reason: dto.reason,
+                  initiated_by_type: by.type,
+                  initiated_by: by.id,
+                  status: 'pending',
+                },
+              });
           return { refund: created, amount: want };
         },
         { isolation: 'readCommitted', op: 'case_payment.refund_reserve' },
       ),
     );
+    if ('replay' in reserved) return reserved.replay;
+    const { refund, amount } = reserved;
     let result: { id: string; status: string; failureReason: string | null };
     try {
       result = await this.provider.refundConnected({
@@ -963,10 +1037,24 @@ export class CasePaymentsService {
         metadata: { paymentId: row.id, refundId: refund.id, by: by.type },
       });
     } catch (e) {
-      await this.prisma.casePaymentRefund.update({
-        where: { id: refund.id },
-        data: { status: 'failed', failure_reason: String(e).slice(0, 500) },
-      });
+      const failed = {
+        status: 'failed',
+        failure_reason: String(e).slice(0, 500),
+      };
+      // A keyed row another try of the same request already booked keeps
+      // its result (Stripe answers the loser of two same-key calls with an
+      // error while the winner's refund goes through).
+      if (refundId) {
+        await this.prisma.casePaymentRefund.updateMany({
+          where: { id: refund.id, stripe_refund_id: null },
+          data: failed,
+        });
+      } else {
+        await this.prisma.casePaymentRefund.update({
+          where: { id: refund.id },
+          data: failed,
+        });
+      }
       throw new ConflictException({
         code: ErrorCode.REFUND_PROVIDER_FAILED,
         message: 'Stripe refused the refund. Try again later.',
@@ -994,6 +1082,17 @@ export class CasePaymentsService {
         this.prisma,
         async (tx) => {
           const locked = await this.lockPayment(tx, row.id);
+          // Two tries of one request key that both reached Stripe (the
+          // in-flight claim expired) got one Stripe refund back: the first
+          // commit books it, the second only reads the result.
+          if (refundId) {
+            const cur = await tx.casePaymentRefund.findUnique({
+              where: { id: refund.id },
+            });
+            if (cur?.stripe_refund_id && cur.status !== 'failed') {
+              return { next: locked ?? row, booked: false };
+            }
+          }
           const total = locked?.client_total_cents ?? row.client_total_cents;
           const refunded = (locked?.refunded_cents ?? 0) + amount;
           await tx.casePaymentRefund.update({
@@ -1017,17 +1116,18 @@ export class CasePaymentsService {
             cents: amount,
             refundApplicationFee: true,
           });
-          return next;
+          return { next, booked: true };
         },
         { isolation: 'readCommitted', op: 'case_payment.refund_commit' },
       ),
     );
+    if (!updated.booked) return updated.next;
     await this.notify(row.client_id, 'case_payment_refunded', {
       caseId: row.case_id,
       paymentId: row.id,
       amountCents: amount,
     });
-    return updated;
+    return updated.next;
   }
 
   // ---- payment confirmation ----------------------------------------------------
@@ -1617,6 +1717,8 @@ export class CasePaymentsService {
             reason: 'Refunded automatically after an early fraud warning',
           },
           { type: 'stripe', id: null },
+          // A redelivered warning reuses the same Stripe idempotency key.
+          { requestKey: `efw:${o.id}` },
         );
         refunded = true;
       } catch (e) {
