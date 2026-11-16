@@ -8,7 +8,7 @@
 # injected from Secrets Manager (never in the task definition JSON).
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -410,8 +410,8 @@ resource "terraform_data" "insights_log_retention" {
     command = <<-EOT
       if [ "${var.container_insights}" != "disabled" ]; then
         G="/aws/ecs/containerinsights/${aws_ecs_cluster.this.name}/performance"
-        aws logs create-log-group --region ${data.aws_region.current.name} --log-group-name "$G" 2>/dev/null || true
-        aws logs put-retention-policy --region ${data.aws_region.current.name} --log-group-name "$G" --retention-in-days ${var.log_retention_days}
+        aws logs create-log-group --region ${data.aws_region.current.region} --log-group-name "$G" 2>/dev/null || true
+        aws logs put-retention-policy --region ${data.aws_region.current.region} --log-group-name "$G" --retention-in-days ${var.log_retention_days}
       fi
     EOT
   }
@@ -490,7 +490,7 @@ resource "aws_iam_role_policy" "task_cloudfront_invalidate" {
 data "aws_iam_policy_document" "task_geo_places" {
   statement {
     actions   = ["geo-places:Autocomplete"]
-    resources = ["arn:aws:geo-places:${data.aws_region.current.name}::provider/default"]
+    resources = ["arn:aws:geo-places:${data.aws_region.current.region}::provider/default"]
   }
 }
 
@@ -560,7 +560,7 @@ locals {
     logDriver = "awslogs"
     options = {
       awslogs-group         = aws_cloudwatch_log_group.svc[svc].name
-      awslogs-region        = data.aws_region.current.name
+      awslogs-region        = data.aws_region.current.region
       awslogs-stream-prefix = svc
     }
   } }
@@ -586,7 +586,7 @@ locals {
         timeout: 5s
     exporters:
       awsxray:
-        region: ${data.aws_region.current.name}
+        region: ${data.aws_region.current.region}
     service:
       pipelines:
         traces:
@@ -605,7 +605,7 @@ locals {
       logDriver = "awslogs"
       options = {
         awslogs-group         = aws_cloudwatch_log_group.svc["api"].name
-        awslogs-region        = data.aws_region.current.name
+        awslogs-region        = data.aws_region.current.region
         awslogs-stream-prefix = "adot"
       }
     }
@@ -901,6 +901,12 @@ resource "aws_ecs_service" "api" {
   # (docs/06 §7.3 "автоматический откат при провале health-check").
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+  # AWS default for new services since 2025-09-05 (ECS developer guide,
+  # "Balancing an Amazon ECS service across Availability Zones"); provider
+  # 5.x still sends DISABLED unless set. Fargate and Fargate Spot place tasks
+  # independently, so base 1 + Spot could put both in one zone (prod 15.11:
+  # both api tasks in us-east-1a). In-place UpdateService, no recreate.
+  availability_zone_rebalancing = "ENABLED"
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -958,6 +964,12 @@ resource "aws_ecs_service" "api_admin" {
   }
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+  # AWS default for new services since 2025-09-05 (ECS developer guide,
+  # "Balancing an Amazon ECS service across Availability Zones"); provider
+  # 5.x still sends DISABLED unless set. Fargate and Fargate Spot place tasks
+  # independently, so base 1 + Spot could put both in one zone (prod 15.11:
+  # both api tasks in us-east-1a). In-place UpdateService, no recreate.
+  availability_zone_rebalancing = "ENABLED"
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -1006,6 +1018,15 @@ resource "aws_appautoscaling_policy" "api_admin_cpu" {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
   }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
+  }
 }
 
 resource "aws_ecs_service" "worker" {
@@ -1037,6 +1058,12 @@ resource "aws_ecs_service" "worker" {
   }
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
+  # AWS default for new services since 2025-09-05 (ECS developer guide,
+  # "Balancing an Amazon ECS service across Availability Zones"); provider
+  # 5.x still sends DISABLED unless set. Fargate and Fargate Spot place tasks
+  # independently, so base 1 + Spot could put both in one zone (prod 15.11:
+  # both api tasks in us-east-1a). In-place UpdateService, no recreate.
+  availability_zone_rebalancing = "ENABLED"
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -1086,6 +1113,12 @@ resource "aws_ecs_service" "admin" {
   }
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+  # AWS default for new services since 2025-09-05 (ECS developer guide,
+  # "Balancing an Amazon ECS service across Availability Zones"); provider
+  # 5.x still sends DISABLED unless set. Fargate and Fargate Spot place tasks
+  # independently, so base 1 + Spot could put both in one zone (prod 15.11:
+  # both api tasks in us-east-1a). In-place UpdateService, no recreate.
+  availability_zone_rebalancing = "ENABLED"
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -1130,6 +1163,15 @@ resource "aws_appautoscaling_policy" "admin_cpu" {
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
+  }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
   }
 }
 
@@ -1214,6 +1256,15 @@ resource "aws_appautoscaling_policy" "cpu" {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
   }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
+  }
 }
 
 output "cluster_name" { value = aws_ecs_cluster.this.name }
@@ -1249,6 +1300,15 @@ resource "aws_appautoscaling_policy" "api_requests" {
       resource_label         = var.alb_resource_label
     }
   }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
+  }
 }
 
 # Scale audit 2026-11-02: idle sockets cost memory and timers but no CPU and no
@@ -1278,6 +1338,15 @@ resource "aws_appautoscaling_policy" "api_sockets" {
         value = "api"
       }
     }
+  }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
   }
 }
 
@@ -1345,4 +1414,45 @@ resource "aws_appautoscaling_policy" "worker_queue" {
       }
     }
   }
+  # Owner 14.11: target and pauses are changed from the admin (API, SSM
+  # `ecs-scaling/tuning`, PutScalingPolicy); the values here are defaults.
+  lifecycle {
+    ignore_changes = [
+      target_tracking_scaling_policy_configuration[0].target_value,
+      target_tracking_scaling_policy_configuration[0].scale_in_cooldown,
+      target_tracking_scaling_policy_configuration[0].scale_out_cooldown,
+    ]
+  }
+}
+
+# Owner 14.11: what the API needs to apply the admin's numbers to these
+# policies (PutScalingPolicy keeps the metric, changes target and pauses);
+# target / in / out are the Terraform defaults (an emptied admin field).
+# Built from variables only, not from the resources: the API environment
+# reads it and the API task definition is in this module (no cycle).
+locals {
+  svc_policy = { dimension = "ecs:service:DesiredCount" }
+}
+output "scaling_policies" {
+  value = merge(
+    { for k in ["api", "worker"] : "${k}_cpu" => merge(local.svc_policy, {
+      name = "${var.name}-${k}-cpu60", resource_id = "service/${var.name}/${k}",
+    target = 60, in_s = 600, out_s = 180 }) },
+    { api_requests = merge(local.svc_policy, {
+      name = "${var.name}-api-requests", resource_id = "service/${var.name}/api",
+    target = var.api_requests_per_task, in_s = 600, out_s = 180 }) },
+    var.api_sockets_per_task > 0 ? { api_sockets = merge(local.svc_policy, {
+      name = "${var.name}-api-sockets", resource_id = "service/${var.name}/api",
+    target = var.api_sockets_per_task, in_s = 600, out_s = 180 }) } : {},
+    var.worker_jobs_per_task > 0 && var.metrics_namespace != "" ? { worker_queue = merge(local.svc_policy, {
+      name = "${var.name}-worker-queue", resource_id = "service/${var.name}/worker",
+    target = var.worker_jobs_per_task, in_s = 600, out_s = 180 }) } : {},
+    { admin_cpu = merge(local.svc_policy, {
+      name = "${var.name}-admin-cpu", resource_id = "service/${var.name}/admin",
+    target = 70, in_s = 900, out_s = 180 }) },
+    var.api_admin_enabled ? { api_admin_cpu = merge(local.svc_policy, {
+      name = "${var.name}-api-admin-cpu", resource_id = "service/${var.name}/api-admin",
+    target = 70, in_s = 900, out_s = 180 }) } : {},
+  )
+  description = "Target-tracking policies the admin may tune (name, resource, Terraform defaults). A policy that does not exist is reported as missing by the API."
 }

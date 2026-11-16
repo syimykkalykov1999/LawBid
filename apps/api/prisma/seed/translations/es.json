@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "Solo un cliente que haya completado un caso con este abogado puede dejarle una reseña.",
   "reviews.write.saved": "Reseña publicada",
   "reviews.write.title": "Su reseña",
+  "router.notFound.home": "Inicio",
+  "router.notFound.title": "Página no encontrada",
   "saved.chats.empty": "Aún no hay mensajes guardados",
   "saved.copied": "Copiado",
   "saved.empty": "Aún no hay nada guardado",

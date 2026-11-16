@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "Само клијент који је завршио случај са овим адвокатом може да га оцени.",
   "reviews.write.saved": "Рецензија објављена",
   "reviews.write.title": "Ваша рецензија",
+  "router.notFound.home": "Почетна",
+  "router.notFound.title": "Страница није пронађена",
   "saved.chats.empty": "Још нема сачуваних порука",
   "saved.copied": "Копирано",
   "saved.empty": "Још ништа није сачувано",

@@ -21,7 +21,7 @@
 # `scale.spot_fallback.mode` (off | on | auto) in ops/scale-controls.json.
 terraform {
   required_providers {
-    aws     = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws     = { source = "hashicorp/aws", version = "~> 6.72" }
     archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
 }
@@ -64,6 +64,14 @@ variable "tuning" {
   type        = map(number)
   default     = {}
   description = "Overrides of decision.Config, e.g. { restore_after_min = 60, max_hold_min = 720 }."
+}
+# Owner 15.11 (row 20): the admin's numbers (lambda/tuning_schema.json keys)
+# in this SSM parameter, read on every run over `tuning`. The admin's first
+# save creates it (API PutParameter); missing = the Terraform numbers.
+# Empty name = no admin numbers.
+variable "tuning_param" {
+  type    = string
+  default = ""
 }
 variable "schedule" {
   type    = string
@@ -165,6 +173,14 @@ data "aws_iam_policy_document" "lambda" {
     actions   = ["ssm:GetParameter", "ssm:PutParameter"]
     resources = [aws_ssm_parameter.mode.arn, aws_ssm_parameter.state.arn]
   }
+  dynamic "statement" {
+    for_each = var.tuning_param == "" ? [] : [1]
+    content {
+      sid       = "ReadAdminTuning"
+      actions   = ["ssm:GetParameter"]
+      resources = ["arn:aws:ssm:*:${data.aws_caller_identity.current.account_id}:parameter${var.tuning_param}"]
+    }
+  }
   statement {
     sid       = "Logs"
     actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
@@ -181,7 +197,7 @@ resource "aws_lambda_function" "this" {
   function_name    = local.fn_name
   description      = "Fargate Spot without capacity: tasks on regular Fargate; back to Spot after a quiet hold"
   role             = aws_iam_role.lambda.arn
-  runtime          = "python3.12"
+  runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "handler.lambda_handler"
   filename         = data.archive_file.lambda.output_path
@@ -202,6 +218,7 @@ resource "aws_lambda_function" "this" {
       CONTROLS_BUCKET = var.controls_bucket
       CONTROLS_KEY    = var.controls_key
       TUNING          = jsonencode(var.tuning)
+      TUNING_PARAM    = var.tuning_param
     }
   }
   tags       = var.tags

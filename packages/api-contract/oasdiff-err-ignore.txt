@@ -695,3 +695,11 @@ GET /admin/system-health/db-replica added the new `managed` enum value to the `d
 POST /admin/system-health/db-replica added the new `managed` enum value to the `data/state` response property for the response status `200`
 POST /admin/billing/plans the request property `amountCents` became required
 POST /admin/case-payments/{id}/refund added the new required `header` request parameter `idempotency-key`
+# PR #1107 (owner 14.11): admin-only «Числа «Авто»» gains the ECS servers and the endpoints autoscaler; only the admin reads it and it shows every target it gets
+GET /admin/spend/autoscale-tuning added the new `ecs` enum value to the `data/targets/items/target` response property for the response status `200`
+GET /admin/spend/autoscale-tuning added the new `endpoints` enum value to the `data/targets/items/target` response property for the response status `200`
+PUT /admin/spend/autoscale-tuning/{target} added the new `ecs` enum value to the `data/targets/items/target` response property for the response status `200`
+PUT /admin/spend/autoscale-tuning/{target} added the new `endpoints` enum value to the `data/targets/items/target` response property for the response status `200`
+# PR #1120 (owner 15.11, row 20): admin-only «Числа «Авто»» gains the spot-fallback numbers; only the admin reads it and it shows every target it gets (the Dart enum has $unknown)
+GET /admin/spend/autoscale-tuning added the new `spot` enum value to the `data/targets/items/target` response property for the response status `200`
+PUT /admin/spend/autoscale-tuning/{target} added the new `spot` enum value to the `data/targets/items/target` response property for the response status `200`

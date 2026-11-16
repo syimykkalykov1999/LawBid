@@ -212,7 +212,7 @@ export default function UsersPage() {
           </Select>
         </div>
         <FilterFields id="uf" value={dates} onChange={setDates} />
-        <CsvButton entity="users" />
+        <CsvButton entity="users" query={{ q: filters.q, role: filters.role, status: filters.status, from: filters.from, to: filters.to }} />
       </div>
       {bulk.dialog}
       {canWrite ? (

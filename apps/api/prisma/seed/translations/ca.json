@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "Només un client que hagi completat un cas amb aquest advocat pot fer-ne una ressenya.",
   "reviews.write.saved": "Ressenya publicada",
   "reviews.write.title": "La vostra ressenya",
+  "router.notFound.home": "Inici",
+  "router.notFound.title": "No s'ha trobat la pàgina",
   "saved.chats.empty": "Encara no hi ha missatges desats",
   "saved.copied": "Copiat",
   "saved.empty": "Encara no hi ha res desat",

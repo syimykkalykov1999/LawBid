@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "ከዚህ ጠበቃ ጋር ጉዳይ ያጠናቀቀ ደንበኛ ብቻ ሊገመግማቸው ይችላል።",
   "reviews.write.saved": "ግምገማ ታትሟል",
   "reviews.write.title": "ግምገማዎ",
+  "router.notFound.home": "መነሻ",
+  "router.notFound.title": "ገጹ አልተገኘም",
   "saved.chats.empty": "የተቀመጡ መልዕክቶች የሉም",
   "saved.copied": "ተቀድቷል",
   "saved.empty": "እስካሁን ምንም አልተቀመጠም",

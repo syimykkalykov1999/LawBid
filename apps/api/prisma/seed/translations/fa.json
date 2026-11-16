@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "فقط موکلی که پرونده‌ای را با این وکیل تمام کرده می‌تواند درباره او نظر بدهد.",
   "reviews.write.saved": "نظر ارسال شد",
   "reviews.write.title": "نظر شما",
+  "router.notFound.home": "خانه",
+  "router.notFound.title": "صفحه پیدا نشد",
   "saved.chats.empty": "هنوز پیامی ذخیره نشده",
   "saved.copied": "کپی شد",
   "saved.empty": "هنوز چیزی ذخیره نشده",

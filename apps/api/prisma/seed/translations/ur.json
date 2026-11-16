@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "صرف وہ کلائنٹ جس نے اس وکیل کے ساتھ کیس مکمل کیا ہو جائزہ دے سکتا ہے۔",
   "reviews.write.saved": "جائزہ پوسٹ ہو گیا",
   "reviews.write.title": "آپ کا جائزہ",
+  "router.notFound.home": "ہوم",
+  "router.notFound.title": "صفحہ نہیں ملا",
   "saved.chats.empty": "ابھی کوئی پیغام محفوظ نہیں",
   "saved.copied": "کاپی ہو گیا",
   "saved.empty": "ابھی کچھ محفوظ نہیں",

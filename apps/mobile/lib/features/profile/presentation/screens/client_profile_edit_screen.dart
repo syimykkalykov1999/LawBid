@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
@@ -53,7 +54,7 @@ class ClientProfileEditScreen extends ConsumerWidget {
         title: Text(t.t('profile.edit.title')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
       ),
       body: profile.when(
@@ -119,7 +120,7 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
     setState(() => _leaving = true);
     // The guard lets go on the next frame, then the screen closes.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) Navigator.of(context).maybePop();
+      if (mounted) context.safeBack();
     });
   }
 

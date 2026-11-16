@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "Tanging kliyenteng nakatapos ng kaso kasama ang abogadong ito ang maaaring mag-review sa kanila.",
   "reviews.write.saved": "Na-post ang review",
   "reviews.write.title": "Ang iyong review",
+  "router.notFound.home": "Simula",
+  "router.notFound.title": "Hindi nahanap ang page",
   "saved.chats.empty": "Wala pang naka-save na mensahe",
   "saved.copied": "Nakopya",
   "saved.empty": "Wala pang naka-save",

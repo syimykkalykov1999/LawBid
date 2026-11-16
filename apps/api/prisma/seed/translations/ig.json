@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "Naanị onye ahịa mechara ikpe na ọka iwu a nwere ike inyocha ya.",
   "reviews.write.saved": "Ebipụtala nyocha",
   "reviews.write.title": "Nyocha gị",
+  "router.notFound.home": "Ụlọ",
+  "router.notFound.title": "Ahụghị ibe ahụ",
   "saved.chats.empty": "Enweghị ozi echekwara",
   "saved.copied": "Edepụtara",
   "saved.empty": "Enweghị ihe echekwara",

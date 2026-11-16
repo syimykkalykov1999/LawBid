@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "Hanya klien yang menyelesaikan kes dengan peguam ini boleh mengulasnya.",
   "reviews.write.saved": "Ulasan disiarkan",
   "reviews.write.title": "Ulasan anda",
+  "router.notFound.home": "Laman utama",
+  "router.notFound.title": "Halaman tidak ditemui",
   "saved.chats.empty": "Belum ada mesej disimpan",
   "saved.copied": "Disalin",
   "saved.empty": "Belum ada yang disimpan",

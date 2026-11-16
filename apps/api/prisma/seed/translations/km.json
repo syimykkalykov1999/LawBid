@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "មានតែអតិថិជនដែលបានបញ្ចប់សំណុំរឿងជាមួយមេធាវីនេះទេដែលអាចវាយតម្លៃគេបាន។",
   "reviews.write.saved": "បានផ្សាយការវាយតម្លៃ",
   "reviews.write.title": "ការវាយតម្លៃរបស់អ្នក",
+  "router.notFound.home": "ទំព័រដើម",
+  "router.notFound.title": "រកមិនឃើញទំព័រ",
   "saved.chats.empty": "មិនទាន់មានសារដែលបានរក្សាទុកទេ",
   "saved.copied": "បានចម្លង",
   "saved.empty": "មិនទាន់មានអ្វីរក្សាទុកទេ",

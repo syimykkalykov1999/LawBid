@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "यो वकिलसँग मुद्दा पूरा गरेको ग्राहकले मात्र समीक्षा गर्न सक्छ।",
   "reviews.write.saved": "समीक्षा पोस्ट गरियो",
   "reviews.write.title": "तपाईंको समीक्षा",
+  "router.notFound.home": "गृहपृष्ठ",
+  "router.notFound.title": "पृष्ठ फेला परेन",
   "saved.chats.empty": "अहिलेसम्म सुरक्षित सन्देश छैन",
   "saved.copied": "कपी गरियो",
   "saved.empty": "अहिलेसम्म केही सुरक्षित छैन",

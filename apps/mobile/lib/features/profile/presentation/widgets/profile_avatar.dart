@@ -73,7 +73,13 @@ class ProfileAvatar extends StatelessWidget {
       size: size,
       semanticLabel: semanticLabel,
     );
-    if (heroTag != null) avatar = Hero(tag: heroTag!, child: avatar);
+    if (heroTag != null) {
+      avatar = Hero(
+        tag: heroTag!,
+        createRectTween: materialHeroTween,
+        child: avatar,
+      );
+    }
     final photo = url;
     if (viewerCloseLabel != null &&
         preview == null &&

@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "Seul un client ayant terminé une affaire avec cet avocat peut laisser un avis.",
   "reviews.write.saved": "Avis publié",
   "reviews.write.title": "Votre avis",
+  "router.notFound.home": "Accueil",
+  "router.notFound.title": "Page introuvable",
   "saved.chats.empty": "Aucun message enregistré",
   "saved.copied": "Copié",
   "saved.empty": "Rien d'enregistré",

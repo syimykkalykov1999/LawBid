@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "ဤရှေ့နေနှင့် အမှု ပြီးစီးခဲ့သော အမှုသည်သာ သုံးသပ်ချက် ရေးနိုင်သည်။",
   "reviews.write.saved": "သုံးသပ်ချက် တင်ပြီး",
   "reviews.write.title": "သင့်သုံးသပ်ချက်",
+  "router.notFound.home": "ပင်မ",
+  "router.notFound.title": "စာမျက်နှာ မတွေ့ပါ",
   "saved.chats.empty": "သိမ်းထားသော မက်ဆေ့ချ် မရှိသေးပါ",
   "saved.copied": "ကူးယူပြီး",
   "saved.empty": "မသိမ်းရသေးပါ",

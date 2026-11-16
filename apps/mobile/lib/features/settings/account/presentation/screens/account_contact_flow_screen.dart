@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_step_up.dart';
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
@@ -152,7 +153,7 @@ class _AccountContactFlowScreenState
         title: Text(t.t(_titleKey())),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
       ),
       body: SafeArea(
@@ -410,7 +411,7 @@ class _AccountContactFlowScreenState
           ],
           action: AppButton(
             label: t.t('account.flow.done.action'),
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: () => context.safeBack(),
           ),
         );
     }

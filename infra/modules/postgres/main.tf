@@ -1,4 +1,4 @@
-# RDS for PostgreSQL 16 with automatic daily backups (docs/06 §6.1).
+# RDS for PostgreSQL (16 today, 18 after the Blue/Green upgrade) with automatic daily backups (docs/06 §6.1).
 # Opt-in from the stack (`create_database = true`); the launch database may
 # instead be any managed PostgreSQL (infra/README.md). What this adds over a
 # bare instance: daily automated backups kept `backup_retention_days`,
@@ -9,7 +9,7 @@
 # scripts/ops/restore-drill.sh.
 terraform {
   required_providers {
-    aws    = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws    = { source = "hashicorp/aws", version = "~> 6.72" }
     random = { source = "hashicorp/random", version = "~> 3.6" }
   }
 }
@@ -67,7 +67,17 @@ variable "deletion_protection" {
 variable "skip_final_snapshot" {
   type        = bool
   default     = false
-  description = "Prod: false (a final snapshot is kept). Load-test stacks: true."
+  description = "Prod: false (a final snapshot is kept, automated backups stay for their retention). Load-test stacks and the extra database servers that «Авто» removes only while empty: true (no final snapshot, automated backups deleted with the server)."
+}
+# KNOWN_ERRORS 189: an extra database server follows the primary's major
+# version. When the primary moves (Blue/Green 16 -> 18), an existing extra
+# server is moved by RDS itself (ModifyDBInstance --allow-major-version-
+# upgrade, in the Sunday maintenance window). Never set on the primary: its
+# major moves only by Blue/Green (docs/runbooks/db-major-upgrade.md).
+variable "allow_major_version_upgrade" {
+  type        = bool
+  default     = false
+  description = "Let RDS upgrade this server to a newer major version in place. Only the extra database servers (stack module postgres_shard); the primary: false."
 }
 variable "tags" {
   type    = map(string)
@@ -79,6 +89,15 @@ variable "engine_version" {
   type        = string
   default     = "16"
   description = "PostgreSQL version. \"16\" = latest 16.x minor (auto minor upgrades on). To pin: set e.g. \"16.6\" (test on staging first) and the stack will not move until you change it. See docs/runbooks/db-ops.md."
+}
+variable "upgrade_to_major" {
+  type        = string
+  default     = "16"
+  description = "Major version the owner asked for (stack database_major_version). Higher than the running one: the postgres18 group is created and rds.logical_replication is set on the old group; the switch itself is AWS Blue/Green (scripts/infra/rds-major-upgrade.sh, docs/runbooks/db-major-upgrade.md), never an in-place upgrade by Terraform."
+  validation {
+    condition     = contains(["16", "18"], var.upgrade_to_major)
+    error_message = "upgrade_to_major: 16 or 18."
+  }
 }
 variable "auto_minor_version_upgrade" {
   type        = bool
@@ -135,6 +154,35 @@ resource "aws_security_group" "db" {
   tags = var.tags
 }
 
+# The custom parameters, the same on every PostgreSQL major version (the
+# postgres16 and postgres18 groups below get exactly this list).
+locals {
+  # "16", "16.13", "18", "18.6" -> "16" / "18".
+  engine_major = split(".", var.engine_version)[0]
+  db_parameters = [
+    # Slow queries land in the log (the admin's «здоровье системы» reads them).
+    { name = "log_min_duration_statement", value = tostring(var.slow_query_log_ms), apply_method = "immediate" },
+    # S20-3: never write the bind values ($1 = 'phone / e-mail / message id')
+    # next to a slow statement; the CloudWatch export is not a place for PII.
+    # Both are dynamic parameters (no reboot).
+    { name = "log_parameter_max_length", value = "0", apply_method = "immediate" },
+    { name = "log_parameter_max_length_on_error", value = "0", apply_method = "immediate" },
+    { name = "shared_preload_libraries", value = "pg_stat_statements", apply_method = "pending-reboot" },
+    # --- autovacuum / bloat visibility (docs/runbooks/db-ops.md) -----------
+    # All of these are dynamic (applied at once, no reboot).
+    # Every autovacuum / autoanalyze that runs longer than 1 s is logged.
+    { name = "log_autovacuum_min_duration", value = "1000", apply_method = "immediate" },
+    # A query that waited on a lock longer than deadlock_timeout is logged.
+    { name = "log_lock_waits", value = "1", apply_method = "immediate" },
+    { name = "deadlock_timeout", value = "1000", apply_method = "immediate" },
+    # Temp files over 10 MB (value in kB) mean a sort / hash spilled to disk.
+    { name = "log_temp_files", value = "10240", apply_method = "immediate" },
+    { name = "autovacuum_vacuum_scale_factor", value = tostring(var.autovacuum_vacuum_scale_factor), apply_method = "immediate" },
+    { name = "autovacuum_vacuum_insert_scale_factor", value = tostring(var.autovacuum_vacuum_scale_factor), apply_method = "immediate" },
+    { name = "autovacuum_analyze_scale_factor", value = tostring(var.autovacuum_analyze_scale_factor), apply_method = "immediate" },
+  ]
+}
+
 resource "aws_db_parameter_group" "this" {
   name   = "${var.name}-postgres16"
   family = "postgres16"
@@ -146,62 +194,50 @@ resource "aws_db_parameter_group" "this" {
   # value matters: force_ssl — TLS only; jit — the JIT compiler cost
   # 310-360 ms per case-feed call for nothing (load test 2026-10-28);
   # track_io_timing — I/O time in EXPLAIN (BUFFERS) / pg_stat_statements.
-  # Slow queries land in the log (the admin's «здоровье системы» reads them).
-  parameter {
-    name  = "log_min_duration_statement"
-    value = tostring(var.slow_query_log_ms)
+  # The postgres18 family has the same three defaults (describe-engine-
+  # default-parameters --db-parameter-group-family postgres18, 15.11).
+  dynamic "parameter" {
+    for_each = local.db_parameters
+    content {
+      name         = parameter.value.name
+      value        = parameter.value.value
+      apply_method = parameter.value.apply_method
+    }
   }
-  # S20-3: never write the bind values ($1 = 'phone / e-mail / message id')
-  # next to a slow statement; the CloudWatch export is not a place for PII.
-  # Both are dynamic parameters (no reboot).
-  parameter {
-    name  = "log_parameter_max_length"
-    value = "0"
+  # STATIC: only when asked for, applied by the next reboot. Also on while a
+  # newer major version is asked for (upgrade_to_major): AWS Blue/Green for a
+  # major upgrade replicates logically and needs it on the blue (old) side
+  # (AWS docs «Preparing … blue/green deployment with logical replication»).
+  # Stays on after the switch: this group then only serves the kept old
+  # instance, and removing it needs ResetDBParameterGroup (KNOWN_ERRORS 173).
+  dynamic "parameter" {
+    for_each = var.rds_logical_replication || var.upgrade_to_major != "16" ? [1] : []
+    content {
+      name         = "rds.logical_replication"
+      value        = "1"
+      apply_method = "pending-reboot"
+    }
   }
-  parameter {
-    name  = "log_parameter_max_length_on_error"
-    value = "0"
-  }
-  parameter {
-    name         = "shared_preload_libraries"
-    value        = "pg_stat_statements"
-    apply_method = "pending-reboot"
-  }
+  tags = var.tags
+}
 
-  # --- autovacuum / bloat visibility (docs/runbooks/db-ops.md) -------------
-  # All of these are dynamic (applied at once, no reboot).
-  # Every autovacuum / autoanalyze that runs longer than 1 s is logged.
-  parameter {
-    name  = "log_autovacuum_min_duration"
-    value = "1000"
+# Owner 15.11 «делай обновы сейчас»: the group of the next major version,
+# created as soon as it is asked for (database_major_version = "18"), so the
+# Blue/Green deployment can put the green copy on it
+# (create-blue-green-deployment --target-db-parameter-group-name). Same
+# parameters as postgres16.
+resource "aws_db_parameter_group" "pg18" {
+  count  = local.engine_major == "18" || var.upgrade_to_major == "18" ? 1 : 0
+  name   = "${var.name}-postgres18"
+  family = "postgres18"
+  dynamic "parameter" {
+    for_each = local.db_parameters
+    content {
+      name         = parameter.value.name
+      value        = parameter.value.value
+      apply_method = parameter.value.apply_method
+    }
   }
-  # A query that waited on a lock longer than deadlock_timeout is logged.
-  parameter {
-    name  = "log_lock_waits"
-    value = "1"
-  }
-  parameter {
-    name  = "deadlock_timeout"
-    value = "1000"
-  }
-  # Temp files over 10 MB (value in kB) mean a sort / hash spilled to disk.
-  parameter {
-    name  = "log_temp_files"
-    value = "10240"
-  }
-  parameter {
-    name  = "autovacuum_vacuum_scale_factor"
-    value = tostring(var.autovacuum_vacuum_scale_factor)
-  }
-  parameter {
-    name  = "autovacuum_vacuum_insert_scale_factor"
-    value = tostring(var.autovacuum_vacuum_scale_factor)
-  }
-  parameter {
-    name  = "autovacuum_analyze_scale_factor"
-    value = tostring(var.autovacuum_analyze_scale_factor)
-  }
-  # STATIC: only when asked for, applied by the next reboot.
   dynamic "parameter" {
     for_each = var.rds_logical_replication ? [1] : []
     content {
@@ -211,6 +247,10 @@ resource "aws_db_parameter_group" "this" {
     }
   }
   tags = var.tags
+}
+
+locals {
+  parameter_group_name = local.engine_major == "18" ? aws_db_parameter_group.pg18[0].name : aws_db_parameter_group.this.name
 }
 
 # Enhanced Monitoring needs a role RDS can assume (only when switched on).
@@ -320,7 +360,7 @@ resource "aws_db_instance" "this" {
   multi_az               = var.multi_az
   db_subnet_group_name   = aws_db_subnet_group.this.name
   vpc_security_group_ids = [aws_security_group.db.id]
-  parameter_group_name   = aws_db_parameter_group.this.name
+  parameter_group_name   = local.parameter_group_name
   publicly_accessible    = false
 
   # Backups: a snapshot every day, the log shipped continuously (restore to
@@ -334,6 +374,7 @@ resource "aws_db_instance" "this" {
   final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name}-postgres-final-${random_id.final_snapshot.hex}"
 
   auto_minor_version_upgrade   = var.auto_minor_version_upgrade
+  allow_major_version_upgrade  = var.allow_major_version_upgrade
   monitoring_interval          = var.monitoring_interval
   monitoring_role_arn          = var.monitoring_interval > 0 ? aws_iam_role.monitoring[0].arn : null
   maintenance_window           = "sun:04:30-sun:05:30"
@@ -364,3 +405,13 @@ output "arn" { value = aws_db_instance.this.arn }
 output "master_secret_arn" { value = aws_secretsmanager_secret.master.arn }
 output "security_group_id" { value = aws_security_group.db.id }
 output "backup_retention_days" { value = var.backup_retention_days }
+output "parameter_group_name" { value = local.parameter_group_name }
+output "engine_major" { value = local.engine_major }
+# KNOWN_ERRORS 189: read by infra/modules/stack/tests/db_shards.tftest.hcl
+# (an extra server = the primary's version, and it leaves nothing behind).
+output "engine_version" { value = aws_db_instance.this.engine_version }
+output "allow_major_version_upgrade" { value = aws_db_instance.this.allow_major_version_upgrade }
+output "deletion_protection" { value = aws_db_instance.this.deletion_protection }
+output "skip_final_snapshot" { value = aws_db_instance.this.skip_final_snapshot }
+output "delete_automated_backups" { value = aws_db_instance.this.delete_automated_backups }
+output "final_snapshot_identifier" { value = aws_db_instance.this.final_snapshot_identifier }

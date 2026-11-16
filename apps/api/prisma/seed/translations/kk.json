@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "Осы адвокатпен істі аяқтаған клиент қана пікір қалдыра алады.",
   "reviews.write.saved": "Пікір жарияланды",
   "reviews.write.title": "Сіздің пікіріңіз",
+  "router.notFound.home": "Басты бет",
+  "router.notFound.title": "Бет табылмады",
   "saved.chats.empty": "Сақталған хабарлар жоқ",
   "saved.copied": "Көшірілді",
   "saved.empty": "Әзірге ештеңе сақталмаған",

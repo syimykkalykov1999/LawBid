@@ -5266,6 +5266,8 @@
   "reviews.write.onlyAfterCase": "Alleen een cliënt die een zaak met deze advocaat heeft afgerond kan een beoordeling geven.",
   "reviews.write.saved": "Beoordeling geplaatst",
   "reviews.write.title": "Uw beoordeling",
+  "router.notFound.home": "Start",
+  "router.notFound.title": "Pagina niet gevonden",
   "saved.chats.empty": "Nog geen bewaarde berichten",
   "saved.copied": "Gekopieerd",
   "saved.empty": "Nog niets bewaard",

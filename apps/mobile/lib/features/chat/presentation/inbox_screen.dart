@@ -14,6 +14,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
@@ -273,8 +274,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                               children: [
                                 AppBackButton(
                                   semanticLabel: t.t('common.back'),
-                                  onPressed: widget.onBack ??
-                                      () => Navigator.of(context).maybePop(),
+                                  onPressed:
+                                      widget.onBack ?? () => context.safeBack(),
                                 ),
                               ],
                             ),
