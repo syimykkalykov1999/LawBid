@@ -1238,7 +1238,10 @@ data "aws_db_instance" "primary" {
 locals {
   database_running_major = length(data.aws_db_instance.primary) > 0 ? split(".", data.aws_db_instance.primary[0].engine_version)[0] : var.database_major_version
   # A pin (database_engine_version = "16.6") stays while it is that major.
-  database_engine_version = split(".", var.database_engine_version)[0] == local.database_running_major ? var.database_engine_version : local.database_running_major
+  # Otherwise the exact running version: a bare major ("18") is read by RDS
+  # as its default minor (18.3) and refused as a downgrade of 18.6
+  # (KNOWN_ERRORS 174).
+  database_engine_version = split(".", var.database_engine_version)[0] == local.database_running_major ? var.database_engine_version : (length(data.aws_db_instance.primary) > 0 ? data.aws_db_instance.primary[0].engine_version : local.database_running_major)
 }
 
 module "postgres" {
