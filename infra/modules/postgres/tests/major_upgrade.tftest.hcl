@@ -70,8 +70,8 @@ run "after_switchover_runs_18" {
     error_message = "After the switchover the config follows the server: 18 on t-postgres18."
   }
   assert {
-    condition     = !contains([for p in aws_db_parameter_group.this.parameter : p.name], "rds.logical_replication")
-    error_message = "No logical replication left on the old group once the server runs 18."
+    condition     = contains([for p in aws_db_parameter_group.this.parameter : "${p.name}=${p.value}"], "rds.logical_replication=1")
+    error_message = "The old group keeps rds.logical_replication after the switch (removing it needs ResetDBParameterGroup, KNOWN_ERRORS 173)."
   }
 }
 
