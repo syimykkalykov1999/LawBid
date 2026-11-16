@@ -225,8 +225,12 @@ jobs:
           steps.apply.outcome == 'success' &&
           contains(fromJSON('["aws.partition_role","aws.db_shards","aws.db_shards_2","aws.db_shards_3","aws.db_shards_4","aws.db_shards_5","aws.db_shards_6","aws.db_shards_7","aws.db_shards_8","aws.db_shards_9","aws.db_shards_10","aws.db_shards_11","aws.db_shards_12","aws.db_shards_13","aws.db_shards_14","aws.db_shards_15"]'), steps.job.outputs.item)
         run: |
-          TAG=$(aws ecs describe-task-definition --task-definition "$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].taskDefinition' --output text)" \
-            --query 'taskDefinition.containerDefinitions[0].image' --output text | sed 's/.*://')
+          # KNOWN_ERRORS 181: run-migrations.sh needs ECR_REGISTRY with a tag;
+          # take both from the image the live api runs (registry/repo:tag).
+          IMG=$(aws ecs describe-task-definition --task-definition "$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].taskDefinition' --output text)" \
+            --query 'taskDefinition.containerDefinitions[0].image' --output text)
+          TAG="${IMG##*:}"
+          export ECR_REGISTRY="${IMG%%/*}"
           scripts/deploy/run-migrations.sh lawbid-prod "$TAG"
 
       # Owner 15.11 «делай обновы сейчас» (docs/runbooks/db-major-upgrade.md):
