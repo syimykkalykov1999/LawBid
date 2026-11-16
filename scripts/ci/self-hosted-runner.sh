@@ -65,7 +65,7 @@ COPY --from=cli /usr/local/bin/docker /usr/local/bin/docker
 # lawbid.keep: the host's hourly cleanup (docker image prune --filter label!=lawbid.keep) must not drop this image
 LABEL lawbid.keep=1
 USER root
-# libatomic1: Node 26 links it; without it setup-node's node exits 127 (KNOWN_ERRORS 180).
+# libatomic1: Node 26 links it; without it setup-node's node exits 127 (KNOWN_ERRORS 181).
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends libatomic1 \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /home/runner/_work && chown runner:runner /home/runner/_work
