@@ -189,6 +189,17 @@ describe('StaffPieceworkReadService scoping', () => {
     }
   });
 
+  it('the default month is the report time zone month (row 180)', async () => {
+    const { svc } = make();
+    // 19:00 PDT on 31 Oct: still October in Nevada, November in UTC.
+    const out = await svc.overview(
+      actor({ id: B }),
+      undefined,
+      new Date('2026-11-01T02:00:00Z'),
+    );
+    expect(out.period).toBe('2026-10');
+  });
+
   it('an empty month is zeros for the worker, still within the query budget', async () => {
     const { svc, stat } = make();
     const out = await svc.overview(actor({ id: B }), '2026-09', NOW);

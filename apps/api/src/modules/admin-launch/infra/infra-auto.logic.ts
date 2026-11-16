@@ -345,7 +345,8 @@ export function autoWants(
   // Owner 2026-11-12 («Авто» both ways): the last extra server goes again
   // only while it is EMPTY (no data part, no move, not one row) and no
   // server nears the split threshold (then the empty one takes the next
-  // split). One at a time, the highest first; AWS keeps a final snapshot.
+  // split). One at a time, the highest first; nothing is kept of it (no
+  // final snapshot or backups, KNOWN_ERRORS 189).
   // A server with data is never removed (the API and the plan guard check
   // emptiness again).
   let last = -1;
