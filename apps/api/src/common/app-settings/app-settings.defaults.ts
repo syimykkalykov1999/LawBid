@@ -2240,6 +2240,9 @@ export const OWNER_INFRA_SETTINGS = {
    * before; 1 for a live test). */
   'infra.auto_check_minutes': 10,
   'infra.auto_max_usd_month': 100,
+  /** KNOWN_ERRORS 176: hours before «Авто» asks again for the same
+   * autoscale-code pair (a failed or no-op update). */
+  'infra.autoscale_code_retry_hours': 6,
 };
 
 /**
