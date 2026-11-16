@@ -100372,9 +100372,9 @@
           },
           {
             "name": "Idempotency-Key",
+            "required": true,
             "in": "header",
             "description": "Required: a retry returns the first refund, never a second.",
-            "required": true,
             "schema": {
               "type": "string"
             }
