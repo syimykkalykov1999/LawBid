@@ -687,9 +687,21 @@ export function autoRefusal(p: {
  * not here: the read path falls back to the primary by itself, and owner
  * rows 8 / 85 want them removed by «Авто».)
  */
-export const OWNER_CONFIRM_OFF: ReadonlySet<string> = new Set([
-  'aws.pgbouncer',
-]);
+// Owner 16.11 («даже на авто я должен вводить коды?» — «Да», make it
+// automatic): the pooler left this set. infra-apply now drains the services
+// to the direct database before the plan removes it (KNOWN_ERRORS 182),
+// proven live 16.11 (requests 247a481f, 45f01121). Kept for the next item
+// of this kind.
+export const OWNER_CONFIRM_OFF: ReadonlySet<string> = new Set<string>([]);
+
+/**
+ * Serving infrastructure an item may remove with its own switch-off,
+ * because infra-apply moves the traffic away first (drain, KNOWN_ERRORS
+ * 182): only inside the item's own module.
+ */
+const DRAINED_OWN: Readonly<Record<string, RegExp>> = {
+  'aws.pgbouncer': /^module\.stack\.module\.pgbouncer\[0\]\./,
+};
 
 /**
  * D1-34 (detective round 1, 13.11): serving infrastructure an automatic plan
@@ -806,7 +818,8 @@ export const AUTO_SCOPE: Readonly<Record<string, readonly RegExp[]>> = {
   'aws.redis_cache': [re(`module\\.redis_cache\\[0\\]\\.`)],
   'aws.pgbouncer': [
     re(`module\\.pgbouncer\\[0\\]\\.`),
-    re(`module\\.postgres\\.aws_security_group\\.db${end}`),
+    // prod plans name it module.postgres[0] (16.11 requests cd13dfb6, 45f01121)
+    re(`module\\.postgres(\\[0\\])?\\.aws_security_group\\.db${end}`),
   ],
   'aws.partition_role': [
     re(
@@ -857,7 +870,11 @@ export function autoApplyBlockers(
     const deletes = r.action.includes('delete');
     const creates = r.action.includes('create');
     if (rolling) continue;
-    if (deletes && NEVER_AUTO_DESTROY.includes(type)) {
+    if (
+      deletes &&
+      NEVER_AUTO_DESTROY.includes(type) &&
+      !(to === 'off' && DRAINED_OWN[itemId]?.test(r.address))
+    ) {
       out.push(`${r.address}: ${r.action} of serving infrastructure`);
       continue;
     }
