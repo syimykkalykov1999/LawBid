@@ -6,7 +6,8 @@
 //   node scripts/infra/plan-summary.mjs plan.json > summary.json
 //
 // Exit 3 when the plan destroys or replaces data that cannot come back
-// (FORBIDDEN_DESTROY, the same list as apps/api/src/common/ops/
+// (FORBIDDEN_DESTROY; FORBIDDEN_REPLACE: replaced, while a plain delete is
+// fine; the same lists as apps/api/src/common/ops/
 // infra-switches.ts; the API checks it again). The summary is still printed.
 //
 // D1-34 (13.11): with SERVING_OUT=<file> it also writes the addresses the
@@ -31,6 +32,10 @@ export const FORBIDDEN_DESTROY = [
   'aws_ecr_repository',
 ];
 const DESTROY_ALLOWED = [/aws_db_instance\.replica(\[|$)/];
+// Owner 15.11: may be deleted (switched off) but never REPLACED: the AWS
+// provider replaces an OpenSearch domain on a skipped version hop or a
+// downgrade (KNOWN_ERRORS 174). Same list as infra-switches.ts.
+export const FORBIDDEN_REPLACE = ['aws_opensearch_domain'];
 
 export const NEVER_AUTO_DESTROY = [
   'aws_lb',
@@ -94,6 +99,8 @@ export function forbidden(summary, changes = {}) {
   return summary.resources
     .filter((r) => r.action.includes('delete'))
     .filter((r) => {
+      const parts = r.address.split('.').map((p) => p.replace(/\[.*$/, ''));
+      if (r.action.includes('create') && parts.some((p) => FORBIDDEN_REPLACE.includes(p))) return true;
       const m = SHARD_MODULE.exec(r.address);
       const removed = typeof keep === 'number' && m && Number(m[3]) >= keep && r.action === 'delete';
       return (

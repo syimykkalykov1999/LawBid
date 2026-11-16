@@ -1,0 +1,71 @@
+# Owner 15.11 «обнови всё до новейшего» (docs/runbooks/db-major-upgrade.md):
+# the search engine goes 2.15 -> 2.19 -> 3.7, one AWS hop per apply, in place.
+# terraform test (mock providers): no AWS, no state.
+#   terraform -chdir=infra/modules/growth init -backend=false
+#   terraform -chdir=infra/modules/growth test
+
+mock_provider "aws" {
+  mock_data "aws_region" {
+    defaults = { region = "us-east-1" }
+  }
+  mock_data "aws_caller_identity" {
+    defaults = { account_id = "111111111111" }
+  }
+}
+
+variables {
+  name                      = "t"
+  vpc_id                    = "vpc-1"
+  private_subnet_ids        = ["subnet-1", "subnet-2"]
+  kms_key_arn               = "arn:aws:kms:us-east-1:111111111111:key/1"
+  tasks_security_group_id   = "sg-1"
+  opensearch_enabled        = true
+  opensearch_instance_count = 2
+}
+
+run "today_2_15_nothing_changes" {
+  command = plan
+  assert {
+    condition     = aws_opensearch_domain.search[0].engine_version == "OpenSearch_2.15"
+    error_message = "Without a switch the domain stays on OpenSearch_2.15 (what runs in prod)."
+  }
+  assert {
+    condition     = aws_opensearch_domain.search[0].cluster_config[0].instance_type == "t3.small.search"
+    error_message = "The node type stays t3.small.search (offered on 2.19 and 3.7)."
+  }
+}
+
+run "step_1_2_19" {
+  command = plan
+  variables {
+    opensearch_engine_version = "OpenSearch_2.19"
+  }
+  assert {
+    condition     = aws_opensearch_domain.search[0].engine_version == "OpenSearch_2.19"
+    error_message = "aws.opensearch_2_19 asks for OpenSearch_2.19."
+  }
+}
+
+run "step_2_3_7_keeps_nodes" {
+  command = plan
+  variables {
+    opensearch_engine_version = "OpenSearch_3.7"
+    opensearch_instance_count = 4
+  }
+  assert {
+    condition     = aws_opensearch_domain.search[0].engine_version == "OpenSearch_3.7"
+    error_message = "aws.opensearch_3 asks for OpenSearch_3.7."
+  }
+  assert {
+    condition     = aws_opensearch_domain.search[0].cluster_config[0].instance_count == 4 && aws_opensearch_domain.search[0].cluster_config[0].zone_awareness_enabled
+    error_message = "«Авто» nodes 2 <-> 4 still work on 3.7."
+  }
+}
+
+run "unknown_version_refused" {
+  command = plan
+  variables {
+    opensearch_engine_version = "OpenSearch_3.9"
+  }
+  expect_failures = [var.opensearch_engine_version]
+}

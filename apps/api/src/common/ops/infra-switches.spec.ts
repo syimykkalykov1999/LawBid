@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { COST_REGISTRY } from './cost-registry';
 import {
   FORBIDDEN_DESTROY,
+  FORBIDDEN_REPLACE,
   INFRA_KEYS,
   INFRA_SWITCHES,
   applyToFile,
@@ -250,5 +251,66 @@ describe('infra switch whitelist', () => {
     const list = /FORBIDDEN_DESTROY = \[([\s\S]*?)\]/.exec(src)![1];
     const names = [...list.matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
     expect(names).toEqual([...FORBIDDEN_DESTROY]);
+  });
+
+  // Owner 15.11 (KNOWN_ERRORS 174): the AWS provider REPLACES the search
+  // domain when engine_version skips an AWS hop or goes back. Switching the
+  // engine off (a plain delete) stays allowed; a replacement never.
+  it('the search domain may be switched off but never replaced', () => {
+    const os = 'module.stack.module.growth.aws_opensearch_domain.search[0]';
+    expect(
+      forbiddenDestroys([{ address: os, action: 'delete-create' }]),
+    ).toEqual([os]);
+    expect(
+      forbiddenDestroys([{ address: os, action: 'create-delete' }]),
+    ).toEqual([os]);
+    expect(forbiddenDestroys([{ address: os, action: 'delete' }])).toEqual([]);
+    expect(forbiddenDestroys([{ address: os, action: 'update' }])).toEqual([]);
+  });
+
+  it('the CI plan summary uses the same replace list and refuses a replaced domain', () => {
+    const script = join(ROOT, 'scripts/infra/plan-summary.mjs');
+    const src = readFileSync(script, 'utf8');
+    const list = /FORBIDDEN_REPLACE = \[([\s\S]*?)\]/.exec(src)![1];
+    const names = [...list.matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
+    expect(names).toEqual([...FORBIDDEN_REPLACE]);
+    const dir = mkdtempSync(join(tmpdir(), 'plan-'));
+    const plan = (actions: string[]) => {
+      const f = join(dir, `${actions.join('-')}.json`);
+      writeFileSync(
+        f,
+        JSON.stringify({
+          resource_changes: [
+            {
+              address:
+                'module.stack.module.growth.aws_opensearch_domain.search[0]',
+              change: { actions },
+            },
+          ],
+        }),
+      );
+      return f;
+    };
+    const run = (f: string): number => {
+      try {
+        execFileSync(process.execPath, [script, f], { stdio: 'pipe' });
+        return 0;
+      } catch (e) {
+        return (e as { status: number }).status;
+      }
+    };
+    expect(run(plan(['delete', 'create']))).toBe(3);
+    expect(run(plan(['delete']))).toBe(0);
+    expect(run(plan(['update']))).toBe(0);
+  });
+
+  it('the search engine version goes one AWS hop per switch, in order', () => {
+    const v = (id: string) => INFRA_SWITCHES.find((s) => s.id === id)!.values;
+    const k = 'growth.opensearch_engine_version';
+    expect(v('aws.opensearch_2_19').off[k]).toBe('OpenSearch_2.15');
+    expect(v('aws.opensearch_2_19').on[k]).toBe('OpenSearch_2.19');
+    expect(v('aws.opensearch_3').off[k]).toBe('OpenSearch_2.19');
+    expect(v('aws.opensearch_3').on[k]).toBe('OpenSearch_3.7');
+    expect(checkValue(k, 'OpenSearch_3.9')).not.toBeNull();
   });
 });

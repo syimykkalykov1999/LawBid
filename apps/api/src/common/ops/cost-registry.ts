@@ -1658,6 +1658,61 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: null,
   },
   {
+    // Owner 15.11, verbatim: «обнови всё до новейшего». AWS allows 2.15 ->
+    // 2.19 -> 3.7 only (get-compatible-versions 15.11); infra/modules/growth.
+    id: 'aws.opensearch_2_19',
+    name: 'Поиск: новая версия OpenSearch 2.19 (шаг 1 из 2)',
+    purpose:
+      'Обновляет поисковый движок с OpenSearch 2.15 на 2.19 — обязательный шаг AWS перед версией 3. AWS обновляет на месте: проверка, снимок, сине-зелёная замена узлов, адрес тот же, поиск работает всё время. Назад нельзя (AWS не умеет понижать версию); план с заменой движка админка откажет.',
+    kind: 'aws',
+    control: tf(['growth.opensearch_engine_version'], {
+      off: 'growth = { opensearch_engine_version = "OpenSearch_2.15" }',
+      on: 'growth = { opensearch_engine_version = "OpenSearch_2.19" }',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'free',
+      'Обновление на месте у AWS бесплатно; узлы стоят столько же',
+      U.os,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0),
+    needed: 'yes',
+    neededNote:
+      'Один раз, когда работает поисковый движок. Займёт от 15 минут до нескольких часов.',
+    alarm: null,
+  },
+  {
+    // Owner 15.11, verbatim: «обнови всё до новейшего». Newest on AWS 15.11:
+    // OpenSearch_3.7 (aws opensearch list-versions); t3.small.search is
+    // offered on 3.7 (list-instance-type-details).
+    id: 'aws.opensearch_3',
+    name: 'Поиск: новейшая версия OpenSearch 3.7 (шаг 2 из 2)',
+    purpose:
+      'Обновляет поисковый движок с 2.19 на самую новую у AWS версию 3.7 (Lucene 10, быстрее поиск). Только после шага 1. AWS обновляет на месте: проверка, снимок, сине-зелёная замена узлов, адрес тот же, поиск работает всё время. Назад нельзя; план с заменой движка админка откажет.',
+    kind: 'aws',
+    control: tf(['growth.opensearch_engine_version'], {
+      off: 'growth = { opensearch_engine_version = "OpenSearch_2.19" }',
+      on: 'growth = { opensearch_engine_version = "OpenSearch_3.7" }',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'free',
+      'Обновление на месте у AWS бесплатно; узлы стоят столько же (t3.small есть и на 3.7)',
+      U.os,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0),
+    needed: 'yes',
+    neededNote:
+      'Один раз, сразу после шага 1. Займёт от 15 минут до нескольких часов.',
+    alarm: null,
+  },
+  {
     id: 'aws.events_stream',
     name: 'Поток событий (Kinesis Data Streams)',
     purpose:

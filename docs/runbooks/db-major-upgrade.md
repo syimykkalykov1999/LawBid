@@ -68,3 +68,17 @@ scripts/infra/rds-major-upgrade.sh prepare 18
 - Neither the redis-autoscale Lambda nor the app has any engine-specific code. ModifyReplicationGroup / ListAllowedNodeTypeModifications and the ElastiCache metrics are the same for Valkey. Every node class of the ladder is offered for Valkey.
 
 **Rollback:** AWS goes back to Redis OSS only from Valkey 7.2. From 9.1 the only way back is a new cache from a snapshot. The admin refuses «Выкл»: the plan would replace the replication group, which `FORBIDDEN_DESTROY` blocks.
+
+## OpenSearch 2.15 → 2.19 → 3.7 (`aws.opensearch_2_19`, then `aws.opensearch_3`)
+
+**Version:** 3.7, the newest Amazon OpenSearch Service offers (`aws opensearch list-versions`, 15.11: 3.7, 3.5, 3.3, 3.1, 2.19 …). AWS has no direct jump: `get-compatible-versions --domain-name lawbid-prod-search` gives only 2.17 and 2.19, and the AWS guide «Upgrading Amazon OpenSearch Service domains» says 2.x must go to 2.19 first, then to 3.x. So two switches, one owner 2FA apply each, in this order.
+
+- **Method:** AWS in-place upgrade (pre-check, automatic snapshot, blue/green). The address stays the same and search keeps working; AWS says it takes 15 minutes to several hours. In-place costs nothing extra.
+- **Never a replacement:** provider 6.72 replaces the domain when the target is not in `get-compatible-versions` (a skipped hop or a step back). `FORBIDDEN_REPLACE` makes the plan fail (exit 3) and the admin refuse it. So turn on `aws.opensearch_3` only after `aws.opensearch_2_19` finished, and never turn either one back off.
+- **Session:** Terraform waits for the upgrade inside the apply (timeout 240 min). For these two items infra-apply asks for a 14 400 s AWS session (the deploy role allows 14 400 s, `aws iam get-role`, 15.11).
+- **Nodes:** t3.small.search is offered on 2.19 and 3.7 (`list-instance-type-details`, 15.11), so the size and the price stay the same. The «Авто» rows (nodes 2 ↔ 4, the engine on by people count) do not touch the version. They wait in the same `infra-apply` queue while an upgrade runs.
+- **App:** the API talks to the engine with its own small REST client (plain fetch), not opensearch-js. It uses `_search`, `_mget`, `_bulk` (external versions), `_reindex`, `_tasks`, `_aliases`, `_index_template`, `_cat`. None of these appear in the 3.0 breaking changes list. There are no k-NN or `index.store.hybrid.mmap.extensions` settings, no nested queries, and ids are UUIDs (the 512-byte `_bulk` id limit). The indexes were created on 2.15, so 3.x reads them.
+- **Checked on opensearchproject/opensearch:3.7.0 (Lucene 10.4):** `opensearch.integration.spec.ts` and `search-alias.integration.spec.ts` give 12/12. They cover mappings, analyzers, every query, bulk, aliases and the zero-downtime reindex.
+- **Before tapping:** JVM memory pressure on the 2 × t3.small averages about 50 % with peaks near 80 % (CloudWatch, 15.11). The AWS pre-check refuses an upgrade above 75 %, and then nothing changes. If it does, wait for a quiet hour and repeat.
+
+**Rollback:** none in place (AWS cannot downgrade). The way back is a new domain from the automatic snapshot, which is owner-only.
