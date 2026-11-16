@@ -197,6 +197,74 @@ const capControl = (provider: string): CostControl => ({
 });
 
 /**
+ * Owner 15.11: database servers in all at most (the primary + 15 extra) and
+ * by default (db.max_servers). Same numbers as infra-switches.ts
+ * DB_SERVERS_HARD_MAX / DB_SERVERS_DEFAULT (this file has no imports;
+ * infra-switches.spec checks they match).
+ */
+export const DB_SERVERS_HARD_MAX = 16;
+export const DB_SERVERS_DEFAULT = 4;
+
+const SERVER_NAME: readonly string[] = [
+  '',
+  'Первый',
+  'Второй',
+  'Третий',
+  'Четвёртый',
+  'Пятый',
+  'Шестой',
+  'Седьмой',
+  'Восьмой',
+  'Девятый',
+  'Десятый',
+  'Одиннадцатый',
+  'Двенадцатый',
+  'Тринадцатый',
+  'Четырнадцатый',
+  'Пятнадцатый',
+  'Шестнадцатый',
+];
+
+/**
+ * Owner 15.11 («Авто» adds a fifth, sixth … database server up to
+ * db.max_servers): rows of the extra servers past the fourth server
+ * (`aws.db_shards_4` = the fifth server … `aws.db_shards_15` = the
+ * sixteenth). Same rule and price as the third and fourth. «Масштаб» shows
+ * a row only while it is inside db.max_servers or the server runs
+ * (cost-registry.service).
+ */
+function moreServerRows(): CostEntry[] {
+  const out: CostEntry[] = [];
+  for (let n = 4; n < DB_SERVERS_HARD_MAX; n++) {
+    out.push({
+      id: `aws.db_shards_${n}`,
+      name: `${SERVER_NAME[n + 1]} сервер базы (деление базы)`,
+      purpose:
+        'Ещё один сервер PostgreSQL, когда уже работающие серверы базы подходят к порогу деления. Пустой, пока на него не перенесена половина частей данных с самого полного сервера. Схема, роли и пароли настраиваются сами при выкладке.',
+      kind: 'aws',
+      control: tf(['db_shards'], {
+        off: `db_shards = ${n - 1}`,
+        on: `db_shards = ${n}`,
+      }),
+      states: ['off', 'on', 'auto'],
+      defaultState: 'off',
+      ceiling: tfCeil('db_shards', 'Сколько серверов (0–15)'),
+      price: price(
+        'fixed',
+        'Как основная база того же размера, ≈ $190 за штуку для среднего размера',
+        U.rds,
+      ),
+      usd: { launch: R(0), k100: R(0), m1: R(0) },
+      ifOnUsd: R(190),
+      needed: 'later',
+      neededNote: `Владелец 15.11: включается сам (Авто), когда все ${n} сервер${n < 5 ? 'а' : 'ов'} базы уже заняты частями данных и какой-то из серверов подходит к порогу деления (80 %), если серверов базы не больше настройки db.max_servers; первое деление на него начинается само ночью (db.shards_move_hours). Сам уходит только пустым.`,
+      alarm: null,
+    });
+  }
+  return out;
+}
+
+/**
  * Every billable thing. Order = the order on the «Лестница расходов» page:
  * day-1 lines first (default ON), then the things the owner may switch on
  * (default OFF), then outside vendors, then apps / accounts / CI.
@@ -1511,7 +1579,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     }),
     states: ['off', 'on', 'auto'],
     defaultState: 'off',
-    ceiling: tfCeil('db_shards', 'Сколько серверов (0–3)'),
+    ceiling: tfCeil('db_shards', 'Сколько серверов (0–15)'),
     price: price(
       'fixed',
       'Как основная база того же размера, ≈ $190 за штуку для среднего размера',
@@ -1536,7 +1604,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     }),
     states: ['off', 'on', 'auto'],
     defaultState: 'off',
-    ceiling: tfCeil('db_shards', 'Сколько серверов (0–3)'),
+    ceiling: tfCeil('db_shards', 'Сколько серверов (0–15)'),
     price: price(
       'fixed',
       'Как основная база того же размера, ≈ $190 за штуку для среднего размера',
@@ -1561,7 +1629,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     }),
     states: ['off', 'on', 'auto'],
     defaultState: 'off',
-    ceiling: tfCeil('db_shards', 'Сколько серверов (0–3)'),
+    ceiling: tfCeil('db_shards', 'Сколько серверов (0–15)'),
     price: price(
       'fixed',
       'Как основная база того же размера, ≈ $190 за штуку для среднего размера',
@@ -1574,6 +1642,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Владелец 11.11: включается сам (Авто), когда основная база, второй и третий серверы уже заняты частями данных и какой-то из серверов подходит к порогу деления (80 %); первое деление на него начинается само ночью (db.shards_move_hours). Сам не выключается: на нём данные.',
     alarm: null,
   },
+  ...moreServerRows(),
   {
     id: 'aws.opensearch',
     name: 'Поисковый движок (OpenSearch)',
@@ -3309,6 +3378,19 @@ export const INFRA_MODE_KEYS: Readonly<Record<string, string>> = {
   'aws.rds_replicas_5': 'infra.mode.rds_replicas_5',
   'aws.db_shards_2': 'infra.mode.db_shards_2',
   'aws.db_shards_3': 'infra.mode.db_shards_3',
+  // Owner 15.11: the fifth server and on.
+  'aws.db_shards_4': 'infra.mode.db_shards_4',
+  'aws.db_shards_5': 'infra.mode.db_shards_5',
+  'aws.db_shards_6': 'infra.mode.db_shards_6',
+  'aws.db_shards_7': 'infra.mode.db_shards_7',
+  'aws.db_shards_8': 'infra.mode.db_shards_8',
+  'aws.db_shards_9': 'infra.mode.db_shards_9',
+  'aws.db_shards_10': 'infra.mode.db_shards_10',
+  'aws.db_shards_11': 'infra.mode.db_shards_11',
+  'aws.db_shards_12': 'infra.mode.db_shards_12',
+  'aws.db_shards_13': 'infra.mode.db_shards_13',
+  'aws.db_shards_14': 'infra.mode.db_shards_14',
+  'aws.db_shards_15': 'infra.mode.db_shards_15',
   'aws.redis_cache': 'cache.redis_mode',
 };
 

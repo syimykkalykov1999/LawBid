@@ -214,7 +214,8 @@ jobs:
       # Automation audit 2026-11-08: the partition login (Terraform just put
       # PARTITION_DB_PASSWORD into the migrate task) is set on the role by the
       # migrate task at once, not at the next deploy. Same image as running now.
-      # Row 11 (15.11): the same for a new database server (aws.db_shards*):
+      # Row 11 (15.11): the same for a new database server (aws.db_shards*,
+      # up to aws.db_shards_15 since db.max_servers; infra-apply.migrate.spec):
       # prisma/migrate-shards.mjs gives it the schema and the runtime logins
       # now. Before, that waited for the next deploy, and until then the
       # emptiness check could not read the server, so «Авто» never removed
@@ -222,7 +223,7 @@ jobs:
       - name: Migrate now (partition login, new database server)
         if: >-
           steps.apply.outcome == 'success' &&
-          contains(fromJSON('["aws.partition_role","aws.db_shards","aws.db_shards_2","aws.db_shards_3"]'), steps.job.outputs.item)
+          contains(fromJSON('["aws.partition_role","aws.db_shards","aws.db_shards_2","aws.db_shards_3","aws.db_shards_4","aws.db_shards_5","aws.db_shards_6","aws.db_shards_7","aws.db_shards_8","aws.db_shards_9","aws.db_shards_10","aws.db_shards_11","aws.db_shards_12","aws.db_shards_13","aws.db_shards_14","aws.db_shards_15"]'), steps.job.outputs.item)
         run: |
           TAG=$(aws ecs describe-task-definition --task-definition "$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].taskDefinition' --output text)" \
             --query 'taskDefinition.containerDefinitions[0].image' --output text | sed 's/.*://')
