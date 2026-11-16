@@ -498,8 +498,10 @@ resource "aws_appautoscaling_target" "this" {
   min_capacity       = var.min_tasks
   max_capacity       = var.max_tasks
   # Owner 2026-11-12: the app (economy job) writes the owner's ceiling
-  # scale.max_tasks.pgbouncer (no upper bound); an apply keeps it.
-  lifecycle { ignore_changes = [max_capacity] }
+  # scale.max_tasks.pgbouncer (no upper bound); an apply keeps it. Owner
+  # 15.11: the floor too (pgbouncer.min_tasks, at least 1 — the API needs
+  # the pooler).
+  lifecycle { ignore_changes = [max_capacity, min_capacity] }
 }
 
 resource "aws_appautoscaling_policy" "cpu" {
