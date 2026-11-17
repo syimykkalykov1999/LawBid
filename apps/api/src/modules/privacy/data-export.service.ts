@@ -2,10 +2,11 @@ import { Readable } from 'node:stream';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { ConfigService } from '@nestjs/config';
-import archiver from 'archiver';
+import type { Archiver } from 'archiver';
 import { PinoLogger } from 'nestjs-pino';
 import {
   EXPORT_MAX_MS_DEFAULT,
+  ExportZipArchive,
   type ExportProgress,
 } from '../../common/streaming/export-stream';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -640,12 +641,8 @@ export class DataExportService {
   /** The ZIP as a stream: README first, then every source as its own entry.
    * archiver reads the entries one after the other, so only the page being
    * written is in memory. */
-  archive(
-    userId: string,
-    generatedAt: Date,
-    onRow?: () => void,
-  ): archiver.Archiver {
-    const archive = archiver('zip', { zlib: { level: 9 } });
+  archive(userId: string, generatedAt: Date, onRow?: () => void): Archiver {
+    const archive = new ExportZipArchive({ zlib: { level: 9 } });
     const sources = this.sources(userId, onRow);
     archive.append(
       toJson({

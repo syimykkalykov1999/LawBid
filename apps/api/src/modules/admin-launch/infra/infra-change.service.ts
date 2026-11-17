@@ -26,8 +26,13 @@ import {
   dueTimeEvent,
   failureSettled,
   failureSuperseded,
+  INFRA_PENDING_ID,
+  INFRA_PENDING_IMPACT,
+  INFRA_PENDING_NAME,
+  INFRA_PENDING_STATE,
   inQuietWindow,
   infraSuggestions,
+  queueRefusal,
   serverRemovedBy,
   transition,
   type CreateRefusal,
@@ -36,7 +41,11 @@ import {
   type InfraSuggestion,
   type SuggestionSignals,
 } from './infra-change.logic';
-import { SYSTEM_ACTOR_ID, autoApplyBlockers } from './infra-auto.logic';
+import {
+  SYSTEM_ACTOR_ID,
+  autoApplyBlockers,
+  servingDestroys,
+} from './infra-auto.logic';
 import { InfraGithubClient, type WorkflowCaller } from './infra-github.client';
 
 export class InfraRequestError extends Error {
@@ -126,10 +135,11 @@ export class InfraChangeService {
   ): InfraRequestView {
     const entry = COST_REGISTRY.find((e) => e.id === r.item_id);
     const plan = r.plan_summary as InfraRequestView['plan'];
+    const pending = r.item_id === INFRA_PENDING_ID;
     return {
       id: r.id,
       itemId: r.item_id,
-      itemName: entry?.name ?? r.item_id,
+      itemName: pending ? INFRA_PENDING_NAME : (entry?.name ?? r.item_id),
       fromState: r.from_state,
       toState: r.to_state,
       changes: (r.changes ?? {}) as Record<string, unknown>,
@@ -141,7 +151,9 @@ export class InfraChangeService {
       runUrl: r.run_url,
       recorded: r.recorded,
       error: r.error,
-      impact: switchFor(r.item_id)?.impact ?? '',
+      impact: pending
+        ? INFRA_PENDING_IMPACT
+        : (switchFor(r.item_id)?.impact ?? ''),
       createdAt: r.created_at.toISOString(),
       plannedAt: r.planned_at?.toISOString() ?? null,
       expiresAt:
@@ -427,6 +439,82 @@ export class InfraChangeService {
     return this.view(row);
   }
 
+  /**
+   * Owner 17.11 «Применить изменения из кода»: a request that changes no
+   * switch (changes = {}); the workflow plans main's Terraform with the
+   * current settings. The same guards as a switch (one at a time, the daily
+   * cap, GitHub connected, dry-run), the same plan → 2FA confirm → apply.
+   */
+  async createPending(
+    adminId: string,
+    ip: string | null | undefined,
+  ): Promise<InfraRequestView> {
+    await this.sweep();
+    const since = new Date(Date.now() - 24 * 3600_000);
+    const [activeCount, last24h, g] = await Promise.all([
+      this.prisma.infraChangeRequest.count({
+        where: { status: { in: [...ACTIVE_STATUSES] } },
+      }),
+      this.prisma.infraChangeRequest.count({
+        where: { created_at: { gte: since }, status: { not: 'cancelled' } },
+      }),
+      this.guards(),
+    ]);
+    const refusal = queueRefusal({
+      activeCount,
+      last24h,
+      dailyCap: g.dailyCap,
+      configured: g.configured,
+    });
+    if (refusal) throw new InfraRequestError(refusal, REFUSAL_TEXT[refusal]);
+    let row: InfraChangeRequest;
+    try {
+      row = await this.prisma.infraChangeRequest.create({
+        data: {
+          item_id: INFRA_PENDING_ID,
+          from_state: null,
+          to_state: INFRA_PENDING_STATE,
+          changes: {},
+          requested_by: adminId,
+          cost_delta_usd: [0, 0],
+          dry_run: g.dryRun,
+        },
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new InfraRequestError('busy', REFUSAL_TEXT.busy);
+      }
+      throw e;
+    }
+    await this.audit.record({
+      adminId,
+      action: 'ops.infra_request',
+      targetType: 'infra_change_request',
+      targetId: row.id,
+      before: { item: INFRA_PENDING_ID, state: null },
+      after: {
+        item: INFRA_PENDING_ID,
+        state: INFRA_PENDING_STATE,
+        dryRun: g.dryRun,
+      },
+      ip: ip ?? undefined,
+    });
+    try {
+      await this.github.dispatch(row.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.log.warn(`infra dispatch failed for ${row.id}: ${msg}`);
+      row = await this.move(row, 'dispatch_failed', {
+        error: `GitHub не запустил процесс: ${msg}`,
+        finished_at: new Date(),
+      });
+    }
+    return this.view(row);
+  }
+
   async confirm(
     adminId: string,
     ip: string | null | undefined,
@@ -508,6 +596,12 @@ export class InfraChangeService {
         'Откатить можно только применённое изменение.',
       );
     }
+    if (r.item_id === INFRA_PENDING_ID) {
+      throw new InfraRequestError(
+        'wrong_status',
+        'Изменения из кода откатываются изменением кода: верните его в main и снова нажмите «Применить изменения из кода».',
+      );
+    }
     const back: InfraTarget = r.to_state === 'on' ? 'off' : 'on';
     return this.create(adminId, ip, r.item_id, back, r.id);
   }
@@ -566,6 +660,19 @@ export class InfraChangeService {
     const removed = serverRemovedBy(r.item_id, r.to_state);
     if (removed && !(await this.serverEmpty(removed))) {
       bad.push(`${removed}: на сервере есть данные`);
+    }
+    // Owner 17.11: no switch asked for anything to go, so a plan from code
+    // that deletes or replaces a serving part (load balancer, services, CDN,
+    // DNS, network) is refused, like plan-summary.mjs servingDestroys.
+    const serving =
+      r.item_id === INFRA_PENDING_ID ? servingDestroys(plan.resources) : [];
+    if (serving.length > 0) {
+      await this.move(r, 'plan_failed', {
+        error: `План из кода удаляет работающую часть, это запрещено: ${serving.slice(0, 5).join(', ')}`,
+        plan_summary: this.summary(plan),
+        finished_at: new Date(),
+      });
+      throw new InfraRequestError('bad_plan', 'plan destroys serving parts');
     }
     if (bad.length > 0) {
       await this.move(r, 'plan_failed', {

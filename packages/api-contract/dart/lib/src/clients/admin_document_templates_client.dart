@@ -5,11 +5,13 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/admin_bulk_filter_preview_envelope.dart';
 import '../models/admin_bulk_result_envelope.dart';
 import '../models/admin_document_template_envelope.dart';
 import '../models/admin_document_template_list_envelope.dart';
 import '../models/admin_template_upload_dto.dart';
 import '../models/admin_templates_bulk_dto.dart';
+import '../models/admin_templates_bulk_preview_dto.dart';
 import '../models/create_document_template_dto.dart';
 import '../models/file_envelope.dart';
 import '../models/multipart_complete_envelope.dart';
@@ -50,6 +52,13 @@ abstract class AdminDocumentTemplatesClient {
   @POST('/admin/document-templates')
   Future<AdminDocumentTemplateEnvelope> createAdminDocumentTemplate({
     @Body() required CreateDocumentTemplateDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Row 179 B6: how many templates the list filter matches (read-only, before a bulk action)
+  @POST('/admin/document-templates/bulk/preview')
+  Future<AdminBulkFilterPreviewEnvelope> previewAdminDocumentTemplatesBulk({
+    @Body() required AdminTemplatesBulkPreviewDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

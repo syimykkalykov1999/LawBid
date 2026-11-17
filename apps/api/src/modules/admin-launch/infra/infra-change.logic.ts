@@ -240,11 +240,42 @@ export function createRefusal(i: {
   if (i.to === 'on' && (!i.entry.price.text || !i.entry.price.sourceUrl)) {
     return 'no_price';
   }
+  return queueRefusal(i);
+}
+
+/**
+ * The guards every request shares, a switch or «Применить изменения из
+ * кода»: one change at a time, the daily cap, the GitHub App connected.
+ */
+export function queueRefusal(i: {
+  activeCount: number;
+  last24h: number;
+  dailyCap: number;
+  configured: boolean;
+}): 'busy' | 'daily_cap' | 'not_configured' | null {
   if (i.activeCount > 0) return 'busy';
   // Owner 2026-11-12: 0 = no daily limit («убери его»).
   if (i.dailyCap > 0 && i.last24h >= i.dailyCap) return 'daily_cap';
   if (!i.configured) return 'not_configured';
   return null;
+}
+
+/**
+ * Owner 17.11 («Применить изменения из кода»): a request that changes no
+ * switch. The workflow writes nothing into growth.auto.tfvars.json and plans
+ * main's Terraform with the current settings, so what is merged in code but
+ * not yet in the cloud (first case: Origin Shield of the media CDN, #1195)
+ * goes through the same plan → 2FA → apply → status. Not in the cost
+ * registry: the registry prices switches, not code.
+ */
+export const INFRA_PENDING_ID = 'aws.pending';
+export const INFRA_PENDING_STATE = 'pending';
+export const INFRA_PENDING_NAME = 'Изменения из кода';
+export const INFRA_PENDING_IMPACT =
+  'Применяется то, что уже влито в main в Terraform, но ещё не в облаке. Положения переключателей не меняются. Цены нет в реестре расходов: смотрите список изменений.';
+
+export function isPendingRequest(r: { itemId: string }): boolean {
+  return r.itemId === INFRA_PENDING_ID;
 }
 
 export const REFUSAL_TEXT: Record<CreateRefusal, string> = {

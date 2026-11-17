@@ -1,6 +1,6 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { OWNER_BULK_MAX } from '../../common/admin-bulk/admin-bulk';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -17,6 +17,7 @@ import {
   Min,
   MinLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import { FILE_MIME } from '../files/files.policy';
 
@@ -171,6 +172,12 @@ export class AdminTemplatesQueryDto extends TemplatesQueryDto {
   published?: boolean;
 }
 
+/** Row 179 B6: the templates list filter of «select all by filter» (no paging or order). */
+export class AdminTemplatesFilterDto extends OmitType(AdminTemplatesQueryDto, [
+  'cursor',
+  'sort',
+] as const) {}
+
 export class AdminDocumentTemplateDto extends DocumentTemplateDto {
   @ApiProperty({ format: 'uuid' }) fileId!: string;
   @ApiProperty() published!: boolean;
@@ -296,19 +303,39 @@ export class UpdateDocumentTemplateDto extends TemplateFieldsDto {
 export const TEMPLATES_BULK_MAX = 100;
 
 export class AdminTemplatesBulkDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: [String],
     format: 'uuid',
+    minItems: 1,
     maxItems: OWNER_BULK_MAX,
-    description: `Staff: at most ${TEMPLATES_BULK_MAX}; the owner: any number (processed in chunks).`,
+    description: `Exactly one of \`ids\` or \`filter\`. Staff: at most ${TEMPLATES_BULK_MAX}; the owner: any number (processed in chunks).`,
   })
+  @ValidateIf((o: AdminTemplatesBulkDto) => o.filter === undefined)
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(OWNER_BULK_MAX)
   @IsUUID('all', { each: true })
-  ids!: string[];
+  ids?: string[];
+
+  @ApiPropertyOptional({
+    type: () => AdminTemplatesFilterDto,
+    description:
+      'Row 179 B6: «select all by filter» — the templates list filter; the server resolves the ids (staff: at most `admin.bulk_select_cap`) and audits the filter.',
+  })
+  @ValidateIf((o: AdminTemplatesBulkDto) => o.ids === undefined)
+  @ValidateNested()
+  @Type(() => AdminTemplatesFilterDto)
+  filter?: AdminTemplatesFilterDto;
 
   @ApiProperty({ enum: TEMPLATE_BULK_ACTIONS, enumName: 'TemplateBulkAction' })
   @IsIn(TEMPLATE_BULK_ACTIONS)
   action!: TemplateBulkAction;
+}
+
+/** Row 179 B6: how many templates the list filter matches, before acting. */
+export class AdminTemplatesBulkPreviewDto {
+  @ApiProperty({ type: () => AdminTemplatesFilterDto })
+  @ValidateNested()
+  @Type(() => AdminTemplatesFilterDto)
+  filter!: AdminTemplatesFilterDto;
 }

@@ -231,6 +231,36 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     }
   }
 
+  /// Owner row 87 (plan PR 8): the «Горячая линия» add-on from the card.
+  /// On = the pay sheet (charged now for the rest of the period, 3-D
+  /// Secure when asked) — or nothing to pay when it was removed this
+  /// period (still paid); off = no refund, it works to the period end.
+  Future<void> _saveHotline({required bool on}) async {
+    final addon = ref.read(subscriptionOverviewProvider).value?.hotlineAddon;
+    if (on && !(addon?.active ?? false)) {
+      await buyHotlineAddon(context, ref);
+      return;
+    }
+    try {
+      final r = await ref
+          .read(subscriptionRepositoryProvider)
+          .setHotlineAddon(enabled: on);
+      ref.read(subscriptionOverviewProvider.notifier).apply(r.overview);
+      if (!mounted) return;
+      final at = r.effectiveAt;
+      showAppSnackBar(
+        context,
+        !on && at != null
+            ? _t.t('plans.hotline.off', {
+                'date': ref.read(l10nFormatsProvider).date(at),
+              })
+            : _t.t('plans.hotline.done'),
+      );
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(_t, e));
+    }
+  }
+
   String _errorText(Object? error) => switch (error) {
         CheckoutNotOpened() => _t.t('plans.cantOpen'),
         CardCollectionFailed(:final reason) =>
@@ -423,6 +453,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             overview: o,
             primeBusy: _primeBusy,
             onSaveSeats: _saveSeats,
+            onSaveHotline: _saveHotline,
             onSwitchToPrime: () => _switchToPrime(o),
             onTeam: () => context.push(TeamRoutes.team),
           ),

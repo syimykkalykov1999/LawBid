@@ -1,6 +1,12 @@
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import {
+  type BulkFilterMatch,
+  idsByFilter,
+  NEWEST_FIRST,
+} from '../../common/admin-bulk/bulk-filter';
 import { reportDayStart, reportTimeZone } from '../../common/utils/report-day';
 import { caseIdsByTitle } from '../admin-content/admin-text-search';
+import { openReportedCaseIds } from '../admin-content/reported-cases';
 import type { CountryScope } from '../countries/country-scope';
 import { urgencyFields } from '../cases/domain/case-urgency';
 import { statusOf } from '../cases/case-invites/case-invites.service';
@@ -41,8 +47,6 @@ import type {
 const DEFAULT_LIMIT = 20;
 const JOURNAL_MAX = 50;
 const BIDS_MAX = 100;
-/** Upper bound of reported case ids a `hasReports` filter looks at. */
-const REPORTED_MAX = 5000;
 
 export type AdminCaseCommand = 'hide' | 'close' | 'archive' | 'restore';
 
@@ -131,43 +135,9 @@ export class AdminCaseManagementService {
   ): Promise<Page<AdminCaseRowDto>> {
     const limit = q.limit ?? DEFAULT_LIMIT;
     const c = q.cursor ? decodeCursor(q.cursor) : undefined;
-    const reported =
-      q.hasReports === undefined ? null : await this.reportedCaseIds();
-    const and: Prisma.CaseWhereInput[] = [];
-    // Owner 2026-10-05: a case belongs to the country of its main state.
-    if (countries) {
-      and.push({ primary_state: { country_code: { in: countries } } });
-    }
-    if (q.status) and.push({ status: q.status });
-    if (q.q?.trim()) {
-      // Owner 2026-10-23: the title search reads the trigram index
-      // (admin-text-search.ts), not ILIKE over every case.
-      const ids = await caseIdsByTitle(this.prisma, q.q.trim());
-      if (ids && ids.length === 0) return { items: [], nextCursor: null };
-      // `null` = a word in very many titles: the plain newest-first scan.
-      and.push(
-        ids
-          ? { id: { in: ids } }
-          : { title: { contains: q.q.trim(), mode: 'insensitive' } },
-      );
-    }
-    if (q.clientId) and.push({ client_id: q.clientId });
-    if (q.practiceAreaId) and.push({ practice_area_id: q.practiceAreaId });
-    if (q.stateCode) {
-      and.push({ states: { some: { state_code: q.stateCode } } });
-    }
-    if (reported) {
-      and.push(
-        q.hasReports ? { id: { in: reported } } : { id: { notIn: reported } },
-      );
-    }
-    // Owner 2026-10-05: dated cases (newest-first paging like the rest).
-    if (q.withDeadline) {
-      // Owner 14.11 (row 180): local midnight of the report zone, not UTC
-      // (from 4–5 pm in Nevada UTC is already «tomorrow»).
-      const tz = await reportTimeZone(this.settings);
-      and.push({ deadline_at: { gte: reportDayStart(new Date(), tz) } });
-    }
+    const filtered = await this.filterWhere(q, countries);
+    if (!filtered) return { items: [], nextCursor: null };
+    const and = [...filtered];
     if (c) {
       and.push(createdBefore({ t: c.createdAt, id: c.id }));
     }
@@ -194,6 +164,74 @@ export class AdminCaseManagementService {
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
+  }
+
+  /** The list's filter as Prisma conditions (without the paging cursor);
+   * null = nothing can match. Row 179 B6: «select all by filter» resolves
+   * the ids with the very same one. */
+  private async filterWhere(
+    q: AdminCasesQueryDto,
+    countries: CountryScope,
+  ): Promise<Prisma.CaseWhereInput[] | null> {
+    const reported =
+      q.hasReports === undefined ? null : await this.reportedCaseIds();
+    const and: Prisma.CaseWhereInput[] = [];
+    // Owner 2026-10-05: a case belongs to the country of its main state.
+    if (countries) {
+      and.push({ primary_state: { country_code: { in: countries } } });
+    }
+    if (q.status) and.push({ status: q.status });
+    if (q.q?.trim()) {
+      // Owner 2026-10-23: the title search reads the trigram index
+      // (admin-text-search.ts), not ILIKE over every case.
+      const ids = await caseIdsByTitle(this.prisma, q.q.trim());
+      if (ids && ids.length === 0) return null;
+      // `null` = a word in very many titles: the plain newest-first scan.
+      and.push(
+        ids
+          ? { id: { in: ids } }
+          : { title: { contains: q.q.trim(), mode: 'insensitive' } },
+      );
+    }
+    if (q.clientId) and.push({ client_id: q.clientId });
+    if (q.practiceAreaId) and.push({ practice_area_id: q.practiceAreaId });
+    if (q.stateCode) {
+      and.push({ states: { some: { state_code: q.stateCode } } });
+    }
+    if (reported) {
+      and.push(
+        q.hasReports ? { id: { in: reported } } : { id: { notIn: reported } },
+      );
+    }
+    // Owner 2026-10-05: dated cases (newest-first paging like the rest).
+    if (q.withDeadline) {
+      // Owner 14.11 (row 180): local midnight of the report zone, not UTC
+      // (from 4–5 pm in Nevada UTC is already «tomorrow»).
+      const tz = await reportTimeZone(this.settings);
+      and.push({ deadline_at: { gte: reportDayStart(new Date(), tz) } });
+    }
+    return and;
+  }
+
+  /** Row 179 B6: the case ids [q] matches (ids only, keyset pages);
+   * [cap] null = every match. */
+  async idsByFilter(
+    q: AdminCasesQueryDto,
+    countries: CountryScope,
+    cap: number | null,
+  ): Promise<BulkFilterMatch> {
+    const and = await this.filterWhere(q, countries);
+    if (!and) return { ids: [], matched: 0, capped: false };
+    return idsByFilter(
+      (p) =>
+        this.prisma.case.findMany({
+          where: { AND: and },
+          select: { id: true },
+          orderBy: NEWEST_FIRST,
+          ...p,
+        }),
+      cap,
+    );
   }
 
   async card(
@@ -457,14 +495,8 @@ export class AdminCaseManagementService {
   }
 
   /** Case ids with an open report (bounded). */
-  private async reportedCaseIds(): Promise<string[]> {
-    const rows = await this.prisma.report.findMany({
-      where: { target_type: 'case', status: 'open' },
-      select: { target_id: true },
-      distinct: ['target_id'],
-      take: REPORTED_MAX,
-    });
-    return rows.map((r) => r.target_id);
+  private reportedCaseIds(): Promise<string[]> {
+    return openReportedCaseIds(this.prisma);
   }
 
   /** Owner 2026-10-05: attached photos vs documents per case (dossier). */

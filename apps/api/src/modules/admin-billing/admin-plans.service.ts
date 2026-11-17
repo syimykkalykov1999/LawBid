@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
+  hotlinePriceKind,
   jsonMap,
   planPriceKind,
   PricingService,
@@ -346,6 +347,17 @@ export class AdminPlansService {
       const kind = seatPriceKind(plan.code);
       if ((await this.pricing.amountOf(kind)) !== seat) {
         const r = await this.prices.set(admin, kind, seat, dto.note);
+        stripeError = r.stripeError ?? stripeError;
+      }
+    }
+    // Owner row 87 (16.11, plan PR 8): «Горячая линия — отдельное
+    // дополнение, цена» gets its own price row (and Stripe price) the same
+    // way; a new amount is a new Stripe price for new purchases only.
+    const hotline = ent.hotline_addon_price_cents;
+    if (plan.audience === 'attorney' && typeof hotline === 'number') {
+      const kind = hotlinePriceKind(plan.code);
+      if ((await this.pricing.amountOf(kind)) !== hotline) {
+        const r = await this.prices.set(admin, kind, hotline, dto.note);
         stripeError = r.stripeError ?? stripeError;
       }
     }

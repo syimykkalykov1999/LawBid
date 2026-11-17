@@ -1255,9 +1255,13 @@ String callStatusText(Translator t, CallSession s, {DateTime? now}) {
     case CallPhase.incoming:
       return t.t('call.status.incoming');
     case CallPhase.connecting:
+      // Row 216 (WhatsApp «On hold»): a cellular call holds it, here or
+      // on the other phone.
+      if (s.held || s.peerHeld) return t.t('call.status.onHold');
       return t.t('call.status.connecting');
     case CallPhase.active:
       if (s.reconnecting) return t.t('call.status.reconnecting');
+      if (s.held || s.peerHeld) return t.t('call.status.onHold');
       final at = s.connectedAt;
       return at == null
           ? t.t('call.status.connecting')

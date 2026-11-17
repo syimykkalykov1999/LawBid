@@ -8,11 +8,13 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
+import 'package:lawbid/features/calls/application/call_hold.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/calls/presentation/call_invite_bar.dart';
 import 'package:lawbid/features/calls/presentation/call_pip_window.dart';
 import 'package:lawbid/features/calls/presentation/call_screen.dart'
     show callStatusText;
+import 'package:lawbid/features/calls/presentation/call_waiting_banner.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/in_app_message_banner.dart';
@@ -117,6 +119,8 @@ class CallHost extends ConsumerWidget {
     final pip = s.video && talking && screenOpen;
     unawaited(ref.read(callPipProvider).setActive(active: pip));
     final invite = ref.watch(callInviteProvider);
+    // Row 216: a second call while talking (iOS: CallKit's own screen).
+    final waiting = ref.watch(callWaitingProvider);
     return ListenableBuilder(
       listenable: router.routerDelegate,
       builder: (context, _) {
@@ -186,7 +190,12 @@ class CallHost extends ConsumerWidget {
                         onOpen: () =>
                             unawaited(router.push<void>(ChatRoutes.call)),
                       )
-                    : null,
+                    : waiting != null && !waiting.systemUi
+                        ? CallWaitingBanner(
+                            key: ValueKey('waiting-${waiting.call.id}'),
+                            waiting: waiting,
+                          )
+                        : null,
               ),
             ),
             // Owner 2026-10-26 (WhatsApp): a video call minimised inside

@@ -35,6 +35,20 @@ abstract interface class SubscriptionRepository {
   /// page in the browser — a one-time link for [seats] extra seats.
   Future<Uri> seatsCheckoutUrl(int seats);
 
+  /// Owner row 87 (plan PR 8): what adding the «Горячая линия» add-on
+  /// costs now and per month (the seat preview's shape: seats are 0).
+  Future<SeatPreview> previewHotlineAddon();
+
+  /// The add-on on (charged now; send the preview's [prorationDate]) or
+  /// off (no refund, usable until the period end).
+  Future<SeatChangeOutcome> setHotlineAddon({
+    required bool enabled,
+    int? prorationDate,
+  });
+
+  /// The iPhone adds it on our card page in the browser (like seats).
+  Future<Uri> hotlineAddonCheckoutUrl();
+
   /// Owner 2026-10-01: monthly → yearly Prime (the difference is charged).
   Future<SubscriptionOverview> switchToYearly();
 

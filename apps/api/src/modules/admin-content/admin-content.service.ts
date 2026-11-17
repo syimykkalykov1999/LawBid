@@ -18,7 +18,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { PRACTICE_TREE_CACHE_KEY } from '../../common/cache/cache-keys';
 import { caseIdsByTitle, postIdsMatching } from './admin-text-search';
-import { exportWhere, type ExportFilter } from './export-filter';
+import {
+  exportWhere,
+  type ExportFilter,
+  type ExportFilterContext,
+} from './export-filter';
+import { openReportedCaseIds } from './reported-cases';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { reportDayStart, reportTimeZone } from '../../common/utils/report-day';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import {
   type ContentAction,
@@ -69,6 +76,68 @@ export function createdWindow(f: ContentFilter = {}) {
       ...(f.from ? { gte: new Date(f.from) } : {}),
       ...(f.to ? { lt: new Date(f.to) } : {}),
     },
+  };
+}
+
+/**
+ * The posts list's filter as a Prisma where (without the paging cursor);
+ * row 179 B6: «select all by filter» resolves ids with the very same one.
+ * null = the search matched nothing. `AND` always holds the search part so
+ * the list can add its keyset without the two ORs overwriting each other.
+ */
+export async function postsWhere(
+  prisma: PrismaService,
+  q?: string,
+  kind?: 'post' | 'news',
+  onlyVideo = false,
+  filter: ContentFilter = {},
+): Promise<(Prisma.PostWhereInput & { AND: Prisma.PostWhereInput[] }) | null> {
+  // Owner 2026-10-23: the text search goes through the title / full-text
+  // indexes (see admin-text-search.ts), not ILIKE over every post.
+  const matched = q?.trim() ? await postIdsMatching(prisma, q.trim()) : null;
+  if (matched && matched.length === 0) return null;
+  // `null` with a search term = a word in very many posts: the plain
+  // newest-first scan finds the first page of such matches at once.
+  const common = !!q?.trim() && matched === null;
+  return {
+    ...(matched ? { id: { in: matched } } : {}),
+    ...(kind ? { kind } : {}),
+    ...(onlyVideo ? { video_asset_id: { not: null } } : {}),
+    ...(filter.contentClass ? { content_class: filter.contentClass } : {}),
+    ...(filter.authorId ? { author_id: filter.authorId } : {}),
+    ...createdWindow(filter),
+    AND: [
+      common && q
+        ? {
+            OR: [
+              { title: { contains: q.trim(), mode: 'insensitive' } },
+              { body: { contains: q.trim(), mode: 'insensitive' } },
+            ],
+          }
+        : {},
+    ],
+  };
+}
+
+/** The comments list's filter (post and case comments share it). */
+export function commentsWhere(q?: string, filter: ContentFilter = {}) {
+  return {
+    ...(q ? { body: { contains: q, mode: 'insensitive' as const } } : {}),
+    ...(filter.authorId ? { author_id: filter.authorId } : {}),
+    ...createdWindow(filter),
+  };
+}
+
+/** The reviews list's filter. Audit 2026-10-02: the author of a review of
+ * an attorney is its client. */
+export function reviewsWhere(
+  q?: string,
+  filter: ContentFilter = {},
+): Prisma.ReviewWhereInput & { AND: Prisma.ReviewWhereInput[] } {
+  return {
+    ...(filter.authorId ? { client_id: filter.authorId } : {}),
+    ...createdWindow(filter),
+    AND: [reviewSearch(q)],
   };
 }
 
@@ -138,6 +207,9 @@ export class AdminContentService {
     private readonly fanout: BroadcastFanoutRunner,
     // Caching round 2 (S2-5): the practice-area tree copy is dropped on edit.
     @Optional() @Inject(REDIS_CACHE_CLIENT) private readonly cache?: Redis,
+    // Row 180 follow-up B7: «С датой» in the cases CSV is cut in the
+    // owner's report time zone, as the list.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   private async dropPracticeTree(): Promise<void> {
@@ -186,37 +258,10 @@ export class AdminContentService {
     onlyVideo = false,
     filter: ContentFilter = {},
   ): Promise<Page<AdminPostRowDto>> {
-    // Owner 2026-10-23: the text search goes through the title / full-text
-    // indexes (see admin-text-search.ts), not ILIKE over every post.
-    const matched = q?.trim()
-      ? await postIdsMatching(this.prisma, q.trim())
-      : null;
-    if (matched && matched.length === 0) return { items: [], nextCursor: null };
-    // `null` with a search term = a word in very many posts: the plain
-    // newest-first scan finds the first page of such matches at once.
-    const common = !!q?.trim() && matched === null;
+    const where = await postsWhere(this.prisma, q, kind, onlyVideo, filter);
+    if (!where) return { items: [], nextCursor: null };
     const rows = await this.prisma.post.findMany({
-      where: {
-        ...(matched ? { id: { in: matched } } : {}),
-        ...(kind ? { kind } : {}),
-        ...(onlyVideo ? { video_asset_id: { not: null } } : {}),
-        ...(filter.contentClass ? { content_class: filter.contentClass } : {}),
-        ...(filter.authorId ? { author_id: filter.authorId } : {}),
-        ...createdWindow(filter),
-        // Search and paging both need an OR: AND keeps them from
-        // overwriting each other.
-        AND: [
-          common && q
-            ? {
-                OR: [
-                  { title: { contains: q.trim(), mode: 'insensitive' } },
-                  { body: { contains: q.trim(), mode: 'insensitive' } },
-                ],
-              }
-            : {},
-          keyset(cursor),
-        ],
-      },
+      where: { ...where, AND: [...where.AND, keyset(cursor)] },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
       include: {
@@ -314,12 +359,7 @@ export class AdminContentService {
     cursor?: string,
     filter: ContentFilter = {},
   ): Promise<Page<AdminCommentRowDto>> {
-    const where = {
-      ...(q ? { body: { contains: q, mode: 'insensitive' as const } } : {}),
-      ...(filter.authorId ? { author_id: filter.authorId } : {}),
-      ...createdWindow(filter),
-      ...keyset(cursor),
-    };
+    const where = { ...commentsWhere(q, filter), ...keyset(cursor) };
     if (thread === 'case') {
       const rows = await this.prisma.caseComment.findMany({
         where,
@@ -384,14 +424,9 @@ export class AdminContentService {
     q?: string,
     filter: ContentFilter = {},
   ): Promise<Page<AdminReviewRowDto>> {
+    const where = reviewsWhere(q, filter);
     const rows = await this.prisma.review.findMany({
-      // Audit 2026-10-02: `q` was accepted but ignored. The author of a
-      // review of an attorney is its client.
-      where: {
-        ...(filter.authorId ? { client_id: filter.authorId } : {}),
-        ...createdWindow(filter),
-        AND: [reviewSearch(q), keyset(cursor)],
-      },
+      where: { ...where, AND: [...where.AND, keyset(cursor)] },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
       include: {
@@ -629,7 +664,11 @@ export class AdminContentService {
   ): Promise<{ rows: number; truncated: boolean }> {
     const max = unlimited ? Number.POSITIVE_INFINITY : CSV_EXPORT_LIMIT;
     // Owner 14.11 (row 180): the list's filters (none = the whole table).
-    const spec = this.exportSpec(entity, exportWhere(entity, filter));
+    exportWhere(entity, filter); // a bad value: 400 before any lookup
+    const spec = this.exportSpec(
+      entity,
+      exportWhere(entity, filter, await this.exportContext(filter)),
+    );
     await write(csvLine(spec.header));
     let rows = 0;
     let cursor: string | undefined;
@@ -650,6 +689,22 @@ export class AdminContentService {
       if (page.length < take) return { rows, truncated: false };
       cursor = page[page.length - 1].id;
     }
+  }
+
+  /** Row 180 follow-up B7: the lookups the cases filters need, exactly as
+   * the cases list does them (open-report ids; local midnight of today). */
+  private async exportContext(
+    filter: ExportFilter = {},
+  ): Promise<ExportFilterContext> {
+    const ctx: ExportFilterContext = {};
+    if (filter.hasReports !== undefined) {
+      ctx.reportedCaseIds = await openReportedCaseIds(this.prisma);
+    }
+    if (filter.withDeadline) {
+      const tz = await reportTimeZone(this.settings);
+      ctx.deadlineFrom = reportDayStart(new Date(), tz);
+    }
+    return ctx;
   }
 
   private exportSpec(

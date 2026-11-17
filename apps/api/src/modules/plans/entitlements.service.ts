@@ -55,6 +55,34 @@ export interface ResolvedEntitlements {
   isPaid: boolean;
   values: Entitlements;
   seats: SeatSummary | null;
+  /** Owner row 87 (plan PR 8): the «Горячая линия» add-on bought on the
+   * subscription — absent when none. `endsAt` = removed, usable until
+   * then (the period already paid). Read with [hotlineAddonActive]. */
+  hotlineAddon?: { endsAt: string | null } | null;
+}
+
+/** The add-on stands now: bought and either kept or not yet at its end. */
+export function hotlineAddonActive(
+  r: Pick<ResolvedEntitlements, 'hotlineAddon'>,
+  now: number = Date.now(),
+): boolean {
+  const a = r.hotlineAddon;
+  if (!a) return false;
+  return a.endsAt === null || Date.parse(a.endsAt) > now;
+}
+
+/** From the subscription row: the add-on, or null. */
+export function hotlineAddonOf(
+  sub: {
+    hotline_addon?: boolean | null;
+    hotline_addon_ends_at?: Date | null;
+  } | null,
+): { endsAt: string | null } | null {
+  if (!sub) return null;
+  if (sub.hotline_addon) return { endsAt: null };
+  return sub.hotline_addon_ends_at
+    ? { endsAt: sub.hotline_addon_ends_at.toISOString() }
+    : null;
 }
 
 const CACHE_TTL_SECONDS = 60;
@@ -197,6 +225,8 @@ export class EntitlementsService {
           assistant_seats: true,
           plan_id: true,
           entitlements: true,
+          hotline_addon: true,
+          hotline_addon_ends_at: true,
         },
       }),
       findActiveGrant(this.prisma, userId),
@@ -238,7 +268,10 @@ export class EntitlementsService {
         );
         const seats = seatsOf(values, sub.assistant_seats, own);
         if (grant) seats.total = Math.max(seats.total, grant.assistant_seats);
-        return present('plan', plan, values, seats, true);
+        return {
+          ...present('plan', plan, values, seats, true),
+          hotlineAddon: hotlineAddonOf(sub),
+        };
       }
       // A row from before plans existed: the audience's default plan of
       // its interval; the seats it bought are what it has.
@@ -262,7 +295,10 @@ export class EntitlementsService {
         total,
         max: Math.max(total, entitlementNumber(values, 'max_seats')),
       };
-      return present('legacy', legacy, values, seats, true);
+      return {
+        ...present('legacy', legacy, values, seats, true),
+        hotlineAddon: hotlineAddonOf(sub),
+      };
     }
     if (grant) {
       // Owner 2026-10-02: a free subscription under a contract = the

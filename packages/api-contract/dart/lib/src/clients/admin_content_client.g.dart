@@ -528,6 +528,39 @@ class _AdminContentClient implements AdminContentClient {
   }
 
   @override
+  Future<AdminBulkFilterPreviewEnvelope> previewAdminContentBulk({
+    required AdminContentBulkPreviewDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<AdminBulkFilterPreviewEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/content/bulk/preview',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late AdminBulkFilterPreviewEnvelope _value;
+    try {
+      _value = AdminBulkFilterPreviewEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<AdminBidRowListEnvelope> listAdminBids({
     String? q,
     String? cursor,
@@ -739,6 +772,9 @@ class _AdminContentClient implements AdminContentClient {
     String? kind,
     DateTime? from,
     DateTime? to,
+    bool? disputed,
+    bool? hasReports,
+    bool? withDeadline,
     String? xJustification,
     Map<String, dynamic>? extras,
   }) async {
@@ -754,6 +790,9 @@ class _AdminContentClient implements AdminContentClient {
       r'kind': kind,
       r'from': from?.toIso8601String(),
       r'to': to?.toIso8601String(),
+      r'disputed': disputed,
+      r'hasReports': hasReports,
+      r'withDeadline': withDeadline,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{r'X-Justification': xJustification};

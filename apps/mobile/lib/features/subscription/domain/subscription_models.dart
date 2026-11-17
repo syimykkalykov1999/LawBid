@@ -150,6 +150,40 @@ class SubscriptionInfo {
   DateTime? get periodEnd => inTrial ? trialEndsAt : currentPeriodEnd;
 }
 
+/// Owner row 87 (16.11, plan PR 8): the «Горячая линия» add-on — one more
+/// item of the same Stripe subscription, bought and removed like a seat.
+@immutable
+class HotlineAddon {
+  const HotlineAddon({
+    required this.priceCents,
+    required this.active,
+    this.currency = 'usd',
+    this.renews = false,
+    this.endsAt,
+    this.pending = false,
+    this.canBuy = false,
+  });
+
+  /// Per month.
+  final int priceCents;
+  final String currency;
+
+  /// Usable now.
+  final bool active;
+
+  /// On the subscription (billed with the next invoice).
+  final bool renews;
+
+  /// Removed: usable until then (the period already paid, no refund).
+  final DateTime? endsAt;
+
+  /// A purchase waits for the bank's check (3-D Secure).
+  final bool pending;
+
+  /// It can be bought now (after the first payment, like seats).
+  final bool canBuy;
+}
+
 /// `GET /subscriptions/me`.
 @immutable
 class SubscriptionOverview {
@@ -165,7 +199,12 @@ class SubscriptionOverview {
     this.plans = const [],
     this.entitlements = PlanEntitlements.none,
     this.seats,
+    this.hotlineAddon,
   });
+
+  /// Owner row 87 (16.11, plan PR 8): the «Горячая линия» add-on row of
+  /// the card; null = the plan does not offer it.
+  final HotlineAddon? hotlineAddon;
 
   /// Owner 2026-10-02: free under contract (isActive is true then).
   final ContractGrant? contractGrant;

@@ -5,12 +5,14 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/admin_bulk_filter_preview_envelope.dart';
 import '../models/admin_bulk_result_envelope.dart';
 import '../models/admin_case_action_dto.dart';
 import '../models/admin_case_card_envelope.dart';
 import '../models/admin_case_row_list_envelope.dart';
 import '../models/admin_case_status.dart';
 import '../models/admin_cases_bulk_dto.dart';
+import '../models/admin_cases_bulk_preview_dto.dart';
 import '../models/admin_contact_issue_card_envelope.dart';
 import '../models/admin_contact_issue_list_envelope.dart';
 import '../models/admin_dispute_card_envelope.dart';
@@ -98,6 +100,13 @@ abstract class AdminCasesClient {
   Future<AdminCaseCardEnvelope> getAdminCase({
     @Path('id') required String id,
     @Header('X-Justification') required String xJustification,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Row 179 B6: how many cases the list filter matches (read-only, before a bulk action)
+  @POST('/admin/cases/bulk/preview')
+  Future<AdminBulkFilterPreviewEnvelope> previewAdminCasesBulk({
+    @Body() required AdminCasesBulkPreviewDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
