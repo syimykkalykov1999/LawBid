@@ -208,6 +208,10 @@ abstract interface class CasesRepository {
   Future<void> recordViews(List<String> caseIds);
   Future<void> setSaved(String caseId, {required bool saved});
   Future<CaseBid> placeBid(String caseId, BidInput input);
+
+  /// Firms audit 16.11 (PR-4): join the firm's bid a colleague already
+  /// sent on the case (one bid per firm per case).
+  Future<void> joinFirmBid(String bidId);
   Future<CursorPage<MyBid>> myBids(
     MyBidsFilter filter, {
     String? cursor,
@@ -709,6 +713,11 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
     return guardApiCall(
       () => saved ? _cases.saveItem(body: body) : _cases.unsaveItem(body: body),
     );
+  }
+
+  @override
+  Future<void> joinFirmBid(String bidId) async {
+    await guardApiCall(() => _bids.joinBid(id: bidId));
   }
 
   @override

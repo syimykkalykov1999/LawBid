@@ -1063,6 +1063,12 @@ class CaseActions {
     return result;
   }
 
+  /// Firms audit 16.11 (PR-4): join the colleague's bid of the firm.
+  Future<void> joinFirmBid(String caseId, String bidId) async {
+    await _repo.joinFirmBid(bidId);
+    _ref.invalidate(attorneyCaseProvider(caseId));
+  }
+
   Future<void> setSaved(String caseId, {required bool saved}) async {
     await _repo.setSaved(caseId, saved: saved);
     _ref
