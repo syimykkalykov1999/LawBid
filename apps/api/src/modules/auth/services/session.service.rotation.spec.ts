@@ -20,7 +20,13 @@ describe('SessionService.rotate (atomic, idempotent retry)', () => {
     user: { status: 'active' },
   };
 
-  function make(opts: { claimCount?: number; redisDown?: boolean } = {}) {
+  function make(
+    opts: {
+      claimCount?: number;
+      redisDown?: boolean;
+      tokensDown?: boolean;
+    } = {},
+  ) {
     const store = new Map<string, string>();
     const redis = {
       get: jest.fn((k: string) =>
@@ -61,6 +67,16 @@ describe('SessionService.rotate (atomic, idempotent retry)', () => {
         ),
       },
       $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
+      pushToken: {
+        updateMany: jest.fn(() =>
+          opts.tokensDown
+            ? Promise.reject(new Error('down'))
+            : Promise.resolve({ count: 1 }),
+        ),
+      },
+      voipToken: {
+        updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
+      },
     };
     const current: { row: Record<string, unknown> } = { row: live };
     const tokens = {
@@ -108,6 +124,36 @@ describe('SessionService.rotate (atomic, idempotent retry)', () => {
     expect(store.has('auth:refresh-replay:hash-old')).toBe(true);
     // The cached pair is encrypted, never the raw token.
     expect([...store.values()][0]).not.toContain('raw-new');
+  });
+
+  // 14.11 (DB scale review, finding 8): the device's push and VoIP tokens
+  // move to the new row, so the nightly clean-up of the old row (ON DELETE
+  // CASCADE) never takes the token of a device that is still signed in.
+  it('moves the device push and VoIP tokens to the new row of the chain', async () => {
+    const { service, prisma } = make();
+    await service.rotate('raw-old', { deviceId: 'x' }, {});
+    const move = {
+      where: {
+        user_id: 'u1',
+        OR: [{ session_chain_id: 'chain' }, { session_id: 's1' }],
+      },
+      data: { session_id: 's2', session_chain_id: 'chain' },
+    };
+    expect(prisma.pushToken.updateMany).toHaveBeenCalledWith(move);
+    expect(prisma.voipToken.updateMany).toHaveBeenCalledWith(move);
+  });
+
+  it('a failed token move never fails the refresh', async () => {
+    const { service } = make({ tokensDown: true });
+    await expect(
+      service.rotate('raw-old', { deviceId: 'x' }, {}),
+    ).resolves.toMatchObject({ status: 'ok' });
+  });
+
+  it('a lost race moves nothing', async () => {
+    const { service, prisma } = make({ claimCount: 0 });
+    await service.rotate('raw-old', { deviceId: 'x' }, {});
+    expect(prisma.pushToken.updateMany).not.toHaveBeenCalled();
   });
 
   it('the chain keeps the device it was created on (a refresh cannot re-label it)', async () => {

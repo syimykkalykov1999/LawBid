@@ -1145,6 +1145,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100000,
   };
+  out['sessions.cleanup_batch'] = {
+    ...out['sessions.cleanup_batch'],
+    description:
+      'Sessions cleanup (nightly): session rows scanned per statement (one short transaction each).',
+    min: 100,
+    max: 50000,
+  };
+  out['sessions.revoked_retention_days'] = {
+    ...out['sessions.revoked_retention_days'],
+    description:
+      'Sessions cleanup: days a signed-out or blocked session row is kept (incident review, new-device signal).',
+    min: 1,
+    max: 3650,
+  };
   out['privacy.retention_batch'] = {
     ...out['privacy.retention_batch'],
     description: 'Privacy retention: rows per statement (short transactions).',
