@@ -479,6 +479,10 @@ export const OWNER_SUPPORT_SETTINGS = {
 // Owner 2026-10-02: the paid gold badge of a client (cents per month).
 export const OWNER_BADGE_SETTINGS = {
   'verification.client_badge_cents': 1000,
+  // Owner 16.11: a client's subscription (gold check + plan features) is
+  // bought WITHOUT documents, like X Premium / Meta Verified basic. On =
+  // the old path: documents → approval → payment. The code stays.
+  'verification.client_badge_documents': false,
 } as const;
 
 // Owner 2026-10-04: an attorney enters state + bar number and confirms

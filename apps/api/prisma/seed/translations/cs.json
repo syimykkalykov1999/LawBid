@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Soubor neprošel kontrolou. Vyberte jinou fotografii.",
   "cbadge.hint": "Zlatý odznak u vašeho jména",
   "cbadge.lead": "Zlatý odznak ukazuje, že váš účet byl ověřen. Pošlete dokumenty a my je posoudíme ručně. Po schválení se odznak zapne s předplatným.",
+  "cbadge.lead.pay": "Zlatá značka u vašeho jména a výhody předplatného. Žádné doklady: předplaťte si a vše se hned zapne.",
   "cbadge.pay": "Předplatit za {price} měsíčně",
   "cbadge.pending.text": "Prohlížíme vaše dokumenty. Až skončíme, dostanete oznámení.",
   "cbadge.pending.title": "Posuzuje se",

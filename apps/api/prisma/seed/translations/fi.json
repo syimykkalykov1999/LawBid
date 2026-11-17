@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Tiedosto ei läpäissyt tarkistusta. Valitse toinen kuva.",
   "cbadge.hint": "Kultainen merkki nimesi vieressä",
   "cbadge.lead": "Kultainen merkki osoittaa, että tilisi on vahvistettu. Lähetä asiakirjat, niin tarkistamme ne käsin. Hyväksynnän jälkeen merkki otetaan käyttöön tilauksella.",
+  "cbadge.lead.pay": "Kultainen merkki nimesi vieressä ja tilauksen edut. Asiakirjoja ei tarvita: tilaa, niin kaikki on heti käytössä.",
   "cbadge.pay": "Tilaa hintaan {price} kuukaudessa",
   "cbadge.pending.text": "Tutkimme asiakirjojasi. Saat ilmoituksen, kun olemme valmiita.",
   "cbadge.pending.title": "Tarkistettavana",

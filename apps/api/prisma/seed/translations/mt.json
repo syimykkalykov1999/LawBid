@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Il-fajl ma għaddiex mill-kontroll. Agħżel ritratt ieħor.",
   "cbadge.hint": "Tikka tad-deheb ħdejn ismek",
   "cbadge.lead": "It-tikka tad-deheb turi li l-kont tiegħek ġie vverifikat. Ibgħat dokumenti u neżaminawhom bl-idejn. Wara l-approvazzjoni t-tikka tixgħel b’abbonament.",
+  "cbadge.lead.pay": "Il-marka tad-deheb ħdejn ismek u l-vantaġġi tal-abbonament. M'hemmx bżonn dokumenti: abbona u jinxtegħel mill-ewwel.",
   "cbadge.pay": "Abbona għal {price} kull xahar",
   "cbadge.pending.text": "Qed inħarsu lejn id-dokumenti tiegħek. Tirċievi notifika meta nispiċċaw.",
   "cbadge.pending.title": "Taħt reviżjoni",

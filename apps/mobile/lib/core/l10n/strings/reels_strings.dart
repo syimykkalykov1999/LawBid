@@ -240,6 +240,9 @@ const reelsRu = <String, String>{
   'cbadge.benefit.promo': 'Продвижение кейса: его увидит больше адвокатов.',
   'cbadge.lead':
       'Золотая галочка показывает, что ваш аккаунт проверен. Отправьте документы, мы проверим их вручную. После одобрения галочка включается по подписке.',
+  // Owner 16.11: «Проверка документов клиента» off — no document step.
+  'cbadge.lead.pay':
+      'Золотая галочка рядом с именем и возможности подписки. Документы не нужны: оформите подписку, и всё включится сразу.',
   'cbadge.docs': 'Документы',
   'cbadge.docs.hint':
       'Фото удостоверения личности или другого документа с вашим именем. До 5 файлов.',
@@ -536,6 +539,8 @@ const reelsEn = <String, String>{
   'cbadge.benefit.promo': 'Case promotion: more attorneys see your case.',
   'cbadge.lead':
       'The gold check shows your account was verified. Send documents and we review them by hand. After approval the check turns on with a subscription.',
+  'cbadge.lead.pay':
+      'The gold check next to your name and the extras of the subscription. No documents needed: subscribe and it turns on at once.',
   'cbadge.docs': 'Documents',
   'cbadge.docs.hint':
       'A photo of an ID or another document with your name. Up to 5 files.',

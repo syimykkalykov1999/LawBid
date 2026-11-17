@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Hindi pumasa sa pagsusuri ang file. Pumili ng ibang larawan.",
   "cbadge.hint": "Gintong check sa tabi ng iyong pangalan",
   "cbadge.lead": "Ipinapakita ng gintong check na na-verify ang iyong account. Magpadala ng mga dokumento at susuriin namin ang mga ito nang mano-mano. Pagkatapos ng pag-apruba, mag-o-on ang check kasama ng subscription.",
+  "cbadge.lead.pay": "Ang gintong tsek sa tabi ng pangalan mo at ang mga benepisyo ng subscription. Walang kailangang dokumento: mag-subscribe at agad itong mabubuksan.",
   "cbadge.pay": "Mag-subscribe sa {price} kada buwan",
   "cbadge.pending.text": "Tinitingnan namin ang iyong mga dokumento. Makakatanggap ka ng notification kapag tapos na kami.",
   "cbadge.pending.title": "Sinusuri",

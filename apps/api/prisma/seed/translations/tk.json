@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Faýl barlagdan geçmedi. Başga surat saýlaň.",
   "cbadge.hint": "Adyňyzyň ýanynda altyn bellik",
   "cbadge.lead": "Altyn bellik hasabyňyzyň tassyklanandygyny görkezýär. Resminamalary iberiň, olary elde gözden geçirýäris. Kabul edilenden soň bellik abuna bilen açylýar.",
+  "cbadge.lead.pay": "Adyňyzyň ýanyndaky altyn belgi we abunalygyň mümkinçilikleri. Resminama gerek däl: abuna boluň, hemmesi derrew açylýar.",
   "cbadge.pay": "Aýda {price} abuna ýazylmak",
   "cbadge.pending.text": "Resminamalaryňyza seredýäris. Gutaranymyzda bildiriş alarsyňyz.",
   "cbadge.pending.title": "Gözden geçirilýär",
