@@ -480,6 +480,7 @@ export default function FlagsPage() {
                       i={i}
                       busy={update.isPending}
                       onChange={(v) => update.mutate({ key: f.key, ...v })}
+                      onHash={(h) => hash.mutate({ key: f.key, hashVersion: h })}
                       extra={
                         <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-line px-3 py-2">
                           <span className="min-w-0 text-sm text-ink">
