@@ -93,7 +93,7 @@ jobs:
         run: |
           scripts/ci/require-green.sh "$GITHUB_SHA" \
             '^(API |Admin CI|Build image \+ Trivy|gitleaks|CodeQL)' \
-            '^(Wait for green CI|Build & push|Deploy|Web deploy|Build and publish|Notify|Mobile release|Analyze, lint|Golden tests|Build check|Does the app|Dependency audit \(OSV)'
+            '^(Wait for green CI|Build & push|Deploy|Web deploy|Which run deploys|Build and publish|Notify|Mobile release|Analyze, lint|Golden tests|Build check|Does the app|Dependency audit \(OSV)'
 
   # 2026-10-28: run 40632613817 hit the 60-min limit building admin's arm64
   # half under QEMU. Each architecture is now built NATIVELY in its own job
