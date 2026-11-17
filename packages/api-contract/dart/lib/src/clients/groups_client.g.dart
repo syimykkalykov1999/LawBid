@@ -437,6 +437,7 @@ class _GroupsClient implements GroupsClient {
     required String id,
     num? limit = 50,
     String? cursor,
+    String? q,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -444,6 +445,7 @@ class _GroupsClient implements GroupsClient {
     final queryParameters = <String, dynamic>{
       r'limit': limit,
       r'cursor': cursor,
+      r'q': q,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

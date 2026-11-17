@@ -2345,6 +2345,7 @@
   "form.disabled.required": "Avval majburiy maydonlarni to‘ldiring.",
   "gallery.accessDenied": "Rasmlaringizga ruxsat yo‘q. Telefon sozlamalarida ruxsat bering.",
   "gallery.saveFailed": "Rasmni saqlab bo‘lmadi. Qayta urinib ko‘ring.",
+  "gallery.shareFailed": "Ulashib bo‘lmadi. Qayta urinib ko‘ring.",
   "gate.verify.cases": "LawBid litsenziyangizni tasdiqlagach, ishlar ochiladi. Bu odatda 1–2 ish kunini oladi.",
   "gate.verify.cta": "Tasdiqlashni yakunlash",
   "gate.verify.post": "Lentaga faqat tasdiqlangan advokatlar post joylay oladi, shunda mijozlar kimning yozganini doim bilib turadi.",

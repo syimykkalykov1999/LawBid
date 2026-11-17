@@ -2345,6 +2345,7 @@
   "form.disabled.required": "Compila prima i campi obbligatori.",
   "gallery.accessDenied": "Nessun accesso alle foto. Consentilo nelle impostazioni del telefono.",
   "gallery.saveFailed": "Impossibile salvare la foto. Riprova.",
+  "gallery.shareFailed": "Impossibile condividere. Riprova.",
   "gate.verify.cases": "I casi si sbloccano dopo che LawBid ha confermato la sua abilitazione. Di solito servono 1–2 giorni lavorativi.",
   "gate.verify.cta": "Completa la verifica",
   "gate.verify.post": "Solo gli avvocati verificati possono pubblicare nel feed, così i clienti sanno sempre chi stanno leggendo.",
