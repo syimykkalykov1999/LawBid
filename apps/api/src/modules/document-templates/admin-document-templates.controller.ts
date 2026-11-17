@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Optional,
   Param,
   Patch,
   Post,
@@ -25,9 +26,16 @@ import {
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
-import { AdminBulkResultDto } from '../admin-content/admin-content.dto';
+import {
+  AdminBulkFilterPreviewDto,
+  AdminBulkResultDto,
+} from '../admin-content/admin-content.dto';
 import { eachIdInChunks } from '../admin-content/bulk.util';
-import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
+import {
+  bulkFilterPreview,
+  bulkTargets,
+} from '../../common/admin-bulk/bulk-filter';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   FileDto,
   MultipartCompleteDto,
@@ -39,6 +47,7 @@ import {
   AdminTemplateFileParamDto,
   AdminTemplateUploadDto,
   AdminTemplatesBulkDto,
+  AdminTemplatesBulkPreviewDto,
   AdminTemplatesQueryDto,
   CreateDocumentTemplateDto,
   TEMPLATES_BULK_MAX,
@@ -60,6 +69,7 @@ export class AdminDocumentTemplatesController {
   constructor(
     private readonly templates: DocumentTemplatesService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   @Get()
@@ -91,6 +101,23 @@ export class AdminDocumentTemplatesController {
     return this.templates.create(admin, dto);
   }
 
+  @Post('bulk/preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Row 179 B6: how many templates the list filter matches (read-only, before a bulk action)',
+  })
+  @ApiEnvelopeResponse(AdminBulkFilterPreviewDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  previewAdminDocumentTemplatesBulk(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminTemplatesBulkPreviewDto,
+  ): Promise<AdminBulkFilterPreviewDto> {
+    return bulkFilterPreview(admin, this.settings, (cap) =>
+      this.templates.adminIdsByFilter(dto.filter, cap),
+    );
+  }
+
   @Post('bulk')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Publish, unpublish or delete many templates' })
@@ -102,9 +129,21 @@ export class AdminDocumentTemplatesController {
   ): Promise<AdminBulkResultDto> {
     // Owner 2026-11-12: staff keep 100 a request; the owner sends any
     // number, worked through in chunks, one batch audit row per chunk.
-    assertStaffBulkCap(admin, dto.ids, TEMPLATES_BULK_MAX);
+    // Row 179 B6: or the list's filter, resolved here.
+    const ids = await bulkTargets({
+      admin,
+      ids: dto.ids,
+      filter: dto.filter,
+      staffMax: TEMPLATES_BULK_MAX,
+      settings: this.settings,
+      resolve: (cap) => this.templates.adminIdsByFilter(dto.filter!, cap),
+      audit: this.audit,
+      auditAction: 'admin.document_template.bulk_filter',
+      targetType: 'document_template_filter',
+      bulkAction: dto.action,
+    });
     return eachIdInChunks(
-      dto.ids,
+      ids,
       (id) =>
         dto.action === 'delete'
           ? this.templates.remove(admin, id)
@@ -116,7 +155,7 @@ export class AdminDocumentTemplatesController {
           targetType: 'document_template',
           targetId: null,
           after: {
-            requested: dto.ids.length,
+            requested: ids.length,
             done: part.done,
             skipped: part.skipped.map((s) => ({ id: s.id, reason: s.reason })),
             ...(chunk.of > 1 ? { chunk } : {}),

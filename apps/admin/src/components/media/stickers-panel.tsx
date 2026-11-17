@@ -22,7 +22,7 @@ import { can } from '@/lib/rbac';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { StickerUploader } from './sticker-uploader';
-import { collectIds, type Noun } from '@/lib/bulk';
+import type { Noun } from '@/lib/bulk';
 import { BulkBar, bulkData, PageSelectBox, RowSelectBox, useBulkRun, useSelection } from '@/components/bulk/bulk-controls';
 import { LazyImg } from '@/components/ui/lazy-img';
 
@@ -49,12 +49,9 @@ export function StickersPanel() {
   const sel = useSelection(`${kind}|${status}|${q}`);
   const bulk = useBulkRun();
 
-  const fetchPage = async (cursor: string | undefined) =>
-    (
-      await api.GET('/admin/media/sticker-packs', {
-        params: { query: { cursor, kind, status: status === 'all' ? undefined : status, q: q || undefined } },
-      })
-    ).data!;
+  // The list's filter; «select all by filter» sends it (row 179 B6).
+  const listQuery = { kind, status: status === 'all' ? undefined : status, q: q || undefined };
+  const fetchPage = async (cursor: string | undefined) => (await api.GET('/admin/media/sticker-packs', { params: { query: { ...listQuery, cursor } } })).data!;
   const list = useInfiniteQuery({
     queryKey: ['media-sticker-packs', kind, status, q],
     initialPageParam: undefined as string | undefined,
@@ -73,7 +70,16 @@ export function StickersPanel() {
   });
   const onBulk = (hide: boolean) =>
     bulk.run({
-      ids: [...sel.selected],
+      ids: sel.byFilter ? [] : [...sel.selected],
+      count: sel.byFilter?.count,
+      sendAll: sel.byFilter
+        ? async (reason) =>
+            bulkData(
+              await api.POST(hide ? '/admin/media/sticker-packs/bulk-hide' : '/admin/media/sticker-packs/bulk-unhide', {
+                body: { filter: listQuery, reason },
+              }),
+            )
+        : undefined,
       verb: hide ? 'Скрыть' : 'Вернуть',
       doneVerb: hide ? 'Скрыто' : 'Возвращено',
       noun: PACKS,
@@ -130,20 +136,14 @@ export function StickersPanel() {
       {bulk.dialog}
       {canWrite ? (
         <BulkBar
-          selectedCount={sel.selected.size}
+          selectedCount={sel.count}
           noun={PACKS}
           onClear={sel.clear}
-          onSelectAll={async (cap) => {
-            const r = await collectIds(
-              async (c) => {
-                const p = await fetchPage(c);
-                return { data: p.data, nextCursor: p.meta?.nextCursor };
-              },
-              undefined,
-              cap,
-            );
-            sel.replace(r.ids);
-            return r.capped;
+          onSelectAll={async () => {
+            // Row 179 B6: the server counts the filter (no page walk).
+            const p = (await api.POST('/admin/media/sticker-packs/bulk/preview', { body: { filter: listQuery } })).data!.data;
+            sel.selectFilter(p);
+            return p.capped;
           }}
         >
           <Button size="sm" variant="danger-soft" disabled={bulk.pending} onClick={() => onBulk(true)}>
