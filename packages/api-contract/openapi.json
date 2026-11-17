@@ -148865,6 +148865,12 @@
           "rolloutPercent": {
             "type": "integer"
           },
+          "hashVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "description": "1 = old FNV-1a, 2 = GrowthBook v2 (row 150)."
+          },
           "description": {
             "type": "string",
             "nullable": true
@@ -148901,6 +148907,7 @@
           "key",
           "enabled",
           "rolloutPercent",
+          "hashVersion",
           "description",
           "paid",
           "requiredKeys",
@@ -148936,6 +148943,12 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 100
+          },
+          "hashVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "description": "Bucketing hash of the partial rollout: 1 = old FNV-1a, 2 = GrowthBook v2. Changing it re-picks who has the flag."
           },
           "expectedUpdatedAt": {
             "type": "string",
@@ -183116,6 +183129,12 @@
           "trafficPercent": {
             "type": "integer"
           },
+          "hashVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "description": "1 = old FNV-1a, 2 = GrowthBook v2 (row 150)."
+          },
           "guardrails": {
             "$ref": "#/components/schemas/ExperimentGuardrailsDto"
           },
@@ -183164,6 +183183,7 @@
           "status",
           "variants",
           "trafficPercent",
+          "hashVersion",
           "guardrails",
           "startedAt",
           "endAt",
@@ -183227,6 +183247,13 @@
             "type": "string",
             "format": "date-time",
             "description": "Stops by itself at this moment."
+          },
+          "hashVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "default": 2,
+            "description": "Bucketing hash (row 150): 2 = GrowthBook v2, even and independent between tests (default); 1 = the old FNV-1a. Fixed for the life of the test."
           }
         },
         "required": [

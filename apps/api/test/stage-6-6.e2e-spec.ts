@@ -165,6 +165,20 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
       .set(sup.auth)
       .send({ rolloutPercent: 10 })
       .expect(200);
+    // Row 150: the bucketing hash is chosen per flag and validated.
+    const hashed = await api()
+      .patch('/api/v1/admin/feature-flags/chat_translate')
+      .set(sup.auth)
+      .send({ hashVersion: 1 })
+      .expect(200);
+    expect(
+      (hashed.body as { data: { hashVersion: number } }).data,
+    ).toMatchObject({ hashVersion: 1 });
+    await api()
+      .patch('/api/v1/admin/feature-flags/chat_translate')
+      .set(sup.auth)
+      .send({ hashVersion: 3 })
+      .expect(400);
 
     // Warm the public cache, then flip a free flag: the next bootstrap sees it.
     const before = await api().get('/api/v1/config/bootstrap').expect(200);
@@ -192,8 +206,12 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
       where: { admin_id: sup.userId, action: 'config.flag' },
       orderBy: { created_at: 'asc' },
     });
-    expect(audit.length).toBe(2);
+    expect(audit.length).toBe(3);
     expect(audit[1]).toMatchObject({
+      before: { key: 'chat_translate' },
+      after: { key: 'chat_translate', hashVersion: 1 },
+    });
+    expect(audit[2]).toMatchObject({
       before: { key: 'apple_login', enabled: true },
       after: { key: 'apple_login', enabled: false },
     });
