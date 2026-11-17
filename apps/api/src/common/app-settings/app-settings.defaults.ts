@@ -862,6 +862,10 @@ export const OWNER_STALE_SETTINGS = {
   // other side confirms or keeps it open within this many days, else the
   // case closes by itself (both are told).
   'cases.close_confirm_days': 7,
+  // Firms audit 16.11 (PR-3): the most lawyers a firm holds (active plus
+  // pending invitations) and how many days an invitation is valid.
+  'firms.max_members': 50,
+  'firms.invite_expiry_days': 7,
 } as const;
 
 // Owner 2026-10-05: attorney trust levels (docs/ATTORNEY_TRUST.md). The

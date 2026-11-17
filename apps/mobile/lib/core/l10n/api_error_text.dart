@@ -219,6 +219,7 @@ const _keys = <String, String>{
   ApiErrorCodes.firmAlreadyMember: 'error.api.FIRM_ALREADY_MEMBER',
   ApiErrorCodes.firmFull: 'error.api.FIRM_FULL',
   ApiErrorCodes.firmOwnerMustTransfer: 'error.api.FIRM_OWNER_MUST_TRANSFER',
+  ApiErrorCodes.firmBidExists: 'error.api.FIRM_BID_EXISTS',
   ApiErrorCodes.accountExistsUseOtherMethod:
       'error.api.ACCOUNT_EXISTS_USE_OTHER_METHOD',
   ApiErrorCodes.promotionAlreadyActive: 'error.api.PROMOTION_ALREADY_ACTIVE',

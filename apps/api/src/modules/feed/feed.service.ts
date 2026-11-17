@@ -11,6 +11,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor as decodeKeyset,
   encodeCursor as encodeKeyset,
+  createdBefore,
 } from '../../common/pagination/cursor.util';
 import { GUEST_USER_ID } from '../../common/viewer/guest';
 import { PrismaReadService } from '../../prisma/prisma-read.service';
@@ -90,33 +91,10 @@ function badCursor(): BadRequestException {
  * viewer's recently shown recommendations; followed posts are never
  * hidden by "seen" (the feed must still open on them next time).
  */
-/**
- * Posts strictly after the keyset cursor in (created_at DESC, id DESC)
- * order. Row 126 (EXPLAIN ANALYZE on 300 000 posts): the tie-break OR alone
- * is only a Filter, so the index was read from the newest post down to the
- * cursor on every page (290 001 rows removed, 259 ms at depth 290 000, and
- * growing with the table). `created_at <= t` beside it is an Index Cond
- * range on posts_visible_created_idx / the author index: the same rows,
- * read from the cursor on (2.2 ms). Prisma has no row comparison
- * `(created_at, id) < (t, id)`, so this is its equivalent.
- */
-export function postsBefore(after: {
-  t: string;
-  id: string;
-}): Prisma.PostWhereInput {
-  const t = new Date(after.t);
-  return {
-    AND: [
-      { created_at: { lte: t } },
-      {
-        OR: [
-          { created_at: { lt: t } },
-          { created_at: t, id: { lt: after.id } },
-        ],
-      },
-    ],
-  };
-}
+/** Row 126 (#1084): the keyset condition of the feed. It moved to
+ * common/pagination (createdBefore) so every (created_at DESC, id DESC)
+ * list reads the index the same way; the name stays for the feed. */
+export const postsBefore = createdBefore;
 
 @Injectable()
 export class FeedService implements FeedProvider {
