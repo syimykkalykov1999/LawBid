@@ -14,7 +14,9 @@ void main() {
   test('a fresh attorney profile replaces the tap copy', () async {
     final profile = attorneyProfile();
     final c = ProviderContainer(
-      overrides: profileOverrides(attorneys: FakeAttorneyRepo(profile: profile)),
+      overrides: profileOverrides(
+        attorneys: FakeAttorneyRepo(profile: profile),
+      ),
     );
     addTearDown(c.dispose);
     c.read(followOverridesProvider.notifier).put(profile.id, true);
