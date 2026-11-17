@@ -3,7 +3,14 @@
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y coturn curl
+# Row 202 (16.11): coturn from its OFFICIAL multi-arch image, pinned by digest
+# (4.18.0, 08.09.2026, https://hub.docker.com/r/coturn/coturn), used as is.
+# Ubuntu 24.04's apt package is 4.6.1 (2023), years behind upstream.
+COTURN_IMAGE="coturn/coturn:4.18.0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3"
+apt-get install -y docker.io curl
+systemctl enable --now docker
+for _ in 1 2 3 4 5; do docker pull "$COTURN_IMAGE" && break; sleep 10; done
+docker image inspect "$COTURN_IMAGE" >/dev/null
 snap install aws-cli --classic
 
 # The instance's private address for the relay, the public one for clients.
@@ -31,19 +38,21 @@ realm=${realm}
 fingerprint
 use-auth-secret
 static-auth-secret=$SECRET
-no-cli
+# CLI is off by default since coturn 4.18 (no-cli is deprecated there).
 no-multicast-peers
 no-tcp-relay
 total-quota=${quota}
 bps-capacity=0
 stale-nonce=600
-syslog
+# stdout -> journal of the coturn unit (journalctl -u coturn), as syslog was.
+log-file=stdout
 %{ for cidr in denied ~}
 denied-peer-ip=${cidr}
 %{ endfor ~}
 CONF
 chmod 640 /etc/turnserver.conf
-chown root:turnserver /etc/turnserver.conf
+# The image runs coturn as nobody:nogroup (65534).
+chown root:65534 /etc/turnserver.conf
 SCRIPT
 chmod 755 /usr/local/bin/turn-config
 mkdir -p /etc/systemd/system/coturn.service.d
@@ -72,23 +81,44 @@ fingerprint
 use-auth-secret
 static-auth-secret=$SECRET
 # The API issues logins that live a few minutes (TURN REST API).
-no-cli
+# CLI is off by default since coturn 4.18 (no-cli is deprecated there).
 no-multicast-peers
 no-tcp-relay
 total-quota=${quota}
 bps-capacity=0
 stale-nonce=600
-syslog
+# stdout -> journal of the coturn unit (journalctl -u coturn), as syslog was.
+log-file=stdout
 %{ for cidr in denied ~}
 denied-peer-ip=${cidr}
 %{ endfor ~}
 CONF
 chmod 640 /etc/turnserver.conf
-chown root:turnserver /etc/turnserver.conf
+# The image runs coturn as nobody:nogroup (65534).
+chown root:65534 /etc/turnserver.conf
 
 %{ endif ~}
 
-sed -i 's/^#\?TURNSERVER_ENABLED=.*/TURNSERVER_ENABLED=1/' /etc/default/coturn
+# coturn as a systemd service around the pinned image. Host network: the
+# relay ports 49152-65535 and 3478/5349 are the box's own (the security group
+# is unchanged), and turn-report below still counts the relay sockets with ss.
+# `docker run` stays in the foreground, so its output lands in
+# `journalctl -u coturn` exactly like the apt package's did.
+cat > /etc/systemd/system/coturn.service <<UNIT
+[Unit]
+Description=coturn TURN server (official image, pinned by digest)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+[Service]
+ExecStartPre=-/usr/bin/docker rm -f coturn
+ExecStart=/usr/bin/docker run --rm --name coturn --network host --log-opt max-size=10m --log-opt max-file=2 -v /etc/turnserver.conf:/etc/coturn/turnserver.conf:ro $COTURN_IMAGE -c /etc/coturn/turnserver.conf
+ExecStop=/usr/bin/docker stop -t 10 coturn
+Restart=always
+RestartSec=2
+[Install]
+WantedBy=multi-user.target
+UNIT
 # Allocation count -> CloudWatch (LawBid/TURN, Allocations) once a minute.
 # Every allocation binds one UDP relay port in 49152-65535, so counting those
 # sockets = counting allocations (no coturn CLI or Prometheus needed).

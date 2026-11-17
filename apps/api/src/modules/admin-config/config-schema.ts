@@ -1475,7 +1475,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'bids.confirmation_reminder_days':
       'Bids: days until the one reminder to an attorney whose bid waits for confirmation. There is no automatic withdrawal.',
     'deal_record.pdf_word_cache_words':
-      'Deal record PDF: how many shaped words (per font) the server keeps between records, so the next PDF is built faster (~3.6 KB of memory each). The PDF itself never changes. 0 = keep none: each PDF shapes its words again (slower).',
+      'Deal record PDF: how many shaped words the server keeps between records, all fonts and languages together, so the next PDF is built faster. About 3.6 KB of memory each: 10 000 ≈ 36 MB, 20 000 (the maximum) ≈ 72 MB, and never more. The PDF itself never changes. 0 = keep none: each PDF shapes its words again (slower).',
   };
   for (const [k, description] of Object.entries(dealRecordText)) {
     out[k] = { ...out[k], description };
@@ -1483,7 +1483,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['deal_record.pdf_word_cache_words'] = {
     ...out['deal_record.pdf_word_cache_words'],
     min: 0,
-    max: 200_000,
+    max: 20_000,
   };
   for (const [k, description] of Object.entries(seoText)) {
     out[k] = { ...out[k], description };
@@ -1788,7 +1788,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['admin.report_timezone'] = {
     ...out['admin.report_timezone'],
     description:
-      'Time zone the admin days are cut in (today, with-deadline, staff KPI days): an IANA name such as America/Los_Angeles or Europe/Moscow.',
+      'Time zone the admin days are cut in (today, with-deadline, staff KPI days, the profit days, weeks and months): an IANA name such as America/Los_Angeles or Europe/Moscow.',
     pattern: /^(UTC|[A-Z][A-Za-z_]+(\/[A-Za-z0-9_+-]+){1,2})$/,
   };
   out['admin.audit_export_enabled'] = {
@@ -2006,6 +2006,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   ] as const) {
     out[key] = { ...out[key], description, min, max };
   }
+  // Owner row 199: one encode for the videos Bunny re-encodes anyway.
+  out['media.bunny_one_encode'] = {
+    ...out['media.bunny_one_encode'],
+    description:
+      'Reels, stories and channel videos no taller than media.video_max_height go to Bunny as recorded (Bunny encodes once); off = the phone also re-encodes above media.video_reencode_above_kbps.',
+  };
   for (const platform of ['ios', 'android']) {
     // The "Update" button of the forced / soft update screen. Needed for
     // iOS before the first release: the App Store id exists only after the

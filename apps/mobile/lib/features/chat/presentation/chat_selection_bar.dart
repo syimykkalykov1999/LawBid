@@ -160,7 +160,7 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
       if (pick == null || !mounted) return;
       span = muteDuration(pick);
     }
-    final forever = span != null && span.inDays >= 3000;
+    final forever = span == kMuteForever;
     await _each(
       (c) => ref.read(chatRepositoryProvider).mute(
             c.id,

@@ -16,7 +16,8 @@ export interface Fx {
   rates: Array<Record<string, unknown>>;
   profiles: Array<{ user_id: string; workspace: string }>;
   stats: Array<{ admin_id: string }>;
-  leaseDone: Array<{ admin_id: string; kind: string }>;
+  /** `at`: when the decision was closed; without it, always in the day. */
+  leaseDone: Array<{ admin_id: string; kind: string; at?: Date }>;
   overturned: Array<{ decided_by: string; decision_kind: string; n: number }>;
   snapshots: Array<{ admin_id: string; rating: number | null; status: string }>;
   days: Array<Record<string, any>>;
@@ -62,8 +63,8 @@ export function rate(
   };
 }
 
-export function done(admin_id: string, kind: string, n: number) {
-  return Array.from({ length: n }, () => ({ admin_id, kind }));
+export function done(admin_id: string, kind: string, n: number, at?: Date) {
+  return Array.from({ length: n }, () => ({ admin_id, kind, at }));
 }
 
 export function makeDb(fx: Fx) {
@@ -78,8 +79,14 @@ export function makeDb(fx: Fx) {
     staffDailyStat: { findMany: async () => fx.stats },
     workLeaseEvent: {
       groupBy: async ({ by, where }: any) => {
-        const rows = fx.leaseDone.filter((r) =>
-          inList(where.admin_id, r.admin_id),
+        const w = where.created_at;
+        const rows = fx.leaseDone.filter(
+          (r) =>
+            inList(where.admin_id, r.admin_id) &&
+            (!r.at ||
+              !w ||
+              (r.at.getTime() >= w.gte.getTime() &&
+                r.at.getTime() < w.lt.getTime())),
         );
         const out = new Map<string, any>();
         for (const r of rows) {
@@ -205,9 +212,12 @@ export function makeService(
   stored: Record<string, unknown> = { 'staff.piecework_enabled': true },
 ) {
   const prisma = makeDb(fx);
-  const settings = new StaffSettingsService({
+  // `string` serves `admin.report_timezone` (unset → America/Los_Angeles).
+  const appSettings = {
     all: () => Promise.resolve(stored),
-  } as unknown as AppSettingsService);
+    string: (key: string) => Promise.resolve(stored[key] as string | undefined),
+  } as unknown as AppSettingsService;
+  const settings = new StaffSettingsService(appSettings);
   const payroll = new PayrollAccrualsService(prisma);
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const svc = new StaffPieceworkService(
@@ -215,8 +225,9 @@ export function makeService(
     settings,
     payroll,
     audit as never,
+    appSettings,
   );
-  return { svc, prisma, settings, payroll, audit };
+  return { svc, prisma, settings, appSettings, payroll, audit };
 }
 
 /** A person with a profile, stats for the day and a payroll entry. */

@@ -126,6 +126,22 @@ describe('tuningNow («Числа «Авто»» cards)', () => {
     );
   });
 
+  it('owner 15.11: servers card also shows the floor / ceiling and the Spot split', () => {
+    const f: NowFacts = {
+      economy: {
+        containers: {
+          services: [
+            { kind: 'api', running: 2, desired: 2, spot: true, base: 1, fargateWeight: 1, spotWeight: 4, min: 2, max: 6 },
+            { kind: 'pgbouncer', running: 1, desired: 1, spot: null, base: null, fargateWeight: null, spotWeight: null, min: 1, max: 2 },
+          ],
+        },
+      } as unknown as NowFacts['economy'],
+    };
+    expect(tuningNow('ecs', f)).toBe(
+      'Сейчас (работает из нужных): API 2 из 2, PgBouncer 1 из 1; на Spot: API; API: от 2 до 6, первые 1 обычные, дальше обычные:Spot 1:4; PgBouncer: от 1 до 2',
+    );
+  });
+
   it('spot fallback card (#1120): which services run on Spot', () => {
     expect(tuningNow('spot', facts)).toBe(
       'Сейчас: на Spot: API, фоновые; обычные: API админки, админка',

@@ -137,4 +137,41 @@ void main() {
     expect(need(8000), isFalse);
     expect(need(5000), isTrue);
   });
+
+  test('row 199: one encode for Bunny — on by default, off = as before', () {
+    expect(bunnyOneEncodeOf(flags(const {})), isTrue);
+    expect(
+      bunnyOneEncodeOf(flags(const {'media.bunny_one_encode': 'true'})),
+      isTrue,
+    );
+    expect(
+      bunnyOneEncodeOf(flags(const {'media.bunny_one_encode': 'false'})),
+      isFalse,
+    );
+    expect(videoMaxBytesOf(flags(const {})), 1000 * 1024 * 1024);
+    expect(
+      videoMaxBytesOf(flags(const {'video.max_size_mb': '200'})),
+      200 * 1024 * 1024,
+    );
+    const limits = (maxHeight: 1080, frameRate: 30);
+    const maxBytes = 1000 * 1024 * 1024;
+    // An Android 1080p recording, 17 Mbit/s, 60 s: before re-encoded on
+    // the phone (then by Bunny again); now uploaded as recorded.
+    bool need(int shortSide, int bytes, {required bool one}) =>
+        needsVideoCompression(
+          shortSide: shortSide,
+          bytes: bytes,
+          durationMs: 60000,
+          limits: limits,
+          oneEncode: one,
+          maxBytes: maxBytes,
+        );
+    const android1080 = 17000 * 1000 ~/ 8 * 60;
+    expect(need(1080, android1080, one: false), isTrue);
+    expect(need(1080, android1080, one: true), isFalse);
+    // 4K is still shrunk on the phone (upload size), and so is a file over
+    // the server's limit.
+    expect(need(2160, android1080, one: true), isTrue);
+    expect(need(1080, maxBytes + 1, one: true), isTrue);
+  });
 }
