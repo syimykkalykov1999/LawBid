@@ -137,13 +137,17 @@ class _FirmsClient implements FirmsClient {
   }
 
   @override
-  Future<FirmEnvelope> acceptFirmInvite({Map<String, dynamic>? extras}) async {
+  Future<FirmEnvelope> acceptFirmInvite({
+    AcceptFirmInviteDto? body,
+    Map<String, dynamic>? extras,
+  }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
-    const Map<String, dynamic>? _data = null;
+    final _data = <String, dynamic>{};
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<FirmEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(

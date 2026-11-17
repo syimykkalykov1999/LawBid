@@ -88,7 +88,7 @@ function OnCallCard({ enabled }: { enabled: boolean }) {
       </CardHeader>
       <CardContent className="flex items-start gap-4 text-sm">
         <p className="min-w-0 flex-1 text-muted">
-          Когда в системе сбой (база, Redis, очереди, платежи Stripe, пуши, звонки, ошибки API), вам приходит
+          Когда в системе сбой (база, Valkey, очереди, платежи Stripe, пуши, звонки, ошибки API), вам приходит
           пуш в приложение и письмо; пока сбой идёт, напоминание каждые 15 минут, а потом сообщение «восстановлено».
           Выключите, если вы в отпуске.
         </p>

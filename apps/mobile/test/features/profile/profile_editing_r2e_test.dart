@@ -484,5 +484,42 @@ void main() {
       expect(find.text('Doe & Partners'), findsOneWidget);
       await _teardown(tester);
     });
+
+    // Firms audit 16.11 (PR-3): the invited lawyer sees until when.
+    testWidgets('an invitation shows until when it is valid', (tester) async {
+      final me = attorneyMe();
+      final firm = api.FirmDto.fromJson({
+        'id': 'firm-2',
+        'name': 'Roe LLP',
+        'ownerId': 'att-9',
+        'states': <String>[],
+        'inviteExpiresAt': '2030-01-15T12:00:00.000Z',
+        'members': [
+          {
+            'attorneyId': me.id,
+            'firstName': 'Jane',
+            'lastName': 'Doe',
+            'role': 'member',
+            'status': 'invited',
+            'states': <String>[],
+          },
+        ],
+      });
+      await _pump(
+        tester,
+        const FirmScreen(),
+        user: me,
+        overrides: [
+          ...profileOverrides(),
+          myFirmProvider.overrideWith((ref) async => firm),
+          sessionControllerProvider.overrideWith(_OwnerSession.new),
+        ],
+      );
+      expect(
+        find.text('The invitation is valid until Jan 15, 2030'),
+        findsOneWidget,
+      );
+      await _teardown(tester);
+    });
   });
 }

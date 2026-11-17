@@ -14897,7 +14897,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE, BID_ALREADY_EXISTS, IDEMPOTENCY_KEY_CONFLICT",
+            "description": "Conflict: CASE_INVALID_STATE, BID_ALREADY_EXISTS, IDEMPOTENCY_KEY_CONFLICT, FIRM_BID_EXISTS",
             "content": {
               "application/json": {
                 "schema": {
@@ -14943,6 +14943,113 @@
           }
         ],
         "summary": "Place a bid on an open case (attorney)",
+        "tags": [
+          "bids"
+        ]
+      }
+    },
+    "/bids/{id}/join": {
+      "post": {
+        "operationId": "joinBid",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidJoinEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: BID_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Join a colleague's bid of the firm (one bid per firm per case)",
         "tags": [
           "bids"
         ]
@@ -16138,6 +16245,16 @@
       "post": {
         "operationId": "acceptFirmInvite",
         "parameters": [],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptFirmInviteDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success envelope (docs/01 §7).",
@@ -16170,7 +16287,7 @@
             }
           },
           "409": {
-            "description": "Conflict: FEATURE_DISABLED",
+            "description": "Conflict: FEATURE_DISABLED, FIRM_ALREADY_MEMBER, FIRM_FULL",
             "content": {
               "application/json": {
                 "schema": {
@@ -140015,6 +140132,7 @@
           "FIRM_ALREADY_MEMBER",
           "FIRM_FULL",
           "FIRM_OWNER_MUST_TRANSFER",
+          "FIRM_BID_EXISTS",
           "BID_LICENSE_PENDING",
           "BAR_ATTEMPTS_COOLDOWN",
           "CASE_LIMIT_REACHED",
@@ -147915,6 +148033,32 @@
           "data"
         ]
       },
+      "BidJoinDto": {
+        "type": "object",
+        "properties": {
+          "bidId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "bidId"
+        ]
+      },
+      "BidJoinEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BidJoinDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "ChangeBidDto": {
         "type": "object",
         "properties": {
@@ -148097,6 +148241,12 @@
             "items": {
               "$ref": "#/components/schemas/FirmMemberDto"
             }
+          },
+          "inviteExpiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "The viewer's own pending invitation to this firm is valid until then"
           }
         },
         "required": [
@@ -148104,7 +148254,8 @@
           "name",
           "ownerId",
           "states",
-          "members"
+          "members",
+          "inviteExpiresAt"
         ]
       },
       "CreateFirmDto": {
@@ -148143,6 +148294,15 @@
         "required": [
           "username"
         ]
+      },
+      "AcceptFirmInviteDto": {
+        "type": "object",
+        "properties": {
+          "firmId": {
+            "type": "string",
+            "description": "Which invitation; the newest one when left out"
+          }
+        }
       },
       "TransferFirmOwnerDto": {
         "type": "object",
