@@ -13,13 +13,16 @@ import 'package:lawbid/features/chat/presentation/chat_video.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart'
     show ReactionChipRow;
 import 'package:lawbid/features/chat/presentation/reply_swipe.dart';
+import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/groups/domain/slow_mode.dart';
+import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_bubble.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_rich_text.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_style.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show GoldRingAvatar;
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
@@ -72,11 +75,16 @@ class GroupMessageBubble extends ConsumerWidget {
     this.onTap,
     this.protectContent = false,
     this.onReact,
+    this.voiceThread,
     super.key,
   });
 
   final api.GroupMessageDto message;
   final String groupId;
+
+  /// Groups WhatsApp parity: the group's notes for the 1:1 voice bubble
+  /// (the ones after a note play by themselves).
+  final VoiceThread? voiceThread;
 
   /// First message of a run from this sender: the name is shown.
   final bool showName;
@@ -172,6 +180,26 @@ class GroupMessageBubble extends ConsumerWidget {
           accent: accent,
           protectContent: protectContent,
           onMention: (p) => openGroupPerson(context, ref, p),
+        );
+      }
+      final voice = m.voiceMessage;
+      if (voice != null) {
+        // Groups WhatsApp parity: the 1:1 voice bubble (sender's photo with
+        // the mic badge, bars, speed, the one app player).
+        final me = mine ? ref.watch(currentUserControllerProvider).user : null;
+        return VoiceMessageBody(
+          message: voice,
+          mine: mine,
+          threadId: groupVoiceThreadId(groupId),
+          thread: voiceThread ??
+              VoiceThread(messages: () => [voice], played: (_) async {}),
+          avatarUrl: mine ? me?.avatarUrl : sender?.avatarUrl,
+          avatarName: mine
+              ? [me?.firstName, me?.lastName]
+                  .whereType<String>()
+                  .where((x) => x.trim().isNotEmpty)
+                  .join(' ')
+              : groupPersonName(t, sender),
         );
       }
       return GroupRichText(
@@ -321,7 +349,8 @@ class GroupMessageBubble extends ConsumerWidget {
           container: true,
           label: groupMessagePreview(t, m, withSender: true),
           onLongPress: onMenu,
-          excludeSemantics: a == null && !m.isPoll,
+          // Voice bubbles keep their play / speed buttons reachable (1:1).
+          excludeSemantics: a == null && !m.isPoll && !m.isVoice,
           child: bubble,
         ),
       ),
@@ -560,10 +589,14 @@ class GroupPendingBubble extends ConsumerWidget {
     required this.pending,
     required this.onRetry,
     required this.onDiscard,
+    this.groupId = '',
     super.key,
   });
 
   final PendingGroupMessage pending;
+
+  /// The group (the mini-player's way back while a note plays).
+  final String groupId;
   final VoidCallback onRetry;
   final VoidCallback onDiscard;
 
@@ -598,6 +631,28 @@ class GroupPendingBubble extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Groups WhatsApp parity: my note plays from the recording
+                // while it is being sent (the 1:1 local bubble).
+                if (p.voice != null)
+                  VoiceMessageBody(
+                    message: ChatMessage(
+                      id: 'local:${p.clientMessageId}',
+                      conversationId: groupId,
+                      kind: MessageKind.voice,
+                      body: '',
+                      clientMessageId: p.clientMessageId,
+                      createdAt: DateTime.now(),
+                      voice: p.voice,
+                    ),
+                    mine: true,
+                    threadId: groupVoiceThreadId(groupId),
+                    thread: VoiceThread(
+                      messages: () => const [],
+                      played: (_) async {},
+                    ),
+                    avatarUrl: ref.watch(currentUserControllerProvider).user
+                        ?.avatarUrl,
+                  ),
                 if (file != null)
                   Row(
                     mainAxisSize: MainAxisSize.min,

@@ -15,7 +15,11 @@ import { UNREAD_CAP } from '../notifications/badges.service';
 import { unreadMessagesSql } from './group-unread.sql';
 import { isImageMime } from '../files/files.policy';
 import { FilesService } from '../files/files.service';
-import type { ChatAttachmentDto, ReactionDto } from '../chat/chat.dto';
+import type {
+  ChatAttachmentDto,
+  ReactionDto,
+  VoiceNoteDto,
+} from '../chat/chat.dto';
 import { GROUP_ADMIN_RIGHTS } from './groups.dto';
 import type {
   GroupDto,
@@ -307,9 +311,14 @@ export class GroupPresenter {
     const fileIds = rows.flatMap((m) =>
       m.type === 'attachment' && m.file_id && !m.deleted_at ? [m.file_id] : [],
     );
+    // Groups WhatsApp parity (voice): short signed links, as for 1:1 notes.
+    const voiceIds = rows.flatMap((m) =>
+      m.type === 'voice' && m.file_id && !m.deleted_at ? [m.file_id] : [],
+    );
     const reactable = rows.filter((m) => !m.deleted_at && m.type !== 'system');
-    const [urls, polls, reactionRows] = await Promise.all([
+    const [urls, voiceUrls, polls, reactionRows] = await Promise.all([
       this.files.attachmentUrls(fileIds),
+      this.files.voiceUrls(voiceIds),
       this.polls(
         rows.flatMap((m) => (m.type === 'poll' && !m.deleted_at ? [m.id] : [])),
         viewerId,
@@ -369,6 +378,17 @@ export class GroupPresenter {
           blurhash: f?.blurhash ?? null,
         };
       }
+      const voice: VoiceNoteDto | null =
+        m.type === 'voice' && !deleted
+          ? {
+              url: m.file_id ? (voiceUrls.get(m.file_id) ?? null) : null,
+              durationMs: m.duration_ms ?? 0,
+              waveform: m.waveform,
+              // A group has many listeners: no «played» dot (WhatsApp
+              // shows who played it in Message info).
+              listened: false,
+            }
+          : null;
       const pick = (ids: string[]) =>
         ids.flatMap((id) => {
           const p = people.get(id);
@@ -396,6 +416,7 @@ export class GroupPresenter {
         mentions: deleted ? [] : pick(m.mention_ids),
         mentionsMe: !deleted && m.mention_ids.includes(viewerId),
         attachment,
+        voice,
         poll: polls.get(m.id) ?? null,
         editedAt: m.edited_at,
         deleted,

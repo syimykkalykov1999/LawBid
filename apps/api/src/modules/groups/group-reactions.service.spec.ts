@@ -38,13 +38,15 @@ function setup(found: unknown = row) {
     messages: jest.fn().mockResolvedValue([{ id: 'm1', reactions: [] }]),
   };
   const stars = { chargeReaction: jest.fn().mockResolvedValue(0) };
+  const notifications = { emit: jest.fn().mockResolvedValue(null) };
   const svc = new GroupReactionsService(
     prisma as never,
     groups as never,
     presenter as never,
     stars as never,
+    notifications as never,
   );
-  return { svc, prisma, tx, groups, presenter, stars };
+  return { svc, prisma, tx, groups, presenter, stars, notifications };
 }
 
 describe('GroupReactionsService.react', () => {
@@ -76,6 +78,43 @@ describe('GroupReactionsService.react', () => {
       where: { message_id: 'm1', group_id: 'g1', user_id: 'u1' },
     });
     expect(stars.chargeReaction).not.toHaveBeenCalled();
+    expect(groups.broadcast).toHaveBeenCalled();
+  });
+
+  it('pushes «Реакция 👍» to the author only, like the 1:1 reaction push', async () => {
+    const { svc, notifications } = setup();
+    await svc.react(user, 'g1', 'm1', ' 👍 ');
+    expect(notifications.emit).toHaveBeenCalledTimes(1);
+    expect(notifications.emit).toHaveBeenCalledWith({
+      type: 'new_message',
+      recipientId: 'u2',
+      payload: {
+        groupId: 'g1',
+        conversationId: 'g1',
+        messageId: 'm1',
+        event: 'reaction',
+        actorId: 'u1',
+        emoji: '👍',
+      },
+    });
+  });
+
+  it('no push for my own message, for taking a reaction away or a service line author', async () => {
+    const own = setup({ ...row, sender_id: 'u1' });
+    await own.svc.react(user, 'g1', 'm1', '👍');
+    expect(own.notifications.emit).not.toHaveBeenCalled();
+    const off = setup();
+    await off.svc.react(user, 'g1', 'm1', null);
+    expect(off.notifications.emit).not.toHaveBeenCalled();
+    const nobody = setup({ ...row, sender_id: null });
+    await nobody.svc.react(user, 'g1', 'm1', '👍');
+    expect(nobody.notifications.emit).not.toHaveBeenCalled();
+  });
+
+  it('a failed push never fails the reaction', async () => {
+    const { svc, notifications, groups } = setup();
+    notifications.emit.mockRejectedValueOnce(new Error('queue down'));
+    await expect(svc.react(user, 'g1', 'm1', '👍')).resolves.toBeDefined();
     expect(groups.broadcast).toHaveBeenCalled();
   });
 

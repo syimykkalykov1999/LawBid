@@ -29,3 +29,16 @@ abstract final class GroupRoutes {
   static const joinPattern = '/g/:code';
   static String join(String code) => '/g/${Uri.encodeComponent(code)}';
 }
+
+/// Groups WhatsApp parity (voice): the voice mini-player's thread id of a
+/// group (1:1 chats use the conversation id itself; ids are UUIDs, so the
+/// prefix never clashes).
+const _groupVoicePrefix = 'group:';
+String groupVoiceThreadId(String groupId) => '$_groupVoicePrefix$groupId';
+
+/// The route back from the mini-player: a group's chat for a group thread
+/// id, else null (a 1:1 conversation).
+String? groupRouteOfVoiceThread(String threadId) =>
+    threadId.startsWith(_groupVoicePrefix)
+        ? GroupRoutes.group(threadId.substring(_groupVoicePrefix.length))
+        : null;
