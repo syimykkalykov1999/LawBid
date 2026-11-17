@@ -66,6 +66,7 @@ import {
   UpdateGroupMeDto,
   VotePollDto,
   GroupMemberDto,
+  GroupMembersQueryDto,
   GroupPageQueryDto,
   GroupPersonDto,
   GroupPollOptionParamDto,
@@ -253,9 +254,9 @@ export class GroupsController {
   listGroupMembers(
     @CurrentUser() user: RequestUser,
     @Param() p: GroupIdParamDto,
-    @Query() q: GroupPageQueryDto,
+    @Query() q: GroupMembersQueryDto,
   ): Promise<GroupMemberPage> {
-    return this.groups.memberList(user, p.id, q.cursor, q.limit);
+    return this.groups.memberList(user, p.id, q.cursor, q.limit, q.q);
   }
 
   @Patch(':id')

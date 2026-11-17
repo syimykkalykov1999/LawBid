@@ -12,6 +12,7 @@ abstract interface class ActiveDevicesRepository {
   /// Ends one session (`DELETE /auth/sessions/:id`).
   Future<void> revoke(String sessionId);
 
-  /// Ends every session of the account (`POST /auth/logout-all`).
-  Future<void> logoutAll();
+  /// Ends every session of the account but this one (`POST
+  /// /auth/logout-others`, R2-A #9); this device stays signed in.
+  Future<void> logoutOthers();
 }

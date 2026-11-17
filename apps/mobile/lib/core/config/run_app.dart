@@ -25,6 +25,7 @@ import 'package:lawbid/core/platform/high_refresh_rate.dart';
 import 'package:lawbid/core/platform/spotlight_index.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_gate.dart';
+import 'package:lawbid/core/platform/web_isolation.dart';
 import 'package:lawbid/core/platform/web_lifecycle.dart';
 import 'package:lawbid/core/platform/web_semantics.dart';
 import 'package:lawbid/core/security/app_check.dart';
@@ -113,6 +114,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // D1-49 (13.11): screen readers on the website get the semantics tree
   // from the first frame (admin switch client.web_semantics_enabled).
   WebSemantics.start(prefs);
+  // Row 173: the website's cross-origin isolation (admin switch
+  // web.cross_origin_isolation), kept for boot_head.js.
+  WebIsolation.start(prefs);
   AppEvents.install(prefs, AppEnvironment.current);
   // Security research #5 (2026-10-22), B1: Firebase App Check starts now so
   // the first code request already carries its token; a build without the
