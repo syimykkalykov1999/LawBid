@@ -2200,6 +2200,8 @@ model Bid {
 
   accepted_for_case  Case?                @relation("CaseAcceptedBid")
   offers             BidOffer[]
+  /// Firms audit 16.11 (PR-4): colleagues of the firm who joined this bid.
+  participants       BidParticipant[]
   contact_disclosure ContactDisclosure?
   contact_issues     ContactIssueReport[]
   deal_records       DealRecord[]
@@ -2225,6 +2227,23 @@ model Bid {
 
 // Negotiation history. Append-only except the pending -> accepted/
 // declined/countered/superseded status transition (§4.D).
+/// Firms audit 16.11 (PR-4, owner): a firm sends ONE bid per case; a
+/// colleague who wanted to bid joins the firm's bid instead (the bid's
+/// attorney and its sender are told). Case family, child of the bid.
+model BidParticipant {
+  bid_id      String   @db.Uuid
+  bid         Bid      @relation(fields: [bid_id], references: [id], onDelete: Cascade)
+  attorney_id String   @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
+  shard_id Int @default(0) @db.SmallInt
+
+  @@id([bid_id, attorney_id])
+  @@index([attorney_id])
+  @@map("bid_participants")
+}
+
 model BidOffer {
   id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   bid_id        String      @db.Uuid

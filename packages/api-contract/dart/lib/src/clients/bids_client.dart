@@ -9,6 +9,7 @@ import '../models/bid_case_change_list_envelope.dart';
 import '../models/bid_draft_body_dto.dart';
 import '../models/bid_draft_envelope.dart';
 import '../models/bid_envelope.dart';
+import '../models/bid_join_envelope.dart';
 import '../models/change_bid_dto.dart';
 import '../models/conflict_check_envelope.dart';
 import '../models/counter_offer_dto.dart';
@@ -32,6 +33,13 @@ abstract class BidsClient {
   Future<BidEnvelope> createBid({
     @Path('caseId') required String caseId,
     @Body() required CreateBidDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Join a colleague's bid of the firm (one bid per firm per case)
+  @POST('/bids/{id}/join')
+  Future<BidJoinEnvelope> joinBid({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 

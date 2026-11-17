@@ -448,6 +448,8 @@ export 'models/bid_attorney_summary_dto.dart';
 export 'models/bid_dto.dart';
 export 'models/create_bid_dto.dart';
 export 'models/bid_envelope.dart';
+export 'models/bid_join_dto.dart';
+export 'models/bid_join_envelope.dart';
 export 'models/change_bid_dto.dart';
 export 'models/bid_case_change_dto.dart';
 export 'models/bid_case_change_list_envelope.dart';

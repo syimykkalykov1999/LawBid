@@ -804,6 +804,158 @@ describe('Firm profile (e2e)', () => {
       .expect(201);
   });
 
+  // Firms audit 16.11 (PR-4, owner): ONE bid per firm per case; a colleague
+  // joins the firm's bid instead.
+  async function bidder(state: string) {
+    const l = await lawyer(state);
+    await prisma.subscription.create({
+      data: { user_id: l.id, status: 'active', price_cents: 39900 },
+    });
+    const pa = await prisma.practiceArea.upsert({
+      where: { code: 'firm_test_area' },
+      create: {
+        code: 'firm_test_area',
+        name_en: 'E2E firm',
+        i18n_key: 'practice.firm_test',
+        sort: 1,
+      },
+      update: {},
+    });
+    await prisma.attorneyPracticeArea.create({
+      data: { attorney_id: l.id, practice_area_id: pa.id },
+    });
+    return l;
+  }
+
+  async function openCase(state: string) {
+    const client = await prisma.user.create({ data: { role: 'client' } });
+    const pa = await prisma.practiceArea.findUniqueOrThrow({
+      where: { code: 'firm_test_area' },
+    });
+    const c = await prisma.case.create({
+      data: {
+        client_id: client.id,
+        title: 'Deposit not returned after the lease',
+        description: 'The landlord keeps the whole deposit after move-out.',
+        practice_area_id: pa.id,
+        primary_state_code: state,
+        budget_mode: 'clarify_later',
+        status: 'open',
+      },
+    });
+    await prisma.caseState.create({
+      data: { case_id: c.id, state_code: state, is_primary: true },
+    });
+    return c.id;
+  }
+
+  const bidBody = {
+    feeType: 'fixed',
+    amountCents: 45_000,
+    message: 'We handle deposit disputes every week and can start today.',
+    startAvailability: 'immediately',
+  };
+  const placeBid = (who: { auth: Record<string, string> }, caseId: string) =>
+    api()
+      .post(`/api/v1/cases/${caseId}/bids`)
+      .set(who.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send(bidBody);
+
+  it('one bid per firm per case: a colleague is refused and joins the bid', async () => {
+    const a = await bidder('IL');
+    const b = await bidder('IL');
+    await firmWith('One Bid LLP', a, b);
+    const caseId = await openCase('IL');
+    const first = await placeBid(a, caseId);
+    expect(first.status).toBe(201);
+    const bidId = first.body.data.id as string;
+
+    const second = await placeBid(b, caseId);
+    expect(second.status).toBe(409);
+    expect(second.body.error.code).toBe('FIRM_BID_EXISTS');
+    expect(second.body.error.details).toMatchObject({
+      bidId,
+      attorneyId: a.id,
+      firstName: 'Law',
+      lastName: 'IL',
+    });
+
+    // A stranger cannot join; a colleague can, once.
+    const stranger = await bidder('IL');
+    await api()
+      .post(`/api/v1/bids/${bidId}/join`)
+      .set(stranger.auth)
+      .expect(404);
+    const joined = await api()
+      .post(`/api/v1/bids/${bidId}/join`)
+      .set(b.auth)
+      .expect(200);
+    expect(joined.body.data).toEqual({ bidId });
+    await api().post(`/api/v1/bids/${bidId}/join`).set(b.auth).expect(200);
+    const rows = await shardContext.runForCase(caseId, () =>
+      prisma.bidParticipant.findMany({ where: { bid_id: bidId } }),
+    );
+    expect(rows.map((r) => r.attorney_id)).toEqual([b.id]);
+    const notes = (await firmNotes(a)).filter((n) => n.kind === 'bid_joined');
+    expect(notes).toEqual([
+      expect.objectContaining({ bidId, caseId, actorId: b.id }),
+    ]);
+    // The bid's own lawyer cannot "join" it.
+    await api().post(`/api/v1/bids/${bidId}/join`).set(a.auth).expect(404);
+  });
+
+  it('two lawyers of one firm bidding at the same moment: exactly one bid', async () => {
+    const a = await bidder('IL');
+    const b = await bidder('IL');
+    await firmWith('Race LLP', a, b);
+    const caseId = await openCase('IL');
+    const [ra, rb] = await Promise.all([
+      placeBid(a, caseId),
+      placeBid(b, caseId),
+    ]);
+    expect([ra.status, rb.status].sort()).toEqual([201, 409]);
+    const lost = ra.status === 409 ? ra : rb;
+    expect(lost.body.error.code).toBe('FIRM_BID_EXISTS');
+    const live = await shardContext.runForCase(caseId, () =>
+      prisma.bid.count({ where: { case_id: caseId, status: 'active' } }),
+    );
+    expect(live).toBe(1);
+  });
+
+  it("a withdrawn colleague's bid, another firm, or the switch off do not block", async () => {
+    const a = await bidder('IL');
+    const b = await bidder('IL');
+    const other = await bidder('IL');
+    await firmWith('Free LLP', a, b);
+    await firmWith('Other LLP', other);
+    const caseId = await openCase('IL');
+    const first = await placeBid(a, caseId).expect(201);
+    // Another firm bids freely.
+    await placeBid(other, caseId).expect(201);
+    await api()
+      .post(`/api/v1/bids/${first.body.data.id as string}/withdraw`)
+      .set(a.auth)
+      .set('Idempotency-Key', randomUUID())
+      .expect(201);
+    await placeBid(b, caseId).expect(201);
+
+    const c2 = await openCase('IL');
+    await placeBid(a, c2).expect(201);
+    await prisma.featureFlag.update({
+      where: { key: 'firm_profiles' },
+      data: { enabled: false },
+    });
+    try {
+      await placeBid(b, c2).expect(201);
+    } finally {
+      await prisma.featureFlag.update({
+        where: { key: 'firm_profiles' },
+        data: { enabled: true },
+      });
+    }
+  });
+
   it('is off behind the flag: every firm route refuses', async () => {
     const owner = await lawyer('NJ');
     const m = await lawyer('NJ');

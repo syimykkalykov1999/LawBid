@@ -547,6 +547,47 @@ export class FirmsService {
     });
   }
 
+  /** Firms audit 16.11 (PR-4, owner): the lawyer's firm and the other
+   * active lawyers in it (with names, for the «colleague already bid»
+   * answer); null without a firm or with the switch off. One firm bid per
+   * case is checked against these. */
+  async colleaguesOf(attorneyId: string): Promise<{
+    firmId: string;
+    colleagues: {
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+    }[];
+  } | null> {
+    const flag = await this.prisma.featureFlag.findUnique({
+      where: { key: FIRMS_FLAG },
+      select: { enabled: true },
+    });
+    if (!flag?.enabled) return null;
+    const m = await this.myMembership(attorneyId);
+    if (!m) return null;
+    const rows = await this.prisma.firmMember.findMany({
+      where: {
+        firm_id: m.firm_id,
+        status: 'active',
+        attorney_id: { not: attorneyId },
+      },
+      select: { attorney_id: true },
+    });
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: rows.map((r) => r.attorney_id) } },
+      select: { id: true, first_name: true, last_name: true },
+    });
+    return {
+      firmId: m.firm_id,
+      colleagues: users.map((u) => ({
+        id: u.id,
+        firstName: u.first_name,
+        lastName: u.last_name,
+      })),
+    };
+  }
+
   /** The lawyer a bid is sent as. R2B-1 (14.11): only the firm owner picks
    * another member (like an org owner acting for the org on GitHub); the
    * sender is an active member whose verified licence fits the case and who
