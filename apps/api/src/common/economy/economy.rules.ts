@@ -342,11 +342,11 @@ export function shrinkBlocker(
     return null;
   }
   if (m.redisMemoryPercent == null) {
-    return 'Занятость памяти Redis неизвестна: уменьшать вслепую нельзя.';
+    return 'Занятость памяти Valkey неизвестна: уменьшать вслепую нельзя.';
   }
   const after = (m.redisMemoryPercent * from.memoryGb) / to.memoryGb;
   if (after > SHRINK_REDIS_MEM_PERCENT) {
-    return `На меньшем размере память Redis была бы занята на ${Math.round(after)} % (нужно не больше ${SHRINK_REDIS_MEM_PERCENT} %).`;
+    return `На меньшем размере память Valkey была бы занята на ${Math.round(after)} % (нужно не больше ${SHRINK_REDIS_MEM_PERCENT} %).`;
   }
   return null;
 }

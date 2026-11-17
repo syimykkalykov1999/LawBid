@@ -177,7 +177,7 @@ function eventsFor(component: string, e: Economy | undefined, now: number): stri
     .filter((ev) => {
       // scaled_up / scaled_down are shared: pick the one about this part.
       if (ev.kind !== 'scaled_up' && ev.kind !== 'scaled_down') return true;
-      return component === 'database' ? ev.text.startsWith('База') : ev.text.startsWith('Redis');
+      return component === 'database' ? ev.text.startsWith('База') : ev.text.startsWith('Valkey') || ev.text.startsWith('Redis');
     })
     .slice(0, 3)
     .map((ev) => ev.text);
@@ -211,7 +211,7 @@ function recommended(component: string, h: Health, e: Economy | undefined): Alar
     }
     case 'redis':
       return e?.capacity.onAws && e.capacity.redisNext
-        ? { action: { kind: 'increase', target: 'redis' }, label: `Увеличить Redis до ${e.capacity.redisNext}` }
+        ? { action: { kind: 'increase', target: 'redis' }, label: `Увеличить Valkey до ${e.capacity.redisNext}` }
         : null;
     case 'cost':
       return onAws

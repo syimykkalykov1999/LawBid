@@ -11,7 +11,7 @@ import { api } from '@/lib/api/client';
 import { tuningChanges, type TuningTarget } from '@/lib/autoscale-tuning';
 
 const KEY = ['autoscale-tuning'] as const;
-const TITLE: Record<string, string> = { redis: 'Redis', db: 'База', endpoints: 'Точки доступа AWS', ecs: 'Серверы ECS (цель и паузы)', spot: 'Запасные серверы вместо Spot' };
+const TITLE: Record<string, string> = { redis: 'Valkey', db: 'База', endpoints: 'Точки доступа AWS', ecs: 'Серверы ECS (цель и паузы)', spot: 'Запасные серверы вместо Spot' };
 
 /**
  * Owner 14.11: every number of the Redis / database «Авто» from the admin,
@@ -42,7 +42,7 @@ export function AutoscaleTuningCard({ nowLine }: { nowLine?: (target: TuningTarg
   });
   return (
     <>
-      <SectionTitle>Числа «Авто»: Redis, база, точки доступа, серверы</SectionTitle>
+      <SectionTitle>Числа «Авто»: Valkey, база, точки доступа, серверы</SectionTitle>
       <div className="grid gap-4 lg:grid-cols-2">
         {(q.data ?? []).map((t) => {
           const d = drafts[t.target] ?? {};
