@@ -2,8 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
-import 'package:lawbid/features/contacts_sync/application/contacts_book_sync.dart';
-import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 
 /// A person that can be put into a group.
@@ -97,7 +95,13 @@ const frequentPeopleMax = 5;
 /// Owner 2026-11-16: the LawBid people of my phone book, from the copy of
 /// the last contacts sync kept on the phone — no phone-book read, no
 /// permission prompt and no request here (the Contacts screen syncs).
-List<PickedPerson> peopleFromContacts(Iterable<ContactPerson> contacts) => [
+/// [contacts] are the synced LawBid people (`ContactPerson` of
+/// `contacts_sync`, passed as records so groups does not import that
+/// feature, test/architecture/feature_boundaries_test.dart).
+List<PickedPerson> peopleFromContacts(
+  Iterable<({String userId, String displayName, String? avatarUrl})> contacts,
+) =>
+    [
       for (final c in contacts)
         if (c.displayName.trim().isNotEmpty)
           PickedPerson(
@@ -151,16 +155,11 @@ final groupPeopleCandidatesProvider =
 
 /// The LawBid people of my phone book for the picker ([peopleFromContacts]);
 /// empty when contacts were never synced on this phone or the copy cannot
-/// be read — the picker never waits on or fails because of it.
+/// be read — the picker never waits on or fails because of it. Filled in
+/// at start (core/config/run_app.dart) from the contacts feature, which
+/// groups does not import (feature_boundaries_test.dart).
 final groupContactPeopleProvider =
-    FutureProvider.autoDispose<List<PickedPerson>>((ref) async {
-  try {
-    final saved = await ref.read(contactsBookSyncProvider).loadSaved();
-    return peopleFromContacts(saved?.people ?? const []);
-  } on Object {
-    return const [];
-  }
-});
+    FutureProvider.autoDispose<List<PickedPerson>>((ref) async => const []);
 
 /// «Часто общаетесь» of the picker ([frequentPeopleFromConversations]),
 /// from the chats already on the phone — no request.
