@@ -212,7 +212,7 @@ describe('prevTier / shrinkBlocker', () => {
     expect(shrinkBlocker('redis', r1, r0, idle)).toBeNull();
     expect(
       shrinkBlocker('redis', r1, r0, { ...idle, redisMemoryPercent: 30 }),
-    ).toContain('Redis');
+    ).toContain('Valkey');
   });
 });
 
