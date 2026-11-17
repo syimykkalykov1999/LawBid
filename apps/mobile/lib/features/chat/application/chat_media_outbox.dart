@@ -18,6 +18,10 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 // Owner row 106: group chats keep their sent media the same way.
 export 'package:lawbid/features/chat/data/chat_media_seed.dart'
     show adoptSentChatMedia;
+// Group voice notes keep the recorded file as their cache (groups goes
+// through this layer, test/architecture/feature_boundaries_test.dart).
+export 'package:lawbid/features/chat/data/voice_files.dart'
+    show adoptVoiceFileAsCache;
 
 /// The queue kinds of chat media (core/uploads/upload_queue.dart).
 abstract final class ChatMediaKind {
