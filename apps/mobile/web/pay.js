@@ -39,6 +39,8 @@
       fineOnce: 'Your card details go straight to Stripe and never reach LawBid.',
       back: 'Back to the app', ok: "You're all set", ok2: 'Your subscription is active. Return to the LawBid app.', okBtn: 'Return to LawBid',
       okSeats: 'The assistant seats are ready. Return to the LawBid app.',
+      okHotline: 'The call hotline is on. Return to the LawBid app.', hotlineTitle: 'Call hotline',
+      hotlineAfter: function (a, d) { return 'Charged now for the rest of this period. From ' + d + ' your bill is ' + a + ' a month.'; },
       okBoost: 'Your Boost is paid and starts shortly. Return to the LawBid app.',
       pending: 'The payment is being processed. The app shows it in a moment.',
       bad: "Payment didn't go through", retry: 'Try another card', expired: 'This link has expired. Open the payment again from the app.',
@@ -65,6 +67,8 @@
       fineOnce: 'Данные карты уходят прямо в Stripe и не попадают в LawBid.',
       back: 'Вернуться в приложение', ok: 'Готово', ok2: 'Подписка активна. Вернитесь в приложение LawBid.', okBtn: 'Вернуться в LawBid',
       okSeats: 'Места для помощников готовы. Вернитесь в приложение LawBid.',
+      okHotline: 'Горячая линия подключена. Вернитесь в приложение LawBid.', hotlineTitle: 'Горячая линия',
+      hotlineAfter: function (a, d) { return 'Сейчас — за остаток периода. С ' + d + ' счёт ' + a + ' в месяц.'; },
       okBoost: 'Продвижение оплачено и скоро начнётся. Вернитесь в приложение LawBid.',
       pending: 'Платёж обрабатывается. Приложение покажет его через минуту.',
       bad: 'Оплата не прошла', retry: 'Другая карта', expired: 'Ссылка устарела. Откройте оплату заново из приложения.',
@@ -166,7 +170,7 @@
   }
   function okScreen() {
     var k = kind();
-    setText('t-ok2', ({ seats: L.okSeats, promotion: L.okBoost, stars: L.okStars, bid_pack: L.okStars,
+    setText('t-ok2', ({ seats: L.okSeats, hotline: L.okHotline, promotion: L.okBoost, stars: L.okStars, bid_pack: L.okStars,
       client_plan: L.okPlan, client_badge: L.okBadge })[k] || L.ok2);
     state.busy = false;
     show('ok');
@@ -202,7 +206,7 @@
     var s = state.session;
     var body = { token: token, setupIntentId: setupIntentId };
     if (s.kind === 'subscription') body.chargeNow = !state.trial;
-    if (s.kind === 'seats') body.prorationDate = s.prorationDate;
+    if (s.kind === 'seats' || s.kind === 'hotline') body.prorationDate = s.prorationDate;
     return call('/pay/confirm', body).then(settle);
   }
 
@@ -318,7 +322,7 @@
     step.catch(function () { fail(); });
   });
 
-  // Seats: the subscription's own card, no new card needed.
+  // Seats and the hotline add-on: the subscription's own card, no new card needed.
   $('saved').addEventListener('click', function () {
     if (state.busy) return;
     state.busy = true; refreshButton(); err('');
@@ -394,7 +398,15 @@
     paintTax(s);
     var t = $('trial');
     t.classList.add('hide');
-    $('saved').classList.toggle('hide', s.kind !== 'seats');
+    $('saved').classList.toggle('hide', s.kind !== 'seats' && s.kind !== 'hotline');
+    if (s.kind === 'hotline') {
+      var until = s.periodEnd ? new Date(s.periodEnd).toLocaleDateString(lang) : '';
+      setText('plan', L.hotlineTitle);
+      setText('per', L.today);
+      setText('after', L.hotlineAfter(money(s.nextChargeCents || 0), until));
+      setText('fine', L.fineOnce);
+      return;
+    }
     if (s.kind === 'seats') {
       var when = s.periodEnd ? new Date(s.periodEnd).toLocaleDateString(lang) : '';
       setText('plan', L.seatsTitle(s.seats));

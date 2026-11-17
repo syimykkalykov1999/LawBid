@@ -17978,6 +17978,103 @@
         ]
       }
     },
+    "/admin/cases/bulk/preview": {
+      "post": {
+        "operationId": "previewAdminCasesBulk",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCasesBulkPreviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkFilterPreviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Row 179 B6: how many cases the list filter matches (read-only, before a bulk action)",
+        "tags": [
+          "admin-cases"
+        ]
+      }
+    },
     "/admin/cases/bulk": {
       "post": {
         "operationId": "bulkAdminCases",
@@ -22264,6 +22361,347 @@
           }
         ],
         "summary": "Set the extra assistant seats: more = charged now (3-D Secure may be asked), fewer = from the period end, no refund (owner 2026-10-22)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/subscriptions/hotline/preview": {
+      "post": {
+        "operationId": "previewHotlineAddon",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineAddonPreviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_NOT_VERIFIED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: SUBSCRIPTION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ENTITLEMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: PAYMENTS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "What adding the «Горячая линия» add-on costs now (prorated rest of the period) and per month after (owner row 87, plan PR 8)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/subscriptions/hotline": {
+      "post": {
+        "operationId": "setHotlineAddon",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetHotlineAddonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatChangeResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_NOT_VERIFIED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: SUBSCRIPTION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ENTITLEMENT_REQUIRED, SEATS_TRIAL_NOT_ALLOWED, SEATS_NOT_PAID_YET, SEATS_PREVIEW_STALE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: PAYMENTS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The «Горячая линия» add-on on (charged now, 3-D Secure may be asked) or off (no refund, usable until the period end) — owner row 87, plan PR 8",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/subscriptions/hotline/checkout": {
+      "post": {
+        "operationId": "hotlineAddonCheckout",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatCheckoutEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_NOT_VERIFIED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: SUBSCRIPTION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ENTITLEMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: PAYMENTS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A one-time link to the card page for adding the hotline add-on in the browser (iPhone, like seats)",
         "tags": [
           "subscriptions"
         ]
@@ -43455,6 +43893,103 @@
         ]
       }
     },
+    "/admin/content/bulk/preview": {
+      "post": {
+        "operationId": "previewAdminContentBulk",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminContentBulkPreviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkFilterPreviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Row 179 B6: how many posts / comments / reviews a list filter matches (read-only, before a bulk action)",
+        "tags": [
+          "admin-content"
+        ]
+      }
+    },
     "/admin/bids": {
       "get": {
         "operationId": "listAdminBids",
@@ -44094,6 +44629,33 @@
             "schema": {
               "format": "date-time",
               "type": "string"
+            }
+          },
+          {
+            "name": "disputed",
+            "required": false,
+            "in": "query",
+            "description": "Case payments: only disputed ones (the «Споры» tab).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "hasReports",
+            "required": false,
+            "in": "query",
+            "description": "Cases: true = only with an open report («Только с жалобами»), false = without one.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "withDeadline",
+            "required": false,
+            "in": "query",
+            "description": "Cases: only with a deadline from today on («С датой»; today in `admin.report_timezone`).",
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -45228,7 +45790,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AdminBulkReasonDto"
+                "$ref": "#/components/schemas/AdminVideosBulkDto"
               }
             }
           }
@@ -45311,6 +45873,103 @@
           }
         ],
         "summary": "Take many videos down with one reason (posts removed, authors told why)",
+        "tags": [
+          "admin-media"
+        ]
+      }
+    },
+    "/admin/media/videos/bulk/preview": {
+      "post": {
+        "operationId": "previewAdminVideosBulk",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminVideosBulkPreviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkFilterPreviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Row 179 B6: how many videos the list filter matches that can be taken down (read-only)",
         "tags": [
           "admin-media"
         ]
@@ -45678,7 +46337,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AdminBulkReasonDto"
+                "$ref": "#/components/schemas/AdminStickerPacksBulkDto"
               }
             }
           }
@@ -45766,6 +46425,103 @@
         ]
       }
     },
+    "/admin/media/sticker-packs/bulk/preview": {
+      "post": {
+        "operationId": "previewAdminStickerPacksBulk",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminStickerPacksBulkPreviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkFilterPreviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Row 179 B6: how many sticker packs the list filter matches (read-only)",
+        "tags": [
+          "admin-media"
+        ]
+      }
+    },
     "/admin/media/sticker-packs/bulk-unhide": {
       "post": {
         "operationId": "bulkUnhideAdminStickerPacks",
@@ -45775,7 +46531,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AdminBulkReasonDto"
+                "$ref": "#/components/schemas/AdminStickerPacksBulkDto"
               }
             }
           }
@@ -50804,6 +51560,103 @@
           }
         ],
         "summary": "Create a template from an uploaded (clean) file",
+        "tags": [
+          "admin-document-templates"
+        ]
+      }
+    },
+    "/admin/document-templates/bulk/preview": {
+      "post": {
+        "operationId": "previewAdminDocumentTemplatesBulk",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminTemplatesBulkPreviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkFilterPreviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Row 179 B6: how many templates the list filter matches (read-only, before a bulk action)",
         "tags": [
           "admin-document-templates"
         ]
@@ -58292,6 +59145,93 @@
           }
         ],
         "summary": "Ask to switch one cloud item (starts the GitHub plan; nothing changes yet)",
+        "tags": [
+          "admin-infra"
+        ]
+      }
+    },
+    "/admin/infra/requests/pending": {
+      "post": {
+        "operationId": "createPendingInfraRequest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InfraRequestEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Apply what main's Terraform holds but the cloud does not yet (no switch changes; starts the GitHub plan)",
         "tags": [
           "admin-infra"
         ]
@@ -147834,6 +148774,28 @@
           "rating"
         ]
       },
+      "BidTeamMemberDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName"
+        ]
+      },
       "BidDto": {
         "type": "object",
         "properties": {
@@ -147952,6 +148914,13 @@
                 "$ref": "#/components/schemas/BidAttorneySummaryDto"
               }
             ]
+          },
+          "team": {
+            "description": "Firms audit 16.11 (PR-5): the firm's team on the bid (the lawyers who\njoined it, still in the firm) — only on GET /bids/:id; empty with the\n`firm_profiles` switch off.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BidTeamMemberDto"
+            }
           }
         },
         "required": [
@@ -149615,6 +150584,93 @@
           "data"
         ]
       },
+      "AdminBulkFilterPreviewDto": {
+        "type": "object",
+        "properties": {
+          "matched": {
+            "type": "integer",
+            "description": "Rows the action would touch (at most `cap`; no live count)."
+          },
+          "capped": {
+            "type": "boolean",
+            "description": "More rows match than `cap`; the action touches the first `cap`."
+          },
+          "cap": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The most one call touches for this admin (`admin.bulk_select_cap`); null = no cap (the owner)."
+          }
+        },
+        "required": [
+          "matched",
+          "capped",
+          "cap"
+        ]
+      },
+      "AdminCasesFilterDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminCaseStatus"
+              }
+            ]
+          },
+          "q": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Text in the title."
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "practiceAreaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stateCode": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{2}$",
+            "example": "IL",
+            "description": "Any state of the case."
+          },
+          "hasReports": {
+            "type": "boolean",
+            "description": "Only cases with / without open reports."
+          },
+          "withDeadline": {
+            "type": "boolean",
+            "description": "Owner 2026-10-05: only cases with a date (court hearing, filing…) from today on."
+          }
+        }
+      },
+      "AdminCasesBulkPreviewDto": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/AdminCasesFilterDto"
+          }
+        },
+        "required": [
+          "filter"
+        ]
+      },
+      "AdminBulkFilterPreviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminBulkFilterPreviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "AdminCasesBulkAction": {
         "type": "string",
         "enum": [
@@ -149642,17 +150698,24 @@
           "ids": {
             "minItems": 1,
             "maxItems": 100000,
-            "description": "Staff: at most 500; the owner: any number (processed in chunks).",
+            "description": "Exactly one of `ids` or `filter`. Staff: at most 500; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
+          },
+          "filter": {
+            "description": "Row 179 B6: «select all by filter» — the cases list filter; the server resolves the ids (staff: at most `admin.bulk_select_cap`) and audits the filter.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminCasesFilterDto"
+              }
+            ]
           }
         },
         "required": [
-          "action",
-          "ids"
+          "action"
         ]
       },
       "AdminCaseActionDto": {
@@ -151970,6 +153033,49 @@
           "max"
         ]
       },
+      "HotlineAddonDto": {
+        "type": "object",
+        "properties": {
+          "priceCents": {
+            "type": "integer",
+            "description": "Per month, in cents."
+          },
+          "currency": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Usable now (bought, or paid to endsAt)."
+          },
+          "renews": {
+            "type": "boolean",
+            "description": "On the subscription: billed next period."
+          },
+          "endsAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Removed: usable until then (the period already paid)."
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "A purchase waits for the bank (3-D Secure)."
+          },
+          "canBuy": {
+            "type": "boolean",
+            "description": "It can be bought now (after the first payment, like seats); false while the plan is in its trial."
+          }
+        },
+        "required": [
+          "priceCents",
+          "currency",
+          "active",
+          "renews",
+          "endsAt",
+          "pending",
+          "canBuy"
+        ]
+      },
       "SubscriptionMeDto": {
         "type": "object",
         "properties": {
@@ -152032,6 +153138,16 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/SeatSummaryDto"
+              }
+            ]
+          },
+          "hotlineAddon": {
+            "nullable": true,
+            "description": "Owner row 87 (plan PR 8): the «Горячая линия» add-on row of the card; null = the plan does not offer it.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineAddonDto"
               }
             ]
           }
@@ -152225,6 +153341,16 @@
               }
             ]
           },
+          "hotlineAddon": {
+            "nullable": true,
+            "description": "Owner row 87 (plan PR 8): the «Горячая линия» add-on row of the card; null = the plan does not offer it.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineAddonDto"
+              }
+            ]
+          },
           "status": {
             "description": "applied = paid and usable now; requires_action = confirm the payment (3-D Secure) with clientSecret, then GET /subscriptions/me; failed = the card was declined, nothing changed; scheduled = fewer seats from effectiveAt (the period end), no refund.",
             "allOf": [
@@ -152310,6 +153436,82 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "HotlineAddonPreviewDto": {
+        "type": "object",
+        "properties": {
+          "amountNowCents": {
+            "type": "integer",
+            "description": "Charged now: the prorated rest of the current period (0 when it is on already or paid to the period end)."
+          },
+          "taxCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "prorationDate": {
+            "type": "integer",
+            "description": "Send back with POST /subscriptions/hotline (unix seconds)."
+          },
+          "periodEnd": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "priceCents": {
+            "type": "integer",
+            "description": "The add-on per month."
+          },
+          "monthlyIncreaseCents": {
+            "type": "integer"
+          },
+          "nextChargeCents": {
+            "type": "integer",
+            "description": "The next monthly invoice with the add-on."
+          }
+        },
+        "required": [
+          "amountNowCents",
+          "currency",
+          "prorationDate",
+          "periodEnd",
+          "priceCents",
+          "monthlyIncreaseCents",
+          "nextChargeCents"
+        ]
+      },
+      "HotlineAddonPreviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineAddonPreviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SetHotlineAddonDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "true = add it (the prorated rest of the period is charged now); false = remove it (no refund, usable until the period end)."
+          },
+          "prorationDate": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "`prorationDate` from POST /subscriptions/hotline/preview, so the charge equals the amount shown (unix seconds; now when absent)."
+          }
+        },
+        "required": [
+          "enabled"
         ]
       },
       "SeatCheckoutDto": {
@@ -160824,6 +162026,13 @@
             "type": "string",
             "format": "date-time"
           },
+          "team": {
+            "description": "Firms audit 16.11 (PR-5): the firm's team on the bid (the lawyers who\njoined it, still in the firm) — only on GET /bids/:id; empty with the\n`firm_profiles` switch off.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BidTeamMemberDto"
+            }
+          },
           "attorney": {
             "$ref": "#/components/schemas/BidAttorneySummaryDto"
           },
@@ -162602,6 +163811,13 @@
               }
             ]
           },
+          "team": {
+            "description": "Firms audit 16.11 (PR-5): the firm's team on the bid (the lawyers who\njoined it, still in the firm) — only on GET /bids/:id; empty with the\n`firm_profiles` switch off.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BidTeamMemberDto"
+            }
+          },
           "case": {
             "$ref": "#/components/schemas/BidCaseRefDto"
           },
@@ -163123,6 +164339,66 @@
           }
         }
       },
+      "AdminReviewStatus": {
+        "type": "string",
+        "enum": [
+          "published",
+          "hidden",
+          "removed"
+        ]
+      },
+      "AdminContentBulkFilterDto": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Search text."
+          },
+          "authorId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Only this author."
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Created at or after (inclusive)."
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Created before (exclusive)."
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminPostKind"
+              }
+            ]
+          },
+          "media": {
+            "enum": [
+              "video"
+            ],
+            "type": "string"
+          },
+          "contentClass": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostContentClass"
+              }
+            ]
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminReviewStatus"
+              }
+            ]
+          }
+        }
+      },
       "AdminPostClassAction": {
         "type": "string",
         "enum": [
@@ -163138,12 +164414,20 @@
             "uniqueItems": true,
             "minItems": 1,
             "maxItems": 100000,
-            "description": "Staff: at most 200; the owner: any number (processed in chunks).",
+            "description": "Exactly one of `ids` or `filter`. Staff: at most 200; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
+          },
+          "filter": {
+            "description": "Row 179 B6: «select all by filter» — the posts list filter; the server resolves the ids (staff: at most `admin.bulk_select_cap`).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminContentBulkFilterDto"
+              }
+            ]
           },
           "contentClass": {
             "allOf": [
@@ -163154,7 +164438,6 @@
           }
         },
         "required": [
-          "ids",
           "contentClass"
         ]
       },
@@ -163419,14 +164702,6 @@
           "createdAt"
         ]
       },
-      "AdminReviewStatus": {
-        "type": "string",
-        "enum": [
-          "published",
-          "hidden",
-          "removed"
-        ]
-      },
       "AdminClientReviewRowListEnvelope": {
         "type": "object",
         "properties": {
@@ -163474,12 +164749,20 @@
           "ids": {
             "minItems": 1,
             "maxItems": 100000,
-            "description": "Staff: at most 500; the owner: any number (processed in chunks).",
+            "description": "Exactly one of `ids` or `filter`. Staff: at most 500; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
+          },
+          "filter": {
+            "description": "Row 179 B6: «select all by filter» — the list filter of `type`; the server resolves the ids (staff: at most `admin.bulk_select_cap`) and audits the filter.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminContentBulkFilterDto"
+              }
+            ]
           },
           "action": {
             "description": "remove: posts and comments (the author is told why); hide: any type (the author is told why); restore: back to visible.",
@@ -163498,9 +164781,27 @@
           }
         },
         "required": [
-          "ids",
           "action",
           "type"
+        ]
+      },
+      "AdminContentBulkPreviewDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminBulkContentType"
+              }
+            ]
+          },
+          "filter": {
+            "$ref": "#/components/schemas/AdminContentBulkFilterDto"
+          }
+        },
+        "required": [
+          "type",
+          "filter"
         ]
       },
       "AdminBidRowDto": {
@@ -164322,7 +165623,33 @@
           }
         }
       },
-      "AdminBulkReasonDto": {
+      "AdminVideosFilterDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminVideoStatus"
+              }
+            ]
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Uploaded at or after (inclusive)."
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Uploaded before (exclusive)."
+          }
+        }
+      },
+      "AdminVideosBulkDto": {
         "type": "object",
         "properties": {
           "reason": {
@@ -164333,16 +165660,32 @@
           "ids": {
             "minItems": 1,
             "maxItems": 100000,
-            "description": "Staff: at most 500; the owner: any number (processed in chunks).",
+            "description": "Exactly one of `ids` or `filter`. Staff: at most 500; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
+          },
+          "filter": {
+            "description": "Row 179 B6: «select all by filter» — the list filter; the server resolves the ids (staff: at most `admin.bulk_select_cap`) and audits the filter.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminVideosFilterDto"
+              }
+            ]
+          }
+        }
+      },
+      "AdminVideosBulkPreviewDto": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/AdminVideosFilterDto"
           }
         },
         "required": [
-          "ids"
+          "filter"
         ]
       },
       "AdminStickerPackRowDto": {
@@ -164553,6 +165896,69 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "AdminStickerPacksFilterDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "official",
+              "user"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "hidden"
+            ],
+            "type": "string"
+          },
+          "q": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Title or short name."
+          }
+        }
+      },
+      "AdminStickerPacksBulkDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "default": "",
+            "maxLength": 500
+          },
+          "ids": {
+            "minItems": 1,
+            "maxItems": 100000,
+            "description": "Exactly one of `ids` or `filter`. Staff: at most 500; the owner: any number (processed in chunks).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "filter": {
+            "description": "Row 179 B6: «select all by filter» — the list filter; the server resolves the ids (staff: at most `admin.bulk_select_cap`) and audits the filter.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminStickerPacksFilterDto"
+              }
+            ]
+          }
+        }
+      },
+      "AdminStickerPacksBulkPreviewDto": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/AdminStickerPacksFilterDto"
+          }
+        },
+        "required": [
+          "filter"
         ]
       },
       "SetStickerPackPriceDto": {
@@ -166092,6 +167498,44 @@
           "data"
         ]
       },
+      "AdminTemplatesFilterDto": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Search in title and description."
+          },
+          "practiceAreaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{2}$",
+            "description": "Two-letter state; templates for every state are included."
+          },
+          "language": {
+            "type": "string",
+            "example": "en"
+          },
+          "published": {
+            "type": "boolean",
+            "description": "true = published, false = drafts."
+          }
+        }
+      },
+      "AdminTemplatesBulkPreviewDto": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/AdminTemplatesFilterDto"
+          }
+        },
+        "required": [
+          "filter"
+        ]
+      },
       "TemplateBulkAction": {
         "type": "string",
         "enum": [
@@ -166106,12 +167550,20 @@
           "ids": {
             "minItems": 1,
             "maxItems": 100000,
-            "description": "Staff: at most 100; the owner: any number (processed in chunks).",
+            "description": "Exactly one of `ids` or `filter`. Staff: at most 100; the owner: any number (processed in chunks).",
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
+          },
+          "filter": {
+            "description": "Row 179 B6: «select all by filter» — the templates list filter; the server resolves the ids (staff: at most `admin.bulk_select_cap`) and audits the filter.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminTemplatesFilterDto"
+              }
+            ]
           },
           "action": {
             "allOf": [
@@ -166122,7 +167574,6 @@
           }
         },
         "required": [
-          "ids",
           "action"
         ]
       },

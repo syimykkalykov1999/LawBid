@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'contract_grant_info_dto.dart';
+import 'hotline_addon_dto.dart';
 import 'plan_entitlements_dto.dart';
 import 'plan_prices_dto.dart';
 import 'public_plan_dto.dart';
@@ -27,6 +28,7 @@ class SubscriptionMeDto {
     required this.plans,
     required this.entitlements,
     required this.seats,
+    this.hotlineAddon,
   });
 
   factory SubscriptionMeDto.fromJson(Map<String, Object?> json) =>
@@ -47,6 +49,9 @@ class SubscriptionMeDto {
   final List<PublicPlanDto> plans;
   final PlanEntitlementsDto entitlements;
   final SeatSummaryDto? seats;
+
+  /// Owner row 87 (plan PR 8): the «Горячая линия» add-on row of the card; null = the plan does not offer it.
+  final HotlineAddonDto? hotlineAddon;
 
   Map<String, Object?> toJson() => _$SubscriptionMeDtoToJson(this);
 }

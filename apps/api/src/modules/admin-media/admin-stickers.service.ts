@@ -10,6 +10,11 @@ import {
 } from '../../generated/prisma/client';
 import { randomBytes } from 'node:crypto';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import {
+  type BulkFilterMatch,
+  idsByFilter,
+  NEWEST_FIRST,
+} from '../../common/admin-bulk/bulk-filter';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -69,17 +74,7 @@ export class AdminStickersService {
     q: AdminStickerPacksQueryDto,
   ): Promise<Page<AdminStickerPackRowDto>> {
     const c = q.cursor ? decodeCursor(q.cursor) : undefined;
-    const and: Prisma.StickerPackWhereInput[] = [];
-    if (q.kind) and.push({ is_official: q.kind === 'official' });
-    if (q.status) and.push({ status: q.status });
-    if (q.q) {
-      and.push({
-        OR: [
-          { title: { contains: q.q, mode: 'insensitive' } },
-          { short_name: { contains: q.q, mode: 'insensitive' } },
-        ],
-      });
-    }
+    const and = stickerPacksWhere(q);
     if (c) {
       and.push({
         OR: [
@@ -105,6 +100,23 @@ export class AdminStickersService {
     };
   }
 
+  /** Row 179 B6: the pack ids the list filter matches; [cap] null = all. */
+  async idsByFilter(
+    q: AdminStickerPacksQueryDto,
+    cap: number | null,
+  ): Promise<BulkFilterMatch> {
+    const and = stickerPacksWhere(q);
+    return idsByFilter(
+      (p) =>
+        this.prisma.stickerPack.findMany({
+          where: { AND: and },
+          select: { id: true },
+          orderBy: NEWEST_FIRST,
+          ...p,
+        }),
+      cap,
+    );
+  }
   async get(id: string): Promise<AdminStickerPackDto> {
     const pack = await this.prisma.stickerPack.findFirst({
       where: { id },
@@ -425,4 +437,22 @@ function nameTaken(shortName: string) {
     message: 'A sticker pack with this short name exists.',
     details: { shortName },
   });
+}
+
+/** The packs list's filter (without the paging cursor). */
+function stickerPacksWhere(
+  q: AdminStickerPacksQueryDto,
+): Prisma.StickerPackWhereInput[] {
+  const and: Prisma.StickerPackWhereInput[] = [];
+  if (q.kind) and.push({ is_official: q.kind === 'official' });
+  if (q.status) and.push({ status: q.status });
+  if (q.q) {
+    and.push({
+      OR: [
+        { title: { contains: q.q, mode: 'insensitive' } },
+        { short_name: { contains: q.q, mode: 'insensitive' } },
+      ],
+    });
+  }
+  return and;
 }

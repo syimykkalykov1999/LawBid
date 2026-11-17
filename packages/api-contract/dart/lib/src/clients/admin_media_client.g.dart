@@ -121,7 +121,7 @@ class _AdminMediaClient implements AdminMediaClient {
 
   @override
   Future<AdminBulkResultEnvelope> bulkTakedownAdminVideos({
-    required AdminBulkReasonDto body,
+    required AdminVideosBulkDto body,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -145,6 +145,39 @@ class _AdminMediaClient implements AdminMediaClient {
     late AdminBulkResultEnvelope _value;
     try {
       _value = AdminBulkResultEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<AdminBulkFilterPreviewEnvelope> previewAdminVideosBulk({
+    required AdminVideosBulkPreviewDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<AdminBulkFilterPreviewEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/media/videos/bulk/preview',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late AdminBulkFilterPreviewEnvelope _value;
+    try {
+      _value = AdminBulkFilterPreviewEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -259,7 +292,7 @@ class _AdminMediaClient implements AdminMediaClient {
 
   @override
   Future<AdminBulkResultEnvelope> bulkHideAdminStickerPacks({
-    required AdminBulkReasonDto body,
+    required AdminStickerPacksBulkDto body,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -291,8 +324,41 @@ class _AdminMediaClient implements AdminMediaClient {
   }
 
   @override
+  Future<AdminBulkFilterPreviewEnvelope> previewAdminStickerPacksBulk({
+    required AdminStickerPacksBulkPreviewDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<AdminBulkFilterPreviewEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/media/sticker-packs/bulk/preview',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late AdminBulkFilterPreviewEnvelope _value;
+    try {
+      _value = AdminBulkFilterPreviewEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<AdminBulkResultEnvelope> bulkUnhideAdminStickerPacks({
-    required AdminBulkReasonDto body,
+    required AdminStickerPacksBulkDto body,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};

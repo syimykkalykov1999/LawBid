@@ -4,7 +4,7 @@ import { DownloadSimple, Eye, EyeSlash, FileText, MagnifyingGlass, Plus, Trash, 
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { LoadMore } from '@/components/billing/shared';
-import { BulkBar, PageSelectBox, RowSelectBox, useSelection } from '@/components/bulk/bulk-controls';
+import { BulkBar, bulkData, PageSelectBox, RowSelectBox, useSelection } from '@/components/bulk/bulk-controls';
 import { growthError } from '@/components/growth/errors';
 import { useConfirm } from '@/components/legacy/confirm';
 import { formatBytes, sha256Hex, sleep } from '@/components/media/media-utils';
@@ -20,7 +20,7 @@ import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
-import { collectIds, count, type Noun, resultText, runInBatches } from '@/lib/bulk';
+import { count, type Noun, resultText, runInBatches } from '@/lib/bulk';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { US_STATES } from '@/lib/us-states';
@@ -97,19 +97,10 @@ export function DocumentTemplatesPanel() {
   const { sort, header } = useTableSort(SORT_KEYS, 'templatesSort');
   const serverSort = sort.key === 'downloads' ? ('popular' as const) : undefined;
 
+  // The list's filter; «select all by filter» sends it (row 179 B6).
+  const listQuery = { q: q || undefined, published: status === 'all' ? undefined : status === 'published' };
   const fetchPage = async (cursor: string | undefined) =>
-    (
-      await api.GET('/admin/document-templates', {
-        params: {
-          query: {
-            cursor,
-            q: q || undefined,
-            sort: serverSort,
-            published: status === 'all' ? undefined : status === 'published',
-          },
-        },
-      })
-    ).data!;
+    (await api.GET('/admin/document-templates', { params: { query: { ...listQuery, sort: serverSort, cursor } } })).data!;
   const list = useInfiniteQuery({
     queryKey: ['document-templates', status, q, serverSort],
     initialPageParam: undefined as string | undefined,
@@ -130,9 +121,10 @@ export function DocumentTemplatesPanel() {
   const bulk = useMutation({
     mutationFn: async (action: 'publish' | 'unpublish' | 'delete') => {
       const ids = [...sel.selected];
+      const byFilter = sel.byFilter;
       const verb = action === 'publish' ? 'Опубликовать' : action === 'unpublish' ? 'Снять с публикации' : 'Удалить';
       const ok = await confirm({
-        title: `${verb}: ${count(ids.length, TEMPLATES)}?`,
+        title: `${verb}: ${count(byFilter ? byFilter.count : ids.length, TEMPLATES)}?`,
         description:
           action === 'delete'
             ? 'Шаблоны пропадут из приложения. Копии, которые пользователи уже прикрепили к делам и чатам, останутся.'
@@ -143,11 +135,10 @@ export function DocumentTemplatesPanel() {
         danger: action === 'delete',
       });
       if (!ok) return null;
-      const r = await runInBatches(ids, async (batch) => {
-        const res = await api.POST('/admin/document-templates/bulk', { body: { ids: batch, action } });
-        if (res.error || !res.data) throw res.error ?? new Error('Пустой ответ');
-        return res.data.data;
-      });
+      // Row 179 B6: «all by filter» is one call with the filter.
+      const r = byFilter
+        ? bulkData(await api.POST('/admin/document-templates/bulk', { body: { filter: listQuery, action } }))
+        : await runInBatches(ids, async (batch) => bulkData(await api.POST('/admin/document-templates/bulk', { body: { ids: batch, action } })));
       const done = action === 'publish' ? 'Опубликовано' : action === 'unpublish' ? 'Снято' : 'Удалено';
       return resultText(r, done, TEMPLATES);
     },
@@ -192,20 +183,14 @@ export function DocumentTemplatesPanel() {
       {dialog}
       {canWrite ? (
         <BulkBar
-          selectedCount={sel.selected.size}
+          selectedCount={sel.count}
           noun={TEMPLATES}
           onClear={sel.clear}
-          onSelectAll={async (cap) => {
-            const r = await collectIds(
-              async (c) => {
-                const p = await fetchPage(c);
-                return { data: p.data, nextCursor: p.meta?.nextCursor };
-              },
-              undefined,
-              cap,
-            );
-            sel.replace(r.ids);
-            return r.capped;
+          onSelectAll={async () => {
+            // Row 179 B6: the server counts the filter (no page walk).
+            const p = (await api.POST('/admin/document-templates/bulk/preview', { body: { filter: listQuery } })).data!.data;
+            sel.selectFilter(p);
+            return p.capped;
           }}
         >
           <Button size="sm" variant="soft" disabled={bulk.isPending} onClick={() => bulk.mutate('publish')}>

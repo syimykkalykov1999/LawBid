@@ -28,6 +28,7 @@ import { PartnersService } from '../partners/partners.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { PAYMENT_PROVIDER } from './billing.constants';
 import { PricingService } from './pricing.service';
+import { hotlineAddonSync } from './hotline-addon.logic';
 import {
   PI_TAX_CALCULATION_KEY,
   PI_TAX_CENTS_KEY,
@@ -266,6 +267,11 @@ export class SubscriptionSyncService {
       remote.items && this.pricing
         ? new Set(await this.pricing.allSeatPriceIds())
         : null;
+    // Owner row 87 (plan PR 8): the «Горячая линия» add-on's price ids.
+    const hotlinePriceIds =
+      remote.items && this.pricing
+        ? new Set(await this.pricing.allHotlinePriceIds())
+        : null;
     const row = await withTxRetry(this.prisma, async (tx) => {
       foreignOf = null;
       const local =
@@ -309,6 +315,14 @@ export class SubscriptionSyncService {
             new Date(Date.now() + graceDays * 86_400_000))
           : null;
       const seats = await this.seatSync(tx, local, remote, seatPriceIds);
+      const addon = hotlineAddonSync(
+        local,
+        remote,
+        hotlinePriceIds,
+        typeof seats.price_cents === 'number'
+          ? seats.price_cents
+          : local.price_cents,
+      );
       const updated = await tx.subscription.update({
         where: { id: local.id },
         data: {
@@ -322,6 +336,7 @@ export class SubscriptionSyncService {
           canceled_at: secs(remote.canceledAt),
           grace_ends_at: graceEndsAt,
           ...seats,
+          ...addon,
           ...extra,
         },
       });
@@ -495,6 +510,11 @@ export class SubscriptionSyncService {
       }
       if (!paid) return;
     }
+    // Owner row 87 (plan PR 8): the invoice of a «Горячая линия» add-on
+    // purchase, the same way — unpaid never makes the subscription past_due
+    // (the add-on is simply not added); paid is a payment, and the
+    // subscription event that follows turns the add-on on.
+    if (sub.hotline_addon_invoice_id === invoice.id && !paid) return;
     await this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.upsert({
         where: { stripe_invoice_id: invoice.id },

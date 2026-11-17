@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'contract_grant_info_dto.dart';
+import 'hotline_addon_dto.dart';
 import 'plan_entitlements_dto.dart';
 import 'plan_prices_dto.dart';
 import 'public_plan_dto.dart';
@@ -36,6 +37,7 @@ class SeatChangeResultDto {
     required this.effectiveAt,
     required this.changeId,
     required this.overview,
+    this.hotlineAddon,
   });
 
   factory SeatChangeResultDto.fromJson(Map<String, Object?> json) =>
@@ -56,6 +58,9 @@ class SeatChangeResultDto {
   final List<PublicPlanDto> plans;
   final PlanEntitlementsDto entitlements;
   final SeatSummaryDto? seats;
+
+  /// Owner row 87 (plan PR 8): the «Горячая линия» add-on row of the card; null = the plan does not offer it.
+  final HotlineAddonDto? hotlineAddon;
 
   /// applied = paid and usable now; requires_action = confirm the payment (3-D Secure) with clientSecret, then GET /subscriptions/me; failed = the card was declined, nothing changed; scheduled = fewer seats from effectiveAt (the period end), no refund.
   final SeatChangeResult status;

@@ -24,13 +24,24 @@ describe('staff.anomalies cron job (staff package T11)', () => {
     expect(computeDay).not.toHaveBeenCalled();
   });
 
-  it('on: reads yesterday (UTC) and returns the digest line', async () => {
+  it('on: reads yesterday of the report time zone and returns the digest line', async () => {
     const job = new StaffAnomaliesJob(
       settings({ 'staff.anomalies_enabled': true }),
       svc,
     );
-    const r = await job.run(new Date('2026-10-27T02:25:00Z'));
+    // Row 180 B9: 10:25 UTC is 03:25 in Nevada (the default report zone).
+    const r = await job.run(new Date('2026-10-27T10:25:00Z'));
     expect(computeDay).toHaveBeenCalledWith('2026-10-26');
     expect(r).toMatchObject({ rows: 1, digest: 'line' });
+  });
+
+  it('row 180 B9: the owner zone, not UTC: 02:25 UTC is still the day before in Nevada', async () => {
+    const job = new StaffAnomaliesJob(
+      settings({ 'staff.anomalies_enabled': true }),
+      svc,
+      { string: () => Promise.resolve('America/Los_Angeles') } as never,
+    );
+    await job.run(new Date('2026-10-27T02:25:00Z'));
+    expect(computeDay).toHaveBeenCalledWith('2026-10-25');
   });
 });

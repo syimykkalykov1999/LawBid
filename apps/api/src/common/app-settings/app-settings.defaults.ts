@@ -1288,6 +1288,10 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * the other phone (`call:signal` drops the rest; older apps ignore the
    * policy). Off = pass every signal unchanged (the kill switch). */
   'calls.relay_signal_filter': true,
+  /** Row 216 (owner 17.11, WhatsApp call waiting): a person talking in a
+   * 1:1 call is rung for a second 1:1 call («Decline» / «End & Accept»)
+   * instead of an instant «busy». Off = busy at once, as before. */
+  'calls.call_waiting': true,
   'calls.transport_fail_limit': 5,
   'calls.transport_fail_window_sec': 120,
   /** Phones reporting a dead Cloudflare relay open the breaker when at

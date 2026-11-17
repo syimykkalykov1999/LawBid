@@ -9,13 +9,19 @@ part of 'admin_classify_posts_dto.dart';
 AdminClassifyPostsDto _$AdminClassifyPostsDtoFromJson(
   Map<String, dynamic> json,
 ) => AdminClassifyPostsDto(
-  ids: (json['ids'] as List<dynamic>).map((e) => e as String).toList(),
   contentClass: AdminPostClassAction.fromJson(json['contentClass'] as String),
+  ids: (json['ids'] as List<dynamic>?)?.map((e) => e as String).toList(),
+  filter: json['filter'] == null
+      ? null
+      : AdminContentBulkFilterDto.fromJson(
+          json['filter'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$AdminClassifyPostsDtoToJson(
   AdminClassifyPostsDto instance,
 ) => <String, dynamic>{
-  'ids': instance.ids,
+  'ids': ?instance.ids,
+  'filter': ?instance.filter?.toJson(),
   'contentClass': instance.contentClass.toJson(),
 };

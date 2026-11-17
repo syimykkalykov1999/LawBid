@@ -20,7 +20,7 @@ import { VirtualRows } from '@/components/ui/virtual-rows';
 import { Tabs } from '@/components/ui/tabs';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
-import { collectIds, type Noun } from '@/lib/bulk';
+import type { Noun } from '@/lib/bulk';
 import { useMe } from '@/lib/hooks';
 import { CASE_STATUS, StatusPill } from '@/lib/labels';
 import { can } from '@/lib/rbac';
@@ -61,25 +61,24 @@ export function CaseList() {
   const canWrite = can(me, 'cases', 'manage');
   const sel = useSelection(`${tab}|${q}|${hasReports}|${stateCode}|${withDeadline}`);
   const bulk = useBulkRun();
-  const fetchPage = async (cursor?: string) =>
-    (
-      await api.GET('/admin/cases', {
-        params: {
-          query: {
-            cursor,
-            status: tab === 'all' ? undefined : tab,
-            q: q || undefined,
-            hasReports: hasReports || undefined,
-            stateCode: stateCode || undefined,
-            withDeadline: withDeadline || undefined,
-          },
-        },
-      })
-    ).data!;
+  // The list's filter: the list pages with it, «select all by filter»
+  // sends it as is (row 179 B6: the server resolves the cases).
+  const listQuery = {
+    status: tab === 'all' ? undefined : tab,
+    q: q || undefined,
+    hasReports: hasReports || undefined,
+    stateCode: stateCode || undefined,
+    withDeadline: withDeadline || undefined,
+  };
+  const fetchPage = async (cursor?: string) => (await api.GET('/admin/cases', { params: { query: { ...listQuery, cursor } } })).data!;
   const onBulk = (action: BulkAction) => {
     const t = ACTION_TEXT[action];
     bulk.run({
-      ids: [...sel.selected],
+      ids: sel.byFilter ? [] : [...sel.selected],
+      count: sel.byFilter?.count,
+      sendAll: sel.byFilter
+        ? async (reason) => bulkData(await api.POST('/admin/cases/bulk', { body: { action, filter: listQuery, reason } }))
+        : undefined,
       verb: t.verb,
       doneVerb: t.done,
       noun: CASES,
@@ -153,26 +152,20 @@ export function CaseList() {
             <Switch checked={withDeadline} onChange={setWithDeadline} label="С датой (суд, срок подачи)" />
             С датой (суд, срок подачи)
           </label>
-          <CsvButton entity="cases" query={{ q, status: tab === 'all' ? undefined : tab, stateCode }} />
+          <CsvButton entity="cases" query={{ q, status: tab === 'all' ? undefined : tab, stateCode, hasReports, withDeadline }} />
         </div>
       </div>
       {bulk.dialog}
       {canWrite ? (
         <BulkBar
-          selectedCount={sel.selected.size}
+          selectedCount={sel.count}
           noun={CASES}
           onClear={sel.clear}
-          onSelectAll={async (cap) => {
-            const r = await collectIds(
-              async (c) => {
-                const p = await fetchPage(c);
-                return { data: p.data, nextCursor: p.meta?.nextCursor };
-              },
-              undefined,
-              cap,
-            );
-            sel.replace(r.ids);
-            return r.capped;
+          onSelectAll={async () => {
+            // Row 179 B6: the server counts the filter (no page walk).
+            const p = (await api.POST('/admin/cases/bulk/preview', { body: { filter: listQuery } })).data!.data;
+            sel.selectFilter(p);
+            return p.capped;
           }}
         >
           {(Object.keys(ACTION_TEXT) as BulkAction[]).map((a) => {
