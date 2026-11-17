@@ -2610,6 +2610,7 @@
   "group.picker.done": "Tayyor ({count})",
   "group.picker.doneNone": "Tayyor",
   "group.picker.empty": "Avval kimdir bilan chat boshlang, keyin uni shu yerga qo'sha olasiz. Yoki guruh havolasini ulashing.",
+  "group.picker.frequent": "Tez-tez bog‘lanadiganlar",
   "group.picker.noMatch": "Hech kim topilmadi",
   "group.picker.remove": "Olib tashlash",
   "group.picker.search": "Qidirish",

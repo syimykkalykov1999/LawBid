@@ -2610,6 +2610,7 @@
   "group.picker.done": "Concluir ({count})",
   "group.picker.doneNone": "Concluir",
   "group.picker.empty": "Comece uma conversa com alguém primeiro; depois poderá adicioná-lo aqui. Ou compartilhe o link do grupo.",
+  "group.picker.frequent": "Contatos frequentes",
   "group.picker.noMatch": "Ninguém encontrado",
   "group.picker.remove": "Remover",
   "group.picker.search": "Buscar",

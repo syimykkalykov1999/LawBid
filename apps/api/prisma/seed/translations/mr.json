@@ -2610,6 +2610,7 @@
   "group.picker.done": "पूर्ण ({count})",
   "group.picker.doneNone": "पूर्ण",
   "group.picker.empty": "आधी एखाद्याशी चॅट सुरू करा, मग तुम्ही त्यांना येथे जोडू शकता. किंवा ग्रुपची लिंक शेअर करा.",
+  "group.picker.frequent": "वारंवार संपर्क",
   "group.picker.noMatch": "कोणीही सापडले नाही",
   "group.picker.remove": "काढा",
   "group.picker.search": "शोधा",

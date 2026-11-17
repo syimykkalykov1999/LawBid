@@ -2610,6 +2610,7 @@
   "group.picker.done": "Тайёр ({count})",
   "group.picker.doneNone": "Тайёр",
   "group.picker.empty": "Аввал бо касе чат оғоз кунед, баъд ӯро дар ин ҷо илова карда метавонед. Ё ҳаволаи гурӯҳро фиристед.",
+  "group.picker.frequent": "Тамосҳои зуд-зуд",
   "group.picker.noMatch": "Касе ёфт нашуд",
   "group.picker.remove": "Хориҷ кардан",
   "group.picker.search": "Ҷустуҷӯ",

@@ -2610,6 +2610,7 @@
   "group.picker.done": "بشپړ ({count})",
   "group.picker.doneNone": "بشپړ",
   "group.picker.empty": "لومړی له چا سره چیټ پیل کړئ، بیا یې دلته زیاتولی شئ. یا د ګروپ لینک شریک کړئ.",
+  "group.picker.frequent": "ډېر اړیکه نیول شوي",
   "group.picker.noMatch": "هیڅوک ونه موندل شول",
   "group.picker.remove": "لرې کړئ",
   "group.picker.search": "لټون",

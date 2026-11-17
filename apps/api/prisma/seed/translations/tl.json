@@ -2610,6 +2610,7 @@
   "group.picker.done": "Tapos na ({count})",
   "group.picker.doneNone": "Tapos na",
   "group.picker.empty": "Magsimula muna ng chat sa isang tao, saka mo siya maidaragdag dito. O ibahagi ang link ng grupo.",
+  "group.picker.frequent": "Madalas kausap",
   "group.picker.noMatch": "Walang nahanap",
   "group.picker.remove": "Alisin",
   "group.picker.search": "Maghanap",

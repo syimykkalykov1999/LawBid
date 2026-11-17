@@ -2610,6 +2610,7 @@
   "group.picker.done": "تم ({count})",
   "group.picker.doneNone": "تم",
   "group.picker.empty": "ابدأ محادثة مع شخص أولاً، ثم يمكنك إضافته هنا. أو شارك رابط المجموعة.",
+  "group.picker.frequent": "جهات اتصال متكررة",
   "group.picker.noMatch": "لم يتم العثور على أحد",
   "group.picker.remove": "إزالة",
   "group.picker.search": "بحث",

@@ -2610,6 +2610,7 @@
   "group.picker.done": "हो गया ({count})",
   "group.picker.doneNone": "हो गया",
   "group.picker.empty": "पहले किसी के साथ चैट शुरू करें, फिर आप उन्हें यहाँ जोड़ सकते हैं। या ग्रुप लिंक शेयर करें।",
+  "group.picker.frequent": "अक्सर संपर्क",
   "group.picker.noMatch": "कोई नहीं मिला",
   "group.picker.remove": "हटाएँ",
   "group.picker.search": "खोजें",

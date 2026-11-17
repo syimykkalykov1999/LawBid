@@ -2610,6 +2610,7 @@
   "group.picker.done": "Gati ({count})",
   "group.picker.doneNone": "Gati",
   "group.picker.empty": "Fillo fillimisht një bisedë me dikë, pastaj mund ta shtosh këtu. Ose ndaje lidhjen e grupit.",
+  "group.picker.frequent": "Kontakte të shpeshta",
   "group.picker.noMatch": "Nuk u gjet askush",
   "group.picker.remove": "Hiq",
   "group.picker.search": "Kërko",

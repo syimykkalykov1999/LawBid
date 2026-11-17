@@ -2610,6 +2610,7 @@
   "group.picker.done": "סיום ({count})",
   "group.picker.doneNone": "סיום",
   "group.picker.empty": "קודם פתחו צ'אט עם מישהו, ואז אפשר להוסיף אותו כאן. או שתפו את קישור הקבוצה.",
+  "group.picker.frequent": "אנשי קשר תכופים",
   "group.picker.noMatch": "לא נמצא אף אחד",
   "group.picker.remove": "הסרה",
   "group.picker.search": "חיפוש",

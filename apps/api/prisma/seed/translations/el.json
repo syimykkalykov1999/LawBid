@@ -2610,6 +2610,7 @@
   "group.picker.done": "Τέλος ({count})",
   "group.picker.doneNone": "Τέλος",
   "group.picker.empty": "Ξεκινήστε πρώτα μια συνομιλία με κάποιον και μετά μπορείτε να τον προσθέσετε εδώ. Ή μοιραστείτε τον σύνδεσμο της ομάδας.",
+  "group.picker.frequent": "Συχνές επαφές",
   "group.picker.noMatch": "Δεν βρέθηκε κανείς",
   "group.picker.remove": "Αφαίρεση",
   "group.picker.search": "Αναζήτηση",

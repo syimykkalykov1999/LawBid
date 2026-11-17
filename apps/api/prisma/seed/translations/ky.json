@@ -2610,6 +2610,7 @@
   "group.picker.done": "Даяр ({count})",
   "group.picker.doneNone": "Даяр",
   "group.picker.empty": "Адегенде бирөө менен чат баштаңыз, анан аны ушул жерден кошо аласыз. Же топтун шилтемесин бөлүшүңүз.",
+  "group.picker.frequent": "Көп байланышкандар",
   "group.picker.noMatch": "Эч ким табылган жок",
   "group.picker.remove": "Алып салуу",
   "group.picker.search": "Издөө",

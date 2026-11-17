@@ -2610,6 +2610,7 @@
   "group.picker.done": "Gorffen ({count})",
   "group.picker.doneNone": "Gorffen",
   "group.picker.empty": "Dechreuwch sgwrs gyda rhywun yn gyntaf, yna gallwch eu hychwanegu yma. Neu rhannwch ddolen y grŵp.",
+  "group.picker.frequent": "Cysylltu'n aml",
   "group.picker.noMatch": "Heb ddod o hyd i neb",
   "group.picker.remove": "Tynnu",
   "group.picker.search": "Chwilio",

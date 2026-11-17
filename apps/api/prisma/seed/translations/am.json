@@ -2610,6 +2610,7 @@
   "group.picker.done": "ተጠናቀቀ ({count})",
   "group.picker.doneNone": "ተጠናቀቀ",
   "group.picker.empty": "መጀመሪያ ከሰው ጋር ውይይት ይጀምሩ፤ ከዚያ እዚህ ማከል ይችላሉ። ወይም የቡድኑን አገናኝ ያጋሩ።",
+  "group.picker.frequent": "ብዙ ጊዜ የሚገናኙት",
   "group.picker.noMatch": "ማንም አልተገኘም",
   "group.picker.remove": "አስወግድ",
   "group.picker.search": "ፈልግ",

@@ -2610,6 +2610,7 @@
   "group.picker.done": "Fine ({count})",
   "group.picker.doneNone": "Fine",
   "group.picker.empty": "Prima avvia una chat con qualcuno, poi potrai aggiungerlo qui. Oppure condividi il link del gruppo.",
+  "group.picker.frequent": "Contatti frequenti",
   "group.picker.noMatch": "Nessun risultato",
   "group.picker.remove": "Rimuovi",
   "group.picker.search": "Cerca",

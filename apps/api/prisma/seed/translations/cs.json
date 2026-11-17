@@ -2610,6 +2610,7 @@
   "group.picker.done": "Hotovo ({count})",
   "group.picker.doneNone": "Hotovo",
   "group.picker.empty": "Nejdřív s někým zahajte chat, pak ho tu můžete přidat. Nebo sdílejte odkaz na skupinu.",
+  "group.picker.frequent": "Časté kontakty",
   "group.picker.noMatch": "Nikdo nenalezen",
   "group.picker.remove": "Odebrat",
   "group.picker.search": "Hledat",

@@ -2610,6 +2610,7 @@
   "group.picker.done": "Bitti ({count})",
   "group.picker.doneNone": "Bitti",
   "group.picker.empty": "Önce biriyle sohbet başlat, sonra onu buraya ekleyebilirsin. Ya da grup bağlantısını paylaş.",
+  "group.picker.frequent": "Sık iletişim kurulanlar",
   "group.picker.noMatch": "Kimse bulunamadı",
   "group.picker.remove": "Kaldır",
   "group.picker.search": "Ara",

@@ -2610,6 +2610,7 @@
   "group.picker.done": "Гатова ({count})",
   "group.picker.doneNone": "Гатова",
   "group.picker.empty": "Спачатку пачніце чат з кімсьці, потым можна будзе дадаць яго сюды. Або падзяліцеся спасылкай на групу.",
+  "group.picker.frequent": "Часта зносіцеся",
   "group.picker.noMatch": "Нікога не знойдзена",
   "group.picker.remove": "Прыбраць",
   "group.picker.search": "Пошук",

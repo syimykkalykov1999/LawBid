@@ -2610,6 +2610,7 @@
   "group.picker.done": "ಮುಗಿಯಿತು ({count})",
   "group.picker.doneNone": "ಮುಗಿಯಿತು",
   "group.picker.empty": "ಮೊದಲು ಯಾರೊಂದಿಗಾದರೂ ಚಾಟ್ ಆರಂಭಿಸಿ, ನಂತರ ಅವರನ್ನು ಇಲ್ಲಿ ಸೇರಿಸಬಹುದು. ಅಥವಾ ಗುಂಪಿನ ಲಿಂಕ್ ಹಂಚಿಕೊಳ್ಳಿ.",
+  "group.picker.frequent": "ಆಗಾಗ್ಗೆ ಸಂಪರ್ಕಿಸಿದವರು",
   "group.picker.noMatch": "ಯಾರೂ ಸಿಗಲಿಲ್ಲ",
   "group.picker.remove": "ತೆಗೆಯಿರಿ",
   "group.picker.search": "ಹುಡುಕಿ",

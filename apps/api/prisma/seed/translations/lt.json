@@ -2610,6 +2610,7 @@
   "group.picker.done": "Gerai ({count})",
   "group.picker.doneNone": "Gerai",
   "group.picker.empty": "Pirmiausia pradėkite pokalbį su žmogumi, tada galėsite jį čia pridėti. Arba pasidalykite grupės nuoroda.",
+  "group.picker.frequent": "Dažni kontaktai",
   "group.picker.noMatch": "Nieko nerasta",
   "group.picker.remove": "Pašalinti",
   "group.picker.search": "Paieška",

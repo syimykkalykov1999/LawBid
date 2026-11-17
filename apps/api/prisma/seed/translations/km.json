@@ -2610,6 +2610,7 @@
   "group.picker.done": "រួចរាល់ ({count})",
   "group.picker.doneNone": "រួចរាល់",
   "group.picker.empty": "សូមចាប់ផ្តើមជជែកជាមួយនរណាម្នាក់សិន ទើបអ្នកអាចបន្ថែមពួកគេនៅទីនេះ។ ឬចែករំលែកតំណក្រុម។",
+  "group.picker.frequent": "ទំនាក់ទំនងញឹកញាប់",
   "group.picker.noMatch": "រកមិនឃើញនរណាទេ",
   "group.picker.remove": "ដកចេញ",
   "group.picker.search": "ស្វែងរក",

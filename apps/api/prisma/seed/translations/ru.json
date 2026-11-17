@@ -2610,6 +2610,7 @@
   "group.picker.done": "Готово ({count})",
   "group.picker.doneNone": "Готово",
   "group.picker.empty": "Сначала начните чат с человеком — тогда его можно добавить сюда. Или поделитесь ссылкой на группу.",
+  "group.picker.frequent": "Часто общаетесь",
   "group.picker.noMatch": "Никого не найдено",
   "group.picker.remove": "Убрать",
   "group.picker.search": "Поиск",

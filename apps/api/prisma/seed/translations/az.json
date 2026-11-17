@@ -2610,6 +2610,7 @@
   "group.picker.done": "Hazırdır ({count})",
   "group.picker.doneNone": "Hazırdır",
   "group.picker.empty": "Əvvəlcə kiminləsə çat başladın, sonra onu bura əlavə edə bilərsiniz. Və ya qrupun linkini paylaşın.",
+  "group.picker.frequent": "Tez-tez ünsiyyət",
   "group.picker.noMatch": "Heç kim tapılmadı",
   "group.picker.remove": "Sil",
   "group.picker.search": "Axtar",

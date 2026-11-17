@@ -2610,6 +2610,7 @@
   "group.picker.done": "Gotovo ({count})",
   "group.picker.doneNone": "Gotovo",
   "group.picker.empty": "Prvo započni chat s nekim, pa ga možeš dodati ovdje. Ili podijeli link grupe.",
+  "group.picker.frequent": "Česti kontakti",
   "group.picker.noMatch": "Niko nije pronađen",
   "group.picker.remove": "Ukloni",
   "group.picker.search": "Pretraga",

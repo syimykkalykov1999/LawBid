@@ -2610,6 +2610,7 @@
   "group.picker.done": "Дайын ({count})",
   "group.picker.doneNone": "Дайын",
   "group.picker.empty": "Алдымен біреумен чат бастаңыз, сонда оны осында қоса аласыз. Немесе топ сілтемесімен бөлісіңіз.",
+  "group.picker.frequent": "Жиі хабарласатындар",
   "group.picker.noMatch": "Ешкім табылмады",
   "group.picker.remove": "Алып тастау",
   "group.picker.search": "Іздеу",

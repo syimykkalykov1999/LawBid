@@ -2610,6 +2610,7 @@
   "group.picker.done": "เสร็จสิ้น ({count})",
   "group.picker.doneNone": "เสร็จสิ้น",
   "group.picker.empty": "เริ่มแชตกับใครสักคนก่อน แล้วจึงเพิ่มที่นี่ได้ หรือแชร์ลิงก์กลุ่ม",
+  "group.picker.frequent": "ติดต่อบ่อย",
   "group.picker.noMatch": "ไม่พบใคร",
   "group.picker.remove": "นำออก",
   "group.picker.search": "ค้นหา",

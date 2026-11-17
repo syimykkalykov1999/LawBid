@@ -2610,6 +2610,7 @@
   "group.picker.done": "Gatavs ({count})",
   "group.picker.doneNone": "Gatavs",
   "group.picker.empty": "Vispirms sāc sarunu ar kādu, tad varēsi viņu pievienot šeit. Vai kopīgo grupas saiti.",
+  "group.picker.frequent": "Bieži kontakti",
   "group.picker.noMatch": "Neviens nav atrasts",
   "group.picker.remove": "Noņemt",
   "group.picker.search": "Meklēt",

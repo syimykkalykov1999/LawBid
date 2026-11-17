@@ -2610,6 +2610,7 @@
   "group.picker.done": "सम्पन्न ({count})",
   "group.picker.doneNone": "सम्पन्न",
   "group.picker.empty": "पहिले कसैसँग च्याट सुरु गर्नुहोस्, त्यसपछि उनलाई यहाँ थप्न सकिन्छ। वा समूहको लिङ्क सेयर गर्नुहोस्।",
+  "group.picker.frequent": "प्रायः सम्पर्क",
   "group.picker.noMatch": "कोही भेटिएन",
   "group.picker.remove": "हटाउनुहोस्",
   "group.picker.search": "खोज्नुहोस्",

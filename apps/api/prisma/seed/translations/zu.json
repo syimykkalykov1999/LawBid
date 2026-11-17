@@ -2610,6 +2610,7 @@
   "group.picker.done": "Kwenziwe ({count})",
   "group.picker.doneNone": "Kwenziwe",
   "group.picker.empty": "Qala ingxoxo nomuntu kuqala, bese ungamengeza lapha. Noma yabelana ngesixhumanisi seqembu.",
+  "group.picker.frequent": "Oxhumana nabo njalo",
   "group.picker.noMatch": "Akutholakalanga muntu",
   "group.picker.remove": "Susa",
   "group.picker.search": "Sesha",

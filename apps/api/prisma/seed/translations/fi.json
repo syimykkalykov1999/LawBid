@@ -2610,6 +2610,7 @@
   "group.picker.done": "Valmis ({count})",
   "group.picker.doneNone": "Valmis",
   "group.picker.empty": "Aloita ensin keskustelu jonkun kanssa, niin voit lisätä hänet tänne. Tai jaa ryhmän linkki.",
+  "group.picker.frequent": "Usein yhteydessä",
   "group.picker.noMatch": "Ketään ei löytynyt",
   "group.picker.remove": "Poista",
   "group.picker.search": "Haku",

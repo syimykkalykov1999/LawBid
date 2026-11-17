@@ -2610,6 +2610,7 @@
   "group.picker.done": "ਹੋ ਗਿਆ ({count})",
   "group.picker.doneNone": "ਹੋ ਗਿਆ",
   "group.picker.empty": "ਪਹਿਲਾਂ ਕਿਸੇ ਨਾਲ ਚੈਟ ਸ਼ੁਰੂ ਕਰੋ, ਫਿਰ ਉਨ੍ਹਾਂ ਨੂੰ ਇੱਥੇ ਜੋੜ ਸਕੋਗੇ। ਜਾਂ ਗਰੁੱਪ ਦਾ ਲਿੰਕ ਸਾਂਝਾ ਕਰੋ।",
+  "group.picker.frequent": "ਅਕਸਰ ਸੰਪਰਕ",
   "group.picker.noMatch": "ਕੋਈ ਨਹੀਂ ਮਿਲਿਆ",
   "group.picker.remove": "ਹਟਾਓ",
   "group.picker.search": "ਖੋਜੋ",

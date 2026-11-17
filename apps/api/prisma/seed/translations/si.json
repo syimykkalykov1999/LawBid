@@ -2610,6 +2610,7 @@
   "group.picker.done": "අවසන් ({count})",
   "group.picker.doneNone": "අවසන්",
   "group.picker.empty": "මුලින් කිසිවෙකු සමඟ චැට් එකක් අරඹන්න, පසුව ඔහුව මෙහි එක් කළ හැක. නැතහොත් කණ්ඩායම් සබැඳිය බෙදාගන්න.",
+  "group.picker.frequent": "නිතර සම්බන්ධ වූ",
   "group.picker.noMatch": "කිසිවෙකු හමු නොවීය",
   "group.picker.remove": "ඉවත් කරන්න",
   "group.picker.search": "සොයන්න",

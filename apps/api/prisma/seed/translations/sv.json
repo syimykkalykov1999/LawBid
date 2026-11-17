@@ -2610,6 +2610,7 @@
   "group.picker.done": "Klar ({count})",
   "group.picker.doneNone": "Klar",
   "group.picker.empty": "Starta först en chatt med någon, sedan kan du lägga till personen här. Eller dela gruppens länk.",
+  "group.picker.frequent": "Ofta kontaktade",
   "group.picker.noMatch": "Ingen hittades",
   "group.picker.remove": "Ta bort",
   "group.picker.search": "Sök",

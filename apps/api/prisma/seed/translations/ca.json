@@ -2610,6 +2610,7 @@
   "group.picker.done": "Fet ({count})",
   "group.picker.doneNone": "Fet",
   "group.picker.empty": "Primer inicia un xat amb algú i després podràs afegir-lo aquí. O comparteix l'enllaç del grup.",
+  "group.picker.frequent": "Contactes freqüents",
   "group.picker.noMatch": "No s'ha trobat ningú",
   "group.picker.remove": "Elimina",
   "group.picker.search": "Cerca",
