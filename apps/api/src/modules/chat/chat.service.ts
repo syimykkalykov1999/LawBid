@@ -23,6 +23,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   Inject,
@@ -104,6 +105,7 @@ import {
   unsupportedInTarget,
 } from '../../common/forward/forward-content';
 
+const giftUndoLog = new Logger('ChatGiftUndo');
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
 const CATCH_UP_MAX = 100;
@@ -1484,6 +1486,26 @@ export class ChatService {
       };
     };
     const prepared = prepare(conv.contacts_unlocked);
+    // Verifier 17.11 (two databases): the gift's charge commits on the
+    // primary database before the message commits on its own. Every gift
+    // charged by an attempt of the transaction below is listed here; any of
+    // them the stored message does not carry (the write failed, or a retry
+    // charged again) is paid back (StarsService.undoGift) — a saga with
+    // compensation. One database: the charge is in the same transaction and
+    // rolls back with it; the undo then finds nothing.
+    const giftSends: string[] = [];
+    const undoGifts = async (keep: string | null) => {
+      for (const sendId of giftSends) {
+        if (sendId === keep) continue;
+        await this.stars
+          .undoGift(sendId)
+          .catch((err: unknown) =>
+            giftUndoLog.error(
+              `gift ${sendId} not paid back (alert=gift_undo_failed): ${String(err)}`,
+            ),
+          );
+      }
+    };
     let message: Message;
     try {
       message = await withTxRetry(
@@ -1526,6 +1548,7 @@ export class ChatService {
                 note: p.giftNote,
               })
             : null;
+          if (given) giftSends.push(given.send.id);
           // Audit #6: the id was chosen above, the sealed bodies are bound to it.
           const m = await tx.message.create({
             data: {
@@ -1579,6 +1602,7 @@ export class ChatService {
         },
       );
     } catch (error) {
+      await undoGifts(null);
       // Nothing was stored (or a retry's own request delivers): no effects owed.
       await this.clearEffectsPending(pending);
       // A concurrent retry with the same clientMessageId won the insert.
@@ -1598,6 +1622,9 @@ export class ChatService {
       }
       throw error;
     }
+    // A retried attempt charged again: only the gift the message carries
+    // stays paid.
+    if (giftSends.length > 1) await undoGifts(message.gift_send_id);
 
     // OQ-054: the client writing in their case's chat is their own action
     // on that case (the attorney writing never is).
