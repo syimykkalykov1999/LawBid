@@ -28,6 +28,9 @@ describe('Firm team on a bid (e2e)', () => {
   let redis: Redis;
   let flags: FeatureFlagsService;
   let base = '';
+  // KE 94: shared switches go back to what they were before this suite.
+  let dealRecordBefore: { value: unknown } | null = null;
+  let firmsBefore: { enabled: boolean } | null = null;
 
   async function setFlag(enabled: boolean) {
     await prisma.featureFlag.upsert({
@@ -63,6 +66,14 @@ describe('Firm team on a bid (e2e)', () => {
       create: { code: 'IL', name: 'IL', is_active: true },
       update: {},
     });
+    dealRecordBefore = await prisma.appConfig.findUnique({
+      where: { key: 'deal_record.enabled' },
+      select: { value: true },
+    });
+    firmsBefore = await prisma.featureFlag.findUnique({
+      where: { key: 'firm_profiles' },
+      select: { enabled: true },
+    });
     // The plain accept (the deal-record path calls the same acceptInTx).
     await prisma.appConfig.upsert({
       where: { key: 'deal_record.enabled' },
@@ -74,10 +85,17 @@ describe('Firm team on a bid (e2e)', () => {
   });
 
   afterAll(async () => {
-    await setFlag(false);
-    await prisma.appConfig.deleteMany({
-      where: { key: 'deal_record.enabled' },
-    });
+    await setFlag(firmsBefore?.enabled ?? false);
+    if (dealRecordBefore) {
+      await prisma.appConfig.update({
+        where: { key: 'deal_record.enabled' },
+        data: { value: dealRecordBefore.value as never },
+      });
+    } else {
+      await prisma.appConfig.deleteMany({
+        where: { key: 'deal_record.enabled' },
+      });
+    }
     await redis.del('config:app_config');
     await app.close();
   });
